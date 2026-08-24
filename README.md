@@ -1,5 +1,7 @@
 # Ravo
 
+[![CI](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml/badge.svg)](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml)
+
 Ravo is a cross-platform photo library and RAW-oriented editor. The current
 product slice creates a local SQLite catalog, imports JPEG/PNG/TIFF/RAW by
 reference, and browses them in Ravo Studio.
@@ -20,6 +22,18 @@ cmake --build --preset mac_clang_debug
 
 Windows uses `win_msvc_debug` / `win_msvc_release`. Linux uses `linux_clang_*`.
 FreeCM Config/Build/Run/Test call the same cmake preset commands.
+
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the same Ravo path on macOS,
+Ubuntu, and Windows: FreeCM `--init` / `--update`, `cmake --preset *-debug
+-DBUILD_TESTING=ON`, build, and `ctest`. Frozen `legacy/` is not configured or
+built.
+
+The workflow writes a gitignored `source_roots.lock.jsonc` with runner Qt/host
+prefixes and rewrites the GeoControls SSH remote to HTTPS. GeoControls is public
+today; if it becomes private, add a `GEOCONTROLS_TOKEN` repository secret with
+`contents:read`.
 
 Studio after a macOS Debug build:
 

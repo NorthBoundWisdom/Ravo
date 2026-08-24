@@ -262,6 +262,7 @@ Window {
                     required property bool rejected
                     required property url thumbnailUrl
                     required property string thumbnailState
+                    required property string importState
                     width: grid.cellWidth
                     height: grid.cellHeight
 
@@ -289,7 +290,8 @@ Window {
                             anchors.centerIn: parent
                             visible: thumbnailUrl.toString().length === 0
                             text: thumbnailState === "failed" ? qsTr("Failed") :
-                                  (thumbnailState === "missing" ? qsTr("Missing") : qsTr("Loading…"))
+                                  (importState === "missing" || thumbnailState === "missing" ?
+                                   qsTr("Missing") : qsTr("Loading…"))
                             color: Theme.placeholderTextColor
                         }
 
@@ -310,6 +312,23 @@ Window {
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
                             anchors.margins: Fonts.size6
+                        }
+
+                        Rectangle {
+                            visible: importState === "missing" || thumbnailState === "missing"
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.margins: Fonts.size6
+                            width: 58
+                            height: 18
+                            radius: 4
+                            color: "#c47b16"
+                            CustomLabel {
+                                anchors.centerIn: parent
+                                text: qsTr("Missing")
+                                color: "#ffffff"
+                                font.pixelSize: Fonts.size10
+                            }
                         }
 
                         Rectangle {
@@ -432,8 +451,27 @@ Window {
                     CustomLabel {
                         anchors.centerIn: parent
                         visible: previewImage.source.toString().length === 0 && !studio.previewLoading
-                        text: studio.catalogOpen ? qsTr("Select a photo to inspect.") : qsTr("Create or open a library.")
+                        text: studio.selectedImportState === "missing" ? qsTr("Original file is missing.") :
+                              (studio.catalogOpen ? qsTr("Select a photo to inspect.") : qsTr("Create or open a library."))
                         color: Theme.placeholderTextColor
+                    }
+
+                    Rectangle {
+                        visible: studio.selectedImportState === "missing"
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.margins: Fonts.size8
+                        width: 86
+                        height: 22
+                        radius: 4
+                        color: "#c47b16"
+                        z: 2
+                        CustomLabel {
+                            anchors.centerIn: parent
+                            text: qsTr("Missing file")
+                            color: "#ffffff"
+                            font.pixelSize: Fonts.size12
+                        }
                     }
                 }
 
@@ -449,6 +487,8 @@ Window {
                     delegate: Item {
                         required property string assetId
                         required property url thumbnailUrl
+                        required property string importState
+                        required property string thumbnailState
                         width: 88
                         height: 84
                         Component.onCompleted: studio.ensureThumbnail(assetId)
@@ -464,6 +504,16 @@ Window {
                                 asynchronous: true
                                 cache: false
                                 source: thumbnailUrl
+                            }
+                            Rectangle {
+                                visible: importState === "missing" || thumbnailState === "missing"
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.margins: 4
+                                width: 10
+                                height: 10
+                                radius: 5
+                                color: "#c47b16"
                             }
                             MouseArea {
                                 anchors.fill: parent

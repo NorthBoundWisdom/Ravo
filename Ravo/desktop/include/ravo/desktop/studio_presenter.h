@@ -54,6 +54,7 @@ public:
     void setAssets(std::vector<AssetRecord> assets);
     void setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state);
     void updateAsset(const AssetRecord &asset);
+    void markOriginalMissing(const std::string &asset_id);
     [[nodiscard]] int indexOf(const QString &asset_id) const;
     [[nodiscard]] std::optional<AssetRecord> assetById(const QString &asset_id) const;
     [[nodiscard]] QString assetIdAt(int row) const;
@@ -77,6 +78,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int selectedRating READ selectedRating NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedColorLabel READ selectedColorLabel NOTIFY selectionChanged)
     Q_PROPERTY(bool selectedRejected READ selectedRejected NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedImportState READ selectedImportState NOTIFY selectionChanged)
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
@@ -112,6 +114,7 @@ public:
     [[nodiscard]] int selectedRating() const;
     [[nodiscard]] QString selectedColorLabel() const;
     [[nodiscard]] bool selectedRejected() const noexcept;
+    [[nodiscard]] QString selectedImportState() const;
     [[nodiscard]] QUrl previewUrl() const;
     [[nodiscard]] bool previewLoading() const noexcept;
     [[nodiscard]] QString browseMode() const;

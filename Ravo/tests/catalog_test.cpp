@@ -282,6 +282,34 @@ TEST_F(CatalogServiceTest, MissingAndUnsupportedInputsDoNotCreateReadyAssets)
     EXPECT_TRUE(listed.value().empty());
 }
 
+TEST_F(CatalogServiceTest, MissingOriginalIsAssetStateNotPreviewFailureWhenCacheExists)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+
+    const auto jpeg_path = (root / "gone.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(QColor(40, 80, 20));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(std::filesystem::remove(jpeg_path));
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    auto previewed = service->request_preview(preview);
+    ASSERT_TRUE(previewed) << previewed.error().message;
+    EXPECT_TRUE(previewed.value().original_missing);
+    EXPECT_TRUE(std::filesystem::exists(previewed.value().cache_path));
+
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().import_state, kImportStateMissing);
+}
+
 TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 {
     auto created = open_service(true);

@@ -168,6 +168,7 @@ struct PreviewResult
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::string cache_key;
+    bool original_missing = false;
 };
 
 struct RasterInfo

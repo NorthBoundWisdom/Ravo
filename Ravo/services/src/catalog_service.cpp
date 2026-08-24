@@ -551,22 +551,30 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
         return location.error();
     }
     std::error_code exists_error;
-    if (!std::filesystem::is_regular_file(
-            std::filesystem::path(std::u8string(location.value().path.begin(),
-                                                location.value().path.end())),
-            exists_error) ||
-        exists_error)
+    const bool original_exists = std::filesystem::is_regular_file(
+                                     std::filesystem::path(std::u8string(location.value().path.begin(),
+                                                                         location.value().path.end())),
+                                     exists_error) &&
+                                 !exists_error;
+    AssetRecord working = asset;
+    if (!original_exists)
     {
-        LOG_ERROR(ravo::logger(),
-                  "original file missing asset={} uri={} path={} filesystem_error={}", asset.id,
-                  asset.normalized_uri, location.value().path, exists_error.message());
-        AssetRecord missing = asset;
-        missing.import_state = std::string(kImportStateMissing);
-        missing.error_code = std::string(error_code_name(ErrorCode::kNotFound));
-        missing.error_message = "Original file is missing";
-        static_cast<void>(repository_->update_asset(missing));
-        return make_error(ErrorCode::kNotFound, "Original file is missing",
-                          {{"path", location.value().path}, {"asset_id", asset.id}});
+        if (working.import_state != kImportStateMissing)
+        {
+            LOG_INFO(ravo::logger(), "original file missing asset={} path={}", asset.id,
+                     location.value().path);
+            working.import_state = std::string(kImportStateMissing);
+            working.error_code = std::string(error_code_name(ErrorCode::kNotFound));
+            working.error_message = "Original file is missing";
+            static_cast<void>(repository_->update_asset(working));
+        }
+    }
+    else if (working.import_state == kImportStateMissing)
+    {
+        working.import_state = std::string(kImportStateImported);
+        working.error_code.reset();
+        working.error_message.reset();
+        static_cast<void>(repository_->update_asset(working));
     }
 
     const auto source_width = asset.width.value_or(0);
@@ -587,6 +595,7 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
     result.asset_id = asset.id;
     result.request_revision = request_revision;
     result.cache_key = cache_key;
+    result.original_missing = !original_exists;
 
     if (existing.value())
     {
@@ -603,6 +612,12 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
         record.last_success_unix_ms = now_unix_ms();
         static_cast<void>(repository_->upsert_preview(record));
         return result;
+    }
+
+    if (!original_exists)
+    {
+        return make_error(ErrorCode::kNotFound, "Original file is missing",
+                          {{"path", location.value().path}, {"asset_id", asset.id}});
     }
 
     if (is_raster_media_type(asset.media_type))

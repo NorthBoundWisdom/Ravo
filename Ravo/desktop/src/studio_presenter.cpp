@@ -260,6 +260,20 @@ void AssetListModel::updateAsset(const AssetRecord &asset)
     emit dataChanged(model_index, model_index);
 }
 
+void AssetListModel::markOriginalMissing(const std::string &asset_id)
+{
+    const auto row = indexOf(qstring_from_utf8(asset_id));
+    if (row < 0)
+    {
+        return;
+    }
+    auto &asset = assets_[static_cast<std::size_t>(row)];
+    asset.import_state = std::string(kImportStateMissing);
+    thumbnail_states_[asset_id] = QStringLiteral("missing");
+    const auto model_index = index(row, 0);
+    emit dataChanged(model_index, model_index, {ImportStateRole, ThumbnailStateRole});
+}
+
 int AssetListModel::indexOf(const QString &asset_id) const
 {
     const auto id = utf8_from_qstring(asset_id);
@@ -392,6 +406,12 @@ bool StudioPresenter::selectedRejected() const noexcept
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     return asset && asset->review.rejected;
+}
+
+QString StudioPresenter::selectedImportState() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset ? qstring_from_utf8(asset->import_state) : QString{};
 }
 
 QUrl StudioPresenter::previewUrl() const
@@ -1127,7 +1147,18 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                 {
                     assets_.setThumbnail(
                         id, QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path)),
-                        QStringLiteral("ready"));
+                        preview.value().original_missing ? QStringLiteral("missing") :
+                                                           QStringLiteral("ready"));
+                    if (preview.value().original_missing)
+                    {
+                        assets_.markOriginalMissing(id);
+                    }
+                    return;
+                }
+                if (preview.error().code == ErrorCode::kNotFound)
+                {
+                    assets_.markOriginalMissing(id);
+                    assets_.setThumbnail(id, {}, QStringLiteral("missing"));
                     return;
                 }
                 assets_.setThumbnail(id, {}, QStringLiteral("failed"));
@@ -1160,7 +1191,7 @@ void StudioPresenter::requestPreviewForSelection()
         }
         QMetaObject::invokeMethod(
             this,
-            [this, revision, preview = std::move(preview)]() mutable {
+            [this, revision, asset_id, preview = std::move(preview)]() mutable {
                 if (revision != preview_revision_)
                 {
                     return;
@@ -1169,9 +1200,21 @@ void StudioPresenter::requestPreviewForSelection()
                 if (!preview)
                 {
                     preview_url_.clear();
+                    if (preview.error().code == ErrorCode::kNotFound)
+                    {
+                        assets_.markOriginalMissing(asset_id);
+                        emit selectionChanged();
+                        emit previewChanged();
+                        return;
+                    }
                     setError(qstring_from_utf8(preview.error().message));
                     emit previewChanged();
                     return;
+                }
+                if (preview.value().original_missing)
+                {
+                    assets_.markOriginalMissing(asset_id);
+                    emit selectionChanged();
                 }
                 preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
                 emit previewChanged();

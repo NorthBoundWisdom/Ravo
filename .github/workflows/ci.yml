@@ -1,0 +1,211 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: "6.11.2"
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Validate FreeCM project commands
+        run: python FreeCM/tools/validate_repo_commands.py .
+
+      - name: Check CI lock rewrite
+        run: python .github/scripts/prepare_ci_lock.py --self-check
+
+      - name: Run Ravo static contracts
+        run: |
+          set -euo pipefail
+          python Ravo/tools/freeze_legacy_manifest.py --check
+          python Ravo/tools/check_capability_inventory.py
+          python Ravo/tools/check_freeze_reference.py
+          python Ravo/tools/check_ravo_dependency_boundary.py
+          python Ravo/tools/check_vertical_slice_plan.py
+          python Ravo/tools/check_fixture_classification_ledger.py
+
+  build:
+    name: ${{ matrix.preset }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            preset: mac_clang_debug
+            platform: mac
+            host_packages: brew
+          - os: ubuntu-24.04
+            preset: linux_clang_debug
+            platform: linux
+            host_packages: cmake
+          - os: windows-2022
+            preset: win_msvc_debug
+            platform: win
+            host_packages: cmake-png
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Enable long paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install macOS packages
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+        run: brew install ninja pkg-config libpng
+
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang pkg-config libpng-dev zlib1g-dev
+
+      - name: Install Windows Ninja
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          choco install ninja -y --no-progress
+          echo "/c/ProgramData/chocolatey/bin" >> "$GITHUB_PATH"
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.preset }}-${{ runner.os }}
+          restore-keys: ${{ matrix.preset }}-${{ runner.os }}
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+          cache-key-prefix: qt-${{ env.QT_VERSION }}-${{ runner.os }}
+          setup-python: false
+          install-deps: true
+          aqtversion: ">=3.3.0"
+
+      - name: Install host CMake packages
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ "${{ matrix.host_packages }}" == "cmake-png" ]]; then
+            extra+=(--with-png-zlib)
+          fi
+          python .github/scripts/install_host_packages.py \
+            --prefix "${RUNNER_TEMP}/ci-prefix" \
+            --work-dir "${RUNNER_TEMP}/ci-host" \
+            --build-type Debug \
+            "${extra[@]}"
+
+      - name: Allow HTTPS clones of GitHub SSH remotes
+        env:
+          GEOCONTROLS_TOKEN: ${{ secrets.GEOCONTROLS_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          if [[ -n "${GEOCONTROLS_TOKEN}" ]]; then
+            git config --global url."https://x-access-token:${GEOCONTROLS_TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+
+      - name: Cache FreeCM seed repositories
+        uses: actions/cache@v4
+        with:
+          path: build/dependency_seed_repos
+          key: seeds-${{ runner.os }}-${{ hashFiles('source_roots.lock.jsonc.in') }}
+          restore-keys: seeds-${{ runner.os }}-
+
+      - name: Prepare CI source-root lock
+        run: |
+          set -euo pipefail
+          if [[ -z "${QT_ROOT_DIR:-}" ]]; then
+            echo "QT_ROOT_DIR was not set by install-qt-action" >&2
+            exit 1
+          fi
+          prefix_args=(--prefix-path "${QT_ROOT_DIR}" --prefix-path "${RUNNER_TEMP}/ci-prefix")
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            prefix_args+=(--prefix-path "$(brew --prefix)")
+          fi
+          python .github/scripts/prepare_ci_lock.py \
+            --repo-root . \
+            --platform "${{ matrix.platform }}" \
+            "${prefix_args[@]}"
+
+      - name: Materialize source roots
+        run: |
+          set -euo pipefail
+          python configs/source_root_workflow.py --init
+          python configs/source_root_workflow.py --update
+          python configs/source_roots.py show --format json
+          python configs/source_roots.py resolve --format json
+          python configs/source_roots.py verify
+
+      - name: Configure Ravo
+        run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=ON
+
+      - name: Build Ravo
+        run: cmake --build --preset "${{ matrix.preset }}"
+
+      - name: Test Ravo
+        run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.preset }}-${{ runner.os }}
+          path: |
+            build/${{ matrix.preset }}/CMakeCache.txt
+            build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
+            build/${{ matrix.preset }}/Testing/Temporary/
+          if-no-files-found: ignore

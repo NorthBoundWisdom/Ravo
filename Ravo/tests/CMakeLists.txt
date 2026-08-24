@@ -22,7 +22,9 @@ gtest_discover_tests(ravo_unit_tests PROPERTIES LABELS "ravo-unit")
 add_executable(ravo_contract_tests
   cli_test.cpp
   engine_test.cpp)
-target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main PNG::PNG ravo_cli)
+target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli)
+target_include_directories(ravo_contract_tests PRIVATE
+  $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(ravo_contract_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_contract_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
