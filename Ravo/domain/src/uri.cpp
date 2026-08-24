@@ -41,7 +41,7 @@ namespace
 {
     return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
            (character >= '0' && character <= '9') || character == '/' || character == '-' ||
-           character == '_' || character == '.' || character == '~';
+           character == '_' || character == '.' || character == '~' || character == ':';
 }
 
 [[nodiscard]] std::string percent_encode_path(const std::string_view path)
