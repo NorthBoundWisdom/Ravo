@@ -38,7 +38,8 @@
     "exiv2": "",
     "Imath": "",
     "inih": "",
-    "LibRaw": ""
+    "LibRaw": "",
+    "RfLog": ""
   },
   "assets": {
     "appimage-tools": {
@@ -96,6 +97,11 @@
       "remote": "https://github.com/LibRaw/LibRaw.git",
       "commit": "df226ea4178ccd74245f4f13c23adddfa01411c9",
       "repoName": "LibRaw"
+    },
+    "RfLog": {
+      "remote": "git@github.com:NorthBoundWisdom/RfLog.git",
+      "commit": "69e0afeb3aa457278077b2a5a2ad144769bc1596",
+      "repoName": "RfLog"
     }
   }
 }

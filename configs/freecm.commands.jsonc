@@ -12,7 +12,7 @@
         "default": true,
         "defaults": {
           "build": "ravo-win-msvc-debug",
-          "run": "ravo-win-msvc-debug-cli",
+          "run": "ravo-win-msvc-debug-studio",
           "test": "ravo-win-msvc-debug-tests"
         },
         "readiness": {
@@ -29,7 +29,7 @@
         "platforms": ["win32"],
         "defaults": {
           "build": "ravo-win-msvc-release",
-          "run": "ravo-win-msvc-release-cli",
+          "run": "ravo-win-msvc-release-studio",
           "package": "ravo-win-msvc-release-install"
         },
         "readiness": {
@@ -47,7 +47,7 @@
         "default": true,
         "defaults": {
           "build": "ravo-mac-clang-debug",
-          "run": "ravo-mac-clang-debug-cli",
+          "run": "ravo-mac-clang-debug-studio",
           "test": "ravo-mac-clang-debug-tests"
         },
         "readiness": {
@@ -64,7 +64,7 @@
         "platforms": ["darwin"],
         "defaults": {
           "build": "ravo-mac-clang-release",
-          "run": "ravo-mac-clang-release-cli",
+          "run": "ravo-mac-clang-release-studio",
           "package": "ravo-mac-clang-release-install"
         },
         "readiness": {
@@ -82,7 +82,7 @@
         "default": true,
         "defaults": {
           "build": "ravo-linux-clang-debug",
-          "run": "ravo-linux-clang-debug-cli",
+          "run": "ravo-linux-clang-debug-studio",
           "test": "ravo-linux-clang-debug-tests"
         },
         "readiness": {
@@ -99,7 +99,7 @@
         "platforms": ["linux"],
         "defaults": {
           "build": "ravo-linux-clang-release",
-          "run": "ravo-linux-clang-release-cli",
+          "run": "ravo-linux-clang-release-studio",
           "package": "ravo-linux-clang-release-install"
         },
         "readiness": {
@@ -160,49 +160,49 @@
     ],
     "run": [
       {
-        "id": "ravo-win-msvc-debug-cli",
-        "label": "Ravo Win MSVC Debug CLI",
-        "description": "Build and run the Ravo debug CLI version command",
+        "id": "ravo-win-msvc-debug-studio",
+        "label": "Ravo Win MSVC Debug Studio",
+        "description": "Build and run Ravo Studio",
         "command": "powershell.exe",
         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Run", "-Configuration", "Debug"],
         "configurations": ["ravo-win-msvc-debug"]
       },
       {
-        "id": "ravo-win-msvc-release-cli",
-        "label": "Ravo Win MSVC Release CLI",
-        "description": "Build and run the Ravo release CLI version command",
+        "id": "ravo-win-msvc-release-studio",
+        "label": "Ravo Win MSVC Release Studio",
+        "description": "Build and run Ravo Studio",
         "command": "powershell.exe",
         "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Run", "-Configuration", "Release"],
         "configurations": ["ravo-win-msvc-release"]
       },
       {
-        "id": "ravo-mac-clang-debug-cli",
-        "label": "Ravo Mac Clang Debug CLI",
-        "description": "Build and run the Ravo debug CLI version command",
+        "id": "ravo-mac-clang-debug-studio",
+        "label": "Ravo Mac Clang Debug Studio",
+        "description": "Build and run Ravo Studio",
         "command": "python3",
         "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Debug"],
         "configurations": ["ravo-mac-clang-debug"]
       },
       {
-        "id": "ravo-mac-clang-release-cli",
-        "label": "Ravo Mac Clang Release CLI",
-        "description": "Build and run the Ravo release CLI version command",
+        "id": "ravo-mac-clang-release-studio",
+        "label": "Ravo Mac Clang Release Studio",
+        "description": "Build and run Ravo Studio",
         "command": "python3",
         "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Release"],
         "configurations": ["ravo-mac-clang-release"]
       },
       {
-        "id": "ravo-linux-clang-debug-cli",
-        "label": "Ravo Linux Clang Debug CLI",
-        "description": "Build and run the Ravo debug CLI version command",
+        "id": "ravo-linux-clang-debug-studio",
+        "label": "Ravo Linux Clang Debug Studio",
+        "description": "Build and run Ravo Studio",
         "command": "python3",
         "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Debug"],
         "configurations": ["ravo-linux-clang-debug"]
       },
       {
-        "id": "ravo-linux-clang-release-cli",
-        "label": "Ravo Linux Clang Release CLI",
-        "description": "Build and run the Ravo release CLI version command",
+        "id": "ravo-linux-clang-release-studio",
+        "label": "Ravo Linux Clang Release Studio",
+        "description": "Build and run Ravo Studio",
         "command": "python3",
         "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Release"],
         "configurations": ["ravo-linux-clang-release"]

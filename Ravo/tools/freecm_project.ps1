@@ -66,8 +66,8 @@ try {
             Invoke-NativeCommand "cmake" @("--build", "--preset", $preset, "--parallel")
         }
         "Run" {
-            Invoke-NativeCommand "cmake" @("--build", "--preset", $preset, "--target", "ravo", "--parallel")
-            Invoke-NativeCommand (Join-Path $buildDirectory "cli\ravo.exe") @("--version", "--json")
+            Invoke-NativeCommand "cmake" @("--build", "--preset", $preset, "--target", "ravo_studio", "--parallel")
+            Invoke-NativeCommand (Join-Path $buildDirectory "desktop\ravo_studio.exe")
         }
         "Test" {
             Invoke-NativeCommand "cmake" @("--preset", $preset, "-DBUILD_TESTING=ON")

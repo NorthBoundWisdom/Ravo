@@ -53,6 +53,14 @@ struct InspectionResult
     bool is_raw = false;
 };
 
+struct EmbeddedPreview
+{
+    std::string mime_type;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<std::uint8_t> bytes;
+};
+
 struct ProgressEvent
 {
     std::string correlation_id;
@@ -76,6 +84,9 @@ public:
     // The facade does not retain input_uri or token after this synchronous call.
     [[nodiscard]] Result<InspectionResult> inspect(std::string_view input_uri,
                                                    const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<EmbeddedPreview>
+    extract_embedded_preview(std::string_view input_uri,
+                             const CancellationToken &cancellation) const;
     [[nodiscard]] const std::vector<OperationDescriptor> &operations() const noexcept;
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;

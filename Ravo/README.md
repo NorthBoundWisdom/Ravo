@@ -11,7 +11,9 @@ Ravo 是 DarkTableNext 仓库中的下一代照片软件。当前产品目标是
 - `ravo render` 可执行 nop 与 `ravo.core.exposure`，完成裁剪、black/white 归一化、camera WB、
   LibRaw camera-to-sRGB、基础 3×3 Bayer 插值、sRGB 编码和原子 PNG 输出；
 - legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
-- SQLite catalog、import services、raster codec、preview cache 和 Ravo Studio 尚未实现，是当前 M1 工作。
+- M1 catalog 纵切片已落地：SQLite schema v1、reference-only JPEG/PNG/RAW 导入、库外 preview cache、
+  `ravo_studio` Qt Quick 窗口。macOS Debug 已跑通无 UI create/import/preview/reopen；目录递归导入
+  已可用。TIFF 仍取决于 Qt plugin；平移与长列表虚拟化仍属后续工作。
 
 完整执行顺序见 [TODO_REWRITE.md](../TODO_REWRITE.md)，方向变化见
 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md)。
@@ -57,6 +59,7 @@ Windows/MSVC：
 ```powershell
 & .\Ravo\tools\freecm_project.ps1 -Action Configure -Configuration Debug
 & .\Ravo\tools\freecm_project.ps1 -Action Build -Configuration Debug
+& .\Ravo\tools\freecm_project.ps1 -Action Run -Configuration Debug
 & .\Ravo\tools\freecm_project.ps1 -Action Test -Configuration Debug
 ```
 
@@ -65,6 +68,7 @@ macOS/Linux：
 ```text
 python3 Ravo/tools/freecm_project.py --action Configure --configuration Debug
 python3 Ravo/tools/freecm_project.py --action Build --configuration Debug
+python3 Ravo/tools/freecm_project.py --action Run --configuration Debug
 python3 Ravo/tools/freecm_project.py --action Test --configuration Debug
 ```
 
@@ -118,13 +122,16 @@ create/import/list/preview 命令，作为同一 services 的无 UI 验收客户
 | `ravo` / `cli/` | 正式 CLI 与机器 JSON 客户端 |
 | `foundation/` | error、ID、取消和资源契约 |
 | `recipe/` | versioned recipe/operation schema |
-| `adapters/` | filesystem、codec；M1 增加 SQLite 与 preview cache |
-| `domain/`（M1） | Asset/Catalog/Import/Preview 状态与 ports |
-| `services/`（M1） | create/open/import/list/preview 用例 |
-| Ravo Studio / `desktop/`（M1） | C++ presenter + Qt Quick/QML Gallery 与 viewer |
-| `tests/` | unit、contract、integration、fixture 和后续 desktop smoke |
+| `adapters/` | filesystem、codec、SQLite catalog、raster JPEG/PNG、preview cache |
+| `domain/` | Asset/Catalog/Import/Preview 状态与 ports |
+| `services/` | create/open/import/list/preview 用例 |
+| Ravo Studio / `desktop/` | C++ presenter + Qt Quick/QML Gallery 与 viewer |
+| `tests/` | unit、contract、catalog integration、fixture 和后续 desktop smoke |
 
-M1 新目录在实际 target 落地时创建；本次规划不把计划中的 target 描述为已实现。
+Debug 构建后的 Studio 入口是 `build/ravo_mac_clang_debug/desktop/ravo_studio`（Windows/Linux 使用对应
+preset 目录）。FreeCM 的 Run 以及 `freecm_project.py --action Run` 会编译并启动这个 GUI。
+第一版手工闭环：Create Library → Import `darktable-tests/0000-nop/expected.png` 与
+`darktable-tests/images/mire1.cr2` → 选择资产 → Fit / 100%。
 
 ## 与冻结 `src/` 的关系
 

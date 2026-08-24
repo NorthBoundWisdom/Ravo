@@ -75,14 +75,14 @@ catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保�
 
 | Capability | 旧 owner | Ravo owner | 状态 | 当前证据 / 下一门槛 |
 | --- | --- | --- | --- | --- |
-| 基础错误/取消 | `src/common`, `src/control` | foundation | 实现中 | cancellation/deadline contract 已测；owned executor 尚未实现 |
+| 基础错误/取消 | `src/common`, `src/control` | foundation | 实现中 | cancellation/deadline 与 SerialExecutor submit/wait_idle 已测 |
 | Recipe/schema | IOP params/XMP | recipe | 实现中 | versioned round-trip 与有限 exposure mapping 已测 |
 | RAW inspect/decode | imageio/LibRaw | engine + codec adapter | 实现中 | `mire1.cr2` inspect/render 已测；格式与 sensor 覆盖有限 |
 | CPU preview/pixelpipe | `src/develop` | engine | 实现中 | bounded PNG、取消、exposure 亮度已测；完整颜色/ROI 未完成 |
-| SQLite catalog | common/database | domain + SQLite adapter | 未开始 | M1 schema v1 create/reopen/migrate contract |
-| Reference-only import | common/imageio/import | services + adapters | 未开始 | M1 PNG + RAW；M2 JPEG/TIFF/目录/部分失败 |
-| Preview cache | mipmap/cache/imageio | services + adapters | 未开始 | M1 原子外部缓存、版本 key、损坏重建 |
-| Gallery/viewer | lighttable/darkroom | desktop + services | 未开始 | M1 create/import/select/view；M2 缩放/长列表 |
+| SQLite catalog | common/database | domain + SQLite adapter | 实现中 | schema v1 create/reopen/newer-version reject 已测；无旧 catalog 迁移 |
+| Reference-only import | common/imageio/import | services + adapters | 实现中 | PNG/JPEG + LibRaw RAW（含 ARW）与目录递归已测；TIFF 仍取决于 plugin |
+| Preview cache | mipmap/cache/imageio | services + adapters | 实现中 | 库外原子 PNG 缓存与 reopen 重建已测 |
+| Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/100%；平移与长列表仍属 M2 |
 | Catalog metadata/workflow | common/libs | domain + services | 延后 | M4 产品与数据契约 |
 | Mask/blend/operations | develop/iop | recipe + engine | 延后 | M5 每项 operation 验收 |
 | 本地导出 | imageio | services + engine/adapters | 实现中 | PNG 原子输出存在；完整 JPEG/TIFF/metadata 在 M5 |

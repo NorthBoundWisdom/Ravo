@@ -92,6 +92,12 @@ DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
         env_key="LIBRAW_SOURCE_ROOT",
         required_relative_paths=("libraw/libraw_version.h",),
     ),
+    DependencyRootSpec(
+        dependency_name="RfLog",
+        repo_name="RfLog",
+        env_key="RFLOG_SOURCE_ROOT",
+        required_relative_paths=("CMakeLists.txt", "include/rlog/logger.h"),
+    ),
 )
 
 

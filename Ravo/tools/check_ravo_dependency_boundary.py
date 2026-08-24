@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that Ravo production sources retain the Phase 1 dependency boundary."""
+"""Check that Ravo production sources retain the M1 dependency boundary."""
 
 from __future__ import annotations
 
@@ -8,54 +8,114 @@ import re
 from pathlib import Path
 
 
-PRODUCTION_DIRECTORIES = ("foundation", "recipe", "engine", "adapters", "cli")
-SOURCE_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx", ".h", ".hpp"})
+PRODUCTION_DIRECTORIES = (
+    "foundation",
+    "recipe",
+    "engine",
+    "domain",
+    "adapters",
+    "services",
+    "cli",
+    "desktop",
+)
+SOURCE_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".qml"})
 FORBIDDEN_INCLUDE_PATTERNS = (
     (re.compile(r"^\s*#\s*include\s*[<\"](?:\.\./)*src/", re.MULTILINE), "frozen src header"),
     (re.compile(r"^\s*#\s*include\s*[<\"](?:gtk|dtgtk)/", re.MULTILINE), "GTK header"),
     (re.compile(r"^\s*#\s*include\s*[<\"](?:darktable|libdarktable)", re.MULTILINE), "legacy core header"),
-    (re.compile(r"^\s*#\s*include\s*[<\"](?:sqlite|sqlite3)", re.MULTILINE), "catalog database header"),
+    (re.compile(r"^\s*#\s*include\s*[<\"](?:sqlite|sqlite3)", re.MULTILINE), "direct SQLite header"),
 )
-FORBIDDEN_SYMBOL_PATTERNS = (
-    (re.compile(r"\b(?:dlopen|LoadLibrary[A-W]?|GetProcAddress)\b"), "dynamic legacy-module loading"),
-    (re.compile(r"\b(?:sqlite3?|QSqlDatabase)\b"), "catalog database API"),
+FORBIDDEN_WIDGETS_PATTERN = re.compile(
+    r"\b(?:Qt6::Widgets|QWidget\w*|QtWidgets|QDialog\b|QMainWindow\b|QApplication\b)\b"
 )
-FORBIDDEN_QT_UI_PATTERN = re.compile(r"\b(?:Qt6::(?:Gui|Widgets|Qml|Quick)|QGui\w*|QWidget\w*|QQml\w*|QQuick\w*)\b")
+FORBIDDEN_SQL_PATTERN = re.compile(r"\b(?:sqlite3(?:_[A-Za-z0-9_]+)?|QSql\w*)\b")
+FORBIDDEN_QML_PATTERN = re.compile(r"\b(?:Qt6::(?:Qml|Quick)\w*|QQml\w*|QQuick\w*)\b")
+QT_INCLUDE_PATTERN = re.compile(r"^\s*#\s*include\s*[<\"](?:Qt|Q[A-Z])", re.MULTILINE)
 QT_TOKEN_PATTERN = re.compile(r"\bQt6::([A-Za-z0-9_]+)\b")
+QML_IMPORT_PATTERN = re.compile(r"^\s*import\s+([A-Za-z0-9.]+)", re.MULTILINE)
 TARGET_LINK_PATTERN = re.compile(
     r"target_link_libraries\(\s*([A-Za-z0-9_]+)\s+(.*?)\)", re.DOTALL
 )
 FIRST_PARTY_TARGET_PATTERN = re.compile(
-    r"\b(ravo(?:_foundation|_recipe|_engine|_adapters|_cli)?)\b"
+    r"\b(ravo(?:_foundation|_recipe|_engine|_domain|_adapters|_services|_desktop|_cli|_studio)?)\b"
 )
 PUBLIC_RAVO_INCLUDE_PATTERN = re.compile(r'^\s*#\s*include\s*"ravo/([a-z_]+)/', re.MULTILINE)
+
 ALLOWED_FIRST_PARTY_LINKS = {
     "ravo_foundation": frozenset(),
     "ravo_recipe": frozenset({"ravo_foundation"}),
     "ravo_engine": frozenset({"ravo_foundation", "ravo_recipe"}),
-    "ravo_adapters": frozenset({"ravo_foundation", "ravo_recipe"}),
+    "ravo_domain": frozenset({"ravo_foundation"}),
+    "ravo_adapters": frozenset({"ravo_foundation", "ravo_recipe", "ravo_domain"}),
+    "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
     "ravo_cli": frozenset({"ravo_adapters", "ravo_engine"}),
     "ravo": frozenset({"ravo_cli"}),
+    "ravo_desktop": frozenset({"ravo_services", "ravo_adapters"}),
+    "ravo_studio": frozenset({"ravo_desktop"}),
 }
 REQUIRED_FIRST_PARTY_LINKS = {
     "ravo_foundation": frozenset(),
     "ravo_recipe": frozenset({"ravo_foundation"}),
     "ravo_engine": frozenset({"ravo_recipe"}),
-    "ravo_adapters": frozenset({"ravo_foundation", "ravo_recipe"}),
+    "ravo_domain": frozenset({"ravo_foundation"}),
+    "ravo_adapters": frozenset({"ravo_foundation", "ravo_domain"}),
+    "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
     "ravo_cli": frozenset({"ravo_adapters", "ravo_engine"}),
     "ravo": frozenset({"ravo_cli"}),
+    "ravo_desktop": frozenset({"ravo_services", "ravo_adapters"}),
+    "ravo_studio": frozenset({"ravo_desktop"}),
 }
 ALLOWED_PUBLIC_HEADER_LAYERS = {
     "foundation": frozenset({"foundation"}),
     "recipe": frozenset({"foundation", "recipe"}),
     "engine": frozenset({"foundation", "recipe", "engine"}),
-    "adapters": frozenset({"foundation", "recipe", "adapters"}),
+    "domain": frozenset({"foundation", "domain"}),
+    "adapters": frozenset({"foundation", "recipe", "domain", "adapters"}),
+    "services": frozenset({"foundation", "recipe", "engine", "domain", "services"}),
     "cli": frozenset({"foundation", "recipe", "engine", "adapters", "cli"}),
+    "desktop": frozenset(
+        {"foundation", "recipe", "engine", "domain", "adapters", "services", "desktop"}
+    ),
 }
+ALLOWED_QT_COMPONENTS = {
+    "foundation": frozenset(),
+    "recipe": frozenset(),
+    "engine": frozenset({"Core"}),
+    "domain": frozenset(),
+    "adapters": frozenset({"Core", "Gui", "Sql"}),
+    "services": frozenset(),
+    "cli": frozenset({"Core"}),
+    "desktop": frozenset(
+        {"Core", "Gui", "Qml", "Quick", "QuickControls2", "QuickDialogs2", "QuickLayouts"}
+    ),
+}
+QT_FREE_OWNERS = frozenset({"foundation", "recipe", "domain", "services"})
+SQL_OWNERS = frozenset({"adapters"})
+QML_OWNERS = frozenset({"desktop"})
+GUI_OWNERS = frozenset({"adapters", "desktop"})
+ALLOWED_QML_IMPORTS = frozenset(
+    {
+        "QtQuick",
+        "QtQuick.Controls",
+        "QtQuick.Dialogs",
+        "QtQuick.Layouts",
+        "Ravo.Studio",
+    }
+)
 
 
 class BoundaryError(Exception):
-    """Raised when a production source crosses a forbidden Phase 1 boundary."""
+    """Raised when a production source crosses a forbidden M1 boundary."""
+
+
+def owner_for(path: Path, repository_root: Path) -> str:
+    relative = path.relative_to(repository_root)
+    if len(relative.parts) < 2 or relative.parts[0] != "Ravo":
+        raise BoundaryError(f"production path is outside Ravo/: {relative.as_posix()}")
+    owner = relative.parts[1]
+    if owner not in PRODUCTION_DIRECTORIES:
+        raise BoundaryError(f"unexpected Ravo production owner: {relative.as_posix()}")
+    return owner
 
 
 def source_files(repository_root: Path) -> list[Path]:
@@ -74,7 +134,25 @@ def line_number(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
+def verify_qml(path: Path, repository_root: Path, owner: str) -> None:
+    relative = path.relative_to(repository_root).as_posix()
+    if owner != "desktop":
+        raise BoundaryError(f"{relative} places production QML outside desktop")
+    text = path.read_text(encoding="utf-8")
+    for match in QML_IMPORT_PATTERN.finditer(text):
+        imported = match.group(1)
+        if imported not in ALLOWED_QML_IMPORTS:
+            raise BoundaryError(
+                f"{relative}:{line_number(text, match.start())} imports {imported}, "
+                "which is outside the desktop QML allowlist"
+            )
+
+
 def verify_source(path: Path, repository_root: Path) -> None:
+    owner = owner_for(path, repository_root)
+    if path.suffix == ".qml":
+        verify_qml(path, repository_root, owner)
+        return
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
@@ -84,13 +162,42 @@ def verify_source(path: Path, repository_root: Path) -> None:
         match = pattern.search(text)
         if match:
             raise BoundaryError(f"{relative}:{line_number(text, match.start())} includes a {description}")
-    for pattern, description in FORBIDDEN_SYMBOL_PATTERNS:
-        match = pattern.search(text)
+
+    if owner in QT_FREE_OWNERS:
+        match = QT_INCLUDE_PATTERN.search(text)
         if match:
-            raise BoundaryError(f"{relative}:{line_number(text, match.start())} uses {description}")
-    match = FORBIDDEN_QT_UI_PATTERN.search(text)
+            raise BoundaryError(
+                f"{relative}:{line_number(text, match.start())} includes Qt from a Qt-free layer"
+            )
+
+    match = FORBIDDEN_WIDGETS_PATTERN.search(text)
     if match:
-        raise BoundaryError(f"{relative}:{line_number(text, match.start())} uses a desktop Qt API")
+        raise BoundaryError(f"{relative}:{line_number(text, match.start())} uses a Qt Widgets API")
+
+    if owner not in SQL_OWNERS:
+        match = FORBIDDEN_SQL_PATTERN.search(text)
+        if match:
+            raise BoundaryError(
+                f"{relative}:{line_number(text, match.start())} uses a catalog database API"
+            )
+    elif "/include/" in path.as_posix().replace("\\", "/"):
+        match = FORBIDDEN_SQL_PATTERN.search(text)
+        if match:
+            raise BoundaryError(
+                f"{relative}:{line_number(text, match.start())} exposes a catalog database API "
+                "from a public header"
+            )
+
+    if owner not in QML_OWNERS:
+        match = FORBIDDEN_QML_PATTERN.search(text)
+        if match:
+            raise BoundaryError(f"{relative}:{line_number(text, match.start())} uses a QML/Quick API")
+
+    if owner not in GUI_OWNERS:
+        match = re.search(r"\b(?:QImage\w*|QGuiApplication|QPainter\w*)\b", text)
+        if match:
+            raise BoundaryError(f"{relative}:{line_number(text, match.start())} uses a Qt Gui API")
+
 
 def verify_public_header_direction(path: Path, repository_root: Path) -> None:
     relative = path.relative_to(repository_root)
@@ -114,15 +221,22 @@ def verify_qt_cmake_boundary(repository_root: Path) -> None:
     for path in source_files(repository_root):
         if path.name != "CMakeLists.txt":
             continue
+        owner = owner_for(path, repository_root)
         text = path.read_text(encoding="utf-8")
         qt_targets = QT_TOKEN_PATTERN.findall(text)
         if not qt_targets:
             continue
-        if any(target != "Core" for target in qt_targets):
+        allowed = ALLOWED_QT_COMPONENTS.get(owner, frozenset())
+        unexpected = [target for target in qt_targets if target not in allowed]
+        if unexpected:
             relative = path.relative_to(repository_root).as_posix()
             raise BoundaryError(
-                f"{relative} may link Qt6::Core but not a Qt GUI/QML/Widgets target"
+                f"{relative} links Qt components outside the {owner} allowlist: "
+                + ", ".join(sorted(set(unexpected)))
             )
+        if "Widgets" in qt_targets:
+            relative = path.relative_to(repository_root).as_posix()
+            raise BoundaryError(f"{relative} links Qt Widgets, which is forbidden")
 
 
 def verify_first_party_target_direction(repository_root: Path) -> None:
@@ -150,12 +264,25 @@ def verify_first_party_target_direction(repository_root: Path) -> None:
             )
 
 
+def verify_qml_locations(repository_root: Path) -> None:
+    ravo_root = repository_root / "Ravo"
+    for path in ravo_root.rglob("*.qml"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(repository_root)
+        if len(relative.parts) < 3 or relative.parts[1] != "desktop":
+            raise BoundaryError(f"{relative.as_posix()} places production QML outside desktop")
+
+
 def verify(repository_root: Path) -> None:
     for path in source_files(repository_root):
-        verify_source(path, repository_root)
-        verify_public_header_direction(path, repository_root)
+        if path.suffix in SOURCE_SUFFIXES:
+            verify_source(path, repository_root)
+        if path.suffix in {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp"}:
+            verify_public_header_direction(path, repository_root)
     verify_qt_cmake_boundary(repository_root)
     verify_first_party_target_direction(repository_root)
+    verify_qml_locations(repository_root)
 
 
 def main() -> int:

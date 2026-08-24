@@ -35,14 +35,24 @@ Result<InspectionResult> EngineFacade::inspect(const std::string_view input_uri,
         return make_error(ErrorCode::kInvalidArgument,
                           "Input URI must not be empty for inspection");
     }
-    auto raw = decode_raw(input_uri);
-    if (!raw)
+    return identify_raw(input_uri);
+}
+
+Result<EmbeddedPreview>
+EngineFacade::extract_embedded_preview(const std::string_view input_uri,
+                                       const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
     {
-        return raw.error();
+        return cancelled.error();
     }
-    return InspectionResult{
-        std::string(input_uri), "raw", raw.value().make, raw.value().model, raw.value().width,
-        raw.value().height,     true};
+    if (input_uri.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Input URI must not be empty for preview extraction");
+    }
+    return extract_libraw_preview(input_uri, cancellation);
 }
 
 const std::vector<OperationDescriptor> &EngineFacade::operations() const noexcept

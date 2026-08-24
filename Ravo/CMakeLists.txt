@@ -12,9 +12,34 @@ include(GNUInstallDirs)
 # frozen application's GTK, OpenCL, dynamic-module, or catalog build graph.
 option(BUILD_TESTING "Build Ravo unit and contract tests" OFF)
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core)
+# Qt's Qml package auto-includes every shipped QML plugin. Optional plugins such
+# as AssetDownloader require Qt TaskTree, which is not part of the Ravo prefix
+# and is unused. Runtime plugins still load from the Qt installation.
+set(QT_SKIP_AUTO_QML_PLUGIN_INCLUSION ON)
+
+find_package(Qt6 6.11 REQUIRED COMPONENTS
+  Core
+  Gui
+  Sql
+  Qml
+  Quick
+  QuickControls2
+  QuickDialogs2
+  QuickLayouts)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
+
+if(NOT DEFINED ENV{RFLOG_SOURCE_ROOT})
+  message(FATAL_ERROR "RFLOG_SOURCE_ROOT is required; run the FreeCM source-root update")
+endif()
+file(TO_CMAKE_PATH "$ENV{RFLOG_SOURCE_ROOT}" _ravo_rflog_root)
+set(RFLOG_BUILD_TESTS OFF CACHE BOOL "RfLog tests stay out of the Ravo graph" FORCE)
+set(RFLOG_BUILD_BENCHMARKS OFF CACHE BOOL "RfLog benchmarks stay out of the Ravo graph" FORCE)
+set(RFLOG_INSTALL_SDK OFF CACHE BOOL "RfLog is consumed from its source root" FORCE)
+add_subdirectory("${_ravo_rflog_root}" "${CMAKE_BINARY_DIR}/_deps/rflog")
+if(NOT TARGET rflog::rflog)
+  message(FATAL_ERROR "RfLog source root did not provide rflog::rflog")
+endif()
 
 if(NOT DEFINED ENV{LIBRAW_SOURCE_ROOT})
   message(FATAL_ERROR "LIBRAW_SOURCE_ROOT is required; run the FreeCM source-root update")
@@ -75,8 +100,11 @@ endfunction()
 add_subdirectory(foundation)
 add_subdirectory(recipe)
 add_subdirectory(engine)
+add_subdirectory(domain)
 add_subdirectory(adapters)
+add_subdirectory(services)
 add_subdirectory(cli)
+add_subdirectory(desktop)
 
 if(BUILD_TESTING)
   enable_testing()
@@ -84,7 +112,7 @@ if(BUILD_TESTING)
 endif()
 
 install(
-  TARGETS ravo_foundation ravo_recipe ravo_engine ravo_adapters ravo_cli ravo_libraw ravo
+  TARGETS ravo_foundation ravo_recipe ravo_engine ravo_domain ravo_adapters ravo_services ravo_desktop ravo_cli ravo_libraw ravo ravo_studio
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
@@ -94,7 +122,10 @@ install(
     foundation/include/
     recipe/include/
     engine/include/
+    domain/include/
     adapters/include/
+    services/include/
+    desktop/include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(WIN32)

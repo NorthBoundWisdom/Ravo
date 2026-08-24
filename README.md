@@ -49,9 +49,9 @@ supported.
 
 The active build is the C++20 project under `Ravo/`. It targets Windows,
 macOS, and Linux with CMake 3.26 or newer, Ninja, the host C++ toolchain,
-FreeCM-managed dependencies, and Qt 6. The current checked-in targets are still
-the engine/CLI baseline; M1 will add domain/services/desktop targets to the same
-Ravo-only graph. The commands below are the current Windows/MSVC path:
+FreeCM-managed dependencies, and Qt 6. The current checked-in targets include the engine/CLI baseline and Ravo Studio.
+FreeCM Run launches the Studio GUI. The commands below are the current
+Windows/MSVC path:
 
 ```powershell
 git submodule update --init FreeCM

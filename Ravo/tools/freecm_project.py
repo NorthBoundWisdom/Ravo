@@ -134,14 +134,15 @@ def main() -> int:
                 "--build",
                 str(build_directory),
                 "--target",
-                "ravo",
+                "ravo_studio",
                 "--parallel",
             ],
             cwd=repository_root,
             environment=environment,
         )
+        studio_name = "ravo_studio.exe" if sys.platform == "win32" else "ravo_studio"
         run(
-            [str(build_directory / "cli" / "ravo"), "--version", "--json"],
+            [str(build_directory / "desktop" / studio_name)],
             cwd=repository_root,
             environment=environment,
         )

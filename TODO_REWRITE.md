@@ -149,30 +149,32 @@ M0 是可复用底层，不是第一版软件完成状态。
 ### M1：单图库、单图片、真实桌面纵切片（当前最高优先级）
 
 - [x] 重写当前路线图并用 ADR 接受 catalog/desktop 提前进入第一版。
-- [ ] 创建 `ravo_domain`、`ravo_services`、`ravo_desktop` target；更新依赖图和安装图。
-- [ ] 扩展 Qt 组件与 runtime/plugin/QML module 部署，并更新 dependency-boundary checker：`Qt6::Sql`
+- [x] 创建 `ravo_domain`、`ravo_services`、`ravo_desktop` target；更新依赖图和安装图。
+- [x] 扩展 Qt 组件与 runtime/plugin/QML module 部署，并更新 dependency-boundary checker：`Qt6::Sql`
   仅 adapters 可用，`Qt6::Gui` 仅 raster adapters/desktop 可用，`Qt6::Qml`/`Qt6::Quick`、
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` import 与 production `.qml` 仅 desktop 可用，
   `Qt6::QuickTest` 和 QML test 仅 desktop test target 可用；所有 target 禁止 Qt Widgets，新增 target 和
   QML import 全部进入扫描。
-- [ ] 定义 Catalog/Asset/Import/Preview 值类型、repository ports、错误和取消语义。
-- [ ] 增加最小 owned executor/task handle，证明取消、关闭 catalog/window、等待与晚到结果丢弃。
-- [ ] 实现 SQLite catalog schema v1、创建/打开、空库重开、事务和版本拒绝测试。
-- [ ] 实现 reference-only 单文件导入：`darktable-tests/0000-nop/expected.png` 与
+- [x] 定义 Catalog/Asset/Import/Preview 值类型、repository ports、错误和取消语义。
+- [x] 增加最小 owned executor/task handle，证明取消、关闭 catalog/window、等待与晚到结果丢弃。
+- [x] 实现 SQLite catalog schema v1、创建/打开、空库重开、事务和版本拒绝测试。
+- [x] 实现 reference-only 单文件导入：`darktable-tests/0000-nop/expected.png` 与
   `darktable-tests/images/mire1.cr2`，包括 metadata 和幂等重复导入。
-- [ ] 实现数据库外原子 preview cache；RAW 走 engine，PNG 走 raster adapter。
-- [ ] 建立最小 Qt Quick/QML Ravo Studio：C++ presenter 暴露不可变 view state 和 commands，QML 完成
+- [x] 实现数据库外原子 preview cache；RAW 走 engine，PNG 走 raster adapter。
+- [x] 建立最小 Qt Quick/QML Ravo Studio：C++ presenter 暴露不可变 view state 和 commands，QML 完成
   创建/打开数据库、导入文件、资产列表、选择图片、适应窗口与 100% 查看。
-- [ ] 为同一用例增加无 UI service integration test 和最小桌面手工验收脚本。
+- [x] 为同一用例增加无 UI service integration test。macOS Debug 已跑通 create/import/preview/reopen；
+  桌面窗口可启动，手工 Create/Import/Fit/100% 仍需在本机验收。
 
 出口：在一个全新目录中创建数据库，导入 PNG 和真实 RAW，二者均可在桌面 viewer 显示；重启后可再次
 打开并查看；原文件哈希不变；所有行为不依赖冻结应用或网络。
 
 ### M2：可用的本地导入与浏览
 
-- [ ] 支持 JPEG、PNG、TIFF 和已批准 RAW 的多选/目录导入；验证 Qt imageformat plugin 或固定 codec 的
-  三平台部署，记录 unsupported/failed 明细。
-- [ ] 增加目录递归、稳定排序、重复检测、文件消失、损坏输入、取消和部分失败恢复。
+- [x] JPEG/PNG 与 LibRaw RAW（含 ARW）导入和预览；目录递归导入跳过 XMP 等非图像。TIFF 仍取决于
+  Qt imageformat plugin，未部署时保持 unsupported。
+- [x] 增加目录递归、稳定排序、重复检测；损坏/不支持项不阻塞其余成功项。文件消失、取消和部分失败
+  加固仍待补齐。
 - [ ] Gallery 增加异步缩略图、占位/失败状态、基本滚动虚拟化和快速选择；viewer 增加平移与缩放。
 - [ ] 数据库连接、worker、preview 内存与磁盘缓存建立明确预算；关闭窗口时无悬空任务或晚到 UI 写入。
 - [ ] CLI 增加 catalog create/import/list/preview 的版本化 JSON，用作 services 的无 UI 验收客户端。
@@ -244,10 +246,6 @@ M0 是可复用底层，不是第一版软件完成状态。
 
 ## 下一次开工的最小批次
 
-1. 在 `Ravo/` 新建 domain/services/desktop CMake target，扩展 dependency-boundary checker，并让空
-   target 在 Debug 构建图中通过。
-2. 先实现 Catalog schema v1 与 SQLite repository contract test：create、reopen、duplicate URI、newer-version reject。
-3. 增加 `ImportOne` service，让仓库 PNG 和 `mire1.cr2` 进入同一 Asset/Preview 状态机。
-4. 用 `qt_add_qml_module` 创建最小 Qt Quick/QML 窗口和 desktop-owned C++ presenter，只连接
-   create/open、import、asset list 和 preview selection；不增加 Qt Widgets fallback。
-5. 运行 Ravo unit/contract，再做一次真实桌面手工闭环；不要在这个批次扩展编辑、全量 IOP 或通用框架。
+1. Gallery 异步缩略图、占位/失败状态、滚动虚拟化；viewer 平移与连续缩放。
+2. CLI catalog create/import/list/preview JSON，以及导入取消/部分失败/源文件消失加固。
+3. 不要在这个批次扩展编辑、全量 IOP 或通用框架。

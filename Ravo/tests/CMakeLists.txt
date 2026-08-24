@@ -11,9 +11,10 @@ function(ravo_add_phase0_check name script)
 endfunction()
 
 add_executable(ravo_unit_tests
+  domain_test.cpp
   foundation_test.cpp
   recipe_test.cpp)
-target_link_libraries(ravo_unit_tests PRIVATE GTest::gtest_main ravo_recipe)
+target_link_libraries(ravo_unit_tests PRIVATE GTest::gtest_main ravo_domain ravo_recipe)
 target_include_directories(ravo_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 ravo_configure_target(ravo_unit_tests)
 gtest_discover_tests(ravo_unit_tests PROPERTIES LABELS "ravo-unit")
@@ -28,6 +29,22 @@ target_compile_definitions(ravo_contract_tests PRIVATE
 ravo_configure_target(ravo_contract_tests)
 ravo_deploy_qt_core(ravo_contract_tests)
 gtest_discover_tests(ravo_contract_tests PROPERTIES LABELS "ravo-contract")
+
+add_executable(ravo_catalog_tests catalog_test.cpp)
+target_link_libraries(ravo_catalog_tests
+  PRIVATE
+    GTest::gtest
+    ravo_services
+    ravo_adapters
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Sql)
+target_include_directories(ravo_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(ravo_catalog_tests PRIVATE
+  RAVO_REPOSITORY_ROOT="${PROJECT_SOURCE_DIR}/..")
+ravo_configure_target(ravo_catalog_tests)
+ravo_deploy_qt_core(ravo_catalog_tests)
+gtest_discover_tests(ravo_catalog_tests PROPERTIES LABELS "ravo-catalog")
 
 ravo_add_phase0_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
 ravo_add_phase0_check(ravo_capability_inventory check_capability_inventory.py)

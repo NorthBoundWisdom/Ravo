@@ -1,0 +1,45 @@
+#pragma once
+
+#include <memory>
+#include <string>
+#include <string_view>
+
+#include "ravo/domain/catalog_repository.h"
+
+namespace ravo
+{
+
+class SqliteCatalogRepository final : public CatalogRepository
+{
+public:
+    static Result<std::unique_ptr<SqliteCatalogRepository>> create(std::string_view database_path);
+    static Result<std::unique_ptr<SqliteCatalogRepository>> open(std::string_view database_path);
+
+    SqliteCatalogRepository(const SqliteCatalogRepository &) = delete;
+    SqliteCatalogRepository &operator=(const SqliteCatalogRepository &) = delete;
+    ~SqliteCatalogRepository() override;
+
+    [[nodiscard]] Result<CatalogSnapshot> snapshot() const override;
+    [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const override;
+    [[nodiscard]] Result<std::optional<AssetRecord>>
+    find_asset_by_id(std::string_view asset_id) const override;
+    [[nodiscard]] Result<std::optional<AssetRecord>>
+    find_asset_by_uri(std::string_view normalized_uri) const override;
+    [[nodiscard]] Result<void> insert_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<std::optional<PreviewRecord>>
+    find_preview(std::string_view asset_id) const override;
+    [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;
+    [[nodiscard]] Result<std::int64_t> bump_revision() override;
+    Result<void> close() override;
+
+private:
+    struct Impl;
+
+    explicit SqliteCatalogRepository(std::unique_ptr<Impl> impl);
+    static Result<std::unique_ptr<Impl>> open_database(std::string_view database_path, bool create);
+
+    std::unique_ptr<Impl> impl_;
+};
+
+} // namespace ravo

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <string>
 
 #include <QByteArray>
@@ -76,34 +77,23 @@ namespace
                                    1.055F * std::pow(clamped, 1.0F / 2.4F) - 0.055F;
 }
 
-} // namespace
-
-Result<DecodedRaw> decode_raw(const std::string_view input_uri)
+[[nodiscard]] Result<std::unique_ptr<LibRaw>> open_libraw_file(const std::string_view input_uri)
 {
     const QString path = local_path(input_uri);
-    QFile input(path);
-    if (!input.exists())
+    if (path.isEmpty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "RAW input path must not be empty",
+                          {{"input_uri", std::string(input_uri)}});
+    }
+    if (!QFileInfo::exists(path))
     {
         return make_error(ErrorCode::kNotFound, "RAW input does not exist",
                           {{"input_uri", std::string(input_uri)}});
     }
-    if (!input.open(QIODevice::ReadOnly))
-    {
-        return make_error(ErrorCode::kIo, "Unable to open RAW input",
-                          {{"input_uri", std::string(input_uri)},
-                           {"qt_error", input.errorString().toStdString()}});
-    }
-    const QByteArray bytes = input.readAll();
-    if (bytes.isEmpty() ||
-        bytes.size() > static_cast<qsizetype>(std::numeric_limits<std::uint32_t>::max()))
-    {
-        return make_error(ErrorCode::kValidation, "RAW input size is invalid",
-                          {{"input_uri", std::string(input_uri)}});
-    }
 
-    LibRaw decoder;
-    const int open_status = decoder.open_buffer(const_cast<char *>(bytes.constData()),
-                                                static_cast<std::size_t>(bytes.size()));
+    auto decoder = std::make_unique<LibRaw>();
+    const QByteArray utf8 = path.toUtf8();
+    const int open_status = decoder->open_file(utf8.constData());
     if (open_status != LIBRAW_SUCCESS)
     {
         const ErrorCode code = open_status == LIBRAW_FILE_UNSUPPORTED ? ErrorCode::kUnsupported :
@@ -112,7 +102,81 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
             code, "LibRaw could not identify the RAW input",
             {{"detail", libraw_strerror(open_status)}, {"input_uri", std::string(input_uri)}});
     }
-    const int unpack_status = decoder.unpack();
+    return decoder;
+}
+
+} // namespace
+
+Result<InspectionResult> identify_raw(const std::string_view input_uri)
+{
+    auto decoder = open_libraw_file(input_uri);
+    if (!decoder)
+    {
+        return decoder.error();
+    }
+    const auto &raw = decoder.value()->imgdata;
+    if (raw.sizes.width == 0 || raw.sizes.height == 0)
+    {
+        return make_error(ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions",
+                          {{"input_uri", std::string(input_uri)}});
+    }
+    return InspectionResult{std::string(input_uri),
+                            "raw",
+                            raw.idata.make,
+                            raw.idata.model,
+                            static_cast<std::uint32_t>(raw.sizes.width),
+                            static_cast<std::uint32_t>(raw.sizes.height),
+                            true};
+}
+
+Result<EmbeddedPreview> extract_libraw_preview(const std::string_view input_uri,
+                                               const CancellationToken &cancellation)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto decoder = open_libraw_file(input_uri);
+    if (!decoder)
+    {
+        return decoder.error();
+    }
+    cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const int thumb_status = decoder.value()->unpack_thumb();
+    if (thumb_status != LIBRAW_SUCCESS)
+    {
+        return make_error(ErrorCode::kUnsupported, "RAW file has no embedded preview",
+                          {{"detail", libraw_strerror(thumb_status)},
+                           {"input_uri", std::string(input_uri)}});
+    }
+    const auto &thumb = decoder.value()->imgdata.thumbnail;
+    if (thumb.tformat != LIBRAW_THUMBNAIL_JPEG || thumb.thumb == nullptr || thumb.tlength == 0)
+    {
+        return make_error(ErrorCode::kUnsupported, "RAW embedded preview is not JPEG",
+                          {{"input_uri", std::string(input_uri)}});
+    }
+    EmbeddedPreview preview;
+    preview.mime_type = "image/jpeg";
+    preview.width = static_cast<std::uint32_t>(thumb.twidth);
+    preview.height = static_cast<std::uint32_t>(thumb.theight);
+    const auto *begin = reinterpret_cast<const std::uint8_t *>(thumb.thumb);
+    preview.bytes.assign(begin, begin + thumb.tlength);
+    return preview;
+}
+
+Result<DecodedRaw> decode_raw(const std::string_view input_uri)
+{
+    auto decoder = open_libraw_file(input_uri);
+    if (!decoder)
+    {
+        return decoder.error();
+    }
+    const int unpack_status = decoder.value()->unpack();
     if (unpack_status != LIBRAW_SUCCESS)
     {
         return make_error(
@@ -120,7 +184,7 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
             {{"detail", libraw_strerror(unpack_status)}, {"input_uri", std::string(input_uri)}});
     }
 
-    const auto &raw = decoder.imgdata;
+    const auto &raw = decoder.value()->imgdata;
     const auto &sizes = raw.sizes;
     if (raw.idata.filters == 0 || raw.rawdata.raw_image == nullptr)
     {
@@ -166,8 +230,8 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     {
         for (std::uint32_t x = 0; x < result.cfa_width; ++x)
         {
-            auto channel = channel_for(decoder.COLOR(static_cast<int>(sizes.top_margin + y),
-                                                     static_cast<int>(sizes.left_margin + x)));
+            auto channel = channel_for(decoder.value()->COLOR(
+                static_cast<int>(sizes.top_margin + y), static_cast<int>(sizes.left_margin + x)));
             if (!channel)
             {
                 return channel.error();

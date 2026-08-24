@@ -17,15 +17,14 @@ python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 ```
 
-当前 dependency-boundary checker 仍表达已落地的 headless target 图；M1 创建 domain/services/desktop
-时必须在同一变更中扩展扫描与逐层 allowlist：`Qt6::Sql` 仅 adapters，`Qt6::Gui` 仅 raster
+当前 dependency-boundary checker 已覆盖 M1 target 图：`Qt6::Sql` 仅 adapters，`Qt6::Gui` 仅 raster
 adapters/desktop，`Qt6::Qml`/`Qt6::Quick`、`QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` import
-与 production `.qml` 仅 desktop，`Qt6::QuickTest` 与 QML test 仅 desktop test target；所有 Ravo target
-禁止 Qt Widgets，不能删除检查来放行新依赖。
+与 production `.qml` 仅 desktop；所有 Ravo target 禁止 Qt Widgets。不能删除检查来放行新依赖。
 
-当前 Ravo Debug 图有 9 个 `ravo-unit` 与 30 个 `ravo-contract` 测试，覆盖 foundation/recipe、CLI
-JSON/退出码、有限 XMP 映射、真实 `mire1.cr2` inspect/render、PNG 冲突、取消、+1 EV 和静态边界。
-这些测试证明现有 engine/CLI 基线，不证明 catalog/import/desktop 已实现。
+当前 Ravo Debug 图有 16 个 `ravo-unit`、30 个 `ravo-contract` 与 4 个 `ravo-catalog` 测试。unit/contract
+覆盖 foundation/recipe/executor、CLI JSON/退出码、有限 XMP 映射、真实 `mire1.cr2` inspect/render。
+catalog 测试覆盖 schema create/reopen/newer-version reject、PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、
+原片哈希不变、preview 缓存和缺失/不支持输入。它们不替代本机 Studio 手工 Fit/100% 验收。
 
 ## Test framework 与 target 边界
 
