@@ -67,10 +67,35 @@ private:
     std::unordered_map<std::string, QString> thumbnail_states_;
 };
 
+class FolderListModel final : public QAbstractListModel
+{
+    Q_OBJECT
+
+public:
+    enum Role
+    {
+        FolderUriRole = Qt::UserRole + 1,
+        DisplayNameRole,
+        DepthRole,
+        AssetCountRole,
+    };
+
+    explicit FolderListModel(QObject *parent = nullptr);
+
+    [[nodiscard]] int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
+    void setFolders(std::vector<FolderRecord> folders);
+
+private:
+    std::vector<FolderRecord> folders_;
+};
+
 class StudioPresenter final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool catalogOpen READ catalogOpen NOTIFY catalogChanged)
+    Q_PROPERTY(bool nightMode READ nightMode WRITE setNightMode NOTIFY nightModeChanged)
     Q_PROPERTY(QString catalogPath READ catalogPath NOTIFY catalogChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
@@ -115,6 +140,14 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
     Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
+    Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
+    Q_PROPERTY(QString selectedFolderUri READ selectedFolderUri NOTIFY folderChanged)
+    Q_PROPERTY(QString selectedDisplayName READ selectedDisplayName NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedFolderPath READ selectedFolderPath NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedMediaType READ selectedMediaType NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedDimensions READ selectedDimensions NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedFileSize READ selectedFileSize NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedUri READ selectedUri NOTIFY selectionChanged)
     Q_PROPERTY(QUrl defaultCatalogFolder READ defaultCatalogFolder CONSTANT)
     Q_PROPERTY(QUrl defaultCatalogFile READ defaultCatalogFile CONSTANT)
 
@@ -123,6 +156,8 @@ public:
     ~StudioPresenter() override;
 
     [[nodiscard]] bool catalogOpen() const noexcept;
+    [[nodiscard]] bool nightMode() const noexcept;
+    void setNightMode(bool night);
     [[nodiscard]] QString catalogPath() const;
     [[nodiscard]] QUrl defaultCatalogFolder() const;
     [[nodiscard]] QUrl defaultCatalogFile() const;
@@ -170,6 +205,14 @@ public:
     [[nodiscard]] double editCropWidth() const noexcept;
     [[nodiscard]] double editCropHeight() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
+    [[nodiscard]] FolderListModel *folders() noexcept;
+    [[nodiscard]] QString selectedFolderUri() const;
+    [[nodiscard]] QString selectedDisplayName() const;
+    [[nodiscard]] QString selectedFolderPath() const;
+    [[nodiscard]] QString selectedMediaType() const;
+    [[nodiscard]] QString selectedDimensions() const;
+    [[nodiscard]] QString selectedFileSize() const;
+    [[nodiscard]] QString selectedUri() const;
 
     Q_INVOKABLE void createCatalog(const QUrl &file_url);
     Q_INVOKABLE void openCatalog(const QUrl &file_url);
@@ -207,10 +250,12 @@ public:
     Q_INVOKABLE void setRejectFilter(const QString &mode);
     Q_INVOKABLE void setSort(const QString &field, const QString &direction);
     Q_INVOKABLE void clearFilters();
+    Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
 
 signals:
     void catalogChanged();
+    void nightModeChanged();
     void busyChanged();
     void statusChanged();
     void errorChanged();
@@ -220,6 +265,7 @@ signals:
     void zoomChanged();
     void thumbnailSizeChanged();
     void filterChanged();
+    void folderChanged();
     void editChanged();
 
 private:
@@ -227,6 +273,7 @@ private:
     void setStatus(QString text);
     void setError(QString text);
     void applyAssets(std::vector<AssetRecord> assets, bool restore_selection);
+    void applyFolders(std::vector<FolderRecord> folders);
     void requestPreviewForSelection();
     void reloadVisibleAssets();
     void load_develop_for_selection();
@@ -240,6 +287,7 @@ private:
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;
     AssetListModel assets_;
+    FolderListModel folders_;
     LibraryQuery query_;
     QString catalog_path_;
     QString status_text_{QStringLiteral("Create or open a library to import photos.")};
@@ -251,6 +299,7 @@ private:
     double zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
     bool busy_ = false;
+    bool night_mode_ = false;
     bool preview_loading_ = false;
     std::uint64_t preview_revision_ = 0;
     std::uint64_t thumbnail_revision_ = 0;

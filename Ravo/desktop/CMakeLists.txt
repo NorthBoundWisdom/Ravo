@@ -98,7 +98,14 @@ qt_add_qml_module(ravo_studio
     GeoControls.AppShell
   QML_FILES
     qml/Main.qml
-    qml/FolderDialogPage.qml)
+    qml/FolderDialogPage.qml
+    qml/LibrarySidePanel.qml
+    qml/InspectorSidePanel.qml
+    qml/FilmStripBar.qml
+    qml/DarkThemePalette.qml
+    qml/SettingsPage.qml
+    qml/StudioActions.qml
+    qml/StudioMenuBar.qml)
 
 qt_add_resources(ravo_studio "studio_app_icon"
   PREFIX "/ravo/studio"

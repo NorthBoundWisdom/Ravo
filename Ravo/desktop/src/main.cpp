@@ -1,4 +1,6 @@
 #include <QCoreApplication>
+#include <QFont>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
@@ -29,6 +31,24 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName(QStringLiteral("Ravo Studio"));
     QGuiApplication::setOrganizationName(QStringLiteral("Ravo"));
     QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/ravo/studio/icons/AppIcon.png")));
+    QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+    QStringList families = ui_font.families();
+    if (families.isEmpty() && !ui_font.family().isEmpty())
+    {
+        families.push_back(ui_font.family());
+    }
+    for (const auto &family : {QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
+                               QStringLiteral("Songti SC"), QStringLiteral("Noto Sans CJK SC"),
+                               QStringLiteral("Noto Sans SC"), QStringLiteral("Microsoft YaHei UI"),
+                               QStringLiteral("Microsoft YaHei"), QStringLiteral("Source Han Sans SC")})
+    {
+        if (!families.contains(family))
+        {
+            families.push_back(family);
+        }
+    }
+    ui_font.setFamilies(families);
+    QGuiApplication::setFont(ui_font);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     ravo::init_logging("RavoStudio");
     LOG_INFO(ravo::logger(), "Ravo Studio starting");

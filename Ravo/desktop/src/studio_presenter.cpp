@@ -6,11 +6,14 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMetaObject>
+#include <QSettings>
 #include <QStandardPaths>
+#include <QUrl>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
+#include "ravo/domain/types.h"
 #include "ravo/domain/uri.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
@@ -311,10 +314,65 @@ QString AssetListModel::assetIdAt(const int row) const
     return qstring_from_utf8(assets_[static_cast<std::size_t>(row)].id);
 }
 
+FolderListModel::FolderListModel(QObject *parent)
+    : QAbstractListModel(parent)
+{
+}
+
+int FolderListModel::rowCount(const QModelIndex &parent) const
+{
+    if (parent.isValid())
+    {
+        return 0;
+    }
+    return static_cast<int>(folders_.size());
+}
+
+QVariant FolderListModel::data(const QModelIndex &index, const int role) const
+{
+    if (!index.isValid() || index.row() < 0 ||
+        index.row() >= static_cast<int>(folders_.size()))
+    {
+        return {};
+    }
+    const auto &folder = folders_[static_cast<std::size_t>(index.row())];
+    switch (role)
+    {
+    case FolderUriRole:
+        return qstring_from_utf8(folder.uri);
+    case DisplayNameRole:
+        return qstring_from_utf8(folder.display_name);
+    case DepthRole:
+        return folder.depth;
+    case AssetCountRole:
+        return folder.asset_count;
+    default:
+        return {};
+    }
+}
+
+QHash<int, QByteArray> FolderListModel::roleNames() const
+{
+    return {{FolderUriRole, "folderUri"},
+            {DisplayNameRole, "displayName"},
+            {DepthRole, "depth"},
+            {AssetCountRole, "assetCount"}};
+}
+
+void FolderListModel::setFolders(std::vector<FolderRecord> folders)
+{
+    beginResetModel();
+    folders_ = std::move(folders);
+    endResetModel();
+}
+
 StudioPresenter::StudioPresenter(QObject *parent)
     : QObject(parent),
-      assets_(this)
+      assets_(this),
+      folders_(this)
 {
+    QSettings settings;
+    night_mode_ = settings.value(QStringLiteral("appearance/nightMode"), false).toBool();
     const auto created = executor_.submit([this]() -> Result<void> {
         auto engine = EngineFacade::create_phase1();
         if (!engine)
@@ -345,6 +403,23 @@ StudioPresenter::~StudioPresenter()
 bool StudioPresenter::catalogOpen() const noexcept
 {
     return !catalog_path_.isEmpty();
+}
+
+bool StudioPresenter::nightMode() const noexcept
+{
+    return night_mode_;
+}
+
+void StudioPresenter::setNightMode(const bool night)
+{
+    if (night_mode_ == night)
+    {
+        return;
+    }
+    night_mode_ = night;
+    QSettings settings;
+    settings.setValue(QStringLiteral("appearance/nightMode"), night_mode_);
+    emit nightModeChanged();
 }
 
 QString StudioPresenter::catalogPath() const
@@ -584,6 +659,74 @@ AssetListModel *StudioPresenter::assets() noexcept
     return &assets_;
 }
 
+FolderListModel *StudioPresenter::folders() noexcept
+{
+    return &folders_;
+}
+
+QString StudioPresenter::selectedFolderUri() const
+{
+    return qstring_from_utf8(query_.folder_uri);
+}
+
+QString StudioPresenter::selectedDisplayName() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset ? qstring_from_utf8(asset_display_name(*asset)) : QString{};
+}
+
+QString StudioPresenter::selectedFolderPath() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset)
+    {
+        return {};
+    }
+    const QUrl file = QUrl(qstring_from_utf8(asset->normalized_uri));
+    return QFileInfo(file.toLocalFile()).absolutePath();
+}
+
+QString StudioPresenter::selectedMediaType() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset ? qstring_from_utf8(asset->media_type) : QString{};
+}
+
+QString StudioPresenter::selectedDimensions() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || !asset->width || !asset->height)
+    {
+        return {};
+    }
+    return QStringLiteral("%1 × %2").arg(*asset->width).arg(*asset->height);
+}
+
+QString StudioPresenter::selectedFileSize() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || asset->size_bytes == 0)
+    {
+        return {};
+    }
+    const auto bytes = static_cast<double>(asset->size_bytes);
+    if (bytes < 1024.0)
+    {
+        return QStringLiteral("%1 B").arg(asset->size_bytes);
+    }
+    if (bytes < 1024.0 * 1024.0)
+    {
+        return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+    }
+    return QStringLiteral("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+}
+
+QString StudioPresenter::selectedUri() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset ? qstring_from_utf8(asset->normalized_uri) : QString{};
+}
+
 LibraryQuery StudioPresenter::current_query() const
 {
     return query_;
@@ -624,6 +767,7 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     const QString previous = selected_asset_id_;
     assets_.setAssets(std::move(assets));
     emit filterChanged();
+    emit selectionChanged();
     if (!restore_selection)
     {
         return;
@@ -651,6 +795,24 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     }
 }
 
+void StudioPresenter::applyFolders(std::vector<FolderRecord> folders)
+{
+    folders_.setFolders(std::move(folders));
+    emit folderChanged();
+}
+
+void StudioPresenter::selectFolder(const QString &folder_uri)
+{
+    const auto next = utf8_from_qstring(folder_uri);
+    if (query_.folder_uri == next)
+    {
+        return;
+    }
+    query_.folder_uri = next;
+    emit folderChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::reloadVisibleAssets()
 {
     if (catalog_path_.isEmpty())
@@ -660,17 +822,23 @@ void StudioPresenter::reloadVisibleAssets()
     executor_.post([this, query = current_query()]() {
         Result<std::vector<AssetRecord>> listed =
             make_error(ErrorCode::kIo, "Catalog session is closed");
+        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
         if (service_ != nullptr)
         {
             listed = service_->list_assets(query);
+            folders = service_->list_folders();
         }
         QMetaObject::invokeMethod(
             this,
-            [this, listed = std::move(listed)]() mutable {
+            [this, listed = std::move(listed), folders = std::move(folders)]() mutable {
                 if (!listed)
                 {
                     setError(qstring_from_utf8(listed.error().message));
                     return;
+                }
+                if (folders)
+                {
+                    applyFolders(std::move(folders).value());
                 }
                 applyAssets(std::move(listed).value(), true);
             },
@@ -721,13 +889,16 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
     executor_.post([this, path]() {
         const auto opened = open_on_worker(path, true);
         Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
+        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
         if (opened && service_ != nullptr)
         {
             listed = service_->list_assets(query_);
+            folders = service_->list_folders();
         }
         QMetaObject::invokeMethod(
             this,
-            [this, path, opened, listed = std::move(listed)]() mutable {
+            [this, path, opened, listed = std::move(listed),
+             folders = std::move(folders)]() mutable {
                 setBusy(false);
                 if (!opened)
                 {
@@ -745,6 +916,10 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                 emit catalogChanged();
                 setError({});
                 setStatus(QStringLiteral("Library created. Import photos or a folder."));
+                if (folders)
+                {
+                    applyFolders(std::move(folders).value());
+                }
                 applyAssets(std::move(listed).value(), true);
             },
             Qt::QueuedConnection);
@@ -770,13 +945,16 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
     executor_.post([this, path]() {
         const auto opened = open_on_worker(path, false);
         Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
+        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
         if (opened && service_ != nullptr)
         {
             listed = service_->list_assets(query_);
+            folders = service_->list_folders();
         }
         QMetaObject::invokeMethod(
             this,
-            [this, path, opened, listed = std::move(listed)]() mutable {
+            [this, path, opened, listed = std::move(listed),
+             folders = std::move(folders)]() mutable {
                 setBusy(false);
                 if (!opened)
                 {
@@ -798,6 +976,10 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                 emit previewChanged();
                 setError({});
                 setStatus(QStringLiteral("Library opened."));
+                if (folders)
+                {
+                    applyFolders(std::move(folders).value());
+                }
                 applyAssets(std::move(listed).value(), true);
             },
             Qt::QueuedConnection);
@@ -900,14 +1082,16 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
             }
         }
         Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
+        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
         if (service_ != nullptr)
         {
             listed = service_->list_assets(query);
+            folders = service_->list_folders();
         }
         QMetaObject::invokeMethod(
             this,
             [this, results = std::move(results), listed = std::move(listed),
-             first_error = std::move(first_error)]() mutable {
+             folders = std::move(folders), first_error = std::move(first_error)]() mutable {
                 setBusy(false);
                 if (!listed)
                 {
@@ -917,6 +1101,10 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
                 }
                 setError(first_error);
                 setStatus(describe_import(results));
+                if (folders)
+                {
+                    applyFolders(std::move(folders).value());
+                }
                 applyAssets(std::move(listed).value(), true);
             },
             Qt::QueuedConnection);
