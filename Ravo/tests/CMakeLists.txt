@@ -30,7 +30,9 @@ target_compile_definitions(ravo_contract_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_contract_tests)
 ravo_deploy_qt_core(ravo_contract_tests)
-gtest_discover_tests(ravo_contract_tests PROPERTIES LABELS "ravo-contract")
+gtest_discover_tests(ravo_contract_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-contract")
 
 add_executable(ravo_catalog_tests catalog_test.cpp)
 target_link_libraries(ravo_catalog_tests
@@ -46,7 +48,9 @@ target_compile_definitions(ravo_catalog_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_catalog_tests)
 ravo_deploy_qt_core(ravo_catalog_tests)
-gtest_discover_tests(ravo_catalog_tests PROPERTIES LABELS "ravo-catalog")
+gtest_discover_tests(ravo_catalog_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-catalog")
 
 ravo_add_phase0_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
 ravo_add_phase0_check(ravo_capability_inventory check_capability_inventory.py)

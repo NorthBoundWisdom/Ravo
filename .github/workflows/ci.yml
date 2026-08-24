@@ -232,7 +232,41 @@ jobs:
         run: cmake --build "build/${{ matrix.preset }}" --parallel
 
       - name: Test Ravo
+        if: runner.os != 'Windows'
         run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+
+      - name: Test Ravo
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $qtBin = Join-Path $env:QT_ROOT_DIR "bin"
+          if (-not (Test-Path $qtBin)) {
+            throw "Qt bin directory is missing: $qtBin"
+          }
+          $env:Path = "$qtBin;$env:Path"
+          ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+
+      - name: Diagnose Windows test executables
+        if: runner.os == 'Windows' && failure()
+        shell: pwsh
+        run: |
+          $dumpbin = Get-Command dumpbin -ErrorAction SilentlyContinue
+          $exes = @(
+            "build/${{ matrix.preset }}/Ravo/tests/ravo_unit_tests.exe",
+            "build/${{ matrix.preset }}/Ravo/tests/ravo_contract_tests.exe",
+            "build/${{ matrix.preset }}/Ravo/tests/ravo_catalog_tests.exe"
+          )
+          foreach ($exe in $exes) {
+            if (-not (Test-Path $exe)) {
+              Write-Host "missing $exe"
+              continue
+            }
+            Write-Host "=== $exe ==="
+            if ($dumpbin) {
+              & dumpbin.exe /dependents $exe
+            }
+            & $exe --gtest_list_tests
+          }
 
       - name: Upload failure logs
         if: failure()
