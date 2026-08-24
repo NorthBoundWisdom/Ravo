@@ -13,7 +13,7 @@ package the old project.
 | Host | Windows x64 |
 | Frozen source/fixture commit | `320970bf7c9cbbc6611cfc3eb60f8f2b0424b782` (“Freeze 0.9 and prepare the Ravo rewrite”) |
 | Frozen `src` tree | `a3ac761ecbb0cf668ecad49aff8bd0e29235f5f7` |
-| Frozen `darktable-tests` tree | `1dc38893f39e113620aebbbdc927218ca4a2b8af` |
+| Frozen `legacy/tests` tree | `1dc38893f39e113620aebbbdc927218ca4a2b8af` |
 | CMake | 4.4.0 |
 | Generator/preset | Ninja / `win_msvc_release` |
 | Compiler | MSVC 19.51.36248.0, x64 |
@@ -23,7 +23,7 @@ package the old project.
 | Covered operation names | 68 |
 
 The source and fixture tree IDs match the current committed HEAD; no `src` or
-`darktable-tests` path changed after the freeze commit. The freeze checker also
+`legacy/tests` path changed after the freeze commit. The freeze checker also
 guards the legacy root CMake graph, `cmake/`, `data/`, and `packaging/` against
 working-tree or committed drift. The fixture hashes and exact paths are in
 [`../../tests/fixtures/legacy_manifest.json`](../../tests/fixtures/legacy_manifest.json).
@@ -82,7 +82,7 @@ PNG output because the LensFun database directory is absent at
 `build/win_msvc_release/share/lensfun/version_1`. Existing history diagnostics
 also report unsupported blend parameters. The local vcpkg LensFun package
 contains the DLL, headers, and metadata but no XML database. NumPy is absent,
-so `darktable-tests/count-diff-pixels` returns its fallback value of `50000`.
+so `legacy/tests/count-diff-pixels` returns its fallback value of `50000`.
 Neither condition is an image result or a valid reason to change an expected
 PNG. Under [ADR-0004](../adr/0004-freeze-09-ravo-only-growth.md) these source
 experiments are not a new 0.9 implementation plan and must not be extended to
@@ -95,7 +95,7 @@ classification is:
 | Run set | Result | Reason |
 | --- | --- | --- |
 | Legacy CTest unit label | Diagnostic pass, 3/3 | Investigative Windows build; not frozen 0.9 certification |
-| `darktable-tests` CPU fixture 0000 | Frozen-oracle result unavailable | Unchanged build failed module loading; investigative build then lacked LensFun XML and emitted blend diagnostics |
+| `legacy/tests` CPU fixture 0000 | Frozen-oracle result unavailable | Unchanged build failed module loading; investigative build then lacked LensFun XML and emitted blend diagnostics |
 | Remaining 157 image fixtures | Not run | Fast-fail stopped after fixture 0000 |
 | OpenCL comparison | Not run | CPU-only baseline command and unavailable runner |
 

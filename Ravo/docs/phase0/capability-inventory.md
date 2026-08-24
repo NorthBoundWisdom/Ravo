@@ -13,7 +13,7 @@ catalog and minimal desktop viewer are authorized in M1. That decision does not
 authorize legacy catalog migration or any operation marked deferred below.
 
 The source inventory was collected from the 76 non-comment `add_iop(...)`
-registrations in [`legacy-0.9/iop/CMakeLists.txt`](../../../legacy-0.9/iop/CMakeLists.txt).
+registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt).
 The generated fixture manifest records the 68 operation names currently
 represented by XMP regression assets.  A `yes` in the fixture column means
 only that one or more legacy XMP files name that operation; it is not a

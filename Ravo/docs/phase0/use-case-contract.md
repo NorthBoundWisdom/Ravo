@@ -53,9 +53,9 @@ binary, toolchain, or runtime reproduction is required:
 
 | Evidence | Candidate | Current state | Gate before Phase 2 acceptance |
 | --- | --- | --- | --- |
-| Baseline input | `darktable-tests/images/mire1.cr2` | Hash recorded in `tests/fixtures/legacy_manifest.json`. | Verify the recorded hash before every Ravo comparison. |
-| Neutral fixture | `darktable-tests/0000-nop/nop.xmp` and `expected.png` | Ravo strictly absorbs the exact built-in RAW baseline and renders a bounded PNG; frozen hashes remain `not-run-by-policy` for the old CPU. | Save the Ravo canonical recipe and compare full-size pixels/metadata to the committed reference. |
-| Visible-operation fixture | `darktable-tests/0001-exposure/exposure.xmp` and `expected.png` | The adapter proves only a schema-6/v5 manual, zero-black, unblended, mask-free singleton exposure entry; this full history still has prerequisite operations and blend data. | Prove the full ordered pipeline and blend/mask semantics, then save the canonical recipe, synthetic boundary test, and pixel/metadata comparison. |
+| Baseline input | `legacy/tests/images/mire1.cr2` | Hash recorded in `tests/fixtures/legacy_manifest.json`. | Verify the recorded hash before every Ravo comparison. |
+| Neutral fixture | `legacy/tests/0000-nop/nop.xmp` and `expected.png` | Ravo strictly absorbs the exact built-in RAW baseline and renders a bounded PNG; frozen hashes remain `not-run-by-policy` for the old CPU. | Save the Ravo canonical recipe and compare full-size pixels/metadata to the committed reference. |
+| Visible-operation fixture | `legacy/tests/0001-exposure/exposure.xmp` and `expected.png` | The adapter proves only a schema-6/v5 manual, zero-black, unblended, mask-free singleton exposure entry; this full history still has prerequisite operations and blend data. | Prove the full ordered pipeline and blend/mask semantics, then save the canonical recipe, synthetic boundary test, and pixel/metadata comparison. |
 | Float and metadata evidence | Ravo-owned 32-bit float TIFF plus decoded metadata summary | Not created. | Store output hashes, dimensions, colour/ICC policy, alpha/orientation, metadata summary, and tolerances beside the Ravo test data. |
 | Performance and recovery evidence | Fixed CPU, worker count, memory budget, and output location | Rendering exists, but no representative latency, peak-memory, cancellation-latency or retry measurement has been recorded. | Record first-preview and full-export latency, peak memory, cancellation latency, and retry outcome using the same request. |
 

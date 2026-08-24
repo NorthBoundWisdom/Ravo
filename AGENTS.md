@@ -1,13 +1,12 @@
-# DarkTableNext Repository Instructions
+# Ravo Repository Instructions
 
 ## 项目定位
 
-DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作流与 RAW 编辑基线。
-它保留当前图像处理核心、GTK 前端、OpenCL 实现和 fixture，只允许静态读取源码与已提交测试资产；
-不再配置、编译、运行或修改旧工程。新增产品实现、功能收缩和架构演进统一进入 Ravo。
+Ravo 是当前唯一可构建的产品：C++20 Engine、`ravo` CLI 与 Ravo Studio。仓库根
+`CMakeLists.txt` 只构建 `Ravo/`。冻结的 Darktable 0.9 全部放在 `legacy/`，只允许静态阅读；
+不得配置、编译、运行或修改。
 
-仓库根目录下的约定适用于整个仓库。`Ravo/` 是下一代 C++20 Engine、CLI 与 Studio 的独立所有权
-边界，并由它自己的 `AGENTS.md` 增加约束；`FreeCM/` 是独立子模块并由它自己的 `AGENTS.md` 管理。所有
+`Ravo/` 由它自己的 `AGENTS.md` 增加约束；`FreeCM/` 是独立子模块。所有
 `build/dependency_*` 内容都是父仓库工作流生成的外部源码，不得把它们当作本仓库源码修改。
 
 ## 工程执行与交付
@@ -31,8 +30,9 @@ DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作
    `DevDocs/GPU_Baseline.md`。
 4. 跨层改动先明确所有权、生命周期、线程边界和最小验证集。
 
-现有行为以冻结的 `legacy-0.9/` 和 fixture 为准；`DevDocs/` 是源码地图，不是兼容性承诺。新产品边界以
-`TODO_REWRITE.md` 为准。除非用户明确重新开放 0.9，任务不得修改 `legacy-0.9/`、旧 UI、旧构建图或旧资源。
+现有行为以冻结的 `legacy/` 和 `legacy/tests` fixture 为准；`DevDocs/` 是 Ravo 开发文档，
+`legacy/docs/` 是旧源码地图。新产品边界以 `TODO_REWRITE.md` 为准。除非用户明确重新开放 0.9，
+任务不得修改 `legacy/`。
 
 ## Ravo 下一代边界
 
@@ -44,9 +44,9 @@ DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作
   QSQLITE 只能留在私有 SQLite adapter，Qt Gui 可在私有 raster adapter 中用于 `QImageReader`。首版不引入
   Qt Widgets 或第二套界面架构。QML 只能展示状态和
   转发意图；SQL、codec、图像算法、业务状态和任务 owner 必须留在 C++ domain/services/engine/adapters。
-- Ravo 生产代码不得依赖 `legacy-0.9/` 私有头、旧库、动态 IOP、GTK 类型或全局 `darktable` 状态。验证只能
+- Ravo 生产代码不得依赖 `legacy/src/` 私有头、旧库、动态 IOP、GTK 类型或全局 `darktable` 状态。验证只能
   静态读取冻结源码与 fixture；不得配置、编译或执行旧 CLI/旧测试工程。
-- 迁移期间 Ravo 与冻结的 `legacy-0.9` 独立并行；不创建 `legacy-0.9` → Ravo 或 Ravo → `legacy-0.9`
+- 迁移期间 Ravo 与冻结的 `legacy/src` 独立并行；不创建 `legacy/src` → Ravo 或 Ravo → `legacy/src`
   的生产依赖。只有 Ravo 全产品达到切换门槛后，才在 M7 退役阶段删除旧实现、构建项、资源、配置和重复测试。
 - 在 `Ravo/` 工作前必须阅读 `Ravo/AGENTS.md`、`Ravo/ARCHITECTURE.md`、`Ravo/MIGRATION.md` 和
   `Ravo/TESTING.md`。
@@ -126,7 +126,7 @@ DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作
 ## 构建与验证
 
 旧 0.9 构建、CTest、图像 runner 和打包 target 全部冻结，不再运行。仓库根 `CMakeLists.txt` 只构建 Ravo；
-`legacy-0.9/` 是只读参考。FreeCM Config/Build/Run/Test 使用 `cmake --preset`，与 DwgParser/GeoDebugger
+`legacy/` 是只读参考。FreeCM Config/Build/Run/Test 使用 `cmake --preset`，与 DwgParser/GeoDebugger
 相同。
 
 首次准备工作区时运行：
@@ -150,7 +150,7 @@ Windows 使用 `win_msvc_debug` / `win_msvc_release` preset；Linux 使用 `linu
 涉及跨平台构建、公共头或平台分支的改动，应在可用的 Windows、macOS 和 Linux 工具链上分别完成
 Ravo configure/build；当前环境缺少相应工具链时，执行可行的静态检查并明确报告未验证的平台，不能
 把单一平台结果表述为全平台通过。测试只运行 Ravo 自有 unit/contract 入口；不得运行旧 CTest、旧 CLI
-或 `darktable-tests/run`。
+或 `legacy/tests/run`。
 
 验证应与风险成比例：
 

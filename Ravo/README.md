@@ -73,7 +73,7 @@ cmake --build --preset mac_clang_release
 cmake --install build/mac_clang_release --prefix install/mac_clang_release
 ```
 
-仓库根 CMake 只构建 Ravo，不得配置、编译或运行冻结 0.9（`legacy-0.9/`）。
+仓库根 CMake 只构建 Ravo，不得配置、编译或运行冻结 0.9（`legacy/src/`）。
 Windows/MSVC 与本机 macOS/Clang 曾验证当前 engine/CLI 图；Linux 仍需在目标主机验证。第一版增加
 Qt Gui/Qml/Quick/Sql、QML modules、runtime plugins 和 desktop 后必须重新建立三平台结果。
 
@@ -127,12 +127,12 @@ Debug 构建后的 Studio 入口是
 `build/win_msvc_debug/Ravo/desktop/ravo_studio.exe`，Linux 为
 `build/linux_clang_debug/Ravo/desktop/ravo_studio`）。FreeCM 的 Run 与 GeoDebugger/DwgParser 一样：先
 `cmake --build --preset … --target ravo_studio`，再直接启动这个 GUI。
-第一版手工闭环：Create Library → Import `darktable-tests/0000-nop/expected.png` 与
-`darktable-tests/images/mire1.cr2` → 选择资产 → Fit / 100%。
+第一版手工闭环：Create Library → Import `legacy/tests/0000-nop/expected.png` 与
+`legacy/tests/images/mire1.cr2` → 选择资产 → Fit / 100%。
 
-## 与冻结 `legacy-0.9/` 的关系
+## 与冻结 `legacy/src/` 的关系
 
-`legacy-0.9/` 是 0.9 行为的只读事实来源；Ravo 是唯一增长方向。Ravo 可以静态读取源码和 fixture，但生产
+`legacy/src/` 是 0.9 行为的只读事实来源；Ravo 是唯一增长方向。Ravo 可以静态读取源码和 fixture，但生产
 target 不得包含旧私有头、链接旧库、加载旧 IOP 或访问全局 `darktable`。冻结应用也不得增加 Ravo
 adapter。只有 Ravo 全产品满足发行切换与回滚门槛后，才在 M7 整体删除旧应用。
 

@@ -4,9 +4,9 @@
 
 冻结的 0.9 资产只用于静态取证：
 
-- `darktable-tests/` 有 158 组 XMP + `expected.png` fixture 和 5 个原图；
+- `legacy/tests/` 有 158 组 XMP + `expected.png` fixture 和 5 个原图；
 - fixture 覆盖 68 个 operation 名；数字是资产盘点，不是 Ravo 覆盖率；
-- 旧工程、旧 CLI、旧 CTest、旧打包 target 和 `darktable-tests/run` 全部禁止运行。
+- 旧工程、旧 CLI、旧 CTest、旧打包 target 和 `legacy/tests/run` 全部禁止运行。
 
 边界检查：
 
@@ -69,7 +69,7 @@ SQLite adapter 至少测试：
 
 ## Import 与原片安全
 
-第一条 integration 同时覆盖仓库 PNG 与 `darktable-tests/images/mire1.cr2`。之后扩展 JPEG/TIFF、目录、
+第一条 integration 同时覆盖仓库 PNG 与 `legacy/tests/images/mire1.cr2`。之后扩展 JPEG/TIFF、目录、
 损坏文件和更多 RAW。
 
 - 导入前后比较原片 hash/size/mtime，证明 reference-only 路径不修改原文件；

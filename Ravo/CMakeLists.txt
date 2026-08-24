@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(GNUInstallDirs)
 
 # Included from the repository-root CMakeLists.txt. Frozen 0.9 is in
-# legacy-0.9/ and is not part of this graph.
+# legacy/src/ and is not part of this graph.
 option(BUILD_TESTING "Build Ravo unit and contract tests" OFF)
 
 # Qt's Qml package auto-includes every shipped QML plugin. Optional plugins such

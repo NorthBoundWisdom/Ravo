@@ -9,14 +9,13 @@ from pathlib import Path
 
 
 DEFAULT_FREEZE_COMMIT = "320970bf7c9cbbc6611cfc3eb60f8f2b0424b782"
-# Current path -> path at the freeze commit. The 0.9 application sources were
-# renamed from src/ to legacy-0.9/; the freeze object identity is still src/.
+# Current path -> path at the freeze commit. Live Ravo never edits these trees.
 PROTECTED_PATHS: tuple[tuple[str, str], ...] = (
-    ("legacy-0.9", "src"),
-    ("darktable-tests", "darktable-tests"),
-    ("cmake", "cmake"),
-    ("data", "data"),
-    ("packaging", "packaging"),
+    ("legacy/src", "src"),
+    ("legacy/tests", "darktable-tests"),
+    ("legacy/host/cmake", "cmake"),
+    ("legacy/host/data", "data"),
+    ("legacy/host/packaging", "packaging"),
 )
 
 
@@ -92,7 +91,7 @@ def main() -> int:
         return 1
     print(
         f"freeze reference verified: commit={arguments.freeze_commit} "
-        f"legacy-0.9={trees['legacy-0.9']} darktable-tests={trees['darktable-tests']} "
+        f"legacy/src={trees['legacy/src']} legacy/tests={trees['legacy/tests']} "
         f"protected_paths={len(PROTECTED_PATHS)}"
     )
     return 0

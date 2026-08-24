@@ -15,7 +15,7 @@ the explicit `pending`, `defer`, `read-only`, or `unsupported` state recorded
 elsewhere; it must not infer compatibility from a legacy source file or fixture
 name.
 
-No entry here authorizes a modification of frozen `legacy-0.9/`, an old catalog, or a
+No entry here authorizes a modification of frozen `legacy/src/`, an old catalog, or a
 legacy expected image.
 
 ## Required ownership and freeze record

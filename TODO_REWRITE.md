@@ -29,7 +29,7 @@
 
 ## 已确认的技术与产品决策
 
-- Ravo 第一方代码继续使用 C++20、CMake 与 FreeCM；冻结的 `legacy-0.9/` 不进入新生产链接图。
+- Ravo 第一方代码继续使用 C++20、CMake 与 FreeCM；冻结的 `legacy/src/` 不进入新生产链接图。
 - 第一版桌面明确采用 Qt 6 Quick/QML，C++20 负责 composition、application services、presentation model
   和资源生命周期，QML 负责布局、展示、绑定与输入。desktop 链接 `Qt6::Qml`/`Qt6::Quick`，首版 QML
   import allowlist 是 `QtQuick`、`QtQuick.Controls`、`QtQuick.Dialogs` 与 `QtQuick.Layouts`；不引入 Qt
@@ -158,8 +158,8 @@ M0 是可复用底层，不是第一版软件完成状态。
 - [x] 定义 Catalog/Asset/Import/Preview 值类型、repository ports、错误和取消语义。
 - [x] 增加最小 owned executor/task handle，证明取消、关闭 catalog/window、等待与晚到结果丢弃。
 - [x] 实现 SQLite catalog schema v1、创建/打开、空库重开、事务和版本拒绝测试。
-- [x] 实现 reference-only 单文件导入：`darktable-tests/0000-nop/expected.png` 与
-  `darktable-tests/images/mire1.cr2`，包括 metadata 和幂等重复导入。
+- [x] 实现 reference-only 单文件导入：`legacy/tests/0000-nop/expected.png` 与
+  `legacy/tests/images/mire1.cr2`，包括 metadata 和幂等重复导入。
 - [x] 实现数据库外原子 preview cache；RAW 走 engine，PNG 走 raster adapter。
 - [x] 建立最小 Qt Quick/QML Ravo Studio：C++ presenter 暴露不可变 view state 和 commands，QML 完成
   创建/打开数据库、导入文件、资产列表、选择图片、适应窗口与 100% 查看。
@@ -229,7 +229,7 @@ M0 是可复用底层，不是第一版软件完成状态。
 | Platform | 当前开发平台 Debug | Windows/macOS/Linux Release 与 staged install |
 
 所有自动测试只运行 Ravo target。冻结 fixture 可只读复用，但不得运行旧 CLI、旧 CTest、
-`darktable-tests/run` 或旧打包图。单一平台结果不能表述为全平台通过。
+`legacy/tests/run` 或旧打包图。单一平台结果不能表述为全平台通过。
 
 ## 0.9 冻结基线与 Ravo 承接项
 
@@ -241,7 +241,7 @@ M0 是可复用底层，不是第一版软件完成状态。
 - 明确不承接：Lua、历史插件/UI ABI、map/tethering、打印、幻灯片、远程发布和已删除旧格式兼容；
 - 旧 OpenCL 不在 0.9 中替换为 Metal；它只在 M7 随冻结应用整体退役。
 
-迁移期间两套生产实现完全独立。Ravo 测试可以读取冻结源码和 fixture，生产代码不得包含 `legacy-0.9/` 私有头、
+迁移期间两套生产实现完全独立。Ravo 测试可以读取冻结源码和 fixture，生产代码不得包含 `legacy/src/` 私有头、
 链接旧库、加载旧 IOP 或访问全局 `darktable` 状态。
 
 ## 下一次开工的最小批次

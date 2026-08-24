@@ -20,8 +20,8 @@ ravo CLI ───────────────┐
                  │ implements    │ implements
           SQLite/FS Adapter   RAW/Raster/Cache Adapters
 
-冻结 0.9 legacy-0.9/ ──只读源码与 fixture 证据──▶ Ravo tests
-冻结 0.9 legacy-0.9/ ╳──────────────────────────▶ Ravo production
+冻结 0.9 legacy/src/ ──只读源码与 fixture 证据──▶ Ravo tests
+冻结 0.9 legacy/src/ ╳──────────────────────────▶ Ravo production
 ```
 
 这条顺序由 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md) 接受。它提前验证 catalog、导入、

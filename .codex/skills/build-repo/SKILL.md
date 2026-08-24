@@ -174,7 +174,7 @@ On macOS and Linux:
 python3 Ravo/tools/freecm_project.py --action Test --configuration Debug
 ```
 
-Do not run the frozen application's CTest graph, legacy CLI, or `darktable-tests/run`. Do not
+Do not run the frozen application's CTest graph, legacy CLI, or `legacy/tests/run`. Do not
 report tests as passing when only configure/build was requested or executed.
 
 ## Diagnose failures

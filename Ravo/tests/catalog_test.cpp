@@ -36,12 +36,12 @@ namespace
 
 [[nodiscard]] std::string png_fixture_path()
 {
-    return repository_path(std::filesystem::path("darktable-tests") / "0000-nop" / "expected.png");
+    return repository_path(std::filesystem::path("legacy") / "tests" / "0000-nop" / "expected.png");
 }
 
 [[nodiscard]] std::string raw_fixture_path()
 {
-    return repository_path(std::filesystem::path("darktable-tests") / "images" / "mire1.cr2");
+    return repository_path(std::filesystem::path("legacy") / "tests" / "images" / "mire1.cr2");
 }
 
 [[nodiscard]] QByteArray file_sha256(const std::string &path)

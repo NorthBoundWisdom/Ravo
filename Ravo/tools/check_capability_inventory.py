@@ -101,7 +101,7 @@ def table_rows(path: Path) -> dict[str, tuple[str, str]]:
 def verify(repository_root: Path) -> None:
     manifest_path = repository_root / "Ravo" / "tests" / "fixtures" / "legacy_manifest.json"
     inventory_path = repository_root / "Ravo" / "docs" / "phase0" / "capability-inventory.md"
-    cmake_path = repository_root / "legacy-0.9" / "iop" / "CMakeLists.txt"
+    cmake_path = repository_root / "legacy" / "src" / "iop" / "CMakeLists.txt"
     registry = registered_iops(cmake_path)
     operations = manifest_operations(load_json(manifest_path))
     rows = table_rows(inventory_path)
@@ -113,7 +113,7 @@ def verify(repository_root: Path) -> None:
             details.append("missing: " + ", ".join(missing))
         if extra:
             details.append("unexpected: " + ", ".join(extra))
-        raise InventoryError("capability inventory registry set differs from legacy-0.9/iop/CMakeLists.txt; " + "; ".join(details))
+        raise InventoryError("capability inventory registry set differs from legacy/src/iop/CMakeLists.txt; " + "; ".join(details))
     for operation, (fixture, _disposition) in rows.items():
         expected = "yes" if operation in operations else "no"
         if fixture != expected:

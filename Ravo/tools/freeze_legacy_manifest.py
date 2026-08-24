@@ -58,7 +58,7 @@ def xmp_metadata(path: Path) -> tuple[list[str], list[str]]:
 
 
 def build_manifest(repository_root: Path) -> dict[str, Any]:
-    tests_root = repository_root / "darktable-tests"
+    tests_root = repository_root / "legacy" / "tests"
     fixture_directories = sorted(
         path for path in tests_root.iterdir() if path.is_dir() and re.match(r"^\d{4}-", path.name)
     )
