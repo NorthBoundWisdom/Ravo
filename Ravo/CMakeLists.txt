@@ -113,25 +113,32 @@ function(ravo_qt_windows_bin_dir out_var)
 endfunction()
 
 function(ravo_deploy_qt_core target)
-  if(WIN32)
-    # Windows load-time deps include Qt modules plus ICU sidecars that
-    # TARGET_RUNTIME_DLLS does not always list. Missing any of them makes
-    # gtest discovery exit 0xc0000135.
-    ravo_qt_windows_bin_dir(_qt_bin)
-    set(_sidecars)
-    if(_qt_bin)
-      file(GLOB _sidecars "${_qt_bin}/icu*.dll" "${_qt_bin}/Qt6Network*.dll")
-    endif()
-    add_custom_command(
-      TARGET ${target}
-      POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:${target}>
-        ${_sidecars}
-        $<TARGET_FILE_DIR:${target}>
-      COMMAND_EXPAND_LISTS
-      VERBATIM)
+  if(NOT WIN32)
+    return()
   endif()
+  ravo_qt_windows_bin_dir(_qt_bin)
+  if(NOT _qt_bin)
+    message(FATAL_ERROR "ravo_deploy_qt_core: Qt6::Core bin directory is missing")
+  endif()
+  set(_windeployqt "${_qt_bin}/windeployqt.exe")
+  if(NOT EXISTS "${_windeployqt}")
+    message(FATAL_ERROR "ravo_deploy_qt_core: windeployqt.exe not found in ${_qt_bin}")
+  endif()
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_windeployqt_mode --debug)
+  else()
+    set(_windeployqt_mode --release)
+  endif()
+  add_custom_command(
+    TARGET ${target}
+    POST_BUILD
+    COMMAND "${_windeployqt}"
+      --verbose 0
+      --no-compiler-runtime
+      --no-translations
+      ${_windeployqt_mode}
+      "$<TARGET_FILE:${target}>"
+    VERBATIM)
 endfunction()
 
 add_subdirectory(foundation)

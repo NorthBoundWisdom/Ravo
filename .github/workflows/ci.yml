@@ -137,6 +137,15 @@ jobs:
           # PyPI aqt 3.3.0 cannot resolve the Qt 6.11 Windows repository layout.
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e
 
+      - name: Put Qt binaries on PATH
+        run: |
+          set -euo pipefail
+          if [[ -z "${QT_ROOT_DIR:-}" ]]; then
+            echo "QT_ROOT_DIR was not set by install-qt-action" >&2
+            exit 1
+          fi
+          echo "${QT_ROOT_DIR}/bin" >> "$GITHUB_PATH"
+
       - name: Install host CMake packages
         run: |
           set -euo pipefail
