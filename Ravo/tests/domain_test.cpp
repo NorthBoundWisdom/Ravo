@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -54,9 +55,10 @@ TEST(DomainUriTest, NormalizesAbsoluteAndRelativePathsToTheSameFileUri)
 
 TEST(DomainUriTest, RoundTripsNonAsciiPathsThroughFileUris)
 {
-    const auto directory = std::filesystem::temp_directory_path() / "ravo-uri-unicode-安吉";
+    const auto directory =
+        std::filesystem::temp_directory_path() / std::filesystem::path(u8"ravo-uri-unicode-安吉");
     std::filesystem::create_directories(directory);
-    const auto file = directory / "照片.arw";
+    const auto file = directory / std::filesystem::path(u8"照片.arw");
     {
         std::ofstream output(file, std::ios::binary);
         output << "raw";
@@ -66,7 +68,8 @@ TEST(DomainUriTest, RoundTripsNonAsciiPathsThroughFileUris)
     const std::string path(reinterpret_cast<const char *>(utf8.data()), utf8.size());
     const auto normalized = normalize_local_input(path);
     ASSERT_TRUE(normalized) << normalized.error().message;
-    EXPECT_NE(normalized.value().uri.find("安吉"), std::string::npos);
+    const auto district = std::string_view(reinterpret_cast<const char *>(u8"安吉"));
+    EXPECT_NE(normalized.value().uri.find(district), std::string::npos);
     EXPECT_EQ(normalized.value().uri.find('%'), std::string::npos);
 
     const auto round_trip = normalize_local_input(normalized.value().uri);
