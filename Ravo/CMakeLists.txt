@@ -94,15 +94,40 @@ function(ravo_configure_target target)
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wshadow>)
 endfunction()
 
+function(ravo_qt_windows_bin_dir out_var)
+  foreach(_cfg IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+    get_target_property(_loc Qt6::Core IMPORTED_LOCATION_${_cfg})
+    if(_loc)
+      get_filename_component(_bin "${_loc}" DIRECTORY)
+      set(${out_var} "${_bin}" PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+  get_target_property(_loc Qt6::Core IMPORTED_LOCATION)
+  if(NOT _loc)
+    set(${out_var} "" PARENT_SCOPE)
+    return()
+  endif()
+  get_filename_component(_bin "${_loc}" DIRECTORY)
+  set(${out_var} "${_bin}" PARENT_SCOPE)
+endfunction()
+
 function(ravo_deploy_qt_core target)
   if(WIN32)
-    # gtest_discover_tests runs the executable at build time. Copy every
-    # load-time DLL, not just Qt6Core; otherwise Windows exits 0xc0000135.
+    # Windows load-time deps include Qt modules plus ICU sidecars that
+    # TARGET_RUNTIME_DLLS does not always list. Missing any of them makes
+    # gtest discovery exit 0xc0000135.
+    ravo_qt_windows_bin_dir(_qt_bin)
+    set(_sidecars)
+    if(_qt_bin)
+      file(GLOB _sidecars "${_qt_bin}/icu*.dll" "${_qt_bin}/Qt6Network*.dll")
+    endif()
     add_custom_command(
       TARGET ${target}
       POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:${target}>
+        ${_sidecars}
         $<TARGET_FILE_DIR:${target}>
       COMMAND_EXPAND_LISTS
       VERBATIM)

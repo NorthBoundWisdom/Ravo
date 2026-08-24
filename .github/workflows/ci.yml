@@ -199,7 +199,12 @@ jobs:
         run: cmake --build "build/${{ matrix.preset }}" --parallel
 
       - name: Test Ravo
-        run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+        run: |
+          set -euo pipefail
+          if [[ -n "${QT_ROOT_DIR:-}" ]]; then
+            export PATH="${QT_ROOT_DIR}/bin:${PATH}"
+          fi
+          ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
 
       - name: Upload failure logs
         if: failure()
