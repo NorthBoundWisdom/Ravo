@@ -5,8 +5,8 @@ include(GoogleTest)
 function(ravo_add_phase0_check name script)
   add_test(
     NAME ${name}
-    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/${script}"
-      --repository-root "${PROJECT_SOURCE_DIR}/.." ${ARGN})
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/${script}"
+      --repository-root "${CMAKE_SOURCE_DIR}" ${ARGN})
   set_tests_properties(${name} PROPERTIES LABELS "ravo-contract")
 endfunction()
 
@@ -25,7 +25,7 @@ add_executable(ravo_contract_tests
 target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main PNG::PNG ravo_cli)
 target_include_directories(ravo_contract_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_contract_tests PRIVATE
-  RAVO_REPOSITORY_ROOT="${PROJECT_SOURCE_DIR}/..")
+  RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_contract_tests)
 ravo_deploy_qt_core(ravo_contract_tests)
 gtest_discover_tests(ravo_contract_tests PROPERTIES LABELS "ravo-contract")
@@ -41,7 +41,7 @@ target_link_libraries(ravo_catalog_tests
     Qt6::Sql)
 target_include_directories(ravo_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_catalog_tests PRIVATE
-  RAVO_REPOSITORY_ROOT="${PROJECT_SOURCE_DIR}/..")
+  RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_catalog_tests)
 ravo_deploy_qt_core(ravo_catalog_tests)
 gtest_discover_tests(ravo_catalog_tests PROPERTIES LABELS "ravo-catalog")

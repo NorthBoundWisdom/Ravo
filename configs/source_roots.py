@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage FreeCM source roots used by darktable's in-tree dependencies."""
+"""Manage FreeCM source roots consumed by the Ravo CMake graph."""
 
 from __future__ import annotations
 
@@ -23,10 +23,10 @@ DEV_MODE_KEY = "DevMode"
 
 
 def dev_mode_from_lock_data(lock_data: object, *, path_label: object) -> bool:
-    """Return the checkout-local runtime persistence mode from AppConfigs.
+    """Return AppConfigs.DevMode from a lock file.
 
-    Older ignored active locks predate AppConfigs.  They retain the safe
-    production default until a developer explicitly adds AppConfigs.DevMode.
+    Older ignored active locks predate AppConfigs. They retain the production
+    default until a developer explicitly adds AppConfigs.DevMode.
     """
     if not isinstance(lock_data, dict):
         raise ValueError(f"Invalid source-roots lock file (expected object): {path_label}")
@@ -50,42 +50,6 @@ def dev_mode_from_lock_data(lock_data: object, *, path_label: object) -> bool:
 
 
 DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
-    DependencyRootSpec(
-        dependency_name="rawspeed",
-        repo_name="rawspeed",
-        env_key="RAWSPEED_SOURCE_ROOT",
-        required_relative_paths=("CMakeLists.txt", "data/cameras.xml"),
-    ),
-    DependencyRootSpec(
-        dependency_name="OpenCL",
-        repo_name="OpenCL",
-        env_key="OPENCL_HEADERS_SOURCE_ROOT",
-        required_relative_paths=("CL/opencl.h",),
-    ),
-    DependencyRootSpec(
-        dependency_name="whereami",
-        repo_name="whereami",
-        env_key="WHEREAMI_SOURCE_ROOT",
-        required_relative_paths=("src/whereami.c", "src/whereami.h"),
-    ),
-    DependencyRootSpec(
-        dependency_name="exiv2",
-        repo_name="exiv2",
-        env_key="EXIV2_SOURCE_ROOT",
-        required_relative_paths=("CMakeLists.txt",),
-    ),
-    DependencyRootSpec(
-        dependency_name="Imath",
-        repo_name="Imath",
-        env_key="IMATH_SOURCE_ROOT",
-        required_relative_paths=("CMakeLists.txt",),
-    ),
-    DependencyRootSpec(
-        dependency_name="inih",
-        repo_name="inih",
-        env_key="INIH_SOURCE_ROOT",
-        required_relative_paths=("ini.c", "ini.h", "cpp/INIReader.cpp", "cpp/INIReader.h"),
-    ),
     DependencyRootSpec(
         dependency_name="LibRaw",
         repo_name="LibRaw",
@@ -112,7 +76,7 @@ workflow = bind_dependency_root_workflow(
     DependencyRootConfig(
         repo_root=REPO_ROOT,
         dependency_root_specs=DEPENDENCY_ROOT_SPECS,
-        repo_display_name="DarkTableNext",
+        repo_display_name="Ravo",
     ),
 )
 

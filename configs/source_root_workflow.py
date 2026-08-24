@@ -54,17 +54,19 @@ def resolve_preset_models(*args: object, **kwargs: object):
                 if name.startswith("win_llvm_"):
                     path_prefix = "C:/Program Files/LLVM/bin;" + path_prefix
                 environment["PATH"] = path_prefix + "$penv{PATH}"
+            if name.endswith("_debug"):
+                cache["BUILD_TESTING"] = "ON"
     return resolved
 
 
-# The application consumes these source roots with add_subdirectory(), so no
-# standalone dependency SDKs need to be built before configuring DarkTableNext.
+# Ravo consumes these source roots with add_subdirectory(); no standalone
+# dependency SDKs need to be built before configure.
 DEPENDENCY_BUILD_ORDER: tuple[CMakeDependencyBuildSpec, ...] = ()
 
 WORKFLOW_SCRIPT = bind_cmake_workflow_script(
     globals(),
     repo_root=REPO_ROOT,
-    repo_display_name="DarkTableNext",
+    repo_display_name="Ravo",
     dependency_build_order=DEPENDENCY_BUILD_ORDER,
 )
 if __name__ == "__main__":

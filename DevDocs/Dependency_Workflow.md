@@ -1,6 +1,6 @@
 # FreeCM source-root 依赖联调工作流
 
-本文说明 DarkTableNext/Ravo 如何使用 FreeCM 管理第三方源码、如何在本地切换到依赖源码联调，
+本文说明 Ravo 如何使用 FreeCM 管理第三方源码、如何在本地切换到依赖源码联调，
 以及如何把联调结果安全地固化为可复现的 pinned 基线。规则适用于 Windows、macOS 和 Linux；示例中的
 本地路径只代表当前机器的活动配置，不应进入受版本控制的模板。
 
@@ -17,11 +17,10 @@
 | `CMakePresets.json` | `--update` 生成的当前主机 preset；不手工修改或提交。 |
 | `.freecm.workspace.lock` | Python workflow 与 FreeCM 插件共用的短生命周期互斥目录；不手工创建或提交。 |
 
-根锁只声明 DarkTableNext 的直接依赖。若依赖自己的锁模板声明 sibling 依赖，FreeCM 会从本地 seed
+根锁只声明 Ravo 的直接依赖。若依赖自己的锁模板声明 sibling 依赖，FreeCM 会从本地 seed
 递归解析 transitive closure；不要为了复制 closure 而把所有传递依赖重复写进根锁。
 
-当前直接依赖名为：`rawspeed`、`OpenCL`、`whereami`、`exiv2`、`Imath`、`inih`、`LibRaw`、`RfLog` 和
-`GeoControls`。
+当前直接依赖名为：`LibRaw`、`RfLog` 和 `GeoControls`。
 联调时 `depsManualPath` 的键必须使用这些逻辑依赖名，而不是猜测目录名。
 
 ## FreeCM 子模块跟踪
@@ -187,13 +186,9 @@ seed 必须处于你理解的分支/提交且没有未知改动。应先完成�
 {
   "depsMode": "manual",
   "depsManualPath": {
-    "rawspeed": "",
-    "OpenCL": "",
-    "whereami": "",
-    "exiv2": "",
-    "Imath": "",
-    "inih": "",
-    "LibRaw": "D:/work/LibRaw"
+    "LibRaw": "D:/work/LibRaw",
+    "RfLog": "",
+    "GeoControls": ""
   }
 }
 ```
@@ -235,7 +230,7 @@ path 变化后总要重新执行 `--update`，否则现有 `CMakePresets.json` �
 6. 只提交模板、配置/消费代码和相应文档，不提交活动锁、preset 或 build 目录。
 
 禁止让父仓库 lock、gitlink 或后续提交依赖只存在本机而尚未 push 的依赖提交。若变更涉及多层依赖，
-必须先发布最底层，再更新中间层，最后更新 DarkTableNext。
+必须先发布最底层，再更新中间层，最后更新 Ravo。
 
 `python configs/source_roots.py pin --dep <name> --ref <ref>` 可从本地 seed 解析 ref 并写入活动锁，
 但它不能替代对 tracked 模板的评审，也不能证明提交已经发布到远端。

@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(Ravo VERSION 0.1.0 LANGUAGES CXX)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  message(FATAL_ERROR "Configure Ravo from the repository root with cmake --preset")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,7 +10,6 @@ include(GNUInstallDirs)
 
 # Included from the repository-root CMakeLists.txt. Frozen 0.9 is in
 # legacy/src/ and is not part of this graph.
-option(BUILD_TESTING "Build Ravo unit and contract tests" OFF)
 
 # Qt's Qml package auto-includes every shipped QML plugin. Optional plugins such
 # as AssetDownloader require Qt TaskTree, which is not part of the Ravo prefix
@@ -128,7 +127,6 @@ add_subdirectory(cli)
 add_subdirectory(desktop)
 
 if(BUILD_TESTING)
-  enable_testing()
   add_subdirectory(tests)
 endif()
 

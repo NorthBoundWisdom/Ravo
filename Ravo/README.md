@@ -1,6 +1,6 @@
 # Ravo
 
-Ravo 是 DarkTableNext 仓库中的下一代照片软件。当前产品目标是尽快交付一个跨平台第一版：
+Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽快交付一个跨平台第一版：
 创建/打开本地 SQLite 图库、reference-only 导入 JPEG/PNG/TIFF/RAW，并在 Ravo Studio 中浏览图片。
 现有 C++20 Engine 和 `ravo` CLI 是这个软件的底层与无 UI 客户端，desktop 不会另写一套业务或算法。
 

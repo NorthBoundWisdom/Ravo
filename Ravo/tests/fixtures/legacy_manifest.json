@@ -5,14 +5,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0000-nop/cpugpu.maxpix",
+          "path": "legacy/tests/0000-nop/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0000-nop/expected.png",
+          "path": "legacy/tests/0000-nop/expected.png",
           "sha256": "207ecde1f59eadea107d830bf0b6b9fd33147db333e46d86e122f6bf3c5221d5",
           "size_bytes": 5146216
         }
@@ -31,7 +31,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0000-nop/nop.xmp",
+          "path": "legacy/tests/0000-nop/nop.xmp",
           "schema_versions": [
             "6"
           ],
@@ -44,14 +44,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0001-exposure/cpugpu.maxpix",
+          "path": "legacy/tests/0001-exposure/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0001-exposure/expected.png",
+          "path": "legacy/tests/0001-exposure/expected.png",
           "sha256": "48906ecaca2a32f1eeb45237f8aed3b9a9c60b296661c669ed3be79607d83c1b",
           "size_bytes": 5146216
         }
@@ -71,7 +71,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0001-exposure/exposure.xmp",
+          "path": "legacy/tests/0001-exposure/exposure.xmp",
           "schema_versions": [
             "6"
           ],
@@ -84,14 +84,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0002-local-contrast/cpugpu.maxpix",
+          "path": "legacy/tests/0002-local-contrast/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0002-local-contrast/expected.png",
+          "path": "legacy/tests/0002-local-contrast/expected.png",
           "sha256": "7b71ef73f228156e72798215038be275fc121aa0caf192193313a6f8c1d97ecc",
           "size_bytes": 5146216
         }
@@ -112,7 +112,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0002-local-contrast/local-contrast.xmp",
+          "path": "legacy/tests/0002-local-contrast/local-contrast.xmp",
           "schema_versions": [
             "6"
           ],
@@ -125,14 +125,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0003-denoise-bilateral/cpugpu.maxpix",
+          "path": "legacy/tests/0003-denoise-bilateral/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0003-denoise-bilateral/expected.png",
+          "path": "legacy/tests/0003-denoise-bilateral/expected.png",
           "sha256": "3eb1abee55e7ffb48fd44d98f4987f298199e3551c7018a071eef3b704e25c72",
           "size_bytes": 5146216
         }
@@ -153,7 +153,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0003-denoise-bilateral/denoise-bilateral.xmp",
+          "path": "legacy/tests/0003-denoise-bilateral/denoise-bilateral.xmp",
           "schema_versions": [
             "6"
           ],
@@ -166,14 +166,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0004-masks/cpugpu.maxpix",
+          "path": "legacy/tests/0004-masks/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0004-masks/expected.png",
+          "path": "legacy/tests/0004-masks/expected.png",
           "sha256": "9158b8bd996f80fc5cdbe3e84f2c90c9691edc2322e33a6efb96ac3fc0394ea2",
           "size_bytes": 5146453
         }
@@ -193,7 +193,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0004-masks/masks.xmp",
+          "path": "legacy/tests/0004-masks/masks.xmp",
           "schema_versions": [
             "6"
           ],
@@ -206,14 +206,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0005-orientation-minus-90/cpugpu.maxpix",
+          "path": "legacy/tests/0005-orientation-minus-90/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0005-orientation-minus-90/expected.png",
+          "path": "legacy/tests/0005-orientation-minus-90/expected.png",
           "sha256": "1a07530f3f1e3bf63f36d02473afec08bacb96b60e042994a9e720957d701494",
           "size_bytes": 5154824
         }
@@ -232,7 +232,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0005-orientation-minus-90/orientation-minus-90.xmp",
+          "path": "legacy/tests/0005-orientation-minus-90/orientation-minus-90.xmp",
           "schema_versions": [
             "6"
           ],
@@ -245,14 +245,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0006-orientation-plus-90/cpugpu.maxpix",
+          "path": "legacy/tests/0006-orientation-plus-90/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0006-orientation-plus-90/expected.png",
+          "path": "legacy/tests/0006-orientation-plus-90/expected.png",
           "sha256": "47a0f54b3bdf909819854272a2e5f08d48b8ce22df483cdba138bcca9ba46129",
           "size_bytes": 5154824
         }
@@ -271,7 +271,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0006-orientation-plus-90/orientation-plus-90.xmp",
+          "path": "legacy/tests/0006-orientation-plus-90/orientation-plus-90.xmp",
           "schema_versions": [
             "6"
           ],
@@ -284,14 +284,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0007-orientation-180/cpugpu.maxpix",
+          "path": "legacy/tests/0007-orientation-180/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0007-orientation-180/expected.png",
+          "path": "legacy/tests/0007-orientation-180/expected.png",
           "sha256": "4c94c484c71d1ba4e4281ac6b8217e26bbf23f784f1185ff13b2b568d9a968ce",
           "size_bytes": 5154824
         }
@@ -310,7 +310,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0007-orientation-180/orientation-180.xmp",
+          "path": "legacy/tests/0007-orientation-180/orientation-180.xmp",
           "schema_versions": [
             "6"
           ],
@@ -323,14 +323,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0011-gdnd-90/cpugpu.maxpix",
+          "path": "legacy/tests/0011-gdnd-90/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0011-gdnd-90/expected.png",
+          "path": "legacy/tests/0011-gdnd-90/expected.png",
           "sha256": "c13c43f6557bc9c5f218601dc72768cf2b63893a785d6750e4225674c093d5ef",
           "size_bytes": 5146453
         }
@@ -349,7 +349,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0011-gdnd-90/gdnd-90.xmp",
+          "path": "legacy/tests/0011-gdnd-90/gdnd-90.xmp",
           "schema_versions": [
             "6"
           ],
@@ -362,14 +362,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0012-gdnd-45/cpugpu.maxpix",
+          "path": "legacy/tests/0012-gdnd-45/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0012-gdnd-45/expected.png",
+          "path": "legacy/tests/0012-gdnd-45/expected.png",
           "sha256": "b5fa391de05dededf542414bebcf4c5baa945f16f8a37224cc86c3713aa52a95",
           "size_bytes": 5146453
         }
@@ -388,7 +388,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0012-gdnd-45/gdnd-45.xmp",
+          "path": "legacy/tests/0012-gdnd-45/gdnd-45.xmp",
           "schema_versions": [
             "6"
           ],
@@ -401,14 +401,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0013-denoiseprofile-wavelets/cpugpu.maxpix",
+          "path": "legacy/tests/0013-denoiseprofile-wavelets/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0013-denoiseprofile-wavelets/expected.png",
+          "path": "legacy/tests/0013-denoiseprofile-wavelets/expected.png",
           "sha256": "2e3732cb5befeb6ae3e2a0bb9e4f1a7e20e13b325fdbce68bfa3b71070c0bd2d",
           "size_bytes": 5146453
         }
@@ -428,7 +428,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0013-denoiseprofile-wavelets/denoiseprofile-wavelets.xmp",
+          "path": "legacy/tests/0013-denoiseprofile-wavelets/denoiseprofile-wavelets.xmp",
           "schema_versions": [
             "6"
           ],
@@ -441,14 +441,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0014-filmic-rgb/cpugpu.maxpix",
+          "path": "legacy/tests/0014-filmic-rgb/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0014-filmic-rgb/expected.png",
+          "path": "legacy/tests/0014-filmic-rgb/expected.png",
           "sha256": "0f54432f7c10a0ed90d00d8ca5a4f9f36d2c63b489ee456f8826c9585846d681",
           "size_bytes": 5146453
         }
@@ -467,7 +467,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0014-filmic-rgb/filmic-rgb.xmp",
+          "path": "legacy/tests/0014-filmic-rgb/filmic-rgb.xmp",
           "schema_versions": [
             "6"
           ],
@@ -480,14 +480,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0015-shadhi-bilateral/cpugpu.maxpix",
+          "path": "legacy/tests/0015-shadhi-bilateral/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0015-shadhi-bilateral/expected.png",
+          "path": "legacy/tests/0015-shadhi-bilateral/expected.png",
           "sha256": "caec8b6c82927b221d911200038f7fac233dc2dddd791a3692fc10377a7a387d",
           "size_bytes": 5147494
         }
@@ -508,7 +508,7 @@
             "shadhi",
             "temperature"
           ],
-          "path": "darktable-tests/0015-shadhi-bilateral/shadhi-bilateral.xmp",
+          "path": "legacy/tests/0015-shadhi-bilateral/shadhi-bilateral.xmp",
           "schema_versions": [
             "6"
           ],
@@ -521,14 +521,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0016-lowpass-bilateral/cpugpu.maxpix",
+          "path": "legacy/tests/0016-lowpass-bilateral/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0016-lowpass-bilateral/expected.png",
+          "path": "legacy/tests/0016-lowpass-bilateral/expected.png",
           "sha256": "02d6fd0c2a9e8ee7b903f8af8a55c9f5f28015b829ca3ad90b7b8703fba46b43",
           "size_bytes": 5147494
         }
@@ -549,7 +549,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0016-lowpass-bilateral/lowpass-bilateral.xmp",
+          "path": "legacy/tests/0016-lowpass-bilateral/lowpass-bilateral.xmp",
           "schema_versions": [
             "6"
           ],
@@ -562,14 +562,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0017-monochrome/cpugpu.maxpix",
+          "path": "legacy/tests/0017-monochrome/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0017-monochrome/expected.png",
+          "path": "legacy/tests/0017-monochrome/expected.png",
           "sha256": "105c87c7d9ff159aee4363d29c9c2134155346e865349b0429ce4786f6f9d1ae",
           "size_bytes": 5147494
         }
@@ -590,7 +590,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0017-monochrome/monochrome.xmp",
+          "path": "legacy/tests/0017-monochrome/monochrome.xmp",
           "schema_versions": [
             "6"
           ],
@@ -603,14 +603,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0018-perspective-corr/cpugpu.maxpix",
+          "path": "legacy/tests/0018-perspective-corr/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0018-perspective-corr/expected.png",
+          "path": "legacy/tests/0018-perspective-corr/expected.png",
           "sha256": "acb09f70461a4ab28a56fceb1cbce2a43cec93549f3abe63611fa7655722ed49",
           "size_bytes": 5147494
         }
@@ -631,7 +631,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0018-perspective-corr/perspective-corr.xmp",
+          "path": "legacy/tests/0018-perspective-corr/perspective-corr.xmp",
           "schema_versions": [
             "6"
           ],
@@ -644,14 +644,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0019-color-mapping/cpugpu.maxpix",
+          "path": "legacy/tests/0019-color-mapping/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0019-color-mapping/expected.png",
+          "path": "legacy/tests/0019-color-mapping/expected.png",
           "sha256": "867a9c24acb74b80e071c47d7983b6744a736bf23ba69a80e88a83dfdd931893",
           "size_bytes": 5147494
         }
@@ -672,7 +672,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0019-color-mapping/color-mapping.xmp",
+          "path": "legacy/tests/0019-color-mapping/color-mapping.xmp",
           "schema_versions": [
             "6"
           ],
@@ -685,14 +685,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0020-denoise-nlmeans/cpugpu.maxpix",
+          "path": "legacy/tests/0020-denoise-nlmeans/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0020-denoise-nlmeans/expected.png",
+          "path": "legacy/tests/0020-denoise-nlmeans/expected.png",
           "sha256": "d4138fd57e3a3d73e619e4164b6bd7f811271fdbc2fe405f3867399aa1e8b889",
           "size_bytes": 5146453
         }
@@ -712,7 +712,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0020-denoise-nlmeans/denoise-nlmeans.xmp",
+          "path": "legacy/tests/0020-denoise-nlmeans/denoise-nlmeans.xmp",
           "schema_versions": [
             "6"
           ],
@@ -725,14 +725,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0021-retouch-wavelets/cpugpu.maxpix",
+          "path": "legacy/tests/0021-retouch-wavelets/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0021-retouch-wavelets/expected.png",
+          "path": "legacy/tests/0021-retouch-wavelets/expected.png",
           "sha256": "700c5a38aab014ff30441c26d092a9c6dfe94ebea750ea2b00f14eb28eafb280",
           "size_bytes": 5146453
         }
@@ -752,7 +752,7 @@
             "retouch",
             "temperature"
           ],
-          "path": "darktable-tests/0021-retouch-wavelets/retouch-wavelets.xmp",
+          "path": "legacy/tests/0021-retouch-wavelets/retouch-wavelets.xmp",
           "schema_versions": [
             "6"
           ],
@@ -765,14 +765,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0022-color-zones/cpugpu.maxpix",
+          "path": "legacy/tests/0022-color-zones/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0022-color-zones/expected.png",
+          "path": "legacy/tests/0022-color-zones/expected.png",
           "sha256": "a2f0c8c1cf345aca8d26456ce5f81e203ae6eac5fa63fa9e61c6260e0485719d",
           "size_bytes": 5145941
         }
@@ -794,7 +794,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0022-color-zones/color-zones.xmp",
+          "path": "legacy/tests/0022-color-zones/color-zones.xmp",
           "schema_versions": [
             "6"
           ],
@@ -807,14 +807,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0024-contrast-equalizer/cpugpu.maxpix",
+          "path": "legacy/tests/0024-contrast-equalizer/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0024-contrast-equalizer/expected.png",
+          "path": "legacy/tests/0024-contrast-equalizer/expected.png",
           "sha256": "4cf042587ecfb155f5a772340b7d095a00ab1078485cab6bc2c2369874f1dab2",
           "size_bytes": 5146453
         }
@@ -834,7 +834,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0024-contrast-equalizer/contrast-equalizer.xmp",
+          "path": "legacy/tests/0024-contrast-equalizer/contrast-equalizer.xmp",
           "schema_versions": [
             "6"
           ],
@@ -847,14 +847,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0025-exposure-guided-filter/cpugpu.maxpix",
+          "path": "legacy/tests/0025-exposure-guided-filter/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0025-exposure-guided-filter/expected.png",
+          "path": "legacy/tests/0025-exposure-guided-filter/expected.png",
           "sha256": "0aeb2be04aacba13c382b087f542d636d84ac0bc1081f826d9cb5d3063b1a1fa",
           "size_bytes": 5145941
         }
@@ -874,7 +874,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0025-exposure-guided-filter/exposure-guided-filter.xmp",
+          "path": "legacy/tests/0025-exposure-guided-filter/exposure-guided-filter.xmp",
           "schema_versions": [
             "6"
           ],
@@ -887,14 +887,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0026-haze-removal/cpugpu.maxpix",
+          "path": "legacy/tests/0026-haze-removal/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0026-haze-removal/expected.png",
+          "path": "legacy/tests/0026-haze-removal/expected.png",
           "sha256": "59fac09366c3dae6263cef770c371f41dcbfb3ddc1dc205f992d8f92449a1fa7",
           "size_bytes": 5147494
         }
@@ -915,7 +915,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0026-haze-removal/haze-removal.xmp",
+          "path": "legacy/tests/0026-haze-removal/haze-removal.xmp",
           "schema_versions": [
             "6"
           ],
@@ -928,14 +928,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0027-denoiseprofile-nlmeans/cpugpu.maxpix",
+          "path": "legacy/tests/0027-denoiseprofile-nlmeans/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0027-denoiseprofile-nlmeans/expected.png",
+          "path": "legacy/tests/0027-denoiseprofile-nlmeans/expected.png",
           "sha256": "bf5904bd2ab340930ac3ccd27a17132275c5d779213b3219175320fd7c69fcea",
           "size_bytes": 5146453
         }
@@ -954,7 +954,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0027-denoiseprofile-nlmeans/denoiseprofile-nlmeans.xmp",
+          "path": "legacy/tests/0027-denoiseprofile-nlmeans/denoiseprofile-nlmeans.xmp",
           "schema_versions": [
             "6"
           ],
@@ -967,14 +967,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0028-highpass-overlay/cpugpu.maxpix",
+          "path": "legacy/tests/0028-highpass-overlay/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0028-highpass-overlay/expected.png",
+          "path": "legacy/tests/0028-highpass-overlay/expected.png",
           "sha256": "f9ac8508eb54f3519126fc264a00ff95a5815fa38d86e745baf91281c9a48280",
           "size_bytes": 5145941
         }
@@ -997,7 +997,7 @@
             "sharpen",
             "temperature"
           ],
-          "path": "darktable-tests/0028-highpass-overlay/highpass-overlay.xmp",
+          "path": "legacy/tests/0028-highpass-overlay/highpass-overlay.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1010,14 +1010,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0029-color-correction/cpugpu.maxpix",
+          "path": "legacy/tests/0029-color-correction/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0029-color-correction/expected.png",
+          "path": "legacy/tests/0029-color-correction/expected.png",
           "sha256": "0c9833b2197f4a4277dbb74c8f0b5c57d12b8f5e4e4e6d7914a16f7670e8a41e",
           "size_bytes": 5145941
         }
@@ -1040,7 +1040,7 @@
             "sharpen",
             "temperature"
           ],
-          "path": "darktable-tests/0029-color-correction/color-correction.xmp",
+          "path": "legacy/tests/0029-color-correction/color-correction.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1053,14 +1053,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0030-framing/cpugpu.maxpix",
+          "path": "legacy/tests/0030-framing/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0030-framing/expected.png",
+          "path": "legacy/tests/0030-framing/expected.png",
           "sha256": "20c35c527626a3aa690a66fa5b3cce9b5e1e34d476369c325105b9e309fc0ce6",
           "size_bytes": 5145941
         }
@@ -1080,7 +1080,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0030-framing/framing.xmp",
+          "path": "legacy/tests/0030-framing/framing.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1093,14 +1093,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0032-watermark/cpugpu.maxpix",
+          "path": "legacy/tests/0032-watermark/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0032-watermark/expected.png",
+          "path": "legacy/tests/0032-watermark/expected.png",
           "sha256": "1573e1b491c324cefd6613209173a5397a86a6f129c900f5eea1410b1a8a9d88",
           "size_bytes": 5145941
         }
@@ -1120,7 +1120,7 @@
             "temperature",
             "watermark"
           ],
-          "path": "darktable-tests/0032-watermark/watermark.xmp",
+          "path": "legacy/tests/0032-watermark/watermark.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1133,14 +1133,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0033-blending-modes-uniform/cpugpu.maxpix",
+          "path": "legacy/tests/0033-blending-modes-uniform/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0033-blending-modes-uniform/expected.png",
+          "path": "legacy/tests/0033-blending-modes-uniform/expected.png",
           "sha256": "a6f9aa9c0edcaa8b9e6e771e2ad19e0228e7a1db47c30d86dc843040fce9a2ba",
           "size_bytes": 5137898
         }
@@ -1160,7 +1160,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0033-blending-modes-uniform/blending-modes-uniform.xmp",
+          "path": "legacy/tests/0033-blending-modes-uniform/blending-modes-uniform.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1173,14 +1173,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0034-blending-modes-parametric/cpugpu.maxpix",
+          "path": "legacy/tests/0034-blending-modes-parametric/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0034-blending-modes-parametric/expected.png",
+          "path": "legacy/tests/0034-blending-modes-parametric/expected.png",
           "sha256": "a0e94e9371dd18c7cdbd598e6d33ce3cb93715024583dff5bbe90d1b9d0f562b",
           "size_bytes": 5137898
         }
@@ -1200,7 +1200,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0034-blending-modes-parametric/blending-modes-parametric.xmp",
+          "path": "legacy/tests/0034-blending-modes-parametric/blending-modes-parametric.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1213,14 +1213,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0036-liquify/cpugpu.maxpix",
+          "path": "legacy/tests/0036-liquify/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0036-liquify/expected.png",
+          "path": "legacy/tests/0036-liquify/expected.png",
           "sha256": "84a0cfdd57fb250ab2156b4ed71e4a198e827443f9407bf75050bdaedb765ceb",
           "size_bytes": 5145941
         }
@@ -1240,7 +1240,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0036-liquify/liquify.xmp",
+          "path": "legacy/tests/0036-liquify/liquify.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1253,14 +1253,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0037-filmic-reconstruction/cpugpu.maxpix",
+          "path": "legacy/tests/0037-filmic-reconstruction/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0037-filmic-reconstruction/expected.png",
+          "path": "legacy/tests/0037-filmic-reconstruction/expected.png",
           "sha256": "5a5b1f5b21cfc5125cc570d95ac90e4cb06ba23f8e848c014b64b46ad5229ab0",
           "size_bytes": 5145941
         }
@@ -1281,7 +1281,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0037-filmic-reconstruction/filmic-reconstruction.xmp",
+          "path": "legacy/tests/0037-filmic-reconstruction/filmic-reconstruction.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1294,14 +1294,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0038-colorcontrast/cpugpu.maxpix",
+          "path": "legacy/tests/0038-colorcontrast/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0038-colorcontrast/expected.png",
+          "path": "legacy/tests/0038-colorcontrast/expected.png",
           "sha256": "7e15128e8f53289ffa33e5830807a943ab8dd0b344d5fef6700092703d3fb6e0",
           "size_bytes": 5145941
         }
@@ -1322,7 +1322,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0038-colorcontrast/colorcontrast.xmp",
+          "path": "legacy/tests/0038-colorcontrast/colorcontrast.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1335,14 +1335,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0043-dithering-fs/cpugpu.maxpix",
+          "path": "legacy/tests/0043-dithering-fs/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0043-dithering-fs/expected.png",
+          "path": "legacy/tests/0043-dithering-fs/expected.png",
           "sha256": "8e2819b74fe39e72ab0e5b9b63b750f2fdf4eaeb513f517782eb6760419e727a",
           "size_bytes": 5145941
         }
@@ -1363,7 +1363,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0043-dithering-fs/dithering-fs.xmp",
+          "path": "legacy/tests/0043-dithering-fs/dithering-fs.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1376,14 +1376,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0044-dithering-random/cpugpu.maxpix",
+          "path": "legacy/tests/0044-dithering-random/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0044-dithering-random/expected.png",
+          "path": "legacy/tests/0044-dithering-random/expected.png",
           "sha256": "15195876de3f9935d1e268561e051286816fb46052cb64c42905c576dc84298f",
           "size_bytes": 5145941
         }
@@ -1404,7 +1404,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0044-dithering-random/dithering-random.xmp",
+          "path": "legacy/tests/0044-dithering-random/dithering-random.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1417,14 +1417,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0045-vignetting/cpugpu.maxpix",
+          "path": "legacy/tests/0045-vignetting/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0045-vignetting/expected.png",
+          "path": "legacy/tests/0045-vignetting/expected.png",
           "sha256": "959420b0706858f0fabfd963d8d198453677fa322d60437890488c7a9bb13f8c",
           "size_bytes": 5145941
         }
@@ -1445,7 +1445,7 @@
             "temperature",
             "vignette"
           ],
-          "path": "darktable-tests/0045-vignetting/vignetting.xmp",
+          "path": "legacy/tests/0045-vignetting/vignetting.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1458,14 +1458,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0046-demosaic-greens/cpugpu.maxpix",
+          "path": "legacy/tests/0046-demosaic-greens/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0046-demosaic-greens/expected.png",
+          "path": "legacy/tests/0046-demosaic-greens/expected.png",
           "sha256": "a32fdce5bdf0c650165ab1f0ff850544d3fa9d8440c6b233e35b0b169962f36b",
           "size_bytes": 5145941
         }
@@ -1485,7 +1485,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0046-demosaic-greens/demosaic-greens.xmp",
+          "path": "legacy/tests/0046-demosaic-greens/demosaic-greens.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1498,14 +1498,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0047-demosaic-amaze/cpugpu.maxpix",
+          "path": "legacy/tests/0047-demosaic-amaze/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0047-demosaic-amaze/expected.png",
+          "path": "legacy/tests/0047-demosaic-amaze/expected.png",
           "sha256": "1f776e134306e3728cbe4850d286e8aed31d61c9151ce18bb7c4be6143307e3a",
           "size_bytes": 5145941
         }
@@ -1525,7 +1525,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0047-demosaic-amaze/demosaic-amaze.xmp",
+          "path": "legacy/tests/0047-demosaic-amaze/demosaic-amaze.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1538,14 +1538,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0048-demosaic-vng/cpugpu.maxpix",
+          "path": "legacy/tests/0048-demosaic-vng/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0048-demosaic-vng/expected.png",
+          "path": "legacy/tests/0048-demosaic-vng/expected.png",
           "sha256": "e915399e2a191acf91f8a830faec75d2f58a3f749cc5b069ad060c4694fbfffd",
           "size_bytes": 5145941
         }
@@ -1565,7 +1565,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0048-demosaic-vng/demosaic-vng.xmp",
+          "path": "legacy/tests/0048-demosaic-vng/demosaic-vng.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1578,14 +1578,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0049-rawdenoise/cpugpu.maxpix",
+          "path": "legacy/tests/0049-rawdenoise/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0049-rawdenoise/expected.png",
+          "path": "legacy/tests/0049-rawdenoise/expected.png",
           "sha256": "5ed0f7b5335fc1d6293608086a4d7c0dec41d5cdb00821d7a391d297fc58f128",
           "size_bytes": 5145941
         }
@@ -1606,7 +1606,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0049-rawdenoise/rawdenoise.xmp",
+          "path": "legacy/tests/0049-rawdenoise/rawdenoise.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1619,14 +1619,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0050-bloom/cpugpu.maxpix",
+          "path": "legacy/tests/0050-bloom/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0050-bloom/expected.png",
+          "path": "legacy/tests/0050-bloom/expected.png",
           "sha256": "5611c9e3816c99582a76b35676f1d22d06847008ffe7709abe906ed0edc84ad3",
           "size_bytes": 5145941
         }
@@ -1646,7 +1646,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0050-bloom/bloom.xmp",
+          "path": "legacy/tests/0050-bloom/bloom.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1659,14 +1659,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0051-soften/cpugpu.maxpix",
+          "path": "legacy/tests/0051-soften/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0051-soften/expected.png",
+          "path": "legacy/tests/0051-soften/expected.png",
           "sha256": "51b08b1cfa841c2fa405594c97f41b069ce9abe027f53b9531c48079df7b44c5",
           "size_bytes": 5145941
         }
@@ -1686,7 +1686,7 @@
             "soften",
             "temperature"
           ],
-          "path": "darktable-tests/0051-soften/soften.xmp",
+          "path": "legacy/tests/0051-soften/soften.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1699,14 +1699,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0052-color-reconstruction/cpugpu.maxpix",
+          "path": "legacy/tests/0052-color-reconstruction/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0052-color-reconstruction/expected.png",
+          "path": "legacy/tests/0052-color-reconstruction/expected.png",
           "sha256": "11ad0629c98a4df001f7fc5aa9e89e7dc972f877bb88ef1e8561bc3859badafc",
           "size_bytes": 5145941
         }
@@ -1726,7 +1726,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0052-color-reconstruction/color-reconstruction.xmp",
+          "path": "legacy/tests/0052-color-reconstruction/color-reconstruction.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1739,14 +1739,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0054-rgblevels-linked/cpugpu.maxpix",
+          "path": "legacy/tests/0054-rgblevels-linked/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0054-rgblevels-linked/expected.png",
+          "path": "legacy/tests/0054-rgblevels-linked/expected.png",
           "sha256": "331edd81304863342d1879e1eebafb83d8b5d1bf30067bf8bf4801883e40c983",
           "size_bytes": 5145941
         }
@@ -1766,7 +1766,7 @@
             "rgblevels",
             "temperature"
           ],
-          "path": "darktable-tests/0054-rgblevels-linked/rgblevels-linked.xmp",
+          "path": "legacy/tests/0054-rgblevels-linked/rgblevels-linked.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1779,14 +1779,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0055-rgblevels-indep/cpugpu.maxpix",
+          "path": "legacy/tests/0055-rgblevels-indep/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0055-rgblevels-indep/expected.png",
+          "path": "legacy/tests/0055-rgblevels-indep/expected.png",
           "sha256": "fb063524bdf1057e4b72839fdd6f8f30eccd1fc1fc2de58b4d089e09ee939869",
           "size_bytes": 5145941
         }
@@ -1806,7 +1806,7 @@
             "rgblevels",
             "temperature"
           ],
-          "path": "darktable-tests/0055-rgblevels-indep/rgblevels-indep.xmp",
+          "path": "legacy/tests/0055-rgblevels-indep/rgblevels-indep.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1819,14 +1819,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0057-colorize/cpugpu.maxpix",
+          "path": "legacy/tests/0057-colorize/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0057-colorize/expected.png",
+          "path": "legacy/tests/0057-colorize/expected.png",
           "sha256": "84694533a3d378604f5e95eb51f72b8829b2ffd64088358222072ae89fd92f40",
           "size_bytes": 5145941
         }
@@ -1846,7 +1846,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0057-colorize/colorize.xmp",
+          "path": "legacy/tests/0057-colorize/colorize.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1859,14 +1859,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0059-grain/cpugpu.maxpix",
+          "path": "legacy/tests/0059-grain/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0059-grain/expected.png",
+          "path": "legacy/tests/0059-grain/expected.png",
           "sha256": "d74feabb7e200447a88f663e850ea2a7f8c4b0bb9af80ae480db67fefbbe3a83",
           "size_bytes": 5145941
         }
@@ -1886,7 +1886,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0059-grain/grain.xmp",
+          "path": "legacy/tests/0059-grain/grain.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1899,14 +1899,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0060-rgbcurve-indep/cpugpu.maxpix",
+          "path": "legacy/tests/0060-rgbcurve-indep/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0060-rgbcurve-indep/expected.png",
+          "path": "legacy/tests/0060-rgbcurve-indep/expected.png",
           "sha256": "019875177f1761aaddb5e7df98a6303dde9e77345dec835478c3c9eefb75bdf0",
           "size_bytes": 5145941
         }
@@ -1926,7 +1926,7 @@
             "rgbcurve",
             "temperature"
           ],
-          "path": "darktable-tests/0060-rgbcurve-indep/rgbcurve-indep.xmp",
+          "path": "legacy/tests/0060-rgbcurve-indep/rgbcurve-indep.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1939,14 +1939,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0061-lowlight/cpugpu.maxpix",
+          "path": "legacy/tests/0061-lowlight/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0061-lowlight/expected.png",
+          "path": "legacy/tests/0061-lowlight/expected.png",
           "sha256": "9c180e7f1ae4aa581af2b7a1c1e7269f6cda73e9253e29d285893eabc10d7106",
           "size_bytes": 5145941
         }
@@ -1966,7 +1966,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0061-lowlight/lowlight.xmp",
+          "path": "legacy/tests/0061-lowlight/lowlight.xmp",
           "schema_versions": [
             "6"
           ],
@@ -1979,14 +1979,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0062-splittoning/cpugpu.maxpix",
+          "path": "legacy/tests/0062-splittoning/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0062-splittoning/expected.png",
+          "path": "legacy/tests/0062-splittoning/expected.png",
           "sha256": "c92e72255b9a6ccf0ba13d5281f974e0c2a5f6fb05727af589b4723b955c8198",
           "size_bytes": 5145941
         }
@@ -2006,7 +2006,7 @@
             "splittoning",
             "temperature"
           ],
-          "path": "darktable-tests/0062-splittoning/splittoning.xmp",
+          "path": "legacy/tests/0062-splittoning/splittoning.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2019,14 +2019,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0063-velvia/cpugpu.maxpix",
+          "path": "legacy/tests/0063-velvia/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0063-velvia/expected.png",
+          "path": "legacy/tests/0063-velvia/expected.png",
           "sha256": "b13df3d049e924731de58137d3ea3a4f54dc2b3ace3f99e3f303573c5b720eed",
           "size_bytes": 5145941
         }
@@ -2046,7 +2046,7 @@
             "temperature",
             "velvia"
           ],
-          "path": "darktable-tests/0063-velvia/velvia.xmp",
+          "path": "legacy/tests/0063-velvia/velvia.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2059,14 +2059,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "326",
-          "path": "darktable-tests/0064-demosaic-xtrans-vng/cpugpu.maxpix",
+          "path": "legacy/tests/0064-demosaic-xtrans-vng/cpugpu.maxpix",
           "sha256": "053d13be01c62c12cf00285bd279d058f6bd8c3307b6937f55f1729b513ddf92",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0064-demosaic-xtrans-vng/expected.png",
+          "path": "legacy/tests/0064-demosaic-xtrans-vng/expected.png",
           "sha256": "778c13a44d846ecb55d44bd3f7ca48ca42ebb698d525fb0d00d0306b5daa3058",
           "size_bytes": 3886687
         }
@@ -2085,7 +2085,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0064-demosaic-xtrans-vng/demosaic-xtrans-vng.xmp",
+          "path": "legacy/tests/0064-demosaic-xtrans-vng/demosaic-xtrans-vng.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2098,14 +2098,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "326",
-          "path": "darktable-tests/0065-demosaic-mark1/cpugpu.maxpix",
+          "path": "legacy/tests/0065-demosaic-mark1/cpugpu.maxpix",
           "sha256": "053d13be01c62c12cf00285bd279d058f6bd8c3307b6937f55f1729b513ddf92",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0065-demosaic-mark1/expected.png",
+          "path": "legacy/tests/0065-demosaic-mark1/expected.png",
           "sha256": "3a025919201f8111f580336e7c969af8f5e3d51e233977897807502d027b8aa0",
           "size_bytes": 3886687
         }
@@ -2124,7 +2124,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0065-demosaic-mark1/demosaic-mark1.xmp",
+          "path": "legacy/tests/0065-demosaic-mark1/demosaic-mark1.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2137,14 +2137,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "326",
-          "path": "darktable-tests/0066-demosaic-mark3/cpugpu.maxpix",
+          "path": "legacy/tests/0066-demosaic-mark3/cpugpu.maxpix",
           "sha256": "053d13be01c62c12cf00285bd279d058f6bd8c3307b6937f55f1729b513ddf92",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0066-demosaic-mark3/expected.png",
+          "path": "legacy/tests/0066-demosaic-mark3/expected.png",
           "sha256": "13803355616ccbf201f4095ceec4e38dd5402d0d1f232391a0e337b816af4a1f",
           "size_bytes": 3886687
         }
@@ -2163,7 +2163,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0066-demosaic-mark3/demosaic-mark3.xmp",
+          "path": "legacy/tests/0066-demosaic-mark3/demosaic-mark3.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2176,14 +2176,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "326",
-          "path": "darktable-tests/0067-demosaic-fdc/cpugpu.maxpix",
+          "path": "legacy/tests/0067-demosaic-fdc/cpugpu.maxpix",
           "sha256": "053d13be01c62c12cf00285bd279d058f6bd8c3307b6937f55f1729b513ddf92",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0067-demosaic-fdc/expected.png",
+          "path": "legacy/tests/0067-demosaic-fdc/expected.png",
           "sha256": "05c11b2b8291e0ae5cea8e0c7e3ff7426de1185ffd417d767410748f47cbaee5",
           "size_bytes": 3886687
         }
@@ -2202,7 +2202,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0067-demosaic-fdc/demosaic-fdc.xmp",
+          "path": "legacy/tests/0067-demosaic-fdc/demosaic-fdc.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2215,14 +2215,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "326",
-          "path": "darktable-tests/0068-rawdenoise-xtrans/cpugpu.maxpix",
+          "path": "legacy/tests/0068-rawdenoise-xtrans/cpugpu.maxpix",
           "sha256": "053d13be01c62c12cf00285bd279d058f6bd8c3307b6937f55f1729b513ddf92",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0068-rawdenoise-xtrans/expected.png",
+          "path": "legacy/tests/0068-rawdenoise-xtrans/expected.png",
           "sha256": "f91a9519105d2529cb4ad90db9716fee230cfdbf9ca0f0b8328e8d32b06eb314",
           "size_bytes": 3886687
         }
@@ -2242,7 +2242,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0068-rawdenoise-xtrans/rawdenoise-xtrans.xmp",
+          "path": "legacy/tests/0068-rawdenoise-xtrans/rawdenoise-xtrans.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2255,14 +2255,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0069-tonecurve-rgb-linked/cpugpu.maxpix",
+          "path": "legacy/tests/0069-tonecurve-rgb-linked/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0069-tonecurve-rgb-linked/expected.png",
+          "path": "legacy/tests/0069-tonecurve-rgb-linked/expected.png",
           "sha256": "266b791dea70a6694ebce9c715d551afb4aa2547839d409c5479d199d1d3e724",
           "size_bytes": 5145941
         }
@@ -2282,7 +2282,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0069-tonecurve-rgb-linked/tonecurve-rgb-linked.xmp",
+          "path": "legacy/tests/0069-tonecurve-rgb-linked/tonecurve-rgb-linked.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2295,14 +2295,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0070-tonecurve-xyz-linked/cpugpu.maxpix",
+          "path": "legacy/tests/0070-tonecurve-xyz-linked/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0070-tonecurve-xyz-linked/expected.png",
+          "path": "legacy/tests/0070-tonecurve-xyz-linked/expected.png",
           "sha256": "60d86c0f9d47357bc1deae39d7fcf39a6f23befa5ff7d2887920a710f91307d6",
           "size_bytes": 5145941
         }
@@ -2322,7 +2322,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0070-tonecurve-xyz-linked/tonecurve-xyz-linked.xmp",
+          "path": "legacy/tests/0070-tonecurve-xyz-linked/tonecurve-xyz-linked.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2335,14 +2335,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0071-tonecurve-lab-linked/cpugpu.maxpix",
+          "path": "legacy/tests/0071-tonecurve-lab-linked/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0071-tonecurve-lab-linked/expected.png",
+          "path": "legacy/tests/0071-tonecurve-lab-linked/expected.png",
           "sha256": "a648344afee4f8d6f123e1dc99f1a39a4b1d9d9b24d8a5c1a0f2d1953611e15c",
           "size_bytes": 5145941
         }
@@ -2362,7 +2362,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0071-tonecurve-lab-linked/tonecurve-lab-linked.xmp",
+          "path": "legacy/tests/0071-tonecurve-lab-linked/tonecurve-lab-linked.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2375,14 +2375,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0072-tonecurve-lab-indep/cpugpu.maxpix",
+          "path": "legacy/tests/0072-tonecurve-lab-indep/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0072-tonecurve-lab-indep/expected.png",
+          "path": "legacy/tests/0072-tonecurve-lab-indep/expected.png",
           "sha256": "0f035cfa6aab0abf37905190bc71ccf392c5287bec0e3812ff539a38d9326e53",
           "size_bytes": 5145941
         }
@@ -2402,7 +2402,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0072-tonecurve-lab-indep/tonecurve-lab-indep.xmp",
+          "path": "legacy/tests/0072-tonecurve-lab-indep/tonecurve-lab-indep.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2415,14 +2415,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0074-retouch-clone/cpugpu.maxpix",
+          "path": "legacy/tests/0074-retouch-clone/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0074-retouch-clone/expected.png",
+          "path": "legacy/tests/0074-retouch-clone/expected.png",
           "sha256": "6eb8eb25aacd96cb94a9efdafda89a941960a8822e370ac0760db1e0bc1dfa81",
           "size_bytes": 5145941
         }
@@ -2443,7 +2443,7 @@
             "retouch",
             "temperature"
           ],
-          "path": "darktable-tests/0074-retouch-clone/retouch-clone.xmp",
+          "path": "legacy/tests/0074-retouch-clone/retouch-clone.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2456,14 +2456,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0075-retouch-heal/cpugpu.maxpix",
+          "path": "legacy/tests/0075-retouch-heal/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0075-retouch-heal/expected.png",
+          "path": "legacy/tests/0075-retouch-heal/expected.png",
           "sha256": "4ff326720e8165bde3843c26f8186d0e57196fb6dd8f1a70def2083c70eb40aa",
           "size_bytes": 5145941
         }
@@ -2484,7 +2484,7 @@
             "retouch",
             "temperature"
           ],
-          "path": "darktable-tests/0075-retouch-heal/retouch-heal.xmp",
+          "path": "legacy/tests/0075-retouch-heal/retouch-heal.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2497,14 +2497,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0076-retouch-blur-fill/cpugpu.maxpix",
+          "path": "legacy/tests/0076-retouch-blur-fill/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0076-retouch-blur-fill/expected.png",
+          "path": "legacy/tests/0076-retouch-blur-fill/expected.png",
           "sha256": "ed92a4b5bf96e0476f124bbc178c686aed1c90ac6225518f084be0edd2657c29",
           "size_bytes": 5145941
         }
@@ -2525,7 +2525,7 @@
             "retouch",
             "temperature"
           ],
-          "path": "darktable-tests/0076-retouch-blur-fill/retouch-blur-fill.xmp",
+          "path": "legacy/tests/0076-retouch-blur-fill/retouch-blur-fill.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2538,14 +2538,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0078-basecurve-fusion/cpugpu.maxpix",
+          "path": "legacy/tests/0078-basecurve-fusion/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0078-basecurve-fusion/expected.png",
+          "path": "legacy/tests/0078-basecurve-fusion/expected.png",
           "sha256": "c88201835398b50f81ee2a94d751a63c805c63f6abe8d1f464c1eb4e62fbebec",
           "size_bytes": 5146216
         }
@@ -2565,7 +2565,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0078-basecurve-fusion/basecurve-fusion.xmp",
+          "path": "legacy/tests/0078-basecurve-fusion/basecurve-fusion.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2578,14 +2578,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0079-toneequal-gf/cpugpu.maxpix",
+          "path": "legacy/tests/0079-toneequal-gf/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0079-toneequal-gf/expected.png",
+          "path": "legacy/tests/0079-toneequal-gf/expected.png",
           "sha256": "dad09b92db83ef1380e3ae09a415b8cd58cd08263fcf505441865f760b411159",
           "size_bytes": 5146216
         }
@@ -2605,7 +2605,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0079-toneequal-gf/toneequal-gf.xmp",
+          "path": "legacy/tests/0079-toneequal-gf/toneequal-gf.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2618,14 +2618,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0080-toneequal-eigf/cpugpu.maxpix",
+          "path": "legacy/tests/0080-toneequal-eigf/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0080-toneequal-eigf/expected.png",
+          "path": "legacy/tests/0080-toneequal-eigf/expected.png",
           "sha256": "f0b1eb3d23733fb67c0c59919f46dd1f8eab83f83b9d857db01fc70788c46a05",
           "size_bytes": 5146216
         }
@@ -2645,7 +2645,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0080-toneequal-eigf/toneequal-eigf.xmp",
+          "path": "legacy/tests/0080-toneequal-eigf/toneequal-eigf.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2658,14 +2658,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0081-mask-groups/cpugpu.maxpix",
+          "path": "legacy/tests/0081-mask-groups/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0081-mask-groups/expected.png",
+          "path": "legacy/tests/0081-mask-groups/expected.png",
           "sha256": "4220e9768fbf86e08fc1979061a1f5005af8f0be004ff5bbeea5c72f81bb2441",
           "size_bytes": 5137613
         }
@@ -2686,7 +2686,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0081-mask-groups/mask-groups.xmp",
+          "path": "legacy/tests/0081-mask-groups/mask-groups.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2699,14 +2699,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0082-demosaic-rcd/cpugpu.maxpix",
+          "path": "legacy/tests/0082-demosaic-rcd/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0082-demosaic-rcd/expected.png",
+          "path": "legacy/tests/0082-demosaic-rcd/expected.png",
           "sha256": "0b247bbedd7093831f7bc37728bfdf93c0832e4e90130b630ee299b0a4f40f36",
           "size_bytes": 5145941
         }
@@ -2728,7 +2728,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0082-demosaic-rcd/demosaic-rcd.xmp",
+          "path": "legacy/tests/0082-demosaic-rcd/demosaic-rcd.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2741,14 +2741,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0083-colorbalancergb/cpugpu.maxpix",
+          "path": "legacy/tests/0083-colorbalancergb/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0083-colorbalancergb/expected.png",
+          "path": "legacy/tests/0083-colorbalancergb/expected.png",
           "sha256": "dba4f5090d755ab314d1123ee8ae9847efd274f0fcf8d016f5595d118bf8d478",
           "size_bytes": 5145942
         }
@@ -2771,7 +2771,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0083-colorbalancergb/colorbalancergb.xmp",
+          "path": "legacy/tests/0083-colorbalancergb/colorbalancergb.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2784,14 +2784,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0084-cacorrect/cpugpu.maxpix",
+          "path": "legacy/tests/0084-cacorrect/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0084-cacorrect/expected.png",
+          "path": "legacy/tests/0084-cacorrect/expected.png",
           "sha256": "2e4b2cf2dffa92cb15e470d704326c1daf93eb128e7f4a024990324ee93554ff",
           "size_bytes": 5145942
         }
@@ -2814,7 +2814,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0084-cacorrect/cacorrect.xmp",
+          "path": "legacy/tests/0084-cacorrect/cacorrect.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2827,14 +2827,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0085-channelmixerrgb/cpugpu.maxpix",
+          "path": "legacy/tests/0085-channelmixerrgb/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0085-channelmixerrgb/expected.png",
+          "path": "legacy/tests/0085-channelmixerrgb/expected.png",
           "sha256": "2f22effe7b73af532d5ef4e366ba1505a1c1e3fae90fc6593c9cb32ff6665cdc",
           "size_bytes": 5145942
         }
@@ -2856,7 +2856,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0085-channelmixerrgb/channelmixerrgb.xmp",
+          "path": "legacy/tests/0085-channelmixerrgb/channelmixerrgb.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2869,14 +2869,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0086-diffuse/cpugpu.maxpix",
+          "path": "legacy/tests/0086-diffuse/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0086-diffuse/expected.png",
+          "path": "legacy/tests/0086-diffuse/expected.png",
           "sha256": "07e24d0bf1f54cf4d813bdb8d7c0b3df86e4106bdd11d3c8ffaa560d894ebb60",
           "size_bytes": 5145941
         }
@@ -2903,7 +2903,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0086-diffuse/diffuse.xmp",
+          "path": "legacy/tests/0086-diffuse/diffuse.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2916,14 +2916,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0087-blendif-and-or/cpugpu.maxpix",
+          "path": "legacy/tests/0087-blendif-and-or/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0087-blendif-and-or/expected.png",
+          "path": "legacy/tests/0087-blendif-and-or/expected.png",
           "sha256": "119cedf4a0520b87e65a24ba27c3f9ed0d95711adf7188118e443264f0c6ccf6",
           "size_bytes": 5145942
         }
@@ -2945,7 +2945,7 @@
             "sharpen",
             "temperature"
           ],
-          "path": "darktable-tests/0087-blendif-and-or/blendif-and-or.xmp",
+          "path": "legacy/tests/0087-blendif-and-or/blendif-and-or.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2958,14 +2958,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0088-blendif-diff-excl/cpugpu.maxpix",
+          "path": "legacy/tests/0088-blendif-diff-excl/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0088-blendif-diff-excl/expected.png",
+          "path": "legacy/tests/0088-blendif-diff-excl/expected.png",
           "sha256": "2dc939815edca311dec354d42f5c350f622fec5c70016a84ff4a32311777d5cb",
           "size_bytes": 5145941
         }
@@ -2986,7 +2986,7 @@
             "rgbcurve",
             "temperature"
           ],
-          "path": "darktable-tests/0088-blendif-diff-excl/blendif-diff-excl.xmp",
+          "path": "legacy/tests/0088-blendif-diff-excl/blendif-diff-excl.xmp",
           "schema_versions": [
             "6"
           ],
@@ -2999,14 +2999,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0089-blurs/cpugpu.maxpix",
+          "path": "legacy/tests/0089-blurs/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0089-blurs/expected.png",
+          "path": "legacy/tests/0089-blurs/expected.png",
           "sha256": "6ec77b6b4e1f6fd466b1a59ab17d0614e7ae92130d0ed01e86d3690216195f4f",
           "size_bytes": 5145941
         }
@@ -3029,7 +3029,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0089-blurs/blurs.xmp",
+          "path": "legacy/tests/0089-blurs/blurs.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3042,14 +3042,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0090-mask-combine/cpugpu.maxpix",
+          "path": "legacy/tests/0090-mask-combine/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0090-mask-combine/expected.png",
+          "path": "legacy/tests/0090-mask-combine/expected.png",
           "sha256": "2911a90b426f1b385146ad74e33573c11257b27bd306ee354c07bd619b66ad1f",
           "size_bytes": 5145941
         }
@@ -3075,7 +3075,7 @@
             "rgblevels",
             "temperature"
           ],
-          "path": "darktable-tests/0090-mask-combine/mask-combine.xmp",
+          "path": "legacy/tests/0090-mask-combine/mask-combine.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3088,14 +3088,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0091-mask-combine-intersection-inverted/cpugpu.maxpix",
+          "path": "legacy/tests/0091-mask-combine-intersection-inverted/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0091-mask-combine-intersection-inverted/expected.png",
+          "path": "legacy/tests/0091-mask-combine-intersection-inverted/expected.png",
           "sha256": "627251092e259ef4e11a48d843d7e52c6dca06f97fd438695da3344554f8a167",
           "size_bytes": 5145941
         }
@@ -3118,7 +3118,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0091-mask-combine-intersection-inverted/mask-combine-intersection-inverted.xmp",
+          "path": "legacy/tests/0091-mask-combine-intersection-inverted/mask-combine-intersection-inverted.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3131,14 +3131,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0092-filmicrgb-v6/cpugpu.maxpix",
+          "path": "legacy/tests/0092-filmicrgb-v6/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0092-filmicrgb-v6/expected.png",
+          "path": "legacy/tests/0092-filmicrgb-v6/expected.png",
           "sha256": "71dfcb3fe47c9fad2ca96374c1e426c4a7efc1329cb3432f3c67e6e628320ea9",
           "size_bytes": 5137397
         }
@@ -3162,7 +3162,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0092-filmicrgb-v6/filmicrgb-v6.xmp",
+          "path": "legacy/tests/0092-filmicrgb-v6/filmicrgb-v6.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3175,14 +3175,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0093-colorbalancergb-ucs/cpugpu.maxpix",
+          "path": "legacy/tests/0093-colorbalancergb-ucs/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0093-colorbalancergb-ucs/expected.png",
+          "path": "legacy/tests/0093-colorbalancergb-ucs/expected.png",
           "sha256": "c7458c19545e3849460916967408a5be672458edad7fc3a468ae1ad5fcd5e400",
           "size_bytes": 5145941
         }
@@ -3206,7 +3206,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0093-colorbalancergb-ucs/colorbalancergb-ucs.xmp",
+          "path": "legacy/tests/0093-colorbalancergb-ucs/colorbalancergb-ucs.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3219,14 +3219,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "86",
-          "path": "darktable-tests/0094-highlight-segmentation/cpugpu.maxpix",
+          "path": "legacy/tests/0094-highlight-segmentation/cpugpu.maxpix",
           "sha256": "816c83d0ac08a94e91547a30df27dbbe88c7643cfa3c99d33120fd361173759a",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0094-highlight-segmentation/expected.png",
+          "path": "legacy/tests/0094-highlight-segmentation/expected.png",
           "sha256": "dfd8c44f2692bcd763b9b7a501763f46254bd6d0b62d88d28d88e84a14ed1492",
           "size_bytes": 4056071
         }
@@ -3249,7 +3249,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0094-highlight-segmentation/highlight-segmentation.xmp",
+          "path": "legacy/tests/0094-highlight-segmentation/highlight-segmentation.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3262,14 +3262,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "86",
-          "path": "darktable-tests/0095-highlight-opposed/cpugpu.maxpix",
+          "path": "legacy/tests/0095-highlight-opposed/cpugpu.maxpix",
           "sha256": "816c83d0ac08a94e91547a30df27dbbe88c7643cfa3c99d33120fd361173759a",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0095-highlight-opposed/expected.png",
+          "path": "legacy/tests/0095-highlight-opposed/expected.png",
           "sha256": "22fcaf7dabe24effda3f6f58478a622115ce62466e55595ae711e01a53d5290d",
           "size_bytes": 4056071
         }
@@ -3292,7 +3292,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0095-highlight-opposed/highlight-opposed.xmp",
+          "path": "legacy/tests/0095-highlight-opposed/highlight-opposed.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3305,14 +3305,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "86",
-          "path": "darktable-tests/0096-lensfun/cpugpu.maxpix",
+          "path": "legacy/tests/0096-lensfun/cpugpu.maxpix",
           "sha256": "816c83d0ac08a94e91547a30df27dbbe88c7643cfa3c99d33120fd361173759a",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0096-lensfun/expected.png",
+          "path": "legacy/tests/0096-lensfun/expected.png",
           "sha256": "47eb6c57c38f922a9e3f2b4fa376fc061f61b356a7c2e1a696f64a3069dd3a88",
           "size_bytes": 4056071
         }
@@ -3335,7 +3335,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0096-lensfun/lensfun.xmp",
+          "path": "legacy/tests/0096-lensfun/lensfun.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3348,14 +3348,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0097-sigmoid/cpugpu.maxpix",
+          "path": "legacy/tests/0097-sigmoid/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0097-sigmoid/expected.png",
+          "path": "legacy/tests/0097-sigmoid/expected.png",
           "sha256": "b83904160454add00bf3139759d444e5cc516eddd01c8dce39240f66cdfdbbe0",
           "size_bytes": 5145941
         }
@@ -3380,7 +3380,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0097-sigmoid/sigmoid.xmp",
+          "path": "legacy/tests/0097-sigmoid/sigmoid.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3393,14 +3393,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0098-colorchecker/cpugpu.maxpix",
+          "path": "legacy/tests/0098-colorchecker/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0098-colorchecker/expected.png",
+          "path": "legacy/tests/0098-colorchecker/expected.png",
           "sha256": "0676e44792495fd1efe9fd0dced3252c4f6dca13545fbed4ec1d75d19024b09f",
           "size_bytes": 5145953
         }
@@ -3420,7 +3420,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0098-colorchecker/colorchecker.xmp",
+          "path": "legacy/tests/0098-colorchecker/colorchecker.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3433,14 +3433,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0099-surfblur-small-radius/cpugpu.maxpix",
+          "path": "legacy/tests/0099-surfblur-small-radius/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0099-surfblur-small-radius/expected.png",
+          "path": "legacy/tests/0099-surfblur-small-radius/expected.png",
           "sha256": "58e5e4d9b050885f1a3cd168234a6aca0de81ddac0263ca95ca1ddfaa2643712",
           "size_bytes": 5145941
         }
@@ -3460,7 +3460,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0099-surfblur-small-radius/surfblur-small-radius.xmp",
+          "path": "legacy/tests/0099-surfblur-small-radius/surfblur-small-radius.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3473,14 +3473,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0101-lowpass-gaussian/cpugpu.maxpix",
+          "path": "legacy/tests/0101-lowpass-gaussian/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0101-lowpass-gaussian/expected.png",
+          "path": "legacy/tests/0101-lowpass-gaussian/expected.png",
           "sha256": "3f2ab48a8e97c8d9f831973bcda010089e3a2647eb392dd4386c2458bf018495",
           "size_bytes": 5137696
         }
@@ -3501,7 +3501,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0101-lowpass-gaussian/lowpass-gaussian.xmp",
+          "path": "legacy/tests/0101-lowpass-gaussian/lowpass-gaussian.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3514,14 +3514,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0102-censorize/cpugpu.maxpix",
+          "path": "legacy/tests/0102-censorize/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0102-censorize/expected.png",
+          "path": "legacy/tests/0102-censorize/expected.png",
           "sha256": "db2040e9adf6e175d6a1e871ae4f7dfbcde884b29d6cb4ce373585708d9f6602",
           "size_bytes": 5145941
         }
@@ -3542,7 +3542,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0102-censorize/censorize.xmp",
+          "path": "legacy/tests/0102-censorize/censorize.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3555,14 +3555,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0107-colorin-gamma/cpugpu.maxpix",
+          "path": "legacy/tests/0107-colorin-gamma/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0107-colorin-gamma/expected.png",
+          "path": "legacy/tests/0107-colorin-gamma/expected.png",
           "sha256": "8719c09dec47b5b0b4f60458a752a6d009b1e23967c7b797e8b1f856ce81d2da",
           "size_bytes": 5146218
         }
@@ -3582,7 +3582,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0107-colorin-gamma/colorin-gamma.xmp",
+          "path": "legacy/tests/0107-colorin-gamma/colorin-gamma.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3595,14 +3595,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0108-colorin-clip/cpugpu.maxpix",
+          "path": "legacy/tests/0108-colorin-clip/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0108-colorin-clip/expected.png",
+          "path": "legacy/tests/0108-colorin-clip/expected.png",
           "sha256": "90f648ab4ee8dba871962a879e43528e23f3365f1a495eaad0dcba6f0868458f",
           "size_bytes": 5146218
         }
@@ -3622,7 +3622,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0108-colorin-clip/colorin-clip.xmp",
+          "path": "legacy/tests/0108-colorin-clip/colorin-clip.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3635,14 +3635,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0109-colorin-gamma-and-clip/cpugpu.maxpix",
+          "path": "legacy/tests/0109-colorin-gamma-and-clip/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0109-colorin-gamma-and-clip/expected.png",
+          "path": "legacy/tests/0109-colorin-gamma-and-clip/expected.png",
           "sha256": "6517afa7adebffc14c87c23019f8a18d01a752d87d3eb75f946f9b1f991f0b7a",
           "size_bytes": 5146218
         }
@@ -3662,7 +3662,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0109-colorin-gamma-and-clip/colorin-gamma-and-clip.xmp",
+          "path": "legacy/tests/0109-colorin-gamma-and-clip/colorin-gamma-and-clip.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3675,14 +3675,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0110-perspective-bilinear/cpugpu.maxpix",
+          "path": "legacy/tests/0110-perspective-bilinear/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0110-perspective-bilinear/expected.png",
+          "path": "legacy/tests/0110-perspective-bilinear/expected.png",
           "sha256": "6404b7739e67a6d88d8cd74a0dce680ed43b8262963511cfe58eca30ee2a584d",
           "size_bytes": 5147494
         }
@@ -3703,7 +3703,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0110-perspective-bilinear/perspective-bilinear.xmp",
+          "path": "legacy/tests/0110-perspective-bilinear/perspective-bilinear.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3716,14 +3716,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0111-perspective-lanczos2/cpugpu.maxpix",
+          "path": "legacy/tests/0111-perspective-lanczos2/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0111-perspective-lanczos2/expected.png",
+          "path": "legacy/tests/0111-perspective-lanczos2/expected.png",
           "sha256": "cabfdd15cc424d78362ddf548c9e2a9214a7d6108b640b3deb2359765dd1d550",
           "size_bytes": 5147494
         }
@@ -3744,7 +3744,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0111-perspective-lanczos2/perspective-lanczos2.xmp",
+          "path": "legacy/tests/0111-perspective-lanczos2/perspective-lanczos2.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3757,14 +3757,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0112-perspective-lanczos3/cpugpu.maxpix",
+          "path": "legacy/tests/0112-perspective-lanczos3/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0112-perspective-lanczos3/expected.png",
+          "path": "legacy/tests/0112-perspective-lanczos3/expected.png",
           "sha256": "3910e1dfc5a4e7e6530e0cc13497c34d412d9909f9e64fe0c4ff6d0c9afc4db4",
           "size_bytes": 5147494
         }
@@ -3785,7 +3785,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0112-perspective-lanczos3/perspective-lanczos3.xmp",
+          "path": "legacy/tests/0112-perspective-lanczos3/perspective-lanczos3.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3798,14 +3798,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "96",
-          "path": "darktable-tests/0113-resample-bilinear/cpugpu.maxpix",
+          "path": "legacy/tests/0113-resample-bilinear/cpugpu.maxpix",
           "sha256": "d93844f8f37e55564be3f194656bf33b5d0fb5e589a0fe17eb7c2d4e8593ec9c",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0113-resample-bilinear/expected.png",
+          "path": "legacy/tests/0113-resample-bilinear/expected.png",
           "sha256": "c94f7376be1f145e70292a174de0ee57aed1b81835d92fb7928b67bbd74ca746",
           "size_bytes": 4912564
         }
@@ -3824,7 +3824,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0113-resample-bilinear/resample-bilinear.xmp",
+          "path": "legacy/tests/0113-resample-bilinear/resample-bilinear.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3837,14 +3837,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "106",
-          "path": "darktable-tests/0114-resample-bicubic/cpugpu.maxpix",
+          "path": "legacy/tests/0114-resample-bicubic/cpugpu.maxpix",
           "sha256": "79f0cdc11a64b21e76816c25cc0d066a873134770fba891b54e01445c2620c4c",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0114-resample-bicubic/expected.png",
+          "path": "legacy/tests/0114-resample-bicubic/expected.png",
           "sha256": "3c4acd595f389f49fcc305ee92201fc4b9fa79d6c19cd3a3bfe3ff2887dd12cb",
           "size_bytes": 4929243
         }
@@ -3863,7 +3863,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0114-resample-bicubic/resample-bicubic.xmp",
+          "path": "legacy/tests/0114-resample-bicubic/resample-bicubic.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3876,14 +3876,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "107",
-          "path": "darktable-tests/0115-resample-lanczos2/cpugpu.maxpix",
+          "path": "legacy/tests/0115-resample-lanczos2/cpugpu.maxpix",
           "sha256": "bcea5d7d8b256f1bda5f90a3ede41899e94b89fccb4e4d2786073b5bfaa0002a",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0115-resample-lanczos2/expected.png",
+          "path": "legacy/tests/0115-resample-lanczos2/expected.png",
           "sha256": "f3ea8e4f6acccee2fde451b7a7dd23a4009ff8675d8d01689cba2e16caed36f2",
           "size_bytes": 4937183
         }
@@ -3902,7 +3902,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0115-resample-lanczos2/resample-lanczos2.xmp",
+          "path": "legacy/tests/0115-resample-lanczos2/resample-lanczos2.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3915,14 +3915,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0116-blending-rgb-display-1/cpugpu.maxpix",
+          "path": "legacy/tests/0116-blending-rgb-display-1/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0116-blending-rgb-display-1/expected.png",
+          "path": "legacy/tests/0116-blending-rgb-display-1/expected.png",
           "sha256": "d5496a2dfd5eb6bc0458af8e1f842c5a352480f80b9e57ddb78ee6899ae815db",
           "size_bytes": 5137466
         }
@@ -3942,7 +3942,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0116-blending-rgb-display-1/blending-rgb-display-1.xmp",
+          "path": "legacy/tests/0116-blending-rgb-display-1/blending-rgb-display-1.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3955,14 +3955,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0117-blending-rgb-display-2/cpugpu.maxpix",
+          "path": "legacy/tests/0117-blending-rgb-display-2/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0117-blending-rgb-display-2/expected.png",
+          "path": "legacy/tests/0117-blending-rgb-display-2/expected.png",
           "sha256": "4cf30f551e8085362ba1f037fb7b865bd56e4627bf1d8b12cd0647a06e865ea5",
           "size_bytes": 5137451
         }
@@ -3982,7 +3982,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0117-blending-rgb-display-2/blending-rgb-display-2.xmp",
+          "path": "legacy/tests/0117-blending-rgb-display-2/blending-rgb-display-2.xmp",
           "schema_versions": [
             "6"
           ],
@@ -3995,14 +3995,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0118-blending-rgb-display-3/cpugpu.maxpix",
+          "path": "legacy/tests/0118-blending-rgb-display-3/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0118-blending-rgb-display-3/expected.png",
+          "path": "legacy/tests/0118-blending-rgb-display-3/expected.png",
           "sha256": "c29f52488ec8bf9fb63884e7ec75b4f3d772f78bc45b7e5dedec1dbb980bfc0d",
           "size_bytes": 5137451
         }
@@ -4022,7 +4022,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0118-blending-rgb-display-3/blending-rgb-display-3.xmp",
+          "path": "legacy/tests/0118-blending-rgb-display-3/blending-rgb-display-3.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4035,14 +4035,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0119-blending-rgb-scene-1/cpugpu.maxpix",
+          "path": "legacy/tests/0119-blending-rgb-scene-1/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0119-blending-rgb-scene-1/expected.png",
+          "path": "legacy/tests/0119-blending-rgb-scene-1/expected.png",
           "sha256": "640cb39f28eb556e8dc6b500ca59619790abe74a2259e85613e60d24bc905bea",
           "size_bytes": 5137451
         }
@@ -4062,7 +4062,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0119-blending-rgb-scene-1/blending-rgb-scene-1.xmp",
+          "path": "legacy/tests/0119-blending-rgb-scene-1/blending-rgb-scene-1.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4075,14 +4075,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0120-blending-rgb-scene-2/cpugpu.maxpix",
+          "path": "legacy/tests/0120-blending-rgb-scene-2/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0120-blending-rgb-scene-2/expected.png",
+          "path": "legacy/tests/0120-blending-rgb-scene-2/expected.png",
           "sha256": "741aae7bba5bdd18327abecb5fd7661b5403c1f2890ffa5e70e088a0b4dcac79",
           "size_bytes": 5137451
         }
@@ -4102,7 +4102,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0120-blending-rgb-scene-2/blending-rgb-scene-2.xmp",
+          "path": "legacy/tests/0120-blending-rgb-scene-2/blending-rgb-scene-2.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4115,14 +4115,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0121-blending-rgb-scene-3/cpugpu.maxpix",
+          "path": "legacy/tests/0121-blending-rgb-scene-3/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0121-blending-rgb-scene-3/expected.png",
+          "path": "legacy/tests/0121-blending-rgb-scene-3/expected.png",
           "sha256": "f8cd2d544cf8f9dd929d8d22ce83df4d74eab300c17660f2849b61ceded25443",
           "size_bytes": 5137451
         }
@@ -4142,7 +4142,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0121-blending-rgb-scene-3/blending-rgb-scene-3.xmp",
+          "path": "legacy/tests/0121-blending-rgb-scene-3/blending-rgb-scene-3.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4155,14 +4155,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0122-blending-lab-1/cpugpu.maxpix",
+          "path": "legacy/tests/0122-blending-lab-1/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0122-blending-lab-1/expected.png",
+          "path": "legacy/tests/0122-blending-lab-1/expected.png",
           "sha256": "97811d1bb2ccca3a16d6e2f9e14b2145b2063d3f174674269b9418d1a584c789",
           "size_bytes": 5137455
         }
@@ -4183,7 +4183,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0122-blending-lab-1/blending-lab-1.xmp",
+          "path": "legacy/tests/0122-blending-lab-1/blending-lab-1.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4196,14 +4196,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0123-blending-lab-2/cpugpu.maxpix",
+          "path": "legacy/tests/0123-blending-lab-2/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0123-blending-lab-2/expected.png",
+          "path": "legacy/tests/0123-blending-lab-2/expected.png",
           "sha256": "9758b5daea86bd91deb4c1f876f760205d4c7ff316639f8bdcbbcb01be29554a",
           "size_bytes": 5137455
         }
@@ -4224,7 +4224,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0123-blending-lab-2/blending-lab-2.xmp",
+          "path": "legacy/tests/0123-blending-lab-2/blending-lab-2.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4237,14 +4237,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0124-blending-lab-3/cpugpu.maxpix",
+          "path": "legacy/tests/0124-blending-lab-3/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0124-blending-lab-3/expected.png",
+          "path": "legacy/tests/0124-blending-lab-3/expected.png",
           "sha256": "cfd848e2e5d044594b2a09161e50678d024e48f00ea1437d57d4a0168c7f40ed",
           "size_bytes": 5137455
         }
@@ -4265,7 +4265,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0124-blending-lab-3/blending-lab-3.xmp",
+          "path": "legacy/tests/0124-blending-lab-3/blending-lab-3.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4278,14 +4278,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0125-blending-lab-4/cpugpu.maxpix",
+          "path": "legacy/tests/0125-blending-lab-4/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0125-blending-lab-4/expected.png",
+          "path": "legacy/tests/0125-blending-lab-4/expected.png",
           "sha256": "ab88e09eaa549d514c188a6f8c5d4329b52e839475e63e2d532d4cbbbe7c2724",
           "size_bytes": 5137455
         }
@@ -4306,7 +4306,7 @@
             "temperature",
             "tonecurve"
           ],
-          "path": "darktable-tests/0125-blending-lab-4/blending-lab-4.xmp",
+          "path": "legacy/tests/0125-blending-lab-4/blending-lab-4.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4319,14 +4319,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0126-CAT-linear-Bradford/cpugpu.maxpix",
+          "path": "legacy/tests/0126-CAT-linear-Bradford/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0126-CAT-linear-Bradford/expected.png",
+          "path": "legacy/tests/0126-CAT-linear-Bradford/expected.png",
           "sha256": "11a8f96161bcc70af440e773057e875b800d891d312a6e3a5dac5783ff18c4b0",
           "size_bytes": 5145953
         }
@@ -4347,7 +4347,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0126-CAT-linear-Bradford/CAT-linear-Bradford.xmp",
+          "path": "legacy/tests/0126-CAT-linear-Bradford/CAT-linear-Bradford.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4360,14 +4360,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0127-CAT-nonlinear-Bradford/cpugpu.maxpix",
+          "path": "legacy/tests/0127-CAT-nonlinear-Bradford/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0127-CAT-nonlinear-Bradford/expected.png",
+          "path": "legacy/tests/0127-CAT-nonlinear-Bradford/expected.png",
           "sha256": "ae77ff860c532f00fe07ad97b6304b993ef44ca5d7e5b54d856445ad6f10f622",
           "size_bytes": 5145953
         }
@@ -4388,7 +4388,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0127-CAT-nonlinear-Bradford/CAT-nonlinear-Bradford.xmp",
+          "path": "legacy/tests/0127-CAT-nonlinear-Bradford/CAT-nonlinear-Bradford.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4401,14 +4401,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0128-CAT-adapt-XYZ/cpugpu.maxpix",
+          "path": "legacy/tests/0128-CAT-adapt-XYZ/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0128-CAT-adapt-XYZ/expected.png",
+          "path": "legacy/tests/0128-CAT-adapt-XYZ/expected.png",
           "sha256": "7da36eb5ad37dc6c067d65845b80778b941a416e956aecb97535b33292c43532",
           "size_bytes": 5145953
         }
@@ -4429,7 +4429,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0128-CAT-adapt-XYZ/CAT-adapt-XYZ.xmp",
+          "path": "legacy/tests/0128-CAT-adapt-XYZ/CAT-adapt-XYZ.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4442,14 +4442,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0129-toneeq-RGB-average/cpugpu.maxpix",
+          "path": "legacy/tests/0129-toneeq-RGB-average/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0129-toneeq-RGB-average/expected.png",
+          "path": "legacy/tests/0129-toneeq-RGB-average/expected.png",
           "sha256": "bea68b61a8036325e74ab06851f164b8e47618461b146fac9c7267a6645c7dd9",
           "size_bytes": 5145953
         }
@@ -4469,7 +4469,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0129-toneeq-RGB-average/toneeq-RGB-average.xmp",
+          "path": "legacy/tests/0129-toneeq-RGB-average/toneeq-RGB-average.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4482,14 +4482,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0130-toneeq-HSL-lightness/cpugpu.maxpix",
+          "path": "legacy/tests/0130-toneeq-HSL-lightness/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0130-toneeq-HSL-lightness/expected.png",
+          "path": "legacy/tests/0130-toneeq-HSL-lightness/expected.png",
           "sha256": "1d3d385b2c75c42e203e0a178a6c1db40a5bc0aae47e1e663c11d60c4f2b1211",
           "size_bytes": 5145953
         }
@@ -4509,7 +4509,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0130-toneeq-HSL-lightness/toneeq-HSL-lightness.xmp",
+          "path": "legacy/tests/0130-toneeq-HSL-lightness/toneeq-HSL-lightness.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4522,14 +4522,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0131-toneeq-RGB-max/cpugpu.maxpix",
+          "path": "legacy/tests/0131-toneeq-RGB-max/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0131-toneeq-RGB-max/expected.png",
+          "path": "legacy/tests/0131-toneeq-RGB-max/expected.png",
           "sha256": "cdfbc189966ec5460ce3f57ab69268ec7580e5803d3f06768ed2923d2453098e",
           "size_bytes": 5145953
         }
@@ -4549,7 +4549,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0131-toneeq-RGB-max/toneeq-RGB-max.xmp",
+          "path": "legacy/tests/0131-toneeq-RGB-max/toneeq-RGB-max.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4562,14 +4562,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0132-toneeq-RGB-sum/cpugpu.maxpix",
+          "path": "legacy/tests/0132-toneeq-RGB-sum/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0132-toneeq-RGB-sum/expected.png",
+          "path": "legacy/tests/0132-toneeq-RGB-sum/expected.png",
           "sha256": "bb9a6bfa62493be90c10659a37536accb1e191901c4cabcecd5c26c3e007e976",
           "size_bytes": 5145953
         }
@@ -4589,7 +4589,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0132-toneeq-RGB-sum/toneeq-RGB-sum.xmp",
+          "path": "legacy/tests/0132-toneeq-RGB-sum/toneeq-RGB-sum.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4602,14 +4602,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0133-toneeq-power/cpugpu.maxpix",
+          "path": "legacy/tests/0133-toneeq-power/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0133-toneeq-power/expected.png",
+          "path": "legacy/tests/0133-toneeq-power/expected.png",
           "sha256": "1062d36e956d09a55181b362e65742df834a02b65c9f0239bde6c816ec91653d",
           "size_bytes": 5145953
         }
@@ -4629,7 +4629,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0133-toneeq-power/toneeq-power.xmp",
+          "path": "legacy/tests/0133-toneeq-power/toneeq-power.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4642,14 +4642,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0134-toneeq-geomean/cpugpu.maxpix",
+          "path": "legacy/tests/0134-toneeq-geomean/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0134-toneeq-geomean/expected.png",
+          "path": "legacy/tests/0134-toneeq-geomean/expected.png",
           "sha256": "cf5c5ac2119e7f38b4a6731249921f997085ccde4137c0730764ec6bd6789b0b",
           "size_bytes": 5145953
         }
@@ -4669,7 +4669,7 @@
             "temperature",
             "toneequal"
           ],
-          "path": "darktable-tests/0134-toneeq-geomean/toneeq-geomean.xmp",
+          "path": "legacy/tests/0134-toneeq-geomean/toneeq-geomean.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4682,14 +4682,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0135-negadoctor/cpugpu.maxpix",
+          "path": "legacy/tests/0135-negadoctor/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0135-negadoctor/expected.png",
+          "path": "legacy/tests/0135-negadoctor/expected.png",
           "sha256": "dbc6baf1078976155e7f5ecaf4e1bbf68034212e675d444202e13dfaae81d880",
           "size_bytes": 5146230
         }
@@ -4709,7 +4709,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0135-negadoctor/negadoctor.xmp",
+          "path": "legacy/tests/0135-negadoctor/negadoctor.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4722,14 +4722,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0136-posterize/cpugpu.maxpix",
+          "path": "legacy/tests/0136-posterize/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0136-posterize/expected.png",
+          "path": "legacy/tests/0136-posterize/expected.png",
           "sha256": "9ad996ce336bb9cc0d5de7ba0136fe966d9e162438d08919ac5c2f0116d3a8a1",
           "size_bytes": 5146216
         }
@@ -4749,7 +4749,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0136-posterize/posterize.xmp",
+          "path": "legacy/tests/0136-posterize/posterize.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4762,14 +4762,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0137-shadhi-gauss/cpugpu.maxpix",
+          "path": "legacy/tests/0137-shadhi-gauss/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0137-shadhi-gauss/expected.png",
+          "path": "legacy/tests/0137-shadhi-gauss/expected.png",
           "sha256": "429fe973d62dbef29b993874534c62f4390645163ae4cf7be9dd0d6a82537024",
           "size_bytes": 5146216
         }
@@ -4789,7 +4789,7 @@
             "shadhi",
             "temperature"
           ],
-          "path": "darktable-tests/0137-shadhi-gauss/shadhi-gauss.xmp",
+          "path": "legacy/tests/0137-shadhi-gauss/shadhi-gauss.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4802,14 +4802,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0138-filmic-v7/cpugpu.maxpix",
+          "path": "legacy/tests/0138-filmic-v7/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0138-filmic-v7/expected.png",
+          "path": "legacy/tests/0138-filmic-v7/expected.png",
           "sha256": "1fbcd78804bb475aa5b91f5995ee51ba388f3d38aecabcdf47e61b56d6a419eb",
           "size_bytes": 5145941
         }
@@ -4830,7 +4830,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0138-filmic-v7/filmic-v7.xmp",
+          "path": "legacy/tests/0138-filmic-v7/filmic-v7.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4843,14 +4843,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0139-filmicrgb-v3-nochroma/cpugpu.maxpix",
+          "path": "legacy/tests/0139-filmicrgb-v3-nochroma/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0139-filmicrgb-v3-nochroma/expected.png",
+          "path": "legacy/tests/0139-filmicrgb-v3-nochroma/expected.png",
           "sha256": "05d73a784cd3527a17baa5e29271877171cc569e6f48ccc4734492b631abe47f",
           "size_bytes": 5145941
         }
@@ -4870,7 +4870,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0139-filmicrgb-v3-nochroma/filmicrgb-v3-nochroma.xmp",
+          "path": "legacy/tests/0139-filmicrgb-v3-nochroma/filmicrgb-v3-nochroma.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4883,14 +4883,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0140-filmicrgb-v4-nochroma/cpugpu.maxpix",
+          "path": "legacy/tests/0140-filmicrgb-v4-nochroma/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0140-filmicrgb-v4-nochroma/expected.png",
+          "path": "legacy/tests/0140-filmicrgb-v4-nochroma/expected.png",
           "sha256": "8614a2feaa6d2bf5d6dd21706419f689d7683a00964c64a7d864eda3cd269bbc",
           "size_bytes": 5145941
         }
@@ -4910,7 +4910,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0140-filmicrgb-v4-nochroma/filmicrgb-v4-nochroma.xmp",
+          "path": "legacy/tests/0140-filmicrgb-v4-nochroma/filmicrgb-v4-nochroma.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4923,14 +4923,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0141-filmicrgb-v5-nochroma/cpugpu.maxpix",
+          "path": "legacy/tests/0141-filmicrgb-v5-nochroma/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0141-filmicrgb-v5-nochroma/expected.png",
+          "path": "legacy/tests/0141-filmicrgb-v5-nochroma/expected.png",
           "sha256": "37890ab4d54a6316dcbe34b729b3a39c2308bb9513eb63ccadd18c49d4edbcb2",
           "size_bytes": 5137407
         }
@@ -4951,7 +4951,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0141-filmicrgb-v5-nochroma/filmicrgb-v5-nochroma.xmp",
+          "path": "legacy/tests/0141-filmicrgb-v5-nochroma/filmicrgb-v5-nochroma.xmp",
           "schema_versions": [
             "6"
           ],
@@ -4964,14 +4964,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0142-filmicrgb-v6-euclidean/cpugpu.maxpix",
+          "path": "legacy/tests/0142-filmicrgb-v6-euclidean/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0142-filmicrgb-v6-euclidean/expected.png",
+          "path": "legacy/tests/0142-filmicrgb-v6-euclidean/expected.png",
           "sha256": "d431c3cf97398bae025defdf633dbcfee7f88027b74a73c11b7862376cc144e5",
           "size_bytes": 5137407
         }
@@ -4992,7 +4992,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0142-filmicrgb-v6-euclidean/filmicrgb-v6-euclidean.xmp",
+          "path": "legacy/tests/0142-filmicrgb-v6-euclidean/filmicrgb-v6-euclidean.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5005,14 +5005,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0143-denoiseprofiled-wave-rgb/cpugpu.maxpix",
+          "path": "legacy/tests/0143-denoiseprofiled-wave-rgb/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0143-denoiseprofiled-wave-rgb/expected.png",
+          "path": "legacy/tests/0143-denoiseprofiled-wave-rgb/expected.png",
           "sha256": "14402fe4e0dabcba7fa51e1440369e88690fe3b79279e28ff382a63e1f7a7de5",
           "size_bytes": 5145941
         }
@@ -5032,7 +5032,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0143-denoiseprofiled-wave-rgb/denoiseprofiled-wave-rgb.xmp",
+          "path": "legacy/tests/0143-denoiseprofiled-wave-rgb/denoiseprofiled-wave-rgb.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5045,14 +5045,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0144-masks-combine-sum/cpugpu.maxpix",
+          "path": "legacy/tests/0144-masks-combine-sum/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0144-masks-combine-sum/expected.png",
+          "path": "legacy/tests/0144-masks-combine-sum/expected.png",
           "sha256": "be35bbaa617cf0f3167f13dd213f50816d3739e13853a40c42b44edf682e59cf",
           "size_bytes": 5145941
         }
@@ -5076,7 +5076,7 @@
             "rgbcurve",
             "temperature"
           ],
-          "path": "darktable-tests/0144-masks-combine-sum/masks-combine-sum.xmp",
+          "path": "legacy/tests/0144-masks-combine-sum/masks-combine-sum.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5089,14 +5089,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "443",
-          "path": "darktable-tests/0145-lens-metadata-xtransIV-modversion-6/cpugpu.maxpix",
+          "path": "legacy/tests/0145-lens-metadata-xtransIV-modversion-6/cpugpu.maxpix",
           "sha256": "d734748b0bf3989a28fd0e772805dc7bd2c526ab801c0b6500a12a5abd8b4a79",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0145-lens-metadata-xtransIV-modversion-6/expected.png",
+          "path": "legacy/tests/0145-lens-metadata-xtransIV-modversion-6/expected.png",
           "sha256": "27d87e51fae7b35597cbd0be5636081ecec3d08cbfe701ae2bb496ba5eb68b41",
           "size_bytes": 3389995
         }
@@ -5118,7 +5118,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0145-lens-metadata-xtransIV-modversion-6/lens-metadata-xtransIV-modversion-6.xmp",
+          "path": "legacy/tests/0145-lens-metadata-xtransIV-modversion-6/lens-metadata-xtransIV-modversion-6.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5131,14 +5131,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "443",
-          "path": "darktable-tests/0146-lens-metadata-xtransIV-modversion-7/cpugpu.maxpix",
+          "path": "legacy/tests/0146-lens-metadata-xtransIV-modversion-7/cpugpu.maxpix",
           "sha256": "d734748b0bf3989a28fd0e772805dc7bd2c526ab801c0b6500a12a5abd8b4a79",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0146-lens-metadata-xtransIV-modversion-7/expected.png",
+          "path": "legacy/tests/0146-lens-metadata-xtransIV-modversion-7/expected.png",
           "sha256": "f30cc8258f42055961827b9bd49bb9a7075715d8a323852fdbb3af1d4707db04",
           "size_bytes": 3389995
         }
@@ -5161,7 +5161,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0146-lens-metadata-xtransIV-modversion-7/lens-metadata-xtransIV-modversion-7.xmp",
+          "path": "legacy/tests/0146-lens-metadata-xtransIV-modversion-7/lens-metadata-xtransIV-modversion-7.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5174,14 +5174,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0147-liquify-grow-shrink/cpugpu.maxpix",
+          "path": "legacy/tests/0147-liquify-grow-shrink/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0147-liquify-grow-shrink/expected.png",
+          "path": "legacy/tests/0147-liquify-grow-shrink/expected.png",
           "sha256": "c1ba155af1402e5a1fd0e90edcd03d10b4929911be21eae8447edc6fd5006470",
           "size_bytes": 5145953
         }
@@ -5203,7 +5203,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0147-liquify-grow-shrink/liquify-grow-shrink.xmp",
+          "path": "legacy/tests/0147-liquify-grow-shrink/liquify-grow-shrink.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5216,14 +5216,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0148-filmicv7-gamut-mapping/cpugpu.maxpix",
+          "path": "legacy/tests/0148-filmicv7-gamut-mapping/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0148-filmicv7-gamut-mapping/expected.png",
+          "path": "legacy/tests/0148-filmicv7-gamut-mapping/expected.png",
           "sha256": "8aed064926df7b3d67c56830a9b4659eaefd5d10a1fe1a9678df604eadf7b0df",
           "size_bytes": 5145953
         }
@@ -5245,7 +5245,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0148-filmicv7-gamut-mapping/filmicv7-gamut-mapping.xmp",
+          "path": "legacy/tests/0148-filmicv7-gamut-mapping/filmicv7-gamut-mapping.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5258,14 +5258,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0149-gdnd-neg/cpugpu.maxpix",
+          "path": "legacy/tests/0149-gdnd-neg/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0149-gdnd-neg/expected.png",
+          "path": "legacy/tests/0149-gdnd-neg/expected.png",
           "sha256": "d6fe730c22927a34ed6c104ea08cbe4b33b42c61cdff3a9910c0af4fdd477f1b",
           "size_bytes": 5145941
         }
@@ -5287,7 +5287,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0149-gdnd-neg/gdnd-neg.xmp",
+          "path": "legacy/tests/0149-gdnd-neg/gdnd-neg.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5300,14 +5300,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0150-detail-mask/cpugpu.maxpix",
+          "path": "legacy/tests/0150-detail-mask/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0150-detail-mask/expected.png",
+          "path": "legacy/tests/0150-detail-mask/expected.png",
           "sha256": "f47076b7e2641c0f39a5da57242176410b9fddca55ee223a936cb09038f13688",
           "size_bytes": 5145941
         }
@@ -5330,7 +5330,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0150-detail-mask/detail-mask.xmp",
+          "path": "legacy/tests/0150-detail-mask/detail-mask.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5343,14 +5343,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0151-sigmoid-no-hue-preservation/cpugpu.maxpix",
+          "path": "legacy/tests/0151-sigmoid-no-hue-preservation/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0151-sigmoid-no-hue-preservation/expected.png",
+          "path": "legacy/tests/0151-sigmoid-no-hue-preservation/expected.png",
           "sha256": "622b07307bf61d80e3460515d673caf364c70d2eee476db5afa0fb0b0c65a2af",
           "size_bytes": 5145953
         }
@@ -5375,7 +5375,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0151-sigmoid-no-hue-preservation/sigmoid-no-hue-preservation.xmp",
+          "path": "legacy/tests/0151-sigmoid-no-hue-preservation/sigmoid-no-hue-preservation.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5388,14 +5388,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0152-rgb-primaries/cpugpu.maxpix",
+          "path": "legacy/tests/0152-rgb-primaries/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0152-rgb-primaries/expected.png",
+          "path": "legacy/tests/0152-rgb-primaries/expected.png",
           "sha256": "4ba829711bbf7a0fd32e1dc7b2ae5a548760523026ea290de5e681e7b55aa2df",
           "size_bytes": 5145941
         }
@@ -5418,7 +5418,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0152-rgb-primaries/rgb-primaries.xmp",
+          "path": "legacy/tests/0152-rgb-primaries/rgb-primaries.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5431,14 +5431,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "86",
-          "path": "darktable-tests/0153-hl-reconstruct-filmicrgb/cpugpu.maxpix",
+          "path": "legacy/tests/0153-hl-reconstruct-filmicrgb/cpugpu.maxpix",
           "sha256": "816c83d0ac08a94e91547a30df27dbbe88c7643cfa3c99d33120fd361173759a",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0153-hl-reconstruct-filmicrgb/expected.png",
+          "path": "legacy/tests/0153-hl-reconstruct-filmicrgb/expected.png",
           "sha256": "5e030b1a31b9408aee41f82b40f080d0749fe31660116f2b56471c8049c8174f",
           "size_bytes": 4056044
         }
@@ -5460,7 +5460,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0153-hl-reconstruct-filmicrgb/hl-reconstruct-filmicrgb.xmp",
+          "path": "legacy/tests/0153-hl-reconstruct-filmicrgb/hl-reconstruct-filmicrgb.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5473,14 +5473,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0154-framing-100/cpugpu.maxpix",
+          "path": "legacy/tests/0154-framing-100/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0154-framing-100/expected.png",
+          "path": "legacy/tests/0154-framing-100/expected.png",
           "sha256": "5f366f88eb178d4095e9d4643c0d4528759953f41ad33a8e5c29ffefa91f08dc",
           "size_bytes": 5145941
         }
@@ -5503,7 +5503,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0154-framing-100/framing-100.xmp",
+          "path": "legacy/tests/0154-framing-100/framing-100.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5516,14 +5516,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0155-framing-line-169/cpugpu.maxpix",
+          "path": "legacy/tests/0155-framing-line-169/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0155-framing-line-169/expected.png",
+          "path": "legacy/tests/0155-framing-line-169/expected.png",
           "sha256": "98edbbe3558d39c021ca6c71ed9cb11bb7aa414dda6fd36ae8aa58df2205e291",
           "size_bytes": 5145941
         }
@@ -5546,7 +5546,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0155-framing-line-169/framing-line-169.xmp",
+          "path": "legacy/tests/0155-framing-line-169/framing-line-169.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5559,14 +5559,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0156-exposure-guided-filter-new-feather/cpugpu.maxpix",
+          "path": "legacy/tests/0156-exposure-guided-filter-new-feather/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0156-exposure-guided-filter-new-feather/expected.png",
+          "path": "legacy/tests/0156-exposure-guided-filter-new-feather/expected.png",
           "sha256": "2099a2c96cdea3dda1a1ce698e3dfa6390cca7489c90903ab3437b939a8eae02",
           "size_bytes": 5145941
         }
@@ -5586,7 +5586,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0156-exposure-guided-filter-new-feather/exposure-guided-filter-new-feather.xmp",
+          "path": "legacy/tests/0156-exposure-guided-filter-new-feather/exposure-guided-filter-new-feather.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5599,14 +5599,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0157-enlarge-canvas/cpugpu.maxpix",
+          "path": "legacy/tests/0157-enlarge-canvas/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0157-enlarge-canvas/expected.png",
+          "path": "legacy/tests/0157-enlarge-canvas/expected.png",
           "sha256": "e82bd25e894859da1914fdb5550f73ff2cf57e57b6931f42cd59e21eeaad22f5",
           "size_bytes": 5145941
         }
@@ -5629,7 +5629,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0157-enlarge-canvas/enlarge-canvas.xmp",
+          "path": "legacy/tests/0157-enlarge-canvas/enlarge-canvas.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5642,14 +5642,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0158-coloreq-no-guided-filter/cpugpu.maxpix",
+          "path": "legacy/tests/0158-coloreq-no-guided-filter/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0158-coloreq-no-guided-filter/expected.png",
+          "path": "legacy/tests/0158-coloreq-no-guided-filter/expected.png",
           "sha256": "f24af5af4d92c5c646b62bb520c31b9bdbd2af40676275760f58181fbb025314",
           "size_bytes": 5145941
         }
@@ -5672,7 +5672,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0158-coloreq-no-guided-filter/coloreq-no-guided-filter.xmp",
+          "path": "legacy/tests/0158-coloreq-no-guided-filter/coloreq-no-guided-filter.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5685,14 +5685,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0159-coloreq-guided-filter/cpugpu.maxpix",
+          "path": "legacy/tests/0159-coloreq-guided-filter/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0159-coloreq-guided-filter/expected.png",
+          "path": "legacy/tests/0159-coloreq-guided-filter/expected.png",
           "sha256": "78f23dfb845dd472a106fa72f985cee55412d0ec27954d13c0506bba8b10948f",
           "size_bytes": 5145941
         }
@@ -5715,7 +5715,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0159-coloreq-guided-filter/coloreq-guided-filter.xmp",
+          "path": "legacy/tests/0159-coloreq-guided-filter/coloreq-guided-filter.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5728,14 +5728,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0160-overlay/cpugpu.maxpix",
+          "path": "legacy/tests/0160-overlay/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0160-overlay/expected.png",
+          "path": "legacy/tests/0160-overlay/expected.png",
           "sha256": "ab95c2c5af91ee64dec96cd13fa87ad916fdca078387c7dbfdfbdaccc180f472",
           "size_bytes": 5146090
         }
@@ -5759,7 +5759,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0160-overlay/overlay.xmp",
+          "path": "legacy/tests/0160-overlay/overlay.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5772,14 +5772,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0161-overlay-modules-before-after/cpugpu.maxpix",
+          "path": "legacy/tests/0161-overlay-modules-before-after/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0161-overlay-modules-before-after/expected.png",
+          "path": "legacy/tests/0161-overlay-modules-before-after/expected.png",
           "sha256": "a21070a712cad13522d662cd9a1e13c0196b627695138ff72bb8956008551d20",
           "size_bytes": 5146090
         }
@@ -5805,7 +5805,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0161-overlay-modules-before-after/overlay-modules-before-after.xmp",
+          "path": "legacy/tests/0161-overlay-modules-before-after/overlay-modules-before-after.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5818,14 +5818,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0162-demosaic-lmmse/cpugpu.maxpix",
+          "path": "legacy/tests/0162-demosaic-lmmse/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0162-demosaic-lmmse/expected.png",
+          "path": "legacy/tests/0162-demosaic-lmmse/expected.png",
           "sha256": "915b0ac2484c446d5deb441555e3c11a33c675f8370e74321c7be44864b8d488",
           "size_bytes": 5146090
         }
@@ -5847,7 +5847,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0162-demosaic-lmmse/demosaic-lmmse.xmp",
+          "path": "legacy/tests/0162-demosaic-lmmse/demosaic-lmmse.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5860,14 +5860,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0163-demosaic-rcd-vng4/cpugpu.maxpix",
+          "path": "legacy/tests/0163-demosaic-rcd-vng4/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0163-demosaic-rcd-vng4/expected.png",
+          "path": "legacy/tests/0163-demosaic-rcd-vng4/expected.png",
           "sha256": "a8fb73792c86f2f31b61593afabc2d9eab8c5b19d395893ec7c370c216db13a8",
           "size_bytes": 5146090
         }
@@ -5889,7 +5889,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0163-demosaic-rcd-vng4/demosaic-rcd-vng4.xmp",
+          "path": "legacy/tests/0163-demosaic-rcd-vng4/demosaic-rcd-vng4.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5902,14 +5902,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0164-demosaic-amaze-vng4/cpugpu.maxpix",
+          "path": "legacy/tests/0164-demosaic-amaze-vng4/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0164-demosaic-amaze-vng4/expected.png",
+          "path": "legacy/tests/0164-demosaic-amaze-vng4/expected.png",
           "sha256": "d2a970d6eb43f8d8d4d63c49abae32c37b15c9f88e2ab2baf3ddb9bb363b7699",
           "size_bytes": 5146090
         }
@@ -5931,7 +5931,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0164-demosaic-amaze-vng4/demosaic-amaze-vng4.xmp",
+          "path": "legacy/tests/0164-demosaic-amaze-vng4/demosaic-amaze-vng4.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5944,14 +5944,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "326",
-          "path": "darktable-tests/0165-demosaic-markesteijn-vng/cpugpu.maxpix",
+          "path": "legacy/tests/0165-demosaic-markesteijn-vng/cpugpu.maxpix",
           "sha256": "053d13be01c62c12cf00285bd279d058f6bd8c3307b6937f55f1729b513ddf92",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0165-demosaic-markesteijn-vng/expected.png",
+          "path": "legacy/tests/0165-demosaic-markesteijn-vng/expected.png",
           "sha256": "6f1a553c013805c8e159e8910d0356f78ea4eb5e99e58bb78d8fb940711e84aa",
           "size_bytes": 3886824
         }
@@ -5973,7 +5973,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0165-demosaic-markesteijn-vng/demosaic-markesteijn-vng.xmp",
+          "path": "legacy/tests/0165-demosaic-markesteijn-vng/demosaic-markesteijn-vng.xmp",
           "schema_versions": [
             "6"
           ],
@@ -5986,14 +5986,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0166-haze-removal-v2/cpugpu.maxpix",
+          "path": "legacy/tests/0166-haze-removal-v2/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0166-haze-removal-v2/expected.png",
+          "path": "legacy/tests/0166-haze-removal-v2/expected.png",
           "sha256": "fce4769f7e1f3025eb9310ce46321e13da28b2deb7f2476191a56c021fec5a11",
           "size_bytes": 5146125
         }
@@ -6014,7 +6014,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0166-haze-removal-v2/haze-removal-v2.xmp",
+          "path": "legacy/tests/0166-haze-removal-v2/haze-removal-v2.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6027,14 +6027,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "66",
-          "path": "darktable-tests/0167-raster-mask/cpugpu.maxpix",
+          "path": "legacy/tests/0167-raster-mask/cpugpu.maxpix",
           "sha256": "8e37bed9dff3949ffd23ae638260dff869f5cc26e551f2a9e5e289a8888949fa",
           "size_bytes": 3
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0167-raster-mask/expected.png",
+          "path": "legacy/tests/0167-raster-mask/expected.png",
           "sha256": "4e879b5e5af06d6a8e61277b27fd288c436326845a8b7ef78391afd35893d77b",
           "size_bytes": 5137700
         }
@@ -6058,7 +6058,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0167-raster-mask/raster-mask.xmp",
+          "path": "legacy/tests/0167-raster-mask/raster-mask.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6071,14 +6071,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0168-lut3d-srgb-pyramid/cpugpu.maxpix",
+          "path": "legacy/tests/0168-lut3d-srgb-pyramid/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0168-lut3d-srgb-pyramid/expected.png",
+          "path": "legacy/tests/0168-lut3d-srgb-pyramid/expected.png",
           "sha256": "b684b853d583857d989b3ff5def879c3b94aeecb9e696368aa1b3d3224f6ad50",
           "size_bytes": 5146317
         }
@@ -6098,7 +6098,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0168-lut3d-srgb-pyramid/lut3d-srgb-pyramid.xmp",
+          "path": "legacy/tests/0168-lut3d-srgb-pyramid/lut3d-srgb-pyramid.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6111,14 +6111,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0169-lut3d-adobe-trilinear/cpugpu.maxpix",
+          "path": "legacy/tests/0169-lut3d-adobe-trilinear/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0169-lut3d-adobe-trilinear/expected.png",
+          "path": "legacy/tests/0169-lut3d-adobe-trilinear/expected.png",
           "sha256": "4ab20d36639f7c57882b986259758a8862f21ecc9551c7fe2b615f07b9dba34d",
           "size_bytes": 5146317
         }
@@ -6138,7 +6138,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0169-lut3d-adobe-trilinear/lut3d-adobe-trilinear.xmp",
+          "path": "legacy/tests/0169-lut3d-adobe-trilinear/lut3d-adobe-trilinear.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6151,14 +6151,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "110",
-          "path": "darktable-tests/0170-lut3d-prophoto-tetrahedral/cpugpu.maxpix",
+          "path": "legacy/tests/0170-lut3d-prophoto-tetrahedral/cpugpu.maxpix",
           "sha256": "e00e6031fc5e7ef95c526573343419859e112cebd550f10e2089bf393f5ed2bd",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0170-lut3d-prophoto-tetrahedral/expected.png",
+          "path": "legacy/tests/0170-lut3d-prophoto-tetrahedral/expected.png",
           "sha256": "bcf9f4dc700f124cfa7e819cf48ae9cefac66a9cba8bbcaf62a1e49d235cf4b7",
           "size_bytes": 5146317
         }
@@ -6178,7 +6178,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0170-lut3d-prophoto-tetrahedral/lut3d-prophoto-tetrahedral.xmp",
+          "path": "legacy/tests/0170-lut3d-prophoto-tetrahedral/lut3d-prophoto-tetrahedral.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6191,14 +6191,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "220",
-          "path": "darktable-tests/0171-capture-sharpen/cpugpu.maxpix",
+          "path": "legacy/tests/0171-capture-sharpen/cpugpu.maxpix",
           "sha256": "cbdd19a3980a0d492694d4805af33ac243c847017d8a73a1c02ed1d88c45cb3e",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0171-capture-sharpen/expected.png",
+          "path": "legacy/tests/0171-capture-sharpen/expected.png",
           "sha256": "2ad7094e1ff8d712565de67becabe9cd079de283224c367aa632cbcf43fa421f",
           "size_bytes": 5275198
         }
@@ -6220,7 +6220,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0171-capture-sharpen/capture-sharpen.xmp",
+          "path": "legacy/tests/0171-capture-sharpen/capture-sharpen.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6233,14 +6233,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "220",
-          "path": "darktable-tests/0172-capture-dual-rcd/cpugpu.maxpix",
+          "path": "legacy/tests/0172-capture-dual-rcd/cpugpu.maxpix",
           "sha256": "cbdd19a3980a0d492694d4805af33ac243c847017d8a73a1c02ed1d88c45cb3e",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0172-capture-dual-rcd/expected.png",
+          "path": "legacy/tests/0172-capture-dual-rcd/expected.png",
           "sha256": "611e7cc3c32d368c74a20df67f8b0f541c4550a7bfb6ec35c6c4781c2e76b34e",
           "size_bytes": 5275198
         }
@@ -6262,7 +6262,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0172-capture-dual-rcd/capture-dual-rcd.xmp",
+          "path": "legacy/tests/0172-capture-dual-rcd/capture-dual-rcd.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6275,14 +6275,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "440",
-          "path": "darktable-tests/0173-capture-dual-markesteijn/cpugpu.maxpix",
+          "path": "legacy/tests/0173-capture-dual-markesteijn/cpugpu.maxpix",
           "sha256": "e2d1b6647866a6cd8fc5d8a8559d4e960a6c1f5e442c4b3d5af3b1743e47b7c6",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0173-capture-dual-markesteijn/expected.png",
+          "path": "legacy/tests/0173-capture-dual-markesteijn/expected.png",
           "sha256": "13dde6c63e91cc7eef7a0115571d947a8e0a7360ec451ff0c2100e3fe35bc291",
           "size_bytes": 4064521
         }
@@ -6304,7 +6304,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0173-capture-dual-markesteijn/capture-dual-markesteijn.xmp",
+          "path": "legacy/tests/0173-capture-dual-markesteijn/capture-dual-markesteijn.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6317,14 +6317,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "187",
-          "path": "darktable-tests/0174-agx-default/cpugpu.maxpix",
+          "path": "legacy/tests/0174-agx-default/cpugpu.maxpix",
           "sha256": "32a3eb8a7e705be7a925ed34e3edfaa943216fca57c82616fe637811ebef66ce",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0174-agx-default/expected.png",
+          "path": "legacy/tests/0174-agx-default/expected.png",
           "sha256": "19ce5ed87ff21b783ba2478a3597e848a4c141f48f74270e8071e11dfe2cc74c",
           "size_bytes": 5192562
         }
@@ -6346,7 +6346,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0174-agx-default/agx-default.xmp",
+          "path": "legacy/tests/0174-agx-default/agx-default.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6359,14 +6359,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "255",
-          "path": "darktable-tests/0175-agx/cpugpu.maxpix",
+          "path": "legacy/tests/0175-agx/cpugpu.maxpix",
           "sha256": "ce8bafb38615aeb5d44ebbabe78ec14ac35a5de87bdc5ad5ea82a72656024ce4",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0175-agx/expected.png",
+          "path": "legacy/tests/0175-agx/expected.png",
           "sha256": "24aa23ddec50e555ec0fced738410899fcd8c1219b60604cbe85e8943edae39e",
           "size_bytes": 5305567
         }
@@ -6388,7 +6388,7 @@
             "rawprepare",
             "temperature"
           ],
-          "path": "darktable-tests/0175-agx/agx.xmp",
+          "path": "legacy/tests/0175-agx/agx.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6401,14 +6401,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "612",
-          "path": "darktable-tests/0176-color-harmonizer/cpugpu.maxpix",
+          "path": "legacy/tests/0176-color-harmonizer/cpugpu.maxpix",
           "sha256": "b1fd0bf659abf177e912b8bab5330c9efda2b4d0851aa7937ed7f16f8d0dca9e",
           "size_bytes": 4
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0176-color-harmonizer/expected.png",
+          "path": "legacy/tests/0176-color-harmonizer/expected.png",
           "sha256": "59d20f6b0d87268b8d85ebb00c80bfd5083398df6fd44b7dd4b116b227d54fda",
           "size_bytes": 5651021
         }
@@ -6432,7 +6432,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0176-color-harmonizer/color-harmonizer.xmp",
+          "path": "legacy/tests/0176-color-harmonizer/color-harmonizer.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6445,14 +6445,14 @@
       "cpu_gpu_limits": [
         {
           "maximum_differing_pixels": "16897",
-          "path": "darktable-tests/0177-bayer4/cpugpu.maxpix",
+          "path": "legacy/tests/0177-bayer4/cpugpu.maxpix",
           "sha256": "7679339de69f033dfa6682f8e0969828689a52d6f1a225435eb59e77e9faff97",
           "size_bytes": 6
         }
       ],
       "expected_png": [
         {
-          "path": "darktable-tests/0177-bayer4/expected.png",
+          "path": "legacy/tests/0177-bayer4/expected.png",
           "sha256": "c6ebca905da19ca393439892fe0ad21ea981a82aa4f7b838ab10b319302444f3",
           "size_bytes": 5073118
         }
@@ -6477,7 +6477,7 @@
             "sigmoid",
             "temperature"
           ],
-          "path": "darktable-tests/0177-bayer4/bayer4.xmp",
+          "path": "legacy/tests/0177-bayer4/bayer4.xmp",
           "schema_versions": [
             "6"
           ],
@@ -6564,27 +6564,27 @@
   ],
   "source_images": [
     {
-      "path": "darktable-tests/images/bayer4.crw",
+      "path": "legacy/tests/images/bayer4.crw",
       "sha256": "f39be5acf14057ce04527fd8d0574e57ec8ed5fed082d7bfaff763075a44ee8a",
       "size_bytes": 2300702
     },
     {
-      "path": "darktable-tests/images/hlrecovery.arw",
+      "path": "legacy/tests/images/hlrecovery.arw",
       "sha256": "0cc9c842f163c40b02f7dc97e4b6d6a4f159c58a77f9b338338ff45621ed32d0",
       "size_bytes": 20908544
     },
     {
-      "path": "darktable-tests/images/mire1-xtrans.raf",
+      "path": "legacy/tests/images/mire1-xtrans.raf",
       "sha256": "07ea642656074834ffe5c661870a612ffa2e80fc1218a05166ee966bbe5f6fae",
       "size_bytes": 27949104
     },
     {
-      "path": "darktable-tests/images/mire1.cr2",
+      "path": "legacy/tests/images/mire1.cr2",
       "sha256": "578dc1b45add995be167802f9f874a95de3113d2f133cc86d2cf931448f76f3f",
       "size_bytes": 15855600
     },
     {
-      "path": "darktable-tests/images/xtransIV.raf",
+      "path": "legacy/tests/images/xtransIV.raf",
       "sha256": "53c4f64a9bb9d25eec1919721f5b4d8dfd9c7d7d3fe7b726a31888f74b209cd9",
       "size_bytes": 30844144
     }

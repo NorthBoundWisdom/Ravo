@@ -1,99 +1,41 @@
 {
-  // This file is the sole source-of-truth for direct third-party source roots.
+  // Direct third-party source roots consumed by the Ravo CMake graph.
   // FreeCM materializes the pinned commits locally; do not replace these with
   // submodules, vendored copies, or CMake-time downloads.
   "schemaVersion": 5,
-  "projectVersion": "0.9.0",
   "AppConfigs": {
-    // Keep the committed dependency baseline release-safe. Developers may set
-    // this to true in the ignored active lock to isolate runtime persistence
-    // for this checkout under darktable-dev/<checkout hash>.
     "DevMode": false
   },
   "cmakeEnvironment": {},
   "cmakeCacheVariables": {
-    "PROJECT_VERSION": "0.9.0",
+    // Copy these platform maps into the machine-local source_roots.lock.jsonc and
+    // replace <user> plus the Qt kit version before Config. Do not leave <user> in
+    // the active lock; CMake would treat it as a literal path. The workflow still
+    // prepends managed dependency installs to CMAKE_PREFIX_PATH.
+    "mac": {
+      "CMAKE_PREFIX_PATH": "/Users/<user>/vcpkg/installed/arm64-osx;/Users/<user>/vcpkg/installed/arm64-osx/debug;/Users/<user>/Qt/6.11.2/macos;/opt/homebrew",
+      "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+      "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+    },
     "linux": {
-      "CMAKE_PREFIX_PATH": "/home/linuxbrew/.linuxbrew",
+      "CMAKE_PREFIX_PATH": "/home/<user>/vcpkg/installed/x64-linux;/home/<user>/Qt/6.11.2/gcc_64;/usr/local",
       "CMAKE_C_COMPILER_LAUNCHER": "ccache",
       "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
     },
     "win": {
-      "CMAKE_TOOLCHAIN_FILE": "C:/OpenSource/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "CMAKE_PREFIX_PATH": "C:/Qt/6.11.1/msvc2022_64",
-      "PKG_CONFIG_EXECUTABLE": "C:/OpenSource/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe",
-      "X_VCPKG_APPLOCAL_DEPS_SERIALIZED": "ON"
-    },
-    "mac": {
-      "CMAKE_PREFIX_PATH": "/Users/henrykang/vcpkg/installed/arm64-osx;/Users/henrykang/vcpkg/installed/arm64-osx/debug;/Users/henrykang/Qt/6.11.1/macos;/opt/homebrew",
+      "CMAKE_TOOLCHAIN_FILE": "C:/Users/<user>/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "CMAKE_PREFIX_PATH": "C:/Users/<user>/vcpkg/installed/x64-windows;C:/Users/<user>/Qt/6.11.2/msvc2022_64",
       "CMAKE_C_COMPILER_LAUNCHER": "ccache",
       "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
     }
   },
   "depsMode": "pinned",
   "depsManualPath": {
-    "rawspeed": "",
-    "OpenCL": "",
-    "whereami": "",
-    "exiv2": "",
-    "Imath": "",
-    "inih": "",
     "LibRaw": "",
     "RfLog": "",
     "GeoControls": ""
   },
-  "assets": {
-    "appimage-tools": {
-      "seedPath": "build/dependency_seed_repos/appimage-tools",
-      "files": [
-        {
-          "type": "file",
-          "url": "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage",
-          "fileName": "appimagetool-x86_64.AppImage",
-          "sha256": "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0",
-          "sizeBytes": 15092216
-        },
-        {
-          "type": "file",
-          "url": "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64",
-          "fileName": "runtime-x86_64",
-          "sha256": "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d",
-          "sizeBytes": 944632
-        }
-      ]
-    }
-  },
   "dependencies": {
-    "rawspeed": {
-      "remote": "https://github.com/NorthBoundWisdom/rawspeed.git",
-      "commit": "dfbd5090cd28d5d201249cb493c0d26932275107",
-      "repoName": "rawspeed"
-    },
-    "OpenCL": {
-      "remote": "https://github.com/KhronosGroup/OpenCL-Headers.git",
-      "commit": "15b536b7fbe1098cea462a27db496b287ac89b63",
-      "repoName": "OpenCL"
-    },
-    "whereami": {
-      "remote": "https://github.com/gpakosz/whereami.git",
-      "commit": "dcb52a058dc14530ba9ae05e4339bd3ddfae0e0e",
-      "repoName": "whereami"
-    },
-    "exiv2": {
-      "remote": "https://github.com/Exiv2/exiv2.git",
-      "commit": "e84cb9db060527416a43f3d257656331c85aff28",
-      "repoName": "exiv2"
-    },
-    "Imath": {
-      "remote": "https://github.com/AcademySoftwareFoundation/Imath.git",
-      "commit": "d0a0b115c51f997924cebcca8067ba78ea1cb68e",
-      "repoName": "Imath"
-    },
-    "inih": {
-      "remote": "https://github.com/benhoyt/inih.git",
-      "commit": "577ae2dee1f0d9c2d11c7f10375c1715f3d6940c",
-      "repoName": "inih"
-    },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
       "commit": "df226ea4178ccd74245f4f13c23adddfa01411c9",

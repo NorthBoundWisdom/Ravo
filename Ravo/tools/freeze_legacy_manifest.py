@@ -128,7 +128,7 @@ def main() -> int:
         "--repository-root",
         type=Path,
         default=Path(__file__).resolve().parents[2],
-        help="DarkTableNext repository root (default: inferred from this script)",
+        help="Ravo repository root (default: inferred from this script)",
     )
     parser.add_argument(
         "--output",
