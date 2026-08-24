@@ -2,12 +2,12 @@
 
 ## Status and authority
 
-This document freezes the technical use cases that the first headless Ravo
-release must expose, plus the later desktop cases that validate whether the
-engine and service contracts are sufficient. It does not approve a legacy
-operation, a catalog migration, or a desktop framework. Those product choices
-remain governed by [TODO_REWRITE.md](../../../TODO_REWRITE.md) and an assigned
-product owner.
+This is a historical Phase 0 contract. It still records valid CLI behaviours
+and service-boundary evidence, but [ADR-0007](../adr/0007-first-usable-catalog-viewer.md)
+and [TODO_REWRITE.md](../../../TODO_REWRITE.md) supersede its original delivery
+order. DC-01 catalog import and browse is now the current M1 product slice;
+DC-02 through DC-06 remain later work unless the roadmap explicitly promotes
+them.
 
 The command names, JSON envelope, exit codes, and no-write failure semantics
 are part of the `ravo-cli/v1` contract. Adding a machine-visible command or
@@ -29,12 +29,11 @@ mistaken for a current capability.
 | HC-08 cancellation and recovery | Stop active work and safely retry after a process or I/O failure. | A test cancels during decode, evaluation, and output; a subsequent fresh request can run with no stale buffer, task, or temporary output visible. | SIGINT or the platform equivalent maps to exit `7`; task errors remain structured. | Deadline, pre-render and row-boundary cancellation exist; process-signal wiring, decode/output interruption and retry-after-failure coverage remain Phase 2/3 work. |
 | HC-09 offline execution | Use local files and already materialised dependencies without runtime network access. | A network-denied test environment can run HC-01 through HC-08 against local fixtures. | Lack of a network is never silently replaced with a download or cloud request. | Phase 2/3 required. |
 
-## Deferred desktop use cases
+## Desktop service contracts
 
-These cases are not implementation authorization for `domain`, `services`, or
-`desktop`. They define the engine and service contracts that must already be
-possible when Phase 3 is accepted; desktop implementation begins only after
-that exit.
+ADR-0007 authorizes the `domain`, `services`, and `desktop` targets needed for
+DC-01. The remaining rows are contract evidence, not blanket implementation
+authorization for editing, masks, styles, or export scope.
 
 | ID | Desktop outcome | Required engine/service contract | Required lifecycle and error proof |
 | --- | --- | --- | --- |

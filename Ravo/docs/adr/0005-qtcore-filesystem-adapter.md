@@ -1,7 +1,12 @@
 # ADR-0005: Allow Qt6 Core throughout the headless project
 
-- Status: Accepted
+- Status: Partially superseded by ADR-0007
 - Date: 2026-07-22
+
+ADR-0007 authorizes Qt Quick/QML, Qt Gui, and adapter-local Qt Sql for the first
+catalog/import/viewer product slice. The QtCore, stable-contract,
+generated-preset, licensing, and no-Qt-types in machine data decisions below
+remain in force.
 
 ## Context
 
@@ -26,8 +31,10 @@ toolchain has the same Qt SDK installed at configuration time.
   preset inherits it rather than hard-coding a path.
 - Windows CMake copies the `Qt6::Core` runtime beside `ravo` and the contract
   test executable. The install graph installs the imported Qt Core runtime.
-- Qt GUI, QML, Widgets, Quick, and desktop targets remain out of scope through
-  the headless exit. This decision does not select Ravo Studio's UI framework.
+- The original decision kept Qt GUI, QML, Widgets, Quick, and desktop targets
+  out of scope through the headless exit. ADR-0007 now selects Qt Quick/QML
+  with a C++ presentation layer for the M1 viewer and explicitly rejects Qt
+  Widgets in Ravo production targets.
 - Ravo is GPLv3; distributing the Qt Core runtime must retain the applicable
   Qt license notices and runtime obligations in the eventual packaging work.
 
@@ -47,5 +54,6 @@ toolchain has the same Qt SDK installed at configuration time.
   leaves engine clients with inconsistent failure semantics.
 - **Expose `std::filesystem::path` from the CLI/engine contract**: its native
   encoding and lifetime semantics are not the machine-facing Ravo contract.
-- **Qt GUI/QML adoption now**: it violates the headless-first delivery order
-  and would prematurely choose the future desktop framework.
+- **Qt GUI/QML adoption at the time of this ADR**: it violated the original
+  headless-first delivery order. ADR-0007 later changed that order and selected
+  Qt Quick/QML as the single desktop architecture.

@@ -1,5 +1,10 @@
 # Phase 0 Evidence
 
+> Historical evidence only. [ADR-0007](../adr/0007-first-usable-catalog-viewer.md)
+> and the current [product plan](../../../TODO_REWRITE.md) supersede the old
+> rule that catalog/services/desktop work must wait for a complete headless
+> exit. These files remain useful for frozen fixture and CLI-contract evidence.
+
 This directory contains version-controlled technical evidence collected before
 the first Ravo engine target.  It separates facts that can be reproduced from
 unapproved product decisions.
@@ -13,9 +18,9 @@ unapproved product decisions.
   registry supported. `../../tools/check_capability_inventory.py` verifies
   that its 76 registry rows and fixture flags still match frozen CMake and the
   manifest.
-- [Use-case contract](use-case-contract.md) fixes the machine-verifiable
-  headless outcomes and records the deferred desktop cases that the engine and
-  services must support before desktop implementation begins.
+- [Use-case contract](use-case-contract.md) fixes the machine-verifiable CLI
+  outcomes and records desktop service contracts; DC-01 is now part of M1,
+  while the editing cases remain later work.
 - [Product decision register](product-decision-register.md) names the owner,
   release-boundary, and compatibility decisions that source code cannot make.
 - `../../tests/fixtures/vertical_slice_plan.json` identifies the first RAW

@@ -23,6 +23,31 @@
 当前直接依赖名为：`rawspeed`、`OpenCL`、`whereami`、`exiv2`、`Imath`、`inih` 和 `LibRaw`。
 联调时 `depsManualPath` 的键必须使用这些逻辑依赖名，而不是猜测目录名。
 
+## FreeCM 子模块跟踪
+
+本仓通过 `.gitmodules` 跟踪 `FreeCM/master`。只有任务明确要求刷新 FreeCM 时才从干净的主仓根目录
+执行：
+
+```text
+git status --short --branch
+git -C FreeCM status --short --branch
+git submodule update --remote --checkout FreeCM
+```
+
+不要在通常 detached 的 `FreeCM/` 中运行 `git pull`。刷新前后 gitlink 相同就是 no-op；若改变，先
+解释 `git submodule status` 前缀，并运行：
+
+```text
+python3 -m repomgrcpp.tools.repo_tool check-lock-compat --repo-root .
+python3 FreeCM/tools/validate_repo_commands.py .
+python3 configs/source_roots.py show --format json
+python3 configs/source_roots.py resolve --format json
+python3 configs/source_roots.py verify
+```
+
+随后执行当前平台 Ravo configure/build。主仓或子模块存在无关改动时停止刷新；未经用户明确要求不提交
+或推送 gitlink。
+
 ## 三种依赖模式
 
 - `pinned`：使用 `dependencies.<name>.commit` 中的精确提交；受版本控制的模板必须以此模式作为可复现基线。
@@ -44,7 +69,7 @@ dependency install prefixes；不要把它当作自动追加项。`--update` 解
 同名 `cmakeEnvironment` 值，确保 pinned 与 manual root 按实际解析结果进入 preset。修改这些字段后同样
 必须重新运行 `--update`，不得直接修补生成的 `CMakePresets.json`。
 
-## 首次准备与日常更新
+## 首次准备与显式维护
 
 首次准备工作区：
 
@@ -71,6 +96,40 @@ macOS/Linux 可把 `python` 写作 `python3`。
 显式运行 `--init`；不要在 Build/Test/Run 动作中暗中补联网步骤。生成的 preset 会把解析后的 roots
 提供给 Ravo，当前 Ravo 构建图实际引用到的依赖只在后续 configure/build 中编译。
 
+普通构建和诊断只运行下一节的只读检查。当前 FreeCM 提供以下显式维护动作：
+
+| 动作 | 网络 | 作用与边界 |
+| --- | --- | --- |
+| `--refreshpin` | 禁止 | 要求活动锁和模板已是 `pinned`，只把活动锁的 dependency commits 对齐到 committed template；不切 mode，也不物化 roots。 |
+| `--pinlatest` | 禁止 | 从本地 seed 已可见的最新提交生成本地候选并离线 update；不 fetch，也不证明提交已发布。 |
+| `--update` | 禁止 | 按当前活动锁物化 source roots、生成 host preset 和执行 update callback。 |
+| `--cleanbuild --dry-run` | 禁止 | 列出保守清理目标，不删除任何内容。 |
+| `--cleanbuild` | 禁止 | 清理普通 build 输出，保留 `dependency_seed_repos` 和 `dependency_source_roots`。 |
+
+`latest` 只用于明确的依赖刷新，不是可提交状态。CLI `--pinlatest` 会把活动锁留在 `latest`；FreeCM
+面板的同名动作会生成 pinned snapshot，两者的收尾语义不同。CLI 整体刷新顺序为：确认所有相关
+worktree 干净并私下保存原活动锁 → `--init` 联网准备 seed → `--pinlatest` 离线选择候选 → Ravo 快验 →
+验证远端 SHA → 更新 committed template → 仅把活动锁的 `depsMode` 显式切回 `pinned` →
+`--refreshpin` → `--update` → 再次 verify/configure/build/test。候选失败时立即停止验收，不修改 template；
+恢复原活动锁并运行 `--update` 恢复物化状态后，报告原始失败和恢复结果。
+
+清理前必须先运行 dry-run 并核对每个目标；不要用自写递归删除命令替代 FreeCM 的 containment 检查。
+
+## FreeCM 项目命令 manifest
+
+`configs/freecm.commands.jsonc` 使用 schema version 2。Config 是活动上下文；每个 Build、Run、Test、
+Package variant 都必须声明非空 `configurations`，并绑定兼容的 Config。下游动作不得隐式执行
+Configure，Config 的 inputs/outputs 用于判断当前生成状态是否就绪或过期。
+
+修改 manifest、配置入口或 readiness 后运行：
+
+```text
+python3 FreeCM/tools/validate_repo_commands.py .
+```
+
+Ravo 当前把 Debug/Release 与 Windows/macOS/Linux 分成独立 Config；Build/Run/Test/Install 继续通过
+`Ravo/tools/freecm_project.ps1` 或 `Ravo/tools/freecm_project.py` 执行，不直接复制长 CMake 参数。
+
 ## 检查当前活动状态
 
 在修改依赖或判断错误归属前，先运行：
@@ -91,6 +150,7 @@ python configs/source_roots.py verify
 python configs/source_roots.py graph --format json
 python configs/source_roots.py graph --format dot
 python configs/source_roots.py audit --format json
+python configs/source_roots.py policy-check --format json
 python configs/source_roots.py explain-conflict <dependency-name> --format json
 ```
 
@@ -191,5 +251,7 @@ path 变化后总要重新执行 `--update`，否则现有 `CMakePresets.json` �
 | seed 有未知改动 | 停止自动刷新，先确认所有权；不要覆盖或删除开发者改动。 |
 | 远端找不到 pinned SHA | 先 push 依赖提交，用 `git ls-remote <remote> <published-ref>` 核对 ref 返回的 SHA，再更新父仓库模板。 |
 | `.freecm.workspace.lock` 超时 | 查明报告中的 owner 进程；不要同时让插件和 Python workflow 修改活动锁。 |
+| 想清理旧构建但担心依赖丢失 | 先运行 `--cleanbuild --dry-run`；确认后使用 `--cleanbuild`，不要删除 dependency roots。 |
+| FreeCM checkout 与 gitlink 不同 | 先检查主仓/子模块 dirty state 和 submodule 前缀；只在明确刷新任务中从主仓根运行 `--remote --checkout`。 |
 
 不要用 `FetchContent`、CMake 下载、替代 submodule、源码复制或直接修补生成目录绕过上述工作流。

@@ -9,6 +9,9 @@ architecture work.
 This repository is under active Ravo development and is not a
 general-availability release. The frozen implementation in `src/` remains the
 source of truth for 0.9 behaviour; new production work belongs in `Ravo/`.
+The current first-product milestone is a small desktop application that creates
+an SQLite catalog, imports local JPEG/PNG/TIFF/RAW files by reference, and lets
+the user browse them.
 
 ## Supported workflow
 
@@ -27,13 +30,14 @@ ABI, scripting, map and tethering workflows, printing, slideshow, remote
 publishing, or old format compatibility. For the frozen boundary and the work
 now inherited by Ravo, see [TODO_REWRITE.md](TODO_REWRITE.md).
 
-The planned C++20 clean-slate successor is **Ravo**, documented in
+The C++20 clean-slate successor is **Ravo**, documented in
 [Ravo/README.md](Ravo/README.md) and [TODO_REWRITE.md](TODO_REWRITE.md). Ravo
-delivers a headless image engine and supported CLI before any desktop UI, then
-makes the later UI consume the same engine API. Ravo is the only active
-implementation path; 0.9 remains static source and fixture reference material
-until Ravo replaces it. The old project is not configured, built, run, tested,
-or packaged during Ravo development.
+already has a headless image-engine/CLI baseline; the next vertical slice adds
+catalog domain/services and a Qt Quick/QML desktop backed by C++20 presenters
+that consume the same engine.
+Ravo is the only active implementation path; 0.9 remains static source and
+fixture reference material until Ravo replaces it. The old project is not
+configured, built, run, tested, or packaged during Ravo development.
 
 ### Bundled styles
 
@@ -45,8 +49,9 @@ supported.
 
 The active build is the C++20 project under `Ravo/`. It targets Windows,
 macOS, and Linux with CMake 3.26 or newer, Ninja, the host C++ toolchain,
-FreeCM-managed dependencies, and QtCore. The commands below are the current
-Windows/MSVC path and are the only platform results verified in this checkout:
+FreeCM-managed dependencies, and Qt 6. The current checked-in targets are still
+the engine/CLI baseline; M1 will add domain/services/desktop targets to the same
+Ravo-only graph. The commands below are the current Windows/MSVC path:
 
 ```powershell
 git submodule update --init FreeCM
@@ -74,9 +79,10 @@ python3 Ravo/tools/freecm_project.py --action Run --configuration Debug
 python3 Ravo/tools/freecm_project.py --action Test --configuration Debug
 ```
 
-These commands are wired but not executed on this Windows device. The FreeCM
-Package action on every platform performs an honest staged Ravo Release install
-rather than invoking any old application package target. The Windows form is:
+These commands operate on the same Ravo source tree; report validation results
+for each host platform separately. The FreeCM Package action on every platform
+performs an honest staged Ravo Release install rather than invoking any old
+application package target. The Windows form is:
 
 ```powershell
 & .\Ravo\tools\freecm_project.ps1 -Action Configure -Configuration Release
@@ -113,6 +119,21 @@ resolves/materializes source roots, and regenerates the root
 `CMakePresets.json`. It does not fetch dependencies, compile them, configure
 Ravo, or run tests.
 
+The current FreeCM workflow also exposes explicit offline maintenance actions:
+
+```text
+python configs/source_root_workflow.py --refreshpin
+python configs/source_root_workflow.py --pinlatest
+python configs/source_root_workflow.py --cleanbuild --dry-run
+```
+
+`--pinlatest` uses only commits already visible in local seeds, leaves the
+active lock in `latest`, and is a local refresh candidate rather than a
+publishable baseline. `--refreshpin` requires both locks to be `pinned` and
+does not materialize roots. `--cleanbuild` preserves the managed dependency
+seed and source-root directories. The project command manifest uses version 2:
+Config is explicit, and Build/Run/Test/Package do not silently configure first.
+
 FreeCM-generated local state must not be committed:
 
 - `source_roots.lock.jsonc`
@@ -139,7 +160,7 @@ checkout, offline update, publication-order, and troubleshooting rules are in
 | `data/` | Runtime resources and configuration data |
 | `benchmarks/` | Reproducible performance and GPU-baseline tools |
 | `DevDocs/` | Developer documentation and source maps |
-| `Ravo/` | Next-generation C++20 headless engine, CLI, architecture, and migration ownership |
+| `Ravo/` | C++20 engine/CLI and the planned SQLite catalog/import/viewer product targets |
 | `FreeCM/` | Dependency-management submodule |
 
 Before contributing, read [AGENTS.md](AGENTS.md). In particular, do not change
@@ -150,7 +171,7 @@ behaviour.
 ## Further reading
 
 - [Release notes](RELEASE_NOTES.md)
-- [Frozen 0.9 baseline and Ravo implementation plan](TODO_REWRITE.md)
+- [Frozen 0.9 baseline and first usable Ravo product plan](TODO_REWRITE.md)
 - [Ravo project documentation](Ravo/README.md)
 - [Developer documentation index](DevDocs/README.md)
 - [GPU baseline](DevDocs/GPU_Baseline.md)

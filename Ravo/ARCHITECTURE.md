@@ -2,130 +2,152 @@
 
 ## 核心结论
 
-Ravo 的第一产品是一个可嵌入的 C++20 图像引擎和一个可独立使用的 `ravo` CLI。CLI 是 engine facade
-的首个客户端；后续 Ravo Studio 也是该 facade 的客户端。两者不能拥有两套 recipe、调度或算法实现。
+Ravo 当前第一产品是可实际使用的本地照片浏览器：创建/打开 SQLite catalog，reference-only 导入
+JPEG/PNG/TIFF/RAW，并在 Ravo Studio 中查看图片。`ravo` CLI 继续是受支持的无 UI 客户端；CLI 与
+desktop 必须调用同一 application services 和 engine，不得拥有两套 catalog、import、preview 或 recipe。
 
 ```text
-脚本/用户 ─────────▶ ravo CLI ─────────────┐
-                                            ▼
-                                    Ravo Engine Facade
-                                    │ inspect
-                                    │ operation registry
-                                    │ recipe validate/upgrade
-                                    │ render / cancel / progress
-                     ┌──────────────┴──────────────┐
-                     ▼                             ▼
-             Recipe / Operation Model         CPU Image Engine
-                     │                             │
-                     └──────────────┬──────────────┘
-                                    ▼
-                        Foundation + Abstract Ports
-                                    ▲
-                                    │ implements
-                        Codec / Filesystem Adapters
+ravo CLI ───────────────┐
+                        ▼
+                 Application Services ◀────────── Ravo Studio
+                 │ create/open                    │ Gallery
+                 │ import/list                    │ viewer
+                 │ request/cancel preview         │ visible errors
+                 ├───────────────┐
+                 ▼               ▼
+           Catalog Domain     Ravo Engine Facade
+                 ▲               ▲
+                 │ implements    │ implements
+          SQLite/FS Adapter   RAW/Raster/Cache Adapters
 
-无头阶段验收后：
-
-Ravo Studio ──▶ Application Services ──▶ 同一个 Ravo Engine Facade
-                       │
-                       └──▶ Catalog / History Repository Ports
+冻结 0.9 src/ ──只读源码与 fixture 证据──▶ Ravo tests
+冻结 0.9 src/ ╳──────────────────────────▶ Ravo production
 ```
 
-## 计划 target
+这条顺序由 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md) 接受。它提前验证 catalog、导入、
+preview、任务和窗口生命周期，但不恢复旧 GTK、动态 IOP ABI 或全局状态。
+
+## Target 与依赖方向
 
 | Target | 所有权 | 允许依赖 | 禁止依赖 |
 | --- | --- | --- | --- |
-| `ravo_foundation` | errors、IDs、任务、取消、基础资源契约 | 标准库、按需 QtCore | recipe、engine、CLI、数据库、UI |
-| `ravo_recipe` | recipe、operation schema、mask/blend、版本升级 | foundation、按需 QtCore | codec、像素执行、数据库、UI |
-| `ravo_engine` | inspect、registry、render facade、CPU pixelpipe | foundation、recipe、抽象端口、按需 QtCore | CLI、catalog、UI、旧 `src` |
-| `ravo_adapters` | codec、文件系统、平台实现 | 对应端口、QtCore、固定第三方依赖 | 业务/UI 状态、Qt GUI/QML/Widgets 类型 |
-| `ravo_cli` | 参数、流、日志、JSON、退出码、composition root | engine facade、adapters | 算法源码、engine 私有头、旧核心 |
-| `ravo_domain`（后续） | catalog、版本、history、styles | foundation、recipe、仓库端口 | UI、数据库实现 |
-| `ravo_services`（后续） | 桌面用例与任务编排 | domain、engine | widget、SQL、算法内部 |
-| `ravo_desktop`（后续） | 窗口、输入、可访问性和呈现 | services、预览资源 API | SQL、算法、engine 私有头 |
+| `ravo_foundation` | errors、IDs、取消、基础资源契约 | 标准库、按需 QtCore | recipe、engine、catalog、UI |
+| `ravo_recipe` | recipe、operation schema、版本升级 | foundation、按需 QtCore | codec、数据库、UI |
+| `ravo_engine` | inspect、operation registry、CPU render/preview | foundation、recipe、engine ports、按需 QtCore | catalog、services、CLI、UI、旧 `src` |
+| `ravo_domain` | Asset/Catalog、Import/Preview 状态、repository ports | foundation | SQLite、codec、engine 私有类型、UI |
+| `ravo_services` | create/open/import/list/preview 用例与任务编排 | domain、engine facade | SQL、QML/presentation 类型、第三方 codec 类型 |
+| `ravo_adapters` | SQLite、filesystem、RAW/raster codec、preview cache | 对应 ports、Qt Core/Gui/Sql、固定第三方依赖 | QML/UI 状态、旧核心 |
+| `ravo_cli` | 参数、JSON、退出码、CLI composition | services、engine facade、adapters | 算法、SQL、UI |
+| `ravo_desktop` | C++ composition/presenter、Qt Quick/QML 窗口、Gallery、viewer、文件选择 | services、只读 preview 资源、Qt Core/Gui/Qml/Quick | Qt Widgets、SQL、codec、算法私有状态 |
 
-QtCore 是允许的新工程基础依赖，不强制绕过直接、清晰的使用来制造 adapter。LibRaw、lcms、Exiv2、
-SQLite 或平台 API 仍优先由私有 adapter 包装，裸句柄、宏和异常不能泄漏到稳定公开契约。
+SQLite 由私有 Qt Sql/QSQLITE adapter 包装，raster 首版由私有 `QImageReader` adapter 包装；LibRaw 和平台
+API 同样不越过 port。Qt 值类型可在有明确收益的 target 内使用，但 recipe、CLI JSON、catalog schema
+和公开持久化契约不得序列化 Qt/C++ 对象内存布局。
+
+Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 services、任务与
+`QQmlApplicationEngine`，desktop-owned QObject presenter/model 把不可变 service snapshot 和 commands
+映射给 QML。QML/JavaScript 只拥有瞬时 view state、布局、绑定和输入，不实现 catalog/import/preview
+业务规则。QML 资源通过 `qt_add_qml_module` 纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。
 
 ## 核心数据契约
 
-### Recipe
+### Catalog
 
-canonical recipe 至少包含：
+catalog 是单个用户选择的 SQLite 文件。schema v1 至少保存：
 
-- recipe schema 版本；
-- 输入资产身份与适用约束；
-- 稳定 operation ID 和每项参数 schema 版本；
-- operation 启用状态、顺序和实例身份；
-- mask/blend 图及稳定引用；
-- 输出相关但不属于 UI 的处理意图。
+- schema 版本与迁移元数据；
+- 稳定 asset ID、规范化本地 URI、媒体类型、源文件 size/mtime/可选指纹；
+- 尺寸、orientation、基础拍摄元数据、import 状态和结构化错误摘要；
+- preview contract 版本、cache key、尺寸、状态和最近成功时间。
 
-不得包含 C++ 对象布局、指针、GTK/Bauhaus 状态、旧 module struct、GPU 句柄、数据库行地址或缓存键。
+规范化 URI 在一个 catalog 内唯一。数据库不保存原片或完整 preview blob，不保存 presentation 状态、recipe
+对象布局、codec 句柄或数据库行地址。新库和每次 migration 使用事务；未知更高 schema 版本 fail-fast。
 
-### Operation descriptor
+首版不读取或迁移冻结 0.9 catalog。未来兼容工作必须有独立产品决定、备份/回滚和 fixture。
 
-每个 operation 声明：
+### Import
 
-- 稳定 ID、显示元数据和参数 schema；
-- 输入/输出像素格式和色彩空间；
-- ROI、几何、分块、mask/blend 能力；
-- CPU 参考执行器及其资源预算；
-- 参数/recipe 版本升级；
-- 不支持输入的结构化失败；
-- 允许的数值容差和必需 fixture。
+`ImportRequest` 携带 catalog ID、文件/目录输入、递归与格式策略、资源预算、取消 token 和 correlation
+ID。`ImportItemResult` 对每个输入返回 imported、duplicate、unsupported 或 failed；批次不能因部分
+成功丢失失败明细。
 
-首版 operation 内建注册。除非未来有明确消费者、威胁模型和版本策略，不设计公共插件 ABI。
+导入首版只登记原文件，不复制、移动、改名、改写 metadata 或删除。格式由 codec 探测确认，扩展名只做
+候选过滤。先验证可信 metadata，再通过事务发布可见 asset；取消停止未派发工作，已提交结果仍保持有效。
 
-### Render request/result
+### Preview
 
-`RenderRequest` 显式携带输入、recipe、输出尺寸/质量、内存预算、线程预算、确定性选项、backend 偏好、
-取消令牌和关联 ID。`RenderResult` 返回可信输出或结构化失败，不能返回“部分成功”的未验证 buffer。
+`PreviewRequest` 显式携带 asset ID、目标像素尺寸、方向/颜色策略、backend、内存/线程预算、取消 token
+和 request revision。`PreviewResult` 返回可信的只读 preview 资源或结构化失败。
 
-### Colour contract
+RAW 通过 Ravo CPU engine，JPEG/PNG/TIFF 通过 raster adapter；两条路径统一 orientation、颜色、alpha、
+缩放、有限值与错误契约。preview 在数据库外原子写入受控缓存，cache key 包含源指纹、目标尺寸和 contract
+版本。缓存损坏或缺失时可从只读原片重建。
 
-所有解码图像、预览资源、render request 和 render result 都显式携带版本化颜色描述：像素格式、alpha
-关联、源/目标编码，以及嵌入 profile 的稳定引用或明确的缺失/错误状态。转换的源、目标和 intent 属于
-engine 操作契约；UI、显示器、catalog 设置、文件名和无标记 buffer 都不能隐式选择色彩策略。lcms、codec
-和未来 GPU 的色彩对象只存在于私有 adapter，详见 [ADR-0006](docs/adr/0006-explicit-colour-contract.md)。
+### Recipe 与 operation
 
-## 所有权与线程
+既有 canonical recipe、operation descriptor、`RenderRequest`/`RenderResult` 和显式 colour contract
+继续有效。第一版 viewer 只依赖生成可信 preview 所需的最小 CPU 链，不要求先迁完全部旧 operation。
+后续编辑 UI 只能映射 versioned schema，不拥有第二套算法或 history 格式。
 
-- composition root 创建 engine、adapter 和执行器，并在任务全部终止后按反向顺序销毁。
-- 当前 Phase 1 facade 调用是同步的：调用者拥有 engine、请求、取消 token 和 progress sink，facade
-  只在调用期间借用它们且不保留指针。token 可带单调时钟 deadline，过期时以 `deadline_exceeded`
-  作为取消原因；尚未实现的 codec、任务执行器和 pixel buffer 不在 Phase 1 制造占位 owner。
-- recipe、descriptor 与跨线程领域快照不可变；修改产生新版本，而不是共享写入。
-- pixel buffer 有唯一写 owner；只读共享必须绑定明确有效期。
-- codec、operation、cache 和任务不能保存 CLI 或未来 widget 指针。
-- 完成事件携带 request/version ID；取消或更新后的过期结果直接丢弃。
-- 资源不足、codec/operation 错误或未来 GPU 失败时，只能从可信输入安全重试或失败，不能继续使用
-  部分写入输出。
-- Phase 1 的 XMP adapter 默认拒绝已有输出路径（结构化 `conflict`、CLI exit `6`）；只对不存在的目标
-  使用 `QSaveFile` 写入和提交，避免导入命令将成功结果伪装为对用户文件的隐式覆盖。
+所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
+或无标记 buffer 不得隐式选择色彩策略。完整约束见
+[ADR-0006](docs/adr/0006-explicit-colour-contract.md)。
+
+## Services
+
+第一版 services 至少提供：
+
+- `CreateCatalog` / `OpenCatalog`：创建、校验、迁移并返回不可变 catalog snapshot；
+- `ImportAssets`：枚举输入、调用 codec/engine、事务提交资产并调度 preview；
+- `ListAssets` / `ObserveCatalog`：返回稳定排序和 revision，不暴露 SQL cursor；
+- `RequestPreview` / `CancelPreview`：按 viewport 请求有界 preview，丢弃过期结果；
+- `CloseCatalog`：停止相关任务、释放连接和缓存句柄后完成。
+
+CLI 和 desktop composition root 可以选择不同的 presenter，但必须装配同一 services、ports 和 adapter。
+
+## 所有权、生命周期与线程
+
+- composition root 创建 catalog repository、codec、engine、cache、executor、services 和客户端，并在任务
+  全部终止后按反向顺序销毁。
+- UI 主线程拥有 `QQmlApplicationEngine`、窗口和 desktop presentation state；扫描、metadata、decode、
+  preview、cache 与数据库 I/O 只在 C++ owner 管理的任务中运行，禁止 detached thread。
+- catalog、asset、recipe、descriptor 和跨线程结果是不可变快照；写操作产生新 revision。
+- database connection 不跨线程裸共享；adapter 使用明确的串行 owner 或每 worker 受控连接，并在关闭前
+  完成/回滚事务。
+- pixel buffer 和 preview 临时文件有唯一写 owner；只读共享必须绑定资源句柄和清晰有效期。
+- 每个异步完成事件携带 catalog/asset/request revision；取消、catalog 关闭或选择变化后的旧结果丢弃。
+- codec、数据库、缓存或内存失败只能从可信输入重试或返回失败，不能继续展示部分输出。
+- 用户原片始终只读；数据库和 preview 只在事务/原子提交成功后对客户端可见。
+
+## Desktop 边界
+
+Ravo Studio 第一版负责：
+
+- 创建/打开 catalog、选择文件/目录；
+- Gallery 列表、loading/ready/missing/unsupported/failed 状态；
+- 选择图片、适应窗口、100% 和平移；
+- 进度、取消和可恢复错误呈现；
+- 窗口、焦点、键盘、HiDPI 和基本可访问性。
+
+QML view 只向 desktop-owned C++ presenter 发送 intent，并观察带 revision 的不可变 view state。文件选择
+使用 Qt Quick Dialogs；Gallery/`Image` 只消费受控 preview 资源，不直接打开用户原片。QML 中不得出现
+SQL、文件枚举、codec 探测、任务调度或与 services 重复的业务状态机。
+
+Ravo Studio 不负责：
+
+- SQL、文件枚举、codec 探测、RAW 处理、preview 缓存或 recipe 求值；
+- 直接持有 engine/SQLite/LibRaw 裸对象；
+- 通过 shell 启动 `ravo`；
+- 复刻旧 GTK widget、引入 Qt Widgets fallback、旧配置键或动态 IOP 生命周期。
 
 ## CLI 边界
 
-CLI 负责：
+CLI 继续负责参数、stdin/stdout、版本化 JSON、稳定退出码和 headless composition。M2 可增加
+catalog create/import/list/preview 命令，用于验证同一 services；人类日志不能污染 JSON stdout。
 
-- 参数与文件/流输入输出；
-- composition root；
-- 人类日志、版本化 JSON 与稳定退出码；
-- 进度、取消和原子输出协调。
+## 当前非目标
 
-CLI 不负责：
-
-- 解析或执行算法内部结构；
-- 私自修改 recipe；
-- 维护 catalog 或 UI 会话；
-- 暴露旧配置键、旧 IOP ABI 或 engine 私有对象。
-
-未来 UI 直接调用 facade/services，不通过 shell 执行 `ravo`。CLI 仍是独立受支持的批处理工具。
-
-## 阶段性非目标
-
-- 阶段 0–3 不实现桌面 UI、widget、catalog 或旧界面复刻。Ravo target 可按需直接使用 QtCore；Qt GUI、
-  QML、Widgets 和任何 desktop target 仍被禁止。
-- CPU 正确性完成前不实现 GPU backend。
-- 不追求逐行翻译 0.9，也不以源码行数作为迁移完成度。
-- 不恢复已从产品范围删除的插件、格式、在线服务或历史 ABI。
-- 不为尚无消费者的网络服务、复杂 filter 语言或公共 SDK 提前冻结 ABI。
+- 第一版不实现编辑、完整 history/styles、mask/blend、全部 operation、完整导出或旧 catalog 迁移。
+- CPU 正确性和 viewer 资源门槛完成前不实现 GPU backend。
+- 不为尚无消费者的网络、云同步、公共插件 ABI 或复杂查询语言冻结接口。
+- 不修改冻结 0.9 来调用 Ravo，也不让 Ravo 生产代码调用冻结应用。

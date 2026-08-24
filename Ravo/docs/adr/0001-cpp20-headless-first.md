@@ -1,7 +1,11 @@
 # ADR-0001: C++20 headless engine and CLI first
 
-- Status: Accepted
+- Status: Partially superseded by ADR-0007
 - Date: 2026-07-21
+
+ADR-0007 replaces the rule that catalog/services/desktop must wait for the
+complete headless exit. The C++20 engine, supported CLI, CPU reference path,
+and prohibition on wrapping the frozen core remain in force.
 
 ## Context
 
@@ -16,7 +20,8 @@
 - Ravo 第一方实现统一使用 C++20、CMake 与 FreeCM；首个可交付版本不加入 Rust/Cargo。
 - 第一产品是无 UI 的 Ravo Engine 和正式 `ravo` CLI。
 - CPU 是参考实现；旧图像 fixture 通过 legacy XMP adapter 和 CLI 差分复用。
-- catalog、services 和 Ravo Studio 只在无头阶段验收后开始。
+- 原决定要求 catalog、services 和 Ravo Studio 等到无头阶段验收后开始；该排期已被
+  ADR-0007 取代，M1 现在允许最小纵切片并继续复用同一 engine/CLI 契约。
 - 未来 UI 直接调用 engine/services API，不启动 CLI 子进程；CLI 继续作为受支持批处理工具。
 
 ## Consequences

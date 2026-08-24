@@ -1,8 +1,9 @@
 # Module Groups
 
 > **Frozen 0.9 reference:** group registration described here must not be
-> changed in `src`. Future operation presentation belongs to Ravo schema and
-> desktop services after the headless stages.
+> changed in `src`. Ravo M1 may build a gallery/viewer, but it does not port
+> these module groups; future editing controls belong to Ravo schema, services,
+> and desktop owners.
 
 Module groups organize IOP modules into logical categories (Technical, Grading, Effects, etc.) in the darkroom view. This helps users find tools relevant to their current task.
 

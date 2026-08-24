@@ -18,8 +18,8 @@ This guide maps the frozen Image Operation (IOP) modules and darkroom implementa
 | **[GPU_Baseline.md](GPU_Baseline.md)** | Frozen legacy measurements and Ravo GPU workload, correctness, and performance gates |
 | **[Runtime_Persistence.md](Runtime_Persistence.md)** | DevMode checkout isolation and production instance-lock policy |
 | **[Dependency_Workflow.md](Dependency_Workflow.md)** | FreeCM active-lock modes, manual dependency joint development, offline `--update`, publication order, and troubleshooting |
-| **[../Ravo/README.md](../Ravo/README.md)** | Ravo C++20 headless engine/CLI architecture, one-way legacy migration, testing, and ADR index |
-| **[../TODO_REWRITE.md](../TODO_REWRITE.md)** | Ravo phases, legacy regression-test reuse, deferred desktop UI, and rewrite gates |
+| **[../Ravo/README.md](../Ravo/README.md)** | Ravo C++20 engine/CLI/Studio architecture, one-way legacy migration, testing, and ADR index |
+| **[../TODO_REWRITE.md](../TODO_REWRITE.md)** | First usable SQLite catalog/import/viewer milestones, later editing/GPU work, and rewrite gates |
 | **[Linux_Packaging.md](Linux_Packaging.md)** | FreeCM-backed GTK AppDir staging, AppImage construction, and validation |
 | **[Windows_Packaging.md](Windows_Packaging.md)** | FreeCM-backed Windows staging, MSI construction, and validation |
 

@@ -24,7 +24,7 @@ the very result that Ravo is meant to reproduce or explicitly reject.
 - Ravo is the only production growth path. All unfinished work formerly
   planned for 0.9—product reduction, final IOP decisions, compatibility
   handling, corpus completion, backend-neutral GPU design, Metal acceleration,
-  and eventual OpenCL removal—is owned by the corresponding Ravo phases.
+  and eventual OpenCL removal—is owned by the corresponding Ravo milestones.
 - The two production graphs remain independent. Neither `src` → Ravo nor Ravo
   → `src` adapters are allowed.
 - Ravo tests may read frozen fixtures and source as static evidence. They do
@@ -32,7 +32,7 @@ the very result that Ravo is meant to reproduce or explicitly reject.
   image runner. A frozen-fixture limitation is recorded rather than fixed in
   `src` to advance Ravo.
 - `src` is not deleted capability by capability during implementation. After
-  Ravo satisfies the complete release-switch gate, Stage 7 retires the old
+  Ravo satisfies the complete release-switch gate, M7 retires the old
   application, including its OpenCL code, build entries, resources, config,
   documentation, and duplicate tests.
 

@@ -2,11 +2,15 @@
 
 ## Purpose and status
 
-This is a Phase 0 implementation inventory, not a promise to reproduce every
+This is a historical Phase 0 implementation inventory, not a promise to reproduce every
 legacy IOP. [`TODO_REWRITE.md`](../../../TODO_REWRITE.md) retains the
 product-boundary authority; several creative and specialised modules are still
 explicit candidates for a separate keep/remove decision. The table identifies
 work that must not be silently implied by a successful Ravo build.
+
+ADR-0007 supersedes the old sequencing constraint: a new private SQLite
+catalog and minimal desktop viewer are authorized in M1. That decision does not
+authorize legacy catalog migration or any operation marked deferred below.
 
 The source inventory was collected from the 76 non-comment `add_iop(...)`
 registrations in [`src/iop/CMakeLists.txt`](../../../src/iop/CMakeLists.txt).
@@ -127,7 +131,7 @@ struct bytes or call the old dynamic module ABI.
 | RAW/JPEG/PNG/TIFF decode | 16-bit Bayer RAW inspect/decode implemented through fixed LibRaw; raster inputs remain unsupported | Real `mire1.cr2` contract coverage exists, but other sensors and JPEG/PNG/TIFF still need fixture-backed behaviour |
 | JPEG/PNG/TIFF/original export | Atomic RGB PNG implemented for the first RAW slice; other outputs remain unsupported | Existing-target conflict and bounded output are tested; bit depth, metadata, ICC, disk-full, JPEG/TIFF and original copy remain open |
 | Masks and blending | Modelled as versioned data only | Pixel semantics require dedicated CPU tests and ROI rules |
-| Catalog, history, styles | Explicitly out of Phase 1 | No database or desktop target before the headless exit |
+| Catalog, history, styles | New SQLite catalog/viewer authorized for M1; history and styles remain later work | The first product imports originals by reference and does not migrate the legacy catalog |
 | GPU/OpenCL/Metal | Explicitly out of Phase 1 | CPU-only reference work precedes any backend adapter |
 
 The next inventory update must cite the Ravo test, legacy mapping, fixture, and

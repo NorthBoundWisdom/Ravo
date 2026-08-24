@@ -1,4 +1,4 @@
-# Ravo GPU 阶段 6：基线与准入规范
+# Ravo GPU M6：基线与准入规范
 
 本文定义 Ravo CPU engine 增加 Metal 等 GPU adapter 前必须固定的测量方法。它不是
 shader 实现说明；在工作负载、CPU 金样和首批连续热点链完成评审前，不开始 GPU
@@ -6,8 +6,8 @@ operation 实现。
 
 > 当前状态（2026-07-21）：现有 runner、浮点像素比较和 GPU 路由统计属于冻结 0.9 的
 > 只读测量资产。0.9 不再进行 OpenCL→Metal、pixelpipe 重构或第二轮清理。待 Ravo
-> CPU engine/CLI 与保留 operation 达到无头验收后，阶段 6 复用测量方法并将 runner
-> 改为比较 Ravo CPU 与 Ravo GPU。当前状态不授权修改旧实现或开始 GPU 代码。
+> Ravo M1–M3 第一版软件和后续 CPU 编辑路径达到各自验收门槛后，M6 复用测量方法并将
+> runner 改为比较 Ravo CPU 与 Ravo GPU。当前状态不授权修改旧实现或开始 GPU 代码。
 
 ## 冻结 0.9 的观测能力
 
@@ -44,7 +44,7 @@ Git，但必须在基线清单中记录 SHA-256、相机、尺寸、来源/许�
 2. 100% 暗房：固定 ROI，禁止窗口尺寸和缩放状态漂移；
 3. 全尺寸导出：高质量处理，32-bit float TIFF，无缩小。
 
-冻结的 legacy CLI runner 只覆盖第 3 种路径。Ravo 阶段 6 必须把预览与导出接到同一
+冻结的 legacy CLI runner 只覆盖第 3 种路径。Ravo M6 必须把预览与导出接到同一
 版本化报告 schema；不能用全尺寸导出数据代替交互首帧和更新延迟。
 
 ## 可重复执行
