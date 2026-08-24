@@ -144,7 +144,16 @@ jobs:
             echo "QT_ROOT_DIR was not set by install-qt-action" >&2
             exit 1
           fi
-          echo "${QT_ROOT_DIR}/bin" >> "$GITHUB_PATH"
+          qt_bin="${QT_ROOT_DIR}/bin"
+          if [[ ! -d "${qt_bin}" ]]; then
+            echo "Qt bin directory is missing: ${qt_bin}" >&2
+            exit 1
+          fi
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "$(cygpath -w "${qt_bin}")" >> "$GITHUB_PATH"
+          else
+            echo "${qt_bin}" >> "$GITHUB_PATH"
+          fi
 
       - name: Install host CMake packages
         run: |
@@ -176,26 +185,25 @@ jobs:
           key: seeds-${{ runner.os }}-${{ hashFiles('source_roots.lock.jsonc.in') }}
           restore-keys: seeds-${{ runner.os }}-
 
-      - name: Prepare CI source-root lock
+      - name: Materialize source roots
         run: |
           set -euo pipefail
           if [[ -z "${QT_ROOT_DIR:-}" ]]; then
             echo "QT_ROOT_DIR was not set by install-qt-action" >&2
             exit 1
           fi
+          python configs/source_root_workflow.py --init
           prefix_args=(--prefix-path "${QT_ROOT_DIR}" --prefix-path "${RUNNER_TEMP}/ci-prefix")
+          path_args=(--path-entry "${QT_ROOT_DIR}/bin")
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             prefix_args+=(--prefix-path "$(brew --prefix)")
+            path_args+=(--path-entry "$(brew --prefix)/bin")
           fi
           python .github/scripts/prepare_ci_lock.py \
             --repo-root . \
             --platform "${{ matrix.platform }}" \
-            "${prefix_args[@]}"
-
-      - name: Materialize source roots
-        run: |
-          set -euo pipefail
-          python configs/source_root_workflow.py --init
+            "${prefix_args[@]}" \
+            "${path_args[@]}"
           python configs/source_root_workflow.py --update
           python configs/source_roots.py show --format json
           python configs/source_roots.py resolve --format json
@@ -205,15 +213,16 @@ jobs:
         run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=ON
 
       - name: Build Ravo
-        run: cmake --build "build/${{ matrix.preset }}" --parallel
-
-      - name: Test Ravo
         run: |
           set -euo pipefail
-          if [[ -n "${QT_ROOT_DIR:-}" ]]; then
-            export PATH="${QT_ROOT_DIR}/bin:${PATH}"
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            cmake --build "build/${{ matrix.preset }}" --parallel
+          else
+            cmake --build --preset "${{ matrix.preset }}" --parallel
           fi
-          ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
+
+      - name: Test Ravo
+        run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
 
       - name: Upload failure logs
         if: failure()

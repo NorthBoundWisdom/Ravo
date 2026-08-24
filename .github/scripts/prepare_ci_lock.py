@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Create a gitignored CI source-root lock from the committed template.
+"""Patch the active FreeCM lock after ``--init``, the same way a local machine does.
 
-The generated lock is local state: it never overwrites
-``source_roots.lock.jsonc.in``. CI uses it so ``--init`` / ``--update`` can
-run without machine paths such as ``/Users/<user>/...`` or SSH remotes.
+``--init`` copies ``source_roots.lock.jsonc.in`` to the gitignored
+``source_roots.lock.jsonc``. This script then rewrites runner paths in that
+generated lock so ``--update`` can emit presets with the CI Qt/host prefix
+and ``cmakeEnvironment.PATH``. It never overwrites the committed template.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -19,6 +21,7 @@ from typing import Any
 SSH_GITHUB_REMOTE = re.compile(r"^git@github\.com:(.+)$")
 USER_PLACEHOLDER = "<user>"
 VALID_PLATFORMS = ("mac", "linux", "win")
+PENV_PATH = "$penv{PATH}"
 
 
 def repo_root_from_script() -> Path:
@@ -27,13 +30,15 @@ def repo_root_from_script() -> Path:
 
 def load_jsonc(path: Path) -> dict[str, Any]:
     freecm_root = path.resolve().parent / "FreeCM"
+    if not (freecm_root / "freecm" / "jsonc.py").is_file():
+        freecm_root = repo_root_from_script() / "FreeCM"
     if str(freecm_root) not in sys.path:
         sys.path.insert(0, str(freecm_root))
     from freecm.jsonc import loads_jsonc
 
     data = loads_jsonc(path.read_text(encoding="utf-8"), path_label=str(path))
     if not isinstance(data, dict):
-        raise ValueError(f"lock template is not an object: {path}")
+        raise ValueError(f"lock is not an object: {path}")
     return data
 
 
@@ -44,56 +49,89 @@ def to_https_github_remote(remote: str) -> str:
     return f"https://github.com/{match.group(1)}"
 
 
-def cmake_prefix_path(entries: list[str]) -> str:
+def normalize_path_entries(entries: list[str], *, separator: str) -> list[str]:
     parts: list[str] = []
     for entry in entries:
-        for item in entry.replace("\\", "/").split(";"):
-            text = item.strip()
-            if text:
-                parts.append(text.rstrip("/"))
+        for item in entry.replace("\\", "/").split(separator):
+            text = item.strip().rstrip("/")
+            if text and text != PENV_PATH:
+                parts.append(text)
     if not parts:
-        raise ValueError("CMAKE_PREFIX_PATH requires at least one prefix")
-    return ";".join(parts)
+        raise ValueError("expected at least one path entry")
+    return parts
 
 
-def prepare_ci_lock(
-    template: dict[str, Any],
+def cmake_prefix_path(entries: list[str]) -> str:
+    return ";".join(normalize_path_entries(entries, separator=";"))
+
+
+def cmake_path_env(entries: list[str], *, platform: str) -> str:
+    separator = ";" if platform == "win" else ":"
+    parts = normalize_path_entries(entries, separator=separator)
+    parts.append(PENV_PATH)
+    return separator.join(parts)
+
+
+def apply_ci_lock(
+    lock: dict[str, Any],
     *,
     platform: str,
     prefix_path: str,
+    path_env: str,
 ) -> dict[str, Any]:
     if platform not in VALID_PLATFORMS:
         raise ValueError(f"platform must be one of {VALID_PLATFORMS}, got {platform!r}")
 
-    lock = json.loads(json.dumps(template))
-    dependencies = lock.get("dependencies")
+    patched = json.loads(json.dumps(lock))
+    dependencies = patched.get("dependencies")
     if not isinstance(dependencies, dict):
-        raise ValueError("lock template is missing dependencies")
+        raise ValueError("lock is missing dependencies")
     for name, spec in dependencies.items():
         if not isinstance(spec, dict) or "remote" not in spec:
             raise ValueError(f"dependency {name!r} is missing a remote")
         spec["remote"] = to_https_github_remote(str(spec["remote"]))
 
-    cache = lock.setdefault("cmakeCacheVariables", {})
+    cache = patched.setdefault("cmakeCacheVariables", {})
     if not isinstance(cache, dict):
         raise ValueError("cmakeCacheVariables must be an object")
-    cache[platform] = {
-        "CMAKE_PREFIX_PATH": prefix_path,
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-    }
-    lock["depsMode"] = "pinned"
-    return lock
+    platform_map = cache.get(platform)
+    if platform_map is None:
+        platform_map = {}
+    if not isinstance(platform_map, dict):
+        raise ValueError(f"cmakeCacheVariables.{platform} must be an object")
+    updated_platform = dict(platform_map)
+    updated_platform["CMAKE_PREFIX_PATH"] = prefix_path
+    updated_platform.pop("CMAKE_TOOLCHAIN_FILE", None)
+    cache[platform] = updated_platform
+
+    environment = patched.setdefault("cmakeEnvironment", {})
+    if not isinstance(environment, dict):
+        raise ValueError("cmakeEnvironment must be an object")
+    environment["PATH"] = path_env
+
+    patched["depsMode"] = "pinned"
+    return patched
 
 
-def assert_ci_lock(lock: dict[str, Any], *, platform: str, prefix_path: str) -> None:
+def assert_ci_lock(
+    lock: dict[str, Any],
+    *,
+    platform: str,
+    prefix_path: str,
+    path_env: str,
+) -> None:
     platform_map = lock["cmakeCacheVariables"][platform]
-    if USER_PLACEHOLDER in json.dumps(platform_map):
+    encoded = json.dumps(platform_map)
+    if USER_PLACEHOLDER in encoded:
         raise ValueError(f"CI lock still contains {USER_PLACEHOLDER!r} in {platform} cache")
     if platform_map.get("CMAKE_PREFIX_PATH") != prefix_path:
         raise ValueError("CI lock CMAKE_PREFIX_PATH does not match the requested prefixes")
     if "CMAKE_TOOLCHAIN_FILE" in platform_map:
         raise ValueError("CI lock must not keep a developer vcpkg toolchain")
+    if lock["cmakeEnvironment"].get("PATH") != path_env:
+        raise ValueError("CI lock cmakeEnvironment.PATH does not match the requested PATH")
+    if USER_PLACEHOLDER in str(lock["cmakeEnvironment"].get("PATH", "")):
+        raise ValueError("CI lock cmakeEnvironment.PATH still contains a user placeholder")
     for spec in lock["dependencies"].values():
         remote = str(spec["remote"])
         if remote.startswith("git@"):
@@ -107,17 +145,47 @@ def write_lock(path: Path, lock: dict[str, Any]) -> None:
 
 def self_check(repo_root: Path) -> None:
     template_path = repo_root / "source_roots.lock.jsonc.in"
-    template = load_jsonc(template_path)
-    prefix_path = cmake_prefix_path(["/tmp/qt-6.11.2", "/tmp/ci-prefix"])
+    workspace_lock = (repo_root / "source_roots.lock.jsonc").resolve()
     with tempfile.TemporaryDirectory() as tmp:
-        output = Path(tmp) / "source_roots.lock.jsonc"
-        lock = prepare_ci_lock(template, platform="linux", prefix_path=prefix_path)
-        assert_ci_lock(lock, platform="linux", prefix_path=prefix_path)
-        write_lock(output, lock)
-        geocontrols = lock["dependencies"]["GeoControls"]["remote"]
+        active = Path(tmp) / "source_roots.lock.jsonc"
+        shutil.copyfile(template_path, active)
+        init_lock = load_jsonc(active)
+        linux_prefix = cmake_prefix_path(["/tmp/qt-6.11.2", "/tmp/ci-prefix"])
+        linux_path = cmake_path_env(["/tmp/qt-6.11.2/bin"], platform="linux")
+        linux_lock = apply_ci_lock(
+            init_lock,
+            platform="linux",
+            prefix_path=linux_prefix,
+            path_env=linux_path,
+        )
+        assert_ci_lock(
+            linux_lock,
+            platform="linux",
+            prefix_path=linux_prefix,
+            path_env=linux_path,
+        )
+        write_lock(active, linux_lock)
+        geocontrols = linux_lock["dependencies"]["GeoControls"]["remote"]
         if geocontrols != "https://github.com/NorthBoundWisdom/GeoControls.git":
             raise ValueError(f"unexpected GeoControls remote after rewrite: {geocontrols}")
-        if (repo_root / "source_roots.lock.jsonc").resolve() == output.resolve():
+
+        win_prefix = cmake_prefix_path(
+            [r"D:\a\Ravo\Qt\6.11.2\msvc2022_64", r"D:\a\Ravo\ci-prefix"]
+        )
+        win_path = cmake_path_env(
+            [r"D:\a\Ravo\Qt\6.11.2\msvc2022_64\bin"],
+            platform="win",
+        )
+        if win_path != "D:/a/Ravo/Qt/6.11.2/msvc2022_64/bin;$penv{PATH}":
+            raise ValueError(f"unexpected Windows PATH rewrite: {win_path}")
+        win_lock = apply_ci_lock(
+            init_lock,
+            platform="win",
+            prefix_path=win_prefix,
+            path_env=win_path,
+        )
+        assert_ci_lock(win_lock, platform="win", prefix_path=win_prefix, path_env=win_path)
+        if workspace_lock == active.resolve():
             raise ValueError("self-check must not write the workspace active lock")
     print("prepare_ci_lock self-check passed")
 
@@ -142,15 +210,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="CMAKE_PREFIX_PATH entry; repeat or use ';'-separated values",
     )
     parser.add_argument(
-        "--output",
+        "--path-entry",
+        action="append",
+        default=[],
+        help="cmakeEnvironment.PATH entry; Qt bin and other host tool dirs",
+    )
+    parser.add_argument(
+        "--lock",
         type=Path,
         default=None,
-        help="active lock path (default: <repo>/source_roots.lock.jsonc)",
+        help="active lock created by --init (default: <repo>/source_roots.lock.jsonc)",
     )
     parser.add_argument(
         "--self-check",
         action="store_true",
-        help="validate rewrite rules against the committed template without writing the workspace lock",
+        help="validate rewrite rules against a copied template without writing the workspace lock",
     )
     return parser.parse_args(argv)
 
@@ -161,19 +235,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_check:
         self_check(repo_root)
         return 0
-    if args.platform is None or not args.prefix_path:
-        raise SystemExit("--platform and --prefix-path are required unless --self-check is set")
+    if args.platform is None or not args.prefix_path or not args.path_entry:
+        raise SystemExit(
+            "--platform, --prefix-path, and --path-entry are required unless --self-check is set"
+        )
+    lock_path = (args.lock or repo_root / "source_roots.lock.jsonc").resolve()
+    if not lock_path.is_file():
+        raise SystemExit(
+            f"active lock is missing: {lock_path}; run "
+            "python configs/source_root_workflow.py --init first"
+        )
     prefix_path = cmake_prefix_path(args.prefix_path)
-    template_path = repo_root / "source_roots.lock.jsonc.in"
-    lock = prepare_ci_lock(
-        load_jsonc(template_path),
+    path_env = cmake_path_env(args.path_entry, platform=args.platform)
+    lock = apply_ci_lock(
+        load_jsonc(lock_path),
         platform=args.platform,
         prefix_path=prefix_path,
+        path_env=path_env,
     )
-    assert_ci_lock(lock, platform=args.platform, prefix_path=prefix_path)
-    output = (args.output or repo_root / "source_roots.lock.jsonc").resolve()
-    write_lock(output, lock)
-    print(f"wrote CI lock {output}")
+    assert_ci_lock(lock, platform=args.platform, prefix_path=prefix_path, path_env=path_env)
+    write_lock(lock_path, lock)
+    print(f"patched CI lock {lock_path}")
     return 0
 
 

@@ -94,51 +94,16 @@ function(ravo_configure_target target)
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wshadow>)
 endfunction()
 
-function(ravo_qt_windows_bin_dir out_var)
-  foreach(_cfg IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
-    get_target_property(_loc Qt6::Core IMPORTED_LOCATION_${_cfg})
-    if(_loc)
-      get_filename_component(_bin "${_loc}" DIRECTORY)
-      set(${out_var} "${_bin}" PARENT_SCOPE)
-      return()
-    endif()
-  endforeach()
-  get_target_property(_loc Qt6::Core IMPORTED_LOCATION)
-  if(NOT _loc)
-    set(${out_var} "" PARENT_SCOPE)
-    return()
-  endif()
-  get_filename_component(_bin "${_loc}" DIRECTORY)
-  set(${out_var} "${_bin}" PARENT_SCOPE)
-endfunction()
-
 function(ravo_deploy_qt_core target)
-  if(NOT WIN32)
-    return()
+  if(WIN32)
+    add_custom_command(
+      TARGET ${target}
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:Qt6::Core>
+        $<TARGET_FILE_DIR:${target}>
+      VERBATIM)
   endif()
-  ravo_qt_windows_bin_dir(_qt_bin)
-  if(NOT _qt_bin)
-    message(FATAL_ERROR "ravo_deploy_qt_core: Qt6::Core bin directory is missing")
-  endif()
-  set(_windeployqt "${_qt_bin}/windeployqt.exe")
-  if(NOT EXISTS "${_windeployqt}")
-    message(FATAL_ERROR "ravo_deploy_qt_core: windeployqt.exe not found in ${_qt_bin}")
-  endif()
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(_windeployqt_mode --debug)
-  else()
-    set(_windeployqt_mode --release)
-  endif()
-  add_custom_command(
-    TARGET ${target}
-    POST_BUILD
-    COMMAND "${_windeployqt}"
-      --verbose 0
-      --no-compiler-runtime
-      --no-translations
-      ${_windeployqt_mode}
-      "$<TARGET_FILE:${target}>"
-    VERBATIM)
 endfunction()
 
 add_subdirectory(foundation)

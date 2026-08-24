@@ -255,9 +255,10 @@ path 变化后总要重新执行 `--update`，否则现有 `CMakePresets.json` �
 
 ## GitHub Actions
 
-`.github/workflows/ci.yml` 在干净 runner 上走同一条 `--init` / `--update` /
-`cmake --preset` / `cmake --build build/<preset>` 路径。它只写被忽略的活动锁：把当前平台的 `CMAKE_PREFIX_PATH`
-换成 runner 上的 Qt 与 host prefix，并把 `git@github.com:` remote 改写成 HTTPS。
+`.github/workflows/ci.yml` 在干净 runner 上走和本机相同的 FreeCM 路径：先 `--init`
+从模板生成被忽略的活动锁，再改写该锁里当前平台的 `CMAKE_PREFIX_PATH` 与
+`cmakeEnvironment.PATH`（Qt bin 与 host prefix），然后 `--update` 生成 preset。
+macOS / Windows 用 `cmake --build --preset`，Linux 用 `cmake --build build/linux_clang_debug`。
 模板 `source_roots.lock.jsonc.in`、本机活动锁和生成的 `CMakePresets.json` 都不作为
 CI 的提交产物。GitHub Actions 里安装 GTest/Quill（以及 Windows 上的 zlib/libpng）
 属于 runner 主机准备，不是 Ravo CMake 图里的 FetchContent。

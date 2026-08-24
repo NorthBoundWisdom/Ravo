@@ -53,7 +53,12 @@ def resolve_preset_models(*args: object, **kwargs: object):
                 )
                 if name.startswith("win_llvm_"):
                     path_prefix = "C:/Program Files/LLVM/bin;" + path_prefix
-                environment["PATH"] = path_prefix + "$penv{PATH}"
+                # Keep lock cmakeEnvironment.PATH (Qt bin, etc.) ahead of $penv{PATH}.
+                existing_path = environment.get("PATH")
+                if isinstance(existing_path, str) and existing_path.strip():
+                    environment["PATH"] = path_prefix + existing_path
+                else:
+                    environment["PATH"] = path_prefix + "$penv{PATH}"
             if name.endswith("_debug"):
                 cache["BUILD_TESTING"] = "ON"
     return resolved

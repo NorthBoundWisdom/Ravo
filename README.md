@@ -27,15 +27,17 @@ FreeCM Config/Build/Run/Test call the same cmake commands.
 
 ## Continuous integration
 
-GitHub Actions (`.github/workflows/ci.yml`) runs the same Ravo path on macOS,
-Ubuntu, and Windows: FreeCM `--init` / `--update`, `cmake --preset *-debug
--DBUILD_TESTING=ON`, `cmake --build build/<preset>`, and `ctest`. Frozen
-`legacy/` is not configured or built.
+GitHub Actions (`.github/workflows/ci.yml`) follows the same FreeCM path as a
+local machine: `--init` creates the ignored `source_roots.lock.jsonc` from the
+template, CI then rewrites that lock's Qt/host `CMAKE_PREFIX_PATH` and
+`cmakeEnvironment.PATH`, and `--update` generates presets. Configure uses
+`cmake --preset *-debug -DBUILD_TESTING=ON`. macOS and Windows build with
+`cmake --build --preset`; Linux builds `build/linux_clang_debug` because the
+generated Linux build preset is named `ClangDebug`. Frozen `legacy/` is not
+configured or built.
 
-The workflow writes a gitignored `source_roots.lock.jsonc` with runner Qt/host
-prefixes and rewrites the GeoControls SSH remote to HTTPS. GeoControls is public
-today; if it becomes private, add a `GEOCONTROLS_TOKEN` repository secret with
-`contents:read`.
+GeoControls is public today; if it becomes private, add a `GEOCONTROLS_TOKEN`
+repository secret with `contents:read`.
 
 Studio after a macOS Debug build:
 
