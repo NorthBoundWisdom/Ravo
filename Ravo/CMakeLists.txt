@@ -8,8 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
 
-# Ravo is configured as its own project so its headless targets never pull the
-# frozen application's GTK, OpenCL, dynamic-module, or catalog build graph.
+# Included from the repository-root CMakeLists.txt. Frozen 0.9 is in
+# legacy-0.9/ and is not part of this graph.
 option(BUILD_TESTING "Build Ravo unit and contract tests" OFF)
 
 # Qt's Qml package auto-includes every shipped QML plugin. Optional plugins such
@@ -25,7 +25,8 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS
   Quick
   QuickControls2
   QuickDialogs2
-  QuickLayouts)
+  QuickLayouts
+  Svg)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 
@@ -39,6 +40,26 @@ set(RFLOG_INSTALL_SDK OFF CACHE BOOL "RfLog is consumed from its source root" FO
 add_subdirectory("${_ravo_rflog_root}" "${CMAKE_BINARY_DIR}/_deps/rflog")
 if(NOT TARGET rflog::rflog)
   message(FATAL_ERROR "RfLog source root did not provide rflog::rflog")
+endif()
+
+if(NOT DEFINED ENV{GEOCONTROLS_SOURCE_ROOT})
+  message(FATAL_ERROR "GEOCONTROLS_SOURCE_ROOT is required; run the FreeCM source-root update")
+endif()
+file(TO_CMAKE_PATH "$ENV{GEOCONTROLS_SOURCE_ROOT}" _ravo_geocontrols_root)
+set(GEOCONTROLS_BUILD_DEMO OFF CACHE BOOL "GeoControls demo stays out of the Ravo graph" FORCE)
+set(GEOCONTROLS_INSTALL_SDK OFF CACHE BOOL "GeoControls is consumed from its source root" FORCE)
+add_subdirectory("${_ravo_geocontrols_root}" "${CMAKE_BINARY_DIR}/_deps/geocontrols")
+if(NOT TARGET GeoControlsControls)
+  message(FATAL_ERROR "GeoControls source root did not provide GeoControlsControls")
+endif()
+if(NOT TARGET GeoControlsAppShell)
+  message(FATAL_ERROR "GeoControls source root did not provide GeoControlsAppShell")
+endif()
+if(NOT TARGET GeoControls::Controls)
+  add_library(GeoControls::Controls ALIAS GeoControlsControls)
+endif()
+if(NOT TARGET GeoControls::AppShell)
+  add_library(GeoControls::AppShell ALIAS GeoControlsAppShell)
 endif()
 
 if(NOT DEFINED ENV{LIBRAW_SOURCE_ROOT})
@@ -113,6 +134,7 @@ endif()
 
 install(
   TARGETS ravo_foundation ravo_recipe ravo_engine ravo_domain ravo_adapters ravo_services ravo_desktop ravo_cli ravo_libraw ravo ravo_studio
+  BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

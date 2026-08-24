@@ -49,13 +49,13 @@ if (-not $env:VSCMD_VER) {
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$ravoRoot = Join-Path $repositoryRoot "Ravo"
 $configurationName = $Configuration.ToLowerInvariant()
-$preset = "ravo_win_msvc_$configurationName"
+$preset = "win_msvc_$configurationName"
 $buildDirectory = Join-Path $repositoryRoot "build\$preset"
 $installDirectory = Join-Path $repositoryRoot "install\$preset"
+$studio = Join-Path $buildDirectory "Ravo\desktop\ravo_studio.exe"
 
-Push-Location $ravoRoot
+Push-Location $repositoryRoot
 try {
     switch ($Action) {
         "Configure" {
@@ -67,7 +67,7 @@ try {
         }
         "Run" {
             Invoke-NativeCommand "cmake" @("--build", "--preset", $preset, "--target", "ravo_studio", "--parallel")
-            Invoke-NativeCommand (Join-Path $buildDirectory "desktop\ravo_studio.exe")
+            Invoke-NativeCommand $studio
         }
         "Test" {
             Invoke-NativeCommand "cmake" @("--preset", $preset, "-DBUILD_TESTING=ON")

@@ -12,8 +12,9 @@ Ravo 是 DarkTableNext 仓库中的下一代照片软件。当前产品目标是
   LibRaw camera-to-sRGB、基础 3×3 Bayer 插值、sRGB 编码和原子 PNG 输出；
 - legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
 - M1 catalog 纵切片已落地：SQLite schema v1、reference-only JPEG/PNG/RAW 导入、库外 preview cache、
-  `ravo_studio` Qt Quick 窗口。macOS Debug 已跑通无 UI create/import/preview/reopen；目录递归导入
-  已可用。TIFF 仍取决于 Qt plugin；平移与长列表虚拟化仍属后续工作。
+  `ravo_studio` Qt Quick 窗口，控件来自 source-root `GeoControls`。macOS Debug 已跑通无 UI
+  create/import/preview/reopen；目录递归导入已可用。TIFF 仍取决于 Qt plugin；平移与长列表虚拟化仍属
+  后续工作。
 
 完整执行顺序见 [TODO_REWRITE.md](../TODO_REWRITE.md)，方向变化见
 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md)。
@@ -54,32 +55,25 @@ python3 configs/source_root_workflow.py --update
 `--init` 是唯一允许联网的依赖动作；`--update` 离线物化 source roots 并生成根
 `CMakePresets.json`。普通 Build/Test/Run 不隐式代跑 Config 或依赖更新。
 
-Windows/MSVC：
-
-```powershell
-& .\Ravo\tools\freecm_project.ps1 -Action Configure -Configuration Debug
-& .\Ravo\tools\freecm_project.ps1 -Action Build -Configuration Debug
-& .\Ravo\tools\freecm_project.ps1 -Action Run -Configuration Debug
-& .\Ravo\tools\freecm_project.ps1 -Action Test -Configuration Debug
-```
-
-macOS/Linux：
+macOS Debug：
 
 ```text
-python3 Ravo/tools/freecm_project.py --action Configure --configuration Debug
-python3 Ravo/tools/freecm_project.py --action Build --configuration Debug
-python3 Ravo/tools/freecm_project.py --action Run --configuration Debug
-python3 Ravo/tools/freecm_project.py --action Test --configuration Debug
+cmake --preset mac_clang_debug -DBUILD_TESTING=ON
+cmake --build --preset mac_clang_debug
 ```
+
+Windows 使用 `win_msvc_debug` / `win_msvc_release`，Linux 使用 `linux_clang_*`。FreeCM Config/Build/Run/Test
+调用同一组 cmake preset 命令。`Ravo/tools/freecm_project.py` 与 `.ps1` 只是可选包装。
 
 Release staged install：
 
 ```text
-python3 Ravo/tools/freecm_project.py --action Configure --configuration Release
-python3 Ravo/tools/freecm_project.py --action Install --configuration Release
+cmake --preset mac_clang_release
+cmake --build --preset mac_clang_release
+cmake --install build/mac_clang_release --prefix install/mac_clang_release
 ```
 
-Windows 使用对应 PowerShell 入口。当前项目脚本只操作 `Ravo/`，不得配置、编译或运行冻结 0.9。
+仓库根 CMake 只构建 Ravo，不得配置、编译或运行冻结 0.9（`legacy-0.9/`）。
 Windows/MSVC 与本机 macOS/Clang 曾验证当前 engine/CLI 图；Linux 仍需在目标主机验证。第一版增加
 Qt Gui/Qml/Quick/Sql、QML modules、runtime plugins 和 desktop 后必须重新建立三平台结果。
 
@@ -128,14 +122,17 @@ create/import/list/preview 命令，作为同一 services 的无 UI 验收客户
 | Ravo Studio / `desktop/` | C++ presenter + Qt Quick/QML Gallery 与 viewer |
 | `tests/` | unit、contract、catalog integration、fixture 和后续 desktop smoke |
 
-Debug 构建后的 Studio 入口是 `build/ravo_mac_clang_debug/desktop/ravo_studio`（Windows/Linux 使用对应
-preset 目录）。FreeCM 的 Run 以及 `freecm_project.py --action Run` 会编译并启动这个 GUI。
+Debug 构建后的 Studio 入口是
+`build/mac_clang_debug/Ravo/desktop/ravo_studio.app`（Windows 为
+`build/win_msvc_debug/Ravo/desktop/ravo_studio.exe`，Linux 为
+`build/linux_clang_debug/Ravo/desktop/ravo_studio`）。FreeCM 的 Run 与 GeoDebugger/DwgParser 一样：先
+`cmake --build --preset … --target ravo_studio`，再直接启动这个 GUI。
 第一版手工闭环：Create Library → Import `darktable-tests/0000-nop/expected.png` 与
 `darktable-tests/images/mire1.cr2` → 选择资产 → Fit / 100%。
 
-## 与冻结 `src/` 的关系
+## 与冻结 `legacy-0.9/` 的关系
 
-`src/` 是 0.9 行为的只读事实来源；Ravo 是唯一增长方向。Ravo 可以静态读取源码和 fixture，但生产
+`legacy-0.9/` 是 0.9 行为的只读事实来源；Ravo 是唯一增长方向。Ravo 可以静态读取源码和 fixture，但生产
 target 不得包含旧私有头、链接旧库、加载旧 IOP 或访问全局 `darktable`。冻结应用也不得增加 Ravo
 adapter。只有 Ravo 全产品满足发行切换与回滚门槛后，才在 M7 整体删除旧应用。
 

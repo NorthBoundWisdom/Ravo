@@ -1,6 +1,6 @@
 # DarkTableNext Developer Notes
 
-> 状态：冻结 0.9 源码导读。文档从上游开发资料恢复而来，用作读取旧行为的架构索引；代码行为以 `src/` 为准，但新实现只进入 Ravo。IOP、像素管线与内省章节是旧代码地图，不构成新 API 或兼容性承诺。
+> 状态：冻结 0.9 源码导读。文档从上游开发资料恢复而来，用作读取旧行为的架构索引；代码行为以 `legacy-0.9/` 为准，但新实现只进入 Ravo。IOP、像素管线与内省章节是旧代码地图，不构成新 API 或兼容性承诺。
 
 This guide maps the frozen Image Operation (IOP) modules and darkroom implementation used as Ravo research and differential-test evidence.
 

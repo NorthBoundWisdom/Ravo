@@ -3,261 +3,357 @@
   "commands": {
     "config": [
       {
-        "id": "ravo-win-msvc-debug",
-        "label": "Ravo Win MSVC Debug",
-        "description": "Configure only the Ravo C++20 project with tests enabled",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Configure", "-Configuration", "Debug"],
+        "id": "win-msvc-debug",
+        "label": "Win MSVC Debug",
+        "description": "Configure the win_msvc_debug CMake preset with tests enabled",
+        "command": "cmake",
+        "args": ["--preset", "win_msvc_debug", "-DBUILD_TESTING=ON"],
         "platforms": ["win32"],
         "default": true,
         "defaults": {
-          "build": "ravo-win-msvc-debug",
-          "run": "ravo-win-msvc-debug-studio",
-          "test": "ravo-win-msvc-debug-tests"
+          "build": "win-msvc-debug",
+          "run": "win-msvc-debug-app",
+          "test": "win-msvc-debug-tests"
         },
         "readiness": {
-          "inputs": ["Ravo/CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
-          "outputs": ["build/ravo_win_msvc_debug/CMakeCache.txt"]
+          "inputs": ["CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
+          "outputs": ["build/win_msvc_debug/CMakeCache.txt"]
         }
       },
       {
-        "id": "ravo-win-msvc-release",
-        "label": "Ravo Win MSVC Release",
-        "description": "Configure only the Ravo C++20 release project",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Configure", "-Configuration", "Release"],
+        "id": "win-msvc-release",
+        "label": "Win MSVC Release",
+        "description": "Configure the win_msvc_release CMake preset",
+        "command": "cmake",
+        "args": ["--preset", "win_msvc_release"],
         "platforms": ["win32"],
         "defaults": {
-          "build": "ravo-win-msvc-release",
-          "run": "ravo-win-msvc-release-studio",
-          "package": "ravo-win-msvc-release-install"
+          "build": "win-msvc-release",
+          "run": "win-msvc-release-app",
+          "package": "win-msvc-release-install"
         },
         "readiness": {
-          "inputs": ["Ravo/CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
-          "outputs": ["build/ravo_win_msvc_release/CMakeCache.txt"]
+          "inputs": ["CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
+          "outputs": ["build/win_msvc_release/CMakeCache.txt"]
         }
       },
       {
-        "id": "ravo-mac-clang-debug",
-        "label": "Ravo Mac Clang Debug",
-        "description": "Configure only the Ravo C++20 project with tests enabled",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Configure", "--configuration", "Debug"],
+        "id": "mac-clang-debug",
+        "label": "Mac Clang Debug",
+        "description": "Configure the mac_clang_debug CMake preset with tests enabled",
+        "command": "cmake",
+        "args": ["--preset", "mac_clang_debug", "-DBUILD_TESTING=ON"],
         "platforms": ["darwin"],
         "default": true,
         "defaults": {
-          "build": "ravo-mac-clang-debug",
-          "run": "ravo-mac-clang-debug-studio",
-          "test": "ravo-mac-clang-debug-tests"
+          "build": "mac-clang-debug",
+          "run": "mac-clang-debug-app",
+          "test": "mac-clang-debug-tests"
         },
         "readiness": {
-          "inputs": ["Ravo/CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
-          "outputs": ["build/ravo_mac_clang_debug/CMakeCache.txt"]
+          "inputs": ["CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
+          "outputs": ["build/mac_clang_debug/CMakeCache.txt"]
         }
       },
       {
-        "id": "ravo-mac-clang-release",
-        "label": "Ravo Mac Clang Release",
-        "description": "Configure only the Ravo C++20 release project",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Configure", "--configuration", "Release"],
+        "id": "mac-clang-release",
+        "label": "Mac Clang Release",
+        "description": "Configure the mac_clang_release CMake preset",
+        "command": "cmake",
+        "args": ["--preset", "mac_clang_release"],
         "platforms": ["darwin"],
         "defaults": {
-          "build": "ravo-mac-clang-release",
-          "run": "ravo-mac-clang-release-studio",
-          "package": "ravo-mac-clang-release-install"
+          "build": "mac-clang-release",
+          "run": "mac-clang-release-app",
+          "package": "mac-clang-release-install"
         },
         "readiness": {
-          "inputs": ["Ravo/CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
-          "outputs": ["build/ravo_mac_clang_release/CMakeCache.txt"]
+          "inputs": ["CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
+          "outputs": ["build/mac_clang_release/CMakeCache.txt"]
         }
       },
       {
-        "id": "ravo-linux-clang-debug",
-        "label": "Ravo Linux Clang Debug",
-        "description": "Configure only the Ravo C++20 project with tests enabled",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Configure", "--configuration", "Debug"],
+        "id": "linux-clang-debug",
+        "label": "Linux Clang Debug",
+        "description": "Configure the linux_clang_debug CMake preset with tests enabled",
+        "command": "cmake",
+        "args": ["--preset", "linux_clang_debug", "-DBUILD_TESTING=ON"],
         "platforms": ["linux"],
         "default": true,
         "defaults": {
-          "build": "ravo-linux-clang-debug",
-          "run": "ravo-linux-clang-debug-studio",
-          "test": "ravo-linux-clang-debug-tests"
+          "build": "linux-clang-debug",
+          "run": "linux-clang-debug-app",
+          "test": "linux-clang-debug-tests"
         },
         "readiness": {
-          "inputs": ["Ravo/CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
-          "outputs": ["build/ravo_linux_clang_debug/CMakeCache.txt"]
+          "inputs": ["CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
+          "outputs": ["build/linux_clang_debug/CMakeCache.txt"]
         }
       },
       {
-        "id": "ravo-linux-clang-release",
-        "label": "Ravo Linux Clang Release",
-        "description": "Configure only the Ravo C++20 release project",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Configure", "--configuration", "Release"],
+        "id": "linux-clang-release",
+        "label": "Linux Clang Release",
+        "description": "Configure the linux_clang_release CMake preset",
+        "command": "cmake",
+        "args": ["--preset", "linux_clang_release"],
         "platforms": ["linux"],
         "defaults": {
-          "build": "ravo-linux-clang-release",
-          "run": "ravo-linux-clang-release-studio",
-          "package": "ravo-linux-clang-release-install"
+          "build": "linux-clang-release",
+          "run": "linux-clang-release-app",
+          "package": "linux-clang-release-install"
         },
         "readiness": {
-          "inputs": ["Ravo/CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
-          "outputs": ["build/ravo_linux_clang_release/CMakeCache.txt"]
+          "inputs": ["CMakeLists.txt", "CMakePresets.json", "source_roots.lock.jsonc"],
+          "outputs": ["build/linux_clang_release/CMakeCache.txt"]
         }
       }
     ],
     "build": [
       {
-        "id": "ravo-win-msvc-debug",
-        "label": "Ravo Win MSVC Debug",
-        "description": "Build only the configured Ravo debug project",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Build", "-Configuration", "Debug"],
-        "configurations": ["ravo-win-msvc-debug"]
+        "id": "win-msvc-debug",
+        "label": "Win MSVC Debug",
+        "description": "Build the win_msvc_debug CMake preset",
+        "command": "cmake",
+        "args": ["--build", "--preset", "win_msvc_debug"],
+        "configurations": ["win-msvc-debug"]
       },
       {
-        "id": "ravo-win-msvc-release",
-        "label": "Ravo Win MSVC Release",
-        "description": "Build only the configured Ravo release project",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Build", "-Configuration", "Release"],
-        "configurations": ["ravo-win-msvc-release"]
+        "id": "win-msvc-release",
+        "label": "Win MSVC Release",
+        "description": "Build the win_msvc_release CMake preset",
+        "command": "cmake",
+        "args": ["--build", "--preset", "win_msvc_release"],
+        "configurations": ["win-msvc-release"]
       },
       {
-        "id": "ravo-mac-clang-debug",
-        "label": "Ravo Mac Clang Debug",
-        "description": "Build only the configured Ravo debug project",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Build", "--configuration", "Debug"],
-        "configurations": ["ravo-mac-clang-debug"]
+        "id": "mac-clang-debug",
+        "label": "Mac Clang Debug",
+        "description": "Build the mac_clang_debug CMake preset",
+        "command": "cmake",
+        "args": ["--build", "--preset", "mac_clang_debug"],
+        "configurations": ["mac-clang-debug"]
       },
       {
-        "id": "ravo-mac-clang-release",
-        "label": "Ravo Mac Clang Release",
-        "description": "Build only the configured Ravo release project",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Build", "--configuration", "Release"],
-        "configurations": ["ravo-mac-clang-release"]
+        "id": "mac-clang-release",
+        "label": "Mac Clang Release",
+        "description": "Build the mac_clang_release CMake preset",
+        "command": "cmake",
+        "args": ["--build", "--preset", "mac_clang_release"],
+        "configurations": ["mac-clang-release"]
       },
       {
-        "id": "ravo-linux-clang-debug",
-        "label": "Ravo Linux Clang Debug",
-        "description": "Build only the configured Ravo debug project",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Build", "--configuration", "Debug"],
-        "configurations": ["ravo-linux-clang-debug"]
+        "id": "linux-clang-debug",
+        "label": "Linux Clang Debug",
+        "description": "Build the linux_clang_debug CMake preset",
+        "command": "cmake",
+        "args": ["--build", "--preset", "linux_clang_debug"],
+        "configurations": ["linux-clang-debug"]
       },
       {
-        "id": "ravo-linux-clang-release",
-        "label": "Ravo Linux Clang Release",
-        "description": "Build only the configured Ravo release project",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Build", "--configuration", "Release"],
-        "configurations": ["ravo-linux-clang-release"]
+        "id": "linux-clang-release",
+        "label": "Linux Clang Release",
+        "description": "Build the linux_clang_release CMake preset",
+        "command": "cmake",
+        "args": ["--build", "--preset", "linux_clang_release"],
+        "configurations": ["linux-clang-release"]
       }
     ],
     "run": [
       {
-        "id": "ravo-win-msvc-debug-studio",
-        "label": "Ravo Win MSVC Debug Studio",
-        "description": "Build and run Ravo Studio",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Run", "-Configuration", "Debug"],
-        "configurations": ["ravo-win-msvc-debug"]
+        "id": "win-msvc-debug-app",
+        "label": "Win MSVC Debug App",
+        "description": "Build and run Ravo Studio in the FreeCM terminal",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "win_msvc_debug", "--target", "ravo_studio"]
+          },
+          {
+            "command": "./build/win_msvc_debug/Ravo/desktop/ravo_studio.exe",
+            "args": []
+          }
+        ],
+        "configurations": ["win-msvc-debug"]
       },
       {
-        "id": "ravo-win-msvc-release-studio",
-        "label": "Ravo Win MSVC Release Studio",
-        "description": "Build and run Ravo Studio",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Run", "-Configuration", "Release"],
-        "configurations": ["ravo-win-msvc-release"]
+        "id": "win-msvc-release-app",
+        "label": "Win MSVC Release App",
+        "description": "Build and run Ravo Studio in the FreeCM terminal",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "win_msvc_release", "--target", "ravo_studio"]
+          },
+          {
+            "command": "./build/win_msvc_release/Ravo/desktop/ravo_studio.exe",
+            "args": []
+          }
+        ],
+        "configurations": ["win-msvc-release"]
       },
       {
-        "id": "ravo-mac-clang-debug-studio",
-        "label": "Ravo Mac Clang Debug Studio",
-        "description": "Build and run Ravo Studio",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Debug"],
-        "configurations": ["ravo-mac-clang-debug"]
+        "id": "mac-clang-debug-app",
+        "label": "Mac Clang Debug App",
+        "description": "Build and run Ravo Studio in the FreeCM terminal",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "mac_clang_debug", "--target", "ravo_studio"]
+          },
+          {
+            "command": "./build/mac_clang_debug/Ravo/desktop/ravo_studio.app/Contents/MacOS/ravo_studio",
+            "args": []
+          }
+        ],
+        "configurations": ["mac-clang-debug"]
       },
       {
-        "id": "ravo-mac-clang-release-studio",
-        "label": "Ravo Mac Clang Release Studio",
-        "description": "Build and run Ravo Studio",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Release"],
-        "configurations": ["ravo-mac-clang-release"]
+        "id": "mac-clang-release-app",
+        "label": "Mac Clang Release App",
+        "description": "Build and run Ravo Studio in the FreeCM terminal",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "mac_clang_release", "--target", "ravo_studio"]
+          },
+          {
+            "command": "./build/mac_clang_release/Ravo/desktop/ravo_studio.app/Contents/MacOS/ravo_studio",
+            "args": []
+          }
+        ],
+        "configurations": ["mac-clang-release"]
       },
       {
-        "id": "ravo-linux-clang-debug-studio",
-        "label": "Ravo Linux Clang Debug Studio",
-        "description": "Build and run Ravo Studio",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Debug"],
-        "configurations": ["ravo-linux-clang-debug"]
+        "id": "linux-clang-debug-app",
+        "label": "Linux Clang Debug App",
+        "description": "Build and run Ravo Studio in the FreeCM terminal",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux_clang_debug", "--target", "ravo_studio"]
+          },
+          {
+            "command": "./build/linux_clang_debug/Ravo/desktop/ravo_studio",
+            "args": []
+          }
+        ],
+        "configurations": ["linux-clang-debug"]
       },
       {
-        "id": "ravo-linux-clang-release-studio",
-        "label": "Ravo Linux Clang Release Studio",
-        "description": "Build and run Ravo Studio",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Run", "--configuration", "Release"],
-        "configurations": ["ravo-linux-clang-release"]
+        "id": "linux-clang-release-app",
+        "label": "Linux Clang Release App",
+        "description": "Build and run Ravo Studio in the FreeCM terminal",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux_clang_release", "--target", "ravo_studio"]
+          },
+          {
+            "command": "./build/linux_clang_release/Ravo/desktop/ravo_studio",
+            "args": []
+          }
+        ],
+        "configurations": ["linux-clang-release"]
       }
     ],
     "test": [
       {
-        "id": "ravo-win-msvc-debug-tests",
-        "label": "Ravo Win MSVC Debug Tests",
-        "description": "Build and run only Ravo unit and contract tests",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Test", "-Configuration", "Debug"],
-        "configurations": ["ravo-win-msvc-debug"]
+        "id": "win-msvc-debug-tests",
+        "label": "Win MSVC Debug Tests",
+        "description": "Build and run Ravo unit and contract tests",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "win_msvc_debug"]
+          },
+          {
+            "command": "ctest",
+            "args": ["--test-dir", "build/win_msvc_debug", "--output-on-failure"]
+          }
+        ],
+        "configurations": ["win-msvc-debug"]
       },
       {
-        "id": "ravo-mac-clang-debug-tests",
-        "label": "Ravo Mac Clang Debug Tests",
-        "description": "Build and run only Ravo unit and contract tests",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Test", "--configuration", "Debug"],
-        "configurations": ["ravo-mac-clang-debug"]
+        "id": "mac-clang-debug-tests",
+        "label": "Mac Clang Debug Tests",
+        "description": "Build and run Ravo unit and contract tests",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "mac_clang_debug"]
+          },
+          {
+            "command": "ctest",
+            "args": ["--test-dir", "build/mac_clang_debug", "--output-on-failure"]
+          }
+        ],
+        "configurations": ["mac-clang-debug"]
       },
       {
-        "id": "ravo-linux-clang-debug-tests",
-        "label": "Ravo Linux Clang Debug Tests",
-        "description": "Build and run only Ravo unit and contract tests",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Test", "--configuration", "Debug"],
-        "configurations": ["ravo-linux-clang-debug"]
+        "id": "linux-clang-debug-tests",
+        "label": "Linux Clang Debug Tests",
+        "description": "Build and run Ravo unit and contract tests",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux_clang_debug"]
+          },
+          {
+            "command": "ctest",
+            "args": ["--test-dir", "build/linux_clang_debug", "--output-on-failure"]
+          }
+        ],
+        "configurations": ["linux-clang-debug"]
       }
     ],
     "package": [
       {
-        "id": "ravo-win-msvc-release-install",
-        "label": "Ravo Windows Staged Install",
-        "description": "Build and stage only the Ravo release CLI and libraries",
-        "command": "powershell.exe",
-        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "Ravo/tools/freecm_project.ps1", "-Action", "Install", "-Configuration", "Release"],
-        "configurations": ["ravo-win-msvc-release"]
+        "id": "win-msvc-release-install",
+        "label": "Win MSVC Release Install",
+        "description": "Build and stage the Ravo release CLI and Studio",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "win_msvc_release"]
+          },
+          {
+            "command": "cmake",
+            "args": ["--install", "build/win_msvc_release", "--prefix", "install/win_msvc_release"]
+          }
+        ],
+        "configurations": ["win-msvc-release"]
       },
       {
-        "id": "ravo-mac-clang-release-install",
-        "label": "Ravo macOS Staged Install",
-        "description": "Build and stage only the Ravo release CLI and libraries",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Install", "--configuration", "Release"],
-        "configurations": ["ravo-mac-clang-release"]
+        "id": "mac-clang-release-install",
+        "label": "Mac Clang Release Install",
+        "description": "Build and stage the Ravo release CLI and Studio",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "mac_clang_release"]
+          },
+          {
+            "command": "cmake",
+            "args": ["--install", "build/mac_clang_release", "--prefix", "install/mac_clang_release"]
+          }
+        ],
+        "configurations": ["mac-clang-release"]
       },
       {
-        "id": "ravo-linux-clang-release-install",
-        "label": "Ravo Linux Staged Install",
-        "description": "Build and stage only the Ravo release CLI and libraries",
-        "command": "python3",
-        "args": ["Ravo/tools/freecm_project.py", "--action", "Install", "--configuration", "Release"],
-        "configurations": ["ravo-linux-clang-release"]
+        "id": "linux-clang-release-install",
+        "label": "Linux Clang Release Install",
+        "description": "Build and stage the Ravo release CLI and Studio",
+        "steps": [
+          {
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux_clang_release"]
+          },
+          {
+            "command": "cmake",
+            "args": ["--install", "build/linux_clang_release", "--prefix", "install/linux_clang_release"]
+          }
+        ],
+        "configurations": ["linux-clang-release"]
       }
     ]
   }

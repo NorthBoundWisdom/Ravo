@@ -20,8 +20,8 @@ ravo CLI ───────────────┐
                  │ implements    │ implements
           SQLite/FS Adapter   RAW/Raster/Cache Adapters
 
-冻结 0.9 src/ ──只读源码与 fixture 证据──▶ Ravo tests
-冻结 0.9 src/ ╳──────────────────────────▶ Ravo production
+冻结 0.9 legacy-0.9/ ──只读源码与 fixture 证据──▶ Ravo tests
+冻结 0.9 legacy-0.9/ ╳──────────────────────────▶ Ravo production
 ```
 
 这条顺序由 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md) 接受。它提前验证 catalog、导入、
@@ -38,7 +38,7 @@ preview、任务和窗口生命周期，但不恢复旧 GTK、动态 IOP ABI 或
 | `ravo_services` | create/open/import/list/preview 用例与任务编排 | domain、engine facade | SQL、QML/presentation 类型、第三方 codec 类型 |
 | `ravo_adapters` | SQLite、filesystem、RAW/raster codec、preview cache | 对应 ports、Qt Core/Gui/Sql、固定第三方依赖 | QML/UI 状态、旧核心 |
 | `ravo_cli` | 参数、JSON、退出码、CLI composition | services、engine facade、adapters | 算法、SQL、UI |
-| `ravo_desktop` | C++ composition/presenter、Qt Quick/QML 窗口、Gallery、viewer、文件选择 | services、只读 preview 资源、Qt Core/Gui/Qml/Quick | Qt Widgets、SQL、codec、算法私有状态 |
+| `ravo_desktop` | C++ composition/presenter、Qt Quick/QML 窗口、Gallery、viewer、文件选择 | services、只读 preview 资源、Qt Core/Gui/Qml/Quick、GeoControls | Qt Widgets、SQL、codec、算法私有状态 |
 
 SQLite 由私有 Qt Sql/QSQLITE adapter 包装，raster 首版由私有 `QImageReader` adapter 包装；LibRaw 和平台
 API 同样不越过 port。Qt 值类型可在有明确收益的 target 内使用，但 recipe、CLI JSON、catalog schema
@@ -129,9 +129,11 @@ Ravo Studio 第一版负责：
 - 进度、取消和可恢复错误呈现；
 - 窗口、焦点、键盘、HiDPI 和基本可访问性。
 
-QML view 只向 desktop-owned C++ presenter 发送 intent，并观察带 revision 的不可变 view state。文件选择
-使用 Qt Quick Dialogs；Gallery/`Image` 只消费受控 preview 资源，不直接打开用户原片。QML 中不得出现
-SQL、文件枚举、codec 探测、任务调度或与 services 重复的业务状态机。
+QML view 只向 desktop-owned C++ presenter 发送 intent，并观察带 revision 的不可变 view state。可见控件
+使用 GeoControls（按钮、标签、列表项、分段开关、状态栏、文件对话框）。Gallery/`Image` 只消费受控
+preview 资源，不直接打开用户原片。QML 中不得出现 SQL、文件枚举、codec 探测、任务调度或与
+services 重复的业务状态机。文件夹选择 GeoControls 没有对应控件，因此由 desktop 的
+`FolderDialogPage.qml` 按同一对话框契约封装 `FolderDialog`。
 
 Ravo Studio 不负责：
 

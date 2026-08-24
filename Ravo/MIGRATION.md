@@ -2,7 +2,7 @@
 
 ## 目标
 
-Ravo 最终整体取代冻结的 `src/`，但当前第一迁移成果不再是“迁完全部无头内核”，而是可使用的
+Ravo 最终整体取代冻结的 `legacy-0.9/`，但当前第一迁移成果不再是“迁完全部无头内核”，而是可使用的
 catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保持静态源码与 fixture 事实来源，
 直到 M7 完成发行切换后整体退役。
 
@@ -11,13 +11,13 @@ catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保�
 允许：
 
 - Ravo 测试只读 `darktable-tests/` 的原图、XMP 和金样；
-- Ravo 静态阅读 `src/` 的算法、catalog、导入和 UI 调用链；
+- Ravo 静态阅读 `legacy-0.9/` 的算法、catalog、导入和 UI 调用链；
 - Ravo 通过 FreeCM 直接消费固定第三方依赖；
 - Ravo 自己实现 SQLite catalog、导入 services、preview pipeline 和 C++-backed Qt Quick/QML desktop。
 
 禁止：
 
-- Ravo 生产 target 包含 `src/` 私有头、链接 `libdarktable`、加载旧 IOP 或读取全局 `darktable`；
+- Ravo 生产 target 包含 `legacy-0.9/` 私有头、链接 `libdarktable`、加载旧 IOP 或读取全局 `darktable`；
 - 配置、编译或运行旧 CLI、旧 CTest、`darktable-tests/run` 或旧打包 target；
 - 让冻结应用调用 Ravo，或为迁移在旧 GTK 应用中增加 adapter、入口和构建依赖；
 - 通过旧 CLI 生成即时 oracle，或把旧 catalog/GTK 类型包成新 API；

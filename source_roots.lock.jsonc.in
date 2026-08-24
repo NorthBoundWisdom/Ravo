@@ -39,7 +39,8 @@
     "Imath": "",
     "inih": "",
     "LibRaw": "",
-    "RfLog": ""
+    "RfLog": "",
+    "GeoControls": ""
   },
   "assets": {
     "appimage-tools": {
@@ -102,6 +103,11 @@
       "remote": "git@github.com:NorthBoundWisdom/RfLog.git",
       "commit": "69e0afeb3aa457278077b2a5a2ad144769bc1596",
       "repoName": "RfLog"
+    },
+    "GeoControls": {
+      "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
+      "commit": "ce98b471bb18a19568f13e36d7140d8eb294d3f6",
+      "repoName": "GeoControls"
     }
   }
 }

@@ -9,10 +9,15 @@ from pathlib import Path
 
 
 DEFAULT_FREEZE_COMMIT = "320970bf7c9cbbc6611cfc3eb60f8f2b0424b782"
-# Ravo owns its independent CMake graph under Ravo/. These paths instead make
-# up the frozen 0.9 application source, build graph, bundled resources, package
-# graph, and regression corpus named by ADR-0004.
-PROTECTED_PATHS = ("src", "darktable-tests", "CMakeLists.txt", "cmake", "data", "packaging")
+# Current path -> path at the freeze commit. The 0.9 application sources were
+# renamed from src/ to legacy-0.9/; the freeze object identity is still src/.
+PROTECTED_PATHS: tuple[tuple[str, str], ...] = (
+    ("legacy-0.9", "src"),
+    ("darktable-tests", "darktable-tests"),
+    ("cmake", "cmake"),
+    ("data", "data"),
+    ("packaging", "packaging"),
+)
 
 
 class FreezeCheckError(Exception):
@@ -39,22 +44,24 @@ def verify(repository_root: Path, freeze_commit: str) -> dict[str, str]:
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, head)
 
     trees: dict[str, str] = {}
-    for path in PROTECTED_PATHS:
-        frozen_tree = run_git(repository_root, "rev-parse", f"{freeze}:{path}")
-        current_tree = run_git(repository_root, "rev-parse", f"HEAD:{path}")
+    current_paths: list[str] = []
+    for current_path, freeze_path in PROTECTED_PATHS:
+        frozen_tree = run_git(repository_root, "rev-parse", f"{freeze}:{freeze_path}")
+        current_tree = run_git(repository_root, "rev-parse", f"HEAD:{current_path}")
         if frozen_tree != current_tree:
             raise FreezeCheckError(
-                f"committed {path} object differs from the frozen reference: "
+                f"committed {current_path} object differs from freeze path {freeze_path}: "
                 f"{frozen_tree} != {current_tree}"
             )
-        trees[path] = frozen_tree
+        trees[current_path] = frozen_tree
+        current_paths.append(current_path)
     worktree_changes = run_git(
         repository_root,
         "status",
         "--porcelain",
         "--untracked-files=all",
         "--",
-        *PROTECTED_PATHS,
+        *current_paths,
     )
     if worktree_changes:
         raise FreezeCheckError(
@@ -85,7 +92,7 @@ def main() -> int:
         return 1
     print(
         f"freeze reference verified: commit={arguments.freeze_commit} "
-        f"src={trees['src']} darktable-tests={trees['darktable-tests']} "
+        f"legacy-0.9={trees['legacy-0.9']} darktable-tests={trees['darktable-tests']} "
         f"protected_paths={len(PROTECTED_PATHS)}"
     )
     return 0

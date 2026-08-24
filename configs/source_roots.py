@@ -98,6 +98,12 @@ DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
         env_key="RFLOG_SOURCE_ROOT",
         required_relative_paths=("CMakeLists.txt", "include/rlog/logger.h"),
     ),
+    DependencyRootSpec(
+        dependency_name="GeoControls",
+        repo_name="GeoControls",
+        env_key="GEOCONTROLS_SOURCE_ROOT",
+        required_relative_paths=("CMakeLists.txt", "Controls/CMakeLists.txt"),
+    ),
 )
 
 

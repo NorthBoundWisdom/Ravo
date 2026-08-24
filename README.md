@@ -7,8 +7,8 @@ front end, fixtures, and OpenCL implementation without further product or
 architecture work.
 
 This repository is under active Ravo development and is not a
-general-availability release. The frozen implementation in `src/` remains the
-source of truth for 0.9 behaviour; new production work belongs in `Ravo/`.
+general-availability release. The frozen implementation in `legacy-0.9/` remains
+the source of truth for 0.9 behaviour; new production work belongs in `Ravo/`.
 The current first-product milestone is a small desktop application that creates
 an SQLite catalog, imports local JPEG/PNG/TIFF/RAW files by reference, and lets
 the user browse them.
@@ -153,7 +153,7 @@ checkout, offline update, publication-order, and troubleshooting rules are in
 
 | Path | Purpose |
 | --- | --- |
-| `src/` | Application code, image pipeline, IOPs, and GTK user interface |
+| `legacy-0.9/` | Frozen 0.9 application code (read-only reference; not built) |
 | `cmake/` | CMake modules and build policy |
 | `configs/` | FreeCM source-root configuration and workflow scripts |
 | `scripts/` | Read-only development and migration audit scripts |

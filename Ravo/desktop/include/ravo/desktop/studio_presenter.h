@@ -84,6 +84,10 @@ public:
     Q_INVOKABLE void openCatalog(const QUrl &file_url);
     Q_INVOKABLE void importFiles(const QList<QUrl> &files);
     Q_INVOKABLE void importFolder(const QUrl &folder_url);
+    Q_INVOKABLE void createCatalogFromPath(const QString &path);
+    Q_INVOKABLE void openCatalogFromPath(const QString &path);
+    Q_INVOKABLE void importFilePaths(const QStringList &paths);
+    Q_INVOKABLE void importFolderFromPath(const QString &path);
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     void setViewMode(const QString &mode);
 

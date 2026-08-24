@@ -43,6 +43,20 @@ namespace
     return pictures;
 }
 
+[[nodiscard]] QUrl url_from_dialog_path(const QString &path)
+{
+    const QString trimmed = path.trimmed();
+    if (trimmed.isEmpty())
+    {
+        return {};
+    }
+    if (trimmed.startsWith(QStringLiteral("file:")))
+    {
+        return QUrl(trimmed);
+    }
+    return QUrl::fromLocalFile(trimmed);
+}
+
 [[nodiscard]] QString display_name_for(const AssetRecord &asset)
 {
     const QUrl uri(qstring_from_utf8(asset.normalized_uri));
@@ -421,6 +435,36 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
 void StudioPresenter::importFolder(const QUrl &folder_url)
 {
     importFiles(QList<QUrl>{folder_url});
+}
+
+void StudioPresenter::createCatalogFromPath(const QString &path)
+{
+    createCatalog(url_from_dialog_path(path));
+}
+
+void StudioPresenter::openCatalogFromPath(const QString &path)
+{
+    openCatalog(url_from_dialog_path(path));
+}
+
+void StudioPresenter::importFilePaths(const QStringList &paths)
+{
+    QList<QUrl> urls;
+    urls.reserve(paths.size());
+    for (const auto &path : paths)
+    {
+        const QUrl url = url_from_dialog_path(path);
+        if (url.isValid() && !url.isEmpty())
+        {
+            urls.push_back(url);
+        }
+    }
+    importFiles(urls);
+}
+
+void StudioPresenter::importFolderFromPath(const QString &path)
+{
+    importFolder(url_from_dialog_path(path));
 }
 
 void StudioPresenter::importFiles(const QList<QUrl> &files)

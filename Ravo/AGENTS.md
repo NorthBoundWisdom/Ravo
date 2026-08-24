@@ -6,7 +6,7 @@
 
 1. 运行 `git status --short --branch`，保留用户已有改动。
 2. 阅读 `Ravo/README.md`、`ARCHITECTURE.md`、`MIGRATION.md`、`TESTING.md` 和相关 ADR。
-3. 涉及旧行为或算法时，阅读对应 `src/` 实现和 fixture；不得根据上游 darktable 习惯猜测。
+3. 涉及旧行为或算法时，阅读对应 `legacy-0.9/` 实现和 fixture；不得根据上游 darktable 习惯猜测。
 4. 确认本次工作属于 `../TODO_REWRITE.md` 当前 M1–M3 第一版纵切片。现在允许创建
    `domain/services/desktop` target；desktop 明确使用 Qt 6 Quick/QML，Qt Sql 只进入私有 SQLite adapter。
    Qt Widgets、第二套 presentation 架构和旧 GTK adapter 仍未获准。
@@ -44,7 +44,7 @@
 - `desktop` 由 C++ composition root、desktop-owned QObject presenter/model 和 QML views 组成，只依赖
   services 与只读 preview 资源契约；QML/JavaScript 只做展示、绑定和输入转发，不得直接访问数据库、
   codec、engine 私有状态或拥有业务规则。
-- Ravo 生产代码不得包含 `src/` 头、链接旧库、`dlopen` 旧模块或读取旧全局状态。测试只能读取已冻结
+- Ravo 生产代码不得包含 `legacy-0.9/` 头、链接旧库、`dlopen` 旧模块或读取旧全局状态。测试只能读取已冻结
   fixture 与源码；不得配置、编译或运行旧 CLI、旧 CTest 或 `darktable-tests/run`。
 - 冻结的旧应用不复用 Ravo，也不增加 adapter；生产依赖必须保持完全独立，直到 Ravo 达到发行切换
   门槛后整体退役旧应用。

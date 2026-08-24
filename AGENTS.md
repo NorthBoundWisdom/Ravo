@@ -31,8 +31,8 @@ DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作
    `DevDocs/GPU_Baseline.md`。
 4. 跨层改动先明确所有权、生命周期、线程边界和最小验证集。
 
-现有行为以冻结的 `src/` 和 fixture 为准；`DevDocs/` 是源码地图，不是兼容性承诺。新产品边界以
-`TODO_REWRITE.md` 为准。除非用户明确重新开放 0.9，任务不得修改 `src/`、旧 UI、旧构建图或旧资源。
+现有行为以冻结的 `legacy-0.9/` 和 fixture 为准；`DevDocs/` 是源码地图，不是兼容性承诺。新产品边界以
+`TODO_REWRITE.md` 为准。除非用户明确重新开放 0.9，任务不得修改 `legacy-0.9/`、旧 UI、旧构建图或旧资源。
 
 ## Ravo 下一代边界
 
@@ -44,10 +44,10 @@ DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作
   QSQLITE 只能留在私有 SQLite adapter，Qt Gui 可在私有 raster adapter 中用于 `QImageReader`。首版不引入
   Qt Widgets 或第二套界面架构。QML 只能展示状态和
   转发意图；SQL、codec、图像算法、业务状态和任务 owner 必须留在 C++ domain/services/engine/adapters。
-- Ravo 生产代码不得依赖 `src/` 私有头、旧库、动态 IOP、GTK 类型或全局 `darktable` 状态。验证只能
+- Ravo 生产代码不得依赖 `legacy-0.9/` 私有头、旧库、动态 IOP、GTK 类型或全局 `darktable` 状态。验证只能
   静态读取冻结源码与 fixture；不得配置、编译或执行旧 CLI/旧测试工程。
-- 迁移期间 Ravo 与冻结的 `src` 独立并行；不创建 `src` → Ravo 或 Ravo → `src` 的生产依赖。只有
-  Ravo 全产品达到切换门槛后，才在 M7 退役阶段删除旧实现、构建项、资源、配置和重复测试。
+- 迁移期间 Ravo 与冻结的 `legacy-0.9` 独立并行；不创建 `legacy-0.9` → Ravo 或 Ravo → `legacy-0.9`
+  的生产依赖。只有 Ravo 全产品达到切换门槛后，才在 M7 退役阶段删除旧实现、构建项、资源、配置和重复测试。
 - 在 `Ravo/` 工作前必须阅读 `Ravo/AGENTS.md`、`Ravo/ARCHITECTURE.md`、`Ravo/MIGRATION.md` 和
   `Ravo/TESTING.md`。
 
@@ -125,9 +125,9 @@ DarkTableNext 0.9 是跨 macOS、Windows 与 Linux、GPLv3 的冻结照片工作
 
 ## 构建与验证
 
-旧 0.9 构建、CTest、图像 runner 和打包 target 全部冻结，不再运行。所有 configure/build/run/test/
-install 动作只允许进入 `Ravo/` 及其新 engine/domain/services/desktop target；Windows 辅助脚本只使用
-Python 或 PowerShell。
+旧 0.9 构建、CTest、图像 runner 和打包 target 全部冻结，不再运行。仓库根 `CMakeLists.txt` 只构建 Ravo；
+`legacy-0.9/` 是只读参考。FreeCM Config/Build/Run/Test 使用 `cmake --preset`，与 DwgParser/GeoDebugger
+相同。
 
 首次准备工作区时运行：
 
@@ -137,19 +137,15 @@ python configs/source_root_workflow.py --init
 python configs/source_root_workflow.py --update
 ```
 
-依赖已准备后，Windows 使用 Ravo PowerShell 入口：
+依赖已准备后：
 
-```powershell
-& .\Ravo\tools\freecm_project.ps1 -Action Configure -Configuration Debug
-& .\Ravo\tools\freecm_project.ps1 -Action Build -Configuration Debug
+```text
+cmake --preset mac_clang_debug -DBUILD_TESTING=ON
+cmake --build --preset mac_clang_debug
 ```
 
-macOS/Linux 使用同一 Ravo 项目的 Python 入口：
-
-```sh
-python3 Ravo/tools/freecm_project.py --action Configure --configuration Debug
-python3 Ravo/tools/freecm_project.py --action Build --configuration Debug
-```
+Windows 使用 `win_msvc_debug` / `win_msvc_release` preset；Linux 使用 `linux_clang_*`。
+`Ravo/tools/freecm_project.py` 与 `.ps1` 只是同一组 cmake 命令的可选包装，不是 FreeCM 入口。
 
 涉及跨平台构建、公共头或平台分支的改动，应在可用的 Windows、macOS 和 Linux 工具链上分别完成
 Ravo configure/build；当前环境缺少相应工具链时，执行可行的静态检查并明确报告未验证的平台，不能

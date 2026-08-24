@@ -29,7 +29,7 @@
 
 ## 已确认的技术与产品决策
 
-- Ravo 第一方代码继续使用 C++20、CMake 与 FreeCM；冻结的 `src/` 不进入新生产链接图。
+- Ravo 第一方代码继续使用 C++20、CMake 与 FreeCM；冻结的 `legacy-0.9/` 不进入新生产链接图。
 - 第一版桌面明确采用 Qt 6 Quick/QML，C++20 负责 composition、application services、presentation model
   和资源生命周期，QML 负责布局、展示、绑定与输入。desktop 链接 `Qt6::Qml`/`Qt6::Quick`，首版 QML
   import allowlist 是 `QtQuick`、`QtQuick.Controls`、`QtQuick.Dialogs` 与 `QtQuick.Layouts`；不引入 Qt
@@ -241,7 +241,7 @@ M0 是可复用底层，不是第一版软件完成状态。
 - 明确不承接：Lua、历史插件/UI ABI、map/tethering、打印、幻灯片、远程发布和已删除旧格式兼容；
 - 旧 OpenCL 不在 0.9 中替换为 Metal；它只在 M7 随冻结应用整体退役。
 
-迁移期间两套生产实现完全独立。Ravo 测试可以读取冻结源码和 fixture，生产代码不得包含 `src/` 私有头、
+迁移期间两套生产实现完全独立。Ravo 测试可以读取冻结源码和 fixture，生产代码不得包含 `legacy-0.9/` 私有头、
 链接旧库、加载旧 IOP 或访问全局 `darktable` 状态。
 
 ## 下一次开工的最小批次

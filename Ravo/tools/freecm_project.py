@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
 # Usage: python3 Ravo/tools/freecm_project.py --action Configure --configuration Debug
-"""Run cross-platform FreeCM project actions against the Ravo source tree."""
+"""Optional CLI wrappers around the same cmake --preset commands FreeCM uses."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 from typing import Any
 
 
-def load_host_preset(repository_root: Path, configuration: str) -> dict[str, Any]:
+def load_host_preset_name(repository_root: Path, configuration: str) -> str:
     if sys.platform == "darwin":
-        preset_name = f"mac_clang_{configuration.lower()}"
-    elif sys.platform.startswith("linux"):
-        preset_name = f"linux_clang_{configuration.lower()}"
-    else:
-        raise RuntimeError(
-            "Use freecm_project.ps1 for the Windows MSVC project commands."
-        )
+        return f"mac_clang_{configuration.lower()}"
+    if sys.platform.startswith("linux"):
+        return f"linux_clang_{configuration.lower()}"
+    raise RuntimeError(
+        "Use freecm_project.ps1 for the Windows MSVC project commands."
+    )
 
+
+def load_host_preset(repository_root: Path, preset_name: str) -> dict[str, Any]:
     preset_path = repository_root / "CMakePresets.json"
     document = json.loads(preset_path.read_text(encoding="utf-8"))
     for preset in document.get("configurePresets", []):
@@ -35,56 +34,17 @@ def load_host_preset(repository_root: Path, configuration: str) -> dict[str, Any
     )
 
 
-def expand_parent_environment(value: str, environment: dict[str, str]) -> str:
-    return re.sub(
-        r"\$penv\{([^}]+)\}",
-        lambda match: environment.get(match.group(1), ""),
-        value,
-    )
+def run(command: list[str], *, cwd: Path) -> None:
+    subprocess.run(command, cwd=cwd, check=True)
 
 
-def expand_preset_variables(
-    value: str,
-    *,
-    repository_root: Path,
-    preset_name: str,
-) -> str:
-    return (
-        value.replace("${sourceDir}", str(repository_root))
-        .replace("${presetName}", preset_name)
-    )
-
-
-def run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> None:
-    subprocess.run(command, cwd=cwd, env=environment, check=True)
-
-
-def configure_command(
-    repository_root: Path,
-    ravo_root: Path,
-    build_directory: Path,
-    preset: dict[str, Any],
-    testing: bool,
-) -> list[str]:
-    command = [
-        "cmake",
-        "-S",
-        str(ravo_root),
-        "-B",
-        str(build_directory),
-        "-G",
-        str(preset["generator"]),
-    ]
-    for name, value in preset.get("cacheVariables", {}).items():
-        if value is not None:
-            resolved_value = expand_preset_variables(
-                str(value),
-                repository_root=repository_root,
-                preset_name=str(preset["name"]),
-            )
-            command.append(f"-D{name}={resolved_value}")
-    command.append(f"-DBUILD_TESTING={'ON' if testing else 'OFF'}")
-    return command
+def studio_executable(build_directory: Path) -> Path:
+    desktop = build_directory / "Ravo" / "desktop"
+    if sys.platform == "win32":
+        return desktop / "ravo_studio.exe"
+    if sys.platform == "darwin":
+        return desktop / "ravo_studio.app" / "Contents" / "MacOS" / "ravo_studio"
+    return desktop / "ravo_studio"
 
 
 def main() -> int:
@@ -100,79 +60,53 @@ def main() -> int:
     arguments = parser.parse_args()
 
     repository_root = Path(__file__).resolve().parents[2]
-    ravo_root = repository_root / "Ravo"
-    host_preset = load_host_preset(repository_root, arguments.configuration)
-    preset_name = f"ravo_{host_preset['name']}"
+    preset_name = load_host_preset_name(repository_root, arguments.configuration)
+    load_host_preset(repository_root, preset_name)
     build_directory = repository_root / "build" / preset_name
     install_directory = repository_root / "install" / preset_name
-    environment = dict(os.environ)
-    for name, value in host_preset.get("environment", {}).items():
-        environment[name] = expand_parent_environment(str(value), environment)
 
     if arguments.action == "Configure":
+        testing = "ON" if arguments.configuration == "Debug" else "OFF"
         run(
-            configure_command(
-                repository_root,
-                ravo_root,
-                build_directory,
-                host_preset,
-                arguments.configuration == "Debug",
-            ),
+            ["cmake", "--preset", preset_name, f"-DBUILD_TESTING={testing}"],
             cwd=repository_root,
-            environment=environment,
         )
     elif arguments.action == "Build":
         run(
-            ["cmake", "--build", str(build_directory), "--parallel"],
+            ["cmake", "--build", "--preset", preset_name, "--parallel"],
             cwd=repository_root,
-            environment=environment,
         )
     elif arguments.action == "Run":
         run(
             [
                 "cmake",
                 "--build",
-                str(build_directory),
+                "--preset",
+                preset_name,
                 "--target",
                 "ravo_studio",
                 "--parallel",
             ],
             cwd=repository_root,
-            environment=environment,
         )
-        studio_name = "ravo_studio.exe" if sys.platform == "win32" else "ravo_studio"
-        run(
-            [str(build_directory / "desktop" / studio_name)],
-            cwd=repository_root,
-            environment=environment,
-        )
+        run([str(studio_executable(build_directory))], cwd=repository_root)
     elif arguments.action == "Test":
         run(
-            configure_command(
-                repository_root,
-                ravo_root,
-                build_directory,
-                host_preset,
-                True,
-            ),
+            ["cmake", "--preset", preset_name, "-DBUILD_TESTING=ON"],
             cwd=repository_root,
-            environment=environment,
         )
         run(
-            ["cmake", "--build", str(build_directory), "--parallel"],
+            ["cmake", "--build", "--preset", preset_name, "--parallel"],
             cwd=repository_root,
-            environment=environment,
         )
         run(
             ["ctest", "--test-dir", str(build_directory), "--output-on-failure"],
             cwd=repository_root,
-            environment=environment,
         )
     else:
         run(
-            ["cmake", "--build", str(build_directory), "--parallel"],
+            ["cmake", "--build", "--preset", preset_name, "--parallel"],
             cwd=repository_root,
-            environment=environment,
         )
         run(
             [
@@ -183,7 +117,6 @@ def main() -> int:
                 str(install_directory),
             ],
             cwd=repository_root,
-            environment=environment,
         )
     return 0
 
