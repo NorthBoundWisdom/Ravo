@@ -179,6 +179,24 @@ jobs:
           fi
           python .github/scripts/install_host_packages.py "${args[@]}"
 
+      - name: Persist Windows host PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $qtBin = Join-Path $env:QT_ROOT_DIR "bin"
+          $hostBin = Join-Path $env:RUNNER_TEMP "ci-prefix\bin"
+          $zlib = Join-Path $hostBin "zlibd.dll"
+          if (-not (Test-Path $qtBin)) {
+            throw "Qt bin directory is missing: $qtBin"
+          }
+          if (-not (Test-Path $zlib)) {
+            throw "zlibd.dll is missing: $zlib"
+          }
+          $env:Path = "$qtBin;$hostBin;$env:Path"
+          Add-Content -Path $env:GITHUB_PATH -Value $qtBin
+          Add-Content -Path $env:GITHUB_PATH -Value $hostBin
+          Add-Content -Path $env:GITHUB_ENV -Value ("Path={0}" -f $env:Path)
+
       - name: Allow HTTPS clones of GitHub SSH remotes
         env:
           GEOCONTROLS_TOKEN: ${{ secrets.GEOCONTROLS_TOKEN }}
@@ -205,7 +223,7 @@ jobs:
           fi
           python configs/source_root_workflow.py --init
           prefix_args=(--prefix-path "${QT_ROOT_DIR}" --prefix-path "${RUNNER_TEMP}/ci-prefix")
-          path_args=(--path-entry "${QT_ROOT_DIR}/bin")
+          path_args=(--path-entry "${QT_ROOT_DIR}/bin" --path-entry "${RUNNER_TEMP}/ci-prefix/bin")
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             prefix_args+=(--prefix-path "$(brew --prefix)")
             path_args+=(--path-entry "$(brew --prefix)/bin")
@@ -240,10 +258,11 @@ jobs:
         shell: pwsh
         run: |
           $qtBin = Join-Path $env:QT_ROOT_DIR "bin"
+          $hostBin = Join-Path $env:RUNNER_TEMP "ci-prefix\bin"
           if (-not (Test-Path $qtBin)) {
             throw "Qt bin directory is missing: $qtBin"
           }
-          $env:Path = "$qtBin;$env:Path"
+          $env:Path = "$qtBin;$hostBin;$env:Path"
           ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
 
       - name: Diagnose Windows test executables
