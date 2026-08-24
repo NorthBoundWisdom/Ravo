@@ -69,7 +69,7 @@
     },
     "OpenCL": {
       "remote": "https://github.com/KhronosGroup/OpenCL-Headers.git",
-      "commit": "a98488062f50c77c3e2edaf9c4f8dca7c41781ec",
+      "commit": "15b536b7fbe1098cea462a27db496b287ac89b63",
       "repoName": "OpenCL"
     },
     "whereami": {
@@ -79,12 +79,12 @@
     },
     "exiv2": {
       "remote": "https://github.com/Exiv2/exiv2.git",
-      "commit": "111bfa4b3571cecef0f3762ca078e2bb1f1ca484",
+      "commit": "e84cb9db060527416a43f3d257656331c85aff28",
       "repoName": "exiv2"
     },
     "Imath": {
       "remote": "https://github.com/AcademySoftwareFoundation/Imath.git",
-      "commit": "f83c0308ca620e12ff17286cc05251330344411f",
+      "commit": "d0a0b115c51f997924cebcca8067ba78ea1cb68e",
       "repoName": "Imath"
     },
     "inih": {
@@ -94,7 +94,7 @@
     },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
-      "commit": "e419de08001de28ae6988ecb22df47e52b9c5eaa",
+      "commit": "df226ea4178ccd74245f4f13c23adddfa01411c9",
       "repoName": "LibRaw"
     }
   }
