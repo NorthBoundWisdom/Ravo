@@ -14,7 +14,14 @@ void qml_register_types_GeoControls_AppShell();
 
 int main(int argc, char *argv[])
 {
+    // GeoControls is a static NO_PLUGIN QML module under qrc:/GeoControls, not
+    // qrc:/qt/qml. Force-init those resources so dead-stripped static constructors
+    // cannot leave the AppShell URI registered without MainStatusBar.qml.
     Q_INIT_RESOURCE(icons);
+    Q_INIT_RESOURCE(qmake_GeoControls);
+    Q_INIT_RESOURCE(GeoControlsControls_raw_qml_0);
+    Q_INIT_RESOURCE(qmake_GeoControls_AppShell);
+    Q_INIT_RESOURCE(GeoControlsAppShell_raw_qml_0);
     qml_register_types_GeoControls();
     qml_register_types_GeoControls_AppShell();
 
@@ -28,6 +35,7 @@ int main(int argc, char *argv[])
 
     ravo::StudioPresenter presenter;
     QQmlApplicationEngine engine;
+    engine.addImportPath(QStringLiteral("qrc:/"));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

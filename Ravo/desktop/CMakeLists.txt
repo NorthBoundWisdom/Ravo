@@ -93,6 +93,9 @@ endif()
 qt_add_qml_module(ravo_studio
   URI Ravo.Studio
   VERSION 1.0
+  DEPENDENCIES
+    GeoControls
+    GeoControls.AppShell
   QML_FILES
     qml/Main.qml
     qml/FolderDialogPage.qml)
