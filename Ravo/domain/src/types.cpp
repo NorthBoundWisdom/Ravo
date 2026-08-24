@@ -1,7 +1,11 @@
 #include "ravo/domain/types.h"
 
+#include "ravo/domain/uri.h"
+
 #include <algorithm>
+#include <map>
 #include <random>
+#include <set>
 #include <sstream>
 
 namespace ravo
@@ -201,7 +205,91 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
         }
         break;
     }
+    if (!asset_in_folder(asset, query.folder_uri))
+    {
+        return false;
+    }
     return true;
+}
+
+bool asset_in_folder(const AssetRecord &asset, const std::string_view folder_uri) noexcept
+{
+    if (folder_uri.empty())
+    {
+        return true;
+    }
+    const auto prefix = std::string(folder_uri) + "/";
+    return asset.normalized_uri.starts_with(prefix);
+}
+
+std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets)
+{
+    std::vector<FolderRecord> folders;
+    FolderRecord all;
+    all.display_name = "All Photographs";
+    all.asset_count = static_cast<int>(assets.size());
+    folders.push_back(std::move(all));
+    if (assets.empty())
+    {
+        return folders;
+    }
+
+    std::set<std::string> folder_uris;
+    for (const auto &asset : assets)
+    {
+        auto parent = uri_parent(asset.normalized_uri);
+        while (!parent.empty())
+        {
+            folder_uris.insert(parent);
+            parent = uri_parent(parent);
+        }
+    }
+    if (folder_uris.empty())
+    {
+        return folders;
+    }
+
+    std::string common = *folder_uris.begin();
+    for (const auto &uri : folder_uris)
+    {
+        while (!common.empty() && uri != common && !uri.starts_with(common + "/"))
+        {
+            common = uri_parent(common);
+        }
+    }
+
+    std::map<std::string, int> counts;
+    for (const auto &uri : folder_uris)
+    {
+        if (!common.empty() && uri != common && !uri.starts_with(common + "/"))
+        {
+            continue;
+        }
+        int count = 0;
+        for (const auto &asset : assets)
+        {
+            if (asset_in_folder(asset, uri))
+            {
+                ++count;
+            }
+        }
+        counts[uri] = count;
+    }
+
+    auto slash_count = [](const std::string &text) {
+        return static_cast<int>(std::count(text.begin(), text.end(), '/'));
+    };
+    const auto common_slashes = common.empty() ? 0 : slash_count(common);
+    for (const auto &[uri, count] : counts)
+    {
+        FolderRecord folder;
+        folder.uri = uri;
+        folder.display_name = uri_display_name(uri);
+        folder.depth = std::max(0, slash_count(uri) - common_slashes);
+        folder.asset_count = count;
+        folders.push_back(std::move(folder));
+    }
+    return folders;
 }
 
 std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,

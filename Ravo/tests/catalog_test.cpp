@@ -311,6 +311,45 @@ TEST_F(CatalogServiceTest, MissingOriginalIsAssetStateNotPreviewFailureWhenCache
     EXPECT_EQ(listed.value().front().import_state, kImportStateMissing);
 }
 
+TEST_F(CatalogServiceTest, ListsImportedFoldersAndFiltersByFolderUri)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto trip = root / "2024" / "Trip";
+    const auto home = root / "2024" / "Home";
+    std::filesystem::create_directories(trip);
+    std::filesystem::create_directories(home);
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.fill(QColor(12, 24, 48));
+    ASSERT_TRUE(image.save(QString::fromStdString((trip / "a.jpg").string()), "JPEG", 90));
+    ASSERT_TRUE(image.save(QString::fromStdString((home / "b.jpg").string()), "JPEG", 90));
+    auto imported = service->import_inputs({root.string()}, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+
+    auto folders = service->list_folders();
+    ASSERT_TRUE(folders) << folders.error().message;
+    ASSERT_FALSE(folders.value().empty());
+    EXPECT_TRUE(folders.value().front().uri.empty());
+    EXPECT_EQ(folders.value().front().asset_count, 2);
+
+    std::string trip_uri;
+    for (const auto &folder : folders.value())
+    {
+        if (folder.display_name == "Trip")
+        {
+            trip_uri = folder.uri;
+            EXPECT_EQ(folder.asset_count, 1);
+        }
+    }
+    ASSERT_FALSE(trip_uri.empty());
+    LibraryQuery query;
+    query.folder_uri = trip_uri;
+    auto listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_NE(listed.value().front().normalized_uri.find("Trip"), std::string::npos);
+}
+
 TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 {
     auto created = open_service(true);

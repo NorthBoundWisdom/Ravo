@@ -103,6 +103,15 @@ struct LibraryQuery
     RejectFilter reject_filter = RejectFilter::kInclude;
     AssetSortField sort_field = AssetSortField::kImportTime;
     SortDirection sort_direction = SortDirection::kDescending;
+    std::string folder_uri;
+};
+
+struct FolderRecord
+{
+    std::string uri;
+    std::string display_name;
+    int depth = 0;
+    int asset_count = 0;
 };
 
 struct CatalogSnapshot
@@ -210,5 +219,7 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
 [[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
                                                               const LibraryQuery &query);
+[[nodiscard]] bool asset_in_folder(const AssetRecord &asset, std::string_view folder_uri) noexcept;
+[[nodiscard]] std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets);
 
 } // namespace ravo

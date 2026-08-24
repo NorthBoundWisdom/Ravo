@@ -230,6 +230,16 @@ Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery 
     return filter_and_sort_assets(std::move(listed).value(), query);
 }
 
+Result<std::vector<FolderRecord>> CatalogService::list_folders() const
+{
+    auto listed = list_assets();
+    if (!listed)
+    {
+        return listed.error();
+    }
+    return library_folders(listed.value());
+}
+
 Result<AssetRecord> CatalogService::set_rating(const std::string_view asset_id, const int rating)
 {
     auto valid = validate_rating(rating);

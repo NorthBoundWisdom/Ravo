@@ -181,4 +181,35 @@ Result<FileIdentity> read_file_identity(const std::string_view path)
     return identity;
 }
 
+std::string uri_parent(const std::string_view uri)
+{
+    const auto slash = uri.find_last_of('/');
+    if (slash == std::string_view::npos || slash < 7U)
+    {
+        return {};
+    }
+    const auto parent = std::string(uri.substr(0, slash));
+    if (parent == "file:" || parent == "file:/" || parent == "file://" || parent == "file:///")
+    {
+        return {};
+    }
+    return parent;
+}
+
+std::string uri_display_name(const std::string_view uri)
+{
+    const auto slash = uri.find_last_of('/');
+    std::string_view segment = uri;
+    if (slash != std::string_view::npos && slash + 1U < uri.size())
+    {
+        segment = uri.substr(slash + 1U);
+    }
+    auto decoded = percent_decode_path(segment);
+    if (decoded.empty())
+    {
+        return std::string(uri);
+    }
+    return decoded;
+}
+
 } // namespace ravo

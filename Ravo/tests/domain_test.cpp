@@ -157,6 +157,84 @@ TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
     filtered = filter_and_sort_assets({first, second, third}, colors);
     ASSERT_EQ(filtered.size(), 1U);
     EXPECT_EQ(filtered[0].id, "ast_a");
+
+    LibraryQuery folder;
+    folder.folder_uri = "file:///photos";
+    filtered = filter_and_sort_assets({first, second, third}, folder);
+    EXPECT_EQ(filtered.size(), 3U);
+}
+
+[[nodiscard]] std::string utf8_text(const char8_t *text)
+{
+    const auto *bytes = reinterpret_cast<const char *>(text);
+    return {bytes};
+}
+
+TEST(DomainUriTest, DisplayNameKeepsUtf8FolderNames)
+{
+    EXPECT_EQ(uri_display_name(utf8_text(u8"file:///Users/me/照片/测试.jpg")),
+              utf8_text(u8"测试.jpg"));
+    EXPECT_EQ(uri_parent(utf8_text(u8"file:///Users/me/照片/测试.jpg")),
+              utf8_text(u8"file:///Users/me/照片"));
+    EXPECT_EQ(uri_display_name(utf8_text(u8"file:///Users/me/照片")), utf8_text(u8"照片"));
+}
+
+TEST(LibraryFolderTest, BuildsTreeFromUtf8FolderNames)
+{
+    AssetRecord photo;
+    photo.id = "ast_cjk";
+    photo.normalized_uri = utf8_text(u8"file:///Users/me/照片/测试/a.jpg");
+    const auto folders = library_folders({photo});
+    bool saw_test = false;
+    for (const auto &folder : folders)
+    {
+        if (folder.display_name == utf8_text(u8"测试"))
+        {
+            saw_test = true;
+            EXPECT_EQ(folder.asset_count, 1);
+        }
+    }
+    EXPECT_TRUE(saw_test);
+}
+
+TEST(LibraryFolderTest, BuildsTreeFromImportedAssetUris)
+{
+    AssetRecord trip;
+    trip.id = "ast_trip";
+    trip.normalized_uri = "file:///Users/me/Photos/2024/Trip/a.jpg";
+    AssetRecord home;
+    home.id = "ast_home";
+    home.normalized_uri = "file:///Users/me/Photos/2024/Home/b.jpg";
+    const auto folders = library_folders({trip, home});
+    ASSERT_GE(folders.size(), 3U);
+    EXPECT_TRUE(folders.front().uri.empty());
+    EXPECT_EQ(folders.front().display_name, "All Photographs");
+    EXPECT_EQ(folders.front().asset_count, 2);
+
+    bool saw_trip = false;
+    bool saw_home = false;
+    for (const auto &folder : folders)
+    {
+        if (folder.uri.ends_with("/Trip"))
+        {
+            saw_trip = true;
+            EXPECT_EQ(folder.asset_count, 1);
+            EXPECT_EQ(folder.display_name, "Trip");
+        }
+        if (folder.uri.ends_with("/Home"))
+        {
+            saw_home = true;
+            EXPECT_EQ(folder.asset_count, 1);
+        }
+    }
+    EXPECT_TRUE(saw_trip);
+    EXPECT_TRUE(saw_home);
+
+    LibraryQuery query;
+    query.folder_uri = "file:///Users/me/Photos/2024/Trip";
+    auto filtered = filter_and_sort_assets({trip, home}, query);
+    ASSERT_EQ(filtered.size(), 1U);
+    EXPECT_EQ(filtered.front().id, "ast_trip");
 }
 
 } // namespace
