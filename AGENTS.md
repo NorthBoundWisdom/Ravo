@@ -176,6 +176,13 @@ Ravo configure/build；当前环境缺少相应工具链时，执行可行的静
 
 ## Git 与交付
 
+- 提交钩子实现属于 `FreeCM/hooks/`。本仓只拥有 `hooks/path.ini.sample`、
+  `hooks/install.py` 与 `hooks/README.md`。
+- 首次克隆后创建被忽略的 `hooks/path.ini` 并运行 `python3 hooks/install.py`。
+  pre-commit 只对 `Ravo/` 下暂存 C/C++ 跑 clang-format，配置了 qmlformat 时才格式化
+  QML/JS；`legacy/` 与 `FreeCM/` 不在格式化范围内。
+- 提交说明使用 `[type]: description`。合法 type 见 `hooks/README.md`。
+- 钩子对任务范围内文件的纯格式化改动视为预期输出，不是外部脏改或阻断；重新暂存后继续。
 - 未经明确要求不要提交、amend、rebase 或 push。
 - 用户要求“提交全部 diff”时，先审查 staged、unstaged 和 untracked 的完整内容，区分
   本次变更与用户已有变更，并执行与风险相称的验证。

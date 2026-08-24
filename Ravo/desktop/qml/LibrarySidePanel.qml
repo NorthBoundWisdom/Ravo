@@ -48,10 +48,10 @@ Rectangle {
                     radius: 4
                     color: {
                         if (root.presenter && folderRow.folderUri === root.presenter.selectedFolderUri)
-                            return Theme.railSurfaceColor
+                            return Theme.railSurfaceColor;
                         if (folderMouse.containsMouse)
-                            return Theme.buttonHoveredColor
-                        return "transparent"
+                            return Theme.buttonHoveredColor;
+                        return "transparent";
                     }
 
                     RowLayout {
@@ -82,7 +82,8 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: if (root.presenter) root.presenter.selectFolder(folderRow.folderUri)
+                        onClicked: if (root.presenter)
+                            root.presenter.selectFolder(folderRow.folderUri)
                     }
                 }
             }

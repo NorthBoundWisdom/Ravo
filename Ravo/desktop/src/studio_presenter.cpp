@@ -157,8 +157,7 @@ int AssetListModel::rowCount(const QModelIndex &parent) const
 
 QVariant AssetListModel::data(const QModelIndex &index, const int role) const
 {
-    if (!index.isValid() || index.row() < 0 ||
-        index.row() >= static_cast<int>(assets_.size()))
+    if (!index.isValid() || index.row() < 0 || index.row() >= static_cast<int>(assets_.size()))
     {
         return {};
     }
@@ -209,18 +208,12 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
 
 QHash<int, QByteArray> AssetListModel::roleNames() const
 {
-    return {{AssetIdRole, "assetId"},
-            {DisplayNameRole, "displayName"},
-            {MediaTypeRole, "mediaType"},
-            {ImportStateRole, "importState"},
-            {ErrorRole, "errorText"},
-            {RatingRole, "rating"},
-            {ColorLabelRole, "colorLabel"},
-            {RejectedRole, "rejected"},
-            {ThumbnailUrlRole, "thumbnailUrl"},
-            {ThumbnailStateRole, "thumbnailState"},
-            {WidthRole, "pixelWidth"},
-            {HeightRole, "pixelHeight"},
+    return {{AssetIdRole, "assetId"},           {DisplayNameRole, "displayName"},
+            {MediaTypeRole, "mediaType"},       {ImportStateRole, "importState"},
+            {ErrorRole, "errorText"},           {RatingRole, "rating"},
+            {ColorLabelRole, "colorLabel"},     {RejectedRole, "rejected"},
+            {ThumbnailUrlRole, "thumbnailUrl"}, {ThumbnailStateRole, "thumbnailState"},
+            {WidthRole, "pixelWidth"},          {HeightRole, "pixelHeight"},
             {HasEditsRole, "hasEdits"}};
 }
 
@@ -246,7 +239,8 @@ void AssetListModel::setAssets(std::vector<AssetRecord> assets)
     endResetModel();
 }
 
-void AssetListModel::setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state)
+void AssetListModel::setThumbnail(const std::string &asset_id, const QUrl &url,
+                                  const QString &state)
 {
     thumbnail_urls_[asset_id] = url;
     thumbnail_states_[asset_id] = state;
@@ -333,8 +327,7 @@ int FolderListModel::rowCount(const QModelIndex &parent) const
 
 QVariant FolderListModel::data(const QModelIndex &index, const int role) const
 {
-    if (!index.isValid() || index.row() < 0 ||
-        index.row() >= static_cast<int>(folders_.size()))
+    if (!index.isValid() || index.row() < 0 || index.row() >= static_cast<int>(folders_.size()))
     {
         return {};
     }
@@ -370,21 +363,23 @@ void FolderListModel::setFolders(std::vector<FolderRecord> folders)
 }
 
 StudioPresenter::StudioPresenter(QObject *parent)
-    : QObject(parent),
-      assets_(this),
-      folders_(this)
+    : QObject(parent)
+    , assets_(this)
+    , folders_(this)
 {
     QSettings settings;
     night_mode_ = settings.value(QStringLiteral("appearance/nightMode"), false).toBool();
-    const auto created = executor_.submit([this]() -> Result<void> {
-        auto engine = EngineFacade::create_phase1();
-        if (!engine)
+    const auto created = executor_.submit(
+        [this]() -> Result<void>
         {
-            return engine.error();
-        }
-        engine_ = std::move(engine).value();
-        return {};
-    });
+            auto engine = EngineFacade::create_phase1();
+            if (!engine)
+            {
+                return engine.error();
+            }
+            engine_ = std::move(engine).value();
+            return {};
+        });
     if (!created)
     {
         error_text_ = qstring_from_utf8(created.error().message);
@@ -395,10 +390,12 @@ StudioPresenter::StudioPresenter(QObject *parent)
 StudioPresenter::~StudioPresenter()
 {
     static_cast<void>(shutdown_.cancel("window_closed"));
-    executor_.submit([this]() {
-        service_.reset();
-        engine_.reset();
-    });
+    executor_.submit(
+        [this]()
+        {
+            service_.reset();
+            engine_.reset();
+        });
     executor_.request_stop();
     executor_.wait();
 }
@@ -822,31 +819,34 @@ void StudioPresenter::reloadVisibleAssets()
     {
         return;
     }
-    executor_.post([this, query = current_query()]() {
-        Result<std::vector<AssetRecord>> listed =
-            make_error(ErrorCode::kIo, "Catalog session is closed");
-        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
-        if (service_ != nullptr)
+    executor_.post(
+        [this, query = current_query()]()
         {
-            listed = service_->list_assets(query);
-            folders = service_->list_folders();
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, listed = std::move(listed), folders = std::move(folders)]() mutable {
-                if (!listed)
+            Result<std::vector<AssetRecord>> listed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            if (service_ != nullptr)
+            {
+                listed = service_->list_assets(query);
+                folders = service_->list_folders();
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, listed = std::move(listed), folders = std::move(folders)]() mutable
                 {
-                    setError(qstring_from_utf8(listed.error().message));
-                    return;
-                }
-                if (folders)
-                {
-                    applyFolders(std::move(folders).value());
-                }
-                applyAssets(std::move(listed).value(), true);
-            },
-            Qt::QueuedConnection);
-    });
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        return;
+                    }
+                    if (folders)
+                    {
+                        applyFolders(std::move(folders).value());
+                    }
+                    applyAssets(std::move(listed).value(), true);
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 Result<void> StudioPresenter::open_on_worker(const std::string &path, const bool create)
@@ -856,8 +856,8 @@ Result<void> StudioPresenter::open_on_worker(const std::string &path, const bool
         return make_error(ErrorCode::kInternal, "Engine is not available");
     }
     service_.reset();
-    auto repository = create ? SqliteCatalogRepository::create(path) :
-                               SqliteCatalogRepository::open(path);
+    auto repository =
+        create ? SqliteCatalogRepository::create(path) : SqliteCatalogRepository::open(path);
     if (!repository)
     {
         return repository.error();
@@ -889,44 +889,47 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
     setError({});
     setStatus(QStringLiteral("Creating library…"));
     const auto path = utf8_from_qstring(local);
-    executor_.post([this, path]() {
-        const auto opened = open_on_worker(path, true);
-        Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
-        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
-        if (opened && service_ != nullptr)
+    executor_.post(
+        [this, path]()
         {
-            listed = service_->list_assets(query_);
-            folders = service_->list_folders();
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, path, opened, listed = std::move(listed),
-             folders = std::move(folders)]() mutable {
-                setBusy(false);
-                if (!opened)
+            const auto opened = open_on_worker(path, true);
+            Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            if (opened && service_ != nullptr)
+            {
+                listed = service_->list_assets(query_);
+                folders = service_->list_folders();
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, path, opened, listed = std::move(listed),
+                 folders = std::move(folders)]() mutable
                 {
-                    setError(qstring_from_utf8(opened.error().message));
-                    setStatus(QStringLiteral("Create failed."));
-                    return;
-                }
-                if (!listed)
-                {
-                    setError(qstring_from_utf8(listed.error().message));
-                    setStatus(QStringLiteral("Create failed."));
-                    return;
-                }
-                catalog_path_ = qstring_from_utf8(path);
-                emit catalogChanged();
-                setError({});
-                setStatus(QStringLiteral("Library created. Import photos or a folder."));
-                if (folders)
-                {
-                    applyFolders(std::move(folders).value());
-                }
-                applyAssets(std::move(listed).value(), true);
-            },
-            Qt::QueuedConnection);
-    });
+                    setBusy(false);
+                    if (!opened)
+                    {
+                        setError(qstring_from_utf8(opened.error().message));
+                        setStatus(QStringLiteral("Create failed."));
+                        return;
+                    }
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        setStatus(QStringLiteral("Create failed."));
+                        return;
+                    }
+                    catalog_path_ = qstring_from_utf8(path);
+                    emit catalogChanged();
+                    setError({});
+                    setStatus(QStringLiteral("Library created. Import photos or a folder."));
+                    if (folders)
+                    {
+                        applyFolders(std::move(folders).value());
+                    }
+                    applyAssets(std::move(listed).value(), true);
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::openCatalog(const QUrl &file_url)
@@ -945,48 +948,51 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
     setError({});
     setStatus(QStringLiteral("Opening library…"));
     const auto path = utf8_from_qstring(local);
-    executor_.post([this, path]() {
-        const auto opened = open_on_worker(path, false);
-        Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
-        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
-        if (opened && service_ != nullptr)
+    executor_.post(
+        [this, path]()
         {
-            listed = service_->list_assets(query_);
-            folders = service_->list_folders();
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, path, opened, listed = std::move(listed),
-             folders = std::move(folders)]() mutable {
-                setBusy(false);
-                if (!opened)
+            const auto opened = open_on_worker(path, false);
+            Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            if (opened && service_ != nullptr)
+            {
+                listed = service_->list_assets(query_);
+                folders = service_->list_folders();
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, path, opened, listed = std::move(listed),
+                 folders = std::move(folders)]() mutable
                 {
-                    setError(qstring_from_utf8(opened.error().message));
-                    setStatus(QStringLiteral("Open failed."));
-                    return;
-                }
-                if (!listed)
-                {
-                    setError(qstring_from_utf8(listed.error().message));
-                    setStatus(QStringLiteral("Open failed."));
-                    return;
-                }
-                catalog_path_ = qstring_from_utf8(path);
-                selected_asset_id_.clear();
-                preview_url_.clear();
-                emit catalogChanged();
-                emit selectionChanged();
-                emit previewChanged();
-                setError({});
-                setStatus(QStringLiteral("Library opened."));
-                if (folders)
-                {
-                    applyFolders(std::move(folders).value());
-                }
-                applyAssets(std::move(listed).value(), true);
-            },
-            Qt::QueuedConnection);
-    });
+                    setBusy(false);
+                    if (!opened)
+                    {
+                        setError(qstring_from_utf8(opened.error().message));
+                        setStatus(QStringLiteral("Open failed."));
+                        return;
+                    }
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        setStatus(QStringLiteral("Open failed."));
+                        return;
+                    }
+                    catalog_path_ = qstring_from_utf8(path);
+                    selected_asset_id_.clear();
+                    preview_url_.clear();
+                    emit catalogChanged();
+                    emit selectionChanged();
+                    emit previewChanged();
+                    setError({});
+                    setStatus(QStringLiteral("Library opened."));
+                    if (folders)
+                    {
+                        applyFolders(std::move(folders).value());
+                    }
+                    applyAssets(std::move(listed).value(), true);
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::importFolder(const QUrl &folder_url)
@@ -1048,70 +1054,76 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
     setBusy(true);
     setError({});
     setStatus(QStringLiteral("Importing…"));
-    executor_.post([this, paths = std::move(paths), query = current_query()]() {
-        Result<std::vector<ImportItemResult>> imported =
-            make_error(ErrorCode::kIo, "Catalog session is closed");
-        if (service_ != nullptr)
+    executor_.post(
+        [this, paths = std::move(paths), query = current_query()]()
         {
-            imported = service_->import_inputs(
-                paths, shutdown_.token(), [this](const std::size_t completed, const std::size_t total) {
-                    const auto completed_count = static_cast<int>(completed);
-                    const auto total_count = static_cast<int>(total);
-                    QMetaObject::invokeMethod(
-                        this,
-                        [this, completed_count, total_count]() {
-                            setStatus(QStringLiteral("Importing %1 / %2…")
-                                          .arg(completed_count)
-                                          .arg(total_count));
-                        },
-                        Qt::QueuedConnection);
-                });
-        }
-        std::vector<ImportItemResult> results;
-        QString first_error;
-        if (!imported)
-        {
-            first_error = qstring_from_utf8(imported.error().message);
-        }
-        else
-        {
-            results = std::move(imported).value();
-            for (const auto &item : results)
+            Result<std::vector<ImportItemResult>> imported =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
             {
-                if (first_error.isEmpty() && item.error)
+                imported = service_->import_inputs(
+                    paths, shutdown_.token(),
+                    [this](const std::size_t completed, const std::size_t total)
+                    {
+                        const auto completed_count = static_cast<int>(completed);
+                        const auto total_count = static_cast<int>(total);
+                        QMetaObject::invokeMethod(
+                            this,
+                            [this, completed_count, total_count]()
+                            {
+                                setStatus(QStringLiteral("Importing %1 / %2…")
+                                              .arg(completed_count)
+                                              .arg(total_count));
+                            },
+                            Qt::QueuedConnection);
+                    });
+            }
+            std::vector<ImportItemResult> results;
+            QString first_error;
+            if (!imported)
+            {
+                first_error = qstring_from_utf8(imported.error().message);
+            }
+            else
+            {
+                results = std::move(imported).value();
+                for (const auto &item : results)
                 {
-                    first_error = qstring_from_utf8(item.error->message);
+                    if (first_error.isEmpty() && item.error)
+                    {
+                        first_error = qstring_from_utf8(item.error->message);
+                    }
                 }
             }
-        }
-        Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
-        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
-        if (service_ != nullptr)
-        {
-            listed = service_->list_assets(query);
-            folders = service_->list_folders();
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, results = std::move(results), listed = std::move(listed),
-             folders = std::move(folders), first_error = std::move(first_error)]() mutable {
-                setBusy(false);
-                if (!listed)
+            Result<std::vector<AssetRecord>> listed = std::vector<AssetRecord>{};
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            if (service_ != nullptr)
+            {
+                listed = service_->list_assets(query);
+                folders = service_->list_folders();
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, results = std::move(results), listed = std::move(listed),
+                 folders = std::move(folders), first_error = std::move(first_error)]() mutable
                 {
-                    setError(qstring_from_utf8(listed.error().message));
-                    setStatus(QStringLiteral("Import failed."));
-                    return;
-                }
-                setError(first_error);
-                setStatus(describe_import(results));
-                if (folders)
-                {
-                    applyFolders(std::move(folders).value());
-                }
-                applyAssets(std::move(listed).value(), true);
-            },
-            Qt::QueuedConnection);
-    });
+                    setBusy(false);
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        setStatus(QStringLiteral("Import failed."));
+                        return;
+                    }
+                    setError(first_error);
+                    setStatus(describe_import(results));
+                    if (folders)
+                    {
+                        applyFolders(std::move(folders).value());
+                    }
+                    applyAssets(std::move(listed).value(), true);
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::selectAsset(const QString &asset_id)
@@ -1256,36 +1268,39 @@ void StudioPresenter::mutate_selected_review(
     {
         return;
     }
-    executor_.post([this, action]() {
-        Result<AssetRecord> updated = make_error(ErrorCode::kIo, "Catalog session is closed");
-        if (service_ != nullptr)
+    executor_.post(
+        [this, action]()
         {
-            updated = action(*service_);
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, updated = std::move(updated)]() mutable {
-                if (!updated)
+            Result<AssetRecord> updated = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                updated = action(*service_);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, updated = std::move(updated)]() mutable
                 {
-                    setError(qstring_from_utf8(updated.error().message));
-                    return;
-                }
-                assets_.updateAsset(updated.value());
-                emit selectionChanged();
-                if (filtersActive())
-                {
-                    reloadVisibleAssets();
-                }
-            },
-            Qt::QueuedConnection);
-    });
+                    if (!updated)
+                    {
+                        setError(qstring_from_utf8(updated.error().message));
+                        return;
+                    }
+                    assets_.updateAsset(updated.value());
+                    emit selectionChanged();
+                    if (filtersActive())
+                    {
+                        reloadVisibleAssets();
+                    }
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::setRating(const int rating)
 {
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    mutate_selected_review(
-        [asset_id, rating](CatalogService &service) { return service.set_rating(asset_id, rating); });
+    mutate_selected_review([asset_id, rating](CatalogService &service)
+                           { return service.set_rating(asset_id, rating); });
 }
 
 void StudioPresenter::setColorLabel(const QString &label)
@@ -1298,18 +1313,16 @@ void StudioPresenter::setColorLabel(const QString &label)
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     const auto color = parsed.value();
-    mutate_selected_review([asset_id, color](CatalogService &service) {
-        return service.set_color_label(asset_id, color);
-    });
+    mutate_selected_review([asset_id, color](CatalogService &service)
+                           { return service.set_color_label(asset_id, color); });
 }
 
 void StudioPresenter::toggleRejected()
 {
     const bool next = !selectedRejected();
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    mutate_selected_review([asset_id, next](CatalogService &service) {
-        return service.set_rejected(asset_id, next);
-    });
+    mutate_selected_review([asset_id, next](CatalogService &service)
+                           { return service.set_rejected(asset_id, next); });
 }
 
 void StudioPresenter::setRatingFilter(const QString &mode, const int value)
@@ -1425,53 +1438,55 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
     }
     const auto revision = ++thumbnail_revision_;
     const auto id = utf8_from_qstring(asset_id);
-    executor_.post([this, id, revision]() {
-        Result<PreviewResult> preview =
-            make_error(ErrorCode::kIo, "Catalog session is closed");
-        if (service_ != nullptr)
+    executor_.post(
+        [this, id, revision]()
         {
-            PreviewRequest request;
-            request.asset_id = id;
-            request.max_edge = kThumbnailMaxEdge;
-            request.request_revision = revision;
-            request.cancellation = shutdown_.token();
-            preview = service_->request_preview(request);
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, id, preview = std::move(preview)]() mutable {
-                if (preview)
+            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                PreviewRequest request;
+                request.asset_id = id;
+                request.max_edge = kThumbnailMaxEdge;
+                request.request_revision = revision;
+                request.cancellation = shutdown_.token();
+                preview = service_->request_preview(request);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, id, preview = std::move(preview)]() mutable
                 {
-                    assets_.setThumbnail(
-                        id, QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path)),
-                        preview.value().original_missing ? QStringLiteral("missing") :
-                                                           QStringLiteral("ready"));
-                    if (preview.value().original_missing)
+                    if (preview)
+                    {
+                        assets_.setThumbnail(
+                            id, QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path)),
+                            preview.value().original_missing ? QStringLiteral("missing") :
+                                                               QStringLiteral("ready"));
+                        if (preview.value().original_missing)
+                        {
+                            assets_.markOriginalMissing(id);
+                        }
+                        return;
+                    }
+                    if (preview.error().code == ErrorCode::kNotFound)
                     {
                         assets_.markOriginalMissing(id);
+                        assets_.setThumbnail(id, {}, QStringLiteral("missing"));
+                        return;
                     }
-                    return;
-                }
-                if (preview.error().code == ErrorCode::kNotFound)
-                {
-                    assets_.markOriginalMissing(id);
-                    assets_.setThumbnail(id, {}, QStringLiteral("missing"));
-                    return;
-                }
-                assets_.setThumbnail(id, {}, QStringLiteral("failed"));
-            },
-            Qt::QueuedConnection);
-    });
+                    assets_.setThumbnail(id, {}, QStringLiteral("failed"));
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::executeCommand(const QString &id, const QVariant &argument)
 {
     using namespace command_id;
     static const QStringList kWindowCommands{
-        QLatin1String(kLibraryCreate),  QLatin1String(kLibraryOpen),
+        QLatin1String(kLibraryCreate),      QLatin1String(kLibraryOpen),
         QLatin1String(kLibraryImportFiles), QLatin1String(kLibraryImportFolder),
-        QLatin1String(kWindowSettings), QLatin1String(kWindowClose),
-        QLatin1String(kWindowQuit),     QLatin1String(kWindowAbout),
+        QLatin1String(kWindowSettings),     QLatin1String(kWindowClose),
+        QLatin1String(kWindowQuit),         QLatin1String(kWindowAbout),
     };
     if (kWindowCommands.contains(id))
     {
@@ -1569,56 +1584,60 @@ void StudioPresenter::remove_selected_from_catalog()
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     const int keep_index = std::max(0, selectedIndex());
-    executor_.post([this, asset_id, keep_index]() {
-        Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
-        Result<std::vector<AssetRecord>> listed =
-            make_error(ErrorCode::kIo, "Catalog session is closed");
-        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
-        if (service_ != nullptr)
+    executor_.post(
+        [this, asset_id, keep_index]()
         {
-            removed = service_->remove_from_catalog(asset_id);
-            if (removed)
+            Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<AssetRecord>> listed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            if (service_ != nullptr)
             {
-                listed = service_->list_assets(current_query());
-                folders = service_->list_folders();
+                removed = service_->remove_from_catalog(asset_id);
+                if (removed)
+                {
+                    listed = service_->list_assets(current_query());
+                    folders = service_->list_folders();
+                }
             }
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, removed = std::move(removed), listed = std::move(listed),
-             folders = std::move(folders), keep_index]() mutable {
-                if (!removed)
+            QMetaObject::invokeMethod(
+                this,
+                [this, removed = std::move(removed), listed = std::move(listed),
+                 folders = std::move(folders), keep_index]() mutable
                 {
-                    setError(qstring_from_utf8(removed.error().message));
-                    return;
-                }
-                if (!listed)
-                {
-                    setError(qstring_from_utf8(listed.error().message));
-                    return;
-                }
-                if (folders)
-                {
-                    applyFolders(std::move(folders).value());
-                }
-                applyAssets(std::move(listed).value(), false);
-                if (assets_.rowCount() == 0)
-                {
-                    selected_asset_id_.clear();
-                    preview_url_.clear();
-                    preview_loading_ = false;
-                    emit selectionChanged();
-                    emit previewChanged();
-                }
-                else
-                {
-                    const int row = std::min(keep_index, assets_.rowCount() - 1);
-                    selectAsset(assets_.assetIdAt(row));
-                }
-                setStatus(QStringLiteral("Removed from catalog. Original file was not deleted."));
-            },
-            Qt::QueuedConnection);
-    });
+                    if (!removed)
+                    {
+                        setError(qstring_from_utf8(removed.error().message));
+                        return;
+                    }
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        return;
+                    }
+                    if (folders)
+                    {
+                        applyFolders(std::move(folders).value());
+                    }
+                    applyAssets(std::move(listed).value(), false);
+                    if (assets_.rowCount() == 0)
+                    {
+                        selected_asset_id_.clear();
+                        preview_url_.clear();
+                        preview_loading_ = false;
+                        emit selectionChanged();
+                        emit previewChanged();
+                    }
+                    else
+                    {
+                        const int row = std::min(keep_index, assets_.rowCount() - 1);
+                        selectAsset(assets_.assetIdAt(row));
+                    }
+                    setStatus(
+                        QStringLiteral("Removed from catalog. Original file was not deleted."));
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::load_develop_for_selection()
@@ -1632,31 +1651,34 @@ void StudioPresenter::load_develop_for_selection()
         return;
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    executor_.post([this, asset_id]() {
-        Result<Recipe> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
-        if (service_ != nullptr)
+    executor_.post(
+        [this, asset_id]()
         {
-            loaded = service_->load_recipe(asset_id);
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, asset_id, loaded = std::move(loaded)]() mutable {
-                if (utf8_from_qstring(selected_asset_id_) != asset_id)
+            Result<Recipe> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                loaded = service_->load_recipe(asset_id);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, loaded = std::move(loaded)]() mutable
                 {
-                    return;
-                }
-                if (loaded)
-                {
-                    auto params = develop_from_recipe(loaded.value());
-                    if (params)
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
                     {
-                        develop_ = params.value();
+                        return;
                     }
-                }
-                emit editChanged();
-            },
-            Qt::QueuedConnection);
-    });
+                    if (loaded)
+                    {
+                        auto params = develop_from_recipe(loaded.value());
+                        if (params)
+                        {
+                            develop_ = params.value();
+                        }
+                    }
+                    emit editChanged();
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::commit_develop(DevelopParams params, const bool push_history)
@@ -1682,56 +1704,60 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     const auto revision = ++preview_revision_;
     const auto ignore_edits = before_after_;
-    executor_.post([this, asset_id, params, revision, ignore_edits]() {
-        Result<AssetRecord> saved = make_error(ErrorCode::kIo, "Catalog session is closed");
-        Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
-        if (service_ != nullptr)
+    executor_.post(
+        [this, asset_id, params, revision, ignore_edits]()
         {
-            saved = service_->save_develop(asset_id, params);
-            if (saved)
+            Result<AssetRecord> saved = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
             {
-                PreviewRequest request;
-                request.asset_id = asset_id;
-                request.max_edge = kDefaultPreviewMaxEdge;
-                request.request_revision = revision;
-                request.ignore_edits = ignore_edits;
-                request.cancellation = shutdown_.token();
-                preview = service_->request_preview(request);
+                saved = service_->save_develop(asset_id, params);
+                if (saved)
+                {
+                    PreviewRequest request;
+                    request.asset_id = asset_id;
+                    request.max_edge = kDefaultPreviewMaxEdge;
+                    request.request_revision = revision;
+                    request.ignore_edits = ignore_edits;
+                    request.cancellation = shutdown_.token();
+                    preview = service_->request_preview(request);
+                }
             }
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, asset_id, revision, saved = std::move(saved),
-             preview = std::move(preview)]() mutable {
-                if (utf8_from_qstring(selected_asset_id_) != asset_id)
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, revision, saved = std::move(saved),
+                 preview = std::move(preview)]() mutable
                 {
-                    return;
-                }
-                if (!saved)
-                {
-                    setError(qstring_from_utf8(saved.error().message));
-                    return;
-                }
-                assets_.updateAsset(saved.value());
-                emit selectionChanged();
-                emit editChanged();
-                if (revision != preview_revision_)
-                {
-                    return;
-                }
-                preview_loading_ = false;
-                if (!preview)
-                {
-                    preview_url_.clear();
-                    setError(qstring_from_utf8(preview.error().message));
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    {
+                        return;
+                    }
+                    if (!saved)
+                    {
+                        setError(qstring_from_utf8(saved.error().message));
+                        return;
+                    }
+                    assets_.updateAsset(saved.value());
+                    emit selectionChanged();
+                    emit editChanged();
+                    if (revision != preview_revision_)
+                    {
+                        return;
+                    }
+                    preview_loading_ = false;
+                    if (!preview)
+                    {
+                        preview_url_.clear();
+                        setError(qstring_from_utf8(preview.error().message));
+                        emit previewChanged();
+                        return;
+                    }
+                    preview_url_ =
+                        QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
                     emit previewChanged();
-                    return;
-                }
-                preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
-                emit previewChanged();
-            },
-            Qt::QueuedConnection);
-    });
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::setDevelopNumber(const QString &name, const double value)
@@ -1958,51 +1984,54 @@ void StudioPresenter::requestPreviewForSelection()
     const auto revision = ++preview_revision_;
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     const bool ignore_edits = before_after_;
-    executor_.post([this, asset_id, revision, ignore_edits]() {
-        Result<PreviewResult> preview =
-            make_error(ErrorCode::kIo, "Catalog session is closed");
-        if (service_ != nullptr)
+    executor_.post(
+        [this, asset_id, revision, ignore_edits]()
         {
-            PreviewRequest request;
-            request.asset_id = asset_id;
-            request.max_edge = kDefaultPreviewMaxEdge;
-            request.request_revision = revision;
-            request.ignore_edits = ignore_edits;
-            request.cancellation = shutdown_.token();
-            preview = service_->request_preview(request);
-        }
-        QMetaObject::invokeMethod(
-            this,
-            [this, revision, asset_id, preview = std::move(preview)]() mutable {
-                if (revision != preview_revision_)
+            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                PreviewRequest request;
+                request.asset_id = asset_id;
+                request.max_edge = kDefaultPreviewMaxEdge;
+                request.request_revision = revision;
+                request.ignore_edits = ignore_edits;
+                request.cancellation = shutdown_.token();
+                preview = service_->request_preview(request);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, revision, asset_id, preview = std::move(preview)]() mutable
                 {
-                    return;
-                }
-                preview_loading_ = false;
-                if (!preview)
-                {
-                    preview_url_.clear();
-                    if (preview.error().code == ErrorCode::kNotFound)
+                    if (revision != preview_revision_)
                     {
-                        assets_.markOriginalMissing(asset_id);
-                        emit selectionChanged();
+                        return;
+                    }
+                    preview_loading_ = false;
+                    if (!preview)
+                    {
+                        preview_url_.clear();
+                        if (preview.error().code == ErrorCode::kNotFound)
+                        {
+                            assets_.markOriginalMissing(asset_id);
+                            emit selectionChanged();
+                            emit previewChanged();
+                            return;
+                        }
+                        setError(qstring_from_utf8(preview.error().message));
                         emit previewChanged();
                         return;
                     }
-                    setError(qstring_from_utf8(preview.error().message));
+                    if (preview.value().original_missing)
+                    {
+                        assets_.markOriginalMissing(asset_id);
+                        emit selectionChanged();
+                    }
+                    preview_url_ =
+                        QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
                     emit previewChanged();
-                    return;
-                }
-                if (preview.value().original_missing)
-                {
-                    assets_.markOriginalMissing(asset_id);
-                    emit selectionChanged();
-                }
-                preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
-                emit previewChanged();
-            },
-            Qt::QueuedConnection);
-    });
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 } // namespace ravo

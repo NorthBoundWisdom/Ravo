@@ -61,9 +61,9 @@ namespace
 
 [[nodiscard]] bool is_raw_extension(const std::filesystem::path &path)
 {
-    static const std::set<std::string> raw{
-        ".arw", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".dng", ".raf", ".orf",
-        ".rw2", ".raw", ".sr2", ".srf", ".pef", ".3fr", ".mrw", ".kdc", ".dcr", ".erf"};
+    static const std::set<std::string> raw{".arw", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".dng",
+                                           ".raf", ".orf", ".rw2", ".raw", ".sr2", ".srf", ".pef",
+                                           ".3fr", ".mrw", ".kdc", ".dcr", ".erf"};
     return raw.contains(extension_lower(path));
 }
 
@@ -170,10 +170,10 @@ CatalogService::CatalogService(const EngineFacade &engine,
                                std::unique_ptr<CatalogRepository> repository,
                                std::unique_ptr<RasterDecoder> raster,
                                std::unique_ptr<PreviewCache> cache)
-    : engine_(&engine),
-      repository_(std::move(repository)),
-      raster_(std::move(raster)),
-      cache_(std::move(cache))
+    : engine_(&engine)
+    , repository_(std::move(repository))
+    , raster_(std::move(raster))
+    , cache_(std::move(cache))
 {
 }
 
@@ -310,7 +310,8 @@ Result<AssetRecord> CatalogService::set_color_label(const std::string_view asset
     return *asset.value();
 }
 
-Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id, const bool rejected)
+Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id,
+                                                 const bool rejected)
 {
     if (repository_ == nullptr)
     {
@@ -429,7 +430,8 @@ Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) cons
     return parsed;
 }
 
-Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id, const Recipe &recipe)
+Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
+                                                const Recipe &recipe)
 {
     if (repository_ == nullptr || engine_ == nullptr)
     {
@@ -557,8 +559,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
 
     std::error_code exists_error;
     if (!std::filesystem::is_regular_file(
-            std::filesystem::path(std::u8string(location.value().path.begin(),
-                                                location.value().path.end())),
+            std::filesystem::path(
+                std::u8string(location.value().path.begin(), location.value().path.end())),
             exists_error) ||
         exists_error)
     {
@@ -630,10 +632,10 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         }
         if (!inspected.value().is_raw)
         {
-            return unsupported_item(
-                location.value().path,
-                make_error(ErrorCode::kUnsupported, "Input is not a supported RAW file",
-                           {{"path", location.value().path}}));
+            return unsupported_item(location.value().path,
+                                    make_error(ErrorCode::kUnsupported,
+                                               "Input is not a supported RAW file",
+                                               {{"path", location.value().path}}));
         }
         asset.media_type = std::string(kMediaTypeRaw);
         asset.width = inspected.value().width;
@@ -663,9 +665,9 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         PreviewRecord failed;
         failed.asset_id = asset.id;
         failed.state = std::string(kPreviewStateFailed);
-        failed.cache_key = make_preview_cache_key(asset.id, asset.width.value_or(0),
-                                                  asset.height.value_or(0),
-                                                  asset.content_fingerprint.value_or("none"));
+        failed.cache_key =
+            make_preview_cache_key(asset.id, asset.width.value_or(0), asset.height.value_or(0),
+                                   asset.content_fingerprint.value_or("none"));
         static_cast<void>(repository_->upsert_preview(failed));
     }
     else
@@ -779,11 +781,12 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
         return location.error();
     }
     std::error_code exists_error;
-    const bool original_exists = std::filesystem::is_regular_file(
-                                     std::filesystem::path(std::u8string(location.value().path.begin(),
-                                                                         location.value().path.end())),
-                                     exists_error) &&
-                                 !exists_error;
+    const bool original_exists =
+        std::filesystem::is_regular_file(
+            std::filesystem::path(
+                std::u8string(location.value().path.begin(), location.value().path.end())),
+            exists_error) &&
+        !exists_error;
     AssetRecord working = asset;
     if (!original_exists)
     {

@@ -86,30 +86,30 @@ Item {
 
     function run(id, argument) {
         if (!root.presenter)
-            return
+            return;
         if (argument === undefined)
-            root.presenter.executeCommand(id)
+            root.presenter.executeCommand(id);
         else
-            root.presenter.executeCommand(id, argument)
+            root.presenter.executeCommand(id, argument);
     }
 
     function handlePhotoClick(assetId, mouse) {
-        root.run(root.ids.photoSelect, assetId)
+        root.run(root.ids.photoSelect, assetId);
         if (mouse && mouse.button === Qt.RightButton && root.windowHost)
-            root.windowHost.showPhotoMenu()
+            root.windowHost.showPhotoMenu();
     }
 
     function handlePhotoDoubleClick(assetId) {
-        root.run(root.ids.photoSelect, assetId)
-        root.run(root.ids.viewLoupe)
+        root.run(root.ids.photoSelect, assetId);
+        root.run(root.ids.viewLoupe);
     }
 
     function setRating(value) {
-        root.run(root.ids.photoRate, value)
+        root.run(root.ids.photoRate, value);
     }
 
     function setColorLabel(value) {
-        root.run(root.ids.photoColor, value)
+        root.run(root.ids.photoColor, value);
     }
 
     Action {
@@ -349,25 +349,62 @@ Item {
         text: qsTr("Remove from Catalog…")
         shortcut: StandardKey.Delete
         enabled: root.interactive && root.hasSelection
-        onTriggered: if (root.windowHost) root.windowHost.askRemovePhoto()
+        onTriggered: if (root.windowHost)
+            root.windowHost.askRemovePhoto()
     }
 
-    Shortcut { enabled: root.interactive && root.catalogOpen; sequence: "G"; onActivated: gridAction.trigger() }
-    Shortcut { enabled: root.interactive && root.catalogOpen; sequence: "E"; onActivated: loupeAction.trigger() }
-    Shortcut { enabled: root.interactive && root.catalogOpen; sequence: "D"; onActivated: developAction.trigger() }
-    Shortcut { enabled: root.interactive && root.presenter && root.presenter.browseMode !== "grid"; sequence: "F"; onActivated: fitAction.trigger() }
-    Shortcut { enabled: root.interactive && root.presenter && root.presenter.browseMode !== "grid"; sequence: "Shift+1"; onActivated: actualSizeAction.trigger() }
-    Shortcut { enabled: root.interactive && root.developOpen; sequence: "Z"; onActivated: undoAction.trigger() }
-    Shortcut { enabled: root.interactive && root.developOpen; sequence: "Shift+Z"; onActivated: redoAction.trigger() }
-    Shortcut { enabled: removeAction.enabled; sequence: "Backspace"; onActivated: removeAction.trigger() }
+    Shortcut {
+        enabled: root.interactive && root.catalogOpen
+        sequence: "G"
+        onActivated: gridAction.trigger()
+    }
+    Shortcut {
+        enabled: root.interactive && root.catalogOpen
+        sequence: "E"
+        onActivated: loupeAction.trigger()
+    }
+    Shortcut {
+        enabled: root.interactive && root.catalogOpen
+        sequence: "D"
+        onActivated: developAction.trigger()
+    }
+    Shortcut {
+        enabled: root.interactive && root.presenter && root.presenter.browseMode !== "grid"
+        sequence: "F"
+        onActivated: fitAction.trigger()
+    }
+    Shortcut {
+        enabled: root.interactive && root.presenter && root.presenter.browseMode !== "grid"
+        sequence: "Shift+1"
+        onActivated: actualSizeAction.trigger()
+    }
+    Shortcut {
+        enabled: root.interactive && root.developOpen
+        sequence: "Z"
+        onActivated: undoAction.trigger()
+    }
+    Shortcut {
+        enabled: root.interactive && root.developOpen
+        sequence: "Shift+Z"
+        onActivated: redoAction.trigger()
+    }
+    Shortcut {
+        enabled: removeAction.enabled
+        sequence: "Backspace"
+        onActivated: removeAction.trigger()
+    }
     Shortcut {
         sequence: "Esc"
         onActivated: {
             if (root.windowHost && root.windowHost.settingsOpen)
-                root.windowHost.settingsOpen = false
+                root.windowHost.settingsOpen = false;
             else
-                root.run(root.ids.viewGrid)
+                root.run(root.ids.viewGrid);
         }
     }
-    Shortcut { enabled: root.interactive; sequences: ["Return", "Enter"]; onActivated: loupeAction.trigger() }
+    Shortcut {
+        enabled: root.interactive
+        sequences: ["Return", "Enter"]
+        onActivated: loupeAction.trigger()
+    }
 }

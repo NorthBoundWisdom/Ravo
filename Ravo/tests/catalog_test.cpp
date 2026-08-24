@@ -57,8 +57,8 @@ namespace
 
 [[nodiscard]] std::filesystem::path make_temp_root()
 {
-    const auto root = std::filesystem::temp_directory_path() /
-                      ("ravo-catalog-" + generate_catalog_id());
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-catalog-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     return root;
 }
@@ -101,7 +101,8 @@ protected:
         return {};
     }
 
-    EngineFacade engine = [] {
+    EngineFacade engine = []
+    {
         auto created = EngineFacade::create_phase1();
         return std::move(created).value();
     }();
@@ -137,8 +138,8 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
         database.setDatabaseName(QString::fromStdString(database_path));
         ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
         QSqlQuery query(database);
-        ASSERT_TRUE(query.exec(
-            QStringLiteral("UPDATE schema_info SET schema_version = 99 WHERE id = 1")));
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("UPDATE schema_info SET schema_version = 99 WHERE id = 1")));
         database.close();
         database = QSqlDatabase();
         QSqlDatabase::removeDatabase(connection);

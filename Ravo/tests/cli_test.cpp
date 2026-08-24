@@ -26,7 +26,8 @@ namespace
 
 void ensure_qt_core()
 {
-    static const bool logging = [] {
+    static const bool logging = []
+    {
         ravo::init_logging("ravo-cli-tests");
         return true;
     }();
@@ -536,11 +537,12 @@ TEST_F(CliTest, JsonFailuresStayStructuredAndDoNotWriteHumanLogsToStdout)
 
 TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 {
-    const auto root = std::filesystem::temp_directory_path() / ("ravo-cli-catalog-" + generate_catalog_id());
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-catalog-" + generate_catalog_id());
     std::filesystem::create_directories(root);
     const auto catalog = (root / "library.sqlite").string();
-    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "0000-nop" /
-                      "expected.png")
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                      "0000-nop" / "expected.png")
                          .generic_u8string();
     const std::string png_path(png.begin(), png.end());
 
@@ -548,8 +550,8 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     std::ostringstream stderr_stream;
     const CliApplication application(engine, stdout_stream, stderr_stream);
 
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "create", "--path", catalog, "--json"}),
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
               0)
         << stdout_stream.str();
     auto created = parse_json(stdout_stream.str());
@@ -579,24 +581,24 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 
     stdout_stream.str({});
     stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "rate", "--catalog", catalog, "--asset-id", id, "--rating", "4",
-                  "--json"}),
+    EXPECT_EQ(
+        application.run(std::vector<std::string_view>{"catalog", "rate", "--catalog", catalog,
+                                                      "--asset-id", id, "--rating", "4", "--json"}),
+        0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "develop", "--catalog",
+                                                            catalog, "--asset-id", id,
+                                                            "--exposure-ev", "0.5", "--json"}),
               0)
         << stdout_stream.str();
 
     stdout_stream.str({});
     stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "develop", "--catalog", catalog, "--asset-id", id, "--exposure-ev",
-                  "0.5", "--json"}),
-              0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "list", "--catalog", catalog, "--json"}),
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "list", "--catalog", catalog, "--json"}),
               0)
         << stdout_stream.str();
     auto listed = parse_json(stdout_stream.str());
@@ -618,8 +620,8 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 
     stdout_stream.str({});
     stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "preview", "--catalog", catalog, "--asset-id", id, "--json"}),
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "preview", "--catalog",
+                                                            catalog, "--asset-id", id, "--json"}),
               0)
         << stdout_stream.str();
     auto previewed = parse_json(stdout_stream.str());

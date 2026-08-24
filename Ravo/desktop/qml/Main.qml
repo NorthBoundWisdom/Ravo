@@ -18,75 +18,77 @@ ApplicationWindow {
 
     readonly property var colorChoices: ["red", "yellow", "green", "blue", "purple"]
     readonly property var colorSwatches: ({
-        "none": Theme.midColor,
-        "red": "#d85a5a",
-        "yellow": "#e9bd4f",
-        "green": "#67bd72",
-        "blue": "#4e8cd7",
-        "purple": "#9b6ad8"
-    })
+            "none": Theme.midColor,
+            "red": "#d85a5a",
+            "yellow": "#e9bd4f",
+            "green": "#67bd72",
+            "blue": "#4e8cd7",
+            "purple": "#9b6ad8"
+        })
 
     function openCreateLibraryDialog() {
-        createDialog.currentFolder = studio.defaultCatalogFolder
-        createDialog.initialSelectedFile = studio.defaultCatalogFile
-        createDialog.openDialog()
+        createDialog.currentFolder = studio.defaultCatalogFolder;
+        createDialog.initialSelectedFile = studio.defaultCatalogFile;
+        createDialog.openDialog();
     }
 
     function openOpenLibraryDialog() {
-        openDialog.currentFolder = studio.defaultCatalogFolder
-        openDialog.initialSelectedFile = studio.defaultCatalogExists() ? studio.defaultCatalogFile : ""
-        openDialog.openDialog()
+        openDialog.currentFolder = studio.defaultCatalogFolder;
+        openDialog.initialSelectedFile = studio.defaultCatalogExists() ? studio.defaultCatalogFile : "";
+        openDialog.openDialog();
     }
 
     function openImportDialog() {
-        importDialog.currentFolder = studio.defaultCatalogFolder
-        importDialog.openDialog()
+        importDialog.currentFolder = studio.defaultCatalogFolder;
+        importDialog.openDialog();
     }
 
     function openImportFolderDialog() {
-        importFolderDialog.currentFolder = studio.defaultCatalogFolder
-        importFolderDialog.openDialog()
+        importFolderDialog.currentFolder = studio.defaultCatalogFolder;
+        importFolderDialog.openDialog();
     }
 
     function startLibrarySession() {
         if (studio.catalogOpen)
-            return
+            return;
         if (studio.defaultCatalogExists())
-            studio.openCatalog(studio.defaultCatalogFile)
+            studio.openCatalog(studio.defaultCatalogFile);
         else
-            openCreateLibraryDialog()
+            openCreateLibraryDialog();
     }
 
     function swatchColor(name) {
-        return window.colorSwatches[name] || Theme.midColor
+        return window.colorSwatches[name] || Theme.midColor;
     }
 
     function openAboutDialog() {
-        aboutDialog.openWithButtons()
+        aboutDialog.openWithButtons();
     }
 
     function showPhotoMenu() {
-        photoMenu.popup()
+        photoMenu.popup();
     }
 
     function askRemovePhoto() {
         if (!studio.selectedAssetId.length)
-            return
-        removeDialog.openWithButtons()
+            return;
+        removeDialog.openWithButtons();
     }
 
     function applyAppearance() {
         if (window.lightThemeHelper === null) {
-            window.lightThemeHelper = Theme.helper
-            darkThemePalette.appFont = Theme.helper.appFont
-            darkThemePalette.monoFont = Theme.helper.monoFont
+            window.lightThemeHelper = Theme.helper;
+            darkThemePalette.appFont = Theme.helper.appFont;
+            darkThemePalette.monoFont = Theme.helper.monoFont;
         }
-        Theme.helper = studio.nightMode ? darkThemePalette : window.lightThemeHelper
-        Theme.colorsChanged()
-        Theme.fontsChanged()
+        Theme.helper = studio.nightMode ? darkThemePalette : window.lightThemeHelper;
+        Theme.colorsChanged();
+        Theme.fontsChanged();
     }
 
-    DarkThemePalette { id: darkThemePalette }
+    DarkThemePalette {
+        id: darkThemePalette
+    }
 
     StudioActions {
         id: studioActions
@@ -95,31 +97,33 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        applyAppearance()
-        Qt.callLater(startLibrarySession)
+        applyAppearance();
+        Qt.callLater(startLibrarySession);
     }
 
     Connections {
         target: studio
-        function onNightModeChanged() { window.applyAppearance() }
+        function onNightModeChanged() {
+            window.applyAppearance();
+        }
         function onUiCommandRequested(id) {
-            const ids = studioActions.ids
+            const ids = studioActions.ids;
             if (id === ids.libraryCreate)
-                openCreateLibraryDialog()
+                openCreateLibraryDialog();
             else if (id === ids.libraryOpen)
-                openOpenLibraryDialog()
+                openOpenLibraryDialog();
             else if (id === ids.libraryImportFiles)
-                openImportDialog()
+                openImportDialog();
             else if (id === ids.libraryImportFolder)
-                openImportFolderDialog()
+                openImportFolderDialog();
             else if (id === ids.windowSettings)
-                window.settingsOpen = true
+                window.settingsOpen = true;
             else if (id === ids.windowClose)
-                window.close()
+                window.close();
             else if (id === ids.windowQuit)
-                Qt.quit()
+                Qt.quit();
             else if (id === ids.windowAbout)
-                openAboutDialog()
+                openAboutDialog();
         }
     }
 
@@ -175,29 +179,33 @@ ApplicationWindow {
                     currentIndex: studio.browseMode === "develop" ? 2 : (studio.browseMode === "loupe" ? 1 : 0)
                     enabled: studio.catalogOpen
                     onActivated: function (index) {
-                        studioActions.run(index === 0 ? studioActions.ids.viewGrid :
-                                          (index === 1 ? studioActions.ids.viewLoupe : studioActions.ids.viewDevelop))
+                        studioActions.run(index === 0 ? studioActions.ids.viewGrid : (index === 1 ? studioActions.ids.viewLoupe : studioActions.ids.viewDevelop));
                     }
                 }
 
-                CustomLabel { Layout.alignment: Qt.AlignVCenter; text: qsTr("Rating") }
+                CustomLabel {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: qsTr("Rating")
+                }
                 CustomComboBox {
                     id: ratingFilter
                     Layout.alignment: Qt.AlignVCenter
-                    model: [qsTr("Any"), qsTr("≥ 1"), qsTr("≥ 2"), qsTr("≥ 3"), qsTr("≥ 4"), qsTr("≥ 5"),
-                            qsTr("Exact 0"), qsTr("Exact 1"), qsTr("Exact 2"), qsTr("Exact 3"), qsTr("Exact 4"), qsTr("Exact 5")]
+                    model: [qsTr("Any"), qsTr("≥ 1"), qsTr("≥ 2"), qsTr("≥ 3"), qsTr("≥ 4"), qsTr("≥ 5"), qsTr("Exact 0"), qsTr("Exact 1"), qsTr("Exact 2"), qsTr("Exact 3"), qsTr("Exact 4"), qsTr("Exact 5")]
                     Layout.preferredWidth: 140
                     onActivated: function (index) {
                         if (index === 0)
-                            studio.setRatingFilter("any", 0)
+                            studio.setRatingFilter("any", 0);
                         else if (index <= 5)
-                            studio.setRatingFilter("min", index)
+                            studio.setRatingFilter("min", index);
                         else
-                            studio.setRatingFilter("exact", index - 6)
+                            studio.setRatingFilter("exact", index - 6);
                     }
                 }
 
-                CustomLabel { Layout.alignment: Qt.AlignVCenter; text: qsTr("Color") }
+                CustomLabel {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: qsTr("Color")
+                }
                 Repeater {
                     model: window.colorChoices
                     delegate: Rectangle {
@@ -216,14 +224,17 @@ ApplicationWindow {
                     }
                 }
 
-                CustomLabel { Layout.alignment: Qt.AlignVCenter; text: qsTr("Rejected") }
+                CustomLabel {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: qsTr("Rejected")
+                }
                 CustomComboBox {
                     Layout.alignment: Qt.AlignVCenter
                     model: [qsTr("Include"), qsTr("Exclude"), qsTr("Only")]
                     Layout.preferredWidth: 120
                     currentIndex: studio.rejectFilter === "exclude" ? 1 : (studio.rejectFilter === "only" ? 2 : 0)
                     onActivated: function (index) {
-                        studio.setRejectFilter(index === 1 ? "exclude" : (index === 2 ? "only" : "include"))
+                        studio.setRejectFilter(index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
                     }
                 }
 
@@ -234,7 +245,9 @@ ApplicationWindow {
                     onClicked: studio.clearFilters()
                 }
 
-                Item { Layout.fillWidth: true }
+                Item {
+                    Layout.fillWidth: true
+                }
 
                 CustomComboBox {
                     Layout.alignment: Qt.AlignVCenter
@@ -242,8 +255,8 @@ ApplicationWindow {
                     Layout.preferredWidth: 140
                     currentIndex: studio.sortField === "name" ? 1 : (studio.sortField === "rating" ? 2 : 0)
                     onActivated: function (index) {
-                        const field = index === 1 ? "name" : (index === 2 ? "rating" : "imported")
-                        studio.setSort(field, studio.sortDirection)
+                        const field = index === 1 ? "name" : (index === 2 ? "rating" : "imported");
+                        studio.setSort(field, studio.sortDirection);
                     }
                 }
                 CustomButton {
@@ -251,7 +264,10 @@ ApplicationWindow {
                     text: studio.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
                     onClicked: studio.setSort(studio.sortField, studio.sortDirection === "asc" ? "desc" : "asc")
                 }
-                CustomLabel { Layout.alignment: Qt.AlignVCenter; text: qsTr("Size") }
+                CustomLabel {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: qsTr("Size")
+                }
                 Item {
                     Layout.alignment: Qt.AlignVCenter
                     Layout.preferredWidth: 140
@@ -271,7 +287,9 @@ ApplicationWindow {
                         showValueLabel: false
                         delayedCommit: true
                         commitDelay: 40
-                        onValueCommitted: function (value) { studio.thumbnailSize = Math.round(value) }
+                        onValueCommitted: function (value) {
+                            studio.thumbnailSize = Math.round(value);
+                        }
                     }
                 }
             }
@@ -303,275 +321,277 @@ ApplicationWindow {
                 SplitView.fillWidth: true
                 SplitView.minimumWidth: 280
 
-                    GridView {
-                        id: grid
-                        anchors.fill: parent
-                        anchors.margins: Fonts.size8
-                        visible: studio.browseMode === "grid"
-                        clip: true
-                        model: studio.assets
-                        cellWidth: studio.thumbnailSize + Fonts.size16
-                        cellHeight: studio.thumbnailSize + Fonts.scaledUiSize(36)
-                        cacheBuffer: cellHeight * 4
-                        onVisibleChanged: if (visible && studio.selectedIndex >= 0)
-                            positionViewAtIndex(studio.selectedIndex, GridView.Contain)
-                        Connections {
-                            target: studio
-                            function onBrowseModeChanged() {
-                                if (studio.browseMode === "grid" && studio.selectedIndex >= 0)
-                                    grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain)
-                            }
-                            function onSelectionChanged() {
-                                if (studio.browseMode === "grid" && studio.selectedIndex >= 0)
-                                    grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain)
-                            }
+                GridView {
+                    id: grid
+                    anchors.fill: parent
+                    anchors.margins: Fonts.size8
+                    visible: studio.browseMode === "grid"
+                    clip: true
+                    model: studio.assets
+                    cellWidth: studio.thumbnailSize + Fonts.size16
+                    cellHeight: studio.thumbnailSize + Fonts.scaledUiSize(36)
+                    cacheBuffer: cellHeight * 4
+                    onVisibleChanged: if (visible && studio.selectedIndex >= 0)
+                        positionViewAtIndex(studio.selectedIndex, GridView.Contain)
+                    Connections {
+                        target: studio
+                        function onBrowseModeChanged() {
+                            if (studio.browseMode === "grid" && studio.selectedIndex >= 0)
+                                grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain);
                         }
-                        delegate: Item {
-                            id: tile
-                            required property string assetId
-                            required property string displayName
-                            required property int rating
-                            required property string colorLabel
-                            required property bool rejected
-                            required property url thumbnailUrl
-                            required property string thumbnailState
-                            required property string importState
-                            required property bool hasEdits
-                            width: grid.cellWidth
-                            height: grid.cellHeight
-
-                            Component.onCompleted: studio.ensureThumbnail(assetId)
-
-                            Rectangle {
-                                anchors.fill: parent
-                                anchors.margins: Fonts.size4
-                                color: Theme.pageSurfaceColor
-                                border.width: assetId === studio.selectedAssetId ? 2 : 1
-                                border.color: assetId === studio.selectedAssetId ? Theme.highlightColor : Theme.dividerColor
-
-                                Image {
-                                    anchors.fill: parent
-                                    anchors.bottomMargin: Fonts.scaledUiSize(22)
-                                    anchors.margins: Fonts.size4
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                    cache: false
-                                    source: thumbnailUrl
-                                    visible: thumbnailUrl.toString().length > 0
-                                }
-
-                                CustomLabel {
-                                    anchors.centerIn: parent
-                                    visible: thumbnailUrl.toString().length === 0
-                                    text: thumbnailState === "failed" ? qsTr("Failed") :
-                                          (importState === "missing" || thumbnailState === "missing" ?
-                                           qsTr("Missing") : qsTr("Loading…"))
-                                    color: Theme.placeholderTextColor
-                                }
-
-                                CustomLabel {
-                                    anchors.left: parent.left
-                                    anchors.bottom: parent.bottom
-                                    anchors.margins: Fonts.size4
-                                    text: "★".repeat(rating) + "☆".repeat(5 - rating)
-                                    font.pixelSize: Fonts.size12
-                                }
-
-                                Rectangle {
-                                    width: 10
-                                    height: 10
-                                    radius: 5
-                                    visible: colorLabel !== "none"
-                                    color: window.swatchColor(colorLabel)
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    anchors.margins: Fonts.size6
-                                }
-
-                                Rectangle {
-                                    visible: importState === "missing" || thumbnailState === "missing"
-                                    anchors.top: parent.top
-                                    anchors.left: parent.left
-                                    anchors.margins: Fonts.size6
-                                    width: 58
-                                    height: 18
-                                    radius: 4
-                                    color: "#c47b16"
-                                    CustomLabel {
-                                        anchors.centerIn: parent
-                                        text: qsTr("Missing")
-                                        color: "#ffffff"
-                                        font.pixelSize: Fonts.size10
-                                    }
-                                }
-
-                                Rectangle {
-                                    visible: hasEdits
-                                    anchors.top: parent.top
-                                    anchors.right: parent.right
-                                    anchors.margins: Fonts.size6
-                                    width: 48
-                                    height: 18
-                                    radius: 4
-                                    color: Theme.textColor
-                                    CustomLabel {
-                                        anchors.centerIn: parent
-                                        text: qsTr("Edit")
-                                        color: Theme.windowColor
-                                        font.pixelSize: Fonts.size10
-                                    }
-                                }
-
-                                Rectangle {
-                                    visible: rejected
-                                    anchors.top: parent.top
-                                    anchors.right: parent.right
-                                    anchors.margins: hasEdits ? Fonts.size6 + 52 : Fonts.size6
-                                    width: 56
-                                    height: 18
-                                    radius: 4
-                                    color: "#aa3333"
-                                    CustomLabel {
-                                        anchors.centerIn: parent
-                                        text: qsTr("Reject")
-                                        color: "#ffffff"
-                                        font.pixelSize: Fonts.size10
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    onClicked: function (mouse) {
-                                        studioActions.handlePhotoClick(assetId, mouse)
-                                    }
-                                    onDoubleClicked: studioActions.handlePhotoDoubleClick(assetId)
-                                }
-                            }
-                        }
-
-                        CustomLabel {
-                            anchors.centerIn: parent
-                            visible: grid.count === 0
-                            text: studio.filtersActive ? qsTr("No photos match the current filters.") :
-                                  qsTr("No photos imported yet.")
-                            color: Theme.placeholderTextColor
+                        function onSelectionChanged() {
+                            if (studio.browseMode === "grid" && studio.selectedIndex >= 0)
+                                grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain);
                         }
                     }
+                    delegate: Item {
+                        id: tile
+                        required property string assetId
+                        required property string displayName
+                        required property int rating
+                        required property string colorLabel
+                        required property bool rejected
+                        required property url thumbnailUrl
+                        required property string thumbnailState
+                        required property string importState
+                        required property bool hasEdits
+                        width: grid.cellWidth
+                        height: grid.cellHeight
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        visible: studio.browseMode !== "grid"
-                        spacing: 0
+                        Component.onCompleted: studio.ensureThumbnail(assetId)
 
                         Rectangle {
-                            Layout.fillWidth: true
-                            implicitHeight: Fonts.toolbarHeight
-                            color: Qt.lighter(Theme.windowColor, 1.1)
-                            RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: Fonts.size4
+                            color: Theme.pageSurfaceColor
+                            border.width: assetId === studio.selectedAssetId ? 2 : 1
+                            border.color: assetId === studio.selectedAssetId ? Theme.highlightColor : Theme.dividerColor
+
+                            Image {
                                 anchors.fill: parent
-                                anchors.leftMargin: Fonts.standardMargin
-                                anchors.rightMargin: Fonts.standardMargin
-                                spacing: Fonts.smallSpacing
-                                SegmentedControl {
-                                    model: [qsTr("Fit"), qsTr("Fill"), qsTr("100%")]
-                                    currentIndex: studio.zoomMode === "fill" ? 1 : (studio.zoomMode === "actual" ? 2 : 0)
-                                    enabled: studio.previewUrl.toString().length > 0
-                                    onActivated: function (index) {
-                                        studioActions.run(index === 1 ? studioActions.ids.viewFill :
-                                                          (index === 2 ? studioActions.ids.viewActual : studioActions.ids.viewFit))
-                                    }
-                                }
-                                CustomLabel {
-                                    text: studio.previewLoading ? qsTr("Loading preview…") :
-                                          (Math.round(studio.zoomFactor * 100) + "%")
-                                    color: Theme.placeholderTextColor
-                                }
-                                Item { Layout.fillWidth: true }
-                                CustomButton { text: qsTr("Previous"); onClicked: studioActions.previousPhoto.trigger() }
-                                CustomButton { text: qsTr("Next"); onClicked: studioActions.nextPhoto.trigger() }
+                                anchors.bottomMargin: Fonts.scaledUiSize(22)
+                                anchors.margins: Fonts.size4
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: false
+                                source: thumbnailUrl
+                                visible: thumbnailUrl.toString().length > 0
                             }
-                        }
 
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            CustomLabel {
+                                anchors.centerIn: parent
+                                visible: thumbnailUrl.toString().length === 0
+                                text: thumbnailState === "failed" ? qsTr("Failed") : (importState === "missing" || thumbnailState === "missing" ? qsTr("Missing") : qsTr("Loading…"))
+                                color: Theme.placeholderTextColor
+                            }
 
-                            Flickable {
-                                id: scroller
-                                anchors.fill: parent
-                                clip: true
-                                contentWidth: previewImage.width
-                                contentHeight: previewImage.height
-                                boundsBehavior: Flickable.StopAtBounds
+                            CustomLabel {
+                                anchors.left: parent.left
+                                anchors.bottom: parent.bottom
+                                anchors.margins: Fonts.size4
+                                text: "★".repeat(rating) + "☆".repeat(5 - rating)
+                                font.pixelSize: Fonts.size12
+                            }
 
-                                Image {
-                                    id: previewImage
-                                    asynchronous: true
-                                    cache: false
-                                    source: studio.previewUrl
-                                    fillMode: Image.PreserveAspectFit
-                                    width: {
-                                        if (studio.zoomMode === "fit")
-                                            return scroller.width
-                                        if (studio.zoomMode === "fill")
-                                            return Math.max(scroller.width, implicitWidth * (scroller.height / Math.max(implicitHeight, 1)))
-                                        if (studio.zoomMode === "actual")
-                                            return implicitWidth
-                                        return implicitWidth * studio.zoomFactor
-                                    }
-                                    height: {
-                                        if (studio.zoomMode === "fit")
-                                            return scroller.height
-                                        if (studio.zoomMode === "fill")
-                                            return Math.max(scroller.height, implicitHeight * (scroller.width / Math.max(implicitWidth, 1)))
-                                        if (studio.zoomMode === "actual")
-                                            return implicitHeight
-                                        return implicitHeight * studio.zoomFactor
-                                    }
+                            Rectangle {
+                                width: 10
+                                height: 10
+                                radius: 5
+                                visible: colorLabel !== "none"
+                                color: window.swatchColor(colorLabel)
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: Fonts.size6
+                            }
+
+                            Rectangle {
+                                visible: importState === "missing" || thumbnailState === "missing"
+                                anchors.top: parent.top
+                                anchors.left: parent.left
+                                anchors.margins: Fonts.size6
+                                width: 58
+                                height: 18
+                                radius: 4
+                                color: "#c47b16"
+                                CustomLabel {
+                                    anchors.centerIn: parent
+                                    text: qsTr("Missing")
+                                    color: "#ffffff"
+                                    font.pixelSize: Fonts.size10
                                 }
+                            }
 
-                                WheelHandler {
-                                    onWheel: function (event) {
-                                        studio.adjustZoom(event.angleDelta.y)
-                                        event.accepted = true
-                                    }
+                            Rectangle {
+                                visible: hasEdits
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: Fonts.size6
+                                width: 48
+                                height: 18
+                                radius: 4
+                                color: Theme.textColor
+                                CustomLabel {
+                                    anchors.centerIn: parent
+                                    text: qsTr("Edit")
+                                    color: Theme.windowColor
+                                    font.pixelSize: Fonts.size10
+                                }
+                            }
+
+                            Rectangle {
+                                visible: rejected
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: hasEdits ? Fonts.size6 + 52 : Fonts.size6
+                                width: 56
+                                height: 18
+                                radius: 4
+                                color: "#aa3333"
+                                CustomLabel {
+                                    anchors.centerIn: parent
+                                    text: qsTr("Reject")
+                                    color: "#ffffff"
+                                    font.pixelSize: Fonts.size10
                                 }
                             }
 
                             MouseArea {
                                 anchors.fill: parent
-                                acceptedButtons: Qt.RightButton
-                                onClicked: window.showPhotoMenu()
-                            }
-
-                            CustomLabel {
-                                anchors.centerIn: parent
-                                visible: previewImage.source.toString().length === 0 && !studio.previewLoading
-                                text: studio.selectedImportState === "missing" ? qsTr("Original file is missing.") :
-                                      qsTr("Select a photo to inspect.")
-                                color: Theme.placeholderTextColor
-                            }
-
-                            Rectangle {
-                                visible: studio.selectedImportState === "missing"
-                                anchors.top: parent.top
-                                anchors.left: parent.left
-                                anchors.margins: Fonts.size8
-                                width: 86
-                                height: 22
-                                radius: 4
-                                color: "#c47b16"
-                                z: 2
-                                CustomLabel {
-                                    anchors.centerIn: parent
-                                    text: qsTr("Missing file")
-                                    color: "#ffffff"
-                                    font.pixelSize: Fonts.size12
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: function (mouse) {
+                                    studioActions.handlePhotoClick(assetId, mouse);
                                 }
+                                onDoubleClicked: studioActions.handlePhotoDoubleClick(assetId)
                             }
                         }
                     }
+
+                    CustomLabel {
+                        anchors.centerIn: parent
+                        visible: grid.count === 0
+                        text: studio.filtersActive ? qsTr("No photos match the current filters.") : qsTr("No photos imported yet.")
+                        color: Theme.placeholderTextColor
+                    }
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    visible: studio.browseMode !== "grid"
+                    spacing: 0
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: Fonts.toolbarHeight
+                        color: Qt.lighter(Theme.windowColor, 1.1)
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Fonts.standardMargin
+                            anchors.rightMargin: Fonts.standardMargin
+                            spacing: Fonts.smallSpacing
+                            SegmentedControl {
+                                model: [qsTr("Fit"), qsTr("Fill"), qsTr("100%")]
+                                currentIndex: studio.zoomMode === "fill" ? 1 : (studio.zoomMode === "actual" ? 2 : 0)
+                                enabled: studio.previewUrl.toString().length > 0
+                                onActivated: function (index) {
+                                    studioActions.run(index === 1 ? studioActions.ids.viewFill : (index === 2 ? studioActions.ids.viewActual : studioActions.ids.viewFit));
+                                }
+                            }
+                            CustomLabel {
+                                text: studio.previewLoading ? qsTr("Loading preview…") : (Math.round(studio.zoomFactor * 100) + "%")
+                                color: Theme.placeholderTextColor
+                            }
+                            Item {
+                                Layout.fillWidth: true
+                            }
+                            CustomButton {
+                                text: qsTr("Previous")
+                                onClicked: studioActions.previousPhoto.trigger()
+                            }
+                            CustomButton {
+                                text: qsTr("Next")
+                                onClicked: studioActions.nextPhoto.trigger()
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        Flickable {
+                            id: scroller
+                            anchors.fill: parent
+                            clip: true
+                            contentWidth: previewImage.width
+                            contentHeight: previewImage.height
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            Image {
+                                id: previewImage
+                                asynchronous: true
+                                cache: false
+                                source: studio.previewUrl
+                                fillMode: Image.PreserveAspectFit
+                                width: {
+                                    if (studio.zoomMode === "fit")
+                                        return scroller.width;
+                                    if (studio.zoomMode === "fill")
+                                        return Math.max(scroller.width, implicitWidth * (scroller.height / Math.max(implicitHeight, 1)));
+                                    if (studio.zoomMode === "actual")
+                                        return implicitWidth;
+                                    return implicitWidth * studio.zoomFactor;
+                                }
+                                height: {
+                                    if (studio.zoomMode === "fit")
+                                        return scroller.height;
+                                    if (studio.zoomMode === "fill")
+                                        return Math.max(scroller.height, implicitHeight * (scroller.width / Math.max(implicitWidth, 1)));
+                                    if (studio.zoomMode === "actual")
+                                        return implicitHeight;
+                                    return implicitHeight * studio.zoomFactor;
+                                }
+                            }
+
+                            WheelHandler {
+                                onWheel: function (event) {
+                                    studio.adjustZoom(event.angleDelta.y);
+                                    event.accepted = true;
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.RightButton
+                            onClicked: window.showPhotoMenu()
+                        }
+
+                        CustomLabel {
+                            anchors.centerIn: parent
+                            visible: previewImage.source.toString().length === 0 && !studio.previewLoading
+                            text: studio.selectedImportState === "missing" ? qsTr("Original file is missing.") : qsTr("Select a photo to inspect.")
+                            color: Theme.placeholderTextColor
+                        }
+
+                        Rectangle {
+                            visible: studio.selectedImportState === "missing"
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.margins: Fonts.size8
+                            width: 86
+                            height: 22
+                            radius: 4
+                            color: "#c47b16"
+                            z: 2
+                            CustomLabel {
+                                anchors.centerIn: parent
+                                text: qsTr("Missing file")
+                                color: "#ffffff"
+                                font.pixelSize: Fonts.size12
+                            }
+                        }
+                    }
+                }
             }
 
             InspectorSidePanel {
@@ -607,8 +627,7 @@ ApplicationWindow {
         MainStatusBar {
             Layout.fillWidth: true
             statusText: studio.statusText
-            viewerText: studio.previewLoading ? qsTr("Loading preview…") :
-                        (studio.selectedAssetId.length > 0 ? (studio.visibleCount + " photos") : "")
+            viewerText: studio.previewLoading ? qsTr("Loading preview…") : (studio.selectedAssetId.length > 0 ? (studio.visibleCount + " photos") : "")
         }
     }
 
@@ -634,7 +653,7 @@ ApplicationWindow {
         defaultButtonText: qsTr("Remove")
         onFinished: function (buttonText) {
             if (buttonText === qsTr("Remove"))
-                studioActions.run(studioActions.ids.photoRemove)
+                studioActions.run(studioActions.ids.photoRemove);
         }
     }
 
@@ -653,7 +672,7 @@ ApplicationWindow {
         dialogMode: "save"
         nameFilters: ["Ravo catalog (*.sqlite)"]
         onFileAccepted: function (filePath) {
-            studio.createCatalogFromPath(filePath)
+            studio.createCatalogFromPath(filePath);
         }
     }
 
@@ -663,7 +682,7 @@ ApplicationWindow {
         dialogMode: "open"
         nameFilters: ["Ravo catalog (*.sqlite)"]
         onFileAccepted: function (filePath) {
-            studio.openCatalogFromPath(filePath)
+            studio.openCatalogFromPath(filePath);
         }
     }
 
@@ -671,12 +690,9 @@ ApplicationWindow {
         id: importDialog
         dialogTitle: qsTr("Import Photos")
         dialogMode: "openFiles"
-        nameFilters: [
-            "Photos (*.png *.jpg *.jpeg *.JPG *.JPEG *.tif *.tiff *.bmp *.gif *.webp *.arw *.ARW *.cr2 *.CR2 *.cr3 *.CR3 *.nef *.NEF *.dng *.DNG *.raf *.orf *.rw2)",
-            "All files (*)"
-        ]
+        nameFilters: ["Photos (*.png *.jpg *.jpeg *.JPG *.JPEG *.tif *.tiff *.bmp *.gif *.webp *.arw *.ARW *.cr2 *.CR2 *.cr3 *.CR3 *.nef *.NEF *.dng *.DNG *.raf *.orf *.rw2)", "All files (*)"]
         onFileAccepted: function (filePath, selectedFilter, filePaths) {
-            studio.importFilePaths(filePaths)
+            studio.importFilePaths(filePaths);
         }
     }
 
@@ -684,7 +700,7 @@ ApplicationWindow {
         id: importFolderDialog
         dialogTitle: qsTr("Import Folder")
         onFolderAccepted: function (folderPath) {
-            studio.importFolderFromPath(folderPath)
+            studio.importFolderFromPath(folderPath);
         }
     }
 }

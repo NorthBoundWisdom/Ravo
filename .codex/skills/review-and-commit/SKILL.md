@@ -56,9 +56,12 @@ Record commands and results. Do not translate “not run” into “passed.”
 
 1. Stage explicit files or hunks; avoid broad staging until all untracked files are audited.
 2. Inspect `git diff --cached --stat` and the full `git diff --cached`.
-3. Use a concise imperative subject that describes one reversible intent.
+3. Use the hook subject form `[type]: concise description`. Valid types are listed
+   in `hooks/README.md`.
 4. Commit without amending unless the user explicitly requested an amend.
 5. Verify `git status --short --branch` and `git show --stat --oneline --decorate HEAD`.
+   If hooks rewrote staged files, review those formatting-only diffs before
+   treating the commit as complete.
 
 If relevant changes remain uncommitted, state exactly what and why. Do not push unless the user
 also requested publishing.

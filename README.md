@@ -20,6 +20,16 @@ cmake --preset mac_clang_debug -DBUILD_TESTING=ON
 cmake --build --preset mac_clang_debug
 ```
 
+Commit hooks format staged `Ravo/` C/C++ (and QML/JS when `qmlformat` is
+configured). Create a local `hooks/path.ini` from the sample and install:
+
+```text
+cp hooks/path.ini.sample hooks/path.ini
+python3 hooks/install.py
+```
+
+See [`hooks/README.md`](hooks/README.md).
+
 Windows uses `win_msvc_debug` / `win_msvc_release`. Linux configure presets are
 `linux_clang_*`; build those trees with `cmake --build build/linux_clang_debug`
 because the generated Linux build preset is named `ClangDebug`.
@@ -52,6 +62,7 @@ Studio after a macOS Debug build:
 | --- | --- |
 | `Ravo/` | Engine, CLI, catalog services, and Studio |
 | `configs/` | FreeCM source-root lock and workflow |
+| `hooks/` | Host installer for FreeCM commit hooks |
 | `DevDocs/` | Live Ravo developer docs |
 | `legacy/` | Frozen 0.9 sources, fixtures, and maps (not built) |
 | `FreeCM/` | Dependency-management submodule |
@@ -59,6 +70,7 @@ Studio after a macOS Debug build:
 ## Further reading
 
 - [Ravo project](Ravo/README.md)
+- [Commit hooks](hooks/README.md)
 - [Product plan](TODO_REWRITE.md)
 - [Dependency workflow](DevDocs/Dependency_Workflow.md)
 - [GPU baseline](DevDocs/GPU_Baseline.md)

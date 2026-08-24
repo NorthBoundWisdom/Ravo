@@ -338,8 +338,7 @@ SqliteCatalogRepository::create(const std::string_view database_path)
         return make_error(ErrorCode::kIo, "Unable to commit catalog schema",
                           {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}});
     }
-    return std::unique_ptr<SqliteCatalogRepository>(
-        new SqliteCatalogRepository(std::move(impl)));
+    return std::unique_ptr<SqliteCatalogRepository>(new SqliteCatalogRepository(std::move(impl)));
 }
 
 Result<std::unique_ptr<SqliteCatalogRepository>>
@@ -365,15 +364,15 @@ SqliteCatalogRepository::open(const std::string_view database_path)
     auto version = query.value(0).toLongLong();
     if (version > kCatalogSchemaVersion)
     {
-        return make_error(ErrorCode::kUnsupported, "Catalog schema version is newer than this Ravo",
-                          {{"path", std::string(database_path)},
-                           {"schema_version", std::to_string(version)}});
+        return make_error(
+            ErrorCode::kUnsupported, "Catalog schema version is newer than this Ravo",
+            {{"path", std::string(database_path)}, {"schema_version", std::to_string(version)}});
     }
     if (version < 1)
     {
-        return make_error(ErrorCode::kValidation, "Catalog schema version is invalid",
-                          {{"path", std::string(database_path)},
-                           {"schema_version", std::to_string(version)}});
+        return make_error(
+            ErrorCode::kValidation, "Catalog schema version is invalid",
+            {{"path", std::string(database_path)}, {"schema_version", std::to_string(version)}});
     }
     if (version < kCatalogSchemaVersion)
     {
@@ -404,12 +403,11 @@ SqliteCatalogRepository::open(const std::string_view database_path)
         if (version == 2)
         {
             const auto recipes = impl->exec(
-                QStringLiteral(
-                    "CREATE TABLE asset_recipe ("
-                    "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
-                    "  recipe_schema_version INTEGER NOT NULL,"
-                    "  recipe_json TEXT NOT NULL,"
-                    "  updated_unix_ms INTEGER NOT NULL)"),
+                QStringLiteral("CREATE TABLE asset_recipe ("
+                               "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+                               "  recipe_schema_version INTEGER NOT NULL,"
+                               "  recipe_json TEXT NOT NULL,"
+                               "  updated_unix_ms INTEGER NOT NULL)"),
                 "migrate_v3_asset_recipe");
             if (!recipes)
             {
@@ -449,8 +447,7 @@ SqliteCatalogRepository::open(const std::string_view database_path)
     impl->snapshot.catalog_id = utf8_from_qstring(query.value(1).toString());
     impl->snapshot.revision = query.value(2).toLongLong();
     impl->snapshot.database_path = impl->database_path;
-    return std::unique_ptr<SqliteCatalogRepository>(
-        new SqliteCatalogRepository(std::move(impl)));
+    return std::unique_ptr<SqliteCatalogRepository>(new SqliteCatalogRepository(std::move(impl)));
 }
 
 Result<CatalogSnapshot> SqliteCatalogRepository::snapshot() const
@@ -612,8 +609,8 @@ Result<void> SqliteCatalogRepository::update_review(const std::string_view asset
         return valid.error();
     }
     QSqlQuery query(impl_->database);
-    query.prepare(QStringLiteral(
-        "UPDATE asset SET rating = ?, color_label = ?, rejected = ? WHERE id = ?"));
+    query.prepare(
+        QStringLiteral("UPDATE asset SET rating = ?, color_label = ?, rejected = ? WHERE id = ?"));
     query.addBindValue(review.rating);
     query.addBindValue(qstring_from_utf8(color_label_name(review.color_label)));
     query.addBindValue(review.rejected ? 1 : 0);

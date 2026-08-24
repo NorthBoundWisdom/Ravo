@@ -276,9 +276,8 @@ std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets
         counts[uri] = count;
     }
 
-    auto slash_count = [](const std::string &text) {
-        return static_cast<int>(std::count(text.begin(), text.end(), '/'));
-    };
+    auto slash_count = [](const std::string &text)
+    { return static_cast<int>(std::count(text.begin(), text.end(), '/')); };
     const auto common_slashes = common.empty() ? 0 : slash_count(common);
     for (const auto &[uri, count] : counts)
     {
@@ -295,13 +294,12 @@ std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets
 std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
                                                 const LibraryQuery &query)
 {
-    assets.erase(std::remove_if(assets.begin(), assets.end(),
-                                [&query](const AssetRecord &asset) {
-                                    return !asset_matches_query(asset, query);
-                                }),
+    assets.erase(std::remove_if(assets.begin(), assets.end(), [&query](const AssetRecord &asset)
+                                { return !asset_matches_query(asset, query); }),
                  assets.end());
     std::sort(assets.begin(), assets.end(),
-              [&query](const AssetRecord &left, const AssetRecord &right) {
+              [&query](const AssetRecord &left, const AssetRecord &right)
+              {
                   int comparison = 0;
                   switch (query.sort_field)
                   {

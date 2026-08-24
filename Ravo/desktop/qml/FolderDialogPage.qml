@@ -16,34 +16,34 @@ Item {
         title: root.dialogTitle
         currentFolder: root.currentFolder
         onAccepted: {
-            root.folderAccepted(root.toLocalFile(selectedFolder))
-            folderDialog.close()
+            root.folderAccepted(root.toLocalFile(selectedFolder));
+            folderDialog.close();
         }
         onRejected: {
-            root.folderRejected()
-            folderDialog.close()
+            root.folderRejected();
+            folderDialog.close();
         }
         onVisibleChanged: {
             if (!visible)
-                root.dialogClosed()
+                root.dialogClosed();
         }
     }
 
     function toLocalFile(urlValue) {
         if (urlValue === undefined || urlValue === null)
-            return ""
+            return "";
         if (typeof urlValue === "string")
-            return urlValue.startsWith("file://") ? Qt.urlToLocalFile(urlValue) : urlValue
+            return urlValue.startsWith("file://") ? Qt.urlToLocalFile(urlValue) : urlValue;
         if (urlValue.toLocalFile)
-            return urlValue.toLocalFile()
-        return String(urlValue)
+            return urlValue.toLocalFile();
+        return String(urlValue);
     }
 
     function openDialog() {
-        folderDialog.open()
+        folderDialog.open();
     }
 
     function closeDialog() {
-        folderDialog.close()
+        folderDialog.close();
     }
 }

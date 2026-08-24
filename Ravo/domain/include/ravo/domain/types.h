@@ -206,8 +206,7 @@ struct FileIdentity
 [[nodiscard]] std::string generate_asset_id();
 [[nodiscard]] std::string make_content_fingerprint(const FileIdentity &identity);
 [[nodiscard]] std::string make_preview_cache_key(std::string_view asset_id, std::uint32_t width,
-                                                 std::uint32_t height,
-                                                 std::string_view fingerprint,
+                                                 std::uint32_t height, std::string_view fingerprint,
                                                  std::string_view edit_digest = "identity");
 void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height,
                          std::uint32_t max_edge, std::uint32_t &output_width,

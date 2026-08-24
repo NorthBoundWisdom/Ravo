@@ -322,7 +322,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
 [[nodiscard]] Result<std::unique_ptr<CatalogService>>
 open_catalog_session(const EngineFacade &engine, const std::string_view path, const bool create)
 {
-    auto repository = create ? SqliteCatalogRepository::create(path) : SqliteCatalogRepository::open(path);
+    auto repository =
+        create ? SqliteCatalogRepository::create(path) : SqliteCatalogRepository::open(path);
     if (!repository)
     {
         return repository.error();
@@ -351,8 +352,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     };
 }
 
-[[nodiscard]] Result<JsonValue> run_catalog_command(const EngineFacade &engine,
-                                                    const std::span<const std::string_view> positional)
+[[nodiscard]] Result<JsonValue>
+run_catalog_command(const EngineFacade &engine, const std::span<const std::string_view> positional)
 {
     if (positional.size() < 2)
     {
@@ -368,7 +369,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     }
     if (flags.value().catalog.empty())
     {
-        return make_error(ErrorCode::kInvalidArgument, "Catalog commands require --catalog or --path");
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Catalog commands require --catalog or --path");
     }
 
     if (subcommand == "create")
@@ -418,14 +420,13 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         int imported_count = 0;
         for (const auto &item : imported.value())
         {
-            JsonValue::Object row{{"input", item.input_path},
-                                  {"status", std::string(item.status == ImportItemStatus::kImported ?
-                                                             "imported" :
-                                                         item.status == ImportItemStatus::kDuplicate ?
-                                                             "duplicate" :
-                                                         item.status == ImportItemStatus::kUnsupported ?
-                                                             "unsupported" :
-                                                             "failed")}};
+            JsonValue::Object row{
+                {"input", item.input_path},
+                {"status",
+                 std::string(item.status == ImportItemStatus::kImported    ? "imported" :
+                             item.status == ImportItemStatus::kDuplicate   ? "duplicate" :
+                             item.status == ImportItemStatus::kUnsupported ? "unsupported" :
+                                                                             "failed")}};
             if (item.asset)
             {
                 row.emplace("asset", asset_to_json(*item.asset));

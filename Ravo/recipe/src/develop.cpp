@@ -45,8 +45,8 @@ constexpr double kEpsilon = 1e-6;
 void add_operation(Recipe &recipe, std::string id, std::string instance_id,
                    std::map<std::string, ParameterValue, std::less<>> parameters)
 {
-    recipe.operations.push_back({std::move(id), 1, std::move(instance_id), true, std::move(parameters),
-                                 std::nullopt});
+    recipe.operations.push_back(
+        {std::move(id), 1, std::move(instance_id), true, std::move(parameters), std::nullopt});
 }
 
 } // namespace
@@ -136,7 +136,8 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         {
             continue;
         }
-        const auto number = [&](const std::string_view name, const double fallback) {
+        const auto number = [&](const std::string_view name, const double fallback)
+        {
             const auto found = operation.parameters.find(std::string(name));
             if (found == operation.parameters.end())
             {

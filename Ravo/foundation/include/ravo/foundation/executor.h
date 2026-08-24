@@ -42,24 +42,26 @@ public:
 
         std::promise<ResultType> promise;
         auto future = promise.get_future();
-        const bool queued = post([&function, &promise]() {
-            try
+        const bool queued = post(
+            [&function, &promise]()
             {
-                if constexpr (std::is_void_v<ResultType>)
+                try
                 {
-                    function();
-                    promise.set_value();
+                    if constexpr (std::is_void_v<ResultType>)
+                    {
+                        function();
+                        promise.set_value();
+                    }
+                    else
+                    {
+                        promise.set_value(function());
+                    }
                 }
-                else
+                catch (...)
                 {
-                    promise.set_value(function());
+                    promise.set_exception(std::current_exception());
                 }
-            }
-            catch (...)
-            {
-                promise.set_exception(std::current_exception());
-            }
-        });
+            });
         if (!queued)
         {
             throw std::runtime_error("SerialExecutor has stopped");

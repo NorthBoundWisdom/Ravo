@@ -30,7 +30,7 @@ Rectangle {
         highlightMoveDuration: 0
         onCurrentIndexChanged: {
             if (currentIndex >= 0)
-                positionViewAtIndex(currentIndex, ListView.Contain)
+                positionViewAtIndex(currentIndex, ListView.Contain);
         }
 
         delegate: Item {
@@ -42,7 +42,8 @@ Rectangle {
             required property bool rejected
             width: 88
             height: strip.height
-            Component.onCompleted: if (root.presenter) root.presenter.ensureThumbnail(assetId)
+            Component.onCompleted: if (root.presenter)
+                root.presenter.ensureThumbnail(assetId)
 
             Rectangle {
                 anchors.fill: parent
@@ -80,9 +81,10 @@ Rectangle {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: function (mouse) {
                         if (root.commands)
-                            root.commands.handlePhotoClick(assetId, mouse)
+                            root.commands.handlePhotoClick(assetId, mouse);
                     }
-                    onDoubleClicked: if (root.commands) root.commands.handlePhotoDoubleClick(assetId)
+                    onDoubleClicked: if (root.commands)
+                        root.commands.handlePhotoDoubleClick(assetId)
                 }
             }
         }

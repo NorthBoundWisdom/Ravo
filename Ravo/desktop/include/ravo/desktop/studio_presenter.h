@@ -112,7 +112,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
     Q_PROPERTY(QString zoomMode READ zoomMode NOTIFY zoomChanged)
     Q_PROPERTY(double zoomFactor READ zoomFactor NOTIFY zoomChanged)
-    Q_PROPERTY(int thumbnailSize READ thumbnailSize WRITE setThumbnailSize NOTIFY thumbnailSizeChanged)
+    Q_PROPERTY(
+        int thumbnailSize READ thumbnailSize WRITE setThumbnailSize NOTIFY thumbnailSizeChanged)
     Q_PROPERTY(QString ratingFilterMode READ ratingFilterMode NOTIFY filterChanged)
     Q_PROPERTY(int ratingFilterValue READ ratingFilterValue NOTIFY filterChanged)
     Q_PROPERTY(QStringList colorFilters READ colorFilters NOTIFY filterChanged)

@@ -47,11 +47,13 @@ void SerialExecutor::start_worker()
 {
     std::promise<void> ready;
     auto started = ready.get_future();
-    auto *body = new std::function<void()>([this, &ready]() {
-        worker_id_ = std::this_thread::get_id();
-        ready.set_value();
-        run_loop();
-    });
+    auto *body = new std::function<void()>(
+        [this, &ready]()
+        {
+            worker_id_ = std::this_thread::get_id();
+            ready.set_value();
+            run_loop();
+        });
 
 #if defined(_WIN32)
     const auto handle = _beginthreadex(nullptr, static_cast<unsigned>(kWorkerStackBytes),

@@ -63,10 +63,12 @@ TEST(SerialExecutorTest, SubmitRunsOnTheWorkerAndNestedSubmitDoesNotDeadlock)
     int value = 0;
     executor.submit([&value]() { value = 1; });
     EXPECT_EQ(value, 1);
-    executor.submit([&value, &executor]() {
-        EXPECT_TRUE(executor.is_worker_thread());
-        executor.submit([&value]() { value = 2; });
-    });
+    executor.submit(
+        [&value, &executor]()
+        {
+            EXPECT_TRUE(executor.is_worker_thread());
+            executor.submit([&value]() { value = 2; });
+        });
     EXPECT_EQ(value, 2);
 }
 
@@ -83,12 +85,14 @@ TEST(SerialExecutorTest, WorkerStackIsLargeEnoughForRawImport)
 {
     SerialExecutor executor;
     int marker = 0;
-    executor.submit([&marker]() {
-        alignas(16) unsigned char pad[2U * 1024U * 1024U];
-        pad[0] = 1U;
-        pad[sizeof(pad) - 1U] = 2U;
-        marker = static_cast<int>(pad[0]) + static_cast<int>(pad[sizeof(pad) - 1U]);
-    });
+    executor.submit(
+        [&marker]()
+        {
+            alignas(16) unsigned char pad[2U * 1024U * 1024U];
+            pad[0] = 1U;
+            pad[sizeof(pad) - 1U] = 2U;
+            marker = static_cast<int>(pad[0]) + static_cast<int>(pad[sizeof(pad) - 1U]);
+        });
     EXPECT_EQ(marker, 3);
 }
 

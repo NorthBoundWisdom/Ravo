@@ -31,11 +31,14 @@ namespace
     {
         return false;
     }
-    return std::all_of(cache_key.begin(), cache_key.end(), [](const char character) {
-        return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
-               (character >= '0' && character <= '9') || character == '_' || character == '-' ||
-               character == '.' || character == '-';
-    });
+    return std::all_of(cache_key.begin(), cache_key.end(),
+                       [](const char character)
+                       {
+                           return (character >= 'a' && character <= 'z') ||
+                                  (character >= 'A' && character <= 'Z') ||
+                                  (character >= '0' && character <= '9') || character == '_' ||
+                                  character == '-' || character == '.' || character == '-';
+                       });
 }
 
 } // namespace
@@ -129,16 +132,17 @@ FilesystemPreviewCache::commit_png_bytes(const std::string_view cache_key,
     output.setDirectWriteFallback(false);
     if (!output.open(QIODevice::WriteOnly))
     {
-        return make_error(ErrorCode::kIo, "Unable to open preview cache file",
-                          {{"path", path}, {"qt_error", output.errorString().toUtf8().toStdString()}});
+        return make_error(
+            ErrorCode::kIo, "Unable to open preview cache file",
+            {{"path", path}, {"qt_error", output.errorString().toUtf8().toStdString()}});
     }
-    const auto written =
-        output.write(reinterpret_cast<const char *>(png_bytes.data()),
-                     static_cast<qint64>(png_bytes.size()));
+    const auto written = output.write(reinterpret_cast<const char *>(png_bytes.data()),
+                                      static_cast<qint64>(png_bytes.size()));
     if (written != static_cast<qint64>(png_bytes.size()) || !output.commit())
     {
-        return make_error(ErrorCode::kIo, "Unable to commit preview cache file",
-                          {{"path", path}, {"qt_error", output.errorString().toUtf8().toStdString()}});
+        return make_error(
+            ErrorCode::kIo, "Unable to commit preview cache file",
+            {{"path", path}, {"qt_error", output.errorString().toUtf8().toStdString()}});
     }
     return path;
 }
@@ -152,8 +156,7 @@ Result<void> FilesystemPreviewCache::remove_png(const std::string_view cache_key
     }
     const auto path = absolute_png_path(cache_key);
     std::error_code error;
-    std::filesystem::remove(
-        std::filesystem::path(std::u8string(path.begin(), path.end())), error);
+    std::filesystem::remove(std::filesystem::path(std::u8string(path.begin(), path.end())), error);
     if (error)
     {
         return make_error(ErrorCode::kIo, "Unable to remove preview cache file",

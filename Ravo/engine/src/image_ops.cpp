@@ -52,8 +52,7 @@ namespace
 [[nodiscard]] float srgb_decode(const float value)
 {
     const float clamped = std::clamp(value, 0.0F, 1.0F);
-    return clamped <= 0.04045F ? clamped / 12.92F :
-                                 std::pow((clamped + 0.055F) / 1.055F, 2.4F);
+    return clamped <= 0.04045F ? clamped / 12.92F : std::pow((clamped + 0.055F) / 1.055F, 2.4F);
 }
 
 [[nodiscard]] float luma(const float r, const float g, const float b)
@@ -72,10 +71,10 @@ void kelvin_rgb(const double temperature, float &red, float &green, float &blue)
     }
     else
     {
-        red = static_cast<float>(std::clamp(
-            329.698727446 * std::pow(kelvin - 60.0, -0.1332047592) / 255.0, 0.0, 1.0));
-        green = static_cast<float>(std::clamp(
-            288.1221695283 * std::pow(kelvin - 60.0, -0.0755148492) / 255.0, 0.0, 1.0));
+        red = static_cast<float>(
+            std::clamp(329.698727446 * std::pow(kelvin - 60.0, -0.1332047592) / 255.0, 0.0, 1.0));
+        green = static_cast<float>(
+            std::clamp(288.1221695283 * std::pow(kelvin - 60.0, -0.0755148492) / 255.0, 0.0, 1.0));
     }
     if (kelvin >= 66.0)
     {
@@ -103,9 +102,11 @@ void apply_white_balance(WorkingImage &image, const double temperature, const do
     kelvin_rgb(temperature, sample_r, sample_g, sample_b);
     kelvin_rgb(6500.0, ref_r, ref_g, ref_b);
     const float tint_scale = static_cast<float>(std::exp2(tint / 150.0));
-    const float mul_r = (sample_r / std::max(sample_g, 1.0e-6F)) / (ref_r / std::max(ref_g, 1.0e-6F));
+    const float mul_r =
+        (sample_r / std::max(sample_g, 1.0e-6F)) / (ref_r / std::max(ref_g, 1.0e-6F));
     const float mul_g = tint_scale;
-    const float mul_b = (sample_b / std::max(sample_g, 1.0e-6F)) / (ref_b / std::max(ref_g, 1.0e-6F));
+    const float mul_b =
+        (sample_b / std::max(sample_g, 1.0e-6F)) / (ref_b / std::max(ref_g, 1.0e-6F));
     for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
     {
         image.rgb[index] *= mul_r;
@@ -149,8 +150,7 @@ void apply_highlights_shadows(WorkingImage &image, const double highlights, cons
         const float y = luma(r, g, b);
         const float hmask = std::clamp((y - 0.35F) / 0.45F, 0.0F, 1.0F);
         const float smask = 1.0F - std::clamp((y - 0.02F) / 0.38F, 0.0F, 1.0F);
-        const float scale =
-            std::exp2(highlight_ev * hmask) * std::exp2(shadow_ev * smask);
+        const float scale = std::exp2(highlight_ev * hmask) * std::exp2(shadow_ev * smask);
         r *= scale;
         g *= scale;
         b *= scale;
@@ -248,12 +248,12 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     {
         return make_error(ErrorCode::kValidation, "Cannot crop an empty image");
     }
-    const auto left = static_cast<std::uint32_t>(
-        std::clamp(std::llround(x * static_cast<double>(image.width)), 0LL,
-                   static_cast<long long>(image.width - 1U)));
-    const auto top = static_cast<std::uint32_t>(
-        std::clamp(std::llround(y * static_cast<double>(image.height)), 0LL,
-                   static_cast<long long>(image.height - 1U)));
+    const auto left =
+        static_cast<std::uint32_t>(std::clamp(std::llround(x * static_cast<double>(image.width)),
+                                              0LL, static_cast<long long>(image.width - 1U)));
+    const auto top =
+        static_cast<std::uint32_t>(std::clamp(std::llround(y * static_cast<double>(image.height)),
+                                              0LL, static_cast<long long>(image.height - 1U)));
     auto crop_w = static_cast<std::uint32_t>(
         std::clamp(std::llround(width * static_cast<double>(image.width)), 1LL,
                    static_cast<long long>(image.width)));
@@ -278,8 +278,8 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     output.rgb.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
     for (std::uint32_t row = 0; row < crop_h; ++row)
     {
-        const float *src = image.rgb.data() +
-                           (static_cast<std::size_t>(top + row) * image.width + left) * 3U;
+        const float *src =
+            image.rgb.data() + (static_cast<std::size_t>(top + row) * image.width + left) * 3U;
         float *dst = output.rgb.data() + static_cast<std::size_t>(row) * crop_w * 3U;
         std::copy_n(src, static_cast<std::size_t>(crop_w) * 3U, dst);
     }
@@ -340,9 +340,8 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
             std::array<float, 3> camera_rgb{};
             for (std::size_t channel = 0; channel < camera_rgb.size(); ++channel)
             {
-                const float sample = count[channel] == 0 ?
-                                         0.0F :
-                                         sum[channel] / static_cast<float>(count[channel]);
+                const float sample =
+                    count[channel] == 0 ? 0.0F : sum[channel] / static_cast<float>(count[channel]);
                 camera_rgb[channel] =
                     std::max(0.0F, (sample - static_cast<float>(raw.black_level)) / denominator) *
                     raw.white_balance[channel];
@@ -455,10 +454,9 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.geometry.crop")
         {
-            auto cropped =
-                crop_working(std::move(image), parameter(operation, "x", 0.0),
-                             parameter(operation, "y", 0.0), parameter(operation, "width", 1.0),
-                             parameter(operation, "height", 1.0));
+            auto cropped = crop_working(
+                std::move(image), parameter(operation, "x", 0.0), parameter(operation, "y", 0.0),
+                parameter(operation, "width", 1.0), parameter(operation, "height", 1.0));
             if (!cropped)
             {
                 return cropped.error();

@@ -80,8 +80,7 @@ namespace
     if (!is_allowed_raster_format(reader.format()))
     {
         return make_error(ErrorCode::kUnsupported, "Raster format is not enabled for import",
-                          {{"path", std::string(path)},
-                           {"format", reader.format().toStdString()}});
+                          {{"path", std::string(path)}, {"format", reader.format().toStdString()}});
     }
     return {};
 }
@@ -108,8 +107,8 @@ namespace
     if (width != static_cast<std::uint32_t>(image.width()) ||
         height != static_cast<std::uint32_t>(image.height()))
     {
-        image = image.scaled(static_cast<int>(width), static_cast<int>(height), Qt::IgnoreAspectRatio,
-                             Qt::SmoothTransformation);
+        image = image.scaled(static_cast<int>(width), static_cast<int>(height),
+                             Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     }
     image = image.convertToFormat(QImage::Format_RGB888);
 
@@ -159,7 +158,8 @@ Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
     return info;
 }
 
-Result<EncodedPng> QtRasterDecoder::decode(const std::string_view path, const std::uint32_t max_edge,
+Result<EncodedPng> QtRasterDecoder::decode(const std::string_view path,
+                                           const std::uint32_t max_edge,
                                            const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();

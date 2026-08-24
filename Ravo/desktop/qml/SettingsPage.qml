@@ -35,7 +35,9 @@ Rectangle {
                 font.bold: true
                 font.pixelSize: Fonts.size18
             }
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
         }
 
         Rectangle {
@@ -60,7 +62,7 @@ Rectangle {
                 enabled: root.presenter !== null && root.presenter !== undefined
                 onActivated: function (index) {
                     if (root.presenter)
-                        root.presenter.nightMode = index === 1
+                        root.presenter.nightMode = index === 1;
                 }
             }
         }
@@ -78,6 +80,8 @@ Rectangle {
             text: qsTr("Use a dark studio palette for browsing and editing. This preference is saved on this computer.")
         }
 
-        Item { Layout.fillHeight: true }
+        Item {
+            Layout.fillHeight: true
+        }
     }
 }

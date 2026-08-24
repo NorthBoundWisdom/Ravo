@@ -30,7 +30,8 @@ struct DevelopParams
     [[nodiscard]] bool is_identity() const noexcept;
 };
 
-[[nodiscard]] Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &params);
+[[nodiscard]] Result<Recipe> recipe_from_develop(AssetDescriptor asset,
+                                                 const DevelopParams &params);
 [[nodiscard]] Result<DevelopParams> develop_from_recipe(const Recipe &recipe);
 
 } // namespace ravo

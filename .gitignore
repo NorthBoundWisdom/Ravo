@@ -3,6 +3,7 @@ build*/
 !/.codex/skills/build-repo/**
 source_roots.lock.jsonc
 CMakePresets.json
+hooks/path.ini
 .clangd
 .freecm/
 __pycache__/

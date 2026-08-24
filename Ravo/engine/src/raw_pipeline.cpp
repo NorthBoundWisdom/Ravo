@@ -120,9 +120,9 @@ Result<EmbeddedPreview> extract_libraw_preview(const std::string_view input_uri,
     const int thumb_status = decoder.value()->unpack_thumb();
     if (thumb_status != LIBRAW_SUCCESS)
     {
-        return make_error(ErrorCode::kUnsupported, "RAW file has no embedded preview",
-                          {{"detail", libraw_strerror(thumb_status)},
-                           {"input_uri", std::string(input_uri)}});
+        return make_error(
+            ErrorCode::kUnsupported, "RAW file has no embedded preview",
+            {{"detail", libraw_strerror(thumb_status)}, {"input_uri", std::string(input_uri)}});
     }
     const auto &thumb = decoder.value()->imgdata.thumbnail;
     if (thumb.tformat != LIBRAW_THUMBNAIL_JPEG || thumb.thumb == nullptr || thumb.tlength == 0)
@@ -240,7 +240,8 @@ Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &req
     {
         return working.error();
     }
-    auto adjusted = apply_recipe_ops(std::move(working).value(), request.recipe, request.cancellation);
+    auto adjusted =
+        apply_recipe_ops(std::move(working).value(), request.recipe, request.cancellation);
     if (!adjusted)
     {
         return adjusted.error();

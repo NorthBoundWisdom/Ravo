@@ -103,32 +103,70 @@ Menu {
         delegate: StyledItem {}
     }
 
-    StyledItem { action: root.commands.loupe }
-    StyledItem { action: root.commands.develop }
+    StyledItem {
+        action: root.commands.loupe
+    }
+    StyledItem {
+        action: root.commands.develop
+    }
     StyledSeparator {}
     StyledSubMenu {
         title: qsTr("Rating")
-        StyledItem { action: root.commands.rating0 }
-        StyledItem { action: root.commands.rating1 }
-        StyledItem { action: root.commands.rating2 }
-        StyledItem { action: root.commands.rating3 }
-        StyledItem { action: root.commands.rating4 }
-        StyledItem { action: root.commands.rating5 }
+        StyledItem {
+            action: root.commands.rating0
+        }
+        StyledItem {
+            action: root.commands.rating1
+        }
+        StyledItem {
+            action: root.commands.rating2
+        }
+        StyledItem {
+            action: root.commands.rating3
+        }
+        StyledItem {
+            action: root.commands.rating4
+        }
+        StyledItem {
+            action: root.commands.rating5
+        }
     }
     StyledSubMenu {
         title: qsTr("Color Label")
-        StyledItem { action: root.commands.colorNone }
-        StyledItem { action: root.commands.colorRed }
-        StyledItem { action: root.commands.colorYellow }
-        StyledItem { action: root.commands.colorGreen }
-        StyledItem { action: root.commands.colorBlue }
-        StyledItem { action: root.commands.colorPurple }
+        StyledItem {
+            action: root.commands.colorNone
+        }
+        StyledItem {
+            action: root.commands.colorRed
+        }
+        StyledItem {
+            action: root.commands.colorYellow
+        }
+        StyledItem {
+            action: root.commands.colorGreen
+        }
+        StyledItem {
+            action: root.commands.colorBlue
+        }
+        StyledItem {
+            action: root.commands.colorPurple
+        }
     }
-    StyledItem { action: root.commands.reject }
+    StyledItem {
+        action: root.commands.reject
+    }
     StyledSeparator {}
-    StyledItem { action: root.commands.rotateLeft }
-    StyledItem { action: root.commands.rotateRight }
-    StyledItem { action: root.commands.resetEdits }
+    StyledItem {
+        action: root.commands.rotateLeft
+    }
+    StyledItem {
+        action: root.commands.rotateRight
+    }
+    StyledItem {
+        action: root.commands.resetEdits
+    }
     StyledSeparator {}
-    StyledItem { action: root.commands.removePhoto }
+    StyledItem {
+        action: root.commands.removePhoto
+    }
 }

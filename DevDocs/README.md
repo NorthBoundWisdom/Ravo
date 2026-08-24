@@ -7,6 +7,7 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | --- | --- |
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM lock modes, `--update`, and publication order |
 | [GPU_Baseline.md](GPU_Baseline.md) | CPU gold samples and later GPU performance gates |
+| [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
 | [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and current product slice |
 | [../TODO_REWRITE.md](../TODO_REWRITE.md) | Milestone plan |
 | [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |

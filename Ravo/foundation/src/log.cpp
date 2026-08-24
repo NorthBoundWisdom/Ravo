@@ -90,7 +90,8 @@ void init_logging(const std::string_view app_name)
     const quill::PatternFormatterOptions pattern{
         "%(time) [%(log_level)] %(message)", "%Y-%m-%dT%H:%M:%S.%QmsZ", quill::Timezone::GmtTime};
     g_logger = quill::Frontend::create_or_get_logger(
-        "ravo", std::vector<std::shared_ptr<quill::Sink>>{std::move(console_sink), std::move(file_sink)},
+        "ravo",
+        std::vector<std::shared_ptr<quill::Sink>>{std::move(console_sink), std::move(file_sink)},
         pattern);
     g_logger->set_log_level(quill::LogLevel::Debug);
     LOG_INFO(g_logger, "logging initialized directory={}", from_u8(directory.generic_u8string()));

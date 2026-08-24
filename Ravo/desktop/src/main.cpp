@@ -37,10 +37,11 @@ int main(int argc, char *argv[])
     {
         families.push_back(ui_font.family());
     }
-    for (const auto &family : {QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
-                               QStringLiteral("Songti SC"), QStringLiteral("Noto Sans CJK SC"),
-                               QStringLiteral("Noto Sans SC"), QStringLiteral("Microsoft YaHei UI"),
-                               QStringLiteral("Microsoft YaHei"), QStringLiteral("Source Han Sans SC")})
+    for (const auto &family :
+         {QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
+          QStringLiteral("Songti SC"), QStringLiteral("Noto Sans CJK SC"),
+          QStringLiteral("Noto Sans SC"), QStringLiteral("Microsoft YaHei UI"),
+          QStringLiteral("Microsoft YaHei"), QStringLiteral("Source Han Sans SC")})
     {
         if (!families.contains(family))
         {
