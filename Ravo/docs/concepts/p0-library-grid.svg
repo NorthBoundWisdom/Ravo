@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0c0f14"/><stop offset="1" stop-color="#151b22"/></linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#24d3c5"/><stop offset="1" stop-color="#3aa7db"/></linearGradient>
+    <linearGradient id="sunset" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#334d74"/><stop offset=".48" stop-color="#d07569"/><stop offset="1" stop-color="#1b1d25"/></linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#196b7a"/><stop offset=".6" stop-color="#75c6bd"/><stop offset="1" stop-color="#d6c5a2"/></linearGradient>
+    <linearGradient id="forest" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7e9a88"/><stop offset="1" stop-color="#193227"/></linearGradient>
+    <linearGradient id="city" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#665b69"/><stop offset="1" stop-color="#18202d"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity=".28"/></filter>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1600" height="72" fill="#11151b"/>
+  <text x="30" y="45" fill="#f4f7fa" font-size="25" font-weight="700" font-family="Inter,Segoe UI,sans-serif">Ravo Studio</text>
+  <text x="1488" y="42" fill="#72e4d6" font-size="14" font-weight="700" font-family="Inter,Segoe UI,sans-serif">CONCEPT · P0</text>
+  <rect x="0" y="72" width="230" height="928" fill="#0f1318"/>
+  <text x="28" y="118" fill="#88929d" font-size="12" font-weight="700" font-family="Inter,Segoe UI,sans-serif" letter-spacing="1.6">LIBRARY</text>
+  <rect x="16" y="137" width="198" height="42" rx="7" fill="#202832"/>
+  <rect x="16" y="137" width="3" height="42" fill="#32d7c8"/>
+  <text x="39" y="164" fill="#f2f5f7" font-size="15" font-family="Inter,Segoe UI,sans-serif">All Photos</text>
+  <text x="173" y="164" fill="#8995a2" font-size="13" font-family="Inter,Segoe UI,sans-serif">1,248</text>
+  <text x="39" y="211" fill="#a8b1bb" font-size="15" font-family="Inter,Segoe UI,sans-serif">Recently Added</text>
+  <text x="39" y="251" fill="#a8b1bb" font-size="15" font-family="Inter,Segoe UI,sans-serif">Rejected</text>
+  <text x="28" y="312" fill="#88929d" font-size="12" font-weight="700" font-family="Inter,Segoe UI,sans-serif" letter-spacing="1.6">FILTER</text>
+  <text x="32" y="351" fill="#c6ced7" font-size="14" font-family="Inter,Segoe UI,sans-serif">Rating</text>
+  <text x="32" y="381" fill="#ffca56" font-size="19" font-family="Inter,Segoe UI Symbol,sans-serif">★ ★ ★ ☆ ☆</text>
+  <text x="32" y="427" fill="#c6ced7" font-size="14" font-family="Inter,Segoe UI,sans-serif">Color</text>
+  <circle cx="41" cy="457" r="8" fill="#d85a5a"/><circle cx="70" cy="457" r="8" fill="#e9bd4f"/><circle cx="99" cy="457" r="8" fill="#67bd72"/><circle cx="128" cy="457" r="8" fill="#4e8cd7"/><circle cx="157" cy="457" r="8" fill="#9b6ad8"/>
+  <rect x="28" y="501" width="174" height="34" rx="6" fill="#171d24" stroke="#303a45"/><text x="44" y="523" fill="#9da8b3" font-size="13" font-family="Inter,Segoe UI,sans-serif">Exclude rejected</text>
+
+  <g transform="translate(230,72)">
+    <rect x="0" y="0" width="1370" height="70" fill="#151a21"/>
+    <text x="28" y="43" fill="#f2f5f7" font-size="22" font-weight="650" font-family="Inter,Segoe UI,sans-serif">All Photos</text>
+    <rect x="210" y="17" width="118" height="36" rx="8" fill="#202932"/><text x="231" y="40" fill="#c4ced7" font-size="13" font-family="Inter,Segoe UI,sans-serif">Rating ≥ 3</text>
+    <rect x="338" y="17" width="100" height="36" rx="8" fill="#202932"/><circle cx="360" cy="35" r="7" fill="#4e8cd7"/><text x="377" y="40" fill="#c4ced7" font-size="13" font-family="Inter,Segoe UI,sans-serif">Blue</text>
+    <rect x="1040" y="17" width="125" height="36" rx="8" fill="#202832"/><text x="1058" y="40" fill="#aeb8c2" font-size="13" font-family="Inter,Segoe UI,sans-serif">Import time ↓</text>
+    <rect x="1180" y="17" width="74" height="36" rx="8" fill="url(#teal)"/><text x="1204" y="40" fill="#071214" font-size="13" font-weight="700" font-family="Inter,Segoe UI,sans-serif">Grid</text>
+    <rect x="1261" y="17" width="82" height="36" rx="8" fill="#202832"/><text x="1280" y="40" fill="#c7d0d9" font-size="13" font-family="Inter,Segoe UI,sans-serif">Loupe</text>
+
+    <g transform="translate(28,98)" filter="url(#shadow)">
+      <g>
+        <rect width="294" height="230" rx="8" fill="url(#sunset)"/><circle cx="229" cy="58" r="27" fill="#f3c76b" opacity=".8"/><path d="M0 174L73 112L127 151L183 89L294 181V230H0Z" fill="#1d2630"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★☆</text><circle cx="270" cy="207" r="8" fill="#4e8cd7"/>
+      </g>
+      <g transform="translate(316,0)">
+        <rect width="294" height="230" rx="8" fill="url(#sea)"/><path d="M0 151Q67 126 121 151T294 137V230H0Z" fill="#17434c" opacity=".72"/><path d="M0 170Q83 151 143 170T294 158" fill="none" stroke="#d7efeb" stroke-width="4" opacity=".5"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★★</text><circle cx="270" cy="207" r="8" fill="#67bd72"/>
+      </g>
+      <g transform="translate(632,0)">
+        <rect width="294" height="230" rx="8" fill="url(#forest)"/><path d="M14 230L76 97L114 230M76 230L151 74L196 230M159 230L241 108L287 230" fill="#183125" opacity=".9"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★☆☆</text><circle cx="270" cy="207" r="8" fill="#e9bd4f"/>
+      </g>
+      <g transform="translate(948,0)">
+        <rect width="294" height="230" rx="8" fill="url(#city)"/><rect x="35" y="92" width="41" height="138" fill="#222a34"/><rect x="91" y="55" width="52" height="175" fill="#27313c"/><rect x="158" y="112" width="46" height="118" fill="#1d2630"/><rect x="219" y="73" width="50" height="157" fill="#293440"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★☆</text><circle cx="270" cy="207" r="8" fill="#9b6ad8"/>
+      </g>
+
+      <g transform="translate(0,252)">
+        <rect width="294" height="230" rx="8" fill="#26313a"/><rect x="0" y="0" width="294" height="230" rx="8" fill="none" stroke="#38dacb" stroke-width="4"/><path d="M0 181L65 123L120 165L187 78L294 183V230H0Z" fill="#151d25"/><circle cx="225" cy="69" r="33" fill="#e8a75f"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★★</text><circle cx="270" cy="207" r="8" fill="#4e8cd7"/><rect x="10" y="10" width="78" height="27" rx="5" fill="#0c1117" opacity=".8"/><text x="23" y="29" fill="#71e3d7" font-size="12" font-weight="700" font-family="Inter,Segoe UI,sans-serif">SELECTED</text>
+      </g>
+      <g transform="translate(316,252)"><rect width="294" height="230" rx="8" fill="#38414a"/><circle cx="147" cy="112" r="78" fill="#c79f73"/><circle cx="147" cy="112" r="51" fill="#2d343a"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★☆☆☆</text></g>
+      <g transform="translate(632,252)"><rect width="294" height="230" rx="8" fill="#6a7a88"/><path d="M0 230L0 142L83 104L129 146L190 82L294 155V230Z" fill="#28323b"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★☆</text><circle cx="270" cy="207" r="8" fill="#d85a5a"/></g>
+      <g transform="translate(948,252)"><rect width="294" height="230" rx="8" fill="#241f29"/><path d="M56 230L91 62H133L163 230M153 230L195 92H229L259 230" fill="#4b4052"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★☆☆</text></g>
+
+      <g transform="translate(0,504)"><rect width="294" height="230" rx="8" fill="#2c4e59"/><path d="M0 160Q90 104 172 164T294 146V230H0Z" fill="#142a32"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★☆</text></g>
+      <g transform="translate(316,504)"><rect width="294" height="230" rx="8" fill="#5a493f"/><rect x="42" y="33" width="210" height="166" rx="3" fill="#c8b8a3"/><rect x="63" y="55" width="74" height="122" fill="#303947"/><rect x="157" y="55" width="74" height="122" fill="#7f624b"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★☆☆</text></g>
+      <g transform="translate(632,504)"><rect width="294" height="230" rx="8" fill="#283522"/><circle cx="151" cy="112" r="81" fill="#5d793f"/><circle cx="151" cy="112" r="47" fill="#b6c979"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★★</text><circle cx="270" cy="207" r="8" fill="#67bd72"/></g>
+      <g transform="translate(948,504)"><rect width="294" height="230" rx="8" fill="#3e3441"/><path d="M0 190L76 132L112 156L179 93L294 168V230H0Z" fill="#1e1b22"/><circle cx="223" cy="56" r="24" fill="#dfab70"/><text x="14" y="214" fill="#fff" font-size="16" font-family="Inter,Segoe UI Symbol,sans-serif">★★★★☆</text><circle cx="270" cy="207" r="8" fill="#9b6ad8"/></g>
+    </g>
+  </g>
+  <rect x="1148" y="948" width="424" height="32" rx="5" fill="#11161c" opacity=".92"/>
+  <text x="1164" y="969" fill="#8f9ba7" font-size="12" font-family="Inter,Segoe UI,sans-serif">Concept only — non-binding visual direction</text>
+</svg>
