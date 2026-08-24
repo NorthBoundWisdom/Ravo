@@ -166,7 +166,8 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 
 } // namespace
 
-CatalogService::CatalogService(EngineFacade &engine, std::unique_ptr<CatalogRepository> repository,
+CatalogService::CatalogService(const EngineFacade &engine,
+                               std::unique_ptr<CatalogRepository> repository,
                                std::unique_ptr<RasterDecoder> raster,
                                std::unique_ptr<PreviewCache> cache)
     : engine_(&engine),

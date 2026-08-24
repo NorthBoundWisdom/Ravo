@@ -177,7 +177,8 @@ M0 是可复用底层，不是第一版软件完成状态。
   加固仍待补齐。
 - [ ] Gallery 增加异步缩略图、占位/失败状态、基本滚动虚拟化和快速选择；viewer 增加平移与缩放。
 - [ ] 数据库连接、worker、preview 内存与磁盘缓存建立明确预算；关闭窗口时无悬空任务或晚到 UI 写入。
-- [ ] CLI 增加 catalog create/import/list/preview 的版本化 JSON，用作 services 的无 UI 验收客户端。
+- [x] CLI 增加 catalog create/import/list/preview 的版本化 JSON，用作 services 的无 UI 验收客户端。
+  rate/develop/recipe 也走同一 CatalogService。
 
 出口：代表性小目录可重复导入、浏览和重开；重复执行不产生重复资产；损坏文件不阻塞其余成功项。
 

@@ -106,10 +106,17 @@ ravo inspect <input> --json
 ravo recipe import-xmp <legacy.xmp> --asset-id <id> --input <input-uri> --output <recipe> --json
 ravo recipe validate <recipe> --json
 ravo render <input> --recipe <recipe> --output <png> --backend cpu [--width N] [--height N] --json
+ravo catalog create --path <library.sqlite> --json
+ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
+ravo catalog list --catalog <library.sqlite> --json
+ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
+ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
+ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ```
 
-已有输出路径返回结构化 `conflict`，不会被隐式覆盖。M2 计划让 CLI 增加 catalog
-create/import/list/preview 命令，作为同一 services 的无 UI 验收客户端。
+已有输出路径返回结构化 `conflict`，不会被隐式覆盖。catalog 命令调用与 Studio 相同的
+services，作为无 UI 验收客户端。
 
 ## 名称与目录
 

@@ -24,7 +24,7 @@ Widgets。不能删除检查来放行新依赖。
 
 当前 Ravo Debug 图覆盖 foundation/recipe/engine/CLI 与 catalog integration。P0 契约包括 schema
 v2→v3 迁移、review 持久化、筛选与缺失原片状态；P1 契约包括每张图一份 canonical recipe、CPU
-develop 操作和 edited preview。FreeCM Test 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套
+develop 操作、edited preview，以及 `ravo catalog` JSON 命令走同一 CatalogService。FreeCM Test 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套
 测试。GitHub Actions 在 `mac_clang_debug`、`linux_clang_debug` 与 `win_msvc_debug` 上跑同一组
 CTest，并额外跑 freeze/capability/boundary 等静态检查。CI 先 `--init` 再改活动锁里的 Qt/PATH，然后
 `--update`。构建走 `cmake --build build/<preset>`，不依赖 Linux 模板里的 `ClangDebug` 构建

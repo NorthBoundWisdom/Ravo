@@ -453,6 +453,34 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     EXPECT_EQ(reset.value().review.rating, 3);
 }
 
+TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingReview)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "bad-recipe.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(QColor(10, 80, 10));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->set_rating(asset_id, 2));
+
+    auto repository = SqliteCatalogRepository::open(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    ASSERT_TRUE(repository.value()->save_recipe_json(asset_id, 1, R"({"not":"a-recipe")"));
+    ASSERT_TRUE(repository.value()->close());
+
+    auto loaded = service->load_recipe(asset_id);
+    ASSERT_FALSE(loaded);
+    EXPECT_EQ(loaded.error().code, ErrorCode::kValidation);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().review.rating, 2);
+    EXPECT_TRUE(listed.value().front().has_edits);
+}
+
 } // namespace
 } // namespace ravo
 

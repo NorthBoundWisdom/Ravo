@@ -3,11 +3,14 @@
 #include <string_view>
 #include <vector>
 
+#include <QCoreApplication>
+
 #include "ravo/cli/application.h"
 #include "ravo/foundation/log.h"
 
-int main(const int argc, char *argv[])
+int main(int argc, char *argv[])
 {
+    QCoreApplication qt(argc, argv);
     ravo::init_logging("ravo");
     auto engine = ravo::EngineFacade::create_phase1();
     if (!engine)

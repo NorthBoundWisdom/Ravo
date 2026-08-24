@@ -22,7 +22,7 @@ namespace ravo
 class CatalogService
 {
 public:
-    CatalogService(EngineFacade &engine, std::unique_ptr<CatalogRepository> repository,
+    CatalogService(const EngineFacade &engine, std::unique_ptr<CatalogRepository> repository,
                    std::unique_ptr<RasterDecoder> raster, std::unique_ptr<PreviewCache> cache);
 
     CatalogService(const CatalogService &) = delete;
@@ -57,7 +57,7 @@ private:
                                                          std::uint64_t request_revision,
                                                          bool ignore_edits = false);
 
-    EngineFacade *engine_ = nullptr;
+    const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
     std::unique_ptr<PreviewCache> cache_;

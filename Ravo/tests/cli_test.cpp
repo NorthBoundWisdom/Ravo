@@ -7,11 +7,14 @@
 #include <string_view>
 #include <vector>
 
+#include <QCoreApplication>
 #include <gtest/gtest.h>
 
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/cli/application.h"
+#include "ravo/domain/types.h"
+#include "ravo/foundation/log.h"
 #include "ravo/recipe/recipe.h"
 
 #include "test_support.h"
@@ -21,11 +24,30 @@ namespace ravo
 namespace
 {
 
+void ensure_qt_core()
+{
+    static const bool logging = [] {
+        ravo::init_logging("ravo-cli-tests");
+        return true;
+    }();
+    static_cast<void>(logging);
+    if (QCoreApplication::instance() != nullptr)
+    {
+        return;
+    }
+    static int argc = 1;
+    static char dummy[] = "ravo-cli-tests";
+    static char *argv[] = {dummy, nullptr};
+    static auto *app = new QCoreApplication(argc, argv);
+    static_cast<void>(app);
+}
+
 class CliTest : public ::testing::Test
 {
 protected:
     void SetUp() override
     {
+        ensure_qt_core();
         const auto created = EngineFacade::create_phase1();
         ASSERT_TRUE(created) << created.error().message;
         engine = std::move(created).value();
@@ -510,6 +532,108 @@ TEST_F(CliTest, JsonFailuresStayStructuredAndDoNotWriteHumanLogsToStdout)
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "invalid_argument");
     EXPECT_TRUE(stderr_stream.str().empty());
+}
+
+TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
+{
+    const auto root = std::filesystem::temp_directory_path() / ("ravo-cli-catalog-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "0000-nop" /
+                      "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto created = parse_json(stdout_stream.str());
+    ASSERT_TRUE(created) << created.error().message;
+    EXPECT_TRUE(stderr_stream.str().empty());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_EQ(items->array_if()->size(), 1U);
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const auto id = *asset_id->string_if();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "rate", "--catalog", catalog, "--asset-id", id, "--rating", "4",
+                  "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "develop", "--catalog", catalog, "--asset-id", id, "--exposure-ev",
+                  "0.5", "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "list", "--catalog", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto listed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(listed) << listed.error().message;
+    data = listed.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *assets = data->find("assets");
+    ASSERT_NE(assets, nullptr);
+    ASSERT_NE(assets->array_if(), nullptr);
+    ASSERT_EQ(assets->array_if()->size(), 1U);
+    const auto *has_edits = assets->array_if()->front().find("has_edits");
+    ASSERT_NE(has_edits, nullptr);
+    ASSERT_NE(has_edits->boolean_if(), nullptr);
+    EXPECT_TRUE(*has_edits->boolean_if());
+    const auto *rating = assets->array_if()->front().find("rating");
+    ASSERT_NE(rating, nullptr);
+    ASSERT_NE(rating->number_if(), nullptr);
+    EXPECT_EQ(rating->number_if()->text, "4");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "preview", "--catalog", catalog, "--asset-id", id, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto previewed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(previewed) << previewed.error().message;
+    data = previewed.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *cache_path = data->find("cache_path");
+    ASSERT_NE(cache_path, nullptr);
+    ASSERT_NE(cache_path->string_if(), nullptr);
+    EXPECT_TRUE(std::filesystem::exists(*cache_path->string_if()));
+    EXPECT_TRUE(stderr_stream.str().empty());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
 }
 
 } // namespace

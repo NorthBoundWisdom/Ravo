@@ -49,7 +49,7 @@ ALLOWED_FIRST_PARTY_LINKS = {
     "ravo_domain": frozenset({"ravo_foundation"}),
     "ravo_adapters": frozenset({"ravo_foundation", "ravo_recipe", "ravo_domain"}),
     "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
-    "ravo_cli": frozenset({"ravo_adapters", "ravo_engine"}),
+    "ravo_cli": frozenset({"ravo_adapters", "ravo_engine", "ravo_services"}),
     "ravo": frozenset({"ravo_cli"}),
     "ravo_desktop": frozenset({"ravo_services", "ravo_adapters"}),
     "ravo_studio": frozenset({"ravo_desktop"}),
@@ -61,7 +61,7 @@ REQUIRED_FIRST_PARTY_LINKS = {
     "ravo_domain": frozenset({"ravo_foundation"}),
     "ravo_adapters": frozenset({"ravo_foundation", "ravo_domain"}),
     "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
-    "ravo_cli": frozenset({"ravo_adapters", "ravo_engine"}),
+    "ravo_cli": frozenset({"ravo_adapters", "ravo_engine", "ravo_services"}),
     "ravo": frozenset({"ravo_cli"}),
     "ravo_desktop": frozenset({"ravo_services", "ravo_adapters"}),
     "ravo_studio": frozenset({"ravo_desktop"}),
@@ -73,7 +73,7 @@ ALLOWED_PUBLIC_HEADER_LAYERS = {
     "domain": frozenset({"foundation", "domain"}),
     "adapters": frozenset({"foundation", "recipe", "domain", "adapters"}),
     "services": frozenset({"foundation", "recipe", "engine", "domain", "services"}),
-    "cli": frozenset({"foundation", "recipe", "engine", "adapters", "cli"}),
+    "cli": frozenset({"foundation", "recipe", "engine", "domain", "adapters", "services", "cli"}),
     "desktop": frozenset(
         {"foundation", "recipe", "engine", "domain", "adapters", "services", "desktop"}
     ),

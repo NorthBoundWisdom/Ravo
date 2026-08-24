@@ -1,16 +1,24 @@
 #include "ravo/cli/application.h"
 
 #include <charconv>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/legacy_xmp.h"
+#include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/foundation/json.h"
+#include "ravo/recipe/develop.h"
+#include "ravo/services/catalog_service.h"
 
 namespace ravo
 {
@@ -186,6 +194,383 @@ parse_render_arguments(const std::span<const std::string_view> positional)
     return result;
 }
 
+struct CatalogCliArguments
+{
+    std::string_view catalog;
+    std::vector<std::string_view> inputs;
+    std::string_view asset_id;
+    std::optional<int> rating;
+    std::optional<double> exposure_ev;
+    std::optional<double> saturation;
+    std::optional<double> contrast;
+    std::optional<std::uint32_t> max_edge;
+};
+
+[[nodiscard]] Result<int> parse_int_flag(const std::string_view text, const std::string_view option)
+{
+    int value = 0;
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Option requires an integer",
+                          {{"option", std::string(option)}, {"value", std::string(text)}});
+    }
+    return value;
+}
+
+[[nodiscard]] Result<double> parse_double_flag(const std::string_view text,
+                                               const std::string_view option)
+{
+    const std::string owned(text);
+    char *end = nullptr;
+    const double value = std::strtod(owned.c_str(), &end);
+    if (end != owned.c_str() + owned.size() || !std::isfinite(value))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Option requires a finite number",
+                          {{"option", std::string(option)}, {"value", std::string(text)}});
+    }
+    return value;
+}
+
+[[nodiscard]] Result<CatalogCliArguments>
+parse_catalog_flags(const std::span<const std::string_view> positional)
+{
+    CatalogCliArguments result;
+    for (std::size_t index = 2; index < positional.size(); ++index)
+    {
+        const auto option = positional[index];
+        if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
+        {
+            return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",
+                              {{"option", std::string(option)}});
+        }
+        const auto value = positional[++index];
+        if (option == "--path" || option == "--catalog")
+        {
+            if (!result.catalog.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Catalog path was specified twice");
+            }
+            result.catalog = value;
+        }
+        else if (option == "--input")
+        {
+            result.inputs.push_back(value);
+        }
+        else if (option == "--asset-id")
+        {
+            if (!result.asset_id.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Asset ID was specified twice");
+            }
+            result.asset_id = value;
+        }
+        else if (option == "--rating")
+        {
+            auto rating = parse_int_flag(value, option);
+            if (!rating)
+            {
+                return rating.error();
+            }
+            result.rating = rating.value();
+        }
+        else if (option == "--exposure-ev")
+        {
+            auto parsed = parse_double_flag(value, option);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            result.exposure_ev = parsed.value();
+        }
+        else if (option == "--saturation")
+        {
+            auto parsed = parse_double_flag(value, option);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            result.saturation = parsed.value();
+        }
+        else if (option == "--contrast")
+        {
+            auto parsed = parse_double_flag(value, option);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            result.contrast = parsed.value();
+        }
+        else if (option == "--max-edge")
+        {
+            auto dimension = parse_dimension(value, option);
+            if (!dimension)
+            {
+                return dimension.error();
+            }
+            result.max_edge = dimension.value();
+        }
+        else
+        {
+            return make_error(ErrorCode::kInvalidArgument, "Unknown catalog option",
+                              {{"option", std::string(option)}});
+        }
+    }
+    return result;
+}
+
+[[nodiscard]] Result<std::unique_ptr<CatalogService>>
+open_catalog_session(const EngineFacade &engine, const std::string_view path, const bool create)
+{
+    auto repository = create ? SqliteCatalogRepository::create(path) : SqliteCatalogRepository::open(path);
+    if (!repository)
+    {
+        return repository.error();
+    }
+    auto cache = FilesystemPreviewCache::create(std::string(path) + ".preview");
+    if (!cache)
+    {
+        return cache.error();
+    }
+    return std::make_unique<CatalogService>(engine, std::move(repository).value(),
+                                            std::make_unique<QtRasterDecoder>(),
+                                            std::move(cache).value());
+}
+
+[[nodiscard]] JsonValue asset_to_json(const AssetRecord &asset)
+{
+    return JsonValue::Object{
+        {"color_label", std::string(color_label_name(asset.review.color_label))},
+        {"has_edits", asset.has_edits},
+        {"id", asset.id},
+        {"import_state", asset.import_state},
+        {"media_type", asset.media_type},
+        {"rating", JsonValue::number(std::to_string(asset.review.rating))},
+        {"rejected", asset.review.rejected},
+        {"uri", asset.normalized_uri},
+    };
+}
+
+[[nodiscard]] Result<JsonValue> run_catalog_command(const EngineFacade &engine,
+                                                    const std::span<const std::string_view> positional)
+{
+    if (positional.size() < 2)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Usage: ravo catalog <create|import|list|preview|recipe|develop|rate> "
+                          "--catalog <path>");
+    }
+    const auto subcommand = positional[1];
+    auto flags = parse_catalog_flags(positional);
+    if (!flags)
+    {
+        return flags.error();
+    }
+    if (flags.value().catalog.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Catalog commands require --catalog or --path");
+    }
+
+    if (subcommand == "create")
+    {
+        auto session = open_catalog_session(engine, flags.value().catalog, true);
+        if (!session)
+        {
+            return session.error();
+        }
+        auto snapshot = session.value()->snapshot();
+        if (!snapshot)
+        {
+            return snapshot.error();
+        }
+        return JsonValue{JsonValue::Object{
+            {"catalog_id", snapshot.value().catalog_id},
+            {"path", snapshot.value().database_path},
+            {"schema_version", JsonValue::number(std::to_string(snapshot.value().schema_version))},
+        }};
+    }
+
+    auto session = open_catalog_session(engine, flags.value().catalog, false);
+    if (!session)
+    {
+        return session.error();
+    }
+    auto &service = *session.value();
+
+    if (subcommand == "import")
+    {
+        if (flags.value().inputs.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog import requires --input");
+        }
+        std::vector<std::string> inputs;
+        inputs.reserve(flags.value().inputs.size());
+        for (const auto input : flags.value().inputs)
+        {
+            inputs.emplace_back(input);
+        }
+        auto imported = service.import_inputs(inputs, CancellationToken{});
+        if (!imported)
+        {
+            return imported.error();
+        }
+        JsonValue::Array items;
+        int imported_count = 0;
+        for (const auto &item : imported.value())
+        {
+            JsonValue::Object row{{"input", item.input_path},
+                                  {"status", std::string(item.status == ImportItemStatus::kImported ?
+                                                             "imported" :
+                                                         item.status == ImportItemStatus::kDuplicate ?
+                                                             "duplicate" :
+                                                         item.status == ImportItemStatus::kUnsupported ?
+                                                             "unsupported" :
+                                                             "failed")}};
+            if (item.asset)
+            {
+                row.emplace("asset", asset_to_json(*item.asset));
+            }
+            if (item.status == ImportItemStatus::kImported)
+            {
+                ++imported_count;
+            }
+            items.emplace_back(std::move(row));
+        }
+        return JsonValue{JsonValue::Object{
+            {"imported", JsonValue::number(std::to_string(imported_count))},
+            {"items", std::move(items)},
+        }};
+    }
+    if (subcommand == "list")
+    {
+        auto snapshot = service.snapshot();
+        if (!snapshot)
+        {
+            return snapshot.error();
+        }
+        auto listed = service.list_assets();
+        if (!listed)
+        {
+            return listed.error();
+        }
+        JsonValue::Array assets;
+        for (const auto &asset : listed.value())
+        {
+            assets.push_back(asset_to_json(asset));
+        }
+        return JsonValue{JsonValue::Object{
+            {"assets", std::move(assets)},
+            {"catalog_id", snapshot.value().catalog_id},
+            {"schema_version", JsonValue::number(std::to_string(snapshot.value().schema_version))},
+        }};
+    }
+    if (subcommand == "preview")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog preview requires --asset-id");
+        }
+        PreviewRequest request;
+        request.asset_id = std::string(flags.value().asset_id);
+        request.max_edge = flags.value().max_edge.value_or(kDefaultPreviewMaxEdge);
+        auto previewed = service.request_preview(request);
+        if (!previewed)
+        {
+            return previewed.error();
+        }
+        return JsonValue{JsonValue::Object{
+            {"asset_id", previewed.value().asset_id},
+            {"cache_path", previewed.value().cache_path},
+            {"height", JsonValue::number(std::to_string(previewed.value().height))},
+            {"original_missing", previewed.value().original_missing},
+            {"width", JsonValue::number(std::to_string(previewed.value().width))},
+        }};
+    }
+    if (subcommand == "recipe")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog recipe requires --asset-id");
+        }
+        auto recipe = service.load_recipe(flags.value().asset_id);
+        if (!recipe)
+        {
+            return recipe.error();
+        }
+        auto serialized = serialize_recipe(recipe.value());
+        if (!serialized)
+        {
+            return serialized.error();
+        }
+        auto parsed = parse_json(serialized.value());
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        auto params = develop_from_recipe(recipe.value());
+        if (!params)
+        {
+            return params.error();
+        }
+        return JsonValue{JsonValue::Object{
+            {"asset_id", std::string(flags.value().asset_id)},
+            {"has_edits", !params.value().is_identity()},
+            {"recipe", std::move(parsed).value()},
+        }};
+    }
+    if (subcommand == "develop")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog develop requires --asset-id");
+        }
+        auto loaded = service.load_recipe(flags.value().asset_id);
+        if (!loaded)
+        {
+            return loaded.error();
+        }
+        auto params = develop_from_recipe(loaded.value());
+        if (!params)
+        {
+            return params.error();
+        }
+        if (flags.value().exposure_ev)
+        {
+            params.value().exposure_ev = *flags.value().exposure_ev;
+        }
+        if (flags.value().saturation)
+        {
+            params.value().saturation = *flags.value().saturation;
+        }
+        if (flags.value().contrast)
+        {
+            params.value().contrast = *flags.value().contrast;
+        }
+        auto saved = service.save_develop(flags.value().asset_id, params.value());
+        if (!saved)
+        {
+            return saved.error();
+        }
+        return asset_to_json(saved.value());
+    }
+    if (subcommand == "rate")
+    {
+        if (flags.value().asset_id.empty() || !flags.value().rating)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog rate requires --asset-id and --rating");
+        }
+        auto rated = service.set_rating(flags.value().asset_id, *flags.value().rating);
+        if (!rated)
+        {
+            return rated.error();
+        }
+        return asset_to_json(rated.value());
+    }
+    return make_error(ErrorCode::kInvalidArgument, "Unknown catalog subcommand",
+                      {{"subcommand", std::string(subcommand)}});
+}
+
 void write_human_error(std::ostream &stream, const TaskError &error)
 {
     stream << "ravo: " << error_code_name(error.code) << ": " << error.message;
@@ -324,6 +709,10 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
                         {"schema_version",
                          JsonValue::number(std::to_string(recipe.value().schema_version))}}},
                     json);
+    }
+    if (positional.front() == "catalog")
+    {
+        return emit(run_catalog_command(engine_, positional), json);
     }
     if (positional.front() == "inspect")
     {
