@@ -111,4 +111,4 @@ qt_add_qml_module(ravo_studio
 
 qt_add_resources(ravo_studio "studio_app_icon"
   PREFIX "/ravo/studio"
-  FILES icons/AppIcon.png)
+  FILES icons/AppIcon.png icons/AppIcon.ico)

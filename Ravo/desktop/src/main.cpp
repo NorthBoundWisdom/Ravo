@@ -30,7 +30,12 @@ int main(int argc, char *argv[])
     QGuiApplication application(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Ravo Studio"));
     QGuiApplication::setOrganizationName(QStringLiteral("Ravo"));
-    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/ravo/studio/icons/AppIcon.png")));
+#ifndef Q_OS_MACOS
+    // macOS Dock/Finder use the bundle ICNS. A single 1024 PNG window icon
+    // replaces those sized representations and reads one stop too large.
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/ravo/studio/icons/AppIcon.ico")));
+#endif
+
     QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
     QStringList families = ui_font.families();
     if (families.isEmpty() && !ui_font.family().isEmpty())
