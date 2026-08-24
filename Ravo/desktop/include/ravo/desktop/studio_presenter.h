@@ -15,6 +15,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVariant>
 
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
@@ -252,6 +253,7 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
+    Q_INVOKABLE void executeCommand(const QString &id, const QVariant &argument = QVariant());
 
 signals:
     void catalogChanged();
@@ -267,6 +269,7 @@ signals:
     void filterChanged();
     void folderChanged();
     void editChanged();
+    void uiCommandRequested(const QString &id);
 
 private:
     void setBusy(bool busy);
@@ -281,6 +284,7 @@ private:
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<void> open_on_worker(const std::string &path, bool create);
     void mutate_selected_review(const std::function<Result<AssetRecord>(CatalogService &)> &action);
+    void remove_selected_from_catalog();
 
     SerialExecutor executor_;
     std::optional<EngineFacade> engine_;

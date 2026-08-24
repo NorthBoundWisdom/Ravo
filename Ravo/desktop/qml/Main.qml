@@ -65,6 +65,16 @@ ApplicationWindow {
         aboutDialog.openWithButtons()
     }
 
+    function showPhotoMenu() {
+        photoMenu.popup()
+    }
+
+    function askRemovePhoto() {
+        if (!studio.selectedAssetId.length)
+            return
+        removeDialog.openWithButtons()
+    }
+
     function applyAppearance() {
         if (window.lightThemeHelper === null) {
             window.lightThemeHelper = Theme.helper
@@ -92,6 +102,25 @@ ApplicationWindow {
     Connections {
         target: studio
         function onNightModeChanged() { window.applyAppearance() }
+        function onUiCommandRequested(id) {
+            const ids = studioActions.ids
+            if (id === ids.libraryCreate)
+                openCreateLibraryDialog()
+            else if (id === ids.libraryOpen)
+                openOpenLibraryDialog()
+            else if (id === ids.libraryImportFiles)
+                openImportDialog()
+            else if (id === ids.libraryImportFolder)
+                openImportFolderDialog()
+            else if (id === ids.windowSettings)
+                window.settingsOpen = true
+            else if (id === ids.windowClose)
+                window.close()
+            else if (id === ids.windowQuit)
+                Qt.quit()
+            else if (id === ids.windowAbout)
+                openAboutDialog()
+        }
     }
 
     ColumnLayout {
@@ -146,12 +175,8 @@ ApplicationWindow {
                     currentIndex: studio.browseMode === "develop" ? 2 : (studio.browseMode === "loupe" ? 1 : 0)
                     enabled: studio.catalogOpen
                     onActivated: function (index) {
-                        if (index === 0)
-                            studio.returnToGrid()
-                        else if (index === 1)
-                            studio.openLoupe()
-                        else
-                            studio.openDevelop()
+                        studioActions.run(index === 0 ? studioActions.ids.viewGrid :
+                                          (index === 1 ? studioActions.ids.viewLoupe : studioActions.ids.viewDevelop))
                     }
                 }
 
@@ -416,11 +441,11 @@ ApplicationWindow {
 
                                 MouseArea {
                                     anchors.fill: parent
-                                    onClicked: studio.selectAsset(assetId)
-                                    onDoubleClicked: {
-                                        studio.selectAsset(assetId)
-                                        studio.openLoupe()
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: function (mouse) {
+                                        studioActions.handlePhotoClick(assetId, mouse)
                                     }
+                                    onDoubleClicked: studioActions.handlePhotoDoubleClick(assetId)
                                 }
                             }
                         }
@@ -453,7 +478,8 @@ ApplicationWindow {
                                     currentIndex: studio.zoomMode === "fill" ? 1 : (studio.zoomMode === "actual" ? 2 : 0)
                                     enabled: studio.previewUrl.toString().length > 0
                                     onActivated: function (index) {
-                                        studio.setZoomMode(index === 1 ? "fill" : (index === 2 ? "actual" : "fit"))
+                                        studioActions.run(index === 1 ? studioActions.ids.viewFill :
+                                                          (index === 2 ? studioActions.ids.viewActual : studioActions.ids.viewFit))
                                     }
                                 }
                                 CustomLabel {
@@ -462,8 +488,8 @@ ApplicationWindow {
                                     color: Theme.placeholderTextColor
                                 }
                                 Item { Layout.fillWidth: true }
-                                CustomButton { text: qsTr("Previous"); onClicked: studio.selectPrevious() }
-                                CustomButton { text: qsTr("Next"); onClicked: studio.selectNext() }
+                                CustomButton { text: qsTr("Previous"); onClicked: studioActions.previousPhoto.trigger() }
+                                CustomButton { text: qsTr("Next"); onClicked: studioActions.nextPhoto.trigger() }
                             }
                         }
 
@@ -513,6 +539,12 @@ ApplicationWindow {
                                 }
                             }
 
+                            MouseArea {
+                                anchors.fill: parent
+                                acceptedButtons: Qt.RightButton
+                                onClicked: window.showPhotoMenu()
+                            }
+
                             CustomLabel {
                                 anchors.centerIn: parent
                                 visible: previewImage.source.toString().length === 0 && !studio.previewLoading
@@ -546,6 +578,7 @@ ApplicationWindow {
                 SplitView.preferredWidth: 320
                 SplitView.minimumWidth: 260
                 presenter: studio
+                commands: studioActions
                 colorChoices: window.colorChoices
                 swatchColor: window.swatchColor
             }
@@ -557,6 +590,7 @@ ApplicationWindow {
             Layout.preferredHeight: 108
             Layout.minimumHeight: 88
             presenter: studio
+            commands: studioActions
         }
 
         Item {
@@ -578,12 +612,30 @@ ApplicationWindow {
         }
     }
 
+    PhotoContextMenu {
+        id: photoMenu
+        commands: studioActions
+    }
+
     SettingsPage {
         anchors.fill: parent
         visible: window.settingsOpen
         z: 20
         presenter: studio
         onCloseRequested: window.settingsOpen = false
+    }
+
+    MessageDialog {
+        id: removeDialog
+        parentItem: window.contentItem
+        titleText: qsTr("Remove from Catalog")
+        messageText: qsTr("Remove this photo from the library? The original file on disk will not be deleted.")
+        buttons: [qsTr("Cancel"), qsTr("Remove")]
+        defaultButtonText: qsTr("Remove")
+        onFinished: function (buttonText) {
+            if (buttonText === qsTr("Remove"))
+                studioActions.run(studioActions.ids.photoRemove)
+        }
     }
 
     MessageDialog {

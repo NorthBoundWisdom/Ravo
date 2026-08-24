@@ -77,7 +77,18 @@ MenuBar {
             MenuItem { action: actions.rating4 }
             MenuItem { action: actions.rating5 }
         }
+        Menu {
+            title: qsTr("Color Label")
+            MenuItem { action: actions.colorNone }
+            MenuItem { action: actions.colorRed }
+            MenuItem { action: actions.colorYellow }
+            MenuItem { action: actions.colorGreen }
+            MenuItem { action: actions.colorBlue }
+            MenuItem { action: actions.colorPurple }
+        }
         MenuItem { action: actions.reject }
+        MenuSeparator {}
+        MenuItem { action: actions.removePhoto }
     }
 
     Menu {

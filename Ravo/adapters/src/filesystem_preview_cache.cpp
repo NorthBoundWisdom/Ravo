@@ -143,4 +143,23 @@ FilesystemPreviewCache::commit_png_bytes(const std::string_view cache_key,
     return path;
 }
 
+Result<void> FilesystemPreviewCache::remove_png(const std::string_view cache_key)
+{
+    if (!key_is_safe(cache_key))
+    {
+        return make_error(ErrorCode::kValidation, "Preview cache key is invalid",
+                          {{"cache_key", std::string(cache_key)}});
+    }
+    const auto path = absolute_png_path(cache_key);
+    std::error_code error;
+    std::filesystem::remove(
+        std::filesystem::path(std::u8string(path.begin(), path.end())), error);
+    if (error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to remove preview cache file",
+                          {{"path", path}, {"detail", error.message()}});
+    }
+    return {};
+}
+
 } // namespace ravo

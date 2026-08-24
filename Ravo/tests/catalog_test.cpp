@@ -350,6 +350,39 @@ TEST_F(CatalogServiceTest, ListsImportedFoldersAndFiltersByFolderUri)
     EXPECT_NE(listed.value().front().normalized_uri.find("Trip"), std::string::npos);
 }
 
+TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.fill(QColor(32, 64, 96));
+    const auto photo = root / "keep-original.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto original_hash = file_sha256(photo.string());
+
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = 64;
+    auto preview = service->request_preview(request);
+    ASSERT_TRUE(preview) << preview.error().message;
+
+    auto removed = service->remove_from_catalog(asset_id);
+    ASSERT_TRUE(removed) << removed.error().message;
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    EXPECT_TRUE(listed.value().empty());
+    EXPECT_TRUE(std::filesystem::exists(photo));
+    EXPECT_EQ(file_sha256(photo.string()), original_hash);
+
+    auto missing = service->remove_from_catalog(asset_id);
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
+}
+
 TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 {
     auto created = open_service(true);

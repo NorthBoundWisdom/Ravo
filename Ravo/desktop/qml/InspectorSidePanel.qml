@@ -5,6 +5,7 @@ import GeoControls 1.0
 Rectangle {
     id: root
     property var presenter
+    property var commands
     property var colorChoices: []
     property var swatchColor: function (name) { return Theme.midColor }
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
@@ -107,7 +108,10 @@ Rectangle {
                 Layout.leftMargin: Fonts.standardMargin
                 enabled: root.hasSelection
                 rating: root.hasPresenter ? root.presenter.selectedRating : 0
-                onRatingChangedByUser: function (value) { if (root.hasPresenter) root.presenter.setRating(value) }
+                onRatingChangedByUser: function (value) {
+                    if (root.commands)
+                        root.commands.setRating(value)
+                }
             }
 
             RowLayout {
@@ -126,7 +130,7 @@ Rectangle {
                         MouseArea {
                             anchors.fill: parent
                             enabled: root.hasSelection
-                            onClicked: if (root.hasPresenter) root.presenter.setColorLabel(modelData)
+                            onClicked: if (root.commands) root.commands.setColorLabel(modelData)
                         }
                     }
                 }
@@ -136,7 +140,7 @@ Rectangle {
                 Layout.leftMargin: Fonts.standardMargin
                 text: root.hasPresenter && root.presenter.selectedRejected ? qsTr("Unreject") : qsTr("Reject")
                 enabled: root.hasSelection
-                onClicked: if (root.hasPresenter) root.presenter.toggleRejected()
+                onClicked: if (root.commands) root.commands.reject.trigger()
             }
 
             CustomLabel {
@@ -153,24 +157,24 @@ Rectangle {
                 spacing: Fonts.smallSpacing
 
                 RowLayout {
-                    CustomButton { text: qsTr("Undo"); enabled: root.hasPresenter && root.presenter.canUndo; onClicked: if (root.hasPresenter) root.presenter.undoEdit() }
-                    CustomButton { text: qsTr("Redo"); enabled: root.hasPresenter && root.presenter.canRedo; onClicked: if (root.hasPresenter) root.presenter.redoEdit() }
+                    CustomButton { text: qsTr("Undo"); enabled: root.hasPresenter && root.presenter.canUndo; onClicked: if (root.commands) root.commands.undo.trigger() }
+                    CustomButton { text: qsTr("Redo"); enabled: root.hasPresenter && root.presenter.canRedo; onClicked: if (root.commands) root.commands.redo.trigger() }
                     CustomButton {
                         text: root.hasPresenter && root.presenter.beforeAfter ? qsTr("After") : qsTr("Before")
                         enabled: root.hasSelection
-                        onClicked: if (root.hasPresenter) root.presenter.toggleBeforeAfter()
+                        onClicked: if (root.commands) root.commands.beforeAfter.trigger()
                     }
                     CustomButton {
                         text: qsTr("Reset all")
                         enabled: root.hasSelection
-                        onClicked: if (root.hasPresenter) root.presenter.resetAllEdits()
+                        onClicked: if (root.commands) root.commands.resetEdits.trigger()
                     }
                 }
 
                 CustomLabel { text: qsTr("Geometry"); font.bold: true }
                 RowLayout {
-                    CustomButton { text: qsTr("Rotate L"); enabled: root.hasSelection; onClicked: if (root.hasPresenter) root.presenter.rotateLeft() }
-                    CustomButton { text: qsTr("Rotate R"); enabled: root.hasSelection; onClicked: if (root.hasPresenter) root.presenter.rotateRight() }
+                    CustomButton { text: qsTr("Rotate L"); enabled: root.hasSelection; onClicked: if (root.commands) root.commands.rotateLeft.trigger() }
+                    CustomButton { text: qsTr("Rotate R"); enabled: root.hasSelection; onClicked: if (root.commands) root.commands.rotateRight.trigger() }
                     CustomButton { text: qsTr("Reset"); enabled: root.hasSelection; onClicked: if (root.hasPresenter) root.presenter.resetSection("geometry") }
                 }
                 CustomSlider {

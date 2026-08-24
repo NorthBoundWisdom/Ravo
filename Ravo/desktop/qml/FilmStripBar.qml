@@ -5,6 +5,7 @@ import GeoControls 1.0
 Rectangle {
     id: root
     property var presenter
+    property var commands
     color: Qt.lighter(Theme.windowColor, 1.08)
 
     Rectangle {
@@ -76,13 +77,12 @@ Rectangle {
                 }
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: if (root.presenter) root.presenter.selectAsset(assetId)
-                    onDoubleClicked: {
-                        if (!root.presenter)
-                            return
-                        root.presenter.selectAsset(assetId)
-                        root.presenter.openLoupe()
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: function (mouse) {
+                        if (root.commands)
+                            root.commands.handlePhotoClick(assetId, mouse)
                     }
+                    onDoubleClicked: if (root.commands) root.commands.handlePhotoDoubleClick(assetId)
                 }
             }
         }

@@ -342,6 +342,48 @@ Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id
     return *asset.value();
 }
 
+Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto preview = repository_->find_preview(asset_id);
+    if (!preview)
+    {
+        return preview.error();
+    }
+    if (preview.value() && cache_ != nullptr && !preview.value()->cache_key.empty())
+    {
+        const auto removed_cache = cache_->remove_png(preview.value()->cache_key);
+        if (!removed_cache)
+        {
+            return removed_cache.error();
+        }
+    }
+    const auto removed = repository_->remove_asset(asset_id);
+    if (!removed)
+    {
+        return removed.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    return {};
+}
+
 Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
 {
     if (repository_ == nullptr || engine_ == nullptr)

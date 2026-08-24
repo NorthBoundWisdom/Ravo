@@ -38,6 +38,7 @@ public:
     [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
     [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
+    [[nodiscard]] Result<void> remove_from_catalog(std::string_view asset_id);
     [[nodiscard]] Result<Recipe> load_recipe(std::string_view asset_id) const;
     [[nodiscard]] Result<AssetRecord> save_recipe(std::string_view asset_id, const Recipe &recipe);
     [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,

@@ -630,6 +630,27 @@ Result<void> SqliteCatalogRepository::update_review(const std::string_view asset
     return {};
 }
 
+Result<void> SqliteCatalogRepository::remove_asset(const std::string_view asset_id)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral("DELETE FROM asset WHERE id = ?"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "remove_asset");
+    }
+    if (query.numRowsAffected() == 0)
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    return {};
+}
+
 Result<std::optional<PreviewRecord>>
 SqliteCatalogRepository::find_preview(const std::string_view asset_id) const
 {

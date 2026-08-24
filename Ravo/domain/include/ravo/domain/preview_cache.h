@@ -23,6 +23,7 @@ public:
     existing_png(std::string_view cache_key) const = 0;
     [[nodiscard]] virtual Result<std::string>
     commit_png_bytes(std::string_view cache_key, const std::vector<std::uint8_t> &png_bytes) = 0;
+    [[nodiscard]] virtual Result<void> remove_png(std::string_view cache_key) = 0;
 };
 
 } // namespace ravo

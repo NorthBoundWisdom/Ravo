@@ -47,7 +47,10 @@ API 同样不越过 port。Qt 值类型可在有明确收益的 target 内使用
 Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 services、任务与
 `QQmlApplicationEngine`，desktop-owned QObject presenter/model 把不可变 service snapshot 和 commands
 映射给 QML。QML/JavaScript 只拥有瞬时 view state、布局、绑定和输入，不实现 catalog/import/preview
-业务规则。QML 资源通过 `qt_add_qml_module` 纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。
+业务规则。Studio 的菜单、快捷键、右键菜单和 inspector 控件都通过同一组 QML `Action` 调用
+`StudioPresenter::executeCommand`；窗口对话框由该入口发出 `uiCommandRequested`，QML 只负责弹出。
+删除照片只从 catalog 移除记录和 preview cache，不删除原片。QML 资源通过 `qt_add_qml_module`
+纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。
 
 ## 核心数据契约
 

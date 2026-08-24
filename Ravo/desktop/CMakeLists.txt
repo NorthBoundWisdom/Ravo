@@ -6,7 +6,8 @@ add_library(ravo_desktop STATIC)
 target_sources(ravo_desktop
   PRIVATE
     src/studio_presenter.cpp
-    include/ravo/desktop/studio_presenter.h)
+    include/ravo/desktop/studio_presenter.h
+    include/ravo/desktop/studio_commands.h)
 
 target_include_directories(ravo_desktop
   PUBLIC
@@ -105,7 +106,8 @@ qt_add_qml_module(ravo_studio
     qml/DarkThemePalette.qml
     qml/SettingsPage.qml
     qml/StudioActions.qml
-    qml/StudioMenuBar.qml)
+    qml/StudioMenuBar.qml
+    qml/PhotoContextMenu.qml)
 
 qt_add_resources(ravo_studio "studio_app_icon"
   PREFIX "/ravo/studio"

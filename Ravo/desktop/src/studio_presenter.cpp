@@ -1,4 +1,5 @@
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_commands.h"
 
 #include <algorithm>
 #include <utility>
@@ -8,7 +9,9 @@
 #include <QMetaObject>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QUrl>
+#include <QVariant>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
@@ -1456,6 +1459,163 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                     return;
                 }
                 assets_.setThumbnail(id, {}, QStringLiteral("failed"));
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void StudioPresenter::executeCommand(const QString &id, const QVariant &argument)
+{
+    using namespace command_id;
+    static const QStringList kWindowCommands{
+        QLatin1String(kLibraryCreate),  QLatin1String(kLibraryOpen),
+        QLatin1String(kLibraryImportFiles), QLatin1String(kLibraryImportFolder),
+        QLatin1String(kWindowSettings), QLatin1String(kWindowClose),
+        QLatin1String(kWindowQuit),     QLatin1String(kWindowAbout),
+    };
+    if (kWindowCommands.contains(id))
+    {
+        emit uiCommandRequested(id);
+        return;
+    }
+
+    if (id == QLatin1String(kPhotoSelect))
+    {
+        selectAsset(argument.toString());
+    }
+    else if (id == QLatin1String(kPhotoRate))
+    {
+        setRating(argument.toInt());
+    }
+    else if (id == QLatin1String(kPhotoColor))
+    {
+        setColorLabel(argument.toString());
+    }
+    else if (id == QLatin1String(kPhotoReject))
+    {
+        toggleRejected();
+    }
+    else if (id == QLatin1String(kPhotoRemove))
+    {
+        remove_selected_from_catalog();
+    }
+    else if (id == QLatin1String(kPhotoPrevious))
+    {
+        selectPrevious();
+    }
+    else if (id == QLatin1String(kPhotoNext))
+    {
+        selectNext();
+    }
+    else if (id == QLatin1String(kViewGrid))
+    {
+        returnToGrid();
+    }
+    else if (id == QLatin1String(kViewLoupe))
+    {
+        openLoupe();
+    }
+    else if (id == QLatin1String(kViewDevelop))
+    {
+        openDevelop();
+    }
+    else if (id == QLatin1String(kViewFit))
+    {
+        setZoomMode(QStringLiteral("fit"));
+    }
+    else if (id == QLatin1String(kViewFill))
+    {
+        setZoomMode(QStringLiteral("fill"));
+    }
+    else if (id == QLatin1String(kViewActual))
+    {
+        setZoomMode(QStringLiteral("actual"));
+    }
+    else if (id == QLatin1String(kEditUndo))
+    {
+        undoEdit();
+    }
+    else if (id == QLatin1String(kEditRedo))
+    {
+        redoEdit();
+    }
+    else if (id == QLatin1String(kEditResetAll))
+    {
+        resetAllEdits();
+    }
+    else if (id == QLatin1String(kEditRotateLeft))
+    {
+        rotateLeft();
+    }
+    else if (id == QLatin1String(kEditRotateRight))
+    {
+        rotateRight();
+    }
+    else if (id == QLatin1String(kEditBeforeAfter))
+    {
+        toggleBeforeAfter();
+    }
+    else
+    {
+        setError(QStringLiteral("Unknown command: %1").arg(id));
+    }
+}
+
+void StudioPresenter::remove_selected_from_catalog()
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    const int keep_index = std::max(0, selectedIndex());
+    executor_.post([this, asset_id, keep_index]() {
+        Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
+        Result<std::vector<AssetRecord>> listed =
+            make_error(ErrorCode::kIo, "Catalog session is closed");
+        Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+        if (service_ != nullptr)
+        {
+            removed = service_->remove_from_catalog(asset_id);
+            if (removed)
+            {
+                listed = service_->list_assets(current_query());
+                folders = service_->list_folders();
+            }
+        }
+        QMetaObject::invokeMethod(
+            this,
+            [this, removed = std::move(removed), listed = std::move(listed),
+             folders = std::move(folders), keep_index]() mutable {
+                if (!removed)
+                {
+                    setError(qstring_from_utf8(removed.error().message));
+                    return;
+                }
+                if (!listed)
+                {
+                    setError(qstring_from_utf8(listed.error().message));
+                    return;
+                }
+                if (folders)
+                {
+                    applyFolders(std::move(folders).value());
+                }
+                applyAssets(std::move(listed).value(), false);
+                if (assets_.rowCount() == 0)
+                {
+                    selected_asset_id_.clear();
+                    preview_url_.clear();
+                    preview_loading_ = false;
+                    emit selectionChanged();
+                    emit previewChanged();
+                }
+                else
+                {
+                    const int row = std::min(keep_index, assets_.rowCount() - 1);
+                    selectAsset(assets_.assetIdAt(row));
+                }
+                setStatus(QStringLiteral("Removed from catalog. Original file was not deleted."));
             },
             Qt::QueuedConnection);
     });

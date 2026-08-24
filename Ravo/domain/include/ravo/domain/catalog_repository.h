@@ -26,6 +26,7 @@ public:
     [[nodiscard]] virtual Result<void> update_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_review(std::string_view asset_id,
                                                      const ReviewState &review) = 0;
+    [[nodiscard]] virtual Result<void> remove_asset(std::string_view asset_id) = 0;
     [[nodiscard]] virtual Result<std::optional<std::string>>
     load_recipe_json(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<void> save_recipe_json(std::string_view asset_id,
