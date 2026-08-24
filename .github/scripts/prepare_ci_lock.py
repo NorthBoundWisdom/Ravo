@@ -11,14 +11,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import shutil
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
-SSH_GITHUB_REMOTE = re.compile(r"^git@github\.com:(.+)$")
 USER_PLACEHOLDER = "<user>"
 VALID_PLATFORMS = ("mac", "linux", "win")
 PENV_PATH = "$penv{PATH}"
@@ -40,13 +38,6 @@ def load_jsonc(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"lock is not an object: {path}")
     return data
-
-
-def to_https_github_remote(remote: str) -> str:
-    match = SSH_GITHUB_REMOTE.match(remote.strip())
-    if match is None:
-        return remote
-    return f"https://github.com/{match.group(1)}"
 
 
 def normalize_path_entries(entries: list[str], *, separator: str) -> list[str]:
@@ -86,10 +77,6 @@ def apply_ci_lock(
     dependencies = patched.get("dependencies")
     if not isinstance(dependencies, dict):
         raise ValueError("lock is missing dependencies")
-    for name, spec in dependencies.items():
-        if not isinstance(spec, dict) or "remote" not in spec:
-            raise ValueError(f"dependency {name!r} is missing a remote")
-        spec["remote"] = to_https_github_remote(str(spec["remote"]))
 
     cache = patched.setdefault("cmakeCacheVariables", {})
     if not isinstance(cache, dict):
@@ -132,10 +119,6 @@ def assert_ci_lock(
         raise ValueError("CI lock cmakeEnvironment.PATH does not match the requested PATH")
     if USER_PLACEHOLDER in str(lock["cmakeEnvironment"].get("PATH", "")):
         raise ValueError("CI lock cmakeEnvironment.PATH still contains a user placeholder")
-    for spec in lock["dependencies"].values():
-        remote = str(spec["remote"])
-        if remote.startswith("git@"):
-            raise ValueError(f"CI lock still has an SSH remote: {remote}")
 
 
 def write_lock(path: Path, lock: dict[str, Any]) -> None:
@@ -166,8 +149,8 @@ def self_check(repo_root: Path) -> None:
         )
         write_lock(active, linux_lock)
         geocontrols = linux_lock["dependencies"]["GeoControls"]["remote"]
-        if geocontrols != "https://github.com/NorthBoundWisdom/GeoControls.git":
-            raise ValueError(f"unexpected GeoControls remote after rewrite: {geocontrols}")
+        if geocontrols != "git@github.com:NorthBoundWisdom/GeoControls.git":
+            raise ValueError(f"CI lock must keep the template GeoControls remote: {geocontrols}")
 
         win_prefix = cmake_prefix_path(
             [r"D:\a\Ravo\Qt\6.11.2\msvc2022_64", r"D:\a\Ravo\ci-prefix"]

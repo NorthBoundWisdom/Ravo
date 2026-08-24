@@ -138,6 +138,7 @@ jobs:
           aqtsource: git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e
 
       - name: Put Qt binaries on PATH
+        if: runner.os != 'Windows'
         run: |
           set -euo pipefail
           if [[ -z "${QT_ROOT_DIR:-}" ]]; then
@@ -149,11 +150,21 @@ jobs:
             echo "Qt bin directory is missing: ${qt_bin}" >&2
             exit 1
           fi
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "$(cygpath -w "${qt_bin}")" >> "$GITHUB_PATH"
-          else
-            echo "${qt_bin}" >> "$GITHUB_PATH"
-          fi
+          echo "${qt_bin}" >> "$GITHUB_PATH"
+
+      - name: Put Qt binaries on Windows PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not $env:QT_ROOT_DIR) {
+            throw "QT_ROOT_DIR was not set by install-qt-action"
+          }
+          $qtBin = Join-Path $env:QT_ROOT_DIR "bin"
+          if (-not (Test-Path $qtBin)) {
+            throw "Qt bin directory is missing: $qtBin"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $qtBin
+          Add-Content -Path $env:GITHUB_ENV -Value ("Path={0};{1}" -f $qtBin, $env:Path)
 
       - name: Install host CMake packages
         run: |
@@ -182,8 +193,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/dependency_seed_repos
-          key: seeds-${{ runner.os }}-${{ hashFiles('source_roots.lock.jsonc.in') }}
-          restore-keys: seeds-${{ runner.os }}-
+          key: seeds-v2-${{ runner.os }}-${{ hashFiles('source_roots.lock.jsonc.in') }}
+          restore-keys: seeds-v2-${{ runner.os }}-
 
       - name: Materialize source roots
         run: |
