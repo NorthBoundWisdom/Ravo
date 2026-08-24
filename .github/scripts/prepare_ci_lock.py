@@ -173,6 +173,26 @@ def self_check(repo_root: Path) -> None:
     print("prepare_ci_lock self-check passed")
 
 
+def check_generated_preset_path(repo_root: Path, *, preset: str, required_entries: list[str]) -> None:
+    presets_path = repo_root / "CMakePresets.json"
+    if not presets_path.is_file():
+        raise ValueError(f"generated presets are missing: {presets_path}")
+    data = json.loads(presets_path.read_text(encoding="utf-8"))
+    presets = data.get("configurePresets")
+    if not isinstance(presets, list):
+        raise ValueError("CMakePresets.json is missing configurePresets")
+    match = next((item for item in presets if item.get("name") == preset), None)
+    if not isinstance(match, dict):
+        raise ValueError(f"generated CMakePresets.json is missing configure preset {preset!r}")
+    path = str(match.get("environment", {}).get("PATH", ""))
+    print(f"generated {preset} PATH={path}")
+    normalized = path.replace("\\", "/")
+    for entry in required_entries:
+        required = entry.replace("\\", "/").rstrip("/")
+        if required not in normalized:
+            raise ValueError(f"generated preset PATH is missing {required}")
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -205,9 +225,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="active lock created by --init (default: <repo>/source_roots.lock.jsonc)",
     )
     parser.add_argument(
+        "--preset",
+        help="configure preset name to inspect with --check-preset",
+    )
+    parser.add_argument(
         "--self-check",
         action="store_true",
         help="validate rewrite rules against a copied template without writing the workspace lock",
+    )
+    parser.add_argument(
+        "--check-preset",
+        action="store_true",
+        help="assert the generated CMakePresets.json PATH contains --path-entry values",
     )
     return parser.parse_args(argv)
 
@@ -217,6 +246,11 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     if args.self_check:
         self_check(repo_root)
+        return 0
+    if args.check_preset:
+        if args.preset is None or not args.path_entry:
+            raise SystemExit("--check-preset requires --preset and --path-entry")
+        check_generated_preset_path(repo_root, preset=args.preset, required_entries=args.path_entry)
         return 0
     if args.platform is None or not args.prefix_path or not args.path_entry:
         raise SystemExit(

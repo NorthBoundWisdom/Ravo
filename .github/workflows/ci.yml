@@ -219,18 +219,17 @@ jobs:
           python configs/source_roots.py show --format json
           python configs/source_roots.py resolve --format json
           python configs/source_roots.py verify
+          python .github/scripts/prepare_ci_lock.py \
+            --repo-root . \
+            --check-preset \
+            --preset "${{ matrix.preset }}" \
+            "${path_args[@]}"
 
       - name: Configure Ravo
         run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=ON
 
       - name: Build Ravo
-        run: |
-          set -euo pipefail
-          if [[ "${{ matrix.platform }}" == "linux" ]]; then
-            cmake --build "build/${{ matrix.preset }}" --parallel
-          else
-            cmake --build --preset "${{ matrix.preset }}" --parallel
-          fi
+        run: cmake --build "build/${{ matrix.preset }}" --parallel
 
       - name: Test Ravo
         run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4

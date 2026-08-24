@@ -31,10 +31,11 @@ GitHub Actions (`.github/workflows/ci.yml`) follows the same FreeCM path as a
 local machine: `--init` creates the ignored `source_roots.lock.jsonc` from the
 template, CI then rewrites that lock's Qt/host `CMAKE_PREFIX_PATH` and
 `cmakeEnvironment.PATH`, and `--update` generates presets. Configure uses
-`cmake --preset *-debug -DBUILD_TESTING=ON`. macOS and Windows build with
-`cmake --build --preset`; Linux builds `build/linux_clang_debug` because the
-generated Linux build preset is named `ClangDebug`. Frozen `legacy/` is not
-configured or built.
+`cmake --preset *-debug -DBUILD_TESTING=ON`. CI then builds
+`build/<preset>` so the runner PATH (including Qt) is visible to Windows
+gtest discovery; Linux also cannot use `cmake --build --preset linux_clang_debug`
+because the generated build preset is named `ClangDebug`. Frozen `legacy/` is
+not configured or built.
 
 GeoControls is public today; if it becomes private, add a `GEOCONTROLS_TOKEN`
 repository secret with `contents:read`.
