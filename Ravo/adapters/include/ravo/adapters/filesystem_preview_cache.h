@@ -23,6 +23,7 @@ public:
     commit_png_bytes(std::string_view cache_key,
                      const std::vector<std::uint8_t> &png_bytes) override;
     [[nodiscard]] Result<void> remove_png(std::string_view cache_key) override;
+    [[nodiscard]] Result<void> remove_for_asset(std::string_view asset_id) override;
 
 private:
     explicit FilesystemPreviewCache(std::string root);

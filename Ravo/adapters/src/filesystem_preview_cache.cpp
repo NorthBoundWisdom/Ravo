@@ -165,4 +165,54 @@ Result<void> FilesystemPreviewCache::remove_png(const std::string_view cache_key
     return {};
 }
 
+Result<void> FilesystemPreviewCache::remove_for_asset(const std::string_view asset_id)
+{
+    if (asset_id.empty() || asset_id.find('/') != std::string_view::npos ||
+        asset_id.find('\\') != std::string_view::npos)
+    {
+        return make_error(ErrorCode::kValidation, "Preview cache asset id is invalid",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    const auto needle = "_" + std::string(asset_id) + "_";
+    std::error_code error;
+    const auto root = std::filesystem::path(std::u8string(root_.begin(), root_.end()));
+    if (!std::filesystem::exists(root, error))
+    {
+        return {};
+    }
+    if (error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to inspect preview cache directory",
+                          {{"path", root_}, {"detail", error.message()}});
+    }
+    std::error_code iterator_error;
+    for (const auto &entry : std::filesystem::directory_iterator(root, iterator_error))
+    {
+        if (iterator_error)
+        {
+            return make_error(ErrorCode::kIo, "Unable to iterate preview cache directory",
+                              {{"path", root_}, {"detail", iterator_error.message()}});
+        }
+        const auto name = from_u8(entry.path().filename().u8string());
+        if (name.find(needle) == std::string::npos)
+        {
+            continue;
+        }
+        std::error_code remove_error;
+        std::filesystem::remove(entry.path(), remove_error);
+        if (remove_error)
+        {
+            return make_error(ErrorCode::kIo, "Unable to remove preview cache file",
+                              {{"path", from_u8(entry.path().generic_u8string())},
+                               {"detail", remove_error.message()}});
+        }
+    }
+    if (iterator_error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to iterate preview cache directory",
+                          {{"path", root_}, {"detail", iterator_error.message()}});
+    }
+    return {};
+}
+
 } // namespace ravo

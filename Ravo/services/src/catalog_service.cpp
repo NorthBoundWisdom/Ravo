@@ -359,19 +359,6 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
-    auto preview = repository_->find_preview(asset_id);
-    if (!preview)
-    {
-        return preview.error();
-    }
-    if (preview.value() && cache_ != nullptr && !preview.value()->cache_key.empty())
-    {
-        const auto removed_cache = cache_->remove_png(preview.value()->cache_key);
-        if (!removed_cache)
-        {
-            return removed_cache.error();
-        }
-    }
     const auto removed = repository_->remove_asset(asset_id);
     if (!removed)
     {
@@ -381,6 +368,14 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
     if (!revision)
     {
         return revision.error();
+    }
+    if (cache_ != nullptr)
+    {
+        const auto removed_cache = cache_->remove_for_asset(asset_id);
+        if (!removed_cache)
+        {
+            return removed_cache.error();
+        }
     }
     return {};
 }

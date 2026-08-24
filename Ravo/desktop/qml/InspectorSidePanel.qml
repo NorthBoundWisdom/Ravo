@@ -206,8 +206,8 @@ Rectangle {
                     CustomButton {
                         text: qsTr("Reset")
                         enabled: root.hasSelection
-                        onClicked: if (root.hasPresenter)
-                            root.presenter.resetSection("geometry")
+                        onClicked: if (root.commands)
+                            root.commands.resetSection("geometry")
                     }
                 }
                 CustomSlider {
@@ -220,8 +220,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editCropX : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("cropX", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("cropX", value);
                     }
                 }
                 CustomSlider {
@@ -234,8 +234,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editCropY : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("cropY", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("cropY", value);
                     }
                 }
                 CustomSlider {
@@ -248,8 +248,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editCropWidth : 1
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("cropWidth", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("cropWidth", value);
                     }
                 }
                 CustomSlider {
@@ -262,8 +262,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editCropHeight : 1
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("cropHeight", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("cropHeight", value);
                     }
                 }
 
@@ -280,8 +280,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editTemperature : 6500
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("temperature", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("temperature", value);
                     }
                 }
                 CustomSlider {
@@ -293,15 +293,15 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editTint : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("tint", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("tint", value);
                     }
                 }
                 CustomButton {
                     text: qsTr("Reset WB")
                     enabled: root.hasSelection
-                    onClicked: if (root.hasPresenter)
-                        root.presenter.resetSection("whiteBalance")
+                    onClicked: if (root.commands)
+                        root.commands.resetSection("whiteBalance")
                 }
 
                 CustomLabel {
@@ -318,8 +318,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editExposure : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("exposure", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("exposure", value);
                     }
                 }
                 CustomSlider {
@@ -332,8 +332,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editContrast : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("contrast", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("contrast", value);
                     }
                 }
                 CustomSlider {
@@ -346,8 +346,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editHighlights : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("highlights", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("highlights", value);
                     }
                 }
                 CustomSlider {
@@ -360,8 +360,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editShadows : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("shadows", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("shadows", value);
                     }
                 }
                 CustomSlider {
@@ -374,8 +374,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editWhites : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("whites", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("whites", value);
                     }
                 }
                 CustomSlider {
@@ -388,15 +388,15 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editBlacks : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("blacks", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("blacks", value);
                     }
                 }
                 CustomButton {
                     text: qsTr("Reset light")
                     enabled: root.hasSelection
-                    onClicked: if (root.hasPresenter)
-                        root.presenter.resetSection("light")
+                    onClicked: if (root.commands)
+                        root.commands.resetSection("light")
                 }
 
                 CustomLabel {
@@ -413,8 +413,8 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editVibrance : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("vibrance", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("vibrance", value);
                     }
                 }
                 CustomSlider {
@@ -427,15 +427,15 @@ Rectangle {
                     value: root.hasPresenter ? root.presenter.editSaturation : 0
                     delayedCommit: true
                     onValueCommitted: function (value) {
-                        if (root.hasPresenter)
-                            root.presenter.setDevelopNumber("saturation", value);
+                        if (root.commands)
+                            root.commands.setDevelopNumber("saturation", value);
                     }
                 }
                 CustomButton {
                     text: qsTr("Reset color")
                     enabled: root.hasSelection
-                    onClicked: if (root.hasPresenter)
-                        root.presenter.resetSection("color")
+                    onClicked: if (root.commands)
+                        root.commands.resetSection("color")
                 }
             }
         }

@@ -355,7 +355,7 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
-    QImage image(8, 8, QImage::Format_RGB888);
+    QImage image(400, 400, QImage::Format_RGB888);
     image.fill(QColor(32, 64, 96));
     const auto photo = root / "keep-original.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
@@ -365,11 +365,19 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
-    PreviewRequest request;
-    request.asset_id = asset_id;
-    request.max_edge = 64;
-    auto preview = service->request_preview(request);
-    ASSERT_TRUE(preview) << preview.error().message;
+    PreviewRequest thumb;
+    thumb.asset_id = asset_id;
+    thumb.max_edge = kThumbnailMaxEdge;
+    auto thumb_preview = service->request_preview(thumb);
+    ASSERT_TRUE(thumb_preview) << thumb_preview.error().message;
+    PreviewRequest full;
+    full.asset_id = asset_id;
+    full.max_edge = kDefaultPreviewMaxEdge;
+    auto full_preview = service->request_preview(full);
+    ASSERT_TRUE(full_preview) << full_preview.error().message;
+    EXPECT_NE(thumb_preview.value().cache_path, full_preview.value().cache_path);
+    EXPECT_TRUE(std::filesystem::exists(thumb_preview.value().cache_path));
+    EXPECT_TRUE(std::filesystem::exists(full_preview.value().cache_path));
 
     auto removed = service->remove_from_catalog(asset_id);
     ASSERT_TRUE(removed) << removed.error().message;
@@ -378,6 +386,8 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     EXPECT_TRUE(listed.value().empty());
     EXPECT_TRUE(std::filesystem::exists(photo));
     EXPECT_EQ(file_sha256(photo.string()), original_hash);
+    EXPECT_FALSE(std::filesystem::exists(thumb_preview.value().cache_path));
+    EXPECT_FALSE(std::filesystem::exists(full_preview.value().cache_path));
 
     auto missing = service->remove_from_catalog(asset_id);
     ASSERT_FALSE(missing);

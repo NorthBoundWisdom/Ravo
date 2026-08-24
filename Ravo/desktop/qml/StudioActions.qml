@@ -38,6 +38,8 @@ Item {
         readonly property string editUndo: "edit.undo"
         readonly property string editRedo: "edit.redo"
         readonly property string editResetAll: "edit.resetAll"
+        readonly property string editResetSection: "edit.resetSection"
+        readonly property string editSetNumber: "edit.setNumber"
         readonly property string editRotateLeft: "edit.rotateLeft"
         readonly property string editRotateRight: "edit.rotateRight"
         readonly property string editBeforeAfter: "edit.beforeAfter"
@@ -110,6 +112,17 @@ Item {
 
     function setColorLabel(value) {
         root.run(root.ids.photoColor, value);
+    }
+
+    function setDevelopNumber(name, value) {
+        root.run(root.ids.editSetNumber, {
+            "name": name,
+            "value": value
+        });
+    }
+
+    function resetSection(section) {
+        root.run(root.ids.editResetSection, section);
     }
 
     Action {

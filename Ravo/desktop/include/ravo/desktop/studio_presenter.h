@@ -283,7 +283,8 @@ private:
     void load_develop_for_selection();
     void commit_develop(DevelopParams params, bool push_history);
     [[nodiscard]] LibraryQuery current_query() const;
-    [[nodiscard]] Result<void> open_on_worker(const std::string &path, bool create);
+    [[nodiscard]] Result<std::unique_ptr<CatalogService>>
+    make_catalog_service(const std::string &path, bool create);
     void mutate_selected_review(const std::function<Result<AssetRecord>(CatalogService &)> &action);
     void remove_selected_from_catalog();
 
@@ -308,6 +309,7 @@ private:
     bool preview_loading_ = false;
     std::uint64_t preview_revision_ = 0;
     std::uint64_t thumbnail_revision_ = 0;
+    std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
     DevelopParams develop_{};
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;
