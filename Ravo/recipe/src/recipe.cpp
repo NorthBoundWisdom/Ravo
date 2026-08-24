@@ -2,8 +2,12 @@
 
 #include <charconv>
 #include <cmath>
+#include <ios>
 #include <limits>
+#include <locale>
 #include <set>
+#include <sstream>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -131,6 +135,44 @@ required_field(const JsonObject &object, const std::string_view name, const std:
     return result;
 }
 
+[[nodiscard]] bool parse_json_double(const std::string_view text, double &result)
+{
+    if (text.empty())
+    {
+        return false;
+    }
+    // Apple libc++ still lacks floating std::from_chars. Parse the JSON number
+    // token with the classic locale so the decimal point stays '.' on every host.
+    std::istringstream stream{std::string(text)};
+    stream.imbue(std::locale::classic());
+    stream >> std::noskipws;
+    double value = 0.0;
+    if (!(stream >> value) || stream.peek() != std::char_traits<char>::eof() ||
+        !std::isfinite(value))
+    {
+        return false;
+    }
+    result = value;
+    return true;
+}
+
+[[nodiscard]] Result<std::string> format_json_double(const double value)
+{
+    if (!std::isfinite(value))
+    {
+        return make_error(ErrorCode::kValidation, "Recipe numeric values must be finite");
+    }
+    std::ostringstream stream;
+    stream.imbue(std::locale::classic());
+    stream.precision(std::numeric_limits<double>::max_digits10);
+    stream << value;
+    if (!stream)
+    {
+        return make_error(ErrorCode::kInternal, "Unable to serialize a recipe numeric value");
+    }
+    return stream.str();
+}
+
 [[nodiscard]] Result<double> double_at(const JsonValue &value, const std::string_view path)
 {
     const auto *number = value.number_if();
@@ -139,11 +181,7 @@ required_field(const JsonObject &object, const std::string_view name, const std:
         return field_error("Expected a numeric JSON value", path);
     }
     double result = 0.0;
-    const auto [position, error] =
-        std::from_chars(number->text.data(), number->text.data() + number->text.size(), result,
-                        std::chars_format::general);
-    if (error != std::errc{} || position != number->text.data() + number->text.size() ||
-        !std::isfinite(result))
+    if (!parse_json_double(number->text, result))
     {
         return field_error("Expected a finite numeric JSON value", path);
     }
@@ -157,18 +195,12 @@ required_field(const JsonObject &object, const std::string_view name, const std:
 
 [[nodiscard]] Result<JsonValue> double_json(const double value)
 {
-    if (!std::isfinite(value))
+    auto text = format_json_double(value);
+    if (!text)
     {
-        return make_error(ErrorCode::kValidation, "Recipe numeric values must be finite");
+        return text.error();
     }
-    char buffer[std::numeric_limits<double>::max_digits10 + 8] = {};
-    const auto [position, error] =
-        std::to_chars(std::begin(buffer), std::end(buffer), value, std::chars_format::general);
-    if (error != std::errc{})
-    {
-        return make_error(ErrorCode::kInternal, "Unable to serialize a recipe numeric value");
-    }
-    return JsonValue::number(std::string(buffer, position));
+    return JsonValue::number(std::move(text.value()));
 }
 
 [[nodiscard]] Result<AssetDescriptor> parse_asset(const JsonValue &value)

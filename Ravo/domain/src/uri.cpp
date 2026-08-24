@@ -172,9 +172,12 @@ Result<FileIdentity> read_file_identity(const std::string_view path)
     }
     FileIdentity identity;
     identity.size_bytes = static_cast<std::uint64_t>(size);
-    identity.mtime_unix_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 std::chrono::file_clock::to_sys(file_time).time_since_epoch())
-                                 .count();
+    // MSVC's filesystem file_clock has no to_sys. Convert through the current
+    // offset between file_clock and system_clock instead of a clock-specific API.
+    using FileClock = std::filesystem::file_time_type::clock;
+    const auto sys_time = std::chrono::system_clock::now() + (file_time - FileClock::now());
+    identity.mtime_unix_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sys_time.time_since_epoch()).count();
     return identity;
 }
 
