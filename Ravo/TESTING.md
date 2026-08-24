@@ -22,7 +22,7 @@ adapters/desktop，`Qt6::Qml`/`Qt6::Quick`、`QtQuick.Controls`/`QtQuick.Dialogs
 `GeoControls`/`GeoControls.AppShell` import 与 production `.qml` 仅 desktop；所有 Ravo target 禁止 Qt
 Widgets。不能删除检查来放行新依赖。
 
-当前 Ravo Debug 图有 16 个 `ravo-unit`、30 个 `ravo-contract` 与 4 个 `ravo-catalog` 测试。FreeCM Test
+当前 Ravo Debug 图有 18 个 `ravo-unit`、30 个 `ravo-contract` 与 6 个 `ravo-catalog` 测试。FreeCM Test
 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套测试。unit/contract 覆盖
 foundation/recipe/executor、CLI JSON/退出码、有限 XMP 映射、真实 `mire1.cr2` inspect/render。
 catalog 测试覆盖 schema create/reopen/newer-version reject、PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、

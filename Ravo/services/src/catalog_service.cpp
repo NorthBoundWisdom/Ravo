@@ -131,7 +131,8 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     }
     std::sort(files.begin(), files.end());
     files.erase(std::unique(files.begin(), files.end()), files.end());
-    RFLOG_INFO("import enumeration collected {} files from {} inputs", files.size(), inputs.size());
+    LOG_INFO(ravo::logger(), "import enumeration collected {} files from {} inputs", files.size(),
+             inputs.size());
     return files;
 }
 
@@ -183,11 +184,123 @@ Result<CatalogSnapshot> CatalogService::snapshot() const
 
 Result<std::vector<AssetRecord>> CatalogService::list_assets() const
 {
+    return list_assets(LibraryQuery{});
+}
+
+Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery &query) const
+{
     if (repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
-    return repository_->list_assets();
+    auto listed = repository_->list_assets();
+    if (!listed)
+    {
+        return listed.error();
+    }
+    return filter_and_sort_assets(std::move(listed).value(), query);
+}
+
+Result<AssetRecord> CatalogService::set_rating(const std::string_view asset_id, const int rating)
+{
+    auto valid = validate_rating(rating);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    ReviewState review = asset.value()->review;
+    review.rating = rating;
+    const auto updated = repository_->update_review(asset_id, review);
+    if (!updated)
+    {
+        return updated.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    asset.value()->review = review;
+    return *asset.value();
+}
+
+Result<AssetRecord> CatalogService::set_color_label(const std::string_view asset_id,
+                                                    const ColorLabel label)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    ReviewState review = asset.value()->review;
+    review.color_label = label;
+    const auto updated = repository_->update_review(asset_id, review);
+    if (!updated)
+    {
+        return updated.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    asset.value()->review = review;
+    return *asset.value();
+}
+
+Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id, const bool rejected)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    ReviewState review = asset.value()->review;
+    review.rejected = rejected;
+    const auto updated = repository_->update_review(asset_id, review);
+    if (!updated)
+    {
+        return updated.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    asset.value()->review = review;
+    return *asset.value();
 }
 
 Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
@@ -204,15 +317,16 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
                            make_error(ErrorCode::kIo, "Catalog session is closed"));
     }
 
-    RFLOG_INFO("import one path={}", path);
+    LOG_INFO(ravo::logger(), "import one path={}", path);
     auto location = normalize_local_input(path);
     if (!location)
     {
-        RFLOG_ERROR("import path normalize failed path={} error={}", path,
-                    location.error().message);
+        LOG_ERROR(ravo::logger(), "import path normalize failed path={} error={}", path,
+                  location.error().message);
         return failed_item(std::string(path), location.error());
     }
-    RFLOG_DEBUG("import normalized path={} uri={}", location.value().path, location.value().uri);
+    LOG_DEBUG(ravo::logger(), "import normalized path={} uri={}", location.value().path,
+              location.value().uri);
 
     std::error_code exists_error;
     if (!std::filesystem::is_regular_file(
@@ -317,8 +431,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     auto preview = generate_preview(asset, kDefaultPreviewMaxEdge, cancellation, 0);
     if (!preview)
     {
-        RFLOG_ERROR("preview failed asset={} path={} error={}", asset.id, location.value().path,
-                    preview.error().message);
+        LOG_ERROR(ravo::logger(), "preview failed asset={} path={} error={}", asset.id,
+                  location.value().path, preview.error().message);
         PreviewRecord failed;
         failed.asset_id = asset.id;
         failed.state = std::string(kPreviewStateFailed);
@@ -329,7 +443,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     }
     else
     {
-        RFLOG_INFO("preview ready asset={} cache={}", asset.id, preview.value().cache_path);
+        LOG_INFO(ravo::logger(), "preview ready asset={} cache={}", asset.id,
+                 preview.value().cache_path);
     }
 
     ImportItemResult result;
@@ -431,8 +546,8 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
     auto location = normalize_local_input(asset.normalized_uri);
     if (!location)
     {
-        RFLOG_ERROR("preview normalize failed asset={} uri={} error={}", asset.id,
-                    asset.normalized_uri, location.error().message);
+        LOG_ERROR(ravo::logger(), "preview normalize failed asset={} uri={} error={}", asset.id,
+                  asset.normalized_uri, location.error().message);
         return location.error();
     }
     std::error_code exists_error;
@@ -442,8 +557,9 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
             exists_error) ||
         exists_error)
     {
-        RFLOG_ERROR("original file missing asset={} uri={} path={} filesystem_error={}", asset.id,
-                    asset.normalized_uri, location.value().path, exists_error.message());
+        LOG_ERROR(ravo::logger(),
+                  "original file missing asset={} uri={} path={} filesystem_error={}", asset.id,
+                  asset.normalized_uri, location.value().path, exists_error.message());
         AssetRecord missing = asset;
         missing.import_state = std::string(kImportStateMissing);
         missing.error_code = std::string(error_code_name(ErrorCode::kNotFound));

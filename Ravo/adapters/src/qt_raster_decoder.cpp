@@ -6,6 +6,7 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QIODevice>
 #include <QtGui/QImage>
+#include <QtGui/QImageIOHandler>
 #include <QtGui/QImageReader>
 
 namespace ravo
@@ -137,7 +138,15 @@ Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
     {
         return prepared.error();
     }
-    const QSize size = reader.size();
+    QSize size = reader.size();
+    const auto transformation = reader.transformation();
+    if (transformation == QImageIOHandler::TransformationRotate90 ||
+        transformation == QImageIOHandler::TransformationRotate270 ||
+        transformation == QImageIOHandler::TransformationMirrorAndRotate90 ||
+        transformation == QImageIOHandler::TransformationFlipAndRotate90)
+    {
+        size.transpose();
+    }
     if (size.width() <= 0 || size.height() <= 0)
     {
         return make_error(ErrorCode::kValidation, "Raster image has invalid dimensions",
@@ -181,10 +190,16 @@ Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t
     {
         return make_error(ErrorCode::kValidation, "Embedded preview payload is empty or too large");
     }
-    const QByteArray bytes = QByteArray::fromRawData(
-        reinterpret_cast<const char *>(encoded.data()), static_cast<qsizetype>(encoded.size()));
-    QImage image = QImage::fromData(bytes);
-    return encode_preview(std::move(image), max_edge, cancellation, "memory");
+    QByteArray bytes(reinterpret_cast<const char *>(encoded.data()),
+                     static_cast<qsizetype>(encoded.size()));
+    QBuffer buffer(&bytes);
+    if (!buffer.open(QIODevice::ReadOnly))
+    {
+        return make_error(ErrorCode::kIo, "Unable to open embedded preview payload");
+    }
+    QImageReader reader(&buffer);
+    reader.setAutoTransform(true);
+    return encode_preview(reader.read(), max_edge, cancellation, "memory");
 }
 
 } // namespace ravo

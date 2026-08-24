@@ -31,6 +31,10 @@ public:
 
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
+    [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query) const;
+    [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
+    [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
+    [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
     [[nodiscard]] Result<ImportItemResult> import_one(std::string_view path,
                                                       const CancellationToken &cancellation);
     [[nodiscard]] Result<std::vector<ImportItemResult>>

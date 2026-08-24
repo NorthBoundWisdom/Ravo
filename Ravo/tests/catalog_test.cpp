@@ -20,6 +20,7 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/uri.h"
+#include "ravo/foundation/log.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -135,7 +136,8 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
         database.setDatabaseName(QString::fromStdString(database_path));
         ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
         QSqlQuery query(database);
-        ASSERT_TRUE(query.exec(QStringLiteral("UPDATE schema_info SET schema_version = 2 WHERE id = 1")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("UPDATE schema_info SET schema_version = 99 WHERE id = 1")));
         database.close();
         database = QSqlDatabase();
         QSqlDatabase::removeDatabase(connection);
@@ -280,12 +282,103 @@ TEST_F(CatalogServiceTest, MissingAndUnsupportedInputsDoNotCreateReadyAssets)
     EXPECT_TRUE(listed.value().empty());
 }
 
+TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, 2);
+
+    const auto jpeg_path = (root / "keep.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(QColor(20, 40, 80));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    auto rated = service->set_rating(asset_id, 4);
+    ASSERT_TRUE(rated) << rated.error().message;
+    EXPECT_EQ(rated.value().review.rating, 4);
+    auto labeled = service->set_color_label(asset_id, ColorLabel::kGreen);
+    ASSERT_TRUE(labeled) << labeled.error().message;
+    EXPECT_EQ(labeled.value().review.color_label, ColorLabel::kGreen);
+    auto rejected = service->set_rejected(asset_id, true);
+    ASSERT_TRUE(rejected) << rejected.error().message;
+    EXPECT_TRUE(rejected.value().review.rejected);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().review.rating, 4);
+    EXPECT_EQ(listed.value().front().review.color_label, ColorLabel::kGreen);
+    EXPECT_TRUE(listed.value().front().review.rejected);
+
+    LibraryQuery exclude_rejected;
+    exclude_rejected.reject_filter = RejectFilter::kExclude;
+    auto filtered = service->list_assets(exclude_rejected);
+    ASSERT_TRUE(filtered) << filtered.error().message;
+    EXPECT_TRUE(filtered.value().empty());
+}
+
+TEST_F(CatalogServiceTest, MigratesV1CatalogToReviewSchema)
+{
+    {
+        const auto connection = QStringLiteral("ravo_v1_seed");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset (id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, mtime_unix_ms INTEGER NOT NULL, "
+            "content_fingerprint TEXT, width INTEGER, height INTEGER, import_state TEXT NOT NULL, "
+            "error_code TEXT, error_message TEXT, created_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+            "migrated_unix_ms) VALUES (1, 1, 'cat_legacy', 0, 1, 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset(id, normalized_uri, media_type, size_bytes, mtime_unix_ms, "
+            "import_state, created_unix_ms) VALUES ('ast_old', 'file:///tmp/old.png', "
+            "'image/png', 12, 1, 'imported', 1)")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto opened = open_service(false);
+    ASSERT_TRUE(opened) << opened.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, 2);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().review.rating, 0);
+    EXPECT_EQ(listed.value().front().review.color_label, ColorLabel::kNone);
+    EXPECT_FALSE(listed.value().front().review.rejected);
+}
+
 } // namespace
 } // namespace ravo
 
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
+    ravo::init_logging("ravo-catalog-tests");
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    const int result = RUN_ALL_TESTS();
+    ravo::shutdown_logging();
+    return result;
 }

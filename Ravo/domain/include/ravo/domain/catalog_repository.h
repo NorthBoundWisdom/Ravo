@@ -24,6 +24,8 @@ public:
     find_asset_by_uri(std::string_view normalized_uri) const = 0;
     [[nodiscard]] virtual Result<void> insert_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_asset(const AssetRecord &asset) = 0;
+    [[nodiscard]] virtual Result<void> update_review(std::string_view asset_id,
+                                                     const ReviewState &review) = 0;
     [[nodiscard]] virtual Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<void> upsert_preview(const PreviewRecord &preview) = 0;

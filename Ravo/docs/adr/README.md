@@ -12,3 +12,4 @@ ADR 记录已接受且会约束后续实现的重要决定。新 ADR 使用递�
 | [0005](0005-qtcore-filesystem-adapter.md) | Partially superseded by 0007 | Qt6::Core 可由 Ravo target 按需直接使用；UI 排期由 0007 更新 |
 | [0006](0006-explicit-colour-contract.md) | Accepted | 颜色状态在 engine 边界显式、版本化；第三方色彩类型保持私有 |
 | [0007](0007-first-usable-catalog-viewer.md) | Accepted | C++ + Qt Quick/QML 第一版优先交付 SQLite catalog、图片导入与桌面 viewer 纵切片 |
+| [0008](0008-p0-review-catalog-v2.md) | Accepted | Catalog schema v2 持久化 P0 rating/color/reject，并提升 preview contract |

@@ -27,6 +27,8 @@ public:
     find_asset_by_uri(std::string_view normalized_uri) const override;
     [[nodiscard]] Result<void> insert_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<void> update_review(std::string_view asset_id,
+                                             const ReviewState &review) override;
     [[nodiscard]] Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const override;
     [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;

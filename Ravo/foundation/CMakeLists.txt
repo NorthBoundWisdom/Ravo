@@ -13,6 +13,6 @@ target_include_directories(ravo_foundation
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-target_link_libraries(ravo_foundation PUBLIC rflog::rflog)
+target_link_libraries(ravo_foundation PUBLIC quill::quill)
 
 ravo_configure_target(ravo_foundation)

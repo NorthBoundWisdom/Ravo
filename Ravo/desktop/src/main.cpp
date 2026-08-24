@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/ravo/studio/icons/AppIcon.png")));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     ravo::init_logging("RavoStudio");
-    RFLOG_INFO("Ravo Studio starting");
+    LOG_INFO(ravo::logger(), "Ravo Studio starting");
 
     ravo::StudioPresenter presenter;
     QQmlApplicationEngine engine;

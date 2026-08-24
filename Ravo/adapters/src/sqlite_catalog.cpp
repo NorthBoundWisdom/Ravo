@@ -40,7 +40,10 @@ const char *kSchemaStatements[] = {
     "  import_state TEXT NOT NULL,"
     "  error_code TEXT,"
     "  error_message TEXT,"
-    "  created_unix_ms INTEGER NOT NULL"
+    "  created_unix_ms INTEGER NOT NULL,"
+    "  rating INTEGER NOT NULL DEFAULT 0,"
+    "  color_label TEXT NOT NULL DEFAULT 'none',"
+    "  rejected INTEGER NOT NULL DEFAULT 0"
     ")",
     "CREATE TABLE preview ("
     "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
@@ -141,6 +144,10 @@ const char *kSchemaStatements[] = {
     asset.error_code = string_column(query, 9);
     asset.error_message = string_column(query, 10);
     asset.created_unix_ms = query.value(11).toLongLong();
+    asset.review.rating = query.value(12).toInt();
+    const auto label = parse_color_label(utf8_from_qstring(query.value(13).toString()));
+    asset.review.color_label = label ? label.value() : ColorLabel::kNone;
+    asset.review.rejected = query.value(14).toInt() != 0;
     return asset;
 }
 
@@ -166,7 +173,8 @@ const char *kSchemaStatements[] = {
 
 constexpr const char *kAssetSelect =
     "SELECT id, normalized_uri, media_type, size_bytes, mtime_unix_ms, content_fingerprint, "
-    "width, height, import_state, error_code, error_message, created_unix_ms FROM asset";
+    "width, height, import_state, error_code, error_message, created_unix_ms, rating, "
+    "color_label, rejected FROM asset";
 
 constexpr const char *kPreviewSelect =
     "SELECT asset_id, contract_version, cache_key, width, height, state, cache_relpath, "
@@ -346,20 +354,73 @@ SqliteCatalogRepository::open(const std::string_view database_path)
         return make_error(ErrorCode::kValidation, "Catalog is missing schema_info",
                           {{"path", std::string(database_path)}});
     }
-    const auto version = query.value(0).toLongLong();
+    auto version = query.value(0).toLongLong();
     if (version > kCatalogSchemaVersion)
     {
         return make_error(ErrorCode::kUnsupported, "Catalog schema version is newer than this Ravo",
                           {{"path", std::string(database_path)},
                            {"schema_version", std::to_string(version)}});
     }
-    if (version < kCatalogSchemaVersion)
+    if (version < 1)
     {
-        return make_error(ErrorCode::kValidation, "Catalog schema version cannot be upgraded yet",
+        return make_error(ErrorCode::kValidation, "Catalog schema version is invalid",
                           {{"path", std::string(database_path)},
                            {"schema_version", std::to_string(version)}});
     }
-    impl->snapshot.schema_version = version;
+    if (version < kCatalogSchemaVersion)
+    {
+        if (!impl->database.transaction())
+        {
+            return make_error(ErrorCode::kIo, "Unable to start catalog migration transaction",
+                              {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}});
+        }
+        if (version == 1)
+        {
+            const auto rating = impl->exec(
+                QStringLiteral("ALTER TABLE asset ADD COLUMN rating INTEGER NOT NULL DEFAULT 0"),
+                "migrate_v2_rating");
+            const auto color = impl->exec(
+                QStringLiteral(
+                    "ALTER TABLE asset ADD COLUMN color_label TEXT NOT NULL DEFAULT 'none'"),
+                "migrate_v2_color_label");
+            const auto rejected = impl->exec(
+                QStringLiteral("ALTER TABLE asset ADD COLUMN rejected INTEGER NOT NULL DEFAULT 0"),
+                "migrate_v2_rejected");
+            if (!rating || !color || !rejected)
+            {
+                impl->database.rollback();
+                return !rating ? rating.error() : !color ? color.error() : rejected.error();
+            }
+            version = 2;
+        }
+        if (version != kCatalogSchemaVersion)
+        {
+            impl->database.rollback();
+            return make_error(ErrorCode::kValidation, "Catalog schema version cannot be upgraded",
+                              {{"path", std::string(database_path)},
+                               {"schema_version", std::to_string(version)}});
+        }
+        const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+        QSqlQuery update(impl->database);
+        update.prepare(QStringLiteral(
+            "UPDATE schema_info SET schema_version = ?, migrated_unix_ms = ? WHERE id = 1"));
+        update.addBindValue(static_cast<qlonglong>(kCatalogSchemaVersion));
+        update.addBindValue(static_cast<qlonglong>(now));
+        if (!update.exec())
+        {
+            impl->database.rollback();
+            return map_sql_error(update, "migrate_schema_info");
+        }
+        if (!impl->database.commit())
+        {
+            impl->database.rollback();
+            return make_error(ErrorCode::kIo, "Unable to commit catalog migration",
+                              {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}});
+        }
+    }
+    impl->snapshot.schema_version = kCatalogSchemaVersion;
     impl->snapshot.catalog_id = utf8_from_qstring(query.value(1).toString());
     impl->snapshot.revision = query.value(2).toLongLong();
     impl->snapshot.database_path = impl->database_path;
@@ -448,7 +509,8 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
     query.prepare(QStringLiteral(
         "INSERT INTO asset(id, normalized_uri, media_type, size_bytes, mtime_unix_ms, "
         "content_fingerprint, width, height, import_state, error_code, error_message, "
-        "created_unix_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+        "created_unix_ms, rating, color_label, rejected) VALUES "
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
     query.addBindValue(qstring_from_utf8(asset.id));
     query.addBindValue(qstring_from_utf8(asset.normalized_uri));
     query.addBindValue(qstring_from_utf8(asset.media_type));
@@ -461,6 +523,9 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
     query.addBindValue(optional_string(asset.error_code));
     query.addBindValue(optional_string(asset.error_message));
     query.addBindValue(static_cast<qlonglong>(asset.created_unix_ms));
+    query.addBindValue(asset.review.rating);
+    query.addBindValue(qstring_from_utf8(color_label_name(asset.review.color_label)));
+    query.addBindValue(asset.review.rejected ? 1 : 0);
     if (!query.exec())
     {
         if (query.lastError().nativeErrorCode() == QStringLiteral("2067") ||
@@ -484,7 +549,7 @@ Result<void> SqliteCatalogRepository::update_asset(const AssetRecord &asset)
     query.prepare(QStringLiteral(
         "UPDATE asset SET media_type = ?, size_bytes = ?, mtime_unix_ms = ?, "
         "content_fingerprint = ?, width = ?, height = ?, import_state = ?, error_code = ?, "
-        "error_message = ? WHERE id = ?"));
+        "error_message = ?, rating = ?, color_label = ?, rejected = ? WHERE id = ?"));
     query.addBindValue(qstring_from_utf8(asset.media_type));
     query.addBindValue(static_cast<qlonglong>(asset.size_bytes));
     query.addBindValue(static_cast<qlonglong>(asset.mtime_unix_ms));
@@ -494,6 +559,9 @@ Result<void> SqliteCatalogRepository::update_asset(const AssetRecord &asset)
     query.addBindValue(qstring_from_utf8(asset.import_state));
     query.addBindValue(optional_string(asset.error_code));
     query.addBindValue(optional_string(asset.error_message));
+    query.addBindValue(asset.review.rating);
+    query.addBindValue(qstring_from_utf8(color_label_name(asset.review.color_label)));
+    query.addBindValue(asset.review.rejected ? 1 : 0);
     query.addBindValue(qstring_from_utf8(asset.id));
     if (!query.exec())
     {
@@ -502,6 +570,37 @@ Result<void> SqliteCatalogRepository::update_asset(const AssetRecord &asset)
     if (query.numRowsAffected() == 0)
     {
         return make_error(ErrorCode::kNotFound, "Asset does not exist", {{"asset_id", asset.id}});
+    }
+    return {};
+}
+
+Result<void> SqliteCatalogRepository::update_review(const std::string_view asset_id,
+                                                    const ReviewState &review)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    auto valid = validate_rating(review.rating);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "UPDATE asset SET rating = ?, color_label = ?, rejected = ? WHERE id = ?"));
+    query.addBindValue(review.rating);
+    query.addBindValue(qstring_from_utf8(color_label_name(review.color_label)));
+    query.addBindValue(review.rejected ? 1 : 0);
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "update_review");
+    }
+    if (query.numRowsAffected() == 0)
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
     }
     return {};
 }

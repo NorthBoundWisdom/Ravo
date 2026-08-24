@@ -20,7 +20,9 @@
 根锁只声明 Ravo 的直接依赖。若依赖自己的锁模板声明 sibling 依赖，FreeCM 会从本地 seed
 递归解析 transitive closure；不要为了复制 closure 而把所有传递依赖重复写进根锁。
 
-当前直接依赖名为：`LibRaw`、`RfLog` 和 `GeoControls`。
+当前直接依赖名为：`LibRaw` 和 `GeoControls`。
+Quill 通过 `find_package(quill CONFIG REQUIRED)` 从主机 CMAKE_PREFIX_PATH
+（vcpkg / Homebrew / Qt 前缀）解析，不进入 source-root 锁。
 联调时 `depsManualPath` 的键必须使用这些逻辑依赖名，而不是猜测目录名。
 
 ## FreeCM 子模块跟踪
@@ -187,7 +189,6 @@ seed 必须处于你理解的分支/提交且没有未知改动。应先完成�
   "depsMode": "manual",
   "depsManualPath": {
     "LibRaw": "D:/work/LibRaw",
-    "RfLog": "",
     "GeoControls": ""
   }
 }

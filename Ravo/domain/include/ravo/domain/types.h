@@ -12,9 +12,10 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 1;
-inline constexpr std::int64_t kPreviewContractVersion = 1;
+inline constexpr std::int64_t kCatalogSchemaVersion = 2;
+inline constexpr std::int64_t kPreviewContractVersion = 2;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
+inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
 inline constexpr std::string_view kMediaTypeJpeg = "image/jpeg";
@@ -50,6 +51,60 @@ enum class ImportItemStatus
     kFailed,
 };
 
+enum class ColorLabel
+{
+    kNone,
+    kRed,
+    kYellow,
+    kGreen,
+    kBlue,
+    kPurple,
+};
+
+enum class RatingFilterMode
+{
+    kAny,
+    kMinimum,
+    kExact,
+};
+
+enum class RejectFilter
+{
+    kInclude,
+    kExclude,
+    kOnly,
+};
+
+enum class AssetSortField
+{
+    kImportTime,
+    kDisplayName,
+    kRating,
+};
+
+enum class SortDirection
+{
+    kAscending,
+    kDescending,
+};
+
+struct ReviewState
+{
+    int rating = 0;
+    ColorLabel color_label = ColorLabel::kNone;
+    bool rejected = false;
+};
+
+struct LibraryQuery
+{
+    RatingFilterMode rating_mode = RatingFilterMode::kAny;
+    int rating_value = 0;
+    std::vector<ColorLabel> color_labels;
+    RejectFilter reject_filter = RejectFilter::kInclude;
+    AssetSortField sort_field = AssetSortField::kImportTime;
+    SortDirection sort_direction = SortDirection::kDescending;
+};
+
 struct CatalogSnapshot
 {
     std::string catalog_id;
@@ -73,6 +128,7 @@ struct AssetRecord
     std::optional<std::string> error_code;
     std::optional<std::string> error_message;
     std::int64_t created_unix_ms = 0;
+    ReviewState review;
 };
 
 struct PreviewRecord
@@ -143,5 +199,12 @@ struct FileIdentity
 void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height,
                          std::uint32_t max_edge, std::uint32_t &output_width,
                          std::uint32_t &output_height) noexcept;
+[[nodiscard]] Result<void> validate_rating(int rating);
+[[nodiscard]] std::string_view color_label_name(ColorLabel label) noexcept;
+[[nodiscard]] Result<ColorLabel> parse_color_label(std::string_view name);
+[[nodiscard]] std::string asset_display_name(const AssetRecord &asset);
+[[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
+[[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
+                                                              const LibraryQuery &query);
 
 } // namespace ravo
