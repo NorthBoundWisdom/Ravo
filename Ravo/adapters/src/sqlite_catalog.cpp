@@ -55,6 +55,12 @@ const char *kSchemaStatements[] = {
     "  cache_relpath TEXT,"
     "  last_success_unix_ms INTEGER"
     ")",
+    "CREATE TABLE asset_recipe ("
+    "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+    "  recipe_schema_version INTEGER NOT NULL,"
+    "  recipe_json TEXT NOT NULL,"
+    "  updated_unix_ms INTEGER NOT NULL"
+    ")",
 };
 
 [[nodiscard]] QString qstring_from_utf8(const std::string_view text)
@@ -148,6 +154,7 @@ const char *kSchemaStatements[] = {
     const auto label = parse_color_label(utf8_from_qstring(query.value(13).toString()));
     asset.review.color_label = label ? label.value() : ColorLabel::kNone;
     asset.review.rejected = query.value(14).toInt() != 0;
+    asset.has_edits = query.value(15).toInt() != 0;
     return asset;
 }
 
@@ -174,7 +181,8 @@ const char *kSchemaStatements[] = {
 constexpr const char *kAssetSelect =
     "SELECT id, normalized_uri, media_type, size_bytes, mtime_unix_ms, content_fingerprint, "
     "width, height, import_state, error_code, error_message, created_unix_ms, rating, "
-    "color_label, rejected FROM asset";
+    "color_label, rejected, "
+    "EXISTS(SELECT 1 FROM asset_recipe WHERE asset_id = asset.id) FROM asset";
 
 constexpr const char *kPreviewSelect =
     "SELECT asset_id, contract_version, cache_key, width, height, state, cache_relpath, "
@@ -392,6 +400,23 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 return !rating ? rating.error() : !color ? color.error() : rejected.error();
             }
             version = 2;
+        }
+        if (version == 2)
+        {
+            const auto recipes = impl->exec(
+                QStringLiteral(
+                    "CREATE TABLE asset_recipe ("
+                    "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+                    "  recipe_schema_version INTEGER NOT NULL,"
+                    "  recipe_json TEXT NOT NULL,"
+                    "  updated_unix_ms INTEGER NOT NULL)"),
+                "migrate_v3_asset_recipe");
+            if (!recipes)
+            {
+                impl->database.rollback();
+                return recipes.error();
+            }
+            version = 3;
         }
         if (version != kCatalogSchemaVersion)
         {
@@ -651,6 +676,71 @@ Result<void> SqliteCatalogRepository::upsert_preview(const PreviewRecord &previe
     if (!query.exec())
     {
         return map_sql_error(query, "upsert_preview");
+    }
+    return {};
+}
+
+Result<std::optional<std::string>>
+SqliteCatalogRepository::load_recipe_json(const std::string_view asset_id) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral("SELECT recipe_json FROM asset_recipe WHERE asset_id = ?"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "load_recipe_json");
+    }
+    if (!query.next())
+    {
+        return std::optional<std::string>{};
+    }
+    return std::optional<std::string>{utf8_from_qstring(query.value(0).toString())};
+}
+
+Result<void> SqliteCatalogRepository::save_recipe_json(const std::string_view asset_id,
+                                                       const std::int64_t recipe_schema_version,
+                                                       const std::string_view recipe_json)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO asset_recipe(asset_id, recipe_schema_version, recipe_json, updated_unix_ms) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(asset_id) DO UPDATE SET recipe_schema_version = excluded.recipe_schema_version, "
+        "recipe_json = excluded.recipe_json, updated_unix_ms = excluded.updated_unix_ms"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    query.addBindValue(static_cast<qlonglong>(recipe_schema_version));
+    query.addBindValue(qstring_from_utf8(recipe_json));
+    query.addBindValue(static_cast<qlonglong>(now));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "save_recipe_json");
+    }
+    return {};
+}
+
+Result<void> SqliteCatalogRepository::clear_recipe(const std::string_view asset_id)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral("DELETE FROM asset_recipe WHERE asset_id = ?"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "clear_recipe");
     }
     return {};
 }

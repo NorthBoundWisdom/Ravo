@@ -3,6 +3,7 @@ add_library(ravo_engine STATIC)
 target_sources(ravo_engine
   PRIVATE
     src/engine.cpp
+    src/image_ops.cpp
     src/raw_pipeline.cpp)
 
 target_include_directories(ravo_engine

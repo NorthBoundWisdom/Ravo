@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "image_ops.h"
 #include "raw_pipeline.h"
 
 namespace ravo
@@ -101,16 +102,7 @@ Result<RenderResult> EngineFacade::render(const RenderRequest &request,
     {
         return make_error(ErrorCode::kInvalidArgument, "Render output URI must not be empty");
     }
-    auto decoded = decode_raw(request.asset.input_uri);
-    if (!decoded)
-    {
-        return decoded.error();
-    }
-    if (progress_sink != nullptr)
-    {
-        progress_sink->on_progress({request.correlation_id, "decode_complete", 1, 1});
-    }
-    auto rendered = render_raw(decoded.value(), request);
+    auto rendered = render_to_image(request, nullptr);
     if (!rendered)
     {
         return rendered.error();
@@ -126,6 +118,52 @@ Result<RenderResult> EngineFacade::render(const RenderRequest &request,
     }
     return RenderResult{request.correlation_id, request.output_uri, rendered.value().width,
                         rendered.value().height};
+}
+
+Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request,
+                                                    const RasterBuffer *raster) const
+{
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto valid = validate(request.recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    if (raster != nullptr)
+    {
+        auto working = working_from_srgb8(*raster);
+        if (!working)
+        {
+            return working.error();
+        }
+        auto adjusted =
+            apply_recipe_ops(std::move(working).value(), request.recipe, request.cancellation);
+        if (!adjusted)
+        {
+            return adjusted.error();
+        }
+        return encode_working_srgb(adjusted.value());
+    }
+    auto decoded = decode_raw(request.asset.input_uri);
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return render_raw(decoded.value(), request);
+}
+
+Result<std::vector<std::uint8_t>> EngineFacade::encode_png(const RenderedImage &image) const
+{
+    return encode_png_bytes(image);
+}
+
+Result<RasterBuffer> EngineFacade::decode_png(const std::vector<std::uint8_t> &bytes) const
+{
+    return decode_png_bytes(bytes);
 }
 
 } // namespace ravo

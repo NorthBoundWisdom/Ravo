@@ -3,7 +3,8 @@ add_library(ravo_recipe STATIC)
 target_sources(ravo_recipe
   PRIVATE
     src/operation.cpp
-    src/recipe.cpp)
+    src/recipe.cpp
+    src/develop.cpp)
 
 target_include_directories(ravo_recipe
   PUBLIC

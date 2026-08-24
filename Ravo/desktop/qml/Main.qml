@@ -61,6 +61,10 @@ Window {
 
     Shortcut { sequence: "G"; onActivated: studio.returnToGrid() }
     Shortcut { sequence: "E"; onActivated: studio.openLoupe() }
+    Shortcut { sequence: "D"; onActivated: studio.openDevelop() }
+    Shortcut { sequence: "Z"; enabled: studio.browseMode === "develop"; onActivated: studio.undoEdit() }
+    Shortcut { sequence: "Shift+Z"; enabled: studio.browseMode === "develop"; onActivated: studio.redoEdit() }
+    Shortcut { sequence: "\\"; enabled: studio.browseMode === "develop"; onActivated: studio.toggleBeforeAfter() }
     Shortcut { sequence: "Return"; onActivated: studio.openLoupe() }
     Shortcut { sequence: "Enter"; onActivated: studio.openLoupe() }
     Shortcut { sequence: "Esc"; onActivated: studio.returnToGrid() }
@@ -123,14 +127,16 @@ Window {
                 Item { Layout.fillWidth: true }
 
                 SegmentedControl {
-                    model: [qsTr("Grid"), qsTr("Loupe")]
-                    currentIndex: studio.browseMode === "loupe" ? 1 : 0
+                    model: [qsTr("Grid"), qsTr("Loupe"), qsTr("Edit")]
+                    currentIndex: studio.browseMode === "develop" ? 2 : (studio.browseMode === "loupe" ? 1 : 0)
                     enabled: studio.catalogOpen
                     onActivated: function (index) {
                         if (index === 0)
                             studio.returnToGrid()
-                        else
+                        else if (index === 1)
                             studio.openLoupe()
+                        else
+                            studio.openDevelop()
                     }
                 }
             }
@@ -213,6 +219,19 @@ Window {
                     text: studio.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
                     onClicked: studio.setSort(studio.sortField, studio.sortDirection === "asc" ? "desc" : "asc")
                 }
+                CustomLabel { text: qsTr("Size") }
+                CustomSlider {
+                    from: 120
+                    to: 260
+                    stepSize: 10
+                    value: studio.thumbnailSize
+                    showTitle: false
+                    showStepButton: false
+                    Layout.preferredWidth: 140
+                    delayedCommit: true
+                    commitDelay: 40
+                    onValueCommitted: function (value) { studio.thumbnailSize = Math.round(value) }
+                }
             }
         }
 
@@ -263,6 +282,7 @@ Window {
                     required property url thumbnailUrl
                     required property string thumbnailState
                     required property string importState
+                    required property bool hasEdits
                     width: grid.cellWidth
                     height: grid.cellHeight
 
@@ -332,10 +352,27 @@ Window {
                         }
 
                         Rectangle {
-                            visible: rejected
+                            visible: hasEdits
                             anchors.top: parent.top
                             anchors.right: parent.right
                             anchors.margins: Fonts.size6
+                            width: 48
+                            height: 18
+                            radius: 4
+                            color: Theme.highlightColor
+                            CustomLabel {
+                                anchors.centerIn: parent
+                                text: qsTr("Edit")
+                                color: "#ffffff"
+                                font.pixelSize: Fonts.size10
+                            }
+                        }
+
+                        Rectangle {
+                            visible: rejected
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: hasEdits ? Fonts.size6 + 52 : Fonts.size6
                             width: 56
                             height: 18
                             radius: 4
@@ -369,9 +406,14 @@ Window {
                 }
             }
 
-            ColumnLayout {
+            RowLayout {
                 anchors.fill: parent
-                visible: studio.browseMode === "loupe"
+                visible: studio.browseMode !== "grid"
+                spacing: 0
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 spacing: 0
 
                 Rectangle {
@@ -519,6 +561,162 @@ Window {
                                 anchors.fill: parent
                                 onClicked: studio.selectAsset(assetId)
                             }
+                        }
+                    }
+                }
+            }
+
+                Rectangle {
+                    visible: studio.browseMode === "develop"
+                    Layout.preferredWidth: 320
+                    Layout.fillHeight: true
+                    color: Theme.contentSurfaceColor
+
+                    Flickable {
+                        anchors.fill: parent
+                        clip: true
+                        contentWidth: width
+                        contentHeight: developColumn.implicitHeight
+
+                        ColumnLayout {
+                            id: developColumn
+                            width: parent.width
+                            spacing: Fonts.smallSpacing
+
+                            RowLayout {
+                                CustomButton {
+                                    text: qsTr("Undo")
+                                    enabled: studio.canUndo
+                                    onClicked: studio.undoEdit()
+                                }
+                                CustomButton {
+                                    text: qsTr("Redo")
+                                    enabled: studio.canRedo
+                                    onClicked: studio.redoEdit()
+                                }
+                                CustomButton {
+                                    text: studio.beforeAfter ? qsTr("After") : qsTr("Before")
+                                    onClicked: studio.toggleBeforeAfter()
+                                }
+                                CustomButton {
+                                    text: qsTr("Reset all")
+                                    onClicked: studio.resetAllEdits()
+                                }
+                            }
+
+                            CustomLabel { text: qsTr("Geometry"); font.bold: true }
+                            RowLayout {
+                                CustomButton { text: qsTr("Rotate L"); onClicked: studio.rotateLeft() }
+                                CustomButton { text: qsTr("Rotate R"); onClicked: studio.rotateRight() }
+                                CustomButton { text: qsTr("Reset"); onClicked: studio.resetSection("geometry") }
+                            }
+                            CustomSlider {
+                                title: qsTr("Crop X")
+                                from: 0; to: 0.9; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editCropX
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("cropX", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Crop Y")
+                                from: 0; to: 0.9; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editCropY
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("cropY", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Crop W")
+                                from: 0.1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editCropWidth
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("cropWidth", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Crop H")
+                                from: 0.1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editCropHeight
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("cropHeight", value) }
+                            }
+
+                            CustomLabel { text: qsTr("White Balance"); font.bold: true }
+                            CustomSlider {
+                                title: qsTr("Temp")
+                                from: 2000; to: 12000; stepSize: 50
+                                value: studio.editTemperature
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("temperature", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Tint")
+                                from: -150; to: 150; stepSize: 1
+                                value: studio.editTint
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("tint", value) }
+                            }
+                            CustomButton { text: qsTr("Reset WB"); onClicked: studio.resetSection("whiteBalance") }
+
+                            CustomLabel { text: qsTr("Light"); font.bold: true }
+                            CustomSlider {
+                                title: qsTr("Exposure")
+                                from: -5; to: 5; stepSize: 0.05; validatorDecimals: 2
+                                value: studio.editExposure
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("exposure", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Contrast")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editContrast
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("contrast", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Highlights")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editHighlights
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("highlights", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Shadows")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editShadows
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("shadows", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Whites")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editWhites
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("whites", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Blacks")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editBlacks
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("blacks", value) }
+                            }
+                            CustomButton { text: qsTr("Reset light"); onClicked: studio.resetSection("light") }
+
+                            CustomLabel { text: qsTr("Color"); font.bold: true }
+                            CustomSlider {
+                                title: qsTr("Vibrance")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editVibrance
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("vibrance", value) }
+                            }
+                            CustomSlider {
+                                title: qsTr("Saturation")
+                                from: -1; to: 1; stepSize: 0.01; validatorDecimals: 2
+                                value: studio.editSaturation
+                                delayedCommit: true
+                                onValueCommitted: function (value) { studio.setDevelopNumber("saturation", value) }
+                            }
+                            CustomButton { text: qsTr("Reset color"); onClicked: studio.resetSection("color") }
                         }
                     }
                 }

@@ -11,10 +11,13 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 - `ravo render` 可执行 nop 与 `ravo.core.exposure`，完成裁剪、black/white 归一化、camera WB、
   LibRaw camera-to-sRGB、基础 3×3 Bayer 插值、sRGB 编码和原子 PNG 输出；
 - legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
-- M1 catalog 纵切片已落地：SQLite schema v1、reference-only JPEG/PNG/RAW 导入、库外 preview cache、
-  `ravo_studio` Qt Quick 窗口，控件来自 source-root `GeoControls`。macOS Debug 已跑通无 UI
-  create/import/preview/reopen；目录递归导入已可用。TIFF 仍取决于 Qt plugin；平移与长列表虚拟化仍属
-  后续工作。
+- M1 catalog 纵切片已落地：reference-only JPEG/PNG/RAW 导入、库外 preview cache、
+  `ravo_studio` Qt Quick 窗口，控件来自 source-root `GeoControls`。
+- P0 Browse & Review：catalog schema v2、评分/色标/拒绝、Grid/Loupe/filmstrip、Fit/Fill/100%、筛选排序。
+- P1 Basic Develop：catalog schema v3 每张图一份 canonical recipe；CPU 全局曝光/对比/高光阴影/
+  白黑场、白平衡、自然饱和度/饱和度、90° 旋转与自由裁剪；Studio 有 Edit 面板、before/after 与
+  会话内 undo/redo。macOS Debug 已跑通无 UI create/import/preview/recipe/reopen。
+  TIFF 仍取决于 Qt plugin。
 
 完整执行顺序见 [TODO_REWRITE.md](../TODO_REWRITE.md)，方向变化见
 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md)。

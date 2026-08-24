@@ -61,7 +61,9 @@ catalog 是单个用户选择的 SQLite 文件。schema v1 至少保存：
 - preview contract 版本、cache key、尺寸、状态和最近成功时间。
 
 规范化 URI 在一个 catalog 内唯一。数据库不保存原片或完整 preview blob，不保存 presentation 状态、recipe
-对象布局、codec 句柄或数据库行地址。新库和每次 migration 使用事务；未知更高 schema 版本 fail-fast。
+对象布局、codec 句柄或数据库行地址。schema v2 在 `asset` 上保存 rating/color/reject；schema v3 用
+`asset_recipe` 保存每张图最多一份 canonical recipe JSON。新库和每次 migration 使用事务；未知更高
+schema 版本 fail-fast。
 
 首版不读取或迁移冻结 0.9 catalog。未来兼容工作必须有独立产品决定、备份/回滚和 fixture。
 

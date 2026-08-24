@@ -42,6 +42,20 @@ struct RenderResult
     std::uint32_t height = 0;
 };
 
+struct RenderedImage
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<std::uint8_t> rgb;
+};
+
+struct RasterBuffer
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<std::uint8_t> srgb;
+};
+
 struct InspectionResult
 {
     std::string input_uri;
@@ -94,6 +108,10 @@ public:
     // The sink is borrowed only for the duration of this synchronous call.
     [[nodiscard]] Result<RenderResult> render(const RenderRequest &request,
                                               ProgressSink *progress_sink = nullptr) const;
+    [[nodiscard]] Result<RenderedImage> render_to_image(const RenderRequest &request,
+                                                        const RasterBuffer *raster = nullptr) const;
+    [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
+    [[nodiscard]] Result<RasterBuffer> decode_png(const std::vector<std::uint8_t> &bytes) const;
 
 private:
     explicit EngineFacade(OperationRegistry registry);

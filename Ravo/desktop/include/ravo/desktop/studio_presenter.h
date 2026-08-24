@@ -20,6 +20,7 @@
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/executor.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -44,6 +45,7 @@ public:
         ThumbnailStateRole,
         WidthRole,
         HeightRole,
+        HasEditsRole,
     };
 
     explicit AssetListModel(QObject *parent = nullptr);
@@ -93,6 +95,25 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString sortDirection READ sortDirection NOTIFY filterChanged)
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY filterChanged)
     Q_PROPERTY(bool filtersActive READ filtersActive NOTIFY filterChanged)
+    Q_PROPERTY(bool selectedHasEdits READ selectedHasEdits NOTIFY selectionChanged)
+    Q_PROPERTY(bool beforeAfter READ beforeAfter NOTIFY editChanged)
+    Q_PROPERTY(bool canUndo READ canUndo NOTIFY editChanged)
+    Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
+    Q_PROPERTY(double editTemperature READ editTemperature NOTIFY editChanged)
+    Q_PROPERTY(double editTint READ editTint NOTIFY editChanged)
+    Q_PROPERTY(double editExposure READ editExposure NOTIFY editChanged)
+    Q_PROPERTY(double editContrast READ editContrast NOTIFY editChanged)
+    Q_PROPERTY(double editHighlights READ editHighlights NOTIFY editChanged)
+    Q_PROPERTY(double editShadows READ editShadows NOTIFY editChanged)
+    Q_PROPERTY(double editWhites READ editWhites NOTIFY editChanged)
+    Q_PROPERTY(double editBlacks READ editBlacks NOTIFY editChanged)
+    Q_PROPERTY(double editVibrance READ editVibrance NOTIFY editChanged)
+    Q_PROPERTY(double editSaturation READ editSaturation NOTIFY editChanged)
+    Q_PROPERTY(int editRotateQuarters READ editRotateQuarters NOTIFY editChanged)
+    Q_PROPERTY(double editCropX READ editCropX NOTIFY editChanged)
+    Q_PROPERTY(double editCropY READ editCropY NOTIFY editChanged)
+    Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
+    Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(QUrl defaultCatalogFolder READ defaultCatalogFolder CONSTANT)
     Q_PROPERTY(QUrl defaultCatalogFile READ defaultCatalogFile CONSTANT)
@@ -129,6 +150,25 @@ public:
     [[nodiscard]] QString sortDirection() const;
     [[nodiscard]] int visibleCount() const;
     [[nodiscard]] bool filtersActive() const noexcept;
+    [[nodiscard]] bool selectedHasEdits() const noexcept;
+    [[nodiscard]] bool beforeAfter() const noexcept;
+    [[nodiscard]] bool canUndo() const noexcept;
+    [[nodiscard]] bool canRedo() const noexcept;
+    [[nodiscard]] double editTemperature() const noexcept;
+    [[nodiscard]] double editTint() const noexcept;
+    [[nodiscard]] double editExposure() const noexcept;
+    [[nodiscard]] double editContrast() const noexcept;
+    [[nodiscard]] double editHighlights() const noexcept;
+    [[nodiscard]] double editShadows() const noexcept;
+    [[nodiscard]] double editWhites() const noexcept;
+    [[nodiscard]] double editBlacks() const noexcept;
+    [[nodiscard]] double editVibrance() const noexcept;
+    [[nodiscard]] double editSaturation() const noexcept;
+    [[nodiscard]] int editRotateQuarters() const noexcept;
+    [[nodiscard]] double editCropX() const noexcept;
+    [[nodiscard]] double editCropY() const noexcept;
+    [[nodiscard]] double editCropWidth() const noexcept;
+    [[nodiscard]] double editCropHeight() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
 
     Q_INVOKABLE void createCatalog(const QUrl &file_url);
@@ -144,7 +184,17 @@ public:
     Q_INVOKABLE void selectPrevious();
     Q_INVOKABLE void setBrowseMode(const QString &mode);
     Q_INVOKABLE void openLoupe();
+    Q_INVOKABLE void openDevelop();
     Q_INVOKABLE void returnToGrid();
+    Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
+    Q_INVOKABLE void rotateLeft();
+    Q_INVOKABLE void rotateRight();
+    Q_INVOKABLE void resetControl(const QString &name);
+    Q_INVOKABLE void resetSection(const QString &section);
+    Q_INVOKABLE void resetAllEdits();
+    Q_INVOKABLE void undoEdit();
+    Q_INVOKABLE void redoEdit();
+    Q_INVOKABLE void toggleBeforeAfter();
     Q_INVOKABLE void setZoomMode(const QString &mode);
     Q_INVOKABLE void setZoomFactor(double factor);
     Q_INVOKABLE void adjustZoom(int wheel_delta);
@@ -170,6 +220,7 @@ signals:
     void zoomChanged();
     void thumbnailSizeChanged();
     void filterChanged();
+    void editChanged();
 
 private:
     void setBusy(bool busy);
@@ -178,6 +229,8 @@ private:
     void applyAssets(std::vector<AssetRecord> assets, bool restore_selection);
     void requestPreviewForSelection();
     void reloadVisibleAssets();
+    void load_develop_for_selection();
+    void commit_develop(DevelopParams params, bool push_history);
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<void> open_on_worker(const std::string &path, bool create);
     void mutate_selected_review(const std::function<Result<AssetRecord>(CatalogService &)> &action);
@@ -201,6 +254,10 @@ private:
     bool preview_loading_ = false;
     std::uint64_t preview_revision_ = 0;
     std::uint64_t thumbnail_revision_ = 0;
+    DevelopParams develop_{};
+    std::vector<DevelopParams> undo_stack_;
+    std::vector<DevelopParams> redo_stack_;
+    bool before_after_ = false;
 };
 
 } // namespace ravo

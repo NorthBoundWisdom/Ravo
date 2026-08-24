@@ -22,15 +22,17 @@ adapters/desktop，`Qt6::Qml`/`Qt6::Quick`、`QtQuick.Controls`/`QtQuick.Dialogs
 `GeoControls`/`GeoControls.AppShell` import 与 production `.qml` 仅 desktop；所有 Ravo target 禁止 Qt
 Widgets。不能删除检查来放行新依赖。
 
-当前 Ravo Debug 图有 18 个 `ravo-unit`、30 个 `ravo-contract` 与 6 个 `ravo-catalog` 测试。FreeCM Test
-和 `ctest --test-dir build/<preset>` 从仓库根运行同一套测试。GitHub Actions 在
-`mac_clang_debug`、`linux_clang_debug` 与 `win_msvc_debug` 上跑同一组 CTest，并额外跑
-freeze/capability/boundary 等静态检查。CI 先 `--init` 再改活动锁里的 Qt/PATH，然后 `--update`。
-构建走 `cmake --build build/<preset>`，不依赖 Linux 模板里的 `ClangDebug` 构建 preset 名，
-也让 Windows gtest discovery 能看见 runner `Path` 上的 Qt。它不构建 `legacy/`。unit/contract 覆盖
-foundation/recipe/executor、CLI JSON/退出码、有限 XMP 映射、真实 `mire1.cr2` inspect/render。
-catalog 测试覆盖 schema create/reopen/newer-version reject、PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、
-原片哈希不变、preview 缓存和缺失/不支持输入。它们不替代本机 Studio 手工 Fit/100% 验收。
+当前 Ravo Debug 图覆盖 foundation/recipe/engine/CLI 与 catalog integration。P0 契约包括 schema
+v2→v3 迁移、review 持久化、筛选与缺失原片状态；P1 契约包括每张图一份 canonical recipe、CPU
+develop 操作和 edited preview。FreeCM Test 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套
+测试。GitHub Actions 在 `mac_clang_debug`、`linux_clang_debug` 与 `win_msvc_debug` 上跑同一组
+CTest，并额外跑 freeze/capability/boundary 等静态检查。CI 先 `--init` 再改活动锁里的 Qt/PATH，然后
+`--update`。构建走 `cmake --build build/<preset>`，不依赖 Linux 模板里的 `ClangDebug` 构建
+preset 名，也让 Windows gtest discovery 能看见 runner `Path` 上的 Qt。它不构建 `legacy/`。
+unit/contract 覆盖 foundation/recipe/executor、CLI JSON/退出码、有限 XMP 映射、真实
+`mire1.cr2` inspect/render。catalog 测试覆盖 schema create/reopen/newer-version reject、
+PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、原片哈希不变、preview 缓存、缺失/不支持输入，以及
+P1 recipe 与 review 独立性。它们不替代本机 Studio 手工 Fit/100%/Develop 验收。
 
 ## Test framework 与 target 边界
 

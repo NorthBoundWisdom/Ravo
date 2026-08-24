@@ -76,7 +76,7 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
     const auto *operations = data->find("operations");
     ASSERT_NE(operations, nullptr);
     ASSERT_NE(operations->array_if(), nullptr);
-    EXPECT_EQ(operations->array_if()->size(), 7U);
+    EXPECT_EQ(operations->array_if()->size(), 17U);
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 

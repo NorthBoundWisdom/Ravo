@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <set>
 #include <system_error>
@@ -10,6 +11,8 @@
 
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/develop.h"
+#include "ravo/recipe/recipe.h"
 
 namespace ravo
 {
@@ -134,6 +137,31 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     LOG_INFO(ravo::logger(), "import enumeration collected {} files from {} inputs", files.size(),
              inputs.size());
     return files;
+}
+
+[[nodiscard]] std::string fnv1a64_hex(const std::string_view text)
+{
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const char character : text)
+    {
+        hash ^= static_cast<unsigned char>(character);
+        hash *= 1099511628211ULL;
+    }
+    static constexpr char hex[] = "0123456789abcdef";
+    std::string out(16, '0');
+    for (int index = 15; index >= 0; --index)
+    {
+        out[static_cast<std::size_t>(index)] = hex[hash & 0xfU];
+        hash >>= 4U;
+    }
+    return out;
+}
+
+[[nodiscard]] Recipe identity_recipe_for(const AssetRecord &asset, const std::string &path)
+{
+    Recipe recipe;
+    recipe.asset = {asset.id, path, asset.content_fingerprint};
+    return recipe;
 }
 
 } // namespace
@@ -301,6 +329,152 @@ Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id
     }
     asset.value()->review = review;
     return *asset.value();
+}
+
+Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
+{
+    if (repository_ == nullptr || engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+    {
+        return location.error();
+    }
+    auto stored = repository_->load_recipe_json(asset_id);
+    if (!stored)
+    {
+        return stored.error();
+    }
+    if (!stored.value())
+    {
+        return identity_recipe_for(*asset.value(), location.value().path);
+    }
+    auto parsed = parse_recipe_json(*stored.value());
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    parsed.value().asset = {asset.value()->id, location.value().path,
+                            asset.value()->content_fingerprint};
+    auto valid = engine_->validate(parsed.value());
+    if (!valid)
+    {
+        return valid.error();
+    }
+    return parsed;
+}
+
+Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id, const Recipe &recipe)
+{
+    if (repository_ == nullptr || engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+    {
+        return location.error();
+    }
+    Recipe stored = recipe;
+    stored.asset = {asset.value()->id, location.value().path, asset.value()->content_fingerprint};
+    auto valid = engine_->validate(stored);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    auto params = develop_from_recipe(stored);
+    if (!params)
+    {
+        return params.error();
+    }
+    if (params.value().is_identity())
+    {
+        const auto cleared = repository_->clear_recipe(asset_id);
+        if (!cleared)
+        {
+            return cleared.error();
+        }
+        asset.value()->has_edits = false;
+    }
+    else
+    {
+        auto json = serialize_recipe(stored);
+        if (!json)
+        {
+            return json.error();
+        }
+        const auto saved =
+            repository_->save_recipe_json(asset_id, stored.schema_version, json.value());
+        if (!saved)
+        {
+            return saved.error();
+        }
+        asset.value()->has_edits = true;
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    return *asset.value();
+}
+
+Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id,
+                                                 const DevelopParams &params)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+    {
+        return location.error();
+    }
+    auto recipe = recipe_from_develop(
+        {asset.value()->id, location.value().path, asset.value()->content_fingerprint}, params);
+    if (!recipe)
+    {
+        return recipe.error();
+    }
+    return save_recipe(asset_id, recipe.value());
+}
+
+Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id)
+{
+    return save_develop(asset_id, DevelopParams{});
 }
 
 Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
@@ -525,13 +699,14 @@ Result<PreviewResult> CatalogService::request_preview(const PreviewRequest &requ
                           {{"asset_id", request.asset_id}});
     }
     return generate_preview(*asset.value(), request.max_edge, request.cancellation,
-                            request.request_revision);
+                            request.request_revision, request.ignore_edits);
 }
 
 Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
                                                        const std::uint32_t max_edge,
                                                        const CancellationToken &cancellation,
-                                                       const std::uint64_t request_revision)
+                                                       const std::uint64_t request_revision,
+                                                       const bool ignore_edits)
 {
     if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
@@ -583,7 +758,34 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
     std::uint32_t height = 0;
     fit_within_max_edge(source_width, source_height, max_edge, width, height);
     const auto fingerprint = asset.content_fingerprint.value_or("none");
-    const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint);
+    std::string edit_digest = "identity";
+    Recipe edit_recipe = identity_recipe_for(working, location.value().path);
+    if (!ignore_edits)
+    {
+        auto stored = repository_->load_recipe_json(asset.id);
+        if (!stored)
+        {
+            return stored.error();
+        }
+        if (stored.value())
+        {
+            auto parsed = parse_recipe_json(*stored.value());
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            parsed.value().asset = edit_recipe.asset;
+            auto valid = engine_->validate(parsed.value());
+            if (!valid)
+            {
+                return valid.error();
+            }
+            edit_recipe = std::move(parsed).value();
+            edit_digest = fnv1a64_hex(*stored.value());
+        }
+    }
+    const auto cache_key =
+        make_preview_cache_key(asset.id, width, height, fingerprint, edit_digest);
 
     auto existing = cache_->existing_png(cache_key);
     if (!existing)
@@ -620,6 +822,7 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
                           {{"path", location.value().path}, {"asset_id", asset.id}});
     }
 
+    const bool apply_edits = edit_digest != "identity";
     if (is_raster_media_type(asset.media_type))
     {
         auto decoded = raster_->decode(location.value().path, max_edge, cancellation);
@@ -627,26 +830,8 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
         {
             return decoded.error();
         }
-        auto committed = cache_->commit_png_bytes(cache_key, decoded.value().bytes);
-        if (!committed)
+        if (!apply_edits)
         {
-            return committed.error();
-        }
-        result.cache_path = committed.value();
-        result.width = decoded.value().width;
-        result.height = decoded.value().height;
-    }
-    else if (is_raw_media_type(asset.media_type))
-    {
-        auto embedded = engine_->extract_embedded_preview(location.value().path, cancellation);
-        if (embedded)
-        {
-            auto decoded =
-                raster_->decode_memory(embedded.value().bytes, max_edge, cancellation);
-            if (!decoded)
-            {
-                return decoded.error();
-            }
             auto committed = cache_->commit_png_bytes(cache_key, decoded.value().bytes);
             if (!committed)
             {
@@ -658,22 +843,103 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
         }
         else
         {
-            Recipe recipe;
-            recipe.asset = {asset.id, location.value().path, asset.content_fingerprint};
+            auto raster = engine_->decode_png(decoded.value().bytes);
+            if (!raster)
+            {
+                return raster.error();
+            }
             RenderRequest render;
-            render.asset = recipe.asset;
-            render.recipe = recipe;
-            render.output_uri = cache_->absolute_png_path(cache_key);
-            render.output_width = width;
-            render.output_height = height;
+            render.asset = edit_recipe.asset;
+            render.recipe = edit_recipe;
             render.cancellation = cancellation;
             render.correlation_id = asset.id;
-            const auto rendered = engine_->render(render);
+            auto rendered = engine_->render_to_image(render, &raster.value());
             if (!rendered)
             {
                 return rendered.error();
             }
-            result.cache_path = render.output_uri;
+            auto encoded = engine_->encode_png(rendered.value());
+            if (!encoded)
+            {
+                return encoded.error();
+            }
+            auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
+            if (!committed)
+            {
+                return committed.error();
+            }
+            result.cache_path = committed.value();
+            result.width = rendered.value().width;
+            result.height = rendered.value().height;
+        }
+    }
+    else if (is_raw_media_type(asset.media_type))
+    {
+        if (!apply_edits)
+        {
+            auto embedded = engine_->extract_embedded_preview(location.value().path, cancellation);
+            if (embedded)
+            {
+                auto decoded =
+                    raster_->decode_memory(embedded.value().bytes, max_edge, cancellation);
+                if (!decoded)
+                {
+                    return decoded.error();
+                }
+                auto committed = cache_->commit_png_bytes(cache_key, decoded.value().bytes);
+                if (!committed)
+                {
+                    return committed.error();
+                }
+                result.cache_path = committed.value();
+                result.width = decoded.value().width;
+                result.height = decoded.value().height;
+            }
+            else
+            {
+                RenderRequest render;
+                render.asset = edit_recipe.asset;
+                render.recipe = edit_recipe;
+                render.output_uri = cache_->absolute_png_path(cache_key);
+                render.output_width = width;
+                render.output_height = height;
+                render.cancellation = cancellation;
+                render.correlation_id = asset.id;
+                const auto rendered = engine_->render(render);
+                if (!rendered)
+                {
+                    return rendered.error();
+                }
+                result.cache_path = render.output_uri;
+                result.width = rendered.value().width;
+                result.height = rendered.value().height;
+            }
+        }
+        else
+        {
+            RenderRequest render;
+            render.asset = edit_recipe.asset;
+            render.recipe = edit_recipe;
+            render.output_width = width;
+            render.output_height = height;
+            render.cancellation = cancellation;
+            render.correlation_id = asset.id;
+            auto rendered = engine_->render_to_image(render, nullptr);
+            if (!rendered)
+            {
+                return rendered.error();
+            }
+            auto encoded = engine_->encode_png(rendered.value());
+            if (!encoded)
+            {
+                return encoded.error();
+            }
+            auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
+            if (!committed)
+            {
+                return committed.error();
+            }
+            result.cache_path = committed.value();
             result.width = rendered.value().width;
             result.height = rendered.value().height;
         }

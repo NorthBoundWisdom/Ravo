@@ -43,11 +43,12 @@ std::string make_content_fingerprint(const FileIdentity &identity)
 }
 
 std::string make_preview_cache_key(const std::string_view asset_id, const std::uint32_t width,
-                                   const std::uint32_t height, const std::string_view fingerprint)
+                                   const std::uint32_t height, const std::string_view fingerprint,
+                                   const std::string_view edit_digest)
 {
     std::ostringstream key;
     key << "v" << kPreviewContractVersion << "_" << asset_id << "_" << width << "x" << height << "_"
-        << fingerprint;
+        << fingerprint << "_" << (edit_digest.empty() ? "identity" : edit_digest);
     return key.str();
 }
 

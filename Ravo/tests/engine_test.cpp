@@ -70,7 +70,7 @@ TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
     const auto engine = EngineFacade::create_phase1();
 
     ASSERT_TRUE(engine) << engine.error().message;
-    ASSERT_EQ(engine.value().operations().size(), 7U);
+    ASSERT_EQ(engine.value().operations().size(), 17U);
     EXPECT_EQ(engine.value().operations().front().id, "ravo.core.identity");
     EXPECT_EQ(engine.value().operations().back().id, "ravo.output.scale");
 }
@@ -215,6 +215,52 @@ TEST(EngineFacadeTest, ValidatedRenderReportsProgressAndMissingInput)
     EXPECT_EQ(rendered.error().code, ErrorCode::kNotFound);
     ASSERT_EQ(progress.events.size(), 1U);
     EXPECT_EQ(progress.events.front().stage, "validation_complete");
+}
+
+TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+
+    RasterBuffer raster;
+    raster.width = 8;
+    raster.height = 4;
+    raster.srgb.resize(8U * 4U * 3U, 0);
+    for (std::uint32_t y = 0; y < raster.height; ++y)
+    {
+        for (std::uint32_t x = 0; x < raster.width; ++x)
+        {
+            const std::size_t index = (static_cast<std::size_t>(y) * raster.width + x) * 3U;
+            raster.srgb[index] = 220;
+            raster.srgb[index + 1U] = 20;
+            raster.srgb[index + 2U] = 20;
+        }
+    }
+
+    Recipe recipe;
+    recipe.asset = {"raster", "memory:raster", std::nullopt};
+    recipe.operations.push_back({"ravo.color.saturation",
+                                 1,
+                                 "saturation-1",
+                                 true,
+                                 {{"amount", ParameterValue{-1.0}}},
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.geometry.rotate",
+                                 1,
+                                 "rotate-1",
+                                 true,
+                                 {{"quarters", ParameterValue{std::int64_t{1}}}},
+                                 std::nullopt});
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    const auto rendered = engine.value().render_to_image(request, &raster);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    EXPECT_EQ(rendered.value().width, 4U);
+    EXPECT_EQ(rendered.value().height, 8U);
+    ASSERT_GE(rendered.value().rgb.size(), 3U);
+    EXPECT_NEAR(rendered.value().rgb[0], rendered.value().rgb[1], 8);
+    EXPECT_NEAR(rendered.value().rgb[1], rendered.value().rgb[2], 8);
 }
 
 } // namespace

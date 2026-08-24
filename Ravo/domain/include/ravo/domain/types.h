@@ -12,8 +12,8 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 2;
-inline constexpr std::int64_t kPreviewContractVersion = 2;
+inline constexpr std::int64_t kCatalogSchemaVersion = 3;
+inline constexpr std::int64_t kPreviewContractVersion = 3;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
 
@@ -129,6 +129,7 @@ struct AssetRecord
     std::optional<std::string> error_message;
     std::int64_t created_unix_ms = 0;
     ReviewState review;
+    bool has_edits = false;
 };
 
 struct PreviewRecord
@@ -156,6 +157,7 @@ struct PreviewRequest
     std::string asset_id;
     std::uint32_t max_edge = kDefaultPreviewMaxEdge;
     std::uint64_t request_revision = 0;
+    bool ignore_edits = false;
     CancellationToken cancellation{};
     std::string correlation_id;
 };
@@ -196,7 +198,8 @@ struct FileIdentity
 [[nodiscard]] std::string make_content_fingerprint(const FileIdentity &identity);
 [[nodiscard]] std::string make_preview_cache_key(std::string_view asset_id, std::uint32_t width,
                                                  std::uint32_t height,
-                                                 std::string_view fingerprint);
+                                                 std::string_view fingerprint,
+                                                 std::string_view edit_digest = "identity");
 void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height,
                          std::uint32_t max_edge, std::uint32_t &output_width,
                          std::uint32_t &output_height) noexcept;

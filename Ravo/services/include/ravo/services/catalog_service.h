@@ -13,6 +13,8 @@
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/error.h"
+#include "ravo/recipe/develop.h"
+#include "ravo/recipe/recipe.h"
 
 namespace ravo
 {
@@ -35,6 +37,11 @@ public:
     [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
     [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
+    [[nodiscard]] Result<Recipe> load_recipe(std::string_view asset_id) const;
+    [[nodiscard]] Result<AssetRecord> save_recipe(std::string_view asset_id, const Recipe &recipe);
+    [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,
+                                                   const DevelopParams &params);
+    [[nodiscard]] Result<AssetRecord> reset_recipe(std::string_view asset_id);
     [[nodiscard]] Result<ImportItemResult> import_one(std::string_view path,
                                                       const CancellationToken &cancellation);
     [[nodiscard]] Result<std::vector<ImportItemResult>>
@@ -47,7 +54,8 @@ private:
     [[nodiscard]] Result<PreviewResult> generate_preview(const AssetRecord &asset,
                                                          std::uint32_t max_edge,
                                                          const CancellationToken &cancellation,
-                                                         std::uint64_t request_revision);
+                                                         std::uint64_t request_revision,
+                                                         bool ignore_edits = false);
 
     EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;

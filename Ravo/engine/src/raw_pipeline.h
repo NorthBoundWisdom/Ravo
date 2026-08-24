@@ -27,13 +27,6 @@ struct DecodedRaw
     std::vector<std::uint16_t> pixels;
 };
 
-struct RenderedImage
-{
-    std::uint32_t width = 0;
-    std::uint32_t height = 0;
-    std::vector<std::uint8_t> rgb;
-};
-
 [[nodiscard]] Result<InspectionResult> identify_raw(std::string_view input_uri);
 [[nodiscard]] Result<EmbeddedPreview>
 extract_libraw_preview(std::string_view input_uri, const CancellationToken &cancellation);

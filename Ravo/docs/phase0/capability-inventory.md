@@ -21,10 +21,10 @@ validated Ravo compatibility result.
 
 ## Phase 1 reserved descriptors
 
-Phase 1 defines metadata and validation only.  It does not execute these
-operations or claim old parameter compatibility.  These IDs are reserved so
-the recipe model, registry, CLI, and legacy adapter can be tested before a
-CPU pixel executor exists.
+These IDs are the versioned operation registry. P1 executes the develop
+controls listed below on a linear RGB working buffer. It still does not claim
+full legacy parameter compatibility. Unknown legacy operations remain
+`unsupported`.
 
 | Ravo operation ID | Legacy source operation | Planned first use |
 | --- | --- | --- |
@@ -32,7 +32,17 @@ CPU pixel executor exists.
 | `ravo.raw.prepare` | `rawprepare` | first RAW vertical-slice planning |
 | `ravo.raw.demosaic` | `demosaic` | first RAW vertical-slice planning |
 | `ravo.color.input` | `colorin` | first colour-chain planning |
-| `ravo.core.exposure` | `exposure` | visible first-operation candidate |
+| `ravo.core.exposure` | `exposure` | P1 CPU develop control |
+| `ravo.color.white_balance` | `temperature` / `colorin` | P1 temperature/tint multipliers on linear RGB |
+| `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 global contrast around mid-grey |
+| `ravo.core.highlights` | `filmicrgb` | P1 highlight compression |
+| `ravo.core.shadows` | `shadows` / `filmicrgb` | P1 shadow lift |
+| `ravo.core.whites` | none | P1 white-point control |
+| `ravo.core.blacks` | none | P1 black-point control |
+| `ravo.color.vibrance` | `vibrance` | P1 vibrance |
+| `ravo.color.saturation` | `colorcontrast` | P1 saturation |
+| `ravo.geometry.rotate` | `flip` | P1 90° quarter turns |
+| `ravo.geometry.crop` | `crop` | P1 normalized free crop |
 | `ravo.color.output` | `colorout` | first colour-chain planning |
 | `ravo.output.scale` | `finalscale` | output request negotiation |
 

@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/recipe.h"
 
@@ -63,6 +64,32 @@ TEST(RecipeTest, EnforcesExposureParameterRange)
     ASSERT_FALSE(valid);
     EXPECT_EQ(valid.error().code, ErrorCode::kValidation);
     EXPECT_EQ(valid.error().context.at("parameter"), "exposure_ev");
+}
+
+TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    DevelopParams params;
+    params.temperature = 4800;
+    params.tint = 12;
+    params.exposure_ev = -0.3;
+    params.contrast = 0.2;
+    params.rotate_quarters = 1;
+    params.crop_width = 0.8;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto valid = validate_recipe(recipe.value(), registry.value());
+    ASSERT_TRUE(valid) << valid.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_NEAR(restored.value().temperature, 4800.0, 1e-6);
+    EXPECT_NEAR(restored.value().tint, 12.0, 1e-6);
+    EXPECT_NEAR(restored.value().exposure_ev, -0.3, 1e-6);
+    EXPECT_EQ(restored.value().rotate_quarters, 1);
+    EXPECT_NEAR(restored.value().crop_width, 0.8, 1e-6);
+    EXPECT_FALSE(restored.value().is_identity());
+    EXPECT_TRUE(DevelopParams{}.is_identity());
 }
 
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)

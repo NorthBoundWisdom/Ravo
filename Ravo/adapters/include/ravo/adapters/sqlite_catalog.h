@@ -29,6 +29,12 @@ public:
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_review(std::string_view asset_id,
                                              const ReviewState &review) override;
+    [[nodiscard]] Result<std::optional<std::string>>
+    load_recipe_json(std::string_view asset_id) const override;
+    [[nodiscard]] Result<void> save_recipe_json(std::string_view asset_id,
+                                                std::int64_t recipe_schema_version,
+                                                std::string_view recipe_json) override;
+    [[nodiscard]] Result<void> clear_recipe(std::string_view asset_id) override;
     [[nodiscard]] Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const override;
     [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;

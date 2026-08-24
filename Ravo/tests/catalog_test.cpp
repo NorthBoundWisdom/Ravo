@@ -21,6 +21,7 @@
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -316,7 +317,7 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
     ASSERT_TRUE(created) << created.error().message;
     auto snapshot = service->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    EXPECT_EQ(snapshot.value().schema_version, 2);
+    EXPECT_EQ(snapshot.value().schema_version, 3);
 
     const auto jpeg_path = (root / "keep.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
@@ -389,13 +390,67 @@ TEST_F(CatalogServiceTest, MigratesV1CatalogToReviewSchema)
     ASSERT_TRUE(opened) << opened.error().message;
     auto snapshot = service->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    EXPECT_EQ(snapshot.value().schema_version, 2);
+    EXPECT_EQ(snapshot.value().schema_version, 3);
     auto listed = service->list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().review.rating, 0);
     EXPECT_EQ(listed.value().front().review.color_label, ColorLabel::kNone);
     EXPECT_FALSE(listed.value().front().review.rejected);
+    EXPECT_FALSE(listed.value().front().has_edits);
+}
+
+TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "edit.jpg").string();
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(QColor(180, 40, 40));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    auto rated = service->set_rating(asset_id, 3);
+    ASSERT_TRUE(rated) << rated.error().message;
+
+    DevelopParams params;
+    params.exposure_ev = 0.75;
+    params.saturation = -0.2;
+    auto saved = service->save_develop(asset_id, params);
+    ASSERT_TRUE(saved) << saved.error().message;
+    EXPECT_TRUE(saved.value().has_edits);
+    EXPECT_EQ(saved.value().review.rating, 3);
+
+    const auto original_hash = file_sha256(jpeg_path);
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto loaded = service->load_recipe(asset_id);
+    ASSERT_TRUE(loaded) << loaded.error().message;
+    auto roundtrip = develop_from_recipe(loaded.value());
+    ASSERT_TRUE(roundtrip) << roundtrip.error().message;
+    EXPECT_NEAR(roundtrip.value().exposure_ev, 0.75, 1e-6);
+    EXPECT_NEAR(roundtrip.value().saturation, -0.2, 1e-6);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_TRUE(listed.value().front().has_edits);
+    EXPECT_EQ(listed.value().front().review.rating, 3);
+    EXPECT_EQ(file_sha256(jpeg_path), original_hash);
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    auto previewed = service->request_preview(preview);
+    ASSERT_TRUE(previewed) << previewed.error().message;
+    EXPECT_FALSE(previewed.value().original_missing);
+
+    auto reset = service->reset_recipe(asset_id);
+    ASSERT_TRUE(reset) << reset.error().message;
+    EXPECT_FALSE(reset.value().has_edits);
+    EXPECT_EQ(reset.value().review.rating, 3);
 }
 
 } // namespace
