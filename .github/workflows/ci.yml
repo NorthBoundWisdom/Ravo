@@ -133,20 +133,21 @@ jobs:
           cache-key-prefix: qt-${{ env.QT_VERSION }}-${{ runner.os }}
           setup-python: false
           install-deps: true
-          aqtversion: ">=3.3.0"
+          # PyPI aqt 3.3.0 cannot resolve the Qt 6.11 Windows repository layout.
+          aqtsource: git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e
 
       - name: Install host CMake packages
         run: |
           set -euo pipefail
-          extra=()
+          args=(
+            --prefix "${RUNNER_TEMP}/ci-prefix"
+            --work-dir "${RUNNER_TEMP}/ci-host"
+            --build-type Debug
+          )
           if [[ "${{ matrix.host_packages }}" == "cmake-png" ]]; then
-            extra+=(--with-png-zlib)
+            args+=(--with-png-zlib)
           fi
-          python .github/scripts/install_host_packages.py \
-            --prefix "${RUNNER_TEMP}/ci-prefix" \
-            --work-dir "${RUNNER_TEMP}/ci-host" \
-            --build-type Debug \
-            "${extra[@]}"
+          python .github/scripts/install_host_packages.py "${args[@]}"
 
       - name: Allow HTTPS clones of GitHub SSH remotes
         env:
@@ -194,7 +195,7 @@ jobs:
         run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=ON
 
       - name: Build Ravo
-        run: cmake --build --preset "${{ matrix.preset }}"
+        run: cmake --build "build/${{ matrix.preset }}" --parallel
 
       - name: Test Ravo
         run: ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4

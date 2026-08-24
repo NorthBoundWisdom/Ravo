@@ -73,7 +73,7 @@ def main() -> int:
         )
     elif arguments.action == "Build":
         run(
-            ["cmake", "--build", "--preset", preset_name, "--parallel"],
+            ["cmake", "--build", str(build_directory), "--parallel"],
             cwd=repository_root,
         )
     elif arguments.action == "Run":
@@ -81,8 +81,7 @@ def main() -> int:
             [
                 "cmake",
                 "--build",
-                "--preset",
-                preset_name,
+                str(build_directory),
                 "--target",
                 "ravo_studio",
                 "--parallel",
@@ -96,7 +95,7 @@ def main() -> int:
             cwd=repository_root,
         )
         run(
-            ["cmake", "--build", "--preset", preset_name, "--parallel"],
+            ["cmake", "--build", str(build_directory), "--parallel"],
             cwd=repository_root,
         )
         run(
@@ -105,7 +104,7 @@ def main() -> int:
         )
     else:
         run(
-            ["cmake", "--build", "--preset", preset_name, "--parallel"],
+            ["cmake", "--build", str(build_directory), "--parallel"],
             cwd=repository_root,
         )
         run(

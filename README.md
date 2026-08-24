@@ -20,15 +20,17 @@ cmake --preset mac_clang_debug -DBUILD_TESTING=ON
 cmake --build --preset mac_clang_debug
 ```
 
-Windows uses `win_msvc_debug` / `win_msvc_release`. Linux uses `linux_clang_*`.
-FreeCM Config/Build/Run/Test call the same cmake preset commands.
+Windows uses `win_msvc_debug` / `win_msvc_release`. Linux configure presets are
+`linux_clang_*`; build those trees with `cmake --build build/linux_clang_debug`
+because the generated Linux build preset is named `ClangDebug`.
+FreeCM Config/Build/Run/Test call the same cmake commands.
 
 ## Continuous integration
 
 GitHub Actions (`.github/workflows/ci.yml`) runs the same Ravo path on macOS,
 Ubuntu, and Windows: FreeCM `--init` / `--update`, `cmake --preset *-debug
--DBUILD_TESTING=ON`, build, and `ctest`. Frozen `legacy/` is not configured or
-built.
+-DBUILD_TESTING=ON`, `cmake --build build/<preset>`, and `ctest`. Frozen
+`legacy/` is not configured or built.
 
 The workflow writes a gitignored `source_roots.lock.jsonc` with runner Qt/host
 prefixes and rewrites the GeoControls SSH remote to HTTPS. GeoControls is public

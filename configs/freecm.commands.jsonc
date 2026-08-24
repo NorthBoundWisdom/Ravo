@@ -146,7 +146,7 @@
         "label": "Linux Clang Debug",
         "description": "Build the linux_clang_debug CMake preset",
         "command": "cmake",
-        "args": ["--build", "--preset", "linux_clang_debug"],
+        "args": ["--build", "build/linux_clang_debug"],
         "configurations": ["linux-clang-debug"]
       },
       {
@@ -154,7 +154,7 @@
         "label": "Linux Clang Release",
         "description": "Build the linux_clang_release CMake preset",
         "command": "cmake",
-        "args": ["--build", "--preset", "linux_clang_release"],
+        "args": ["--build", "build/linux_clang_release"],
         "configurations": ["linux-clang-release"]
       }
     ],
@@ -230,7 +230,7 @@
         "steps": [
           {
             "command": "cmake",
-            "args": ["--build", "--preset", "linux_clang_debug", "--target", "ravo_studio"]
+            "args": ["--build", "build/linux_clang_debug", "--target", "ravo_studio"]
           },
           {
             "command": "./build/linux_clang_debug/Ravo/desktop/ravo_studio",
@@ -246,7 +246,7 @@
         "steps": [
           {
             "command": "cmake",
-            "args": ["--build", "--preset", "linux_clang_release", "--target", "ravo_studio"]
+            "args": ["--build", "build/linux_clang_release", "--target", "ravo_studio"]
           },
           {
             "command": "./build/linux_clang_release/Ravo/desktop/ravo_studio",
@@ -296,7 +296,7 @@
         "steps": [
           {
             "command": "cmake",
-            "args": ["--build", "--preset", "linux_clang_debug"]
+            "args": ["--build", "build/linux_clang_debug"]
           },
           {
             "command": "ctest",
@@ -346,7 +346,7 @@
         "steps": [
           {
             "command": "cmake",
-            "args": ["--build", "--preset", "linux_clang_release"]
+            "args": ["--build", "build/linux_clang_release"]
           },
           {
             "command": "cmake",
