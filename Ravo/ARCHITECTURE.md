@@ -96,6 +96,10 @@ RAW 通过 Ravo CPU engine，JPEG/PNG/TIFF 通过 raster adapter；两条路径�
 缩放、有限值与错误契约。preview 在数据库外原子写入受控缓存，cache key 包含源指纹、目标尺寸和 contract
 版本。缓存损坏或缺失时可从只读原片重建。
 
+Qt raster adapter 实际接受 PNG/JPEG/BMP/GIF/WebP/TIFF，并导出 PNG/JPEG/TIFF；因此对应
+JPEG/GIF/WebP/TIFF plugin targets 与 catalog 使用的 QSQLITE driver 都是 configure-time required。
+TGA/WBMP/ICO 和其他 SQL drivers 没有产品消费者，不进入 required 集合。
+
 ### Recipe 与 operation
 
 既有 canonical recipe、operation descriptor、`RenderRequest`/`RenderResult` 和显式 colour contract

@@ -34,7 +34,9 @@ gtest_discover_tests(ravo_contract_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-contract")
 
-add_executable(ravo_catalog_tests catalog_test.cpp)
+add_executable(ravo_catalog_tests
+  catalog_test.cpp
+  runtime_dependency_test.cpp)
 target_link_libraries(ravo_catalog_tests
   PRIVATE
     GTest::gtest

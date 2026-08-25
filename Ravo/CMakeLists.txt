@@ -26,6 +26,22 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS
   QuickDialogs2
   QuickLayouts
   Svg)
+
+set(_ravo_required_qt_runtime_plugins
+  Qt6::QJpegPlugin
+  Qt6::QGifPlugin
+  Qt6::QWebpPlugin
+  Qt6::QTiffPlugin
+  Qt6::QSQLiteDriverPlugin)
+foreach(_ravo_plugin_target IN LISTS _ravo_required_qt_runtime_plugins)
+  if(NOT TARGET ${_ravo_plugin_target})
+    message(FATAL_ERROR
+      "Required Qt runtime plugin target is missing: ${_ravo_plugin_target}. Install a complete Qt kit including qtimageformats.")
+  endif()
+endforeach()
+unset(_ravo_plugin_target)
+unset(_ravo_required_qt_runtime_plugins)
+
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(quill CONFIG REQUIRED)

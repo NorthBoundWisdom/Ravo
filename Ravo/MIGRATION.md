@@ -81,12 +81,12 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ra
 | RAW inspect/decode | imageio/LibRaw | engine + codec adapter | 实现中 | `mire1.cr2` inspect/render 已测；格式与 sensor 覆盖有限 |
 | CPU preview/pixelpipe | `src/develop` | engine | 实现中 | bounded PNG、取消、exposure 亮度已测；完整颜色/ROI 未完成 |
 | SQLite catalog | common/database | domain + SQLite adapter | 实现中 | schema v1 create/reopen/newer-version reject 已测；无旧 catalog 迁移 |
-| Reference-only import | common/imageio/import | services + adapters | 实现中 | PNG/JPEG + LibRaw RAW（含 ARW）与目录递归已测；TIFF 仍取决于 plugin |
+| Reference-only import | common/imageio/import | services + adapters | 实现中 | PNG/JPEG + LibRaw RAW（含 ARW）与目录递归已测；JPEG/GIF/WebP/TIFF plugin targets 已设为 required |
 | Preview cache | mipmap/cache/imageio | services + adapters | 实现中 | 库外原子 PNG 缓存与 reopen 重建已测 |
 | Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/100%；平移与长列表仍属 M2 |
 | Catalog metadata/workflow | common/libs | domain + services | 延后 | M4 产品与数据契约 |
 | Mask/blend/operations | develop/iop | recipe + engine | 延后 | M5 每项 operation 验收 |
-| 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF 取决于 Qt plugin；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
+| 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF plugin target 已设为 required；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
 | CLI | `src/cli` | cli | 实现中 | engine/recipe JSON 已测；catalog 命令计划在 M2 |
 | GPU | OpenCL/pixelpipe | engine adapter | 延后 | M6，CPU goldens 和收益证明后开始 |
 

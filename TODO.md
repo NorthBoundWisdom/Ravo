@@ -107,7 +107,7 @@ ADR-0004「一律等到 M7 整包退役」的删除时点。Ravo ↔ `legacy/` �
   - [ ] Studio 手工：选一张图导出 JPEG，确认原片未改、目标文件可读
 - 删除：已删 `legacy/src/libs/export.c`、`export_metadata.c`。未动 `imageio`
   解码。`libs/CMakeLists.txt` 仍点名这两个文件（leftover 不可构建）。
-- 风险：Windows / Linux codec 与 TIFF plugin 未验证。磁盘满仅映射 `ENOSPC`，
+- 风险：Windows / Linux staged codec deployment 未验证。Qt imageformat targets 已设为 required；磁盘满仅映射 `ENOSPC`，
   本机未注入满盘。Studio 手工导出未在本轮点过。
 
 ### 2. 色调曲线 — **当前**

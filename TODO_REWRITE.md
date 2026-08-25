@@ -126,7 +126,7 @@ request revision。`PreviewResult` 只返回可信 preview 资源或结构化失
 
 - 当前 `check_ravo_dependency_boundary.py` 仍冻结 headless target 图。M1 必须先扩展逐层 allowlist；不能
   删除检查、放宽所有目录或让 SQLite/Qt UI 类型借机进入 engine/domain/services。
-- Qt Sql/QSQLITE、platform、imageformat plugin 的三平台 staged deployment 尚未验证。M1 只承诺已选
+- Qt Sql/QSQLITE 与所用 imageformat plugin 已是 configure-time required；三平台 staged deployment 尚未验证。M1 只承诺已选
   PNG/RAW 纵切片；M2 的 JPEG/TIFF 在实际 codec/plugin 与许可、部署测试通过后才算支持。
 - 现有 RAW 路径只证明首个 16-bit Bayer 切片。其他 sensor/layout 在扩展 fixture 前必须返回可见
   unsupported，不能因 LibRaw 能打开文件就宣称 viewer 已正确支持。
