@@ -332,7 +332,7 @@ jobs:
             preset: win_msvc_release
             platform: win
             host_packages: cmake-png
-            runtime_dll: zlib1.dll
+            runtime_dll: zlib.dll
             artifact_name: Ravo-Windows
             artifact_path: build/win_msvc_release/package/*.zip
     defaults:
