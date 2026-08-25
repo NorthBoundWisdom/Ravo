@@ -169,8 +169,16 @@ cppkit_json_string_array(
   RAVO_PACKAGE_RUNTIME_SEARCH_PATHS_JSON
   _ravo_package_runtime_search_paths)
 
+set(RAVO_PACKAGE_ARCHITECTURE "" CACHE STRING
+  "Artifact architecture supplied by the active FreeCM lock")
+if(NOT RAVO_PACKAGE_ARCHITECTURE MATCHES "^[A-Za-z0-9_]+$")
+  message(FATAL_ERROR
+    "RAVO_PACKAGE_ARCHITECTURE is required and must be an artifact-safe name; update the active source-roots lock and run --update")
+endif()
+
 if(APPLE)
-  set(RAVO_PACKAGE_DIST_NAME "Ravo-Studio-${PROJECT_VERSION}-macOS")
+  set(RAVO_PACKAGE_DIST_NAME
+    "RavoStudio-${PROJECT_VERSION}-${RAVO_PACKAGE_ARCHITECTURE}-macOS")
   set(RAVO_PACKAGE_CONFIG "${CMAKE_BINARY_DIR}/package/package_mac.json")
   configure_file(
     "${CMAKE_SOURCE_DIR}/configs/package_mac.json.in"
@@ -195,7 +203,8 @@ if(APPLE)
     DEPENDS RavoPackagePayload)
   add_custom_target(RavoPackage DEPENDS RavoDeploy)
 elseif(WIN32)
-  set(RAVO_PACKAGE_DIST_NAME "Ravo-${PROJECT_VERSION}-Windows")
+  set(RAVO_PACKAGE_DIST_NAME
+    "RavoStudio-${PROJECT_VERSION}-${RAVO_PACKAGE_ARCHITECTURE}-Windows")
   set(RAVO_PACKAGE_CONFIG "${CMAKE_BINARY_DIR}/package/package_win.json")
   set(RAVO_PACKAGE_ARCHIVE
     "${CMAKE_BINARY_DIR}/package/${RAVO_PACKAGE_DIST_NAME}.zip")
@@ -218,10 +227,24 @@ elseif(WIN32)
     COMMENT "Creating ${RAVO_PACKAGE_ARCHIVE}"
     VERBATIM)
 elseif(UNIX)
-  set(RAVO_PACKAGE_DIST_NAME "Ravo-${PROJECT_VERSION}-Linux.AppDir")
+  set(RAVO_PACKAGE_ARTIFACT_STEM
+    "RavoStudio-${PROJECT_VERSION}-${RAVO_PACKAGE_ARCHITECTURE}-Linux")
+  set(RAVO_PACKAGE_DIST_NAME "${RAVO_PACKAGE_ARTIFACT_STEM}.AppDir")
   set(RAVO_PACKAGE_CONFIG "${CMAKE_BINARY_DIR}/package/package_linux.json")
-  set(RAVO_PACKAGE_ARCHIVE
-    "${CMAKE_BINARY_DIR}/package/Ravo-${PROJECT_VERSION}-Linux.tar.gz")
+  set(RAVO_PACKAGE_DEB_OUTPUT
+    "${CMAKE_BINARY_DIR}/package/${RAVO_PACKAGE_ARTIFACT_STEM}.deb")
+  set(RAVO_PACKAGE_APPIMAGE_TOOL "" CACHE STRING
+    "AppImage tool supplied by the active FreeCM lock")
+  set(RAVO_PACKAGE_DEB_TOOL "" CACHE STRING
+    "Debian package tool supplied by the active FreeCM lock")
+  set(RAVO_PACKAGE_DEB_ARCHITECTURE "" CACHE STRING
+    "Debian architecture supplied by the active FreeCM lock")
+  if(NOT RAVO_PACKAGE_APPIMAGE_TOOL
+      OR NOT RAVO_PACKAGE_DEB_TOOL
+      OR NOT RAVO_PACKAGE_DEB_ARCHITECTURE)
+    message(FATAL_ERROR
+      "Linux package tools and DEB architecture are required; update the active source-roots lock and run --update")
+  endif()
 
   set(_ravo_linux_runtime_libraries "")
   foreach(_ravo_library_dir IN LISTS _ravo_package_runtime_search_paths)
@@ -257,14 +280,7 @@ elseif(UNIX)
     PLATFORM linux
     TARGET_NAME RavoDeploy
     DEPENDS ravo)
-  add_custom_target(RavoPackage
-    COMMAND ${CMAKE_COMMAND} -E rm -f "${RAVO_PACKAGE_ARCHIVE}"
-    COMMAND ${CMAKE_COMMAND} -E tar czf "${RAVO_PACKAGE_ARCHIVE}"
-      "${RAVO_PACKAGE_DIST_NAME}"
-    WORKING_DIRECTORY "${RAVO_PACKAGE_DIST_ROOT}"
-    DEPENDS RavoDeploy
-    COMMENT "Creating ${RAVO_PACKAGE_ARCHIVE}"
-    VERBATIM)
+  add_custom_target(RavoPackage DEPENDS RavoDeploy)
 endif()
 
 set_target_properties(RavoPackage PROPERTIES FOLDER "Deployment")

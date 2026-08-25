@@ -76,17 +76,19 @@ for distribution.
 
 | Host | Configure preset | Artifact |
 | --- | --- | --- |
-| macOS | `mac_clang_release` | `build/mac_clang_release/dist/Ravo-Studio-<version>-macOS.dmg` |
-| Windows | `win_msvc_release` | `build/win_msvc_release/package/Ravo-<version>-Windows.zip` |
-| Linux | `linux_clang_release` | `build/linux_clang_release/package/Ravo-<version>-Linux.tar.gz` |
+| macOS | `mac_clang_release` | `build/mac_clang_release/dist/RavoStudio-<version>-<arch>-macOS.dmg` |
+| Windows | `win_msvc_release` | `build/win_msvc_release/package/RavoStudio-<version>-<arch>-Windows.zip` |
+| Linux | `linux_clang_release` | `build/linux_clang_release/dist/RavoStudio-<version>-<arch>-Linux.AppImage` and `build/linux_clang_release/package/RavoStudio-<version>-<arch>-Linux.deb` |
 
 The macOS bundle places the CLI at `Ravo Studio.app/Contents/MacOS/ravo`.
 Windows and Linux place `ravo` beside `ravo_studio` in the deployed binary
 directory.
 
-Linux currently publishes a FreeCM AppDir archive, not an AppImage. This makes
-the supported artifact explicit without downloading an unpinned AppImage tool;
-portability is limited to compatible Linux/glibc environments.
+Linux publishes both an AppImage and a Debian package from the same FreeCM-owned
+AppDir payload. CI uses pinned appimagetool 1.9.1 and type2 runtime 20251108
+assets with fixed SHA256 checks. The DEB installs the private payload under
+`/opt/RavoStudio` and owns launchers for `ravo_studio` and `ravo` under
+`/usr/bin`; neither format falls back to the former AppDir tar archive.
 
 ## GitHub Actions
 
@@ -97,8 +99,8 @@ Linux. Each package entry prepares the same pinned source roots and host
 dependencies, configures the release preset, calls `RavoPackage`, and uploads
 only the expected platform artifact. After all three package jobs succeed, the
 single release job downloads those artifacts from the current run, requires
-exactly one DMG, ZIP, and tar.gz, and creates the GitHub Release for the existing
-tag with generated notes and all three files attached. Missing output, an
+exactly one DMG, ZIP, AppImage, and DEB, and creates the GitHub Release for the
+existing tag with generated notes and all four files attached. Missing output, an
 existing Release for the tag, or any GitHub API failure is a hard workflow
 failure; the workflow does not overwrite an existing release.
 

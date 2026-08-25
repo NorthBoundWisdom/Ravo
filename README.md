@@ -42,9 +42,10 @@ cmake --preset mac_clang_release
 cmake --build build/mac_clang_release --target RavoPackage
 ```
 
-Use `win_msvc_release` or `linux_clang_release` on the corresponding host. The
-artifacts are a macOS DMG, a Windows ZIP, and a Linux AppDir tar.gz under the
-selected build tree. See [`DevDocs/Packaging.md`](DevDocs/Packaging.md).
+Use `win_msvc_release` or `linux_clang_release` on the corresponding host.
+Artifacts use `RavoStudio-<version>-<architecture>-<platform>` names: macOS
+produces a DMG, Windows a ZIP, and Linux an AppImage plus DEB. See
+[`DevDocs/Packaging.md`](DevDocs/Packaging.md).
 
 The FreeCM Package button follows the active Config. Debug and Release each
 have a compatible package variant; run the selected Config once before using
@@ -64,7 +65,7 @@ because the generated build preset is named `ClangDebug`. Frozen `legacy/` is
 not configured or built. Branch pushes and pull requests stop after the Debug
 build/tests. Tag pushes then run separate Release jobs that call `RavoPackage`,
 upload the FreeCM-produced platform artifacts, and publish one GitHub Release
-with the macOS, Windows, and Linux packages attached.
+with the macOS DMG, Windows ZIP, Linux AppImage, and Linux DEB attached.
 
 GeoControls is public today; if it becomes private, add a `GEOCONTROLS_TOKEN`
 repository secret with `contents:read`.

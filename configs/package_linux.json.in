@@ -27,12 +27,27 @@
     ]
   },
   "linux": {
-    "packageName": "Ravo-@PROJECT_VERSION@-Linux",
+    "packageName": "@RAVO_PACKAGE_ARTIFACT_STEM@",
     "iconFile": "@CMAKE_CURRENT_SOURCE_DIR@/desktop/icons/AppIcon.png",
     "desktop": {
       "categories": "Graphics;Photography;"
     },
     "extraLibraries": @RAVO_PACKAGE_LINUX_RUNTIME_LIBRARIES_JSON@,
-    "debugPackage": false
+    "debugPackage": false,
+    "appImageTool": "@RAVO_PACKAGE_APPIMAGE_TOOL@",
+    "debTool": "@RAVO_PACKAGE_DEB_TOOL@",
+    "debOutputPath": "@RAVO_PACKAGE_DEB_OUTPUT@",
+    "debPackageName": "ravostudio",
+    "debArchitecture": "@RAVO_PACKAGE_DEB_ARCHITECTURE@",
+    "debMaintainer": "Ravo Maintainers <northboundwisdom@users.noreply.github.com>",
+    "debDescription": "Ravo Studio photo catalog and image viewer",
+    "debSection": "graphics",
+    "debPriority": "optional",
+    "debDependencies": "libc6, libgcc-s1, libstdc++6",
+    "debInstallPrefix": "/opt/RavoStudio",
+    "debExecutables": [
+      "ravo_studio",
+      "ravo"
+    ]
   }
 }
