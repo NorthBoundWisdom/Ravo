@@ -270,8 +270,9 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
         const auto *source = raw.rawdata.raw_image +
                              (static_cast<std::size_t>(sizes.top_margin) + y) * pitch +
                              sizes.left_margin;
-        std::copy_n(source, result.width,
-                    result.pixels.begin() + static_cast<std::size_t>(y) * result.width);
+        const auto row_offset =
+            static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * result.width);
+        std::copy_n(source, result.width, result.pixels.begin() + row_offset);
     }
     return result;
 }

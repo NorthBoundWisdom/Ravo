@@ -560,8 +560,9 @@ void append_escaped_string(std::string &destination, const std::string_view valu
 {
     destination.push_back('"');
     constexpr char hex[] = "0123456789abcdef";
-    for (const unsigned char character : value)
+    for (const char raw : value)
     {
+        const auto character = static_cast<unsigned char>(raw);
         switch (character)
         {
         case '"':
