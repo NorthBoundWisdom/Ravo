@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import GeoControls 1.0
 
 Item {
@@ -47,6 +48,8 @@ Item {
     readonly property string sizeLabel: (pixelWidth > 0 && pixelHeight > 0) ? (pixelWidth + "×" + pixelHeight) : ""
     readonly property string starText: rating > 0 ? "★".repeat(rating) : ""
     readonly property color starColor: "#ffca56"
+    readonly property color chromeTextColor: "#f5f5f5"
+    readonly property color chromeMetaColor: "#ececec"
 
     Rectangle {
         id: frame
@@ -78,7 +81,7 @@ Item {
                     return qsTr("Missing");
                 return qsTr("Loading…");
             }
-            color: Theme.placeholderTextColor
+            color: root.chromeTextColor
             font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
         }
 
@@ -92,7 +95,6 @@ Item {
             readonly property bool topBand: gutterY >= (root.compact ? 11 : 13)
             readonly property bool bottomBand: gutterY >= (root.compact ? 11 : 13)
             readonly property bool sideBand: gutterX >= 14 && !topBand
-            readonly property bool twoLineBottom: !root.compact && gutterY >= 28
 
             Rectangle {
                 visible: sequenceLabel.visible && !chrome.topBand && !chrome.sideBand
@@ -112,7 +114,7 @@ Item {
                 visible: text.length > 0
                 font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
                 font.bold: true
-                color: "#f2f2f2"
+                color: root.chromeTextColor
             }
 
             CustomLabel {
@@ -127,47 +129,62 @@ Item {
                         return root.kindLabel.length > 0 ? (root.kindLabel + "  " + root.sizeLabel) : root.sizeLabel;
                     return root.kindLabel;
                 }
-                font.pixelSize: root.compact ? Fonts.size9 : Fonts.size10
-                color: Theme.placeholderTextColor
-            }
-
-            CustomLabel {
-                id: nameLabel
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.leftMargin: 2
-                anchors.rightMargin: 2
-                anchors.bottomMargin: chrome.twoLineBottom ? (starLabel.implicitHeight + 1) : 0
-                visible: !root.compact && chrome.twoLineBottom && root.displayName.length > 0
-                text: root.displayName
-                elide: Text.ElideMiddle
-                horizontalAlignment: Text.AlignHCenter
-                font.pixelSize: Fonts.size10
-                color: Theme.placeholderTextColor
-            }
-
-            CustomLabel {
-                id: starLabel
-                x: 1
-                y: parent.height - implicitHeight - (chrome.bottomBand ? Math.max(0, (chrome.gutterY - implicitHeight) / 2) : 1)
-                text: root.starText
-                visible: text.length > 0
                 font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
-                color: root.starColor
+                color: root.chromeMetaColor
             }
 
             Rectangle {
-                id: swatch
-                width: root.compact ? 7 : 10
-                height: width
-                radius: width / 2
-                visible: root.colorLabel !== "none"
-                color: root.swatchColor(root.colorLabel)
+                id: bottomScrim
+                anchors.fill: bottomBar
+                visible: bottomBar.visible && !chrome.bottomBand
+                color: "#99000000"
+            }
+
+            RowLayout {
+                id: bottomBar
+                anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.rightMargin: 2
-                anchors.bottomMargin: chrome.bottomBand ? Math.max(1, (chrome.gutterY - height) / 2) : 2
+                anchors.leftMargin: 3
+                anchors.rightMargin: 3
+                anchors.bottomMargin: chrome.bottomBand ? Math.max(1, Math.round((chrome.gutterY - implicitHeight) / 2)) : 2
+                spacing: Fonts.size4
+                visible: root.starText.length > 0 || root.displayName.length > 0 || root.colorLabel !== "none"
+
+                CustomLabel {
+                    id: starLabel
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: implicitWidth
+                    text: root.starText
+                    visible: text.length > 0
+                    font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
+                    color: root.starColor
+                }
+
+                CustomLabel {
+                    id: nameLabel
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.minimumWidth: 0
+                    text: root.displayName
+                    visible: text.length > 0
+                    elide: Text.ElideMiddle
+                    horizontalAlignment: Text.AlignHCenter
+                    font.pixelSize: root.compact ? Fonts.size10 : Fonts.size12
+                    color: root.chromeTextColor
+                }
+
+                Rectangle {
+                    id: swatch
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: width
+                    Layout.preferredHeight: height
+                    width: root.compact ? 8 : 10
+                    height: width
+                    radius: width / 2
+                    visible: root.colorLabel !== "none"
+                    color: root.swatchColor(root.colorLabel)
+                }
             }
 
             Row {

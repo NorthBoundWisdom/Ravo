@@ -372,6 +372,7 @@ ApplicationWindow {
                 SplitView.preferredWidth: 240
                 SplitView.minimumWidth: 160
                 presenter: studio
+                commands: studioActions
                 viewRectX: navigatorVisible.x
                 viewRectY: navigatorVisible.y
                 viewRectW: navigatorVisible.width
@@ -484,6 +485,7 @@ ApplicationWindow {
                         Flickable {
                             id: scroller
                             anchors.fill: parent
+                            anchors.margins: Fonts.size8
                             clip: true
                             interactive: !(studio.browseMode === "develop" && studio.cropToolActive)
                             contentWidth: previewStage.width
@@ -558,17 +560,37 @@ ApplicationWindow {
                                     }
                                 }
 
+                                TapHandler {
+                                    enabled: studio.browseMode === "loupe"
+                                    acceptedButtons: Qt.LeftButton
+                                    onDoubleTapped: studioActions.openGallery("grid")
+                                }
+
                                 CropOverlay {
                                     anchors.fill: parent
                                     visible: studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady && photoPlane.width > 1
-                                    sourceWidth: photoPlane.width
-                                    sourceHeight: photoPlane.height
+                                    imageX: photoPlane.x
+                                    imageY: photoPlane.y
+                                    imageWidth: photoPlane.width
+                                    imageHeight: photoPlane.height
+                                    imageRotation: photoPlane.rotation
                                     cropX: studio.editCropX
                                     cropY: studio.editCropY
                                     cropWidth: studio.editCropWidth
                                     cropHeight: studio.editCropHeight
+                                    aspectRatio: studio.cropAspectRatio
+                                    straighten: studio.editStraighten
+                                    onCropEdited: function (x, y, w, h) {
+                                        studioActions.previewCropRect(x, y, w, h);
+                                    }
                                     onCropCommitted: function (x, y, w, h) {
                                         studioActions.setCropRect(x, y, w, h);
+                                    }
+                                    onStraightenEdited: function (degrees) {
+                                        studioActions.previewDevelopNumber("straighten", degrees);
+                                    }
+                                    onStraightenCommitted: function (degrees) {
+                                        studioActions.setDevelopNumber("straighten", degrees);
                                     }
                                 }
                             }

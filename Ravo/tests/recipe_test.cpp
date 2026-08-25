@@ -140,6 +140,16 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(crop.exposure_ev, 0.0, 1e-6);
     EXPECT_TRUE(reset_develop_section(crop, "geometry"));
     EXPECT_NEAR(crop.crop_width, 1.0, 1e-6);
+    DevelopParams bands;
+    bands.tone_eq_shadows = 0.4;
+    bands.graduated_density = 0.8;
+    bands.color_eq_band = 3;
+    EXPECT_TRUE(reset_develop_section(bands, "toneEqual"));
+    EXPECT_NEAR(bands.tone_eq_shadows, 0.0, 1e-6);
+    EXPECT_NEAR(bands.graduated_density, 0.8, 1e-6);
+    EXPECT_TRUE(reset_develop_section(bands, "graduated"));
+    EXPECT_NEAR(bands.graduated_density, 0.0, 1e-6);
+    EXPECT_EQ(bands.color_eq_band, 0);
 
     DevelopParams angled;
     angled.straighten_degrees = 12.5;

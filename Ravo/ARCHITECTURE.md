@@ -38,7 +38,7 @@ preview、任务和窗口生命周期，但不恢复旧 GTK、动态 IOP ABI 或
 | `ravo_services` | create/open/import/list/preview 用例与任务编排 | domain、engine facade | SQL、QML/presentation 类型、第三方 codec 类型 |
 | `ravo_adapters` | SQLite、filesystem、RAW/raster codec、preview cache | 对应 ports、Qt Core/Gui/Sql、固定第三方依赖 | QML/UI 状态、旧核心 |
 | `ravo_cli` | 参数、JSON、退出码、CLI composition | services、engine facade、adapters | 算法、SQL、UI |
-| `ravo_desktop` | C++ composition/presenter、Qt Quick/QML 窗口、Gallery、viewer、文件选择 | services、只读 preview 资源、Qt Core/Gui/Qml/Quick、GeoControls | Qt Widgets、SQL、codec、算法私有状态 |
+| `ravo_desktop` | C++ composition/presenter、Qt Quick/QML 窗口、Gallery、viewer、文件选择。presenter 按 catalog/preview/develop 分 TU，QML 按 `theme/` `gallery/` `inspect/` `chrome/` 分目录 | services、只读 preview 资源、Qt Core/Gui/Qml/Quick、GeoControls | Qt Widgets、SQL、codec、算法私有状态 |
 
 SQLite 由私有 Qt Sql/QSQLITE adapter 包装，raster 首版由私有 `QImageReader` adapter 包装；LibRaw 和平台
 API 同样不越过 port。Qt 值类型可在有明确收益的 target 内使用，但 recipe、CLI JSON、catalog schema

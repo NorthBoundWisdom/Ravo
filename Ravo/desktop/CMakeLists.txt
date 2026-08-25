@@ -5,7 +5,13 @@ add_library(ravo_desktop STATIC)
 
 target_sources(ravo_desktop
   PRIVATE
+    src/asset_list_model.cpp
+    src/folder_list_model.cpp
     src/studio_presenter.cpp
+    src/studio_preview.cpp
+    src/studio_develop.cpp
+    include/ravo/desktop/asset_list_model.h
+    include/ravo/desktop/folder_list_model.h
     include/ravo/desktop/studio_presenter.h
     include/ravo/desktop/studio_commands.h)
 
@@ -99,19 +105,21 @@ qt_add_qml_module(ravo_studio
     GeoControls.AppShell
   QML_FILES
     qml/Main.qml
-    qml/FolderDialogPage.qml
-    qml/LibrarySidePanel.qml
-    qml/InspectorSidePanel.qml
-    qml/ToneCurveEditor.qml
-    qml/FilmStripBar.qml
-    qml/ThumbnailCell.qml
-    qml/GalleryReviewBar.qml
-    qml/ScopePanel.qml
-    qml/DarkThemePalette.qml
-    qml/SettingsPage.qml
-    qml/StudioActions.qml
-    qml/StudioMenuBar.qml
-    qml/PhotoContextMenu.qml)
+    qml/theme/DarkThemePalette.qml
+    qml/gallery/LibrarySidePanel.qml
+    qml/gallery/FilmStripBar.qml
+    qml/gallery/GalleryReviewBar.qml
+    qml/gallery/ThumbnailCell.qml
+    qml/inspect/InspectorSidePanel.qml
+    qml/inspect/PhotoInfoPanel.qml
+    qml/inspect/DevelopPanel.qml
+    qml/inspect/ToneCurveEditor.qml
+    qml/inspect/ScopePanel.qml
+    qml/chrome/FolderDialogPage.qml
+    qml/chrome/SettingsPage.qml
+    qml/chrome/StudioActions.qml
+    qml/chrome/StudioMenuBar.qml
+    qml/chrome/PhotoContextMenu.qml)
 
 qt_add_resources(ravo_studio "studio_app_icon"
   PREFIX "/ravo/studio"

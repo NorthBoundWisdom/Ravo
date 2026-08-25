@@ -1308,6 +1308,30 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.raw_highlights = identity.raw_highlights;
         params.raw_highlights_clip = identity.raw_highlights_clip;
         params.raw_highlights_mode = identity.raw_highlights_mode;
+        params.denoise = identity.denoise;
+        params.denoise_chroma = identity.denoise_chroma;
+        params.denoise_radius = identity.denoise_radius;
+        params.lens_k1 = identity.lens_k1;
+        params.lens_vignetting = identity.lens_vignetting;
+    }
+    else if (section == "toneEqual")
+    {
+        params.tone_eq_blacks = identity.tone_eq_blacks;
+        params.tone_eq_shadows = identity.tone_eq_shadows;
+        params.tone_eq_midtones = identity.tone_eq_midtones;
+        params.tone_eq_highlights = identity.tone_eq_highlights;
+        params.tone_eq_whites = identity.tone_eq_whites;
+    }
+    else if (section == "graduated")
+    {
+        params.graduated_density = identity.graduated_density;
+        params.graduated_hardness = identity.graduated_hardness;
+        params.graduated_rotation = identity.graduated_rotation;
+        params.graduated_offset = identity.graduated_offset;
+        params.color_eq_hue = {};
+        params.color_eq_sat = {};
+        params.color_eq_light = {};
+        params.color_eq_band = 0;
     }
     else
     {

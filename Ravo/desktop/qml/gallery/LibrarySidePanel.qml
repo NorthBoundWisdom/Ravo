@@ -6,13 +6,15 @@ import GeoControls 1.0
 Rectangle {
     id: root
     property var presenter
+    property var commands
     property real viewRectX: 0
     property real viewRectY: 0
     property real viewRectW: 1
     property real viewRectH: 1
     color: Theme.railSurfaceColor
 
-    readonly property int treeColumnWidth: Fonts.size16
+    readonly property int treeColumnWidth: Fonts.size20
+    readonly property int treeGuideX: Math.floor(treeColumnWidth / 2)
     signal viewportSeeked(real nx, real ny)
 
     Connections {
@@ -140,17 +142,24 @@ Rectangle {
             }
             CustomLabel {
                 Layout.alignment: Qt.AlignVCenter
-                visible: root.presenter && root.presenter.browseMode !== "grid"
-                text: root.presenter && root.presenter.previewLoading ? qsTr("Loading…") : (root.presenter ? (Math.round(root.presenter.zoomFactor * 100) + "%") : "")
+                visible: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.previewLoading
+                text: qsTr("Loading…")
                 color: Theme.placeholderTextColor
             }
         }
 
-        TextField {
+        CustomTextField {
             Layout.fillWidth: true
             Layout.leftMargin: Fonts.standardMargin
             Layout.rightMargin: Fonts.standardMargin
             Layout.bottomMargin: Fonts.size8
+            Layout.preferredHeight: Fonts.inputFieldHeight
+            Layout.maximumHeight: Fonts.inputFieldHeight
+            showEmptyIndicator: false
+            showClipIndicator: false
+            alignRightWhenFocused: false
+            leftPadding: Fonts.size6
+            rightPadding: Fonts.size6
             placeholderText: qsTr("Filter by tag")
             text: root.presenter ? root.presenter.tagFilter : ""
             onEditingFinished: if (root.presenter)
@@ -163,9 +172,8 @@ Rectangle {
             Layout.fillHeight: true
             Layout.leftMargin: Fonts.size8
             Layout.rightMargin: Fonts.size8
-            Layout.bottomMargin: Fonts.size8
             clip: true
-            spacing: Fonts.size2
+            spacing: 0
             boundsBehavior: Flickable.StopAtBounds
             model: root.presenter ? root.presenter.folders : null
 
@@ -178,6 +186,7 @@ Rectangle {
                 required property bool hasChildren
                 required property bool hasNextSibling
                 required property var ancestorLineContinues
+                required property bool collapsed
                 required property int index
 
                 readonly property int treeDepth: Math.max(0, folderRow.depth)
@@ -190,13 +199,12 @@ Rectangle {
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 4
                     color: {
                         if (root.presenter && folderRow.folderUri === root.presenter.selectedFolderUri)
                             return Theme.buttonHoveredColor;
                         if (folderMouse.containsMouse)
                             return Theme.buttonHoveredColor;
-                        return folderRow.index % 2 === 0 ? Theme.baseColor : "transparent";
+                        return folderRow.index % 2 === 0 ? Theme.alternateBaseColor : Theme.railSurfaceColor;
                     }
                 }
 
@@ -205,56 +213,114 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: (folderRow.treeDepth + (folderRow.hasChildren ? 1 : 0)) * root.treeColumnWidth
-                    visible: folderRow.treeDepth > 0
+                    width: (folderRow.treeDepth + 1) * root.treeColumnWidth
+                    visible: folderRow.treeDepth > 0 || folderRow.hasChildren
 
                     Repeater {
-                        model: folderRow.treeDepth
-                        delegate: Item {
+                        model: Math.max(0, folderRow.treeDepth - 1)
+                        delegate: Rectangle {
                             required property int index
-                            readonly property bool currentLevel: index === folderRow.treeDepth - 1
-                            readonly property int lineX: Math.floor(root.treeColumnWidth / 2)
-
-                            x: index * root.treeColumnWidth
-                            width: root.treeColumnWidth
-                            height: treeGuide.height
-
-                            Rectangle {
-                                x: parent.lineX
-                                y: 0
-                                width: 1
-                                height: parent.currentLevel && !folderRow.hasNextSibling ? folderRow.junctionY + 1 : parent.height
-                                visible: parent.currentLevel || Boolean(folderRow.ancestorLineContinues[parent.index])
-                                color: folderRow.treeGuideColor
-                                opacity: 0.7
-                            }
-
-                            Rectangle {
-                                x: parent.lineX
-                                y: folderRow.junctionY
-                                width: parent.currentLevel ? root.treeColumnWidth - parent.lineX : 0
-                                height: 1
-                                visible: parent.currentLevel
-                                color: folderRow.treeGuideColor
-                                opacity: 0.7
-                            }
+                            readonly property int lineX: index * root.treeColumnWidth + root.treeGuideX
+                            x: lineX
+                            y: 0
+                            width: 1
+                            height: parent.height
+                            visible: Boolean(folderRow.ancestorLineContinues[index])
+                            color: folderRow.treeGuideColor
+                            opacity: 0.7
                         }
                     }
 
                     Rectangle {
-                        x: folderRow.treeDepth * root.treeColumnWidth + Math.floor(root.treeColumnWidth / 2)
-                        y: folderRow.junctionY
+                        readonly property int lineX: (folderRow.treeDepth - 1) * root.treeColumnWidth + root.treeGuideX
+                        x: lineX
+                        y: 0
                         width: 1
-                        height: treeGuide.height - folderRow.junctionY
-                        visible: folderRow.hasChildren
+                        height: folderRow.hasNextSibling ? parent.height : folderRow.junctionY + 1
+                        visible: folderRow.treeDepth > 0
+                        color: folderRow.treeGuideColor
+                        opacity: 0.7
+                    }
+
+                    Rectangle {
+                        readonly property int startX: (folderRow.treeDepth - 1) * root.treeColumnWidth + root.treeGuideX
+                        readonly property int endX: folderRow.treeDepth * root.treeColumnWidth + root.treeGuideX
+                        x: startX
+                        y: folderRow.junctionY
+                        width: Math.max(1, endX - startX + 1)
+                        height: 1
+                        visible: folderRow.treeDepth > 0
+                        color: folderRow.treeGuideColor
+                        opacity: 0.7
+                    }
+
+                    Rectangle {
+                        readonly property int tipY: folderRow.junctionY + Math.ceil(Fonts.size12 / 2) - 1
+                        x: folderRow.treeDepth * root.treeColumnWidth + root.treeGuideX
+                        y: tipY
+                        width: 1
+                        height: Math.max(0, parent.height - tipY)
+                        visible: folderRow.hasChildren && !folderRow.collapsed
                         color: folderRow.treeGuideColor
                         opacity: 0.7
                     }
                 }
 
+                Item {
+                    id: disclosure
+                    visible: folderRow.hasChildren
+                    x: folderRow.treeDepth * root.treeColumnWidth
+                    width: root.treeColumnWidth
+                    height: parent.height
+                    z: 3
+
+                    Canvas {
+                        id: disclosureMark
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Fonts.size12
+                        height: Fonts.size12
+                        Component.onCompleted: requestPaint()
+                        onWidthChanged: requestPaint()
+                        onHeightChanged: requestPaint()
+                        onPaint: {
+                            const ctx = getContext("2d");
+                            const mid = Math.floor(width / 2);
+                            ctx.reset();
+                            ctx.fillStyle = Theme.textColor;
+                            ctx.beginPath();
+                            if (folderRow.collapsed) {
+                                ctx.moveTo(2, 1);
+                                ctx.lineTo(width - 1, mid);
+                                ctx.lineTo(2, height - 1);
+                            } else {
+                                ctx.moveTo(1, 2);
+                                ctx.lineTo(width - 1, 2);
+                                ctx.lineTo(mid, height - 1);
+                            }
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                    }
+
+                    Connections {
+                        target: folderRow
+                        function onCollapsedChanged() {
+                            disclosureMark.requestPaint();
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: if (root.presenter)
+                            root.presenter.folders.toggleCollapsed(folderRow.folderUri)
+                    }
+                }
+
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: Fonts.size8 + folderRow.treeDepth * root.treeColumnWidth
+                    anchors.leftMargin: Fonts.size8 + (folderRow.treeDepth + 1) * root.treeColumnWidth
                     anchors.rightMargin: Fonts.size8
                     spacing: Fonts.size8
 
@@ -283,6 +349,36 @@ Rectangle {
                     onClicked: if (root.presenter)
                         root.presenter.selectFolder(folderRow.folderUri)
                 }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 1
+            color: Theme.dividerColor
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: Fonts.size8
+            Layout.rightMargin: Fonts.size8
+            Layout.topMargin: Fonts.size8
+            Layout.bottomMargin: Fonts.size8
+            spacing: Fonts.smallSpacing
+
+            CustomButton {
+                Layout.fillWidth: true
+                text: qsTr("Import…")
+                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy
+                onClicked: if (root.commands)
+                    root.commands.importPhotos.trigger()
+            }
+            CustomButton {
+                Layout.fillWidth: true
+                text: qsTr("Export…")
+                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && root.presenter.selectedAssetId.length > 0
+                onClicked: if (root.commands)
+                    root.commands.exportPhoto.trigger()
             }
         }
     }

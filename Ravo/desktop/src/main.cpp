@@ -3,71 +3,17 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
-#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QQuickImageProvider>
 #include <QQuickStyle>
-#include <QResource>
-#include <QSize>
 #include <QUrl>
 
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
+#include "studio_image_providers.h"
 
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
-
-namespace
-{
-
-class StudioPreviewImageProvider final : public QQuickImageProvider
-{
-public:
-    explicit StudioPreviewImageProvider(ravo::StudioPresenter &studio)
-        : QQuickImageProvider(QQuickImageProvider::Image)
-        , studio_(&studio)
-    {
-    }
-
-    QImage requestImage(const QString &, QSize *size, const QSize &) override
-    {
-        const QImage image = studio_->previewImage();
-        if (size != nullptr)
-        {
-            *size = image.size();
-        }
-        return image;
-    }
-
-private:
-    ravo::StudioPresenter *studio_ = nullptr;
-};
-
-class StudioScopeImageProvider final : public QQuickImageProvider
-{
-public:
-    explicit StudioScopeImageProvider(ravo::StudioPresenter &studio)
-        : QQuickImageProvider(QQuickImageProvider::Image)
-        , studio_(&studio)
-    {
-    }
-
-    QImage requestImage(const QString &, QSize *size, const QSize &) override
-    {
-        const QImage image = studio_->scopeParadeImage();
-        if (size != nullptr)
-        {
-            *size = image.size();
-        }
-        return image;
-    }
-
-private:
-    ravo::StudioPresenter *studio_ = nullptr;
-};
-
-} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -119,8 +65,9 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.addImportPath(QStringLiteral("qrc:/"));
     engine.addImageProvider(QStringLiteral("studioPreview"),
-                            new StudioPreviewImageProvider(presenter));
-    engine.addImageProvider(QStringLiteral("studioScope"), new StudioScopeImageProvider(presenter));
+                            new ravo::StudioPreviewImageProvider(presenter));
+    engine.addImageProvider(QStringLiteral("studioScope"),
+                            new ravo::StudioScopeImageProvider(presenter));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

@@ -3,197 +3,31 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
-Rectangle {
+ColumnLayout {
     id: root
     property var presenter
     property var commands
+    property bool liveReady: false
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
-    readonly property bool developOpen: hasPresenter && presenter.browseMode === "develop"
-    property bool liveReady: false
+    spacing: Fonts.smallSpacing
 
-    Component.onCompleted: liveReady = true
-
-    color: Theme.railSurfaceColor
-
-    function infoRow(label, value) {
-        return label + ": " + (value && value.length ? value : "—");
+    component DevelopSection: CustomEditPanel {
+        showAddButton: false
+        showDeleteButton: false
+        showApplyButton: false
+        actionsNeedEditing: false
+        actionButtonsEnabled: root.hasSelection
+        editing: root.hasSelection
+        resetTooltip: qsTr("Reset this section")
+        property string sectionId
+        onReset: function () {
+            if (root.commands && sectionId.length)
+                root.commands.resetSection(sectionId);
+        }
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 0
-
-        ScopePanel {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Fonts.scaledUiSize(128)
-            Layout.minimumHeight: Fonts.scaledUiSize(96)
-            presenter: root.presenter
-        }
-
-    Flickable {
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        flickableDirection: Flickable.VerticalFlick
-        contentWidth: width
-        contentHeight: column.implicitHeight
-
-        ColumnLayout {
-            id: column
-            width: parent.width
-            spacing: Fonts.smallSpacing
-
-            ColumnLayout {
-                visible: !root.developOpen
-                Layout.fillWidth: true
-                spacing: Fonts.smallSpacing
-
             CustomLabel {
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.topMargin: Fonts.size12
-                text: qsTr("Photo")
-                font.bold: true
-            }
-
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.WrapAnywhere
-                elide: Text.ElideMiddle
-                text: root.presenter && root.presenter.selectedDisplayName.length ? root.presenter.selectedDisplayName : qsTr("No photo selected")
-            }
-
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.WrapAnywhere
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Folder"), root.presenter ? root.presenter.selectedFolderPath : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Type"), root.presenter ? root.presenter.selectedMediaType : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Size"), root.presenter ? root.presenter.selectedDimensions : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("File"), root.presenter ? root.presenter.selectedFileSize : "")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                color: Theme.placeholderTextColor
-                text: root.presenter && root.presenter.selectedHasEdits ? qsTr("Edited") : qsTr("No edits")
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.WrapAnywhere
-                color: Theme.placeholderTextColor
-                font.pixelSize: Fonts.size10
-                text: root.presenter ? root.presenter.selectedUri : ""
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                wrapMode: Text.Wrap
-                color: Theme.placeholderTextColor
-                text: root.infoRow(qsTr("Capture"), root.presenter ? root.presenter.selectedCaptureSummary : "")
-            }
-
-            CustomLabel {
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.topMargin: Fonts.size8
-                text: qsTr("Tags & Metadata")
-                font.bold: true
-            }
-            TextField {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                placeholderText: qsTr("tags, comma separated")
-                enabled: root.hasSelection
-                text: root.hasPresenter ? root.presenter.selectedTags : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setTags(text)
-            }
-            TextField {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                placeholderText: qsTr("Title")
-                enabled: root.hasSelection
-                text: root.hasPresenter ? root.presenter.selectedTitle : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setMetadata("title", text)
-            }
-            TextField {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                placeholderText: qsTr("Creator")
-                enabled: root.hasSelection
-                text: root.hasPresenter ? root.presenter.selectedCreator : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setMetadata("creator", text)
-            }
-            TextField {
-                Layout.fillWidth: true
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.rightMargin: Fonts.standardMargin
-                placeholderText: qsTr("Copyright")
-                enabled: root.hasSelection
-                text: root.hasPresenter ? root.presenter.selectedCopyright : ""
-                onEditingFinished: if (root.commands)
-                    root.commands.setMetadata("copyright", text)
-            }
-            Repeater {
-                model: root.hasPresenter ? root.presenter.recipeHistory : []
-                delegate: RowLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Fonts.standardMargin
-                    Layout.rightMargin: Fonts.standardMargin
-                    CustomLabel {
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        text: (modelData.kind === "snapshot" ? qsTr("Snapshot") : qsTr("History")) +
-                              (modelData.label && modelData.label.length ? " · " + modelData.label : " #" + modelData.seq)
-                    }
-                    CustomButton {
-                        text: qsTr("Restore")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.restoreHistory(modelData.id)
-                    }
-                }
-            }
-            CustomButton {
-                Layout.leftMargin: Fonts.standardMargin
-                text: qsTr("Snapshot")
-                enabled: root.hasSelection
-                onClicked: if (root.commands)
-                    root.commands.createSnapshot(qsTr("Snapshot"))
-            }
-            }
-
-            CustomLabel {
-                visible: root.developOpen
                 Layout.leftMargin: Fonts.standardMargin
                 Layout.topMargin: Fonts.size8
                 text: qsTr("Develop")
@@ -201,7 +35,6 @@ Rectangle {
             }
 
             ColumnLayout {
-                visible: root.developOpen
                 Layout.fillWidth: true
                 Layout.leftMargin: Fonts.standardMargin
                 Layout.rightMargin: Fonts.standardMargin
@@ -235,10 +68,9 @@ Rectangle {
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Geometry")
-                    expanded: true
+                    sectionId: "geometry"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -315,18 +147,12 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("straighten")
                         }
-                        CustomButton {
-                            text: qsTr("Reset geometry")
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.resetSection("geometry")
-                        }
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("White Balance")
+                    sectionId: "whiteBalance"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -372,18 +198,12 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("tint")
                         }
-                        CustomButton {
-                            text: qsTr("Reset WB")
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.resetSection("whiteBalance")
-                        }
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Light")
+                    sectionId: "light"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -634,18 +454,12 @@ Rectangle {
                             onClicked: if (root.commands)
                                 root.commands.resetControl("toneCurve")
                         }
-                        CustomButton {
-                            text: qsTr("Reset light")
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.resetSection("light")
-                        }
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Color")
+                    sectionId: "color"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -873,18 +687,12 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("splitBalance")
                         }
-                        CustomButton {
-                            text: qsTr("Reset color")
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.resetSection("color")
-                        }
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Detail")
+                    sectionId: "detail"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -964,18 +772,12 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("grain")
                         }
-                        CustomButton {
-                            text: qsTr("Reset detail")
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.resetSection("detail")
-                        }
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Effects")
+                    sectionId: "effects"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -1055,18 +857,12 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("dehaze")
                         }
-                        CustomButton {
-                            text: qsTr("Reset effects")
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.resetSection("effects")
-                        }
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("RAW / Denoise / Lens")
+                    sectionId: "raw"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -1157,9 +953,9 @@ Rectangle {
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Tone equalizer")
+                    sectionId: "toneEqual"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -1271,9 +1067,9 @@ Rectangle {
                     }
                 }
 
-                Expander {
-                    Layout.fillWidth: true
+                DevelopSection {
                     title: qsTr("Graduated ND / Color EQ")
+                    sectionId: "graduated"
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
@@ -1372,7 +1168,4 @@ Rectangle {
                     }
                 }
             }
-        }
-    }
-    }
 }

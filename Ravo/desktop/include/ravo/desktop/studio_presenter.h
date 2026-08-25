@@ -10,8 +10,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include <QAbstractListModel>
-#include <QHash>
 #include <QImage>
 #include <QList>
 #include <QMutex>
@@ -22,6 +20,8 @@
 #include <QVariant>
 #include <QVariantList>
 
+#include "ravo/desktop/asset_list_model.h"
+#include "ravo/desktop/folder_list_model.h"
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
@@ -31,86 +31,6 @@
 
 namespace ravo
 {
-
-class AssetListModel final : public QAbstractListModel
-{
-    Q_OBJECT
-
-public:
-    enum Role
-    {
-        AssetIdRole = Qt::UserRole + 1,
-        DisplayNameRole,
-        MediaTypeRole,
-        ImportStateRole,
-        ErrorRole,
-        RatingRole,
-        ColorLabelRole,
-        RejectedRole,
-        ThumbnailUrlRole,
-        ThumbnailStateRole,
-        WidthRole,
-        HeightRole,
-        HasEditsRole,
-        SelectedRole,
-    };
-
-    explicit AssetListModel(QObject *parent = nullptr);
-
-    [[nodiscard]] int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
-    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
-    void setAssets(std::vector<AssetRecord> assets);
-    void setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state);
-    void updateAsset(const AssetRecord &asset);
-    void markOriginalMissing(const std::string &asset_id);
-    void setSelectedIds(std::unordered_set<std::string> ids);
-    [[nodiscard]] bool isSelected(const std::string &asset_id) const;
-    [[nodiscard]] int indexOf(const QString &asset_id) const;
-    [[nodiscard]] std::optional<AssetRecord> assetById(const QString &asset_id) const;
-    [[nodiscard]] QString assetIdAt(int row) const;
-
-private:
-    std::vector<AssetRecord> assets_;
-    std::unordered_map<std::string, QUrl> thumbnail_urls_;
-    std::unordered_map<std::string, QString> thumbnail_states_;
-    std::unordered_set<std::string> selected_ids_;
-};
-
-class FolderListModel final : public QAbstractListModel
-{
-    Q_OBJECT
-
-public:
-    enum Role
-    {
-        FolderUriRole = Qt::UserRole + 1,
-        DisplayNameRole,
-        DepthRole,
-        AssetCountRole,
-        HasChildrenRole,
-        HasNextSiblingRole,
-        AncestorLineContinuesRole,
-    };
-
-    explicit FolderListModel(QObject *parent = nullptr);
-
-    [[nodiscard]] int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
-    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
-    void setFolders(std::vector<FolderRecord> folders);
-
-private:
-    struct FolderRow
-    {
-        FolderRecord folder;
-        bool has_children = false;
-        bool has_next_sibling = false;
-        std::vector<char> ancestor_line_continues;
-    };
-
-    std::vector<FolderRow> folders_;
-};
 
 class StudioPresenter final : public QObject
 {

@@ -2,7 +2,9 @@ add_library(ravo_services STATIC)
 
 target_sources(ravo_services
   PRIVATE
-    src/catalog_service.cpp)
+    src/catalog_internal.cpp
+    src/catalog_service.cpp
+    src/catalog_preview.cpp)
 
 target_include_directories(ravo_services
   PUBLIC

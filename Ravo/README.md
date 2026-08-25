@@ -13,7 +13,7 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 - legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
 - Catalog 纵切片已落地：reference-only JPEG/PNG/RAW 导入、库外 preview cache、
   `ravo_studio` Qt Quick 窗口，控件来自 source-root `GeoControls`。
-- Browse & Review：catalog schema v2、评分/色标/拒绝、Gallery（grid/loupe）与 Edit 分栏、filmstrip（与 grid 相同的 contain 整图，letterbox 显示序号/评分/标记）、Fit/Fill/100%、筛选排序、右侧面板 RGB 直方图/parade 示波器。
+- Browse & Review：catalog schema v2、评分/色标/拒绝、Gallery（grid/loupe）与 Edit 分栏、filmstrip（与 grid 相同的 contain 整图，letterbox 显示序号/评分/标记）、可折叠文件夹树、左侧 Import/Export、Fit/Fill/100%、筛选排序、右侧面板 RGB 直方图/parade 示波器。
 - Basic Develop：catalog schema v4 每张图一份 canonical recipe，外加标签/可写 metadata 与
   持久 history/snapshot；CPU 含 RAW 高光重建（默认 opposed）、wavelets+Y0U0V0 降噪、
   lensfun poly3/vignette、dt UCS `colorequal`、渐变滤镜和 9 带 toneequal。Studio 有

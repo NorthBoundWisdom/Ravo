@@ -1,0 +1,1055 @@
+#include "ravo/desktop/studio_presenter.h"
+
+#include <utility>
+
+#include <QMetaObject>
+#include <QMutexLocker>
+#include <QString>
+#include <QVariantList>
+#include <QVariantMap>
+
+#include "ravo/recipe/develop.h"
+#include "ravo/recipe/recipe.h"
+#include "studio_qt.h"
+
+namespace ravo
+{
+bool StudioPresenter::beforeAfter() const noexcept
+{
+    return before_after_;
+}
+
+bool StudioPresenter::canUndo() const noexcept
+{
+    return !undo_stack_.empty();
+}
+
+bool StudioPresenter::canRedo() const noexcept
+{
+    return !redo_stack_.empty();
+}
+
+double StudioPresenter::editTemperature() const noexcept
+{
+    return develop_.temperature;
+}
+
+double StudioPresenter::editTint() const noexcept
+{
+    return develop_.tint;
+}
+
+double StudioPresenter::editExposure() const noexcept
+{
+    return develop_.exposure_ev;
+}
+
+double StudioPresenter::editContrast() const noexcept
+{
+    return develop_.contrast;
+}
+
+double StudioPresenter::editHighlights() const noexcept
+{
+    return develop_.highlights;
+}
+
+double StudioPresenter::editShadows() const noexcept
+{
+    return develop_.shadows;
+}
+
+double StudioPresenter::editWhites() const noexcept
+{
+    return develop_.whites;
+}
+
+double StudioPresenter::editBlacks() const noexcept
+{
+    return develop_.blacks;
+}
+
+double StudioPresenter::editVibrance() const noexcept
+{
+    return develop_.vibrance;
+}
+
+double StudioPresenter::editSaturation() const noexcept
+{
+    return develop_.saturation;
+}
+
+int StudioPresenter::editRotateQuarters() const noexcept
+{
+    return static_cast<int>(develop_.rotate_quarters);
+}
+
+double StudioPresenter::editCropX() const noexcept
+{
+    return develop_.crop_x;
+}
+
+double StudioPresenter::editCropY() const noexcept
+{
+    return develop_.crop_y;
+}
+
+double StudioPresenter::editCropWidth() const noexcept
+{
+    return develop_.crop_width;
+}
+
+double StudioPresenter::editCropHeight() const noexcept
+{
+    return develop_.crop_height;
+}
+
+double StudioPresenter::editStraighten() const noexcept
+{
+    return develop_.straighten_degrees;
+}
+
+QString StudioPresenter::cropAspect() const
+{
+    return crop_aspect_;
+}
+
+double StudioPresenter::cropAspectRatio() const noexcept
+{
+    if (crop_aspect_ == QLatin1String("1:1"))
+    {
+        return 1.0;
+    }
+    if (crop_aspect_ == QLatin1String("3:2"))
+    {
+        return 1.5;
+    }
+    if (crop_aspect_ == QLatin1String("4:3"))
+    {
+        return 4.0 / 3.0;
+    }
+    if (crop_aspect_ == QLatin1String("5:4"))
+    {
+        return 1.25;
+    }
+    if (crop_aspect_ == QLatin1String("16:9"))
+    {
+        return 16.0 / 9.0;
+    }
+    return 0.0;
+}
+
+void StudioPresenter::valid_crop_rect(double &x, double &y, double &width, double &height) const
+{
+    const double working_aspect = selected_working_aspect();
+    const double ratio = cropAspectRatio() > 0.0 ?
+                             cropAspectRatio() / std::max(working_aspect, 1e-6) :
+                             develop_.crop_width / std::max(develop_.crop_height, 1e-6);
+    inscribed_crop_for_straighten(develop_.straighten_degrees, working_aspect, ratio, x, y, width,
+                                  height);
+}
+
+double StudioPresenter::validCropX() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return x;
+}
+
+double StudioPresenter::validCropY() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return y;
+}
+
+double StudioPresenter::validCropWidth() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return width;
+}
+
+double StudioPresenter::validCropHeight() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return height;
+}
+
+bool StudioPresenter::editFlipHorizontal() const noexcept
+{
+    return develop_.flip_horizontal != 0;
+}
+
+bool StudioPresenter::editFlipVertical() const noexcept
+{
+    return develop_.flip_vertical != 0;
+}
+
+double StudioPresenter::editSharpen() const noexcept
+{
+    return develop_.sharpen;
+}
+
+double StudioPresenter::editSharpenRadius() const noexcept
+{
+    return develop_.sharpen_radius;
+}
+
+double StudioPresenter::editClarity() const noexcept
+{
+    return develop_.clarity;
+}
+
+double StudioPresenter::editVignette() const noexcept
+{
+    return develop_.vignette;
+}
+
+double StudioPresenter::editGrain() const noexcept
+{
+    return develop_.grain;
+}
+
+double StudioPresenter::editBloom() const noexcept
+{
+    return develop_.bloom;
+}
+
+double StudioPresenter::editSoften() const noexcept
+{
+    return develop_.soften;
+}
+
+double StudioPresenter::editDehaze() const noexcept
+{
+    return develop_.dehaze;
+}
+
+double StudioPresenter::editVelvia() const noexcept
+{
+    return develop_.velvia;
+}
+
+double StudioPresenter::editLift() const noexcept
+{
+    return develop_.lift;
+}
+
+double StudioPresenter::editColorGamma() const noexcept
+{
+    return develop_.color_gamma;
+}
+
+double StudioPresenter::editGain() const noexcept
+{
+    return develop_.gain;
+}
+
+double StudioPresenter::editColorContrast() const noexcept
+{
+    return develop_.color_contrast;
+}
+
+double StudioPresenter::editMonochrome() const noexcept
+{
+    return develop_.monochrome;
+}
+
+double StudioPresenter::editSplitShadowsHue() const noexcept
+{
+    return develop_.split_shadows_hue;
+}
+
+double StudioPresenter::editSplitHighlightsHue() const noexcept
+{
+    return develop_.split_highlights_hue;
+}
+
+double StudioPresenter::editSplitBalance() const noexcept
+{
+    return develop_.split_balance;
+}
+
+double StudioPresenter::editSplitAmount() const noexcept
+{
+    return develop_.split_amount;
+}
+
+double StudioPresenter::editGamma() const noexcept
+{
+    return develop_.gamma;
+}
+
+QVariantList StudioPresenter::editToneCurve() const
+{
+    return tone_curve_to_variant(develop_.tone_curve);
+}
+
+QVariantList StudioPresenter::editToneCurveSamples() const
+{
+    return tone_curve_sample_list(develop_.tone_curve);
+}
+
+bool StudioPresenter::editSigmoidEnabled() const noexcept
+{
+    return develop_.sigmoid_enabled;
+}
+
+double StudioPresenter::editSigmoidContrast() const noexcept
+{
+    return develop_.sigmoid_contrast;
+}
+
+double StudioPresenter::editSigmoidSkew() const noexcept
+{
+    return develop_.sigmoid_skew;
+}
+
+double StudioPresenter::editSigmoidHuePreservation() const noexcept
+{
+    return develop_.sigmoid_hue_preservation;
+}
+
+double StudioPresenter::editRawHighlights() const noexcept
+{
+    return develop_.raw_highlights;
+}
+
+double StudioPresenter::editDenoise() const noexcept
+{
+    return develop_.denoise;
+}
+
+double StudioPresenter::editDenoiseChroma() const noexcept
+{
+    return develop_.denoise_chroma;
+}
+
+double StudioPresenter::editDenoiseRadius() const noexcept
+{
+    return develop_.denoise_radius;
+}
+
+double StudioPresenter::editLensK1() const noexcept
+{
+    return develop_.lens_k1;
+}
+
+double StudioPresenter::editLensVignetting() const noexcept
+{
+    return develop_.lens_vignetting;
+}
+
+double StudioPresenter::editLensMode() const noexcept
+{
+    return develop_.lens_mode == kLensModeLookup ? 1.0 : 0.0;
+}
+
+int StudioPresenter::editColorEqBand() const noexcept
+{
+    return static_cast<int>(develop_.color_eq_band);
+}
+
+double StudioPresenter::editColorEqHue() const noexcept
+{
+    return develop_.color_eq_hue[static_cast<std::size_t>(
+        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+}
+
+double StudioPresenter::editColorEqSat() const noexcept
+{
+    return develop_.color_eq_sat[static_cast<std::size_t>(
+        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+}
+
+double StudioPresenter::editColorEqLight() const noexcept
+{
+    return develop_.color_eq_light[static_cast<std::size_t>(
+        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+}
+
+double StudioPresenter::editGraduatedDensity() const noexcept
+{
+    return develop_.graduated_density;
+}
+
+double StudioPresenter::editGraduatedHardness() const noexcept
+{
+    return develop_.graduated_hardness;
+}
+
+double StudioPresenter::editGraduatedRotation() const noexcept
+{
+    return develop_.graduated_rotation;
+}
+
+double StudioPresenter::editGraduatedOffset() const noexcept
+{
+    return develop_.graduated_offset;
+}
+
+double StudioPresenter::editToneEqBlacks() const noexcept
+{
+    return develop_.tone_eq_blacks;
+}
+
+double StudioPresenter::editToneEqShadows() const noexcept
+{
+    return develop_.tone_eq_shadows;
+}
+
+double StudioPresenter::editToneEqMidtones() const noexcept
+{
+    return develop_.tone_eq_midtones;
+}
+
+double StudioPresenter::editToneEqHighlights() const noexcept
+{
+    return develop_.tone_eq_highlights;
+}
+
+double StudioPresenter::editToneEqWhites() const noexcept
+{
+    return develop_.tone_eq_whites;
+}
+
+QVariantList StudioPresenter::recipeHistory() const
+{
+    return recipe_history_;
+}
+
+bool StudioPresenter::cropToolActive() const noexcept
+{
+    return crop_tool_active_;
+}
+
+bool StudioPresenter::cropGuideReady() const noexcept
+{
+    return crop_guide_ready_;
+}
+
+void StudioPresenter::load_develop_for_selection()
+{
+    develop_ = {};
+    saved_develop_ = {};
+    undo_stack_.clear();
+    redo_stack_.clear();
+    recipe_history_.clear();
+    if (selected_asset_id_.isEmpty())
+    {
+        emit editChanged();
+        return;
+    }
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    executor_.post(
+        [this, asset_id]()
+        {
+            Result<Recipe> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<RecipeHistoryEntry>> history =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                loaded = service_->load_recipe(asset_id);
+                history = service_->list_recipe_history(asset_id);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, loaded = std::move(loaded),
+                 history = std::move(history)]() mutable
+                {
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    {
+                        return;
+                    }
+                    recipe_history_.clear();
+                    if (history)
+                    {
+                        for (const auto &entry : history.value())
+                        {
+                            QVariantMap row;
+                            row.insert(QStringLiteral("id"), QVariant::fromValue(entry.id));
+                            row.insert(QStringLiteral("kind"), qstring_from_utf8(entry.kind));
+                            row.insert(QStringLiteral("label"),
+                                       entry.label ? qstring_from_utf8(*entry.label) : QString{});
+                            row.insert(QStringLiteral("seq"), QVariant::fromValue(entry.seq));
+                            recipe_history_.push_back(row);
+                        }
+                    }
+                    if (!loaded)
+                    {
+                        develop_ = {};
+                        saved_develop_ = {};
+                        emit editChanged();
+                        setError(qstring_from_utf8(loaded.error().message));
+                        return;
+                    }
+                    auto params = develop_from_recipe(loaded.value());
+                    if (!params)
+                    {
+                        develop_ = {};
+                        saved_develop_ = {};
+                        emit editChanged();
+                        setError(qstring_from_utf8(params.error().message));
+                        return;
+                    }
+                    develop_ = params.value();
+                    saved_develop_ = develop_;
+                    emit editChanged();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::commit_develop(DevelopParams params, const bool push_history,
+                                     const bool refresh_preview)
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    clamp_develop(params);
+    const auto previous = saved_develop_;
+    if (push_history && params != saved_develop_)
+    {
+        undo_stack_.push_back(saved_develop_);
+        if (undo_stack_.size() > 40U)
+        {
+            undo_stack_.erase(undo_stack_.begin());
+        }
+        redo_stack_.clear();
+    }
+    develop_ = params;
+    emit editChanged();
+    const bool crop_guides = crop_tool_active_ && !before_after_;
+    preview_loading_ = refresh_preview;
+    emit previewChanged();
+    ++preview_revision_;
+    pending_save_ = PendingDevelopWork{
+        .save = true,
+        .params = params,
+        .previous = previous,
+        .push_history = push_history,
+        .asset_id = utf8_from_qstring(selected_asset_id_),
+        .ignore_edits = before_after_,
+        .ignore_crop = crop_guides,
+        .ignore_straighten = crop_guides,
+        .refresh_preview = refresh_preview,
+    };
+    pending_preview_.reset();
+    kick_develop_work();
+}
+
+void StudioPresenter::preview_develop(DevelopParams params)
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    clamp_develop(params);
+    if (params == develop_)
+    {
+        return;
+    }
+    develop_ = params;
+    emit editChanged();
+    const bool crop_guides = crop_tool_active_ && !before_after_;
+    ++preview_revision_;
+    pending_preview_ = PendingDevelopWork{
+        .interactive = true,
+        .params = params,
+        .asset_id = utf8_from_qstring(selected_asset_id_),
+        .ignore_edits = before_after_,
+        .ignore_crop = crop_guides,
+        .ignore_straighten = crop_guides,
+    };
+    kick_develop_work();
+}
+
+void StudioPresenter::enqueue_preview()
+{
+    if (selected_asset_id_.isEmpty())
+    {
+        preview_loading_ = false;
+        emit previewChanged();
+        return;
+    }
+    preview_loading_ = true;
+    emit previewChanged();
+    ++preview_revision_;
+    const bool crop_guides = crop_tool_active_ && !before_after_;
+    pending_preview_ = PendingDevelopWork{
+        .params = develop_,
+        .asset_id = utf8_from_qstring(selected_asset_id_),
+        .ignore_edits = before_after_,
+        .ignore_crop = crop_guides,
+        .ignore_straighten = crop_guides,
+    };
+    kick_develop_work();
+}
+
+void StudioPresenter::kick_develop_work()
+{
+    if (develop_job_in_flight_)
+    {
+        return;
+    }
+    PendingDevelopWork job;
+    if (pending_save_.has_value())
+    {
+        job = *pending_save_;
+        pending_save_.reset();
+    }
+    else if (pending_preview_.has_value())
+    {
+        job = *pending_preview_;
+        pending_preview_.reset();
+    }
+    else
+    {
+        return;
+    }
+    develop_job_in_flight_ = true;
+    const auto revision = preview_revision_;
+    executor_.post(
+        [this, job, revision]()
+        {
+            Result<AssetRecord> saved = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            bool save_ok = !job.save;
+            if (service_ != nullptr)
+            {
+                if (job.save)
+                {
+                    saved = service_->save_develop(job.asset_id, job.params);
+                    save_ok = static_cast<bool>(saved);
+                }
+                if (save_ok && job.refresh_preview)
+                {
+                    PreviewRequest request;
+                    request.asset_id = job.asset_id;
+                    request.max_edge =
+                        job.interactive ? kInteractivePreviewMaxEdge : kDefaultPreviewMaxEdge;
+                    request.request_revision = revision;
+                    request.ignore_edits = job.ignore_edits;
+                    request.ignore_crop = job.ignore_crop;
+                    request.ignore_straighten = job.ignore_straighten;
+                    request.persist_preview_record = !job.interactive;
+                    request.cancellation = shutdown_.token();
+                    preview = service_->request_preview(
+                        request, job.interactive ? std::optional<DevelopParams>{job.params} :
+                                                   std::optional<DevelopParams>{});
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, job, revision, saved = std::move(saved),
+                 preview = std::move(preview)]() mutable
+                {
+                    develop_job_in_flight_ = false;
+                    const bool selected_matches =
+                        utf8_from_qstring(selected_asset_id_) == job.asset_id;
+                    if (job.save)
+                    {
+                        if (!saved)
+                        {
+                            if (selected_matches && !pending_save_.has_value() &&
+                                develop_ == job.params)
+                            {
+                                develop_ = job.previous;
+                                saved_develop_ = job.previous;
+                                if (job.push_history && !undo_stack_.empty())
+                                {
+                                    undo_stack_.pop_back();
+                                }
+                                preview_loading_ = false;
+                                emit editChanged();
+                                emit previewChanged();
+                            }
+                            setError(qstring_from_utf8(saved.error().message));
+                            kick_develop_work();
+                            return;
+                        }
+                        if (selected_matches)
+                        {
+                            saved_develop_ = job.params;
+                            assets_.updateAsset(saved.value());
+                            emit selectionChanged();
+                            emit editChanged();
+                        }
+                    }
+                    if (revision != preview_revision_ || !selected_matches)
+                    {
+                        kick_develop_work();
+                        return;
+                    }
+                    if (job.save && !job.refresh_preview)
+                    {
+                        preview_loading_ = false;
+                        emit previewChanged();
+                        kick_develop_work();
+                        return;
+                    }
+                    preview_loading_ = false;
+                    if (!preview)
+                    {
+                        if (preview.error().code == ErrorCode::kCancelled)
+                        {
+                            kick_develop_work();
+                            return;
+                        }
+                        if (preview.error().code == ErrorCode::kNotFound)
+                        {
+                            assets_.markOriginalMissing(job.asset_id);
+                            emit selectionChanged();
+                        }
+                        else
+                        {
+                            setError(qstring_from_utf8(preview.error().message));
+                        }
+                        emit previewChanged();
+                        kick_develop_work();
+                        return;
+                    }
+                    if (preview.value().original_missing)
+                    {
+                        assets_.markOriginalMissing(job.asset_id);
+                        emit selectionChanged();
+                    }
+                    if (job.ignore_crop && job.ignore_straighten && crop_tool_active_)
+                    {
+                        crop_guide_ready_ = true;
+                    }
+                    show_preview_result(preview.value(), revision);
+                    emit previewChanged();
+                    kick_develop_work();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::setDevelopNumber(const QString &name, const double value)
+{
+    DevelopParams next = develop_;
+    if (!apply_develop_field(next, utf8_from_qstring(name), value))
+    {
+        return;
+    }
+    if (name == QLatin1String("straighten"))
+    {
+        fit_geometry_crop(next);
+    }
+    clamp_develop(next);
+    if (next == saved_develop_ && next == develop_)
+    {
+        return;
+    }
+    if (next == saved_develop_)
+    {
+        develop_ = next;
+        emit editChanged();
+        enqueue_preview();
+        return;
+    }
+    const bool keep_crop_guide =
+        crop_tool_active_ && crop_guide_ready_ && name == QLatin1String("straighten");
+    commit_develop(next, true, !keep_crop_guide);
+}
+
+void StudioPresenter::setToneCurve(const QVariantList &points)
+{
+    DevelopParams next = develop_;
+    next.tone_curve = tone_curve_from_variant(points);
+    clamp_develop(next);
+    if (next == saved_develop_ && next == develop_)
+    {
+        return;
+    }
+    if (next == saved_develop_)
+    {
+        develop_ = next;
+        emit editChanged();
+        enqueue_preview();
+        return;
+    }
+    commit_develop(next, true);
+}
+
+void StudioPresenter::previewToneCurve(const QVariantList &points)
+{
+    DevelopParams next = develop_;
+    next.tone_curve = tone_curve_from_variant(points);
+    preview_develop(next);
+}
+
+void StudioPresenter::previewDevelopNumber(const QString &name, const double value)
+{
+    DevelopParams next = develop_;
+    if (!apply_develop_field(next, utf8_from_qstring(name), value))
+    {
+        return;
+    }
+    if (name == QLatin1String("straighten"))
+    {
+        fit_geometry_crop(next);
+        if (crop_tool_active_)
+        {
+            clamp_develop(next);
+            if (next == develop_)
+            {
+                return;
+            }
+            develop_ = next;
+            emit editChanged();
+            return;
+        }
+    }
+    preview_develop(next);
+}
+
+void StudioPresenter::setCropRect(const double x, const double y, const double width,
+                                  const double height)
+{
+    DevelopParams next = develop_;
+    next.crop_x = x;
+    next.crop_y = y;
+    next.crop_width = width;
+    next.crop_height = height;
+    clamp_develop(next);
+    constrain_geometry_crop(next);
+    if (next == develop_)
+    {
+        return;
+    }
+    commit_develop(next, true);
+}
+
+void StudioPresenter::previewCropRect(const double x, const double y, const double width,
+                                      const double height)
+{
+    DevelopParams next = develop_;
+    next.crop_x = x;
+    next.crop_y = y;
+    next.crop_width = width;
+    next.crop_height = height;
+    clamp_develop(next);
+    constrain_geometry_crop(next);
+    if (next == develop_)
+    {
+        return;
+    }
+    develop_ = next;
+    emit editChanged();
+}
+
+void StudioPresenter::setCropAspect(const QString &aspect)
+{
+    DevelopParams next = develop_;
+    if (!apply_crop_aspect(next, utf8_from_qstring(aspect)))
+    {
+        return;
+    }
+    crop_aspect_ = aspect;
+    fit_geometry_crop(next);
+    if (next == develop_)
+    {
+        emit editChanged();
+        return;
+    }
+    commit_develop(next, true);
+}
+
+void StudioPresenter::rotateLeft()
+{
+    DevelopParams next = develop_;
+    next.rotate_quarters = (next.rotate_quarters + 3) % 4;
+    transform_crop_for_quarter_turns(next, 3);
+    fit_geometry_crop(next);
+    commit_develop(next, true);
+}
+
+void StudioPresenter::rotateRight()
+{
+    DevelopParams next = develop_;
+    next.rotate_quarters = (next.rotate_quarters + 1) % 4;
+    transform_crop_for_quarter_turns(next, 1);
+    fit_geometry_crop(next);
+    commit_develop(next, true);
+}
+
+void StudioPresenter::flipHorizontal()
+{
+    DevelopParams next = develop_;
+    next.flip_horizontal = next.flip_horizontal == 0 ? 1 : 0;
+    transform_crop_for_flip(next, true, false);
+    fit_geometry_crop(next);
+    commit_develop(next, true);
+}
+
+void StudioPresenter::flipVertical()
+{
+    DevelopParams next = develop_;
+    next.flip_vertical = next.flip_vertical == 0 ? 1 : 0;
+    transform_crop_for_flip(next, false, true);
+    fit_geometry_crop(next);
+    commit_develop(next, true);
+}
+
+void StudioPresenter::setCropToolActive(const bool active)
+{
+    if (crop_tool_active_ == active)
+    {
+        return;
+    }
+    crop_tool_active_ = active;
+    if (active)
+    {
+        setZoomMode(QStringLiteral("fit"));
+        DevelopParams next = develop_;
+        fit_geometry_crop(next);
+        crop_guide_ready_ = std::abs(next.straighten_degrees) < 1e-4 && next.crop_width >= 0.999 &&
+                            next.crop_height >= 0.999 && std::abs(next.crop_x) < 1e-6 &&
+                            std::abs(next.crop_y) < 1e-6;
+        if (next != develop_)
+        {
+            emit editChanged();
+            emit previewChanged();
+            commit_develop(next, true);
+            return;
+        }
+    }
+    else
+    {
+        crop_guide_ready_ = false;
+    }
+    emit editChanged();
+    emit previewChanged();
+    enqueue_preview();
+}
+
+void StudioPresenter::resetControl(const QString &name)
+{
+    DevelopParams next = develop_;
+    if (!reset_develop_field(next, utf8_from_qstring(name)))
+    {
+        return;
+    }
+    if (name == QLatin1String("straighten"))
+    {
+        fit_geometry_crop(next);
+    }
+    commit_develop(next, true);
+}
+
+void StudioPresenter::resetSection(const QString &section)
+{
+    DevelopParams next = develop_;
+    if (!reset_develop_section(next, utf8_from_qstring(section)))
+    {
+        return;
+    }
+    if (section == QLatin1String("geometry"))
+    {
+        crop_aspect_ = QStringLiteral("free");
+    }
+    commit_develop(next, true);
+}
+
+void StudioPresenter::resetAllEdits()
+{
+    crop_aspect_ = QStringLiteral("free");
+    DevelopParams reset;
+    reset.sigmoid_enabled = develop_.sigmoid_enabled;
+    commit_develop(reset, true);
+}
+
+void StudioPresenter::undoEdit()
+{
+    if (undo_stack_.empty())
+    {
+        return;
+    }
+    redo_stack_.push_back(develop_);
+    const auto previous = undo_stack_.back();
+    undo_stack_.pop_back();
+    commit_develop(previous, false);
+}
+
+void StudioPresenter::redoEdit()
+{
+    if (redo_stack_.empty())
+    {
+        return;
+    }
+    undo_stack_.push_back(develop_);
+    const auto next = redo_stack_.back();
+    redo_stack_.pop_back();
+    commit_develop(next, false);
+}
+
+void StudioPresenter::toggleBeforeAfter()
+{
+    before_after_ = !before_after_;
+    emit editChanged();
+    enqueue_preview();
+}
+
+double StudioPresenter::selected_source_aspect() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (asset && asset->width && asset->height && *asset->height > 0)
+    {
+        return static_cast<double>(*asset->width) / static_cast<double>(*asset->height);
+    }
+    return 1.5;
+}
+
+double StudioPresenter::selected_working_aspect() const
+{
+    if (crop_tool_active_)
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        if (!preview_image_.isNull() && preview_image_.height() > 0)
+        {
+            return static_cast<double>(preview_image_.width()) /
+                   static_cast<double>(preview_image_.height());
+        }
+    }
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (asset && asset->width && asset->height && *asset->height > 0)
+    {
+        return working_image_aspect(develop_.rotate_quarters, selected_source_aspect());
+    }
+    const QMutexLocker lock(&preview_image_mutex_);
+    if (!preview_image_.isNull() && preview_image_.height() > 0)
+    {
+        return static_cast<double>(preview_image_.width()) /
+               static_cast<double>(preview_image_.height());
+    }
+    return working_image_aspect(develop_.rotate_quarters, selected_source_aspect());
+}
+
+void StudioPresenter::constrain_geometry_crop(DevelopParams &params) const
+{
+    constrain_crop_to_straighten(params, selected_working_aspect());
+}
+
+void StudioPresenter::fit_geometry_crop(DevelopParams &params) const
+{
+    fit_crop_to_straighten(params, selected_working_aspect());
+}
+
+} // namespace ravo

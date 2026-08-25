@@ -1,0 +1,156 @@
+import QtQuick
+import QtQuick.Layouts
+import GeoControls 1.0
+
+ColumnLayout {
+    id: root
+    property var presenter
+    property var commands
+    readonly property bool hasPresenter: presenter !== null && presenter !== undefined
+    readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
+    spacing: Fonts.smallSpacing
+
+    function infoRow(label, value) {
+        return label + ": " + (value && value.length ? value : "—");
+    }
+
+    component MetaField: CustomTextField {
+        Layout.fillWidth: true
+        Layout.leftMargin: Fonts.standardMargin
+        Layout.rightMargin: Fonts.standardMargin
+        Layout.preferredHeight: Fonts.inputFieldHeight
+        Layout.maximumHeight: Fonts.inputFieldHeight
+        showEmptyIndicator: false
+        showClipIndicator: false
+        alignRightWhenFocused: false
+        leftPadding: Fonts.size6
+        rightPadding: Fonts.size6
+        enabled: root.hasSelection
+    }
+
+            CustomLabel {
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.topMargin: Fonts.size12
+                text: qsTr("Photo")
+                font.bold: true
+            }
+
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                wrapMode: Text.WrapAnywhere
+                elide: Text.ElideMiddle
+                text: root.presenter && root.presenter.selectedDisplayName.length ? root.presenter.selectedDisplayName : qsTr("No photo selected")
+            }
+
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                wrapMode: Text.WrapAnywhere
+                color: Theme.placeholderTextColor
+                text: root.infoRow(qsTr("Folder"), root.presenter ? root.presenter.selectedFolderPath : "")
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                color: Theme.placeholderTextColor
+                text: root.infoRow(qsTr("Type"), root.presenter ? root.presenter.selectedMediaType : "")
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                color: Theme.placeholderTextColor
+                text: root.infoRow(qsTr("Size"), root.presenter ? root.presenter.selectedDimensions : "")
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                color: Theme.placeholderTextColor
+                text: root.infoRow(qsTr("File"), root.presenter ? root.presenter.selectedFileSize : "")
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                color: Theme.placeholderTextColor
+                text: root.presenter && root.presenter.selectedHasEdits ? qsTr("Edited") : qsTr("No edits")
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                wrapMode: Text.WrapAnywhere
+                color: Theme.placeholderTextColor
+                font.pixelSize: Fonts.size10
+                text: root.presenter ? root.presenter.selectedUri : ""
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                wrapMode: Text.Wrap
+                color: Theme.placeholderTextColor
+                text: root.infoRow(qsTr("Capture"), root.presenter ? root.presenter.selectedCaptureSummary : "")
+            }
+
+            CustomLabel {
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.topMargin: Fonts.size8
+                text: qsTr("Tags & Metadata")
+                font.bold: true
+            }
+
+            MetaField {
+                placeholderText: qsTr("tags, comma separated")
+                text: root.hasPresenter ? root.presenter.selectedTags : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setTags(text)
+            }
+            MetaField {
+                placeholderText: qsTr("Title")
+                text: root.hasPresenter ? root.presenter.selectedTitle : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setMetadata("title", text)
+            }
+            MetaField {
+                placeholderText: qsTr("Creator")
+                text: root.hasPresenter ? root.presenter.selectedCreator : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setMetadata("creator", text)
+            }
+            MetaField {
+                placeholderText: qsTr("Copyright")
+                text: root.hasPresenter ? root.presenter.selectedCopyright : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setMetadata("copyright", text)
+            }
+            Repeater {
+                model: root.hasPresenter ? root.presenter.recipeHistory : []
+                delegate: RowLayout {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Fonts.standardMargin
+                    Layout.rightMargin: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                        text: (modelData.kind === "snapshot" ? qsTr("Snapshot") : qsTr("History")) +
+                              (modelData.label && modelData.label.length ? " · " + modelData.label : " #" + modelData.seq)
+                    }
+                    CustomButton {
+                        text: qsTr("Restore")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.restoreHistory(modelData.id)
+                    }
+                }
+            }
+            CustomButton {
+                Layout.leftMargin: Fonts.standardMargin
+                text: qsTr("Snapshot")
+                enabled: root.hasSelection
+                onClicked: if (root.commands)
+                    root.commands.createSnapshot(qsTr("Snapshot"))
+            }
+}
