@@ -11,8 +11,8 @@ roots or configures a build tree as a hidden side effect.
 - FreeCM `repomgrcpp.package` owns Qt/QML deployment, runtime dependency
   collection, the platform dist directory, macOS signing, and DMG creation.
 - `configs/freecm.commands.jsonc` owns the local plugin action. GitHub Actions
-  owns CI host preparation and artifact retention, but calls the same
-  `RavoPackage` target.
+  owns CI host preparation, short-lived workflow artifacts, and tag-only
+  GitHub Release publication, but calls the same `RavoPackage` target.
 
 The lifecycle is:
 
@@ -91,11 +91,16 @@ portability is limited to compatible Linux/glibc environments.
 ## GitHub Actions
 
 Every branch push and pull request runs only the Debug configure/build/test
-matrix. A tag push runs that same gate first, then starts Release package jobs
-for macOS, Windows, and Linux. Each Release entry prepares the same pinned
-source roots and host dependencies, configures the release preset, calls
-`RavoPackage`, and uploads only the expected platform artifact. Missing output
-is a hard workflow failure.
+matrix. Its Package and Publish GitHub Release jobs are skipped. A tag push runs
+that same gate first, then starts Release package jobs for macOS, Windows, and
+Linux. Each package entry prepares the same pinned source roots and host
+dependencies, configures the release preset, calls `RavoPackage`, and uploads
+only the expected platform artifact. After all three package jobs succeed, the
+single release job downloads those artifacts from the current run, requires
+exactly one DMG, ZIP, and tar.gz, and creates the GitHub Release for the existing
+tag with generated notes and all three files attached. Missing output, an
+existing Release for the tag, or any GitHub API failure is a hard workflow
+failure; the workflow does not overwrite an existing release.
 
 ## Minimum validation
 

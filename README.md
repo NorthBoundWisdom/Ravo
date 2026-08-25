@@ -62,8 +62,9 @@ generates presets. Configure uses
 gtest discovery; Linux also cannot use `cmake --build --preset linux_clang_debug`
 because the generated build preset is named `ClangDebug`. Frozen `legacy/` is
 not configured or built. Branch pushes and pull requests stop after the Debug
-build/tests. Tag pushes then run separate Release jobs that call `RavoPackage`
-and upload the FreeCM-produced platform artifacts.
+build/tests. Tag pushes then run separate Release jobs that call `RavoPackage`,
+upload the FreeCM-produced platform artifacts, and publish one GitHub Release
+with the macOS, Windows, and Linux packages attached.
 
 GeoControls is public today; if it becomes private, add a `GEOCONTROLS_TOKEN`
 repository secret with `contents:read`.
