@@ -24,6 +24,7 @@ Rectangle {
             Layout.preferredHeight: Fonts.scaledUiSize(128)
             Layout.minimumHeight: Fonts.scaledUiSize(96)
             presenter: root.presenter
+            commands: root.commands
         }
 
         Flickable {

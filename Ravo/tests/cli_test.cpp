@@ -78,10 +78,11 @@ TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
     const std::vector<std::string_view> arguments{"--version", "--json"};
 
     EXPECT_EQ(application.run(std::span{arguments}), 0);
-    EXPECT_EQ(
-        stdout_stream.str(),
-        R"({"data":{"name":"Ravo","protocol":"ravo-cli/v1","version":"0.1.8"},"diagnostics":[],"ok":true,"type":"ravo.cli.result","version":1})"
-        "\n");
+    const std::string expected =
+        R"({"data":{"name":"Ravo","protocol":"ravo-cli/v1","version":")" RAVO_TEST_VERSION
+        R"("},"diagnostics":[],"ok":true,"type":"ravo.cli.result","version":1})"
+        "\n";
+    EXPECT_EQ(stdout_stream.str(), expected);
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 

@@ -47,8 +47,11 @@ API 同样不越过 port。Qt 值类型可在有明确收益的 target 内使用
 Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 services、任务与
 `QQmlApplicationEngine`，desktop-owned QObject presenter/model 把不可变 service snapshot 和 commands
 映射给 QML。QML/JavaScript 只拥有瞬时 view state、布局、绑定和输入，不实现 catalog/import/preview
-业务规则。Studio 的菜单、快捷键、右键菜单和 inspector 控件都通过同一组 QML `Action` 调用
-`StudioPresenter::executeCommand`；窗口对话框由该入口发出 `uiCommandRequested`，QML 只负责弹出。
+业务规则。Studio 的命令由 desktop-owned C++ registry/controller 统一拥有。一个 command 注册稳定 ID、
+严格参数、运行时状态与 handler；action contribution 把同一 command 投影到菜单、快捷键、右键菜单、
+控件和命令面板。所有入口在执行时重新检查上下文，禁用状态带可见原因；窗口对话框由 controller 发出
+presentation request，QML 只负责展示与回传选择结果。参数依赖当前控件值的内部命令不进入命令面板。
+QML 只保留瞬时 focus/popup 状态与薄 action binding，不再维护第二份 ID、标题、快捷键或 enablement 表。
 Gallery 网格模式只调度 `kThumbnailMaxEdge` browse 缩略图，不为选中项排队 1600px processed
 preview；直方图/parade 由该缩略图计算。切到 loupe/develop 后再请求完整 decode。打开/导入后 presenter 从 preview 表灌入已有
 cache 路径，网格委托不再为 ready 缩略图打满单线程队列。左侧 Library 面板顶部分别显示导入与

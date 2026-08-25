@@ -36,6 +36,8 @@ PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、原片哈希不变、preview 
 recipe 与 review 独立性。它们不替代本机 Studio 手工 Fit/100%/Develop 验收。
 `ravo_studio` 每次成功链接后会以 `--smoke` 在 `offscreen` 平台加载主 QML 并立即退出；
 QML 组件失败会使该 target 的构建失败。手动检查：`$<TARGET_FILE:ravo_studio> --smoke`。
+`ravo_desktop_command_tests` 验证内建 command/action 覆盖、稳定 ID、运行时状态重校验、无效 dispatch、
+快捷键冲突、三平台主修饰键和 Unicode 模糊搜索；标签为 `ravo-desktop-smoke`。
 
 ## Test framework 与 target 边界
 
@@ -147,7 +149,8 @@ SQLite adapter 至少测试：
 随桌面产品增加：
 
 - `ravo-catalog`：schema/repository/service integration；
-- `ravo-desktop-smoke`：可自动化的窗口生命周期与 composition smoke；不取代手工验收。
+- `ravo-desktop-smoke`：命令 registry 静态契约、可自动化的窗口生命周期与 composition smoke；不取代
+  命令面板 focus、键盘导航、确认对话框和文本输入隔离的 Studio 手工验收。
 
 后续再建立 `ravo-regression`、`ravo-sanitizer` 和 `ravo-performance`。不存在的标签不得描述为已通过。
 文档改动无需强行构建；CMake/依赖/公共头变化至少 configure/build；catalog/import/desktop 行为变化运行

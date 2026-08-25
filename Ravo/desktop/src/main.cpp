@@ -10,6 +10,7 @@
 #include <QString>
 #include <QUrl>
 
+#include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
 #include "studio_image_providers.h"
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     LOG_INFO(ravo::logger(), "Ravo Studio starting");
 
     ravo::StudioPresenter presenter;
+    ravo::StudioCommandController command_controller(presenter);
     if (!catalog_path.isEmpty())
     {
         presenter.setStartupCatalogPath(QFileInfo(catalog_path).absoluteFilePath());
@@ -92,6 +94,7 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("studioScope"),
                             new ravo::StudioScopeImageProvider(presenter));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioCommands"), &command_controller);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);

@@ -4,13 +4,16 @@ import GeoControls 1.0
 
 MenuBar {
     id: menuBar
-    required property var actions
+    required property var controller
+
+    function commandCount(path) {
+        return controller ? controller.menuEntries(path).length : 0;
+    }
 
     background: Rectangle {
         color: Theme.windowColor
         implicitHeight: Fonts.menuBarHeight
     }
-
     delegate: MenuBarItem {
         id: menuBarItem
         implicitHeight: Fonts.menuBarHeight
@@ -27,159 +30,56 @@ MenuBar {
     }
 
     Menu {
+        id: fileMenu
         title: qsTr("File")
-        MenuItem {
-            action: actions.createLibrary
-        }
-        MenuItem {
-            action: actions.openLibrary
-        }
+        StudioCommandMenuItems { id: fileLibrary; controller: menuBar.controller; hostMenu: fileMenu; menuPath: "file.library"; insertionIndex: 0 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.importPhotos
-        }
-        MenuItem {
-            action: actions.importFolder
-        }
-        MenuItem {
-            action: actions.exportPhoto
-        }
+        StudioCommandMenuItems { id: fileTransfer; controller: menuBar.controller; hostMenu: fileMenu; menuPath: "file.transfer"; insertionIndex: menuBar.commandCount("file.library") + 1 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.closeWindow
-        }
-        MenuItem {
-            action: actions.preferences
-        }
-        MenuItem {
-            action: actions.quitApp
-        }
+        StudioCommandMenuItems { controller: menuBar.controller; hostMenu: fileMenu; menuPath: "file.window"; insertionIndex: menuBar.commandCount("file.library") + menuBar.commandCount("file.transfer") + 2 }
     }
-
     Menu {
+        id: editMenu
         title: qsTr("Edit")
-        MenuItem {
-            action: actions.undo
-        }
-        MenuItem {
-            action: actions.redo
-        }
+        StudioCommandMenuItems { id: editHistory; controller: menuBar.controller; hostMenu: editMenu; menuPath: "edit.history"; insertionIndex: 0 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.resetEdits
-        }
+        StudioCommandMenuItems { controller: menuBar.controller; hostMenu: editMenu; menuPath: "edit.reset"; insertionIndex: menuBar.commandCount("edit.history") + 1 }
     }
-
     Menu {
+        id: viewMenu
         title: qsTr("View")
-        MenuItem {
-            action: actions.grid
-        }
-        MenuItem {
-            action: actions.loupe
-        }
-        MenuItem {
-            action: actions.develop
-        }
+        StudioCommandMenuItems { id: viewMode; controller: menuBar.controller; hostMenu: viewMenu; menuPath: "view.mode"; insertionIndex: 0 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.fit
-        }
-        MenuItem {
-            action: actions.fill
-        }
-        MenuItem {
-            action: actions.actualSize
-        }
+        StudioCommandMenuItems { id: viewZoom; controller: menuBar.controller; hostMenu: viewMenu; menuPath: "view.zoom"; insertionIndex: menuBar.commandCount("view.mode") + 1 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.beforeAfter
-        }
+        StudioCommandMenuItems { id: viewCompare; controller: menuBar.controller; hostMenu: viewMenu; menuPath: "view.compare"; insertionIndex: menuBar.commandCount("view.mode") + menuBar.commandCount("view.zoom") + 2 }
+        MenuSeparator {}
+        StudioCommandMenuItems { controller: menuBar.controller; hostMenu: viewMenu; menuPath: "view.commands"; insertionIndex: menuBar.commandCount("view.mode") + menuBar.commandCount("view.zoom") + menuBar.commandCount("view.compare") + 3 }
     }
-
     Menu {
+        id: photoMenu
         title: qsTr("Photo")
-        MenuItem {
-            action: actions.previousPhoto
-        }
-        MenuItem {
-            action: actions.nextPhoto
-        }
+        StudioCommandMenuItems { id: photoNavigate; controller: menuBar.controller; hostMenu: photoMenu; menuPath: "photo.navigate"; insertionIndex: 0 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.cropTool
-        }
-        MenuItem {
-            action: actions.rotateLeft
-        }
-        MenuItem {
-            action: actions.rotateRight
-        }
-        MenuItem {
-            action: actions.flipHorizontal
-        }
-        MenuItem {
-            action: actions.flipVertical
-        }
+        StudioCommandMenuItems { id: photoTransform; controller: menuBar.controller; hostMenu: photoMenu; menuPath: "photo.transform"; insertionIndex: menuBar.commandCount("photo.navigate") + 1 }
         MenuSeparator {}
         Menu {
+            id: ratingMenu
             title: qsTr("Rating")
-            MenuItem {
-                action: actions.rating0
-            }
-            MenuItem {
-                action: actions.rating1
-            }
-            MenuItem {
-                action: actions.rating2
-            }
-            MenuItem {
-                action: actions.rating3
-            }
-            MenuItem {
-                action: actions.rating4
-            }
-            MenuItem {
-                action: actions.rating5
-            }
+            StudioCommandMenuItems { controller: menuBar.controller; hostMenu: ratingMenu; menuPath: "photo.rating"; insertionIndex: 0 }
         }
         Menu {
+            id: colorMenu
             title: qsTr("Color Label")
-            MenuItem {
-                action: actions.colorNone
-            }
-            MenuItem {
-                action: actions.colorRed
-            }
-            MenuItem {
-                action: actions.colorYellow
-            }
-            MenuItem {
-                action: actions.colorGreen
-            }
-            MenuItem {
-                action: actions.colorBlue
-            }
-            MenuItem {
-                action: actions.colorPurple
-            }
+            StudioCommandMenuItems { controller: menuBar.controller; hostMenu: colorMenu; menuPath: "photo.color"; insertionIndex: 0 }
         }
-        MenuItem {
-            action: actions.reject
-        }
+        StudioCommandMenuItems { id: photoReview; controller: menuBar.controller; hostMenu: photoMenu; menuPath: "photo.review"; insertionIndex: menuBar.commandCount("photo.navigate") + menuBar.commandCount("photo.transform") + 4 }
         MenuSeparator {}
-        MenuItem {
-            action: actions.removePhoto
-        }
-        MenuItem {
-            action: actions.removeFromDisk
-        }
+        StudioCommandMenuItems { controller: menuBar.controller; hostMenu: photoMenu; menuPath: "photo.delete"; insertionIndex: menuBar.commandCount("photo.navigate") + menuBar.commandCount("photo.transform") + menuBar.commandCount("photo.review") + 5 }
     }
-
     Menu {
+        id: helpMenu
         title: qsTr("Help")
-        MenuItem {
-            action: actions.about
-        }
+        StudioCommandMenuItems { controller: menuBar.controller; hostMenu: helpMenu; menuPath: "help.about"; insertionIndex: 0 }
     }
 }

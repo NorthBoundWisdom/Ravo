@@ -60,12 +60,12 @@ Rectangle {
                     showValueLabel: false
                     delayedCommit: false
                     onValueEdited: function (v) {
-                        if (root.hasPresenter)
-                            root.presenter.thumbnailSize = Math.round(v);
+                        if (root.commands)
+                            root.commands.run(root.commands.ids.viewSetThumbnailSize, Math.round(v));
                     }
                     onValueCommitted: function (v) {
-                        if (root.hasPresenter)
-                            root.presenter.thumbnailSize = Math.round(v);
+                        if (root.commands)
+                            root.commands.run(root.commands.ids.viewSetThumbnailSize, Math.round(v));
                     }
                 }
             }

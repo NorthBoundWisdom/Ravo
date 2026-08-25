@@ -29,7 +29,12 @@ ApplicationWindow {
     palette.accent: Theme.accentColor
 
     property bool settingsOpen: false
-    readonly property bool studioInteractive: !settingsOpen
+    property string removeConfirmationToken: ""
+    property string deleteConfirmationToken: ""
+    readonly property bool studioInteractive: !settingsOpen && !studioCommands.paletteOpen
+    readonly property bool textInputActive: activeFocusItem &&
+                                                   (activeFocusItem instanceof TextInput ||
+                                                    activeFocusItem instanceof TextEdit)
     property string lastGalleryMode: "grid"
     readonly property rect navigatorVisible: {
         if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
@@ -148,27 +153,39 @@ ApplicationWindow {
 
     StudioActions {
         id: studioActions
+        controller: studioCommands
         presenter: studio
         windowHost: window
     }
 
-    menuBar: StudioMenuBar {
-        id: studioMenuBar
-        actions: studioActions
+    Binding {
+        target: studioCommands
+        property: "settingsOpen"
+        value: window.settingsOpen
+    }
+    Binding {
+        target: studioCommands
+        property: "textInputActive"
+        value: window.textInputActive
+    }
+    Binding {
+        target: studioCommands
+        property: "modalOpen"
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible
     }
 
-    Component.onCompleted: {
-        applyAppearance();
-        Qt.callLater(startLibrarySession);
+    StudioCommandShortcuts {
+        controller: studioCommands
+    }
+
+    menuBar: StudioMenuBar {
+        id: studioMenuBar
+        controller: studioCommands
     }
 
     Connections {
-        target: studio
-        function onBrowseModeChanged() {
-            if (studio.browseMode === "grid" || studio.browseMode === "loupe")
-                window.lastGalleryMode = studio.browseMode;
-        }
-        function onUiCommandRequested(id) {
+        target: studioCommands
+        function onPresentationCommandRequested(id, argument) {
             const ids = studioActions.ids;
             if (id === ids.libraryCreate)
                 openCreateLibraryDialog();
@@ -188,6 +205,27 @@ ApplicationWindow {
                 Qt.quit();
             else if (id === ids.windowAbout)
                 openAboutDialog();
+            else if (id === ids.photoRemove) {
+                window.removeConfirmationToken = String(argument);
+                askRemovePhoto();
+            } else if (id === ids.photoRemoveFromDisk) {
+                window.deleteConfirmationToken = String(argument);
+                askDeleteFromDisk();
+            } else if (id === "studio.window.dismiss")
+                window.settingsOpen = false;
+        }
+    }
+
+    Component.onCompleted: {
+        applyAppearance();
+        Qt.callLater(startLibrarySession);
+    }
+
+    Connections {
+        target: studio
+        function onBrowseModeChanged() {
+            if (studio.browseMode === "grid" || studio.browseMode === "loupe")
+                window.lastGalleryMode = studio.browseMode;
         }
     }
 
@@ -224,7 +262,7 @@ ApplicationWindow {
                     checked: false
                     onCheckedChanged: {
                         if (!checked && studio.filtersActive)
-                            studio.clearFilters();
+                            studioActions.run(studioActions.ids.libraryClearFilters);
                     }
                 }
 
@@ -241,11 +279,11 @@ ApplicationWindow {
                     Layout.preferredWidth: 140
                     onActivated: function (index) {
                         if (index === 0)
-                            studio.setRatingFilter("any", 0);
+                            studioActions.run(studioActions.ids.librarySetRatingFilter, {"mode": "any", "value": 0});
                         else if (index <= 5)
-                            studio.setRatingFilter("min", index);
+                            studioActions.run(studioActions.ids.librarySetRatingFilter, {"mode": "min", "value": index});
                         else
-                            studio.setRatingFilter("exact", index - 6);
+                            studioActions.run(studioActions.ids.librarySetRatingFilter, {"mode": "exact", "value": index - 6});
                     }
                 }
 
@@ -270,7 +308,7 @@ ApplicationWindow {
                         MouseArea {
                             anchors.fill: parent
                             enabled: filterToggle.checked
-                            onClicked: studio.toggleColorFilter(modelData)
+                            onClicked: studioActions.run(studioActions.ids.libraryToggleColorFilter, modelData)
                         }
                     }
                 }
@@ -287,7 +325,7 @@ ApplicationWindow {
                     Layout.preferredWidth: 120
                     currentIndex: studio.rejectFilter === "exclude" ? 1 : (studio.rejectFilter === "only" ? 2 : 0)
                     onActivated: function (index) {
-                        studio.setRejectFilter(index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
+                        studioActions.run(studioActions.ids.librarySetRejectFilter, index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
                     }
                 }
 
@@ -295,7 +333,7 @@ ApplicationWindow {
                     Layout.alignment: Qt.AlignVCenter
                     text: qsTr("Clear filters")
                     enabled: filterToggle.checked && studio.filtersActive
-                    onClicked: studio.clearFilters()
+                    onClicked: studioActions.run(studioActions.ids.libraryClearFilters)
                 }
 
                 CustomComboBox {
@@ -306,14 +344,14 @@ ApplicationWindow {
                     currentIndex: studio.sortField === "name" ? 1 : (studio.sortField === "rating" ? 2 : 0)
                     onActivated: function (index) {
                         const field = index === 1 ? "name" : (index === 2 ? "rating" : "imported");
-                        studio.setSort(field, studio.sortDirection);
+                        studioActions.run(studioActions.ids.librarySetSort, {"field": field, "direction": studio.sortDirection});
                     }
                 }
                 CustomButton {
                     Layout.alignment: Qt.AlignVCenter
                     enabled: filterToggle.checked
                     text: studio.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
-                    onClicked: studio.setSort(studio.sortField, studio.sortDirection === "asc" ? "desc" : "asc")
+                    onClicked: studioActions.run(studioActions.ids.librarySetSort, {"field": studio.sortField, "direction": studio.sortDirection === "asc" ? "desc" : "asc"})
                 }
 
                 Item {
@@ -612,7 +650,7 @@ ApplicationWindow {
 
                             WheelHandler {
                                 onWheel: function (event) {
-                                    studio.adjustZoom(event.angleDelta.y);
+                                    studioActions.run(studioActions.ids.viewAdjustZoom, event.angleDelta.y);
                                     event.accepted = true;
                                 }
                             }
@@ -713,6 +751,13 @@ ApplicationWindow {
         onCloseRequested: window.settingsOpen = false
     }
 
+    StudioCommandPalette {
+        id: commandPalette
+        controller: studioCommands
+        windowHost: window
+        z: 100
+    }
+
     MessageDialog {
         id: removeDialog
         parentItem: window.contentItem
@@ -722,7 +767,10 @@ ApplicationWindow {
         defaultButtonText: qsTr("Remove")
         onFinished: function (buttonText) {
             if (buttonText === qsTr("Remove"))
-                studioActions.run(studioActions.ids.photoRemove);
+                studioActions.run(studioActions.ids.photoRemoveConfirmed,
+                                  window.removeConfirmationToken);
+            studioCommands.cancelPendingConfirmation(window.removeConfirmationToken);
+            window.removeConfirmationToken = "";
         }
     }
 
@@ -735,7 +783,10 @@ ApplicationWindow {
         defaultButtonText: qsTr("Delete")
         onFinished: function (buttonText) {
             if (buttonText === qsTr("Delete"))
-                studioActions.run(studioActions.ids.photoRemoveFromDisk);
+                studioActions.run(studioActions.ids.photoRemoveFromDiskConfirmed,
+                                  window.deleteConfirmationToken);
+            studioCommands.cancelPendingConfirmation(window.deleteConfirmationToken);
+            window.deleteConfirmationToken = "";
         }
     }
 
@@ -754,7 +805,7 @@ ApplicationWindow {
         dialogMode: "save"
         nameFilters: ["Ravo catalog (*.sqlite)"]
         onFileAccepted: function (filePath) {
-            studio.createCatalogFromPath(filePath);
+            studioActions.run(studioActions.ids.libraryCreatePath, filePath);
         }
     }
 
@@ -764,7 +815,7 @@ ApplicationWindow {
         dialogMode: "open"
         nameFilters: ["Ravo catalog (*.sqlite)"]
         onFileAccepted: function (filePath) {
-            studio.openCatalogFromPath(filePath);
+            studioActions.run(studioActions.ids.libraryOpenPath, filePath);
         }
     }
 
@@ -774,7 +825,7 @@ ApplicationWindow {
         dialogMode: "openFiles"
         nameFilters: ["Photos (*.png *.jpg *.jpeg *.JPG *.JPEG *.tif *.tiff *.bmp *.gif *.webp *.arw *.ARW *.cr2 *.CR2 *.cr3 *.CR3 *.nef *.NEF *.dng *.DNG *.raf *.orf *.rw2)", "All files (*)"]
         onFileAccepted: function (filePath, selectedFilter, filePaths) {
-            studio.importFilePaths(filePaths);
+            studioActions.run(studioActions.ids.libraryImportPaths, filePaths);
         }
     }
 
@@ -782,7 +833,7 @@ ApplicationWindow {
         id: importFolderDialog
         dialogTitle: qsTr("Import Folder")
         onFolderAccepted: function (folderPath) {
-            studio.importFolderFromPath(folderPath);
+            studioActions.run(studioActions.ids.libraryImportFolderPath, folderPath);
         }
     }
 

@@ -27,7 +27,8 @@ target_include_directories(ravo_contract_tests PRIVATE
   $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(ravo_contract_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_contract_tests PRIVATE
-  RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
+  RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"
+  RAVO_TEST_VERSION="${PROJECT_VERSION}")
 ravo_configure_target(ravo_contract_tests)
 ravo_deploy_qt_core(ravo_contract_tests)
 gtest_discover_tests(ravo_contract_tests
@@ -53,6 +54,16 @@ ravo_deploy_qt_core(ravo_catalog_tests)
 gtest_discover_tests(ravo_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-catalog")
+
+add_executable(ravo_desktop_command_tests studio_command_test.cpp)
+target_link_libraries(ravo_desktop_command_tests
+  PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)
+target_include_directories(ravo_desktop_command_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_desktop_command_tests)
+ravo_deploy_qt_core(ravo_desktop_command_tests)
+gtest_discover_tests(ravo_desktop_command_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-desktop-smoke")
 
 ravo_add_phase0_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
 ravo_add_phase0_check(ravo_capability_inventory check_capability_inventory.py)

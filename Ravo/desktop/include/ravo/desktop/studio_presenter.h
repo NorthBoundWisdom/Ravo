@@ -32,6 +32,8 @@
 namespace ravo
 {
 
+class StudioCommandController;
+
 class StudioPresenter final : public QObject
 {
     Q_OBJECT
@@ -373,8 +375,6 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
-    Q_INVOKABLE void executeCommand(const QString &id, const QVariant &argument = QVariant());
-
 signals:
     void catalogChanged();
     void busyChanged();
@@ -389,11 +389,12 @@ signals:
     void filterChanged();
     void folderChanged();
     void editChanged();
-    void uiCommandRequested(const QString &id);
     void libraryWorkChanged();
     void thumbnailsChanged();
 
 private:
+    friend class StudioCommandController;
+
     void setBusy(bool busy);
     void setStatus(QString text);
     void setError(QString text);

@@ -5,6 +5,7 @@ import GeoControls 1.0
 Rectangle {
     id: root
     property var presenter
+    property var commands
 
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool paradeMode: hasPresenter && presenter.scopeMode === "parade"
@@ -128,8 +129,9 @@ Rectangle {
             currentIndex: root.paradeMode ? 1 : 0
             enabled: root.hasPresenter
             onActivated: function (index) {
-                if (root.presenter)
-                    root.presenter.scopeMode = index === 1 ? "parade" : "histogram";
+                if (root.commands)
+                    root.commands.run(root.commands.ids.viewSetScopeMode,
+                                      index === 1 ? "parade" : "histogram");
             }
         }
 

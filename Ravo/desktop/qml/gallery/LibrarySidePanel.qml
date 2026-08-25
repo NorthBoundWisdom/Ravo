@@ -224,7 +224,8 @@ Rectangle {
                 onActivated: function (index) {
                     if (!root.presenter)
                         return;
-                    root.presenter.setZoomMode(index === 1 ? "fill" : (index === 2 ? "actual" : "fit"));
+                    root.commands.run(root.commands.ids.viewSetZoomMode,
+                                      index === 1 ? "fill" : (index === 2 ? "actual" : "fit"));
                 }
             }
             CustomLabel {
@@ -249,8 +250,8 @@ Rectangle {
             rightPadding: Fonts.size6
             placeholderText: qsTr("Filter by tag")
             text: root.presenter ? root.presenter.tagFilter : ""
-            onEditingFinished: if (root.presenter)
-                root.presenter.setTagFilter(text)
+            onEditingFinished: if (root.commands)
+                root.commands.setTagFilter(text)
         }
 
         ListView {
@@ -433,8 +434,8 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: if (root.presenter)
-                        root.presenter.selectFolder(folderRow.folderUri)
+                    onClicked: if (root.commands)
+                        root.commands.run(root.commands.ids.librarySelectFolder, folderRow.folderUri)
                 }
             }
         }

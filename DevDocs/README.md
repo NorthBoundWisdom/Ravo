@@ -11,7 +11,7 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities awaiting product decisions |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
 | [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and current product slice |
-| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, lifecycle, and data boundaries |
+| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, lifecycle, command, and data boundaries |
 | [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
 | [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Accepted architecture decisions |
