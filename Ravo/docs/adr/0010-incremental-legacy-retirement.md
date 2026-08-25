@@ -26,10 +26,13 @@ acceptance would destroy static evidence still needed for the rewrite.
   [`../phase0/legacy-retired-src-paths.txt`](../phase0/legacy-retired-src-paths.txt).
 - Remaining leftover files must continue to match the freeze-commit blobs.
   `check_freeze_reference.py` verifies that invariant plus the retired set.
+  Leftover `iop/CMakeLists.txt` and `libs/CMakeLists.txt` may drop retired
+  registrations and are not blob-compared to the freeze.
 - Shared decode, fixture, and leftover GTK/Lua/OpenCL paths stay until their
   own acceptance or the leftover list in `TODO.md` §5.
 - The first retired owners are `libs/export.c` and `libs/export_metadata.c`,
-  replaced by `CatalogService::export_asset`.
+  replaced by `CatalogService::export_asset`. `iop/tonecurve.c` is retired after
+  `ravo.core.tonecurve` acceptance; leftover `rgbcurve.c` stays.
 
 ## Consequences
 

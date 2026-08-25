@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <limits>
 #include <numbers>
 #include <string>
 #include <utility>
@@ -69,7 +71,328 @@ void add_operation(Recipe &recipe, std::string id, std::string instance_id,
     return value != 0 ? 1 : 0;
 }
 
+struct ToneCurveSpline
+{
+    std::vector<ToneCurvePoint> points;
+    std::vector<double> tangents;
+};
+
+[[nodiscard]] ToneCurveSpline make_tone_curve_spline(const std::vector<ToneCurvePoint> &points)
+{
+    ToneCurveSpline spline;
+    spline.points = points;
+    if (points.size() < 2)
+    {
+        return spline;
+    }
+    const auto count = points.size();
+    std::vector<double> delta(count - 1U);
+    for (std::size_t index = 0; index + 1 < count; ++index)
+    {
+        const double dx = points[index + 1U].x - points[index].x;
+        delta[index] = dx > 1e-12 ? (points[index + 1U].y - points[index].y) / dx : 0.0;
+    }
+    spline.tangents.assign(count, 0.0);
+    spline.tangents.front() = delta.front();
+    spline.tangents.back() = delta.back();
+    for (std::size_t index = 1; index + 1 < count; ++index)
+    {
+        if (delta[index - 1U] * delta[index] <= 0.0)
+        {
+            spline.tangents[index] = 0.0;
+        }
+        else
+        {
+            spline.tangents[index] = 0.5 * (delta[index - 1U] + delta[index]);
+        }
+    }
+    for (std::size_t index = 0; index + 1 < count; ++index)
+    {
+        if (std::abs(delta[index]) <= 1e-12)
+        {
+            spline.tangents[index] = 0.0;
+            spline.tangents[index + 1U] = 0.0;
+            continue;
+        }
+        const double alpha = spline.tangents[index] / delta[index];
+        const double beta = spline.tangents[index + 1U] / delta[index];
+        const double sumsq = alpha * alpha + beta * beta;
+        if (sumsq > 9.0)
+        {
+            const double tau = 3.0 / std::sqrt(sumsq);
+            spline.tangents[index] = tau * alpha * delta[index];
+            spline.tangents[index + 1U] = tau * beta * delta[index];
+        }
+    }
+    return spline;
+}
+
+[[nodiscard]] double evaluate_tone_curve_spline(const ToneCurveSpline &spline, const double x)
+{
+    if (spline.points.size() < 2)
+    {
+        return std::clamp(x, 0.0, 1.0);
+    }
+    if (x <= spline.points.front().x)
+    {
+        return spline.points.front().y;
+    }
+    if (x >= spline.points.back().x)
+    {
+        return spline.points.back().y;
+    }
+    std::size_t index = 0;
+    while (index + 2 < spline.points.size() && x > spline.points[index + 1U].x)
+    {
+        ++index;
+    }
+    const auto &left = spline.points[index];
+    const auto &right = spline.points[index + 1U];
+    const double dx = right.x - left.x;
+    if (dx <= 1e-12)
+    {
+        return left.y;
+    }
+    const double t = (x - left.x) / dx;
+    const double t2 = t * t;
+    const double t3 = t2 * t;
+    const double h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+    const double h10 = t3 - 2.0 * t2 + t;
+    const double h01 = -2.0 * t3 + 3.0 * t2;
+    const double h11 = t3 - t2;
+    return h00 * left.y + h10 * dx * spline.tangents[index] + h01 * right.y +
+           h11 * dx * spline.tangents[index + 1U];
+}
+
+[[nodiscard]] const std::string *as_string_if(const ParameterValue &value)
+{
+    return std::get_if<std::string>(&value.value);
+}
+
 } // namespace
+
+bool tone_curve_is_identity(const std::vector<ToneCurvePoint> &points) noexcept
+{
+    if (points.empty())
+    {
+        return true;
+    }
+    if (points.size() < kToneCurveMinPoints || !near(points.front().x, 0.0) ||
+        !near(points.back().x, 1.0))
+    {
+        return false;
+    }
+    for (const auto &point : points)
+    {
+        if (!near(point.x, point.y))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept
+{
+    if (points.empty())
+    {
+        return;
+    }
+    for (auto &point : points)
+    {
+        point.x = clamp_value(point.x, 0.0, 1.0);
+        point.y = clamp_value(point.y, 0.0, 1.0);
+    }
+    std::sort(points.begin(), points.end(),
+              [](const ToneCurvePoint &left, const ToneCurvePoint &right)
+              { return left.x < right.x; });
+    std::vector<ToneCurvePoint> merged;
+    merged.reserve(points.size());
+    for (const auto &point : points)
+    {
+        if (!merged.empty() && point.x - merged.back().x < 1e-4)
+        {
+            merged.back() = point;
+        }
+        else
+        {
+            merged.push_back(point);
+        }
+    }
+    if (merged.size() < kToneCurveMinPoints)
+    {
+        points.clear();
+        return;
+    }
+    merged.front().x = 0.0;
+    merged.back().x = 1.0;
+    if (merged.size() >= 3 && merged[1].x < 1e-4)
+    {
+        merged.erase(merged.begin() + 1);
+    }
+    if (merged.size() >= 3 && merged[merged.size() - 2U].x > 1.0 - 1e-4)
+    {
+        merged.erase(merged.end() - 2);
+    }
+    while (merged.size() > kToneCurveMaxPoints && merged.size() > kToneCurveMinPoints)
+    {
+        merged.erase(merged.begin() + static_cast<std::ptrdiff_t>(merged.size() / 2));
+    }
+    if (tone_curve_is_identity(merged))
+    {
+        points.clear();
+        return;
+    }
+    points = std::move(merged);
+}
+
+double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, const double x) noexcept
+{
+    if (tone_curve_is_identity(points))
+    {
+        return std::clamp(x, 0.0, 1.0);
+    }
+    return evaluate_tone_curve_spline(make_tone_curve_spline(points), x);
+}
+
+Result<ToneCurveWorkingSpace> parse_tone_curve_working_space(const std::string_view text)
+{
+    if (text == kToneCurveWorkingSpaceSrgb)
+    {
+        return ToneCurveWorkingSpace::kSrgb;
+    }
+    if (text == kToneCurveWorkingSpaceLinearRgb)
+    {
+        return ToneCurveWorkingSpace::kLinearRgb;
+    }
+    return make_error(ErrorCode::kValidation, "Tone curve working space is unsupported",
+                      {{"working_space", std::string(text)}});
+}
+
+std::string_view tone_curve_working_space_name(const ToneCurveWorkingSpace space) noexcept
+{
+    switch (space)
+    {
+    case ToneCurveWorkingSpace::kSrgb:
+        return kToneCurveWorkingSpaceSrgb;
+    case ToneCurveWorkingSpace::kLinearRgb:
+        return kToneCurveWorkingSpaceLinearRgb;
+    }
+    return kToneCurveWorkingSpaceSrgb;
+}
+
+Result<std::vector<ToneCurvePoint>> parse_tone_curve_points(const ParameterValue &value)
+{
+    const auto *array = std::get_if<ParameterValue::Array>(&value.value);
+    if (array == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Tone curve points must be an array");
+    }
+    if (array->size() < kToneCurveMinPoints || array->size() > kToneCurveMaxPoints)
+    {
+        return make_error(ErrorCode::kValidation, "Tone curve must have between 2 and 16 points",
+                          {{"point_count", std::to_string(array->size())}});
+    }
+    std::vector<ToneCurvePoint> points;
+    points.reserve(array->size());
+    for (std::size_t index = 0; index < array->size(); ++index)
+    {
+        const auto *object = std::get_if<ParameterValue::Object>(&(*array)[index].value);
+        if (object == nullptr || object->size() != 2)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Tone curve point must be an object with only x and y",
+                              {{"point_index", std::to_string(index)}});
+        }
+        const auto x_found = object->find("x");
+        const auto y_found = object->find("y");
+        if (x_found == object->end() || y_found == object->end())
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve point is missing x or y",
+                              {{"point_index", std::to_string(index)}});
+        }
+        const double x = as_number(x_found->second, std::numeric_limits<double>::quiet_NaN());
+        const double y = as_number(y_found->second, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(x) || !std::isfinite(y) || x < 0.0 || x > 1.0 || y < 0.0 || y > 1.0)
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve point is outside 0..1",
+                              {{"point_index", std::to_string(index)}});
+        }
+        if (!points.empty() && x < points.back().x + 1e-4)
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve point x values must increase",
+                              {{"point_index", std::to_string(index)}});
+        }
+        points.push_back({x, y});
+    }
+    if (!near(points.front().x, 0.0) || !near(points.back().x, 1.0))
+    {
+        return make_error(ErrorCode::kValidation, "Tone curve must start at x=0 and end at x=1");
+    }
+    return points;
+}
+
+ParameterValue tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points)
+{
+    ParameterValue::Array array;
+    const auto &source = tone_curve_is_identity(points) ?
+                             std::vector<ToneCurvePoint>{{0.0, 0.0}, {1.0, 1.0}} :
+                             points;
+    array.reserve(source.size());
+    for (const auto &point : source)
+    {
+        array.push_back(ParameterValue{ParameterValue::Object{
+            {"x", ParameterValue{point.x}},
+            {"y", ParameterValue{point.y}},
+        }});
+    }
+    return ParameterValue{std::move(array)};
+}
+
+Result<void> validate_tone_curve_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    if (const auto found = parameters.find("working_space"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve working_space must be a string");
+        }
+        auto space = parse_tone_curve_working_space(*text);
+        if (!space)
+        {
+            return space.error();
+        }
+    }
+    if (const auto found = parameters.find("interpolation"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr || *text != kToneCurveInterpolationMonotoneHermite)
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve interpolation is unsupported",
+                              {{"interpolation", text == nullptr ? std::string() : *text}});
+        }
+    }
+    if (const auto found = parameters.find("channel_mode"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr || *text != kToneCurveChannelModeRgb)
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve channel_mode is unsupported",
+                              {{"channel_mode", text == nullptr ? std::string() : *text}});
+        }
+    }
+    if (const auto found = parameters.find("points"); found != parameters.end())
+    {
+        auto points = parse_tone_curve_points(found->second);
+        if (!points)
+        {
+            return points.error();
+        }
+    }
+    return {};
+}
 
 void clamp_develop(DevelopParams &params) noexcept
 {
@@ -112,6 +435,12 @@ void clamp_develop(DevelopParams &params) noexcept
     params.split_balance = clamp_value(params.split_balance, 0.0, 1.0);
     params.split_amount = clamp_value(params.split_amount, 0.0, 1.0);
     params.gamma = clamp_value(params.gamma, 0.2, 3.0);
+    if (params.tone_curve_working_space != kToneCurveWorkingSpaceSrgb &&
+        params.tone_curve_working_space != kToneCurveWorkingSpaceLinearRgb)
+    {
+        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
+    }
+    clamp_tone_curve(params.tone_curve);
 }
 
 bool DevelopParams::is_identity() const noexcept
@@ -126,7 +455,7 @@ bool DevelopParams::is_identity() const noexcept
            near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
            near(lift, 0.0) && near(color_gamma, 0.0) && near(gain, 0.0) &&
            near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
-           near(gamma, kDevelopGammaDefault);
+           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve);
 }
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -415,6 +744,11 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.gamma = identity.gamma;
     }
+    else if (name == "toneCurve")
+    {
+        params.tone_curve.clear();
+        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
+    }
     else
     {
         return false;
@@ -451,6 +785,8 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.whites = identity.whites;
         params.blacks = identity.blacks;
         params.gamma = identity.gamma;
+        params.tone_curve.clear();
+        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
     }
     else if (section == "color")
     {
@@ -760,6 +1096,15 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.core.gamma", "gamma-1",
                       {{"gamma", ParameterValue{clamped.gamma}}});
     }
+    if (!tone_curve_is_identity(clamped.tone_curve))
+    {
+        add_operation(recipe, "ravo.core.tonecurve", "tonecurve-1",
+                      {{"working_space", ParameterValue{clamped.tone_curve_working_space}},
+                       {"interpolation",
+                        ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
+                       {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
+                       {"points", tone_curve_points_to_parameter(clamped.tone_curve)}});
+    }
     if (!near(clamped.lift, 0.0) || !near(clamped.color_gamma, 0.0) || !near(clamped.gain, 0.0))
     {
         add_operation(recipe, "ravo.color.colorbalance", "colorbalance-1",
@@ -926,6 +1271,27 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         else if (operation.id == "ravo.core.gamma")
         {
             params.gamma = number("gamma", params.gamma);
+        }
+        else if (operation.id == "ravo.core.tonecurve")
+        {
+            if (const auto found = operation.parameters.find("working_space");
+                found != operation.parameters.end())
+            {
+                if (const auto *text = as_string_if(found->second); text != nullptr)
+                {
+                    params.tone_curve_working_space = *text;
+                }
+            }
+            if (const auto found = operation.parameters.find("points");
+                found != operation.parameters.end())
+            {
+                auto points = parse_tone_curve_points(found->second);
+                if (!points)
+                {
+                    return points.error();
+                }
+                params.tone_curve = std::move(points).value();
+            }
         }
         else if (operation.id == "ravo.color.vibrance")
         {

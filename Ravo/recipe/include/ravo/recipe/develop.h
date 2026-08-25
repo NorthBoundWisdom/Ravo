@@ -2,7 +2,10 @@
 
 #include <array>
 #include <cstddef>
+#include <map>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "ravo/recipe/recipe.h"
 
@@ -15,6 +18,26 @@ inline constexpr double kDevelopTemperatureMax = 12000.0;
 inline constexpr double kDevelopGammaDefault = 1.0;
 inline constexpr double kDevelopStraightenMin = -45.0;
 inline constexpr double kDevelopStraightenMax = 45.0;
+inline constexpr std::size_t kToneCurveMinPoints = 2;
+inline constexpr std::size_t kToneCurveMaxPoints = 16;
+inline constexpr std::string_view kToneCurveWorkingSpaceSrgb = "srgb";
+inline constexpr std::string_view kToneCurveWorkingSpaceLinearRgb = "linear_rgb";
+inline constexpr std::string_view kToneCurveInterpolationMonotoneHermite = "monotone_hermite";
+inline constexpr std::string_view kToneCurveChannelModeRgb = "rgb";
+
+struct ToneCurvePoint
+{
+    double x = 0.0;
+    double y = 0.0;
+
+    [[nodiscard]] bool operator==(const ToneCurvePoint &) const noexcept = default;
+};
+
+enum class ToneCurveWorkingSpace
+{
+    kSrgb,
+    kLinearRgb,
+};
 
 struct DevelopParams
 {
@@ -55,10 +78,22 @@ struct DevelopParams
     double split_balance = 0.5;
     double split_amount = 0.0;
     double gamma = kDevelopGammaDefault;
+    std::vector<ToneCurvePoint> tone_curve;
+    std::string tone_curve_working_space{std::string(kToneCurveWorkingSpaceSrgb)};
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;
 };
+
+[[nodiscard]] bool tone_curve_is_identity(const std::vector<ToneCurvePoint> &points) noexcept;
+void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept;
+[[nodiscard]] double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, double x) noexcept;
+[[nodiscard]] Result<ToneCurveWorkingSpace> parse_tone_curve_working_space(std::string_view text);
+[[nodiscard]] std::string_view tone_curve_working_space_name(ToneCurveWorkingSpace space) noexcept;
+[[nodiscard]] Result<std::vector<ToneCurvePoint>> parse_tone_curve_points(const ParameterValue &value);
+[[nodiscard]] ParameterValue tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
+[[nodiscard]] Result<void> validate_tone_curve_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
 
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);

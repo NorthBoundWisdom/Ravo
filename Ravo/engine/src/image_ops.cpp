@@ -12,6 +12,8 @@
 
 #include <png.h>
 
+#include "ravo/recipe/develop.h"
+
 namespace ravo
 {
 namespace
@@ -47,6 +49,22 @@ namespace
     return as_number(found->second, fallback);
 }
 
+[[nodiscard]] std::string parameter_string(const OperationInstance &operation,
+                                           const std::string_view name,
+                                           const std::string &fallback)
+{
+    const auto found = operation.parameters.find(std::string(name));
+    if (found == operation.parameters.end())
+    {
+        return fallback;
+    }
+    if (const auto *text = std::get_if<std::string>(&found->second.value); text != nullptr)
+    {
+        return *text;
+    }
+    return fallback;
+}
+
 [[nodiscard]] float srgb_encode(const float value)
 {
     const float clamped = std::clamp(value, 0.0F, 1.0F);
@@ -58,6 +76,81 @@ namespace
 {
     const float clamped = std::clamp(value, 0.0F, 1.0F);
     return clamped <= 0.04045F ? clamped / 12.92F : std::pow((clamped + 0.055F) / 1.055F, 2.4F);
+}
+
+Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &operation)
+{
+    auto space = parse_tone_curve_working_space(
+        parameter_string(operation, "working_space", std::string(kToneCurveWorkingSpaceSrgb)));
+    if (!space)
+    {
+        return space.error();
+    }
+    const auto interpolation =
+        parameter_string(operation, "interpolation", std::string(kToneCurveInterpolationMonotoneHermite));
+    if (interpolation != kToneCurveInterpolationMonotoneHermite)
+    {
+        return make_error(ErrorCode::kValidation, "Tone curve interpolation is unsupported",
+                          {{"interpolation", interpolation}});
+    }
+    const auto channel_mode =
+        parameter_string(operation, "channel_mode", std::string(kToneCurveChannelModeRgb));
+    if (channel_mode != kToneCurveChannelModeRgb)
+    {
+        return make_error(ErrorCode::kValidation, "Tone curve channel_mode is unsupported",
+                          {{"channel_mode", channel_mode}});
+    }
+    std::vector<ToneCurvePoint> points;
+    if (const auto found = operation.parameters.find("points"); found != operation.parameters.end())
+    {
+        auto parsed = parse_tone_curve_points(found->second);
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        points = std::move(parsed).value();
+    }
+    if (tone_curve_is_identity(points))
+    {
+        return {};
+    }
+    constexpr int kLut = 256;
+    std::array<float, kLut + 1> lut{};
+    for (int index = 0; index <= kLut; ++index)
+    {
+        lut[static_cast<std::size_t>(index)] = static_cast<float>(
+            evaluate_tone_curve(points, static_cast<double>(index) / static_cast<double>(kLut)));
+    }
+    const bool encode = space.value() == ToneCurveWorkingSpace::kSrgb;
+    const auto map_channel = [&](float value)
+    {
+        if (encode)
+        {
+            value = srgb_encode(value);
+        }
+        if (value <= 0.0F)
+        {
+            return encode ? srgb_decode(lut.front()) : lut.front();
+        }
+        if (value >= 1.0F)
+        {
+            return encode ? srgb_decode(lut.back()) : lut.back();
+        }
+        const float scaled = value * static_cast<float>(kLut);
+        const int low = static_cast<int>(scaled);
+        const float mix = scaled - static_cast<float>(low);
+        const float mapped =
+            lut[static_cast<std::size_t>(low)] * (1.0F - mix) +
+            lut[static_cast<std::size_t>(low + 1)] * mix;
+        return encode ? srgb_decode(mapped) : mapped;
+    };
+    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+    {
+        image.rgb[index] = map_channel(image.rgb[index]);
+        image.rgb[index + 1U] = map_channel(image.rgb[index + 1U]);
+        image.rgb[index + 2U] = map_channel(image.rgb[index + 2U]);
+    }
+    return {};
 }
 
 [[nodiscard]] float luma(const float r, const float g, const float b)
@@ -1408,6 +1501,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == "ravo.core.gamma")
         {
             apply_gamma(image, parameter(operation, "gamma", 1.0));
+            continue;
+        }
+        if (operation.id == "ravo.core.tonecurve")
+        {
+            auto curved = apply_tone_curve(image, operation);
+            if (!curved)
+            {
+                return curved.error();
+            }
             continue;
         }
         if (operation.id == "ravo.color.colorbalance")

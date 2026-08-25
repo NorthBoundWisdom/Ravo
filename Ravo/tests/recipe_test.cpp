@@ -264,6 +264,53 @@ TEST(RecipeTest, StraightenedSourceQuadTouchesInscribedCrop)
     EXPECT_NEAR(fitted.crop_height, crop_h, 1e-9);
 }
 
+TEST(RecipeTest, ToneCurveRoundTripAndRejectsUnknownColourPolicy)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    EXPECT_NEAR(evaluate_tone_curve({}, 0.35), 0.35, 1e-9);
+    EXPECT_NEAR(evaluate_tone_curve({{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}}, 0.5), 0.75, 1e-9);
+
+    DevelopParams params;
+    params.tone_curve = {{0.0, 0.0}, {0.5, 0.65}, {1.0, 1.0}};
+    params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceLinearRgb);
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto valid = validate_recipe(recipe.value(), registry.value());
+    ASSERT_TRUE(valid) << valid.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    ASSERT_EQ(restored.value().tone_curve.size(), 3U);
+    EXPECT_NEAR(restored.value().tone_curve[1].y, 0.65, 1e-6);
+    EXPECT_EQ(restored.value().tone_curve_working_space, kToneCurveWorkingSpaceLinearRgb);
+    EXPECT_FALSE(restored.value().is_identity());
+    EXPECT_TRUE(reset_develop_field(restored.value(), "toneCurve"));
+    EXPECT_TRUE(restored.value().tone_curve.empty());
+
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
+
+    auto lab = recipe.value();
+    lab.operations.front().parameters["working_space"] = ParameterValue{"lab"};
+    const auto rejected_space = validate_recipe(lab, registry.value());
+    ASSERT_FALSE(rejected_space);
+    EXPECT_EQ(rejected_space.error().code, ErrorCode::kValidation);
+
+    auto decreasing = recipe.value();
+    decreasing.operations.front().parameters["points"] = ParameterValue{ParameterValue::Array{
+        ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
+        ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.2}}, {"y", ParameterValue{0.4}}}},
+        ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.1}}, {"y", ParameterValue{0.8}}}},
+        ParameterValue{ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
+    }};
+    const auto rejected_points = validate_recipe(decreasing, registry.value());
+    ASSERT_FALSE(rejected_points);
+    EXPECT_EQ(rejected_points.error().code, ErrorCode::kValidation);
+}
+
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)
 {
     const auto recipe = parse_recipe_json(

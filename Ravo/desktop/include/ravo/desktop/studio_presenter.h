@@ -20,6 +20,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariant>
+#include <QVariantList>
 
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
@@ -180,6 +181,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSplitBalance READ editSplitBalance NOTIFY editChanged)
     Q_PROPERTY(double editSplitAmount READ editSplitAmount NOTIFY editChanged)
     Q_PROPERTY(double editGamma READ editGamma NOTIFY editChanged)
+    Q_PROPERTY(QVariantList editToneCurve READ editToneCurve NOTIFY editChanged)
+    Q_PROPERTY(QVariantList editToneCurveSamples READ editToneCurveSamples NOTIFY editChanged)
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
@@ -278,6 +281,8 @@ public:
     [[nodiscard]] double editSplitBalance() const noexcept;
     [[nodiscard]] double editSplitAmount() const noexcept;
     [[nodiscard]] double editGamma() const noexcept;
+    [[nodiscard]] QVariantList editToneCurve() const;
+    [[nodiscard]] QVariantList editToneCurveSamples() const;
     [[nodiscard]] bool cropToolActive() const noexcept;
     [[nodiscard]] bool cropGuideReady() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
@@ -310,6 +315,8 @@ public:
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
     Q_INVOKABLE void previewDevelopNumber(const QString &name, double value);
+    Q_INVOKABLE void setToneCurve(const QVariantList &points);
+    Q_INVOKABLE void previewToneCurve(const QVariantList &points);
     Q_INVOKABLE void setCropRect(double x, double y, double width, double height);
     Q_INVOKABLE void previewCropRect(double x, double y, double width, double height);
     Q_INVOKABLE void setCropAspect(const QString &aspect);

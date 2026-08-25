@@ -3,3 +3,4 @@
 # Add one path per retired owner after that capability is Ravo-accepted.
 libs/export.c
 libs/export_metadata.c
+iop/tonecurve.c

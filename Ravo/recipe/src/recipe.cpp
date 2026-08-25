@@ -12,6 +12,7 @@
 #include <system_error>
 #include <utility>
 
+#include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 
 namespace ravo
@@ -778,6 +779,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             {
                 return make_error(ErrorCode::kValidation, "Recipe operation parameter is required",
                                   {{"operation_id", operation.id}, {"parameter", rule.name}});
+            }
+        }
+        if (operation.id == "ravo.core.tonecurve")
+        {
+            auto curve = validate_tone_curve_parameters(operation.parameters);
+            if (!curve)
+            {
+                auto error = curve.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
             }
         }
     }

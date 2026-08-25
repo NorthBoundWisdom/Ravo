@@ -478,6 +478,43 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("gamma")
                         }
+                        CustomLabel {
+                            text: qsTr("Tone Curve")
+                            Layout.fillWidth: true
+                        }
+                        ToneCurveEditor {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 200
+                            editorEnabled: root.hasSelection
+                            points: root.hasPresenter ? root.presenter.editToneCurve : [{
+                                    "x": 0,
+                                    "y": 0
+                                }, {
+                                    "x": 1,
+                                    "y": 1
+                                }]
+                            samples: root.hasPresenter ? root.presenter.editToneCurveSamples : []
+                            onCurveEdited: function (points) {
+                                if (root.commands)
+                                    root.commands.previewToneCurve(points);
+                            }
+                            onCurveCommitted: function (points) {
+                                if (root.commands)
+                                    root.commands.setToneCurve(points);
+                            }
+                        }
+                        CustomLabel {
+                            text: qsTr("Drag points to reshape. Click to add. Double-click an interior point to remove it.")
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                            opacity: 0.75
+                        }
+                        CustomButton {
+                            text: qsTr("Reset curve")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetControl("toneCurve")
+                        }
                         CustomButton {
                             text: qsTr("Reset light")
                             enabled: root.hasSelection

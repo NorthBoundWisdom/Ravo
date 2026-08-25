@@ -12,6 +12,7 @@
 #include <png.h>
 
 #include "ravo/engine/engine.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 
 #include "test_support.h"
@@ -78,6 +79,10 @@ TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
               std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
                            [](const OperationDescriptor &item)
                            { return item.id == "ravo.detail.sharpen"; }));
+    EXPECT_NE(engine.value().operations().end(),
+              std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
+                           [](const OperationDescriptor &item)
+                           { return item.id == "ravo.core.tonecurve"; }));
 }
 
 TEST(EngineFacadeTest, CancelledRequestsNeverReachRendering)
@@ -632,6 +637,68 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
         }
     }
     EXPECT_TRUE(saw_antialiased_edge);
+}
+
+[[nodiscard]] ParameterValue tone_curve_points(const std::vector<ToneCurvePoint> &points)
+{
+    return tone_curve_points_to_parameter(points);
+}
+
+TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndRejectsLab)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto gray = solid_raster(8, 8, 128, 128, 128);
+    auto identity = render_op(engine.value(), gray,
+                              {"ravo.core.tonecurve",
+                               1,
+                               "curve-identity",
+                               true,
+                               {{"working_space", ParameterValue{"srgb"}},
+                                {"interpolation", ParameterValue{"monotone_hermite"}},
+                                {"channel_mode", ParameterValue{"rgb"}},
+                                {"points", tone_curve_points({{0.0, 0.0}, {1.0, 1.0}})}},
+                               std::nullopt});
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_EQ(identity.value().rgb[0], 128);
+
+    const auto lifted_points = tone_curve_points({{0.0, 0.0}, {128.0 / 255.0, 0.75}, {1.0, 1.0}});
+    auto srgb = render_op(engine.value(), gray,
+                          {"ravo.core.tonecurve",
+                           1,
+                           "curve-srgb",
+                           true,
+                           {{"working_space", ParameterValue{"srgb"}},
+                            {"interpolation", ParameterValue{"monotone_hermite"}},
+                            {"channel_mode", ParameterValue{"rgb"}},
+                            {"points", lifted_points}},
+                           std::nullopt});
+    ASSERT_TRUE(srgb) << srgb.error().message;
+    EXPECT_NEAR(srgb.value().rgb[0], 191, 2);
+
+    auto linear = render_op(engine.value(), gray,
+                            {"ravo.core.tonecurve",
+                             1,
+                             "curve-linear",
+                             true,
+                             {{"working_space", ParameterValue{"linear_rgb"}},
+                              {"interpolation", ParameterValue{"monotone_hermite"}},
+                              {"channel_mode", ParameterValue{"rgb"}},
+                              {"points", lifted_points}},
+                             std::nullopt});
+    ASSERT_TRUE(linear) << linear.error().message;
+    EXPECT_NE(linear.value().rgb[0], srgb.value().rgb[0]);
+
+    auto lab = render_op(engine.value(), gray,
+                         {"ravo.core.tonecurve",
+                          1,
+                          "curve-lab",
+                          true,
+                          {{"working_space", ParameterValue{"lab"}},
+                           {"points", lifted_points}},
+                          std::nullopt});
+    ASSERT_FALSE(lab);
+    EXPECT_EQ(lab.error().code, ErrorCode::kValidation);
 }
 
 TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)

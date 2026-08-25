@@ -18,6 +18,12 @@ PROTECTED_PATHS: tuple[tuple[str, str], ...] = (
     ("legacy/host/packaging", "packaging"),
 )
 RETIRED_SRC_LIST = Path("Ravo/docs/phase0/legacy-retired-src-paths.txt")
+# Leftover CMake registries may drop retired add_iop / add_library lines.
+# Their blobs are not freeze-identical after an accepted retirement.
+MUTABLE_LEFTOVER_SRC_PATHS = {
+    "iop/CMakeLists.txt",
+    "libs/CMakeLists.txt",
+}
 
 
 class FreezeCheckError(Exception):
@@ -96,6 +102,8 @@ def verify_src_with_retirements(
             + ", ".join(unexpected_added)
         )
     for relative in sorted(current_files):
+        if relative in MUTABLE_LEFTOVER_SRC_PATHS:
+            continue
         frozen_blob = blob_id(repository_root, f"{freeze}:src/{relative}")
         current_blob = blob_id(repository_root, f"HEAD:legacy/src/{relative}")
         if frozen_blob != current_blob:
@@ -132,6 +140,8 @@ def verify_worktree(
         relative = path[len("legacy/src/") :] if path.startswith("legacy/src/") else ""
         deleted = "D" in prefix
         if path.startswith("legacy/src/") and deleted and relative in retired:
+            continue
+        if path.startswith("legacy/src/") and relative in MUTABLE_LEFTOVER_SRC_PATHS:
             continue
         unexpected.append(path or line)
     if unexpected:

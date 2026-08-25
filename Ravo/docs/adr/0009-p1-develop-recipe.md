@@ -18,9 +18,11 @@ versioned recipe/operation contract and a CPU exposure path.
 - `DevelopParams` is a service/desktop mapping onto the recipe. Persistence
   is recipe JSON, not slider positions or a UI blob.
 - CPU operations for white balance, light, color, rotate, straighten, crop, flip, sharpen,
-  vignette, grain, velvia, color balance and the other registered global
-  operations execute on a linear RGB working buffer, converting to Lab when the
-  frozen `legacy/src/iop` `process()` path is Lab. Raster inputs are linearized
+  vignette, grain, velvia, color balance, a linked RGB tone curve, and the other
+  registered global operations execute on a linear RGB working buffer, converting
+  to Lab when the frozen `legacy/src/iop` `process()` path is Lab. The tone curve
+  schema records `working_space` (`srgb` or `linear_rgb`) and interpolates
+  monotone Hermite on a 0–1 point list; it is not the leftover Lab L/a/b widget. Raster inputs are linearized
   from sRGB8; RAW continues through the existing Bayer path before the same ops.
   The math follows the CPU kernels (USM on L, simplex grain, lift/gamma/gain,
   velvia, superellipse vignette, Orton soften) without GTK, OpenCL, or blend

@@ -12,8 +12,9 @@ ADR-0007 supersedes the old sequencing constraint: a new private SQLite
 catalog and minimal desktop viewer are authorized in M1. That decision does not
 authorize legacy catalog migration or any operation marked deferred below.
 
-The source inventory was collected from the 76 non-comment `add_iop(...)`
-registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt).
+The source inventory was collected from the leftover `add_iop(...)`
+registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt)
+(75 after retiring `tonecurve`).
 The generated fixture manifest records the 68 operation names currently
 represented by XMP regression assets.  A `yes` in the fixture column means
 only that one or more legacy XMP files name that operation; it is not a
@@ -46,6 +47,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.geometry.flip` | `flip` | horizontal/vertical mirror |
 | `ravo.geometry.straighten` | `ashift` / `clipping` | P1 free-angle straighten before crop |
 | `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
+| `ravo.core.tonecurve` | `tonecurve` | linked RGB point curve; `working_space` is `srgb` or `linear_rgb` |
 | `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
@@ -141,7 +143,6 @@ struct bytes or call the old dynamic module ABI.
 | `soften` | yes | product decision pending; no Phase 1 implementation |
 | `splittoning` | yes | product decision pending; no Phase 1 implementation |
 | `temperature` | yes | defer with RAW colour capability |
-| `tonecurve` | yes | defer until curve schema and colour policy exist |
 | `toneequal` | yes | defer until colour operation policy exists |
 | `velvia` | yes | product decision pending; no Phase 1 implementation |
 | `vignette` | yes | product decision pending; no Phase 1 implementation |

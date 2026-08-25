@@ -110,16 +110,25 @@ ADR-0004「一律等到 M7 整包退役」的删除时点。Ravo ↔ `legacy/` �
 - 风险：Windows / Linux staged codec deployment 未验证。Qt imageformat targets 已设为 required；磁盘满仅映射 `ENOSPC`，
   本机未注入满盘。Studio 手工导出未在本轮点过。
 
-### 2. 色调曲线 — **当前**
+### 2. 色调曲线 — **完成**
 
-- 用户结果：Develop 里一条可编辑的全局 tone curve（点列表），写入 recipe。
+- 用户结果：Develop Light 里一条可编辑的全局 tone curve（点列表），写入 recipe。
 - 旧 owner：`legacy/src/iop/tonecurve.c`（`rgbcurve.c` 本项不做）。
-- Ravo owner：`ravo_recipe` 曲线 schema、`ravo_engine` CPU、Inspector。
-- 验证：`RecipeTest` 往返 + `EngineFacadeTest` 合成光栅；Studio 拖点后重开
-  catalog 曲线还在。
-- 删除：`tonecurve.c` 及其 `add_iop` 注册。
-- 依赖：第 1 项不是硬依赖；若第 1 项未完成，本项不得开工。
-- 风险：色彩空间（线性 RGB vs Lab）必须写进 schema，不能抄 GTK 控件状态。
+- Ravo owner：`ravo.core.tonecurve` schema、`ravo_engine` CPU、Inspector
+  `ToneCurveEditor`。
+- 取证：只读 `legacy/src/iop/tonecurve.c` `process()`。旧实现是 Lab 三通道 +
+  `MONOTONE_HERMITE` / autoscale RGB。Ravo **没有**抄 Lab 或 GTK 控件状态。
+- 契约：`working_space` 为 `srgb`（默认）或 `linear_rgb`；
+  `interpolation=monotone_hermite`；`channel_mode=rgb`（同一曲线作用于 R/G/B）；
+  `points` 为 2–16 个 `{x,y}`，x 严格递增且覆盖 0..1。未知空间/插值 fail-fast。
+- 验证（本机 macOS Debug）：
+  - [x] `RecipeTest.ToneCurveRoundTripAndRejectsUnknownColourPolicy`
+  - [x] `EngineFacadeTest.ToneCurveMapsSyntheticRasterAndRejectsLab`
+  - [x] `ravo_freeze_reference` / `ravo_capability_inventory`
+  - [ ] Studio 手工：拖点后重开 catalog 曲线还在
+- 删除：已删 `legacy/src/iop/tonecurve.c` 及其 `add_iop`。`rgbcurve.c` 仍在。
+- 风险：Windows / Linux 未验证。Studio 手工未在本轮点过。v1 把工作缓冲
+  0–1 外的样本夹到端点，不做旧 Lab unbound 外推。
 
 ### 3. 显示变换（先选定一个）
 
@@ -218,11 +227,12 @@ ADR-0004「一律等到 M7 整包退役」的删除时点。Ravo ↔ `legacy/` �
 
 ## 8. 当前开工命令
 
-第 1 项已完成。下一项是色调曲线。开始前：
+第 2 项已完成。下一项是显示变换，但**未选定** `filmicrgb` / `sigmoid` /
+`agx` 之前不得开工。开始前：
 
 ```text
 git branch --show-current
 git status --short --branch
 ```
 
-只读取证：`legacy/src/iop/tonecurve.c` 与对应 fixture。实现只进入 `Ravo/`。
+先写 product-decision-register，再读被选中的 `legacy/src/iop/<name>.c`。

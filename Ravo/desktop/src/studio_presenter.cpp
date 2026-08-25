@@ -17,6 +17,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariant>
+#include <QVariantList>
 #include <QVariantMap>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
@@ -35,6 +36,52 @@ namespace
 [[nodiscard]] QString qstring_from_utf8(const std::string_view text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
+}
+
+[[nodiscard]] QVariantList tone_curve_to_variant(const std::vector<ToneCurvePoint> &points)
+{
+    std::vector<ToneCurvePoint> display = points;
+    if (tone_curve_is_identity(display))
+    {
+        display = {{0.0, 0.0}, {1.0, 1.0}};
+    }
+    QVariantList list;
+    list.reserve(static_cast<qsizetype>(display.size()));
+    for (const auto &point : display)
+    {
+        QVariantMap item;
+        item.insert(QStringLiteral("x"), point.x);
+        item.insert(QStringLiteral("y"), point.y);
+        list.push_back(item);
+    }
+    return list;
+}
+
+[[nodiscard]] std::vector<ToneCurvePoint> tone_curve_from_variant(const QVariantList &list)
+{
+    std::vector<ToneCurvePoint> points;
+    points.reserve(static_cast<std::size_t>(std::max<qsizetype>(0, list.size())));
+    for (const auto &item : list)
+    {
+        const auto map = item.toMap();
+        points.push_back({map.value(QStringLiteral("x")).toDouble(),
+                          map.value(QStringLiteral("y")).toDouble()});
+    }
+    clamp_tone_curve(points);
+    return points;
+}
+
+[[nodiscard]] QVariantList tone_curve_sample_list(const std::vector<ToneCurvePoint> &points)
+{
+    constexpr int kSamples = 65;
+    QVariantList samples;
+    samples.reserve(kSamples);
+    for (int index = 0; index < kSamples; ++index)
+    {
+        const double x = static_cast<double>(index) / static_cast<double>(kSamples - 1);
+        samples.push_back(evaluate_tone_curve(points, x));
+    }
+    return samples;
 }
 
 [[nodiscard]] std::string utf8_from_qstring(const QString &text)
@@ -963,6 +1010,14 @@ double StudioPresenter::editSplitAmount() const noexcept
 double StudioPresenter::editGamma() const noexcept
 {
     return develop_.gamma;
+}
+QVariantList StudioPresenter::editToneCurve() const
+{
+    return tone_curve_to_variant(develop_.tone_curve);
+}
+QVariantList StudioPresenter::editToneCurveSamples() const
+{
+    return tone_curve_sample_list(develop_.tone_curve);
 }
 bool StudioPresenter::cropToolActive() const noexcept
 {
@@ -2200,6 +2255,19 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
             setDevelopNumber(name, value);
         }
     }
+    else if (id == QLatin1String(kEditSetToneCurve))
+    {
+        const auto fields = argument.toMap();
+        const auto points = fields.value(QStringLiteral("points")).toList();
+        if (fields.value(QStringLiteral("live")).toBool())
+        {
+            previewToneCurve(points);
+        }
+        else
+        {
+            setToneCurve(points);
+        }
+    }
     else if (id == QLatin1String(kEditSetCrop))
     {
         const auto fields = argument.toMap();
@@ -2701,6 +2769,25 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     const bool keep_crop_guide =
         crop_tool_active_ && crop_guide_ready_ && name == QLatin1String("straighten");
     commit_develop(next, true, !keep_crop_guide);
+}
+
+void StudioPresenter::setToneCurve(const QVariantList &points)
+{
+    DevelopParams next = develop_;
+    next.tone_curve = tone_curve_from_variant(points);
+    clamp_develop(next);
+    if (next == develop_)
+    {
+        return;
+    }
+    commit_develop(next, true);
+}
+
+void StudioPresenter::previewToneCurve(const QVariantList &points)
+{
+    DevelopParams next = develop_;
+    next.tone_curve = tone_curve_from_variant(points);
+    preview_develop(next);
 }
 
 void StudioPresenter::previewDevelopNumber(const QString &name, const double value)

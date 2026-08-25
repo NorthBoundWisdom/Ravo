@@ -102,6 +102,7 @@ qt_add_qml_module(ravo_studio
     qml/FolderDialogPage.qml
     qml/LibrarySidePanel.qml
     qml/InspectorSidePanel.qml
+    qml/ToneCurveEditor.qml
     qml/FilmStripBar.qml
     qml/DarkThemePalette.qml
     qml/LightThemePalette.qml

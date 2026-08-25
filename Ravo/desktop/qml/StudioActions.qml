@@ -44,6 +44,7 @@ Item {
         readonly property string editResetSection: "edit.resetSection"
         readonly property string editResetControl: "edit.resetControl"
         readonly property string editSetNumber: "edit.setNumber"
+        readonly property string editSetToneCurve: "edit.setToneCurve"
         readonly property string editSetCrop: "edit.setCrop"
         readonly property string editSetCropAspect: "edit.setCropAspect"
         readonly property string editRotateLeft: "edit.rotateLeft"
@@ -159,6 +160,19 @@ Item {
         root.run(root.ids.editSetNumber, {
             "name": name,
             "value": value
+        });
+    }
+
+    function previewToneCurve(points) {
+        root.run(root.ids.editSetToneCurve, {
+            "points": points,
+            "live": true
+        });
+    }
+
+    function setToneCurve(points) {
+        root.run(root.ids.editSetToneCurve, {
+            "points": points
         });
     }
 

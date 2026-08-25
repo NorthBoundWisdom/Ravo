@@ -31,6 +31,7 @@ inline constexpr auto kEditResetAll = "edit.resetAll";
 inline constexpr auto kEditResetSection = "edit.resetSection";
 inline constexpr auto kEditResetControl = "edit.resetControl";
 inline constexpr auto kEditSetNumber = "edit.setNumber";
+inline constexpr auto kEditSetToneCurve = "edit.setToneCurve";
 inline constexpr auto kEditSetCrop = "edit.setCrop";
 inline constexpr auto kEditSetCropAspect = "edit.setCropAspect";
 inline constexpr auto kEditRotateLeft = "edit.rotateLeft";

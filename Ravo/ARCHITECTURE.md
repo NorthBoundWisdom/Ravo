@@ -105,6 +105,9 @@ TGA/WBMP/ICO 和其他 SQL drivers 没有产品消费者，不进入 required �
 既有 canonical recipe、operation descriptor、`RenderRequest`/`RenderResult` 和显式 colour contract
 继续有效。第一版 viewer 只依赖生成可信 preview 所需的最小 CPU 链，不要求先迁完全部旧 operation。
 后续编辑 UI 只能映射 versioned schema，不拥有第二套算法或 history 格式。
+色调曲线是 `ravo.core.tonecurve`：0–1 点列表、`working_space`（`srgb` 或
+`linear_rgb`）、`interpolation=monotone_hermite`、`channel_mode=rgb`。Inspector
+只转发点；求值在 recipe/engine。
 
 所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
 或无标记 buffer 不得隐式选择色彩策略。完整约束见
