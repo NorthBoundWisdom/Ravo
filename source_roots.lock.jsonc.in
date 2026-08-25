@@ -55,7 +55,7 @@
     },
     "GeoControls": {
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
-      "commit": "184bb19611ab5dfdbc8413a819409382f702769f",
+      "commit": "7f1e743e3dfb2f4d91dc0a9e36b082964045a8be",
       "repoName": "GeoControls"
     }
   }

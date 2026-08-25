@@ -3,16 +3,47 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QResource>
+#include <QSize>
 
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
 
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
+
+namespace
+{
+
+class StudioPreviewImageProvider final : public QQuickImageProvider
+{
+public:
+    explicit StudioPreviewImageProvider(ravo::StudioPresenter &studio)
+        : QQuickImageProvider(QQuickImageProvider::Image)
+        , studio_(&studio)
+    {
+    }
+
+    QImage requestImage(const QString &, QSize *size, const QSize &) override
+    {
+        const QImage image = studio_->previewImage();
+        if (size != nullptr)
+        {
+            *size = image.size();
+        }
+        return image;
+    }
+
+private:
+    ravo::StudioPresenter *studio_ = nullptr;
+};
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -62,6 +93,8 @@ int main(int argc, char *argv[])
     ravo::StudioPresenter presenter;
     QQmlApplicationEngine engine;
     engine.addImportPath(QStringLiteral("qrc:/"));
+    engine.addImageProvider(QStringLiteral("studioPreview"),
+                            new StudioPreviewImageProvider(presenter));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

@@ -15,6 +15,7 @@ namespace ravo
 inline constexpr std::int64_t kCatalogSchemaVersion = 3;
 inline constexpr std::int64_t kPreviewContractVersion = 3;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
+inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
@@ -168,6 +169,8 @@ struct PreviewRequest
     std::uint64_t request_revision = 0;
     bool ignore_edits = false;
     bool ignore_crop = false;
+    bool ignore_straighten = false;
+    bool persist_preview_record = true;
     CancellationToken cancellation{};
     std::string correlation_id;
 };
@@ -181,6 +184,7 @@ struct PreviewResult
     std::uint32_t height = 0;
     std::string cache_key;
     bool original_missing = false;
+    std::vector<std::uint8_t> srgb;
 };
 
 struct RasterInfo

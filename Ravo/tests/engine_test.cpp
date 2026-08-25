@@ -607,6 +607,31 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                              {{"amount", ParameterValue{0.5}}},
                              std::nullopt});
     ASSERT_TRUE(dehaze) << dehaze.error().message;
+
+    auto straightened = render_op(engine.value(), solid_raster(16, 16, 200, 20, 20),
+                                  {"ravo.geometry.straighten",
+                                   1,
+                                   "straighten-1",
+                                   true,
+                                   {{"degrees", ParameterValue{15.0}}},
+                                   std::nullopt});
+    ASSERT_TRUE(straightened) << straightened.error().message;
+    EXPECT_EQ(straightened.value().width, 16U);
+    EXPECT_EQ(straightened.value().height, 16U);
+    EXPECT_LT(straightened.value().rgb[0], 40);
+    const auto straighten_mid = (8U * 16U + 8U) * 3U;
+    EXPECT_GT(straightened.value().rgb[straighten_mid], 80);
+    bool saw_antialiased_edge = false;
+    for (std::size_t index = 0; index + 2 < straightened.value().rgb.size(); index += 3)
+    {
+        const auto red = straightened.value().rgb[index];
+        if (red > 20 && red < 160)
+        {
+            saw_antialiased_edge = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_antialiased_edge);
 }
 
 TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)

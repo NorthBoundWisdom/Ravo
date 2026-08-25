@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -601,6 +602,86 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     ASSERT_TRUE(reset) << reset.error().message;
     EXPECT_FALSE(reset.value().has_edits);
     EXPECT_EQ(reset.value().review.rating, 3);
+}
+
+TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "live.jpg").string();
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.fill(QColor(200, 80, 40));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams live;
+    live.exposure_ev = 1.25;
+    live.temperature = 4500.0;
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = kInteractivePreviewMaxEdge;
+    request.persist_preview_record = false;
+    auto first = service->request_preview(request, live);
+    ASSERT_TRUE(first) << first.error().message;
+    EXPECT_TRUE(first.value().cache_path.empty());
+    EXPECT_FALSE(first.value().srgb.empty());
+    EXPECT_EQ(first.value().srgb.size(),
+              static_cast<std::size_t>(first.value().width) * first.value().height * 3U);
+    EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
+
+    auto stored = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored) << stored.error().message;
+    auto stored_params = develop_from_recipe(stored.value());
+    ASSERT_TRUE(stored_params) << stored_params.error().message;
+    EXPECT_TRUE(stored_params.value().is_identity());
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_FALSE(listed.value().front().has_edits);
+
+    const auto first_pixels = first.value().srgb;
+    live.exposure_ev = -0.75;
+    auto second = service->request_preview(request, live);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_TRUE(second.value().cache_path.empty());
+    EXPECT_NE(second.value().srgb, first_pixels);
+}
+
+TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "tilt.jpg").string();
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.fill(QColor(200, 80, 40));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams tilted;
+    tilted.straighten_degrees = 20.0;
+    PreviewRequest baked;
+    baked.asset_id = asset_id;
+    baked.max_edge = kInteractivePreviewMaxEdge;
+    baked.persist_preview_record = false;
+    auto straightened = service->request_preview(baked, tilted);
+    ASSERT_TRUE(straightened) << straightened.error().message;
+    ASSERT_FALSE(straightened.value().srgb.empty());
+    PreviewRequest guide = baked;
+    guide.ignore_straighten = true;
+    auto unstraightened = service->request_preview(guide, tilted);
+    ASSERT_TRUE(unstraightened) << unstraightened.error().message;
+    ASSERT_FALSE(unstraightened.value().srgb.empty());
+    ASSERT_EQ(unstraightened.value().srgb.size(), straightened.value().srgb.size());
+    EXPECT_LT(straightened.value().srgb[0] + straightened.value().srgb[1] +
+                  straightened.value().srgb[2],
+              unstraightened.value().srgb[0] + unstraightened.value().srgb[1] +
+                  unstraightened.value().srgb[2]);
 }
 
 TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingReview)

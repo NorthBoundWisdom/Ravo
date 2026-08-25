@@ -2,12 +2,16 @@
 #include "ravo/desktop/studio_commands.h"
 
 #include <algorithm>
+#include <cmath>
+#include <optional>
 #include <unordered_set>
 #include <utility>
 
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
 #include <QMetaObject>
+#include <QMutexLocker>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
@@ -564,6 +568,47 @@ QUrl StudioPresenter::previewUrl() const
     return preview_url_;
 }
 
+QImage StudioPresenter::previewImage() const
+{
+    const QMutexLocker lock(&preview_image_mutex_);
+    return preview_image_;
+}
+
+void StudioPresenter::clear_displayed_preview()
+{
+    const QMutexLocker lock(&preview_image_mutex_);
+    preview_image_ = QImage();
+    preview_url_.clear();
+}
+
+void StudioPresenter::show_preview_result(const PreviewResult &preview,
+                                          const std::uint64_t revision)
+{
+    if (!preview.srgb.empty())
+    {
+        const auto expected = static_cast<std::size_t>(preview.width) * preview.height * 3U;
+        if (preview.width == 0 || preview.height == 0 || preview.srgb.size() != expected)
+        {
+            setError(QStringLiteral("Interactive preview pixels are invalid"));
+            return;
+        }
+        const QImage view(preview.srgb.data(), static_cast<int>(preview.width),
+                          static_cast<int>(preview.height), static_cast<int>(preview.width * 3U),
+                          QImage::Format_RGB888);
+        {
+            const QMutexLocker lock(&preview_image_mutex_);
+            preview_image_ = view.copy();
+        }
+        preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
+        return;
+    }
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        preview_image_ = QImage();
+    }
+    preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
+}
+
 bool StudioPresenter::previewLoading() const noexcept
 {
     return preview_loading_;
@@ -718,6 +763,83 @@ double StudioPresenter::editCropHeight() const noexcept
 {
     return develop_.crop_height;
 }
+double StudioPresenter::editStraighten() const noexcept
+{
+    return develop_.straighten_degrees;
+}
+QString StudioPresenter::cropAspect() const
+{
+    return crop_aspect_;
+}
+double StudioPresenter::cropAspectRatio() const noexcept
+{
+    if (crop_aspect_ == QLatin1String("1:1"))
+    {
+        return 1.0;
+    }
+    if (crop_aspect_ == QLatin1String("3:2"))
+    {
+        return 1.5;
+    }
+    if (crop_aspect_ == QLatin1String("4:3"))
+    {
+        return 4.0 / 3.0;
+    }
+    if (crop_aspect_ == QLatin1String("5:4"))
+    {
+        return 1.25;
+    }
+    if (crop_aspect_ == QLatin1String("16:9"))
+    {
+        return 16.0 / 9.0;
+    }
+    return 0.0;
+}
+void StudioPresenter::valid_crop_rect(double &x, double &y, double &width, double &height) const
+{
+    const double working_aspect = selected_working_aspect();
+    const double ratio = cropAspectRatio() > 0.0 ?
+                             cropAspectRatio() / std::max(working_aspect, 1e-6) :
+                             develop_.crop_width / std::max(develop_.crop_height, 1e-6);
+    inscribed_crop_for_straighten(develop_.straighten_degrees, working_aspect, ratio, x, y, width,
+                                  height);
+}
+double StudioPresenter::validCropX() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return x;
+}
+double StudioPresenter::validCropY() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return y;
+}
+double StudioPresenter::validCropWidth() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return width;
+}
+double StudioPresenter::validCropHeight() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+    valid_crop_rect(x, y, width, height);
+    return height;
+}
 bool StudioPresenter::editFlipHorizontal() const noexcept
 {
     return develop_.flip_horizontal != 0;
@@ -805,6 +927,10 @@ double StudioPresenter::editGamma() const noexcept
 bool StudioPresenter::cropToolActive() const noexcept
 {
     return crop_tool_active_;
+}
+bool StudioPresenter::cropGuideReady() const noexcept
+{
+    return crop_guide_ready_;
 }
 
 AssetListModel *StudioPresenter::assets() noexcept
@@ -953,7 +1079,7 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
         selection_anchor_id_.clear();
         selected_ids_.clear();
         assets_.setSelectedIds({});
-        preview_url_.clear();
+        clear_displayed_preview();
         preview_loading_ = false;
         emit selectionChanged();
         emit previewChanged();
@@ -1186,7 +1312,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     }
                     catalog_path_ = qstring_from_utf8(path);
                     selected_asset_id_.clear();
-                    preview_url_.clear();
+                    clear_displayed_preview();
                     thumbnail_requests_.clear();
                     emit catalogChanged();
                     emit selectionChanged();
@@ -1349,7 +1475,7 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
         publish_selection();
         return;
     }
-    preview_url_.clear();
+    clear_displayed_preview();
     preview_loading_ = !asset_id.isEmpty();
     before_after_ = false;
     crop_tool_active_ = false;
@@ -1951,16 +2077,32 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
     else if (id == QLatin1String(kEditSetNumber))
     {
         const auto fields = argument.toMap();
-        setDevelopNumber(fields.value(QStringLiteral("name")).toString(),
-                         fields.value(QStringLiteral("value")).toDouble());
+        const auto name = fields.value(QStringLiteral("name")).toString();
+        const auto value = fields.value(QStringLiteral("value")).toDouble();
+        if (fields.value(QStringLiteral("live")).toBool())
+        {
+            previewDevelopNumber(name, value);
+        }
+        else
+        {
+            setDevelopNumber(name, value);
+        }
     }
     else if (id == QLatin1String(kEditSetCrop))
     {
         const auto fields = argument.toMap();
-        setCropRect(fields.value(QStringLiteral("x")).toDouble(),
-                    fields.value(QStringLiteral("y")).toDouble(),
-                    fields.value(QStringLiteral("width")).toDouble(),
-                    fields.value(QStringLiteral("height")).toDouble());
+        const auto x = fields.value(QStringLiteral("x")).toDouble();
+        const auto y = fields.value(QStringLiteral("y")).toDouble();
+        const auto width = fields.value(QStringLiteral("width")).toDouble();
+        const auto height = fields.value(QStringLiteral("height")).toDouble();
+        if (fields.value(QStringLiteral("live")).toBool())
+        {
+            previewCropRect(x, y, width, height);
+        }
+        else
+        {
+            setCropRect(x, y, width, height);
+        }
     }
     else if (id == QLatin1String(kEditSetCropAspect))
     {
@@ -2057,7 +2199,7 @@ void StudioPresenter::remove_selected_from_catalog()
                         selection_anchor_id_.clear();
                         selected_ids_.clear();
                         assets_.setSelectedIds({});
-                        preview_url_.clear();
+                        clear_displayed_preview();
                         preview_loading_ = false;
                         emit selectionChanged();
                         emit previewChanged();
@@ -2067,10 +2209,12 @@ void StudioPresenter::remove_selected_from_catalog()
                         const int row = std::min(keep_index, assets_.rowCount() - 1);
                         selectAsset(assets_.assetIdAt(row));
                     }
-                    setStatus(count == 1 ?
-                                  QStringLiteral("Removed from catalog. Original file was not deleted.") :
-                                  QStringLiteral("Removed %1 photos from catalog. Original files were not deleted.")
-                                      .arg(count));
+                    setStatus(
+                        count == 1 ?
+                            QStringLiteral("Removed from catalog. Original file was not deleted.") :
+                            QStringLiteral(
+                                "Removed %1 photos from catalog. Original files were not deleted.")
+                                .arg(count));
                 },
                 Qt::QueuedConnection);
         });
@@ -2137,7 +2281,7 @@ void StudioPresenter::remove_selected_from_disk()
                         selection_anchor_id_.clear();
                         selected_ids_.clear();
                         assets_.setSelectedIds({});
-                        preview_url_.clear();
+                        clear_displayed_preview();
                         preview_loading_ = false;
                         emit selectionChanged();
                         emit previewChanged();
@@ -2147,9 +2291,10 @@ void StudioPresenter::remove_selected_from_disk()
                         const int row = std::min(keep_index, assets_.rowCount() - 1);
                         selectAsset(assets_.assetIdAt(row));
                     }
-                    setStatus(count == 1 ? QStringLiteral("Deleted original file and catalog record.") :
-                                           QStringLiteral("Deleted %1 original files and catalog records.")
-                                               .arg(count));
+                    setStatus(count == 1 ?
+                                  QStringLiteral("Deleted original file and catalog record.") :
+                                  QStringLiteral("Deleted %1 original files and catalog records.")
+                                      .arg(count));
                 },
                 Qt::QueuedConnection);
         });
@@ -2204,7 +2349,8 @@ void StudioPresenter::load_develop_for_selection()
         });
 }
 
-void StudioPresenter::commit_develop(DevelopParams params, const bool push_history)
+void StudioPresenter::commit_develop(DevelopParams params, const bool push_history,
+                                     const bool refresh_preview)
 {
     if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
@@ -2223,13 +2369,50 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     }
     develop_ = params;
     emit editChanged();
-    preview_loading_ = true;
+    const bool crop_guides = crop_tool_active_ && !before_after_;
+    preview_loading_ = refresh_preview;
     emit previewChanged();
     ++preview_revision_;
     pending_save_ = PendingDevelopWork{
-        true, params, previous, push_history, utf8_from_qstring(selected_asset_id_), before_after_,
-        crop_tool_active_ && !before_after_};
+        .save = true,
+        .params = params,
+        .previous = previous,
+        .push_history = push_history,
+        .asset_id = utf8_from_qstring(selected_asset_id_),
+        .ignore_edits = before_after_,
+        .ignore_crop = crop_guides,
+        .ignore_straighten = crop_guides,
+        .refresh_preview = refresh_preview,
+    };
     pending_preview_.reset();
+    kick_develop_work();
+}
+
+void StudioPresenter::preview_develop(DevelopParams params)
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    clamp_develop(params);
+    if (params == develop_)
+    {
+        return;
+    }
+    develop_ = params;
+    emit editChanged();
+    const bool crop_guides = crop_tool_active_ && !before_after_;
+    preview_loading_ = true;
+    emit previewChanged();
+    ++preview_revision_;
+    pending_preview_ = PendingDevelopWork{
+        .interactive = true,
+        .params = params,
+        .asset_id = utf8_from_qstring(selected_asset_id_),
+        .ignore_edits = before_after_,
+        .ignore_crop = crop_guides,
+        .ignore_straighten = crop_guides,
+    };
     kick_develop_work();
 }
 
@@ -2244,13 +2427,14 @@ void StudioPresenter::enqueue_preview()
     preview_loading_ = true;
     emit previewChanged();
     ++preview_revision_;
-    pending_preview_ = PendingDevelopWork{false,
-                                          develop_,
-                                          {},
-                                          false,
-                                          utf8_from_qstring(selected_asset_id_),
-                                          before_after_,
-                                          crop_tool_active_ && !before_after_};
+    const bool crop_guides = crop_tool_active_ && !before_after_;
+    pending_preview_ = PendingDevelopWork{
+        .params = develop_,
+        .asset_id = utf8_from_qstring(selected_asset_id_),
+        .ignore_edits = before_after_,
+        .ignore_crop = crop_guides,
+        .ignore_straighten = crop_guides,
+    };
     kick_develop_work();
 }
 
@@ -2290,16 +2474,21 @@ void StudioPresenter::kick_develop_work()
                     saved = service_->save_develop(job.asset_id, job.params);
                     save_ok = static_cast<bool>(saved);
                 }
-                if (save_ok)
+                if (save_ok && job.refresh_preview)
                 {
                     PreviewRequest request;
                     request.asset_id = job.asset_id;
-                    request.max_edge = kDefaultPreviewMaxEdge;
+                    request.max_edge =
+                        job.interactive ? kInteractivePreviewMaxEdge : kDefaultPreviewMaxEdge;
                     request.request_revision = revision;
                     request.ignore_edits = job.ignore_edits;
                     request.ignore_crop = job.ignore_crop;
+                    request.ignore_straighten = job.ignore_straighten;
+                    request.persist_preview_record = !job.interactive;
                     request.cancellation = shutdown_.token();
-                    preview = service_->request_preview(request);
+                    preview = service_->request_preview(
+                        request, job.interactive ? std::optional<DevelopParams>{job.params} :
+                                                   std::optional<DevelopParams>{});
                 }
             }
             QMetaObject::invokeMethod(
@@ -2342,6 +2531,13 @@ void StudioPresenter::kick_develop_work()
                         kick_develop_work();
                         return;
                     }
+                    if (job.save && !job.refresh_preview)
+                    {
+                        preview_loading_ = false;
+                        emit previewChanged();
+                        kick_develop_work();
+                        return;
+                    }
                     preview_loading_ = false;
                     if (!preview)
                     {
@@ -2363,8 +2559,11 @@ void StudioPresenter::kick_develop_work()
                         assets_.markOriginalMissing(job.asset_id);
                         emit selectionChanged();
                     }
-                    preview_url_ =
-                        QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
+                    if (job.ignore_crop && job.ignore_straighten && crop_tool_active_)
+                    {
+                        crop_guide_ready_ = true;
+                    }
+                    show_preview_result(preview.value(), revision);
                     emit previewChanged();
                     kick_develop_work();
                 },
@@ -2379,7 +2578,42 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     {
         return;
     }
-    commit_develop(next, true);
+    if (name == QLatin1String("straighten"))
+    {
+        fit_geometry_crop(next);
+    }
+    if (next == develop_)
+    {
+        return;
+    }
+    const bool keep_crop_guide =
+        crop_tool_active_ && crop_guide_ready_ && name == QLatin1String("straighten");
+    commit_develop(next, true, !keep_crop_guide);
+}
+
+void StudioPresenter::previewDevelopNumber(const QString &name, const double value)
+{
+    DevelopParams next = develop_;
+    if (!apply_develop_field(next, utf8_from_qstring(name), value))
+    {
+        return;
+    }
+    if (name == QLatin1String("straighten"))
+    {
+        fit_geometry_crop(next);
+        if (crop_tool_active_)
+        {
+            clamp_develop(next);
+            if (next == develop_)
+            {
+                return;
+            }
+            develop_ = next;
+            emit editChanged();
+            return;
+        }
+    }
+    preview_develop(next);
 }
 
 void StudioPresenter::setCropRect(const double x, const double y, const double width,
@@ -2391,7 +2625,30 @@ void StudioPresenter::setCropRect(const double x, const double y, const double w
     next.crop_width = width;
     next.crop_height = height;
     clamp_develop(next);
+    constrain_geometry_crop(next);
+    if (next == develop_)
+    {
+        return;
+    }
     commit_develop(next, true);
+}
+
+void StudioPresenter::previewCropRect(const double x, const double y, const double width,
+                                      const double height)
+{
+    DevelopParams next = develop_;
+    next.crop_x = x;
+    next.crop_y = y;
+    next.crop_width = width;
+    next.crop_height = height;
+    clamp_develop(next);
+    constrain_geometry_crop(next);
+    if (next == develop_)
+    {
+        return;
+    }
+    develop_ = next;
+    emit editChanged();
 }
 
 void StudioPresenter::setCropAspect(const QString &aspect)
@@ -2401,6 +2658,13 @@ void StudioPresenter::setCropAspect(const QString &aspect)
     {
         return;
     }
+    crop_aspect_ = aspect;
+    fit_geometry_crop(next);
+    if (next == develop_)
+    {
+        emit editChanged();
+        return;
+    }
     commit_develop(next, true);
 }
 
@@ -2408,6 +2672,8 @@ void StudioPresenter::rotateLeft()
 {
     DevelopParams next = develop_;
     next.rotate_quarters = (next.rotate_quarters + 3) % 4;
+    transform_crop_for_quarter_turns(next, 3);
+    fit_geometry_crop(next);
     commit_develop(next, true);
 }
 
@@ -2415,6 +2681,8 @@ void StudioPresenter::rotateRight()
 {
     DevelopParams next = develop_;
     next.rotate_quarters = (next.rotate_quarters + 1) % 4;
+    transform_crop_for_quarter_turns(next, 1);
+    fit_geometry_crop(next);
     commit_develop(next, true);
 }
 
@@ -2422,6 +2690,8 @@ void StudioPresenter::flipHorizontal()
 {
     DevelopParams next = develop_;
     next.flip_horizontal = next.flip_horizontal == 0 ? 1 : 0;
+    transform_crop_for_flip(next, true, false);
+    fit_geometry_crop(next);
     commit_develop(next, true);
 }
 
@@ -2429,6 +2699,8 @@ void StudioPresenter::flipVertical()
 {
     DevelopParams next = develop_;
     next.flip_vertical = next.flip_vertical == 0 ? 1 : 0;
+    transform_crop_for_flip(next, false, true);
+    fit_geometry_crop(next);
     commit_develop(next, true);
 }
 
@@ -2439,7 +2711,28 @@ void StudioPresenter::setCropToolActive(const bool active)
         return;
     }
     crop_tool_active_ = active;
+    if (active)
+    {
+        setZoomMode(QStringLiteral("fit"));
+        DevelopParams next = develop_;
+        fit_geometry_crop(next);
+        crop_guide_ready_ = std::abs(next.straighten_degrees) < 1e-4 && next.crop_width >= 0.999 &&
+                            next.crop_height >= 0.999 && std::abs(next.crop_x) < 1e-6 &&
+                            std::abs(next.crop_y) < 1e-6;
+        if (next != develop_)
+        {
+            emit editChanged();
+            emit previewChanged();
+            commit_develop(next, true);
+            return;
+        }
+    }
+    else
+    {
+        crop_guide_ready_ = false;
+    }
     emit editChanged();
+    emit previewChanged();
     enqueue_preview();
 }
 
@@ -2449,6 +2742,10 @@ void StudioPresenter::resetControl(const QString &name)
     if (!reset_develop_field(next, utf8_from_qstring(name)))
     {
         return;
+    }
+    if (name == QLatin1String("straighten"))
+    {
+        fit_geometry_crop(next);
     }
     commit_develop(next, true);
 }
@@ -2460,11 +2757,16 @@ void StudioPresenter::resetSection(const QString &section)
     {
         return;
     }
+    if (section == QLatin1String("geometry"))
+    {
+        crop_aspect_ = QStringLiteral("free");
+    }
     commit_develop(next, true);
 }
 
 void StudioPresenter::resetAllEdits()
 {
+    crop_aspect_ = QStringLiteral("free");
     commit_develop({}, true);
 }
 
@@ -2502,6 +2804,51 @@ void StudioPresenter::toggleBeforeAfter()
 void StudioPresenter::requestPreviewForSelection()
 {
     enqueue_preview();
+}
+
+double StudioPresenter::selected_source_aspect() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (asset && asset->width && asset->height && *asset->height > 0)
+    {
+        return static_cast<double>(*asset->width) / static_cast<double>(*asset->height);
+    }
+    return 1.5;
+}
+
+double StudioPresenter::selected_working_aspect() const
+{
+    if (crop_tool_active_)
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        if (!preview_image_.isNull() && preview_image_.height() > 0)
+        {
+            return static_cast<double>(preview_image_.width()) /
+                   static_cast<double>(preview_image_.height());
+        }
+    }
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (asset && asset->width && asset->height && *asset->height > 0)
+    {
+        return working_image_aspect(develop_.rotate_quarters, selected_source_aspect());
+    }
+    const QMutexLocker lock(&preview_image_mutex_);
+    if (!preview_image_.isNull() && preview_image_.height() > 0)
+    {
+        return static_cast<double>(preview_image_.width()) /
+               static_cast<double>(preview_image_.height());
+    }
+    return working_image_aspect(develop_.rotate_quarters, selected_source_aspect());
+}
+
+void StudioPresenter::constrain_geometry_crop(DevelopParams &params) const
+{
+    constrain_crop_to_straighten(params, selected_working_aspect());
+}
+
+void StudioPresenter::fit_geometry_crop(DevelopParams &params) const
+{
+    fit_crop_to_straighten(params, selected_working_aspect());
 }
 
 } // namespace ravo

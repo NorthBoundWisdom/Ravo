@@ -50,7 +50,12 @@ Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 servi
 业务规则。Studio 的菜单、快捷键、右键菜单和 inspector 控件都通过同一组 QML `Action` 调用
 `StudioPresenter::executeCommand`；窗口对话框由该入口发出 `uiCommandRequested`，QML 只负责弹出。
 Develop 预览由 presenter 做有界合并：同一时刻最多一个 in-flight 渲染，另加最多一份待保存
-recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已验证 preview。
+recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已验证 preview。拖动时 presenter 只转发
+内存中的 develop 参数；服务层按 `kInteractivePreviewMaxEdge` 在已解码代理 raster 上套用效果，
+只返回内存像素、不写 PNG/cache/recipe。松手后再保存并请求完整 preview。
+Develop 裁剪在画布上交互：crop tool 预览去掉 crop 与 straighten，由 Qt Quick 旋转工作图；
+描边与照片共用这一 GPU 变换，裁剪框保持屏幕轴向并内接旋转后的照片。框选和 Angle 拖动只更新
+内存参数，松手后写入 recipe；导出仍走 CPU straighten，不是 M6 GPU adapter。
 删除照片默认只从 catalog 移除记录和 preview cache，不删除原片。显式的
 “Delete from Disk” 命令在确认后删除原文件，再移除 catalog 记录。QML 资源通过 `qt_add_qml_module`
 纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。

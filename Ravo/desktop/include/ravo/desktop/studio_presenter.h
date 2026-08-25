@@ -12,7 +12,9 @@
 
 #include <QAbstractListModel>
 #include <QHash>
+#include <QImage>
 #include <QList>
+#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -149,6 +151,14 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editCropY READ editCropY NOTIFY editChanged)
     Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
     Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
+    Q_PROPERTY(double editStraighten READ editStraighten NOTIFY editChanged)
+    Q_PROPERTY(QString cropAspect READ cropAspect NOTIFY editChanged)
+    Q_PROPERTY(double cropAspectRatio READ cropAspectRatio NOTIFY editChanged)
+    Q_PROPERTY(double validCropX READ validCropX NOTIFY editChanged)
+    Q_PROPERTY(double validCropY READ validCropY NOTIFY editChanged)
+    Q_PROPERTY(double validCropWidth READ validCropWidth NOTIFY editChanged)
+    Q_PROPERTY(double validCropHeight READ validCropHeight NOTIFY editChanged)
+    Q_PROPERTY(bool cropGuideReady READ cropGuideReady NOTIFY previewChanged)
     Q_PROPERTY(bool editFlipHorizontal READ editFlipHorizontal NOTIFY editChanged)
     Q_PROPERTY(bool editFlipVertical READ editFlipVertical NOTIFY editChanged)
     Q_PROPERTY(double editSharpen READ editSharpen NOTIFY editChanged)
@@ -207,6 +217,7 @@ public:
     [[nodiscard]] QString selectedImportState() const;
     [[nodiscard]] bool canDeleteFromDisk() const;
     [[nodiscard]] QUrl previewUrl() const;
+    [[nodiscard]] QImage previewImage() const;
     [[nodiscard]] bool previewLoading() const noexcept;
     [[nodiscard]] QString browseMode() const;
     [[nodiscard]] QString zoomMode() const;
@@ -239,6 +250,13 @@ public:
     [[nodiscard]] double editCropY() const noexcept;
     [[nodiscard]] double editCropWidth() const noexcept;
     [[nodiscard]] double editCropHeight() const noexcept;
+    [[nodiscard]] double editStraighten() const noexcept;
+    [[nodiscard]] QString cropAspect() const;
+    [[nodiscard]] double cropAspectRatio() const noexcept;
+    [[nodiscard]] double validCropX() const;
+    [[nodiscard]] double validCropY() const;
+    [[nodiscard]] double validCropWidth() const;
+    [[nodiscard]] double validCropHeight() const;
     [[nodiscard]] bool editFlipHorizontal() const noexcept;
     [[nodiscard]] bool editFlipVertical() const noexcept;
     [[nodiscard]] double editSharpen() const noexcept;
@@ -261,6 +279,7 @@ public:
     [[nodiscard]] double editSplitAmount() const noexcept;
     [[nodiscard]] double editGamma() const noexcept;
     [[nodiscard]] bool cropToolActive() const noexcept;
+    [[nodiscard]] bool cropGuideReady() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
     [[nodiscard]] FolderListModel *folders() noexcept;
     [[nodiscard]] QString selectedFolderUri() const;
@@ -289,7 +308,9 @@ public:
     Q_INVOKABLE void openDevelop();
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
+    Q_INVOKABLE void previewDevelopNumber(const QString &name, double value);
     Q_INVOKABLE void setCropRect(double x, double y, double width, double height);
+    Q_INVOKABLE void previewCropRect(double x, double y, double width, double height);
     Q_INVOKABLE void setCropAspect(const QString &aspect);
     Q_INVOKABLE void rotateLeft();
     Q_INVOKABLE void rotateRight();
@@ -343,18 +364,29 @@ private:
     void requestPreviewForSelection();
     void reloadVisibleAssets();
     void load_develop_for_selection();
-    void commit_develop(DevelopParams params, bool push_history);
+    void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true);
+    void preview_develop(DevelopParams params);
     void enqueue_preview();
+    [[nodiscard]] double selected_source_aspect() const;
+    [[nodiscard]] double selected_working_aspect() const;
+    void constrain_geometry_crop(DevelopParams &params) const;
+    void fit_geometry_crop(DevelopParams &params) const;
+    void valid_crop_rect(double &x, double &y, double &width, double &height) const;
     void kick_develop_work();
+    void clear_displayed_preview();
+    void show_preview_result(const PreviewResult &preview, std::uint64_t revision);
     struct PendingDevelopWork
     {
         bool save = false;
+        bool interactive = false;
         DevelopParams params{};
         DevelopParams previous{};
         bool push_history = false;
         std::string asset_id;
         bool ignore_edits = false;
         bool ignore_crop = false;
+        bool ignore_straighten = false;
+        bool refresh_preview = true;
     };
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<std::unique_ptr<CatalogService>>
@@ -381,6 +413,8 @@ private:
     QString selection_anchor_id_;
     std::unordered_set<std::string> selected_ids_;
     QUrl preview_url_;
+    QImage preview_image_;
+    mutable QMutex preview_image_mutex_;
     QString browse_mode_{QStringLiteral("grid")};
     QString zoom_mode_{QStringLiteral("fit")};
     double zoom_factor_ = 1.0;
@@ -396,6 +430,8 @@ private:
     std::vector<DevelopParams> redo_stack_;
     bool before_after_ = false;
     bool crop_tool_active_ = false;
+    bool crop_guide_ready_ = false;
+    QString crop_aspect_{QStringLiteral("free")};
     bool develop_job_in_flight_ = false;
     std::optional<PendingDevelopWork> pending_save_;
     std::optional<PendingDevelopWork> pending_preview_;

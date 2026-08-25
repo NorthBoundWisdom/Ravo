@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <mutex>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -366,6 +367,88 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
             output.rgb[dst] = image.rgb[src];
             output.rgb[dst + 1U] = image.rgb[src + 1U];
             output.rgb[dst + 2U] = image.rgb[src + 2U];
+        }
+    }
+    return output;
+}
+
+void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb)
+{
+    if (image.width == 0 || image.height == 0)
+    {
+        rgb[0] = 0.0F;
+        rgb[1] = 0.0F;
+        rgb[2] = 0.0F;
+        return;
+    }
+    sx = std::clamp(sx, 0.0, static_cast<double>(image.width - 1U));
+    sy = std::clamp(sy, 0.0, static_cast<double>(image.height - 1U));
+    const auto x0 = static_cast<std::uint32_t>(sx);
+    const auto y0 = static_cast<std::uint32_t>(sy);
+    const auto x1 = std::min(x0 + 1U, image.width - 1U);
+    const auto y1 = std::min(y0 + 1U, image.height - 1U);
+    const float tx = static_cast<float>(sx - static_cast<double>(x0));
+    const float ty = static_cast<float>(sy - static_cast<double>(y0));
+    const std::size_t i00 = (static_cast<std::size_t>(y0) * image.width + x0) * 3U;
+    const std::size_t i10 = (static_cast<std::size_t>(y0) * image.width + x1) * 3U;
+    const std::size_t i01 = (static_cast<std::size_t>(y1) * image.width + x0) * 3U;
+    const std::size_t i11 = (static_cast<std::size_t>(y1) * image.width + x1) * 3U;
+    for (std::size_t channel = 0; channel < 3; ++channel)
+    {
+        const float top = image.rgb[i00 + channel] * (1.0F - tx) + image.rgb[i10 + channel] * tx;
+        const float bottom = image.rgb[i01 + channel] * (1.0F - tx) + image.rgb[i11 + channel] * tx;
+        rgb[channel] = top * (1.0F - ty) + bottom * ty;
+    }
+}
+
+[[nodiscard]] float coverage_smoothstep(const double inset, const double width)
+{
+    const double t = std::clamp((inset + width) / std::max(2.0 * width, 1.0e-6), 0.0, 1.0);
+    return static_cast<float>(t * t * (3.0 - 2.0 * t));
+}
+
+[[nodiscard]] Result<WorkingImage> straighten_working(WorkingImage image, const double degrees)
+{
+    if (image.width == 0 || image.height == 0 || std::abs(degrees) < 1e-4)
+    {
+        return image;
+    }
+    const double rad = degrees * std::numbers::pi / 180.0;
+    const double inv_c = std::cos(-rad);
+    const double inv_s = std::sin(-rad);
+    const double width = static_cast<double>(image.width);
+    const double height = static_cast<double>(image.height);
+    const double cx = (width - 1.0) * 0.5;
+    const double cy = (height - 1.0) * 0.5;
+    WorkingImage output;
+    output.width = image.width;
+    output.height = image.height;
+    output.rgb.assign(image.rgb.size(), 0.0F);
+    constexpr double kEdgeAa = 1.25;
+    for (std::uint32_t y = 0; y < output.height; ++y)
+    {
+        for (std::uint32_t x = 0; x < output.width; ++x)
+        {
+            const double dx = static_cast<double>(x) - cx;
+            const double dy = static_cast<double>(y) - cy;
+            const double sx = inv_c * dx - inv_s * dy + cx;
+            const double sy = inv_s * dx + inv_c * dy + cy;
+            const double inset = std::min(std::min(sx + 0.5, width - 0.5 - sx),
+                                          std::min(sy + 0.5, height - 0.5 - sy));
+            const float cover = coverage_smoothstep(inset, kEdgeAa);
+            float *dst =
+                output.rgb.data() + (static_cast<std::size_t>(y) * output.width + x) * 3U;
+            if (cover <= 0.0F)
+            {
+                continue;
+            }
+            sample_bilinear(image, sx, sy, dst);
+            if (cover < 1.0F)
+            {
+                dst[0] *= cover;
+                dst[1] *= cover;
+                dst[2] *= cover;
+            }
         }
     }
     return output;
@@ -1309,6 +1392,17 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 return flipped.error();
             }
             image = std::move(flipped).value();
+            continue;
+        }
+        if (operation.id == "ravo.geometry.straighten")
+        {
+            auto straightened = straighten_working(std::move(image),
+                                                   parameter(operation, "degrees", 0.0));
+            if (!straightened)
+            {
+                return straightened.error();
+            }
+            image = std::move(straightened).value();
             continue;
         }
         if (operation.id == "ravo.core.gamma")

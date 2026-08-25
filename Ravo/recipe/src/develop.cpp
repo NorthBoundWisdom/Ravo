@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <string>
 #include <utility>
 
@@ -86,6 +87,8 @@ void clamp_develop(DevelopParams &params) noexcept
     params.rotate_quarters = ((params.rotate_quarters % 4) + 4) % 4;
     params.flip_horizontal = flag01(params.flip_horizontal);
     params.flip_vertical = flag01(params.flip_vertical);
+    params.straighten_degrees =
+        clamp_value(params.straighten_degrees, kDevelopStraightenMin, kDevelopStraightenMax);
     params.crop_width = clamp_value(params.crop_width, 0.01, 1.0);
     params.crop_height = clamp_value(params.crop_height, 0.01, 1.0);
     params.crop_x = clamp_value(params.crop_x, 0.0, 1.0 - params.crop_width);
@@ -117,12 +120,13 @@ bool DevelopParams::is_identity() const noexcept
            near(exposure_ev, 0.0) && near(contrast, 0.0) && near(highlights, 0.0) &&
            near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) &&
            near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
-           flip_vertical == 0 && near(crop_x, 0.0) && near(crop_y, 0.0) && near(crop_width, 1.0) &&
-           near(crop_height, 1.0) && near(sharpen, 0.0) && near(clarity, 0.0) &&
-           near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) && near(soften, 0.0) &&
-           near(dehaze, 0.0) && near(velvia, 0.0) && near(lift, 0.0) && near(color_gamma, 0.0) &&
-           near(gain, 0.0) && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
-           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault);
+           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(crop_x, 0.0) &&
+           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
+           near(sharpen, 0.0) && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
+           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
+           near(lift, 0.0) && near(color_gamma, 0.0) && near(gain, 0.0) &&
+           near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
+           near(gamma, kDevelopGammaDefault);
 }
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -166,6 +170,10 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     else if (name == "saturation")
     {
         params.saturation = value;
+    }
+    else if (name == "straighten")
+    {
+        params.straighten_degrees = value;
     }
     else if (name == "cropX")
     {
@@ -319,6 +327,10 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.flip_horizontal = 0;
         params.flip_vertical = 0;
     }
+    else if (name == "straighten")
+    {
+        params.straighten_degrees = identity.straighten_degrees;
+    }
     else if (name == "crop" || name == "cropX" || name == "cropY" || name == "cropWidth" ||
              name == "cropHeight")
     {
@@ -419,6 +431,7 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.rotate_quarters = 0;
         params.flip_horizontal = 0;
         params.flip_vertical = 0;
+        params.straighten_degrees = 0.0;
         params.crop_x = 0.0;
         params.crop_y = 0.0;
         params.crop_width = 1.0;
@@ -532,11 +545,171 @@ bool apply_crop_aspect(DevelopParams &params, const std::string_view aspect)
     return true;
 }
 
+void transform_crop_for_quarter_turns(DevelopParams &params, int turns_cw) noexcept
+{
+    turns_cw = ((turns_cw % 4) + 4) % 4;
+    for (int turn = 0; turn < turns_cw; ++turn)
+    {
+        const double x = params.crop_x;
+        const double y = params.crop_y;
+        const double width = params.crop_width;
+        const double height = params.crop_height;
+        params.crop_x = 1.0 - y - height;
+        params.crop_y = x;
+        params.crop_width = height;
+        params.crop_height = width;
+    }
+    clamp_develop(params);
+}
+
+void transform_crop_for_flip(DevelopParams &params, const bool horizontal,
+                             const bool vertical) noexcept
+{
+    if (horizontal)
+    {
+        params.crop_x = 1.0 - params.crop_x - params.crop_width;
+    }
+    if (vertical)
+    {
+        params.crop_y = 1.0 - params.crop_y - params.crop_height;
+    }
+    clamp_develop(params);
+}
+
+double working_image_aspect(const std::int64_t rotate_quarters, const double source_aspect) noexcept
+{
+    const double aspect = source_aspect > kEpsilon ? source_aspect : 1.5;
+    if (((rotate_quarters % 4) + 4) % 4 % 2 != 0)
+    {
+        return 1.0 / aspect;
+    }
+    return aspect;
+}
+
+namespace
+{
+
+[[nodiscard]] double max_inscribed_normalized_height(const double degrees,
+                                                     const double image_aspect,
+                                                     const double crop_aspect) noexcept
+{
+    const double ratio = std::max(crop_aspect, kEpsilon);
+    const double aspect = std::max(image_aspect, kEpsilon);
+    double height = std::min(1.0, 1.0 / ratio);
+    if (std::abs(degrees) < 1e-4)
+    {
+        return height;
+    }
+    const double rad = -degrees * std::numbers::pi / 180.0;
+    const double inv_c = std::cos(rad);
+    const double inv_s = std::sin(rad);
+    const double terms[4] = {
+        std::abs(inv_c * ratio - inv_s / aspect), std::abs(inv_c * ratio + inv_s / aspect),
+        std::abs(inv_s * ratio * aspect + inv_c), std::abs(inv_s * ratio * aspect - inv_c)};
+    for (const double term : terms)
+    {
+        if (term > kEpsilon)
+        {
+            height = std::min(height, 1.0 / term);
+        }
+    }
+    return clamp_value(height, 0.01, 1.0);
+}
+
+} // namespace
+
+void map_straighten_normalized(const double x, const double y, const double straighten_degrees,
+                               const double working_aspect, const bool inverse, double &ox,
+                               double &oy) noexcept
+{
+    const double rad =
+        (inverse ? -straighten_degrees : straighten_degrees) * std::numbers::pi / 180.0;
+    const double cosine = std::cos(rad);
+    const double sine = std::sin(rad);
+    const double aspect = std::max(working_aspect, kEpsilon);
+    const double dx = (x - 0.5) * aspect;
+    const double dy = y - 0.5;
+    ox = (cosine * dx - sine * dy) / aspect + 0.5;
+    oy = sine * dx + cosine * dy + 0.5;
+}
+
+void straightened_source_quad(const double straighten_degrees, const double working_aspect,
+                              std::array<double, 8> &corners) noexcept
+{
+    constexpr double kSource[8] = {0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0};
+    for (int index = 0; index < 4; ++index)
+    {
+        map_straighten_normalized(kSource[index * 2], kSource[index * 2 + 1], straighten_degrees,
+                                  working_aspect, false,
+                                  corners[static_cast<std::size_t>(index * 2)],
+                                  corners[static_cast<std::size_t>(index * 2 + 1)]);
+    }
+}
+
+void inscribed_crop_for_straighten(const double straighten_degrees, const double working_aspect,
+                                   const double crop_aspect_norm, double &x, double &y,
+                                   double &width, double &height) noexcept
+{
+    height = max_inscribed_normalized_height(straighten_degrees, working_aspect, crop_aspect_norm);
+    width = crop_aspect_norm * height;
+    if (width > 1.0)
+    {
+        width = 1.0;
+        height = width / std::max(crop_aspect_norm, kEpsilon);
+    }
+    x = (1.0 - width) * 0.5;
+    y = (1.0 - height) * 0.5;
+}
+
+void constrain_crop_to_straighten(DevelopParams &params, const double working_aspect) noexcept
+{
+    const double ratio = params.crop_width / std::max(params.crop_height, kEpsilon);
+    double limit_x = 0.0;
+    double limit_y = 0.0;
+    double limit_w = 1.0;
+    double limit_h = 1.0;
+    inscribed_crop_for_straighten(params.straighten_degrees, working_aspect, ratio, limit_x,
+                                  limit_y, limit_w, limit_h);
+    double width = std::min(params.crop_width, limit_w);
+    double height = std::min(params.crop_height, limit_h);
+    if (width / std::max(height, kEpsilon) > ratio)
+    {
+        width = height * ratio;
+    }
+    else
+    {
+        height = width / std::max(ratio, kEpsilon);
+    }
+    const double center_x = params.crop_x + params.crop_width * 0.5;
+    const double center_y = params.crop_y + params.crop_height * 0.5;
+    params.crop_width = width;
+    params.crop_height = height;
+    params.crop_x = clamp_value(center_x - width * 0.5, limit_x, limit_x + limit_w - width);
+    params.crop_y = clamp_value(center_y - height * 0.5, limit_y, limit_y + limit_h - height);
+    clamp_develop(params);
+}
+
+void fit_crop_to_straighten(DevelopParams &params, const double working_aspect) noexcept
+{
+    const double ratio = params.crop_width / std::max(params.crop_height, kEpsilon);
+    inscribed_crop_for_straighten(params.straighten_degrees, working_aspect, ratio, params.crop_x,
+                                  params.crop_y, params.crop_width, params.crop_height);
+    clamp_develop(params);
+}
+
 void strip_crop_operations(Recipe &recipe)
 {
     recipe.operations.erase(std::remove_if(recipe.operations.begin(), recipe.operations.end(),
                                            [](const OperationInstance &operation)
                                            { return operation.id == "ravo.geometry.crop"; }),
+                            recipe.operations.end());
+}
+
+void strip_straighten_operations(Recipe &recipe)
+{
+    recipe.operations.erase(std::remove_if(recipe.operations.begin(), recipe.operations.end(),
+                                           [](const OperationInstance &operation)
+                                           { return operation.id == "ravo.geometry.straighten"; }),
                             recipe.operations.end());
 }
 
@@ -676,6 +849,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.geometry.flip", "flip-1",
                       {{"horizontal", ParameterValue{clamped.flip_horizontal}},
                        {"vertical", ParameterValue{clamped.flip_vertical}}});
+    }
+    if (!near(clamped.straighten_degrees, 0.0))
+    {
+        add_operation(recipe, "ravo.geometry.straighten", "straighten-1",
+                      {{"degrees", ParameterValue{clamped.straighten_degrees}}});
     }
     if (!near(clamped.crop_x, 0.0) || !near(clamped.crop_y, 0.0) ||
         !near(clamped.crop_width, 1.0) || !near(clamped.crop_height, 1.0))
@@ -823,6 +1001,10 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         {
             params.flip_horizontal = flag01(integer("horizontal", 0));
             params.flip_vertical = flag01(integer("vertical", 0));
+        }
+        else if (operation.id == "ravo.geometry.straighten")
+        {
+            params.straighten_degrees = number("degrees", params.straighten_degrees);
         }
         else if (operation.id == "ravo.geometry.crop")
         {

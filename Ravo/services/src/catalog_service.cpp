@@ -193,6 +193,7 @@ Result<void> CatalogService::close()
     raster_.reset();
     cache_.reset();
     engine_ = nullptr;
+    decoded_preview_source_.reset();
     return closed;
 }
 
@@ -700,7 +701,10 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         return failed_item(location.value().path, revision.error());
     }
 
-    auto preview = generate_preview(asset, kDefaultPreviewMaxEdge, cancellation, 0);
+    PreviewRequest imported_preview;
+    imported_preview.max_edge = kDefaultPreviewMaxEdge;
+    imported_preview.cancellation = cancellation;
+    auto preview = generate_preview(asset, imported_preview, {});
     if (!preview)
     {
         LOG_ERROR(ravo::logger(), "preview failed asset={} path={} error={}", asset.id,
@@ -775,7 +779,9 @@ CatalogService::import_inputs(const std::vector<std::string> &paths,
     return results;
 }
 
-Result<PreviewResult> CatalogService::request_preview(const PreviewRequest &request)
+Result<PreviewResult>
+CatalogService::request_preview(const PreviewRequest &request,
+                                const std::optional<DevelopParams> &live_develop)
 {
     auto cancelled = request.cancellation.check();
     if (!cancelled)
@@ -796,22 +802,18 @@ Result<PreviewResult> CatalogService::request_preview(const PreviewRequest &requ
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", request.asset_id}});
     }
-    return generate_preview(*asset.value(), request.max_edge, request.cancellation,
-                            request.request_revision, request.ignore_edits, request.ignore_crop);
+    return generate_preview(*asset.value(), request, live_develop);
 }
 
-Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
-                                                       const std::uint32_t max_edge,
-                                                       const CancellationToken &cancellation,
-                                                       const std::uint64_t request_revision,
-                                                       const bool ignore_edits,
-                                                       const bool ignore_crop)
+Result<PreviewResult>
+CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest &request,
+                                 const std::optional<DevelopParams> &live_develop)
 {
     if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
-    auto cancelled = cancellation.check();
+    auto cancelled = request.cancellation.check();
     if (!cancelled)
     {
         return cancelled.error();
@@ -856,69 +858,107 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
     const auto source_height = asset.height.value_or(0);
     std::uint32_t width = 0;
     std::uint32_t height = 0;
-    fit_within_max_edge(source_width, source_height, max_edge, width, height);
+    fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
     const auto fingerprint = asset.content_fingerprint.value_or("none");
     std::string edit_digest = "identity";
     Recipe edit_recipe = identity_recipe_for(working, location.value().path);
-    if (!ignore_edits)
+    if (!request.ignore_edits)
     {
-        auto stored = repository_->load_recipe_json(asset.id);
-        if (!stored)
+        if (live_develop.has_value())
         {
-            return stored.error();
-        }
-        if (stored.value())
-        {
-            auto parsed = parse_recipe_json(*stored.value());
-            if (!parsed)
+            auto built = recipe_from_develop(edit_recipe.asset, *live_develop);
+            if (!built)
             {
-                return parsed.error();
+                return built.error();
             }
-            parsed.value().asset = edit_recipe.asset;
-            auto valid = engine_->validate(parsed.value());
+            auto valid = engine_->validate(built.value());
             if (!valid)
             {
                 return valid.error();
             }
-            edit_recipe = std::move(parsed).value();
-            edit_digest = fnv1a64_hex(*stored.value());
-            if (ignore_crop)
+            edit_recipe = std::move(built).value();
+            auto serialized = serialize_recipe(edit_recipe);
+            if (!serialized)
             {
-                strip_crop_operations(edit_recipe);
+                return serialized.error();
+            }
+            edit_digest =
+                live_develop->is_identity() ? "identity" : fnv1a64_hex(serialized.value());
+        }
+        else
+        {
+            auto stored = repository_->load_recipe_json(asset.id);
+            if (!stored)
+            {
+                return stored.error();
+            }
+            if (stored.value())
+            {
+                auto parsed = parse_recipe_json(*stored.value());
+                if (!parsed)
+                {
+                    return parsed.error();
+                }
+                parsed.value().asset = edit_recipe.asset;
+                auto valid = engine_->validate(parsed.value());
+                if (!valid)
+                {
+                    return valid.error();
+                }
+                edit_recipe = std::move(parsed).value();
+                edit_digest = fnv1a64_hex(*stored.value());
+            }
+        }
+        if (request.ignore_crop)
+        {
+            strip_crop_operations(edit_recipe);
+            if (edit_digest != "identity")
+            {
                 edit_digest += "_nocrop";
             }
         }
+        if (request.ignore_straighten)
+        {
+            strip_straighten_operations(edit_recipe);
+            if (edit_digest != "identity")
+            {
+                edit_digest += "_nostraighten";
+            }
+        }
     }
-    const auto cache_key =
-        make_preview_cache_key(asset.id, width, height, fingerprint, edit_digest);
-
-    auto existing = cache_->existing_png(cache_key);
-    if (!existing)
-    {
-        return existing.error();
-    }
+    const bool interactive = !request.persist_preview_record;
+    const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
+                                                  interactive ? "interactive" : edit_digest);
 
     PreviewResult result;
     result.asset_id = asset.id;
-    result.request_revision = request_revision;
+    result.request_revision = request.request_revision;
     result.cache_key = cache_key;
     result.original_missing = !original_exists;
 
-    if (existing.value())
+    if (!interactive)
     {
-        result.cache_path = *existing.value();
-        result.width = width;
-        result.height = height;
-        PreviewRecord record;
-        record.asset_id = asset.id;
-        record.cache_key = cache_key;
-        record.width = width;
-        record.height = height;
-        record.state = std::string(kPreviewStateReady);
-        record.cache_relpath = cache_->relative_png_path(cache_key);
-        record.last_success_unix_ms = now_unix_ms();
-        static_cast<void>(repository_->upsert_preview(record));
-        return result;
+        auto existing = cache_->existing_png(cache_key);
+        if (!existing)
+        {
+            return existing.error();
+        }
+        if (existing.value())
+        {
+            result.cache_path = *existing.value();
+            result.width = width;
+            result.height = height;
+            PreviewRecord record;
+            record.asset_id = asset.id;
+            record.cache_key = cache_key;
+            record.width = width;
+            record.height = height;
+            record.state = std::string(kPreviewStateReady);
+            record.cache_relpath = cache_->relative_png_path(cache_key);
+            record.last_success_unix_ms = now_unix_ms();
+            static_cast<void>(repository_->upsert_preview(record));
+            return result;
+        }
     }
 
     if (!original_exists)
@@ -927,134 +967,54 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
                           {{"path", location.value().path}, {"asset_id", asset.id}});
     }
 
-    const bool apply_edits = edit_digest != "identity";
-    if (is_raster_media_type(asset.media_type))
+    auto source = decode_preview_source(working, location.value().path, request.max_edge,
+                                        request.cancellation);
+    if (!source)
     {
-        auto decoded = raster_->decode(location.value().path, max_edge, cancellation);
-        if (!decoded)
-        {
-            return decoded.error();
-        }
-        if (!apply_edits)
-        {
-            auto committed = cache_->commit_png_bytes(cache_key, decoded.value().bytes);
-            if (!committed)
-            {
-                return committed.error();
-            }
-            result.cache_path = committed.value();
-            result.width = decoded.value().width;
-            result.height = decoded.value().height;
-        }
-        else
-        {
-            auto raster = engine_->decode_png(decoded.value().bytes);
-            if (!raster)
-            {
-                return raster.error();
-            }
-            RenderRequest render;
-            render.asset = edit_recipe.asset;
-            render.recipe = edit_recipe;
-            render.cancellation = cancellation;
-            render.correlation_id = asset.id;
-            auto rendered = engine_->render_to_image(render, &raster.value());
-            if (!rendered)
-            {
-                return rendered.error();
-            }
-            auto encoded = engine_->encode_png(rendered.value());
-            if (!encoded)
-            {
-                return encoded.error();
-            }
-            auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
-            if (!committed)
-            {
-                return committed.error();
-            }
-            result.cache_path = committed.value();
-            result.width = rendered.value().width;
-            result.height = rendered.value().height;
-        }
+        return source.error();
     }
-    else if (is_raw_media_type(asset.media_type))
+
+    RenderedImage rendered;
+    if (edit_digest == "identity" || edit_recipe.operations.empty())
     {
-        if (!apply_edits)
-        {
-            auto embedded =
-                engine_->extract_embedded_preview(location.value().path, max_edge, cancellation);
-            if (embedded)
-            {
-                auto decoded =
-                    raster_->decode_memory(embedded.value().bytes, max_edge, cancellation);
-                if (!decoded)
-                {
-                    return decoded.error();
-                }
-                auto committed = cache_->commit_png_bytes(cache_key, decoded.value().bytes);
-                if (!committed)
-                {
-                    return committed.error();
-                }
-                result.cache_path = committed.value();
-                result.width = decoded.value().width;
-                result.height = decoded.value().height;
-            }
-            else
-            {
-                RenderRequest render;
-                render.asset = edit_recipe.asset;
-                render.recipe = edit_recipe;
-                render.output_uri = cache_->absolute_png_path(cache_key);
-                render.output_width = width;
-                render.output_height = height;
-                render.cancellation = cancellation;
-                render.correlation_id = asset.id;
-                const auto rendered = engine_->render(render);
-                if (!rendered)
-                {
-                    return rendered.error();
-                }
-                result.cache_path = render.output_uri;
-                result.width = rendered.value().width;
-                result.height = rendered.value().height;
-            }
-        }
-        else
-        {
-            RenderRequest render;
-            render.asset = edit_recipe.asset;
-            render.recipe = edit_recipe;
-            render.output_width = width;
-            render.output_height = height;
-            render.cancellation = cancellation;
-            render.correlation_id = asset.id;
-            auto rendered = engine_->render_to_image(render, nullptr);
-            if (!rendered)
-            {
-                return rendered.error();
-            }
-            auto encoded = engine_->encode_png(rendered.value());
-            if (!encoded)
-            {
-                return encoded.error();
-            }
-            auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
-            if (!committed)
-            {
-                return committed.error();
-            }
-            result.cache_path = committed.value();
-            result.width = rendered.value().width;
-            result.height = rendered.value().height;
-        }
+        rendered.width = source.value().width;
+        rendered.height = source.value().height;
+        rendered.rgb = source.value().srgb;
     }
     else
     {
-        return make_error(ErrorCode::kUnsupported, "Asset media type cannot be previewed",
-                          {{"media_type", asset.media_type}, {"asset_id", asset.id}});
+        RenderRequest render;
+        render.asset = edit_recipe.asset;
+        render.recipe = edit_recipe;
+        render.cancellation = request.cancellation;
+        render.correlation_id = asset.id;
+        auto applied = engine_->render_to_image(render, &source.value());
+        if (!applied)
+        {
+            return applied.error();
+        }
+        rendered = std::move(applied).value();
     }
+
+    result.width = rendered.width;
+    result.height = rendered.height;
+    if (interactive)
+    {
+        result.srgb = std::move(rendered.rgb);
+        return result;
+    }
+
+    auto encoded = engine_->encode_png(rendered);
+    if (!encoded)
+    {
+        return encoded.error();
+    }
+    auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
+    if (!committed)
+    {
+        return committed.error();
+    }
+    result.cache_path = committed.value();
 
     PreviewRecord record;
     record.asset_id = asset.id;
@@ -1070,6 +1030,85 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
         return stored.error();
     }
     return result;
+}
+
+Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,
+                                                           const std::string_view path,
+                                                           const std::uint32_t max_edge,
+                                                           const CancellationToken &cancellation)
+{
+    const auto fingerprint = asset.content_fingerprint.value_or("none");
+    if (decoded_preview_source_.has_value() && decoded_preview_source_->asset_id == asset.id &&
+        decoded_preview_source_->fingerprint == fingerprint &&
+        decoded_preview_source_->max_edge == max_edge)
+    {
+        return decoded_preview_source_->raster;
+    }
+
+    RasterBuffer raster;
+    if (is_raster_media_type(asset.media_type))
+    {
+        auto decoded = raster_->decode(path, max_edge, cancellation);
+        if (!decoded)
+        {
+            return decoded.error();
+        }
+        auto pixels = engine_->decode_png(decoded.value().bytes);
+        if (!pixels)
+        {
+            return pixels.error();
+        }
+        raster = std::move(pixels).value();
+    }
+    else if (is_raw_media_type(asset.media_type))
+    {
+        auto embedded = engine_->extract_embedded_preview(path, max_edge, cancellation);
+        if (embedded)
+        {
+            auto decoded = raster_->decode_memory(embedded.value().bytes, max_edge, cancellation);
+            if (!decoded)
+            {
+                return decoded.error();
+            }
+            auto pixels = engine_->decode_png(decoded.value().bytes);
+            if (!pixels)
+            {
+                return pixels.error();
+            }
+            raster = std::move(pixels).value();
+        }
+        else
+        {
+            std::uint32_t width = 0;
+            std::uint32_t height = 0;
+            fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width,
+                                height);
+            RenderRequest render;
+            render.asset = {asset.id, std::string(path), asset.content_fingerprint};
+            render.recipe = identity_recipe_for(asset, std::string(path));
+            render.output_width = width;
+            render.output_height = height;
+            render.cancellation = cancellation;
+            render.correlation_id = asset.id;
+            auto rendered = engine_->render_to_image(render, nullptr);
+            if (!rendered)
+            {
+                return rendered.error();
+            }
+            raster.width = rendered.value().width;
+            raster.height = rendered.value().height;
+            raster.srgb = std::move(rendered.value().rgb);
+        }
+    }
+    else
+    {
+        return make_error(ErrorCode::kUnsupported, "Asset media type cannot be previewed",
+                          {{"media_type", asset.media_type}, {"asset_id", asset.id}});
+    }
+
+    decoded_preview_source_ =
+        DecodedPreviewSource{std::string(asset.id), fingerprint, max_edge, std::move(raster)};
+    return decoded_preview_source_->raster;
 }
 
 } // namespace ravo

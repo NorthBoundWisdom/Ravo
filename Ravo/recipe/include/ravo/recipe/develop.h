@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <string_view>
 
@@ -12,6 +13,8 @@ inline constexpr double kDevelopTemperatureDefault = 6500.0;
 inline constexpr double kDevelopTemperatureMin = 2000.0;
 inline constexpr double kDevelopTemperatureMax = 12000.0;
 inline constexpr double kDevelopGammaDefault = 1.0;
+inline constexpr double kDevelopStraightenMin = -45.0;
+inline constexpr double kDevelopStraightenMax = 45.0;
 
 struct DevelopParams
 {
@@ -28,6 +31,7 @@ struct DevelopParams
     std::int64_t rotate_quarters = 0;
     std::int64_t flip_horizontal = 0;
     std::int64_t flip_vertical = 0;
+    double straighten_degrees = 0.0;
     double crop_x = 0.0;
     double crop_y = 0.0;
     double crop_width = 1.0;
@@ -61,7 +65,21 @@ void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool reset_develop_field(DevelopParams &params, std::string_view name);
 [[nodiscard]] bool reset_develop_section(DevelopParams &params, std::string_view section);
 [[nodiscard]] bool apply_crop_aspect(DevelopParams &params, std::string_view aspect);
+void transform_crop_for_quarter_turns(DevelopParams &params, int turns_cw) noexcept;
+void transform_crop_for_flip(DevelopParams &params, bool horizontal, bool vertical) noexcept;
+[[nodiscard]] double working_image_aspect(std::int64_t rotate_quarters,
+                                          double source_aspect) noexcept;
+void map_straighten_normalized(double x, double y, double straighten_degrees, double working_aspect,
+                               bool inverse, double &ox, double &oy) noexcept;
+void straightened_source_quad(double straighten_degrees, double working_aspect,
+                              std::array<double, 8> &corners) noexcept;
+void inscribed_crop_for_straighten(double straighten_degrees, double working_aspect,
+                                   double crop_aspect_norm, double &x, double &y, double &width,
+                                   double &height) noexcept;
+void constrain_crop_to_straighten(DevelopParams &params, double working_aspect) noexcept;
+void fit_crop_to_straighten(DevelopParams &params, double working_aspect) noexcept;
 void strip_crop_operations(Recipe &recipe);
+void strip_straighten_operations(Recipe &recipe);
 
 [[nodiscard]] Result<Recipe> recipe_from_develop(AssetDescriptor asset,
                                                  const DevelopParams &params);

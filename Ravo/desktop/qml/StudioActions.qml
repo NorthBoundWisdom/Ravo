@@ -78,6 +78,7 @@ Item {
     property alias resetEdits: resetEditsAction
     property alias rotateLeft: rotateLeftAction
     property alias rotateRight: rotateRightAction
+    property alias cropTool: cropToolAction
     property alias flipHorizontal: flipHorizontalAction
     property alias flipVertical: flipVerticalAction
     property alias about: aboutAction
@@ -111,8 +112,7 @@ Item {
         const toggle = mouse && (mouse.modifiers & Qt.ControlModifier);
         if (right && root.presenter && root.presenter.isAssetSelected(assetId) && !shift && !toggle) {
             // Keep the current multi-selection when opening the context menu.
-        }
-        else if (shift)
+        } else if (shift)
             root.run(root.ids.photoSelect, {
                 "id": assetId,
                 "mode": "range"
@@ -144,6 +144,14 @@ Item {
         root.run(root.ids.photoColor, value);
     }
 
+    function previewDevelopNumber(name, value) {
+        root.run(root.ids.editSetNumber, {
+            "name": name,
+            "value": value,
+            "live": true
+        });
+    }
+
     function setDevelopNumber(name, value) {
         root.run(root.ids.editSetNumber, {
             "name": name,
@@ -157,6 +165,16 @@ Item {
 
     function resetControl(name) {
         root.run(root.ids.editResetControl, name);
+    }
+
+    function previewCropRect(x, y, width, height) {
+        root.run(root.ids.editSetCrop, {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "live": true
+        });
     }
 
     function setCropRect(x, y, width, height) {
@@ -320,6 +338,13 @@ Item {
         shortcut: "Ctrl+Shift+R"
         enabled: root.interactive && root.developOpen && root.hasSelection
         onTriggered: root.run(root.ids.editResetAll)
+    }
+    Action {
+        id: cropToolAction
+        text: root.presenter && root.presenter.cropToolActive ? qsTr("Done Cropping") : qsTr("Crop & Rotate")
+        shortcut: "R"
+        enabled: root.interactive && root.developOpen && root.hasSelection
+        onTriggered: root.toggleCropTool()
     }
     Action {
         id: rotateLeftAction

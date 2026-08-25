@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,21 +51,33 @@ public:
     [[nodiscard]] Result<std::vector<ImportItemResult>>
     import_inputs(const std::vector<std::string> &paths, const CancellationToken &cancellation,
                   const std::function<void(std::size_t, std::size_t)> &progress = {});
-    [[nodiscard]] Result<PreviewResult> request_preview(const PreviewRequest &request);
+    [[nodiscard]] Result<PreviewResult>
+    request_preview(const PreviewRequest &request,
+                    const std::optional<DevelopParams> &live_develop = {});
     Result<void> close();
 
 private:
-    [[nodiscard]] Result<PreviewResult> generate_preview(const AssetRecord &asset,
-                                                         std::uint32_t max_edge,
-                                                         const CancellationToken &cancellation,
-                                                         std::uint64_t request_revision,
-                                                         bool ignore_edits = false,
-                                                         bool ignore_crop = false);
+    struct DecodedPreviewSource
+    {
+        std::string asset_id;
+        std::string fingerprint;
+        std::uint32_t max_edge = 0;
+        RasterBuffer raster;
+    };
+
+    [[nodiscard]] Result<PreviewResult>
+    generate_preview(const AssetRecord &asset, const PreviewRequest &request,
+                     const std::optional<DevelopParams> &live_develop);
+    [[nodiscard]] Result<RasterBuffer> decode_preview_source(const AssetRecord &asset,
+                                                             std::string_view path,
+                                                             std::uint32_t max_edge,
+                                                             const CancellationToken &cancellation);
 
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
     std::unique_ptr<PreviewCache> cache_;
+    std::optional<DecodedPreviewSource> decoded_preview_source_;
 };
 
 } // namespace ravo

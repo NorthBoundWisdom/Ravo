@@ -559,44 +559,108 @@ ApplicationWindow {
                             id: scroller
                             anchors.fill: parent
                             clip: true
-                            contentWidth: previewImage.width
-                            contentHeight: previewImage.height
+                            interactive: !(studio.browseMode === "develop" && studio.cropToolActive)
+                            contentWidth: previewStage.width
+                            contentHeight: previewStage.height
                             boundsBehavior: Flickable.StopAtBounds
 
-                            Image {
-                                id: previewImage
-                                asynchronous: true
-                                cache: false
-                                source: studio.previewUrl
-                                fillMode: Image.PreserveAspectFit
+                            Item {
+                                id: previewStage
                                 width: {
                                     if (studio.zoomMode === "fit")
                                         return scroller.width;
                                     if (studio.zoomMode === "fill")
-                                        return Math.max(scroller.width, implicitWidth * (scroller.height / Math.max(implicitHeight, 1)));
+                                        return Math.max(scroller.width, previewImage.implicitWidth * (scroller.height / Math.max(previewImage.implicitHeight, 1)));
                                     if (studio.zoomMode === "actual")
-                                        return implicitWidth;
-                                    return implicitWidth * studio.zoomFactor;
+                                        return Math.max(1, previewImage.implicitWidth);
+                                    return Math.max(1, previewImage.implicitWidth * studio.zoomFactor);
                                 }
                                 height: {
                                     if (studio.zoomMode === "fit")
                                         return scroller.height;
                                     if (studio.zoomMode === "fill")
-                                        return Math.max(scroller.height, implicitHeight * (scroller.width / Math.max(implicitWidth, 1)));
+                                        return Math.max(scroller.height, previewImage.implicitHeight * (scroller.width / Math.max(previewImage.implicitWidth, 1)));
                                     if (studio.zoomMode === "actual")
-                                        return implicitHeight;
-                                    return implicitHeight * studio.zoomFactor;
+                                        return Math.max(1, previewImage.implicitHeight);
+                                    return Math.max(1, previewImage.implicitHeight * studio.zoomFactor);
+                                }
+
+                                readonly property real sourceW: Math.max(previewImage.implicitWidth, 1)
+                                readonly property real sourceH: Math.max(previewImage.implicitHeight, 1)
+                                readonly property real containScale: Math.min(width / sourceW, height / sourceH)
+                                readonly property real baseW: sourceW * containScale
+                                readonly property real baseH: sourceH * containScale
+                                readonly property real rotateScale: {
+                                    if (!(studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady))
+                                        return 1;
+                                    const rad = Math.abs(studio.editStraighten) * Math.PI / 180;
+                                    const c = Math.cos(rad);
+                                    const s = Math.sin(rad);
+                                    const aabbW = c * baseW + s * baseH;
+                                    const aabbH = s * baseW + c * baseH;
+                                    return Math.min(width / Math.max(aabbW, 1), height / Math.max(aabbH, 1));
+                                }
+
+                                Item {
+                                    id: photoPlane
+                                    width: previewStage.baseW * previewStage.rotateScale
+                                    height: previewStage.baseH * previewStage.rotateScale
+                                    x: (previewStage.width - width) / 2
+                                    y: (previewStage.height - height) / 2
+                                    rotation: studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady ? studio.editStraighten : 0
+                                    transformOrigin: Item.Center
+                                    antialiasing: true
+
+                                    Image {
+                                        id: previewImage
+                                        anchors.fill: parent
+                                        asynchronous: false
+                                        cache: false
+                                        source: studio.previewUrl
+                                        fillMode: Image.Stretch
+                                        smooth: true
+                                        antialiasing: true
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        color: "transparent"
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.92)
+                                        visible: studio.browseMode === "develop" && studio.cropToolActive && Math.abs(studio.editStraighten) > 0.04
+                                        antialiasing: true
+                                    }
                                 }
 
                                 CropOverlay {
                                     anchors.fill: parent
-                                    visible: studio.browseMode === "develop" && studio.cropToolActive
+                                    visible: studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady && photoPlane.width > 1
+                                    imageX: photoPlane.x
+                                    imageY: photoPlane.y
+                                    imageWidth: photoPlane.width
+                                    imageHeight: photoPlane.height
+                                    imageRotation: photoPlane.rotation
+                                    limitX: studio.validCropX
+                                    limitY: studio.validCropY
+                                    limitWidth: studio.validCropWidth
+                                    limitHeight: studio.validCropHeight
                                     cropX: studio.editCropX
                                     cropY: studio.editCropY
                                     cropWidth: studio.editCropWidth
                                     cropHeight: studio.editCropHeight
+                                    aspectRatio: studio.cropAspectRatio
+                                    straighten: studio.editStraighten
+                                    onCropEdited: function (x, y, w, h) {
+                                        studioActions.previewCropRect(x, y, w, h);
+                                    }
                                     onCropCommitted: function (x, y, w, h) {
                                         studioActions.setCropRect(x, y, w, h);
+                                    }
+                                    onStraightenEdited: function (degrees) {
+                                        studioActions.previewDevelopNumber("straighten", degrees);
+                                    }
+                                    onStraightenCommitted: function (degrees) {
+                                        studioActions.setDevelopNumber("straighten", degrees);
                                     }
                                 }
                             }

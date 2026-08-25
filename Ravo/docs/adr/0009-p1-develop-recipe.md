@@ -17,7 +17,7 @@ versioned recipe/operation contract and a CPU exposure path.
   Identity/default edits store no row (`has_edits = false`).
 - `DevelopParams` is a service/desktop mapping onto the recipe. Persistence
   is recipe JSON, not slider positions or a UI blob.
-- CPU operations for white balance, light, color, rotate, crop, flip, sharpen,
+- CPU operations for white balance, light, color, rotate, straighten, crop, flip, sharpen,
   vignette, grain, velvia, color balance and the other registered global
   operations execute on a linear RGB working buffer, converting to Lab when the
   frozen `legacy/src/iop` `process()` path is Lab. Raster inputs are linearized
@@ -27,8 +27,14 @@ versioned recipe/operation contract and a CPU exposure path.
   ABI.
 - Interactive previews include a recipe digest in the cache key. Before/after
   requests the identity preview without changing stored edits. Crop-overlay
-  previews strip `ravo.geometry.crop` for display only (`ignore_crop`) and use a
-  distinct cache key.
+  previews keep 90° rotate and flip, strip `ravo.geometry.crop` and
+  `ravo.geometry.straighten` (`ignore_crop` + `ignore_straighten`), and rotate
+  the working image in Qt Quick so the edge stroke and photo share one GPU
+  transform. Live crop-box and straighten drags stay in memory; straighten no
+  longer re-renders pixels while the crop tool is open. Release persists the
+  recipe. Changing straighten fits the crop to the largest axis-aligned
+  rectangle inside the rotated photo. The overlay waits for that uncropped,
+  unstraightened preview.
 - Studio coalesces develop work to one in-flight render plus at most one pending
   save and one pending preview. Stale results are discarded; render failure
   keeps the last verified preview.

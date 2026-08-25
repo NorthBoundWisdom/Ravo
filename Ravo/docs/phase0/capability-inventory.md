@@ -44,6 +44,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.geometry.rotate` | `flip` | P1 90° quarter turns |
 | `ravo.geometry.crop` | `crop` | P1 normalized free crop |
 | `ravo.geometry.flip` | `flip` | horizontal/vertical mirror |
+| `ravo.geometry.straighten` | `ashift` / `clipping` | P1 free-angle straighten before crop |
 | `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
 | `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |

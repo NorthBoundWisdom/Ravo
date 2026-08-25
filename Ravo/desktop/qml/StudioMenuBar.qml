@@ -104,6 +104,9 @@ MenuBar {
         }
         MenuSeparator {}
         MenuItem {
+            action: actions.cropTool
+        }
+        MenuItem {
             action: actions.rotateLeft
         }
         MenuItem {

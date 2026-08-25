@@ -157,6 +157,9 @@ Menu {
     }
     StyledSeparator {}
     StyledItem {
+        action: root.commands.cropTool
+    }
+    StyledItem {
         action: root.commands.rotateLeft
     }
     StyledItem {
