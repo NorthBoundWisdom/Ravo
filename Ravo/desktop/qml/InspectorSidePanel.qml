@@ -7,13 +7,12 @@ Rectangle {
     id: root
     property var presenter
     property var commands
-    property var colorChoices: []
-    property var swatchColor: function (name) {
-        return Theme.midColor;
-    }
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property bool developOpen: hasPresenter && presenter.browseMode === "develop"
+    property bool liveReady: false
+
+    Component.onCompleted: liveReady = true
 
     color: Theme.railSurfaceColor
 
@@ -21,8 +20,20 @@ Rectangle {
         return label + ": " + (value && value.length ? value : "—");
     }
 
-    Flickable {
+    ColumnLayout {
         anchors.fill: parent
+        spacing: 0
+
+        ScopePanel {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Fonts.scaledUiSize(128)
+            Layout.minimumHeight: Fonts.scaledUiSize(96)
+            presenter: root.presenter
+        }
+
+    Flickable {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
@@ -33,6 +44,11 @@ Rectangle {
             id: column
             width: parent.width
             spacing: Fonts.smallSpacing
+
+            ColumnLayout {
+                visible: !root.developOpen
+                Layout.fillWidth: true
+                spacing: Fonts.smallSpacing
 
             CustomLabel {
                 Layout.leftMargin: Fonts.standardMargin
@@ -174,53 +190,6 @@ Rectangle {
                 onClicked: if (root.commands)
                     root.commands.createSnapshot(qsTr("Snapshot"))
             }
-
-            CustomLabel {
-                Layout.leftMargin: Fonts.standardMargin
-                Layout.topMargin: Fonts.size8
-                text: qsTr("Review")
-                font.bold: true
-            }
-
-            RatingControl {
-                Layout.leftMargin: Fonts.standardMargin
-                enabled: root.hasSelection
-                rating: root.hasPresenter ? root.presenter.selectedRating : 0
-                onRatingChangedByUser: function (value) {
-                    if (root.commands)
-                        root.commands.setRating(value);
-                }
-            }
-
-            RowLayout {
-                Layout.leftMargin: Fonts.standardMargin
-                spacing: Fonts.size8
-                Repeater {
-                    model: ["none"].concat(root.colorChoices)
-                    delegate: Rectangle {
-                        required property string modelData
-                        width: 18
-                        height: 18
-                        radius: 9
-                        color: root.swatchColor(modelData)
-                        border.width: root.hasPresenter && root.presenter.selectedColorLabel === modelData ? 2 : 1
-                        border.color: Theme.textColor
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: root.hasSelection
-                            onClicked: if (root.commands)
-                                root.commands.setColorLabel(modelData)
-                        }
-                    }
-                }
-            }
-
-            CustomButton {
-                Layout.leftMargin: Fonts.standardMargin
-                text: root.hasPresenter && root.presenter.selectedRejected ? qsTr("Unreject") : qsTr("Reject")
-                enabled: root.hasSelection
-                onClicked: if (root.commands)
-                    root.commands.reject.trigger()
             }
 
             CustomLabel {
@@ -337,6 +306,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editStraighten : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("straighten", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("straighten", value);
@@ -371,6 +342,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editTemperature : 6500
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("temperature", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("temperature", value);
@@ -390,6 +363,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editTint : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("tint", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("tint", value);
@@ -423,6 +398,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editExposure : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("exposure", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("exposure", value);
@@ -449,6 +426,8 @@ Rectangle {
                             visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSigmoidContrast : 1.5
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("sigmoidContrast", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sigmoidContrast", value);
@@ -469,6 +448,8 @@ Rectangle {
                             visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSigmoidSkew : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("sigmoidSkew", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sigmoidSkew", value);
@@ -489,6 +470,8 @@ Rectangle {
                             visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSigmoidHuePreservation : 1
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("sigmoidHuePreservation", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sigmoidHuePreservation", value);
@@ -507,6 +490,8 @@ Rectangle {
                             visible: root.hasPresenter && !root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editContrast : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("contrast", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("contrast", value);
@@ -524,6 +509,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editHighlights : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("highlights", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("highlights", value);
@@ -541,6 +528,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editShadows : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("shadows", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("shadows", value);
@@ -558,6 +547,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editWhites : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("whites", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("whites", value);
@@ -575,6 +566,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editBlacks : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("blacks", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("blacks", value);
@@ -592,6 +585,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGamma : 1
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("gamma", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("gamma", value);
@@ -664,6 +659,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editVibrance : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("vibrance", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("vibrance", value);
@@ -681,6 +678,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSaturation : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("saturation", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("saturation", value);
@@ -698,6 +697,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editVelvia : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("velvia", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("velvia", value);
@@ -715,6 +716,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLift : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("lift", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("lift", value);
@@ -732,6 +735,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorGamma : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("colorGamma", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorGamma", value);
@@ -749,6 +754,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGain : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("gain", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("gain", value);
@@ -766,6 +773,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorContrast : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("colorContrast", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorContrast", value);
@@ -783,6 +792,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editMonochrome : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("monochrome", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("monochrome", value);
@@ -800,6 +811,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitAmount : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("splitAmount", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitAmount", value);
@@ -815,6 +828,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitShadowsHue : 0.55
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("splitShadowsHue", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitShadowsHue", value);
@@ -830,6 +845,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitHighlightsHue : 0.08
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("splitHighlightsHue", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitHighlightsHue", value);
@@ -847,6 +864,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitBalance : 0.5
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("splitBalance", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitBalance", value);
@@ -879,6 +898,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSharpen : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("sharpen", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sharpen", value);
@@ -896,6 +917,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSharpenRadius : 1
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("sharpenRadius", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sharpenRadius", value);
@@ -913,6 +936,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editClarity : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("clarity", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("clarity", value);
@@ -930,6 +955,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGrain : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("grain", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("grain", value);
@@ -962,6 +989,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editVignette : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("vignette", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("vignette", value);
@@ -979,6 +1008,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editBloom : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("bloom", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("bloom", value);
@@ -996,6 +1027,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSoften : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("soften", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("soften", value);
@@ -1013,6 +1046,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editDehaze : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("dehaze", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("dehaze", value);
@@ -1047,6 +1082,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editRawHighlights : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("rawHighlights", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("rawHighlights", value);
@@ -1066,6 +1103,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editDenoise : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("denoise", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("denoise", value);
@@ -1085,6 +1124,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLensK1 : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("lensK1", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("lensK1", value);
@@ -1104,6 +1145,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLensVignetting : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("lensVignetting", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("lensVignetting", value);
@@ -1132,6 +1175,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqBlacks : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("toneEqBlacks", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqBlacks", value);
@@ -1151,6 +1196,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqShadows : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("toneEqShadows", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqShadows", value);
@@ -1170,6 +1217,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqMidtones : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("toneEqMidtones", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqMidtones", value);
@@ -1189,6 +1238,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqHighlights : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("toneEqHighlights", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqHighlights", value);
@@ -1208,6 +1259,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqWhites : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("toneEqWhites", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqWhites", value);
@@ -1236,6 +1289,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGraduatedDensity : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("graduatedDensity", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("graduatedDensity", value);
@@ -1255,6 +1310,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGraduatedRotation : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("graduatedRotation", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("graduatedRotation", value);
@@ -1282,6 +1339,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorEqSat : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("colorEqSat", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorEqSat", value);
@@ -1301,6 +1360,8 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorEqHue : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("colorEqHue", value)
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorEqHue", value);
@@ -1312,5 +1373,6 @@ Rectangle {
                 }
             }
         }
+    }
     }
 }

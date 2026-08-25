@@ -6,6 +6,9 @@ Rectangle {
     id: root
     property var presenter
     property var commands
+    property var swatchColor: function (name) {
+        return Theme.midColor;
+    }
     color: Theme.toolbarSurfaceColor
 
     Rectangle {
@@ -34,59 +37,50 @@ Rectangle {
         }
 
         delegate: Item {
+            id: stripDelegate
             required property string assetId
+            required property string displayName
+            required property string mediaType
             required property url thumbnailUrl
             required property string importState
             required property string thumbnailState
             required property int rating
+            required property string colorLabel
             required property bool rejected
+            required property bool hasEdits
             required property bool selected
-            width: 88
+            required property int pixelWidth
+            required property int pixelHeight
+            required property int index
+            width: Math.max(72, height)
             height: strip.height
             Component.onCompleted: if (root.presenter)
-                root.presenter.ensureThumbnail(assetId)
+                root.presenter.ensureThumbnail(stripDelegate.assetId)
 
-            Rectangle {
+            ThumbnailCell {
                 anchors.fill: parent
-                color: Theme.pageSurfaceColor
-                border.width: selected || (root.presenter && assetId === root.presenter.selectedAssetId) ? 2 : 1
-                border.color: root.presenter && assetId === root.presenter.selectedAssetId ? Theme.selectedBorderColor : (selected ? Theme.selectedSecondaryBorderColor : Theme.dividerColor)
-                Image {
-                    anchors.fill: parent
-                    anchors.margins: 2
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    cache: false
-                    source: thumbnailUrl
+                compact: true
+                thumbnailUrl: stripDelegate.thumbnailUrl
+                thumbnailState: stripDelegate.thumbnailState
+                importState: stripDelegate.importState
+                rating: stripDelegate.rating
+                colorLabel: stripDelegate.colorLabel
+                rejected: stripDelegate.rejected
+                hasEdits: stripDelegate.hasEdits
+                selected: stripDelegate.selected
+                current: root.presenter ? stripDelegate.assetId === root.presenter.selectedAssetId : false
+                sequenceNumber: stripDelegate.index + 1
+                displayName: stripDelegate.displayName
+                mediaType: stripDelegate.mediaType
+                pixelWidth: stripDelegate.pixelWidth
+                pixelHeight: stripDelegate.pixelHeight
+                swatchColor: root.swatchColor
+                onClicked: function (mouse) {
+                    if (root.commands)
+                        root.commands.handlePhotoClick(stripDelegate.assetId, mouse);
                 }
-                CustomLabel {
-                    anchors.left: parent.left
-                    anchors.bottom: parent.bottom
-                    anchors.margins: 3
-                    text: rating > 0 ? "★".repeat(rating) : ""
-                    font.pixelSize: Fonts.size10
-                    color: "#ffca56"
-                }
-                Rectangle {
-                    visible: importState === "missing" || thumbnailState === "missing" || rejected
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 4
-                    width: 8
-                    height: 8
-                    radius: 4
-                    color: rejected ? "#aa3333" : "#c47b16"
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    onClicked: function (mouse) {
-                        if (root.commands)
-                            root.commands.handlePhotoClick(assetId, mouse);
-                    }
-                    onDoubleClicked: if (root.commands)
-                        root.commands.handlePhotoDoubleClick(assetId)
-                }
+                onDoubleClicked: if (root.commands)
+                    root.commands.handlePhotoDoubleClick(stripDelegate.assetId)
             }
         }
     }

@@ -9,12 +9,7 @@
 namespace ravo
 {
 
-struct WorkingImage
-{
-    std::uint32_t width = 0;
-    std::uint32_t height = 0;
-    std::vector<float> rgb;
-};
+using WorkingImage = LinearWorkingBuffer;
 
 [[nodiscard]] Result<WorkingImage> working_from_raw(const DecodedRaw &raw, std::uint32_t width,
                                                     std::uint32_t height,

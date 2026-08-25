@@ -47,37 +47,10 @@ Rectangle {
         }
 
         CustomLabel {
-            text: qsTr("Appearance")
-            font.bold: true
-        }
-
-        RowLayout {
-            spacing: Fonts.size12
-            CustomLabel {
-                text: qsTr("Night mode")
-            }
-            CustomSwitch {
-                id: nightSwitch
-                model: [qsTr("Off"), qsTr("On")]
-                enabled: root.presenter !== null && root.presenter !== undefined
-                onActivated: function (index) {
-                    if (root.presenter)
-                        root.presenter.nightMode = index === 1;
-                }
-            }
-        }
-
-        Binding {
-            target: nightSwitch
-            property: "currentIndex"
-            value: root.presenter && root.presenter.nightMode ? 1 : 0
-        }
-
-        CustomLabel {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             color: Theme.placeholderTextColor
-            text: qsTr("Use a dark studio palette for browsing and editing. This preference is saved on this computer.")
+            text: qsTr("Ravo Studio uses a single dark workspace modeled on a photography library.")
         }
 
         Item {

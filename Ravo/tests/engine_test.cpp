@@ -871,6 +871,94 @@ TEST(EngineFacadeTest, SigmoidHasARealRawReference)
     EXPECT_LT(clipped_channels, rendered.value().rgb.size() / 100U);
 }
 
+TEST(EngineFacadeTest, LinearWorkingRenderMatchesDirectRawRender)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(sigmoid_operation());
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64;
+    request.output_height = 48;
+    auto direct = engine.value().render_to_image(request);
+    ASSERT_TRUE(direct) << direct.error().message;
+
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    auto linear = engine.value().linear_working_from_raw(decoded.value(), recipe, 64, 48,
+                                                         CancellationToken{});
+    ASSERT_TRUE(linear) << linear.error().message;
+    EXPECT_EQ(linear.value().width, 64U);
+    EXPECT_EQ(linear.value().height, 48U);
+    ASSERT_EQ(linear.value().rgb.size(), static_cast<std::size_t>(64U) * 48U * 3U);
+    Recipe rgb_recipe = recipe;
+    for (auto &operation : rgb_recipe.operations)
+    {
+        if (operation.id == "ravo.raw.highlights")
+        {
+            operation.enabled = false;
+        }
+    }
+    auto from_working =
+        engine.value().render_linear_working(linear.value(), rgb_recipe, CancellationToken{});
+    ASSERT_TRUE(from_working) << from_working.error().message;
+    EXPECT_EQ(from_working.value().rgb, direct.value().rgb);
+
+    Recipe exposed = rgb_recipe;
+    exposed.operations.insert(exposed.operations.begin(),
+                              {"ravo.core.exposure",
+                               1,
+                               "exposure-1",
+                               true,
+                               {{"exposure_ev", ParameterValue{1.0}}},
+                               std::nullopt});
+    auto shifted =
+        engine.value().render_linear_working(linear.value(), exposed, CancellationToken{});
+    ASSERT_TRUE(shifted) << shifted.error().message;
+    EXPECT_NE(shifted.value().rgb, from_working.value().rgb);
+    EXPECT_EQ(linear.value().rgb.size(), static_cast<std::size_t>(64U) * 48U * 3U);
+}
+
+TEST(EngineFacadeTest, RgbHistogramMatchesFrozenDisplayBinning)
+{
+    const auto raster = solid_raster(8, 4, 220, 20, 20);
+    auto histogram = collect_rgb_histogram(raster);
+    ASSERT_TRUE(histogram) << histogram.error().message;
+    EXPECT_EQ(histogram.value().red[220], 32U);
+    EXPECT_EQ(histogram.value().green[20], 32U);
+    EXPECT_EQ(histogram.value().blue[20], 32U);
+    EXPECT_EQ(histogram.value().red[0], 0U);
+    EXPECT_EQ(histogram.value().max_count, 32U);
+
+    RasterBuffer empty;
+    auto rejected = collect_rgb_histogram(empty);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kInvalidArgument);
+}
+
+TEST(EngineFacadeTest, RgbParadePlacesFullWhiteAtEightNinths)
+{
+    const auto raster = solid_raster(12, 8, 255, 255, 255);
+    auto parade = collect_rgb_parade(raster);
+    ASSERT_TRUE(parade) << parade.error().message;
+    EXPECT_EQ(parade.value().tones, kWaveformTones);
+    ASSERT_GT(parade.value().bins, 0U);
+    const std::uint32_t width = parade.value().bins * 3U;
+    const std::uint32_t height = parade.value().tones;
+    ASSERT_EQ(parade.value().rgb.size(), static_cast<std::size_t>(width) * height * 3U);
+    const auto sample = [&](const std::uint32_t x, const std::uint32_t y, const std::uint32_t ch)
+    { return parade.value().rgb[(static_cast<std::size_t>(y) * width + x) * 3U + ch]; };
+    // Frozen waveform maps 1.0 to 8/9 of the tone axis: ceil((8/9)*159) = 142.
+    constexpr std::uint32_t kTone = 142;
+    const std::uint32_t y = kWaveformTones - 1U - kTone;
+    EXPECT_GT(sample(0, y, 0), 0U);
+    EXPECT_EQ(sample(0, y, 1), 0U);
+    EXPECT_EQ(sample(0, height - 1U, 0), 0U);
+}
+
 TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndAcceptsLab)
 {
     const auto engine = EngineFacade::create_phase1();

@@ -51,8 +51,10 @@ Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 servi
 `StudioPresenter::executeCommand`；窗口对话框由该入口发出 `uiCommandRequested`，QML 只负责弹出。
 Develop 预览由 presenter 做有界合并：同一时刻最多一个 in-flight 渲染，另加最多一份待保存
 recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已验证 preview。拖动时 presenter 只转发
-内存中的 develop 参数；服务层按 `kInteractivePreviewMaxEdge` 在已解码代理 raster 上套用效果，
-只返回内存像素、不写 PNG/cache/recipe。松手后再保存并请求完整 preview。
+内存中的 develop 参数，不写 recipe；服务层按 `kInteractivePreviewMaxEdge` 在已缓存的
+scene-linear 工作图上套用效果，只返回内存像素、不写 PNG/cache。RAW unpack 与 demosaic 缓存在
+CatalogService，highlight reconstruction 变化时失效；不得回退到 embedded JPEG。松手后再保存
+并请求完整 preview。
 Develop 裁剪在画布上交互：crop tool 预览去掉 crop 与 straighten，由 Qt Quick 旋转工作图；
 描边与照片共用这一 GPU 变换，裁剪框保持屏幕轴向并内接旋转后的照片。框选和 Angle 拖动只更新
 内存参数，松手后写入 recipe；导出仍走 CPU straighten，不是 engine GPU adapter。
@@ -158,7 +160,9 @@ Ravo Studio 第一版负责：
 
 - 创建/打开 catalog、选择文件/目录；
 - Gallery 列表、loading/ready/missing/unsupported/failed 状态；
-- 选择图片、适应窗口、100% 和平移；
+- 选择图片、Gallery（grid/放大）与 Edit 分栏、适应窗口、100% 和平移；
+  grid 与 filmstrip 用 contain 整图显示，letterbox 空白叠加序号、评分、格式/尺寸与标记；
+- Gallery/Edit 共用右侧面板上方示波器：冻结 C 的 256 档 RGB 直方图（linear Y）与 RGB parade 分量图；
 - 进度、取消和可恢复错误呈现；
 - 窗口、焦点、键盘、HiDPI 和基本可访问性。
 

@@ -12,7 +12,6 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QMutexLocker>
-#include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QUrl>
@@ -460,17 +459,31 @@ QVariant FolderListModel::data(const QModelIndex &index, const int role) const
     {
         return {};
     }
-    const auto &folder = folders_[static_cast<std::size_t>(index.row())];
+    const auto &row = folders_[static_cast<std::size_t>(index.row())];
     switch (role)
     {
     case FolderUriRole:
-        return qstring_from_utf8(folder.uri);
+        return qstring_from_utf8(row.folder.uri);
     case DisplayNameRole:
-        return qstring_from_utf8(folder.display_name);
+        return qstring_from_utf8(row.folder.display_name);
     case DepthRole:
-        return folder.depth;
+        return row.folder.depth;
     case AssetCountRole:
-        return folder.asset_count;
+        return row.folder.asset_count;
+    case HasChildrenRole:
+        return row.has_children;
+    case HasNextSiblingRole:
+        return row.has_next_sibling;
+    case AncestorLineContinuesRole:
+    {
+        QVariantList continues;
+        continues.reserve(static_cast<qsizetype>(row.ancestor_line_continues.size()));
+        for (const char value : row.ancestor_line_continues)
+        {
+            continues.push_back(value != 0);
+        }
+        return continues;
+    }
     default:
         return {};
     }
@@ -481,13 +494,56 @@ QHash<int, QByteArray> FolderListModel::roleNames() const
     return {{FolderUriRole, "folderUri"},
             {DisplayNameRole, "displayName"},
             {DepthRole, "depth"},
-            {AssetCountRole, "assetCount"}};
+            {AssetCountRole, "assetCount"},
+            {HasChildrenRole, "hasChildren"},
+            {HasNextSiblingRole, "hasNextSibling"},
+            {AncestorLineContinuesRole, "ancestorLineContinues"}};
 }
 
 void FolderListModel::setFolders(std::vector<FolderRecord> folders)
 {
     beginResetModel();
-    folders_ = std::move(folders);
+    folders_.clear();
+    folders_.reserve(folders.size());
+    for (std::size_t index = 0; index < folders.size(); ++index)
+    {
+        FolderRow row;
+        row.folder = folders[index];
+        const int depth = row.folder.depth;
+        if (index + 1 < folders.size() && folders[index + 1U].depth == depth + 1)
+        {
+            row.has_children = true;
+        }
+        for (std::size_t later = index + 1; later < folders.size(); ++later)
+        {
+            if (folders[later].depth < depth)
+            {
+                break;
+            }
+            if (folders[later].depth == depth)
+            {
+                row.has_next_sibling = true;
+                break;
+            }
+        }
+        row.ancestor_line_continues.assign(static_cast<std::size_t>(std::max(0, depth)), 0);
+        for (int level = 0; level < depth; ++level)
+        {
+            for (std::size_t later = index + 1; later < folders.size(); ++later)
+            {
+                if (folders[later].depth < level)
+                {
+                    break;
+                }
+                if (folders[later].depth == level)
+                {
+                    row.ancestor_line_continues[static_cast<std::size_t>(level)] = 1;
+                    break;
+                }
+            }
+        }
+        folders_.push_back(std::move(row));
+    }
     endResetModel();
 }
 
@@ -496,8 +552,6 @@ StudioPresenter::StudioPresenter(QObject *parent)
     , assets_(this)
     , folders_(this)
 {
-    QSettings settings;
-    night_mode_ = settings.value(QStringLiteral("appearance/nightMode"), false).toBool();
     const auto created = executor_.submit(
         [this]() -> Result<void>
         {
@@ -532,23 +586,6 @@ StudioPresenter::~StudioPresenter()
 bool StudioPresenter::catalogOpen() const noexcept
 {
     return !catalog_path_.isEmpty();
-}
-
-bool StudioPresenter::nightMode() const noexcept
-{
-    return night_mode_;
-}
-
-void StudioPresenter::setNightMode(const bool night)
-{
-    if (night_mode_ == night)
-    {
-        return;
-    }
-    night_mode_ = night;
-    QSettings settings;
-    settings.setValue(QStringLiteral("appearance/nightMode"), night_mode_);
-    emit nightModeChanged();
 }
 
 QString StudioPresenter::catalogPath() const
@@ -663,9 +700,84 @@ QImage StudioPresenter::previewImage() const
 
 void StudioPresenter::clear_displayed_preview()
 {
-    const QMutexLocker lock(&preview_image_mutex_);
-    preview_image_ = QImage();
-    preview_url_.clear();
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        preview_image_ = QImage();
+        preview_url_.clear();
+    }
+    clear_scopes();
+}
+
+QVariantList StudioPresenter::histogram_channel_list(
+    const std::array<std::uint32_t, kRgbHistogramBins> &channel)
+{
+    QVariantList list;
+    list.reserve(static_cast<qsizetype>(kRgbHistogramBins));
+    for (const auto count : channel)
+    {
+        list.push_back(QVariant::fromValue(count));
+    }
+    return list;
+}
+
+void StudioPresenter::clear_scopes()
+{
+    scope_histogram_ = {};
+    scope_parade_image_ = QImage();
+    scope_parade_url_.clear();
+    ++scope_revision_;
+    emit scopesChanged();
+}
+
+void StudioPresenter::refresh_scopes(const QImage &image)
+{
+    if (image.isNull())
+    {
+        clear_scopes();
+        return;
+    }
+    QImage rgb = image;
+    if (rgb.format() != QImage::Format_RGB888)
+    {
+        rgb = rgb.convertToFormat(QImage::Format_RGB888);
+    }
+    RasterBuffer raster;
+    raster.width = static_cast<std::uint32_t>(rgb.width());
+    raster.height = static_cast<std::uint32_t>(rgb.height());
+    raster.srgb.resize(static_cast<std::size_t>(raster.width) * raster.height * 3U);
+    for (std::uint32_t y = 0; y < raster.height; ++y)
+    {
+        const auto *row = rgb.constScanLine(static_cast<int>(y));
+        std::copy_n(row, static_cast<std::size_t>(raster.width) * 3U,
+                    raster.srgb.begin() +
+                        static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * raster.width * 3U));
+    }
+    auto histogram = collect_rgb_histogram(raster);
+    auto parade = collect_rgb_parade(raster);
+    if (!histogram || !parade)
+    {
+        clear_scopes();
+        return;
+    }
+    scope_histogram_ = std::move(histogram).value();
+    const auto &parade_value = parade.value();
+    if (parade_value.bins == 0 || parade_value.tones == 0 ||
+        parade_value.rgb.size() !=
+            static_cast<std::size_t>(parade_value.bins) * 3U * parade_value.tones * 3U)
+    {
+        scope_parade_image_ = QImage();
+    }
+    else
+    {
+        const QImage view(parade_value.rgb.data(), static_cast<int>(parade_value.bins * 3U),
+                          static_cast<int>(parade_value.tones),
+                          static_cast<int>(parade_value.bins * 9U), QImage::Format_RGB888);
+        scope_parade_image_ = view.copy();
+    }
+    ++scope_revision_;
+    scope_parade_url_ =
+        QUrl(QStringLiteral("image://studioScope/parade?r=%1").arg(scope_revision_));
+    emit scopesChanged();
 }
 
 void StudioPresenter::show_preview_result(const PreviewResult &preview,
@@ -682,23 +794,74 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         const QImage view(preview.srgb.data(), static_cast<int>(preview.width),
                           static_cast<int>(preview.height), static_cast<int>(preview.width * 3U),
                           QImage::Format_RGB888);
+        const QImage owned = view.copy();
         {
             const QMutexLocker lock(&preview_image_mutex_);
-            preview_image_ = view.copy();
+            preview_image_ = owned;
         }
         preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
+        refresh_scopes(owned);
         return;
     }
+    const QImage cached = QImage(qstring_from_utf8(preview.cache_path));
     {
         const QMutexLocker lock(&preview_image_mutex_);
-        preview_image_ = QImage();
+        preview_image_ = cached;
     }
     preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
+    refresh_scopes(cached);
 }
 
 bool StudioPresenter::previewLoading() const noexcept
 {
     return preview_loading_;
+}
+
+QString StudioPresenter::scopeMode() const
+{
+    return scope_mode_;
+}
+
+void StudioPresenter::setScopeMode(const QString &mode)
+{
+    const QString next = mode == QLatin1String("parade") ? QStringLiteral("parade") :
+                                                           QStringLiteral("histogram");
+    if (scope_mode_ == next)
+    {
+        return;
+    }
+    scope_mode_ = next;
+    emit scopesChanged();
+}
+
+QVariantList StudioPresenter::scopeHistogramRed() const
+{
+    return histogram_channel_list(scope_histogram_.red);
+}
+
+QVariantList StudioPresenter::scopeHistogramGreen() const
+{
+    return histogram_channel_list(scope_histogram_.green);
+}
+
+QVariantList StudioPresenter::scopeHistogramBlue() const
+{
+    return histogram_channel_list(scope_histogram_.blue);
+}
+
+double StudioPresenter::scopeHistogramMax() const noexcept
+{
+    return static_cast<double>(scope_histogram_.max_count);
+}
+
+QUrl StudioPresenter::scopeParadeUrl() const
+{
+    return scope_parade_url_;
+}
+
+QImage StudioPresenter::scopeParadeImage() const
+{
+    return scope_parade_image_;
 }
 
 QString StudioPresenter::browseMode() const
@@ -1209,6 +1372,16 @@ AssetListModel *StudioPresenter::assets() noexcept
 FolderListModel *StudioPresenter::folders() noexcept
 {
     return &folders_;
+}
+
+QUrl StudioPresenter::selectedThumbnailUrl() const
+{
+    const int row = assets_.indexOf(selected_asset_id_);
+    if (row < 0)
+    {
+        return {};
+    }
+    return assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
 }
 
 QString StudioPresenter::selectedFolderUri() const
@@ -2347,13 +2520,13 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                             id, QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path)),
                             preview.value().original_missing ? QStringLiteral("missing") :
                                                                QStringLiteral("ready"));
+                        if (utf8_from_qstring(selected_asset_id_) == id)
+                        {
+                            emit selectionChanged();
+                        }
                         if (preview.value().original_missing)
                         {
                             assets_.markOriginalMissing(id);
-                            if (selected_ids_.contains(id))
-                            {
-                                emit selectionChanged();
-                            }
                         }
                         return;
                     }
@@ -2776,6 +2949,7 @@ void StudioPresenter::remove_selected_from_disk()
 void StudioPresenter::load_develop_for_selection()
 {
     develop_ = {};
+    saved_develop_ = {};
     undo_stack_.clear();
     redo_stack_.clear();
     recipe_history_.clear();
@@ -2822,6 +2996,7 @@ void StudioPresenter::load_develop_for_selection()
                     if (!loaded)
                     {
                         develop_ = {};
+                        saved_develop_ = {};
                         emit editChanged();
                         setError(qstring_from_utf8(loaded.error().message));
                         return;
@@ -2830,11 +3005,13 @@ void StudioPresenter::load_develop_for_selection()
                     if (!params)
                     {
                         develop_ = {};
+                        saved_develop_ = {};
                         emit editChanged();
                         setError(qstring_from_utf8(params.error().message));
                         return;
                     }
                     develop_ = params.value();
+                    saved_develop_ = develop_;
                     emit editChanged();
                 },
                 Qt::QueuedConnection);
@@ -2849,10 +3026,10 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         return;
     }
     clamp_develop(params);
-    const auto previous = develop_;
-    if (push_history)
+    const auto previous = saved_develop_;
+    if (push_history && params != saved_develop_)
     {
-        undo_stack_.push_back(develop_);
+        undo_stack_.push_back(saved_develop_);
         if (undo_stack_.size() > 40U)
         {
             undo_stack_.erase(undo_stack_.begin());
@@ -2894,8 +3071,6 @@ void StudioPresenter::preview_develop(DevelopParams params)
     develop_ = params;
     emit editChanged();
     const bool crop_guides = crop_tool_active_ && !before_after_;
-    preview_loading_ = true;
-    emit previewChanged();
     ++preview_revision_;
     pending_preview_ = PendingDevelopWork{
         .interactive = true,
@@ -2999,6 +3174,7 @@ void StudioPresenter::kick_develop_work()
                                 develop_ == job.params)
                             {
                                 develop_ = job.previous;
+                                saved_develop_ = job.previous;
                                 if (job.push_history && !undo_stack_.empty())
                                 {
                                     undo_stack_.pop_back();
@@ -3013,6 +3189,7 @@ void StudioPresenter::kick_develop_work()
                         }
                         if (selected_matches)
                         {
+                            saved_develop_ = job.params;
                             assets_.updateAsset(saved.value());
                             emit selectionChanged();
                             emit editChanged();
@@ -3033,6 +3210,11 @@ void StudioPresenter::kick_develop_work()
                     preview_loading_ = false;
                     if (!preview)
                     {
+                        if (preview.error().code == ErrorCode::kCancelled)
+                        {
+                            kick_develop_work();
+                            return;
+                        }
                         if (preview.error().code == ErrorCode::kNotFound)
                         {
                             assets_.markOriginalMissing(job.asset_id);
@@ -3074,8 +3256,16 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     {
         fit_geometry_crop(next);
     }
-    if (next == develop_)
+    clamp_develop(next);
+    if (next == saved_develop_ && next == develop_)
     {
+        return;
+    }
+    if (next == saved_develop_)
+    {
+        develop_ = next;
+        emit editChanged();
+        enqueue_preview();
         return;
     }
     const bool keep_crop_guide =
@@ -3088,8 +3278,15 @@ void StudioPresenter::setToneCurve(const QVariantList &points)
     DevelopParams next = develop_;
     next.tone_curve = tone_curve_from_variant(points);
     clamp_develop(next);
-    if (next == develop_)
+    if (next == saved_develop_ && next == develop_)
     {
+        return;
+    }
+    if (next == saved_develop_)
+    {
+        develop_ = next;
+        emit editChanged();
+        enqueue_preview();
         return;
     }
     commit_develop(next, true);

@@ -145,6 +145,13 @@ Item {
         root.run(root.ids.viewLoupe);
     }
 
+    function openGallery(preferredMode) {
+        if (preferredMode === "loupe" && root.hasSelection)
+            root.run(root.ids.viewLoupe);
+        else
+            root.run(root.ids.viewGrid);
+    }
+
     function setRating(value) {
         root.run(root.ids.photoRate, value);
     }
@@ -306,7 +313,7 @@ Item {
     }
     Action {
         id: gridAction
-        text: qsTr("Grid")
+        text: qsTr("Gallery")
         shortcut: "Ctrl+1"
         enabled: root.interactive && root.catalogOpen
         onTriggered: root.run(root.ids.viewGrid)
@@ -315,7 +322,7 @@ Item {
         id: loupeAction
         text: qsTr("Loupe")
         shortcut: "Ctrl+2"
-        enabled: root.interactive && root.catalogOpen
+        enabled: root.interactive && root.catalogOpen && root.hasSelection
         onTriggered: root.run(root.ids.viewLoupe)
     }
     Action {

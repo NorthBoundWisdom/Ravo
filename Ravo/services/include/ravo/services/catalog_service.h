@@ -77,6 +77,23 @@ private:
         RasterBuffer raster;
     };
 
+    struct CachedRawFrame
+    {
+        std::string asset_id;
+        std::string fingerprint;
+        std::string path;
+        DecodedRaw raw;
+    };
+
+    struct CachedLinearWorking
+    {
+        std::string asset_id;
+        std::string fingerprint;
+        std::uint32_t max_edge = 0;
+        std::string preprocess_key;
+        LinearWorkingBuffer buffer;
+    };
+
     [[nodiscard]] Result<PreviewResult>
     generate_preview(const AssetRecord &asset, const PreviewRequest &request,
                      const std::optional<DevelopParams> &live_develop);
@@ -84,6 +101,13 @@ private:
                                                              std::string_view path,
                                                              std::uint32_t max_edge,
                                                              const CancellationToken &cancellation);
+    [[nodiscard]] Result<const DecodedRaw *>
+    cached_raw_frame(const AssetRecord &asset, std::string_view path,
+                     const CancellationToken &cancellation);
+    [[nodiscard]] Result<const LinearWorkingBuffer *>
+    cached_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
+                          std::uint32_t width, std::uint32_t height, std::uint32_t max_edge,
+                          const CancellationToken &cancellation);
     [[nodiscard]] Result<RenderedImage>
     render_for_export(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                       std::uint32_t max_edge, const CancellationToken &cancellation);
@@ -93,6 +117,8 @@ private:
     std::unique_ptr<RasterDecoder> raster_;
     std::unique_ptr<PreviewCache> cache_;
     std::optional<DecodedPreviewSource> decoded_preview_source_;
+    std::optional<CachedRawFrame> decoded_raw_;
+    std::optional<CachedLinearWorking> linear_working_;
 };
 
 } // namespace ravo

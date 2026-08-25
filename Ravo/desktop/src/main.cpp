@@ -44,6 +44,29 @@ private:
     ravo::StudioPresenter *studio_ = nullptr;
 };
 
+class StudioScopeImageProvider final : public QQuickImageProvider
+{
+public:
+    explicit StudioScopeImageProvider(ravo::StudioPresenter &studio)
+        : QQuickImageProvider(QQuickImageProvider::Image)
+        , studio_(&studio)
+    {
+    }
+
+    QImage requestImage(const QString &, QSize *size, const QSize &) override
+    {
+        const QImage image = studio_->scopeParadeImage();
+        if (size != nullptr)
+        {
+            *size = image.size();
+        }
+        return image;
+    }
+
+private:
+    ravo::StudioPresenter *studio_ = nullptr;
+};
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -97,6 +120,7 @@ int main(int argc, char *argv[])
     engine.addImportPath(QStringLiteral("qrc:/"));
     engine.addImageProvider(QStringLiteral("studioPreview"),
                             new StudioPreviewImageProvider(presenter));
+    engine.addImageProvider(QStringLiteral("studioScope"), new StudioScopeImageProvider(presenter));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,

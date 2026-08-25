@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <mutex>
 #include <numbers>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <png.h>
@@ -19,6 +21,86 @@ namespace ravo
 {
 namespace
 {
+
+[[nodiscard]] unsigned parallel_row_workers(const std::uint32_t rows) noexcept
+{
+    if (rows < 32U)
+    {
+        return 1U;
+    }
+    const unsigned hardware = std::max(1U, std::thread::hardware_concurrency());
+    return std::min(std::min(hardware, 8U), rows);
+}
+
+template <typename Fn>
+Result<void> for_each_row(const std::uint32_t height, const CancellationToken &cancellation, Fn &&fn)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const unsigned workers = parallel_row_workers(height);
+    if (workers <= 1U)
+    {
+        for (std::uint32_t row = 0; row < height; ++row)
+        {
+            cancelled = cancellation.check();
+            if (!cancelled)
+            {
+                return cancelled.error();
+            }
+            fn(row);
+        }
+        return {};
+    }
+
+    std::atomic<std::uint32_t> next{0};
+    std::atomic<bool> failed{false};
+    TaskError error;
+    std::mutex error_mutex;
+    std::vector<std::thread> threads;
+    threads.reserve(workers);
+    for (unsigned worker = 0; worker < workers; ++worker)
+    {
+        threads.emplace_back(
+            [&]()
+            {
+                for (;;)
+                {
+                    if (failed.load(std::memory_order_acquire))
+                    {
+                        return;
+                    }
+                    const std::uint32_t row = next.fetch_add(1, std::memory_order_relaxed);
+                    if (row >= height)
+                    {
+                        return;
+                    }
+                    auto row_cancelled = cancellation.check();
+                    if (!row_cancelled)
+                    {
+                        std::lock_guard lock(error_mutex);
+                        if (!failed.exchange(true, std::memory_order_acq_rel))
+                        {
+                            error = row_cancelled.error();
+                        }
+                        return;
+                    }
+                    fn(row);
+                }
+            });
+    }
+    for (auto &thread : threads)
+    {
+        thread.join();
+    }
+    if (failed.load(std::memory_order_acquire))
+    {
+        return error;
+    }
+    return {};
+}
 
 [[nodiscard]] bool absorbed_operation(const std::string_view id) noexcept
 {
@@ -609,92 +691,111 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
         return curve.error();
     }
 
-    for (std::uint32_t y = 0; y < image.height; ++y)
-    {
-        auto cancelled = cancellation.check();
-        if (!cancelled)
+    std::atomic<bool> invalid{false};
+    std::atomic<std::size_t> invalid_index{0};
+    std::atomic<bool> invalid_output{false};
+    const auto rows = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t y)
         {
-            return cancelled.error();
-        }
-        for (std::uint32_t x = 0; x < image.width; ++x)
-        {
-            const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
-            const std::array<double, 3> input{
-                image.rgb[index],
-                image.rgb[index + 1U],
-                image.rgb[index + 2U],
-            };
-            if (std::any_of(input.begin(), input.end(),
-                            [](const double value) { return !std::isfinite(value); }))
+            if (invalid.load(std::memory_order_acquire))
             {
-                return make_error(ErrorCode::kValidation,
-                                  "Sigmoid input contains a non-finite sample",
-                                  {{"sample_index", std::to_string(index)}});
+                return;
             }
-            const auto positive = desaturate_negative_values(input);
-            std::array<double, 3> output{};
-            if (color_processing == kSigmoidColorProcessingRgbRatio)
+            for (std::uint32_t x = 0; x < image.width; ++x)
             {
-                const double luma = (positive[0] + positive[1] + positive[2]) / 3.0;
-                const double mapped_luma = generalized_loglogistic(
-                    luma, curve.value().white_target, curve.value().paper_exposure,
-                    curve.value().film_fog, curve.value().film_power, curve.value().paper_power);
-                std::array<double, 3> pre_out{};
-                if (luma > 1.0e-9)
+                const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
+                const std::array<double, 3> input{
+                    image.rgb[index],
+                    image.rgb[index + 1U],
+                    image.rgb[index + 2U],
+                };
+                if (std::any_of(input.begin(), input.end(),
+                                [](const double value) { return !std::isfinite(value); }))
                 {
-                    const double scale = mapped_luma / luma;
-                    pre_out = {scale * positive[0], scale * positive[1], scale * positive[2]};
+                    invalid_index.store(index, std::memory_order_relaxed);
+                    invalid_output.store(false, std::memory_order_relaxed);
+                    invalid.store(true, std::memory_order_release);
+                    return;
+                }
+                const auto positive = desaturate_negative_values(input);
+                std::array<double, 3> output{};
+                if (color_processing == kSigmoidColorProcessingRgbRatio)
+                {
+                    const double luma_value = (positive[0] + positive[1] + positive[2]) / 3.0;
+                    const double mapped_luma = generalized_loglogistic(
+                        luma_value, curve.value().white_target, curve.value().paper_exposure,
+                        curve.value().film_fog, curve.value().film_power,
+                        curve.value().paper_power);
+                    std::array<double, 3> pre_out{};
+                    if (luma_value > 1.0e-9)
+                    {
+                        const double scale = mapped_luma / luma_value;
+                        pre_out = {scale * positive[0], scale * positive[1], scale * positive[2]};
+                    }
+                    else
+                    {
+                        pre_out = {mapped_luma, mapped_luma, mapped_luma};
+                    }
+                    const auto order = channel_order(pre_out);
+                    const double pixel_min = pre_out[order[0]];
+                    const double pixel_max = pre_out[order[2]];
+                    constexpr double kEpsilon = 1.0e-6;
+                    const double display_white = (curve.value().white_target - mapped_luma) /
+                                                 (pixel_max - mapped_luma + kEpsilon);
+                    const double display_black = (curve.value().black_target - mapped_luma) /
+                                                 (pixel_min - mapped_luma - kEpsilon);
+                    const double display_border = std::min(display_white, display_black);
+                    const double chroma_vs_border =
+                        (mapped_luma - pixel_min) / (mapped_luma + kEpsilon);
+                    const double adjustment = 1.0 / (chroma_vs_border * display_border + kEpsilon);
+                    const double hyperbolic =
+                        2.0 * chroma_vs_border /
+                        (1.0 - chroma_vs_border * chroma_vs_border + kEpsilon) * adjustment;
+                    const double hyperbolic_z = std::sqrt(hyperbolic * hyperbolic + 1.0);
+                    const double chroma_factor =
+                        hyperbolic / (1.0 + hyperbolic_z) * display_border;
+                    output = {mapped_luma + chroma_factor * (pre_out[0] - mapped_luma),
+                              mapped_luma + chroma_factor * (pre_out[1] - mapped_luma),
+                              mapped_luma + chroma_factor * (pre_out[2] - mapped_luma)};
                 }
                 else
                 {
-                    pre_out = {mapped_luma, mapped_luma, mapped_luma};
+                    std::array<double, 3> mapped{};
+                    for (std::size_t channel = 0; channel < mapped.size(); ++channel)
+                    {
+                        mapped[channel] = generalized_loglogistic(
+                            positive[channel], curve.value().white_target,
+                            curve.value().paper_exposure, curve.value().film_fog,
+                            curve.value().film_power, curve.value().paper_power);
+                    }
+                    output = preserve_sigmoid_hue(positive, mapped, curve.value().hue_preservation);
                 }
-                const auto order = channel_order(pre_out);
-                const double pixel_min = pre_out[order[0]];
-                const double pixel_max = pre_out[order[2]];
-                constexpr double kEpsilon = 1.0e-6;
-                const double display_white =
-                    (curve.value().white_target - mapped_luma) /
-                    (pixel_max - mapped_luma + kEpsilon);
-                const double display_black =
-                    (curve.value().black_target - mapped_luma) /
-                    (pixel_min - mapped_luma - kEpsilon);
-                const double display_border = std::min(display_white, display_black);
-                const double chroma_vs_border =
-                    (mapped_luma - pixel_min) / (mapped_luma + kEpsilon);
-                const double adjustment =
-                    1.0 / (chroma_vs_border * display_border + kEpsilon);
-                const double hyperbolic = 2.0 * chroma_vs_border /
-                                          (1.0 - chroma_vs_border * chroma_vs_border + kEpsilon) *
-                                          adjustment;
-                const double hyperbolic_z = std::sqrt(hyperbolic * hyperbolic + 1.0);
-                const double chroma_factor =
-                    hyperbolic / (1.0 + hyperbolic_z) * display_border;
-                output = {mapped_luma + chroma_factor * (pre_out[0] - mapped_luma),
-                          mapped_luma + chroma_factor * (pre_out[1] - mapped_luma),
-                          mapped_luma + chroma_factor * (pre_out[2] - mapped_luma)};
-            }
-            else
-            {
-                std::array<double, 3> mapped{};
-                for (std::size_t channel = 0; channel < mapped.size(); ++channel)
+                if (std::any_of(output.begin(), output.end(),
+                                [](const double value) { return !std::isfinite(value); }))
                 {
-                    mapped[channel] = generalized_loglogistic(
-                        positive[channel], curve.value().white_target, curve.value().paper_exposure,
-                        curve.value().film_fog, curve.value().film_power, curve.value().paper_power);
+                    invalid_index.store(index, std::memory_order_relaxed);
+                    invalid_output.store(true, std::memory_order_relaxed);
+                    invalid.store(true, std::memory_order_release);
+                    return;
                 }
-                output = preserve_sigmoid_hue(positive, mapped, curve.value().hue_preservation);
+                image.rgb[index] = static_cast<float>(output[0]);
+                image.rgb[index + 1U] = static_cast<float>(output[1]);
+                image.rgb[index + 2U] = static_cast<float>(output[2]);
             }
-            if (std::any_of(output.begin(), output.end(),
-                            [](const double value) { return !std::isfinite(value); }))
-            {
-                return make_error(ErrorCode::kValidation, "Sigmoid produced a non-finite sample",
-                                  {{"sample_index", std::to_string(index)}});
-            }
-            image.rgb[index] = static_cast<float>(output[0]);
-            image.rgb[index + 1U] = static_cast<float>(output[1]);
-            image.rgb[index + 2U] = static_cast<float>(output[2]);
-        }
+        });
+    if (!rows)
+    {
+        return rows.error();
+    }
+    if (invalid.load(std::memory_order_acquire))
+    {
+        return make_error(ErrorCode::kValidation,
+                          invalid_output.load(std::memory_order_relaxed) ?
+                              "Sigmoid produced a non-finite sample" :
+                              "Sigmoid input contains a non-finite sample",
+                          {{"sample_index",
+                            std::to_string(invalid_index.load(std::memory_order_relaxed))}});
     }
     return {};
 }
@@ -1878,62 +1979,67 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     const float denominator = static_cast<float>(
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
 
-    for (std::uint32_t output_y = 0; output_y < height; ++output_y)
-    {
-        auto cancelled = cancellation.check();
-        if (!cancelled)
+    auto rows = for_each_row(
+        height, cancellation,
+        [&](const std::uint32_t output_y)
         {
-            return cancelled.error();
-        }
-        const std::uint32_t source_y = std::min(
-            raw.height - 1,
-            static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_y) * raw.height / height));
-        for (std::uint32_t output_x = 0; output_x < width; ++output_x)
-        {
-            const std::uint32_t source_x = std::min(
-                raw.width - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) *
-                                                          raw.width / width));
-            std::array<float, 3> sum{};
-            std::array<std::uint32_t, 3> count{};
-            for (int offset_y = -1; offset_y <= 1; ++offset_y)
+            const std::uint32_t source_y =
+                std::min(raw.height - 1, static_cast<std::uint32_t>(
+                                             static_cast<std::uint64_t>(output_y) * raw.height /
+                                             height));
+            for (std::uint32_t output_x = 0; output_x < width; ++output_x)
             {
-                const std::uint32_t y = static_cast<std::uint32_t>(std::clamp(
-                    static_cast<int>(source_y) + offset_y, 0, static_cast<int>(raw.height) - 1));
-                for (int offset_x = -1; offset_x <= 1; ++offset_x)
+                const std::uint32_t source_x = std::min(
+                    raw.width - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) *
+                                                              raw.width / width));
+                std::array<float, 3> sum{};
+                std::array<std::uint32_t, 3> count{};
+                for (int offset_y = -1; offset_y <= 1; ++offset_y)
                 {
-                    const std::uint32_t x = static_cast<std::uint32_t>(std::clamp(
-                        static_cast<int>(source_x) + offset_x, 0, static_cast<int>(raw.width) - 1));
-                    const std::uint8_t channel =
-                        raw.cfa_channels[(y % raw.cfa_height) * raw.cfa_width +
-                                         (x % raw.cfa_width)];
-                    sum[channel] +=
-                        static_cast<float>(raw.pixels[static_cast<std::size_t>(y) * raw.width + x]);
-                    ++count[channel];
+                    const std::uint32_t y = static_cast<std::uint32_t>(
+                        std::clamp(static_cast<int>(source_y) + offset_y, 0,
+                                   static_cast<int>(raw.height) - 1));
+                    for (int offset_x = -1; offset_x <= 1; ++offset_x)
+                    {
+                        const std::uint32_t x = static_cast<std::uint32_t>(
+                            std::clamp(static_cast<int>(source_x) + offset_x, 0,
+                                       static_cast<int>(raw.width) - 1));
+                        const std::uint8_t channel =
+                            raw.cfa_channels[(y % raw.cfa_height) * raw.cfa_width +
+                                             (x % raw.cfa_width)];
+                        sum[channel] += static_cast<float>(
+                            raw.pixels[static_cast<std::size_t>(y) * raw.width + x]);
+                        ++count[channel];
+                    }
                 }
-            }
 
-            std::array<float, 3> camera_rgb{};
-            for (std::size_t channel = 0; channel < camera_rgb.size(); ++channel)
-            {
-                const float sample =
-                    count[channel] == 0 ? 0.0F : sum[channel] / static_cast<float>(count[channel]);
-                camera_rgb[channel] =
-                    std::max(0.0F, (sample - static_cast<float>(raw.black_level)) / denominator) *
-                    raw.white_balance[channel];
-            }
-            const std::size_t output_index =
-                (static_cast<std::size_t>(output_y) * width + output_x) * 3U;
-            for (std::size_t output_channel = 0; output_channel < 3; ++output_channel)
-            {
-                float linear = 0.0F;
-                for (std::size_t input_channel = 0; input_channel < 3; ++input_channel)
+                std::array<float, 3> camera_rgb{};
+                for (std::size_t channel = 0; channel < camera_rgb.size(); ++channel)
                 {
-                    linear += raw.camera_to_srgb[output_channel * 3U + input_channel] *
-                              camera_rgb[input_channel];
+                    const float sample = count[channel] == 0 ?
+                                             0.0F :
+                                             sum[channel] / static_cast<float>(count[channel]);
+                    camera_rgb[channel] = std::max(0.0F, (sample - static_cast<float>(raw.black_level)) /
+                                                             denominator) *
+                                          raw.white_balance[channel];
                 }
-                image.rgb[output_index + output_channel] = linear;
+                const std::size_t output_index =
+                    (static_cast<std::size_t>(output_y) * width + output_x) * 3U;
+                for (std::size_t output_channel = 0; output_channel < 3; ++output_channel)
+                {
+                    float linear = 0.0F;
+                    for (std::size_t input_channel = 0; input_channel < 3; ++input_channel)
+                    {
+                        linear += raw.camera_to_srgb[output_channel * 3U + input_channel] *
+                                  camera_rgb[input_channel];
+                    }
+                    image.rgb[output_index + output_channel] = linear;
+                }
             }
-        }
+        });
+    if (!rows)
+    {
+        return rows.error();
     }
     return image;
 }
@@ -2219,11 +2325,19 @@ RenderedImage encode_working_srgb(const WorkingImage &image)
     result.width = image.width;
     result.height = image.height;
     result.rgb.resize(image.rgb.size());
-    for (std::size_t index = 0; index < image.rgb.size(); ++index)
-    {
-        result.rgb[index] =
-            static_cast<std::uint8_t>(std::lround(srgb_encode(image.rgb[index]) * 255.0F));
-    }
+    static_cast<void>(for_each_row(
+        image.height, CancellationToken{},
+        [&](const std::uint32_t row)
+        {
+            const std::size_t begin =
+                static_cast<std::size_t>(row) * static_cast<std::size_t>(image.width) * 3U;
+            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
+            for (std::size_t index = begin; index < end; ++index)
+            {
+                result.rgb[index] =
+                    static_cast<std::uint8_t>(std::lround(srgb_encode(image.rgb[index]) * 255.0F));
+            }
+        }));
     return result;
 }
 

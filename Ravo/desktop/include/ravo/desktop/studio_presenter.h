@@ -88,6 +88,9 @@ public:
         DisplayNameRole,
         DepthRole,
         AssetCountRole,
+        HasChildrenRole,
+        HasNextSiblingRole,
+        AncestorLineContinuesRole,
     };
 
     explicit FolderListModel(QObject *parent = nullptr);
@@ -98,14 +101,21 @@ public:
     void setFolders(std::vector<FolderRecord> folders);
 
 private:
-    std::vector<FolderRecord> folders_;
+    struct FolderRow
+    {
+        FolderRecord folder;
+        bool has_children = false;
+        bool has_next_sibling = false;
+        std::vector<char> ancestor_line_continues;
+    };
+
+    std::vector<FolderRow> folders_;
 };
 
 class StudioPresenter final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool catalogOpen READ catalogOpen NOTIFY catalogChanged)
-    Q_PROPERTY(bool nightMode READ nightMode WRITE setNightMode NOTIFY nightModeChanged)
     Q_PROPERTY(QString catalogPath READ catalogPath NOTIFY catalogChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
@@ -120,6 +130,12 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool canDeleteFromDisk READ canDeleteFromDisk NOTIFY selectionChanged)
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
+    Q_PROPERTY(QString scopeMode READ scopeMode WRITE setScopeMode NOTIFY scopesChanged)
+    Q_PROPERTY(QVariantList scopeHistogramRed READ scopeHistogramRed NOTIFY scopesChanged)
+    Q_PROPERTY(QVariantList scopeHistogramGreen READ scopeHistogramGreen NOTIFY scopesChanged)
+    Q_PROPERTY(QVariantList scopeHistogramBlue READ scopeHistogramBlue NOTIFY scopesChanged)
+    Q_PROPERTY(double scopeHistogramMax READ scopeHistogramMax NOTIFY scopesChanged)
+    Q_PROPERTY(QUrl scopeParadeUrl READ scopeParadeUrl NOTIFY scopesChanged)
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
     Q_PROPERTY(QString zoomMode READ zoomMode NOTIFY zoomChanged)
     Q_PROPERTY(double zoomFactor READ zoomFactor NOTIFY zoomChanged)
@@ -218,6 +234,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
+    Q_PROPERTY(QUrl selectedThumbnailUrl READ selectedThumbnailUrl NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedFolderUri READ selectedFolderUri NOTIFY folderChanged)
     Q_PROPERTY(QString selectedDisplayName READ selectedDisplayName NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedFolderPath READ selectedFolderPath NOTIFY selectionChanged)
@@ -233,8 +250,6 @@ public:
     ~StudioPresenter() override;
 
     [[nodiscard]] bool catalogOpen() const noexcept;
-    [[nodiscard]] bool nightMode() const noexcept;
-    void setNightMode(bool night);
     [[nodiscard]] QString catalogPath() const;
     [[nodiscard]] QUrl defaultCatalogFolder() const;
     [[nodiscard]] QUrl defaultCatalogFile() const;
@@ -254,6 +269,14 @@ public:
     [[nodiscard]] QUrl previewUrl() const;
     [[nodiscard]] QImage previewImage() const;
     [[nodiscard]] bool previewLoading() const noexcept;
+    [[nodiscard]] QString scopeMode() const;
+    void setScopeMode(const QString &mode);
+    [[nodiscard]] QVariantList scopeHistogramRed() const;
+    [[nodiscard]] QVariantList scopeHistogramGreen() const;
+    [[nodiscard]] QVariantList scopeHistogramBlue() const;
+    [[nodiscard]] double scopeHistogramMax() const noexcept;
+    [[nodiscard]] QUrl scopeParadeUrl() const;
+    [[nodiscard]] QImage scopeParadeImage() const;
     [[nodiscard]] QString browseMode() const;
     [[nodiscard]] QString zoomMode() const;
     [[nodiscard]] double zoomFactor() const noexcept;
@@ -351,6 +374,7 @@ public:
     [[nodiscard]] bool cropGuideReady() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
     [[nodiscard]] FolderListModel *folders() noexcept;
+    [[nodiscard]] QUrl selectedThumbnailUrl() const;
     [[nodiscard]] QString selectedFolderUri() const;
     [[nodiscard]] QString selectedDisplayName() const;
     [[nodiscard]] QString selectedFolderPath() const;
@@ -418,12 +442,12 @@ public:
 
 signals:
     void catalogChanged();
-    void nightModeChanged();
     void busyChanged();
     void statusChanged();
     void errorChanged();
     void selectionChanged();
     void previewChanged();
+    void scopesChanged();
     void browseModeChanged();
     void zoomChanged();
     void thumbnailSizeChanged();
@@ -452,6 +476,10 @@ private:
     void kick_develop_work();
     void clear_displayed_preview();
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision);
+    void refresh_scopes(const QImage &image);
+    void clear_scopes();
+    [[nodiscard]] static QVariantList histogram_channel_list(
+        const std::array<std::uint32_t, kRgbHistogramBins> &channel);
     struct PendingDevelopWork
     {
         bool save = false;
@@ -492,17 +520,22 @@ private:
     QUrl preview_url_;
     QImage preview_image_;
     mutable QMutex preview_image_mutex_;
+    QString scope_mode_{QStringLiteral("histogram")};
+    RgbHistogram scope_histogram_{};
+    QImage scope_parade_image_;
+    QUrl scope_parade_url_;
+    std::uint64_t scope_revision_ = 0;
     QString browse_mode_{QStringLiteral("grid")};
     QString zoom_mode_{QStringLiteral("fit")};
     double zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
     bool busy_ = false;
-    bool night_mode_ = false;
     bool preview_loading_ = false;
     std::uint64_t preview_revision_ = 0;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
     DevelopParams develop_{};
+    DevelopParams saved_develop_{};
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;
     bool before_after_ = false;

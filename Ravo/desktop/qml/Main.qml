@@ -30,6 +30,30 @@ ApplicationWindow {
 
     property bool settingsOpen: false
     readonly property bool studioInteractive: !settingsOpen
+    property string lastGalleryMode: "grid"
+    readonly property rect navigatorVisible: {
+        if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
+            return Qt.rect(0, 0, 1, 1);
+        const visL = Math.max(scroller.contentX, photoPlane.x);
+        const visT = Math.max(scroller.contentY, photoPlane.y);
+        const visR = Math.min(scroller.contentX + scroller.width, photoPlane.x + photoPlane.width);
+        const visB = Math.min(scroller.contentY + scroller.height, photoPlane.y + photoPlane.height);
+        const w = Math.max(1, photoPlane.width);
+        const h = Math.max(1, photoPlane.height);
+        return Qt.rect(Math.max(0, Math.min(1, (visL - photoPlane.x) / w)),
+                       Math.max(0, Math.min(1, (visT - photoPlane.y) / h)),
+                       Math.max(0.02, Math.min(1, (visR - visL) / w)),
+                       Math.max(0.02, Math.min(1, (visB - visT) / h)));
+    }
+
+    function seekNavigatorViewport(nx, ny) {
+        if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1)
+            return;
+        const maxX = Math.max(0, scroller.contentWidth - scroller.width);
+        const maxY = Math.max(0, scroller.contentHeight - scroller.height);
+        scroller.contentX = Math.max(0, Math.min(maxX, photoPlane.x + nx * photoPlane.width));
+        scroller.contentY = Math.max(0, Math.min(maxY, photoPlane.y + ny * photoPlane.height));
+    }
 
     readonly property var colorChoices: ["red", "yellow", "green", "blue", "purple"]
     readonly property var colorSwatches: ({
@@ -107,21 +131,15 @@ ApplicationWindow {
     }
 
     function applyAppearance() {
-        lightThemePalette.appFont = Qt.application.font;
-        lightThemePalette.monoFont = Qt.application.font;
-        darkThemePalette.appFont = Qt.application.font;
-        darkThemePalette.monoFont = Qt.application.font;
-        Theme.helper = studio.nightMode ? darkThemePalette : lightThemePalette;
+        studioPalette.appFont = Qt.application.font;
+        studioPalette.monoFont = Qt.application.font;
+        Theme.helper = studioPalette;
         Theme.colorsChanged();
         Theme.fontsChanged();
     }
 
-    LightThemePalette {
-        id: lightThemePalette
-    }
-
     DarkThemePalette {
-        id: darkThemePalette
+        id: studioPalette
     }
 
     StudioActions {
@@ -137,8 +155,9 @@ ApplicationWindow {
 
     Connections {
         target: studio
-        function onNightModeChanged() {
-            window.applyAppearance();
+        function onBrowseModeChanged() {
+            if (studio.browseMode === "grid" || studio.browseMode === "loupe")
+                window.lastGalleryMode = studio.browseMode;
         }
         function onUiCommandRequested(id) {
             const ids = studioActions.ids;
@@ -209,23 +228,26 @@ ApplicationWindow {
                 anchors.rightMargin: Fonts.standardMargin
                 spacing: Fonts.smallSpacing
 
-                SegmentedControl {
+                CustomCheckBox {
+                    id: filterToggle
                     Layout.alignment: Qt.AlignVCenter
-                    model: [qsTr("Grid"), qsTr("Loupe"), qsTr("Edit")]
-                    currentIndex: studio.browseMode === "develop" ? 2 : (studio.browseMode === "loupe" ? 1 : 0)
-                    enabled: studio.catalogOpen
-                    onActivated: function (index) {
-                        studioActions.run(index === 0 ? studioActions.ids.viewGrid : (index === 1 ? studioActions.ids.viewLoupe : studioActions.ids.viewDevelop));
+                    text: qsTr("Filter")
+                    checked: false
+                    onCheckedChanged: {
+                        if (!checked && studio.filtersActive)
+                            studio.clearFilters();
                     }
                 }
 
                 CustomLabel {
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     text: qsTr("Rating")
                 }
                 CustomComboBox {
                     id: ratingFilter
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     model: [qsTr("Any"), qsTr("≥ 1"), qsTr("≥ 2"), qsTr("≥ 3"), qsTr("≥ 4"), qsTr("≥ 5"), qsTr("Exact 0"), qsTr("Exact 1"), qsTr("Exact 2"), qsTr("Exact 3"), qsTr("Exact 4"), qsTr("Exact 5")]
                     Layout.preferredWidth: 140
                     onActivated: function (index) {
@@ -240,6 +262,7 @@ ApplicationWindow {
 
                 CustomLabel {
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     text: qsTr("Color")
                 }
                 Repeater {
@@ -247,6 +270,8 @@ ApplicationWindow {
                     delegate: Rectangle {
                         required property string modelData
                         Layout.alignment: Qt.AlignVCenter
+                        enabled: filterToggle.checked
+                        opacity: enabled ? 1 : 0.45
                         width: 18
                         height: 18
                         radius: 9
@@ -255,6 +280,7 @@ ApplicationWindow {
                         border.color: studio.colorFilters.indexOf(modelData) >= 0 ? Theme.textColor : Theme.dividerColor
                         MouseArea {
                             anchors.fill: parent
+                            enabled: filterToggle.checked
                             onClicked: studio.toggleColorFilter(modelData)
                         }
                     }
@@ -262,10 +288,12 @@ ApplicationWindow {
 
                 CustomLabel {
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     text: qsTr("Rejected")
                 }
                 CustomComboBox {
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     model: [qsTr("Include"), qsTr("Exclude"), qsTr("Only")]
                     Layout.preferredWidth: 120
                     currentIndex: studio.rejectFilter === "exclude" ? 1 : (studio.rejectFilter === "only" ? 2 : 0)
@@ -277,16 +305,13 @@ ApplicationWindow {
                 CustomButton {
                     Layout.alignment: Qt.AlignVCenter
                     text: qsTr("Clear filters")
-                    enabled: studio.filtersActive
+                    enabled: filterToggle.checked && studio.filtersActive
                     onClicked: studio.clearFilters()
-                }
-
-                Item {
-                    Layout.fillWidth: true
                 }
 
                 CustomComboBox {
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     model: [qsTr("Import time"), qsTr("Filename"), qsTr("Rating")]
                     Layout.preferredWidth: 140
                     currentIndex: studio.sortField === "name" ? 1 : (studio.sortField === "rating" ? 2 : 0)
@@ -297,35 +322,26 @@ ApplicationWindow {
                 }
                 CustomButton {
                     Layout.alignment: Qt.AlignVCenter
+                    enabled: filterToggle.checked
                     text: studio.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
                     onClicked: studio.setSort(studio.sortField, studio.sortDirection === "asc" ? "desc" : "asc")
                 }
-                CustomLabel {
-                    Layout.alignment: Qt.AlignVCenter
-                    text: qsTr("Size")
-                }
+
                 Item {
+                    Layout.fillWidth: true
+                }
+
+                SegmentedControl {
                     Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: 140
-                    Layout.minimumWidth: 96
-                    Layout.preferredHeight: Fonts.inputFieldHeight
-                    implicitWidth: 140
-                    implicitHeight: Fonts.inputFieldHeight
-                    clip: true
-                    CustomSlider {
-                        anchors.fill: parent
-                        from: 120
-                        to: 260
-                        stepSize: 10
-                        value: studio.thumbnailSize
-                        showTitle: false
-                        showStepButton: false
-                        showValueLabel: false
-                        delayedCommit: true
-                        commitDelay: 40
-                        onValueCommitted: function (value) {
-                            studio.thumbnailSize = Math.round(value);
+                    model: [qsTr("Gallery"), qsTr("Edit")]
+                    currentIndex: studio.browseMode === "develop" ? 1 : 0
+                    enabled: studio.catalogOpen
+                    onActivated: function (index) {
+                        if (index === 1) {
+                            studioActions.run(studioActions.ids.viewDevelop);
+                            return;
                         }
+                        studioActions.openGallery(window.lastGalleryMode);
                     }
                 }
             }
@@ -356,6 +372,13 @@ ApplicationWindow {
                 SplitView.preferredWidth: 240
                 SplitView.minimumWidth: 160
                 presenter: studio
+                viewRectX: navigatorVisible.x
+                viewRectY: navigatorVisible.y
+                viewRectW: navigatorVisible.width
+                viewRectH: navigatorVisible.height
+                onViewportSeeked: function (nx, ny) {
+                    window.seekNavigatorViewport(nx, ny);
+                }
             }
 
             Item {
@@ -369,13 +392,16 @@ ApplicationWindow {
 
                 GridView {
                     id: grid
-                    anchors.fill: parent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: galleryReviewBar.top
                     anchors.margins: Fonts.size8
                     visible: studio.browseMode === "grid"
                     clip: true
                     model: studio.assets
-                    cellWidth: studio.thumbnailSize + Fonts.size16
-                    cellHeight: studio.thumbnailSize + Fonts.scaledUiSize(36)
+                    cellWidth: studio.thumbnailSize + Fonts.size12
+                    cellHeight: studio.thumbnailSize + Fonts.size12
                     cacheBuffer: cellHeight * 4
                     onVisibleChanged: if (visible && studio.selectedIndex >= 0)
                         positionViewAtIndex(studio.selectedIndex, GridView.Contain)
@@ -394,6 +420,7 @@ ApplicationWindow {
                         id: tile
                         required property string assetId
                         required property string displayName
+                        required property string mediaType
                         required property int rating
                         required property string colorLabel
                         required property bool rejected
@@ -402,114 +429,35 @@ ApplicationWindow {
                         required property string importState
                         required property bool hasEdits
                         required property bool selected
+                        required property int pixelWidth
+                        required property int pixelHeight
+                        required property int index
                         width: grid.cellWidth
                         height: grid.cellHeight
 
-                        Component.onCompleted: studio.ensureThumbnail(assetId)
+                        Component.onCompleted: studio.ensureThumbnail(tile.assetId)
 
-                        Rectangle {
+                        ThumbnailCell {
                             anchors.fill: parent
-                            anchors.margins: Fonts.size4
-                            color: Theme.pageSurfaceColor
-                            border.width: selected || assetId === studio.selectedAssetId ? 2 : 1
-                            border.color: assetId === studio.selectedAssetId ? Theme.selectedBorderColor : (selected ? Theme.selectedSecondaryBorderColor : Theme.dividerColor)
-
-                            Image {
-                                anchors.fill: parent
-                                anchors.bottomMargin: Fonts.scaledUiSize(22)
-                                anchors.margins: Fonts.size4
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: false
-                                source: thumbnailUrl
-                                visible: thumbnailUrl.toString().length > 0
+                            thumbnailUrl: tile.thumbnailUrl
+                            thumbnailState: tile.thumbnailState
+                            importState: tile.importState
+                            rating: tile.rating
+                            colorLabel: tile.colorLabel
+                            rejected: tile.rejected
+                            hasEdits: tile.hasEdits
+                            selected: tile.selected
+                            current: tile.assetId === studio.selectedAssetId
+                            sequenceNumber: tile.index + 1
+                            displayName: tile.displayName
+                            mediaType: tile.mediaType
+                            pixelWidth: tile.pixelWidth
+                            pixelHeight: tile.pixelHeight
+                            swatchColor: window.swatchColor
+                            onClicked: function (mouse) {
+                                studioActions.handlePhotoClick(tile.assetId, mouse);
                             }
-
-                            CustomLabel {
-                                anchors.centerIn: parent
-                                visible: thumbnailUrl.toString().length === 0
-                                text: thumbnailState === "failed" ? qsTr("Failed") : (importState === "missing" || thumbnailState === "missing" ? qsTr("Missing") : qsTr("Loading…"))
-                                color: Theme.placeholderTextColor
-                            }
-
-                            CustomLabel {
-                                anchors.left: parent.left
-                                anchors.bottom: parent.bottom
-                                anchors.margins: Fonts.size4
-                                text: "★".repeat(rating) + "☆".repeat(5 - rating)
-                                font.pixelSize: Fonts.size12
-                            }
-
-                            Rectangle {
-                                width: 10
-                                height: 10
-                                radius: 5
-                                visible: colorLabel !== "none"
-                                color: window.swatchColor(colorLabel)
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                anchors.margins: Fonts.size6
-                            }
-
-                            Rectangle {
-                                visible: importState === "missing" || thumbnailState === "missing"
-                                anchors.top: parent.top
-                                anchors.left: parent.left
-                                anchors.margins: Fonts.size6
-                                width: 58
-                                height: 18
-                                radius: 4
-                                color: "#c47b16"
-                                CustomLabel {
-                                    anchors.centerIn: parent
-                                    text: qsTr("Missing")
-                                    color: "#ffffff"
-                                    font.pixelSize: Fonts.size10
-                                }
-                            }
-
-                            Rectangle {
-                                visible: hasEdits
-                                anchors.top: parent.top
-                                anchors.right: parent.right
-                                anchors.margins: Fonts.size6
-                                width: 48
-                                height: 18
-                                radius: 4
-                                color: Theme.textColor
-                                CustomLabel {
-                                    anchors.centerIn: parent
-                                    text: qsTr("Edit")
-                                    color: Theme.windowColor
-                                    font.pixelSize: Fonts.size10
-                                }
-                            }
-
-                            Rectangle {
-                                visible: rejected
-                                anchors.top: parent.top
-                                anchors.right: parent.right
-                                anchors.margins: hasEdits ? Fonts.size6 + 52 : Fonts.size6
-                                width: 56
-                                height: 18
-                                radius: 4
-                                color: "#aa3333"
-                                CustomLabel {
-                                    anchors.centerIn: parent
-                                    text: qsTr("Reject")
-                                    color: "#ffffff"
-                                    font.pixelSize: Fonts.size10
-                                }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: function (mouse) {
-                                    studioActions.handlePhotoClick(assetId, mouse);
-                                }
-                                onDoubleClicked: studioActions.handlePhotoDoubleClick(assetId)
-                            }
+                            onDoubleClicked: studioActions.handlePhotoDoubleClick(tile.assetId)
                         }
                     }
 
@@ -522,44 +470,12 @@ ApplicationWindow {
                 }
 
                 ColumnLayout {
-                    anchors.fill: parent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: galleryReviewBar.top
                     visible: studio.browseMode !== "grid"
                     spacing: 0
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: Fonts.toolbarHeight
-                        color: Theme.viewerToolbarColor
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: Fonts.standardMargin
-                            anchors.rightMargin: Fonts.standardMargin
-                            spacing: Fonts.smallSpacing
-                            SegmentedControl {
-                                model: [qsTr("Fit"), qsTr("Fill"), qsTr("100%")]
-                                currentIndex: studio.zoomMode === "fill" ? 1 : (studio.zoomMode === "actual" ? 2 : 0)
-                                enabled: studio.previewUrl.toString().length > 0
-                                onActivated: function (index) {
-                                    studioActions.run(index === 1 ? studioActions.ids.viewFill : (index === 2 ? studioActions.ids.viewActual : studioActions.ids.viewFit));
-                                }
-                            }
-                            CustomLabel {
-                                text: studio.previewLoading ? qsTr("Loading preview…") : (Math.round(studio.zoomFactor * 100) + "%")
-                                color: Theme.placeholderTextColor
-                            }
-                            Item {
-                                Layout.fillWidth: true
-                            }
-                            CustomButton {
-                                text: qsTr("Previous")
-                                onClicked: studioActions.previousPhoto.trigger()
-                            }
-                            CustomButton {
-                                text: qsTr("Next")
-                                onClicked: studioActions.nextPhoto.trigger()
-                            }
-                        }
-                    }
 
                     Item {
                         Layout.fillWidth: true
@@ -697,6 +613,17 @@ ApplicationWindow {
                         }
                     }
                 }
+
+                GalleryReviewBar {
+                    id: galleryReviewBar
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    presenter: studio
+                    commands: studioActions
+                    colorChoices: window.colorChoices
+                    swatchColor: window.swatchColor
+                }
             }
 
             InspectorSidePanel {
@@ -704,8 +631,6 @@ ApplicationWindow {
                 SplitView.minimumWidth: 260
                 presenter: studio
                 commands: studioActions
-                colorChoices: window.colorChoices
-                swatchColor: window.swatchColor
             }
         }
 
@@ -716,6 +641,7 @@ ApplicationWindow {
             Layout.minimumHeight: 88
             presenter: studio
             commands: studioActions
+            swatchColor: window.swatchColor
         }
 
         Rectangle {

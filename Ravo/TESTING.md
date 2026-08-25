@@ -97,6 +97,11 @@ SQLite adapter 至少测试：
 - preview contract v4 的 RAW 路径必须验证完整 decode + 默认 Sigmoid；raster 基线不得被二次
   display-transform。Sigmoid 至少有 schema 往返、合成色块、`mire1.cr2` channel-sum
   reference 与 catalog reset/reopen；
+- 交互预览使用 scene-linear 工作缓冲：RAW unpack/demosaic 缓存在 CatalogService，拖动时只把
+  已缓存的 linear buffer 套上 recipe；不得把 embedded JPEG 当作可编辑数据。CLI/Studio 同一
+  `request_preview` 合同；晚到结果按 request revision 丢弃；
+- 示波器从当前 preview 的 display-referred sRGB 收集：RGB 直方图跳过 bin 0 求峰值，
+  parade 用 8/9 映射和 160 档 tone；不得静默改用 embedded JPEG；
 - 快速切换资产时，旧 request revision 的晚到结果被丢弃；
 - 窗口关闭/关闭 catalog 后没有 detached task、晚到 UI 更新、未提交事务或临时 preview；
 - viewer 手工验收至少覆盖 loading/ready/missing/unsupported/failed、fit、100% 与平移。

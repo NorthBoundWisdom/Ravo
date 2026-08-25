@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -54,6 +55,51 @@ struct RasterBuffer
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::vector<std::uint8_t> srgb;
+};
+
+struct LinearWorkingBuffer
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<float> rgb;
+};
+
+inline constexpr std::uint32_t kRgbHistogramBins = 256;
+inline constexpr std::uint32_t kWaveformTones = 160;
+inline constexpr std::uint32_t kWaveformMaxBins = 360;
+
+struct RgbHistogram
+{
+    std::array<std::uint32_t, kRgbHistogramBins> red{};
+    std::array<std::uint32_t, kRgbHistogramBins> green{};
+    std::array<std::uint32_t, kRgbHistogramBins> blue{};
+    std::uint32_t max_count = 0;
+};
+
+struct RgbParade
+{
+    std::uint32_t bins = 0;
+    std::uint32_t tones = kWaveformTones;
+    std::vector<std::uint8_t> rgb;
+};
+
+[[nodiscard]] Result<RgbHistogram> collect_rgb_histogram(const RasterBuffer &raster);
+[[nodiscard]] Result<RgbParade> collect_rgb_parade(const RasterBuffer &raster);
+
+struct DecodedRaw
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t cfa_width = 0;
+    std::uint32_t cfa_height = 0;
+    std::int32_t black_level = 0;
+    std::uint32_t white_level = 65535;
+    std::string make;
+    std::string model;
+    std::array<float, 3> white_balance{1.0F, 1.0F, 1.0F};
+    std::array<float, 9> camera_to_srgb{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
+    std::vector<std::uint8_t> cfa_channels;
+    std::vector<std::uint16_t> pixels;
 };
 
 struct InspectionResult
@@ -115,6 +161,18 @@ public:
                                               ProgressSink *progress_sink = nullptr) const;
     [[nodiscard]] Result<RenderedImage> render_to_image(const RenderRequest &request,
                                                         const RasterBuffer *raster = nullptr) const;
+    [[nodiscard]] Result<DecodedRaw> decode_raw_frame(std::string_view input_uri,
+                                                      const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<LinearWorkingBuffer>
+    linear_working_from_raw(const DecodedRaw &raw, const Recipe &recipe, std::uint32_t width,
+                            std::uint32_t height, const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<LinearWorkingBuffer>
+    linear_working_from_raster(const RasterBuffer &raster) const;
+    // Applies RGB recipe ops onto a copy of `working`. Callers that already baked
+    // `ravo.raw.highlights` into the buffer must disable that operation before calling.
+    [[nodiscard]] Result<RenderedImage>
+    render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
+                          const CancellationToken &cancellation) const;
     [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
     [[nodiscard]] Result<RasterBuffer> decode_png(const std::vector<std::uint8_t> &bytes) const;
 

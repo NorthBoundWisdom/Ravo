@@ -5,7 +5,8 @@ target_sources(ravo_engine
     src/capability_ops.cpp
     src/engine.cpp
     src/image_ops.cpp
-    src/raw_pipeline.cpp)
+    src/raw_pipeline.cpp
+    src/scopes.cpp)
 
 target_include_directories(ravo_engine
   PUBLIC

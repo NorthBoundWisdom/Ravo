@@ -1,7 +1,9 @@
 #include "ravo/engine/engine.h"
 
+#include <string>
 #include <utility>
 
+#include "capability_ops.h"
 #include "image_ops.h"
 #include "raw_pipeline.h"
 
@@ -121,6 +123,91 @@ Result<RenderResult> EngineFacade::render(const RenderRequest &request,
                         rendered.value().height};
 }
 
+Result<DecodedRaw> EngineFacade::decode_raw_frame(const std::string_view input_uri,
+                                                 const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    if (input_uri.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Input URI must not be empty for RAW decode");
+    }
+    auto decoded = decode_raw(input_uri);
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    return decoded;
+}
+
+Result<LinearWorkingBuffer>
+EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recipe,
+                                      const std::uint32_t width, const std::uint32_t height,
+                                      const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const DecodedRaw *source = &raw;
+    DecodedRaw highlighted;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != "ravo.raw.highlights")
+        {
+            continue;
+        }
+        highlighted = raw;
+        auto reconstructed = apply_raw_highlights(highlighted, operation, cancellation);
+        if (!reconstructed)
+        {
+            return reconstructed.error();
+        }
+        source = &highlighted;
+        break;
+    }
+    return working_from_raw(*source, width, height, cancellation);
+}
+
+Result<LinearWorkingBuffer>
+EngineFacade::linear_working_from_raster(const RasterBuffer &raster) const
+{
+    return working_from_srgb8(raster);
+}
+
+Result<RenderedImage>
+EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                    const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    WorkingImage image = working;
+    auto adjusted = apply_recipe_ops(std::move(image), recipe, cancellation);
+    if (!adjusted)
+    {
+        return adjusted.error();
+    }
+    return encode_working_srgb(adjusted.value());
+}
+
 Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request,
                                                     const RasterBuffer *raster) const
 {
@@ -136,25 +223,44 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     }
     if (raster != nullptr)
     {
-        auto working = working_from_srgb8(*raster);
+        auto working = linear_working_from_raster(*raster);
         if (!working)
         {
             return working.error();
         }
-        auto adjusted =
-            apply_recipe_ops(std::move(working).value(), request.recipe, request.cancellation);
-        if (!adjusted)
-        {
-            return adjusted.error();
-        }
-        return encode_working_srgb(adjusted.value());
+        return render_linear_working(working.value(), request.recipe, request.cancellation);
     }
-    auto decoded = decode_raw(request.asset.input_uri);
+    auto decoded = decode_raw_frame(request.asset.input_uri, request.cancellation);
     if (!decoded)
     {
         return decoded.error();
     }
-    return render_raw(decoded.value(), request);
+    const std::uint32_t width = request.output_width.value_or(decoded.value().width);
+    const std::uint32_t height = request.output_height.value_or(decoded.value().height);
+    const std::uint64_t output_bytes = static_cast<std::uint64_t>(width) * height * 3U;
+    const std::uint64_t working_bytes =
+        output_bytes +
+        static_cast<std::uint64_t>(decoded.value().pixels.size()) * sizeof(std::uint16_t);
+    if (request.memory_budget_bytes != 0 && working_bytes > request.memory_budget_bytes)
+    {
+        return make_error(ErrorCode::kValidation, "Render memory budget is too small",
+                          {{"required_bytes", std::to_string(working_bytes)}});
+    }
+    auto working = linear_working_from_raw(decoded.value(), request.recipe, width, height,
+                                           request.cancellation);
+    if (!working)
+    {
+        return working.error();
+    }
+    Recipe rgb_recipe = request.recipe;
+    for (auto &operation : rgb_recipe.operations)
+    {
+        if (operation.id == "ravo.raw.highlights")
+        {
+            operation.enabled = false;
+        }
+    }
+    return render_linear_working(working.value(), rgb_recipe, request.cancellation);
 }
 
 Result<std::vector<std::uint8_t>> EngineFacade::encode_png(const RenderedImage &image) const

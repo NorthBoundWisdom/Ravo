@@ -1,6 +1,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cerrno>
 #include <chrono>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <map>
 #include <set>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
@@ -184,6 +186,55 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 {
     clamp_develop(params);
     return params == baseline_develop_for(asset);
+}
+
+[[nodiscard]] std::string parameter_key_part(const ParameterValue &value)
+{
+    if (const auto *text = std::get_if<std::string>(&value.value))
+    {
+        return *text;
+    }
+    if (const auto *number = std::get_if<double>(&value.value))
+    {
+        return std::to_string(*number);
+    }
+    if (const auto *integer = std::get_if<std::int64_t>(&value.value))
+    {
+        return std::to_string(*integer);
+    }
+    return "?";
+}
+
+[[nodiscard]] std::string raw_preprocess_key(const Recipe &recipe)
+{
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != "ravo.raw.highlights")
+        {
+            continue;
+        }
+        std::string key = "hl";
+        static constexpr std::array<std::string_view, 3> names{"mode", "amount", "clip"};
+        for (const auto name : names)
+        {
+            key.push_back(':');
+            const auto found = operation.parameters.find(std::string(name));
+            key += found == operation.parameters.end() ? "-" : parameter_key_part(found->second);
+        }
+        return key;
+    }
+    return "raw-linear";
+}
+
+void disable_raw_highlights(Recipe &recipe)
+{
+    for (auto &operation : recipe.operations)
+    {
+        if (operation.id == "ravo.raw.highlights")
+        {
+            operation.enabled = false;
+        }
+    }
 }
 
 [[nodiscard]] std::filesystem::path utf8_path(const std::string_view text)
@@ -382,6 +433,8 @@ Result<void> CatalogService::close()
     cache_.reset();
     engine_ = nullptr;
     decoded_preview_source_.reset();
+    decoded_raw_.reset();
+    linear_working_.reset();
     return closed;
 }
 
@@ -1460,17 +1513,20 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                           {{"path", location.value().path}, {"asset_id", asset.id}});
     }
 
+    const auto render_started = std::chrono::steady_clock::now();
     RenderedImage rendered;
     if (is_raw_media_type(working.media_type))
     {
-        RenderRequest render;
-        render.asset = edit_recipe.asset;
-        render.recipe = edit_recipe;
-        render.output_width = width;
-        render.output_height = height;
-        render.cancellation = request.cancellation;
-        render.correlation_id = asset.id;
-        auto applied = engine_->render_to_image(render, nullptr);
+        auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
+                                            height, request.max_edge, request.cancellation);
+        if (!linear)
+        {
+            return linear.error();
+        }
+        Recipe rgb_recipe = edit_recipe;
+        disable_raw_highlights(rgb_recipe);
+        auto applied =
+            engine_->render_linear_working(*linear.value(), rgb_recipe, request.cancellation);
         if (!applied)
         {
             return applied.error();
@@ -1493,12 +1549,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
         else
         {
-            RenderRequest render;
-            render.asset = edit_recipe.asset;
-            render.recipe = edit_recipe;
-            render.cancellation = request.cancellation;
-            render.correlation_id = asset.id;
-            auto applied = engine_->render_to_image(render, &source.value());
+            auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
+                                                height, request.max_edge, request.cancellation);
+            if (!linear)
+            {
+                return linear.error();
+            }
+            auto applied =
+                engine_->render_linear_working(*linear.value(), edit_recipe, request.cancellation);
             if (!applied)
             {
                 return applied.error();
@@ -1506,6 +1564,11 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             rendered = std::move(applied).value();
         }
     }
+    const auto render_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::steady_clock::now() - render_started)
+                               .count();
+    LOG_INFO(ravo::logger(), "preview render asset={} {}x{} interactive={} {}ms", asset.id,
+             rendered.width, rendered.height, interactive, render_ms);
 
     result.width = rendered.width;
     result.height = rendered.height;
@@ -1709,6 +1772,87 @@ Result<RenderedImage> CatalogService::render_for_export(const AssetRecord &asset
     }
     return make_error(ErrorCode::kUnsupported, "Asset media type cannot be exported",
                       {{"media_type", asset.media_type}, {"asset_id", asset.id}});
+}
+
+Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &asset,
+                                                            const std::string_view path,
+                                                            const CancellationToken &cancellation)
+{
+    if (engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    const auto fingerprint = asset.content_fingerprint.value_or("none");
+    if (decoded_raw_.has_value() && decoded_raw_->asset_id == asset.id &&
+        decoded_raw_->fingerprint == fingerprint && decoded_raw_->path == path)
+    {
+        return &decoded_raw_->raw;
+    }
+    auto decoded = engine_->decode_raw_frame(path, cancellation);
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    decoded_raw_ = CachedRawFrame{std::string(asset.id), fingerprint, std::string(path),
+                                  std::move(decoded).value()};
+    linear_working_.reset();
+    return &decoded_raw_->raw;
+}
+
+Result<const LinearWorkingBuffer *> CatalogService::cached_linear_working(
+    const AssetRecord &asset, const std::string_view path, const Recipe &recipe,
+    const std::uint32_t width, const std::uint32_t height, const std::uint32_t max_edge,
+    const CancellationToken &cancellation)
+{
+    if (engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    const auto fingerprint = asset.content_fingerprint.value_or("none");
+    const std::string preprocess_key =
+        is_raw_media_type(asset.media_type) ? raw_preprocess_key(recipe) : "raster";
+    if (linear_working_.has_value() && linear_working_->asset_id == asset.id &&
+        linear_working_->fingerprint == fingerprint && linear_working_->max_edge == max_edge &&
+        linear_working_->preprocess_key == preprocess_key &&
+        linear_working_->buffer.width == width && linear_working_->buffer.height == height)
+    {
+        return &linear_working_->buffer;
+    }
+
+    LinearWorkingBuffer buffer;
+    if (is_raw_media_type(asset.media_type))
+    {
+        auto raw = cached_raw_frame(asset, path, cancellation);
+        if (!raw)
+        {
+            return raw.error();
+        }
+        auto working =
+            engine_->linear_working_from_raw(*raw.value(), recipe, width, height, cancellation);
+        if (!working)
+        {
+            return working.error();
+        }
+        buffer = std::move(working).value();
+    }
+    else
+    {
+        auto source = decode_preview_source(asset, path, max_edge, cancellation);
+        if (!source)
+        {
+            return source.error();
+        }
+        auto working = engine_->linear_working_from_raster(source.value());
+        if (!working)
+        {
+            return working.error();
+        }
+        buffer = std::move(working).value();
+    }
+
+    linear_working_ = CachedLinearWorking{std::string(asset.id), fingerprint, max_edge,
+                                          preprocess_key, std::move(buffer)};
+    return &linear_working_->buffer;
 }
 
 Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,

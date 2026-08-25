@@ -777,6 +777,53 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     EXPECT_NE(second.value().srgb, first_pixels);
 }
 
+TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams live;
+    live.sigmoid_enabled = true;
+    live.exposure_ev = 0.75;
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = kInteractivePreviewMaxEdge;
+    request.persist_preview_record = false;
+    auto first = service->request_preview(request, live);
+    ASSERT_TRUE(first) << first.error().message;
+    EXPECT_TRUE(first.value().cache_path.empty());
+    EXPECT_FALSE(first.value().srgb.empty());
+    EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
+
+    auto stored = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored) << stored.error().message;
+    auto stored_params = develop_from_recipe(stored.value());
+    ASSERT_TRUE(stored_params) << stored_params.error().message;
+    EXPECT_NEAR(stored_params.value().exposure_ev, 0.0, 1e-9);
+    EXPECT_TRUE(stored_params.value().sigmoid_enabled);
+
+    live.exposure_ev = -0.5;
+    auto second = service->request_preview(request, live);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_TRUE(second.value().cache_path.empty());
+    EXPECT_NE(second.value().srgb, first.value().srgb);
+
+    live.exposure_ev = 0.75;
+    auto third = service->request_preview(request, live);
+    ASSERT_TRUE(third) << third.error().message;
+    EXPECT_EQ(third.value().srgb, first.value().srgb);
+
+    live.raw_highlights = 1.0;
+    auto highlighted = service->request_preview(request, live);
+    ASSERT_TRUE(highlighted) << highlighted.error().message;
+    EXPECT_EQ(highlighted.value().width, first.value().width);
+    EXPECT_EQ(highlighted.value().height, first.value().height);
+}
+
 TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
 {
     auto created = open_service(true);
