@@ -80,7 +80,7 @@ TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
     EXPECT_EQ(application.run(std::span{arguments}), 0);
     EXPECT_EQ(
         stdout_stream.str(),
-        R"({"data":{"name":"Ravo","protocol":"ravo-cli/v1","version":"0.1.3"},"diagnostics":[],"ok":true,"type":"ravo.cli.result","version":1})"
+        R"({"data":{"name":"Ravo","protocol":"ravo-cli/v1","version":"0.1.4"},"diagnostics":[],"ok":true,"type":"ravo.cli.result","version":1})"
         "\n");
     EXPECT_TRUE(stderr_stream.str().empty());
 }
