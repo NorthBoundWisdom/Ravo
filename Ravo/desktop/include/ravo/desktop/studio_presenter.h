@@ -183,6 +183,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editGamma READ editGamma NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurve READ editToneCurve NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurveSamples READ editToneCurveSamples NOTIFY editChanged)
+    Q_PROPERTY(bool editSigmoidEnabled READ editSigmoidEnabled NOTIFY editChanged)
+    Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
+    Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
+    Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
@@ -283,6 +287,10 @@ public:
     [[nodiscard]] double editGamma() const noexcept;
     [[nodiscard]] QVariantList editToneCurve() const;
     [[nodiscard]] QVariantList editToneCurveSamples() const;
+    [[nodiscard]] bool editSigmoidEnabled() const noexcept;
+    [[nodiscard]] double editSigmoidContrast() const noexcept;
+    [[nodiscard]] double editSigmoidSkew() const noexcept;
+    [[nodiscard]] double editSigmoidHuePreservation() const noexcept;
     [[nodiscard]] bool cropToolActive() const noexcept;
     [[nodiscard]] bool cropGuideReady() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;

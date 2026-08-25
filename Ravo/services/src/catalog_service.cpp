@@ -167,6 +167,25 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     return recipe;
 }
 
+[[nodiscard]] DevelopParams baseline_develop_for(const AssetRecord &asset)
+{
+    DevelopParams params;
+    params.sigmoid_enabled = is_raw_media_type(asset.media_type);
+    return params;
+}
+
+[[nodiscard]] Result<Recipe> baseline_recipe_for(const AssetRecord &asset, const std::string &path)
+{
+    return recipe_from_develop({asset.id, path, asset.content_fingerprint},
+                               baseline_develop_for(asset));
+}
+
+[[nodiscard]] bool matches_develop_baseline(const AssetRecord &asset, DevelopParams params)
+{
+    clamp_develop(params);
+    return params == baseline_develop_for(asset);
+}
+
 [[nodiscard]] std::filesystem::path utf8_path(const std::string_view text)
 {
     return std::filesystem::path(std::u8string(text.begin(), text.end()));
@@ -598,6 +617,25 @@ Result<void> CatalogService::remove_original_and_catalog(const std::string_view 
     return remove_from_catalog(asset_id);
 }
 
+Result<bool> CatalogService::asset_has_edits(const std::string_view asset_id) const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    return asset.value()->has_edits;
+}
+
 Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
 {
     if (repository_ == nullptr || engine_ == nullptr)
@@ -626,7 +664,7 @@ Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) cons
     }
     if (!stored.value())
     {
-        return identity_recipe_for(*asset.value(), location.value().path);
+        return baseline_recipe_for(*asset.value(), location.value().path);
     }
     auto parsed = parse_recipe_json(*stored.value());
     if (!parsed)
@@ -677,7 +715,7 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
     {
         return params.error();
     }
-    if (params.value().is_identity())
+    if (matches_develop_baseline(*asset.value(), params.value()))
     {
         const auto cleared = repository_->clear_recipe(asset_id);
         if (!cleared)
@@ -742,7 +780,21 @@ Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id
 
 Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id)
 {
-    return save_develop(asset_id, DevelopParams{});
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    return save_develop(asset_id, baseline_develop_for(*asset.value()));
 }
 
 Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
@@ -1029,8 +1081,23 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     std::uint32_t height = 0;
     fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
     const auto fingerprint = asset.content_fingerprint.value_or("none");
+    auto baseline_recipe = baseline_recipe_for(working, location.value().path);
+    if (!baseline_recipe)
+    {
+        return baseline_recipe.error();
+    }
+    Recipe edit_recipe = std::move(baseline_recipe).value();
     std::string edit_digest = "identity";
-    Recipe edit_recipe = identity_recipe_for(working, location.value().path);
+    if (!edit_recipe.operations.empty())
+    {
+        auto serialized = serialize_recipe(edit_recipe);
+        if (!serialized)
+        {
+            return serialized.error();
+        }
+        edit_digest = fnv1a64_hex(serialized.value());
+    }
+    const std::string baseline_digest = edit_digest;
     if (!request.ignore_edits)
     {
         if (live_develop.has_value())
@@ -1051,8 +1118,9 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             {
                 return serialized.error();
             }
-            edit_digest =
-                live_develop->is_identity() ? "identity" : fnv1a64_hex(serialized.value());
+            edit_digest = matches_develop_baseline(working, *live_develop) ?
+                              baseline_digest :
+                              fnv1a64_hex(serialized.value());
         }
         else
         {
@@ -1136,33 +1204,51 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                           {{"path", location.value().path}, {"asset_id", asset.id}});
     }
 
-    auto source = decode_preview_source(working, location.value().path, request.max_edge,
-                                        request.cancellation);
-    if (!source)
-    {
-        return source.error();
-    }
-
     RenderedImage rendered;
-    if (edit_digest == "identity" || edit_recipe.operations.empty())
-    {
-        rendered.width = source.value().width;
-        rendered.height = source.value().height;
-        rendered.rgb = source.value().srgb;
-    }
-    else
+    if (is_raw_media_type(working.media_type))
     {
         RenderRequest render;
         render.asset = edit_recipe.asset;
         render.recipe = edit_recipe;
+        render.output_width = width;
+        render.output_height = height;
         render.cancellation = request.cancellation;
         render.correlation_id = asset.id;
-        auto applied = engine_->render_to_image(render, &source.value());
+        auto applied = engine_->render_to_image(render, nullptr);
         if (!applied)
         {
             return applied.error();
         }
         rendered = std::move(applied).value();
+    }
+    else
+    {
+        auto source = decode_preview_source(working, location.value().path, request.max_edge,
+                                            request.cancellation);
+        if (!source)
+        {
+            return source.error();
+        }
+        if (edit_recipe.operations.empty())
+        {
+            rendered.width = source.value().width;
+            rendered.height = source.value().height;
+            rendered.rgb = source.value().srgb;
+        }
+        else
+        {
+            RenderRequest render;
+            render.asset = edit_recipe.asset;
+            render.recipe = edit_recipe;
+            render.cancellation = request.cancellation;
+            render.correlation_id = asset.id;
+            auto applied = engine_->render_to_image(render, &source.value());
+            if (!applied)
+            {
+                return applied.error();
+            }
+            rendered = std::move(applied).value();
+        }
     }
 
     result.width = rendered.width;
@@ -1278,7 +1364,12 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         return result;
     }
 
-    Recipe edit_recipe = identity_recipe_for(*asset.value(), location.value().path);
+    auto baseline_recipe = baseline_recipe_for(*asset.value(), location.value().path);
+    if (!baseline_recipe)
+    {
+        return baseline_recipe.error();
+    }
+    Recipe edit_recipe = std::move(baseline_recipe).value();
     auto stored = repository_->load_recipe_json(request.asset_id);
     if (!stored)
     {
@@ -1312,7 +1403,8 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return encoded.error();
     }
-    auto written = write_bytes_atomically(output.value().path, encoded.value(), request.cancellation);
+    auto written =
+        write_bytes_atomically(output.value().path, encoded.value(), request.cancellation);
     if (!written)
     {
         return written.error();

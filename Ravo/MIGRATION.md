@@ -88,6 +88,7 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ra
 | Mask/blend/operations | develop/iop | recipe + engine | 延后 | M5 每项 operation 验收 |
 | 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF plugin target 已设为 required；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
 | 色调曲线 | `iop/tonecurve.c` | `ravo.core.tonecurve` + Develop Inspector | 旧实现已删除 | 一条链接 RGB 点曲线；schema 显式 `working_space=srgb\|linear_rgb`。不是 Lab 三通道移植。`rgbcurve` 未做 |
+| 默认显示变换 | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | 旧实现已删除 | per-channel generalized log-logistic；线性 sRGB、Standard SDR target、合成/真实 RAW/catalog reopen 已测。`filmicrgb`/`agx` 明确留作 leftover |
 | CLI | `src/cli` | cli | 实现中 | engine/recipe JSON 已测；catalog 命令计划在 M2 |
 | GPU | OpenCL/pixelpipe | engine adapter | 延后 | M6，CPU goldens 和收益证明后开始 |
 

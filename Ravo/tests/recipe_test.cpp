@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -301,14 +302,63 @@ TEST(RecipeTest, ToneCurveRoundTripAndRejectsUnknownColourPolicy)
 
     auto decreasing = recipe.value();
     decreasing.operations.front().parameters["points"] = ParameterValue{ParameterValue::Array{
-        ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
-        ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.2}}, {"y", ParameterValue{0.4}}}},
-        ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.1}}, {"y", ParameterValue{0.8}}}},
-        ParameterValue{ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
+        ParameterValue{
+            ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
+        ParameterValue{
+            ParameterValue::Object{{"x", ParameterValue{0.2}}, {"y", ParameterValue{0.4}}}},
+        ParameterValue{
+            ParameterValue::Object{{"x", ParameterValue{0.1}}, {"y", ParameterValue{0.8}}}},
+        ParameterValue{
+            ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
     }};
     const auto rejected_points = validate_recipe(decreasing, registry.value());
     ASSERT_FALSE(rejected_points);
     EXPECT_EQ(rejected_points.error().code, ErrorCode::kValidation);
+}
+
+TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_field(params, "sigmoidContrast", 1.8));
+    params.sigmoid_skew = -0.25;
+    params.sigmoid_hue_preservation = 0.75;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_EQ(recipe.value().operations.size(), 1U);
+    EXPECT_EQ(recipe.value().operations.front().id, "ravo.display.sigmoid");
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().sigmoid_enabled);
+    EXPECT_NEAR(restored.value().sigmoid_contrast, 1.8, 1e-9);
+    EXPECT_NEAR(restored.value().sigmoid_skew, -0.25, 1e-9);
+    EXPECT_NEAR(restored.value().sigmoid_hue_preservation, 0.75, 1e-9);
+
+    auto unsupported = recipe.value();
+    unsupported.operations.front().parameters["color_processing"] = ParameterValue{"rgb_ratio"};
+    const auto rejected_mode = validate_recipe(unsupported, registry.value());
+    ASSERT_FALSE(rejected_mode);
+    EXPECT_EQ(rejected_mode.error().code, ErrorCode::kValidation);
+
+    auto missing = recipe.value();
+    missing.operations.front().parameters.erase("working_space");
+    const auto rejected_missing = validate_recipe(missing, registry.value());
+    ASSERT_FALSE(rejected_missing);
+    EXPECT_EQ(rejected_missing.error().code, ErrorCode::kValidation);
+
+    auto non_finite = recipe.value();
+    non_finite.operations.front().parameters["middle_grey_contrast"] =
+        ParameterValue{std::numeric_limits<double>::quiet_NaN()};
+    const auto rejected_non_finite = validate_recipe(non_finite, registry.value());
+    ASSERT_FALSE(rejected_non_finite);
+    EXPECT_EQ(rejected_non_finite.error().code, ErrorCode::kValidation);
 }
 
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)

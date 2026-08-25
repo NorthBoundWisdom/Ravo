@@ -95,6 +95,10 @@ ID。`ImportItemResult` 对每个输入返回 imported、duplicate、unsupported
 RAW 通过 Ravo CPU engine，JPEG/PNG/TIFF 通过 raster adapter；两条路径统一 orientation、颜色、alpha、
 缩放、有限值与错误契约。preview 在数据库外原子写入受控缓存，cache key 包含源指纹、目标尺寸和 contract
 版本。缓存损坏或缺失时可从只读原片重建。
+preview contract v4 对 RAW 使用完整 CPU decode/render，并在 scene-linear 工作缓冲末端应用
+`ravo.display.sigmoid` 基线；不再把 embedded JPEG 当作可编辑的 scene-linear 数据。基线 operation
+不产生 `asset_recipe` 行，也不标记 `has_edits`；用户覆盖参数后才持久化。已有 JPEG/PNG/TIFF 是
+display-referred 输入，不隐式重复应用 Sigmoid。
 
 Qt raster adapter 实际接受 PNG/JPEG/BMP/GIF/WebP/TIFF，并导出 PNG/JPEG/TIFF；因此对应
 JPEG/GIF/WebP/TIFF plugin targets 与 catalog 使用的 QSQLITE driver 都是 configure-time required。
@@ -108,6 +112,12 @@ TGA/WBMP/ICO 和其他 SQL drivers 没有产品消费者，不进入 required �
 色调曲线是 `ravo.core.tonecurve`：0–1 点列表、`working_space`（`srgb` 或
 `linear_rgb`）、`interpolation=monotone_hermite`、`channel_mode=rgb`。Inspector
 只转发点；求值在 recipe/engine。
+唯一默认显示变换是 `ravo.display.sigmoid` v1：`working_space=linear_srgb`、
+`color_processing=per_channel`，显式保存 middle-grey contrast、skew、Standard SDR
+black/white target 与 hue preservation。它是 RAW 基线与 scene-referred operation 链的末端，
+随后才做 sRGB encoding。RAW Studio 的 Contrast 由 Sigmoid 拥有；`ravo.core.contrast`
+继续服务 display-referred raster 输入和旧 recipe。highlights/shadows/whites/blacks 仍是
+transform 之前的 scene controls。
 
 所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
 或无标记 buffer 不得隐式选择色彩策略。完整约束见

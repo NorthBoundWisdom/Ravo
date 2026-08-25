@@ -17,6 +17,8 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 - P1 Basic Develop：catalog schema v3 每张图一份 canonical recipe；CPU 全局曝光/对比/高光阴影/
   白黑场、白平衡、自然饱和度/饱和度、90° 旋转与自由裁剪；Studio 有 Edit 面板、before/after 与
   会话内 undo/redo。macOS Debug 已跑通无 UI create/import/preview/recipe/reopen。
+- RAW preview/export 以 `ravo.display.sigmoid` v1 作为唯一 Standard SDR 显示变换；
+  recipe 可调 contrast/skew/hue preservation，默认基线不标记为用户编辑。
   Configure 强制要求 JPEG/GIF/WebP/TIFF imageformat plugins 与 QSQLITE driver；缺失直接阻断。
 
 完整执行顺序见 [TODO_REWRITE.md](../TODO_REWRITE.md)，方向变化见

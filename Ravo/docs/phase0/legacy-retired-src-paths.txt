@@ -4,3 +4,4 @@
 libs/export.c
 libs/export_metadata.c
 iop/tonecurve.c
+iop/sigmoid.c

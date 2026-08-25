@@ -91,6 +91,9 @@ SQLite adapter 至少测试：
 - preview cache 写入临时文件后原子提交；已有可信文件不被失败请求覆盖；
 - cache key 包含源指纹、尺寸和 contract version；损坏/缺失 cache 可重建；
 - RAW 与 raster 共同验证 orientation、目标尺寸、alpha、颜色描述、NaN/Inf 和内存预算；
+- preview contract v4 的 RAW 路径必须验证完整 decode + 默认 Sigmoid；raster 基线不得被二次
+  display-transform。Sigmoid 至少有 schema 往返、合成色块、`mire1.cr2` channel-sum
+  reference 与 catalog reset/reopen；
 - 快速切换资产时，旧 request revision 的晚到结果被丢弃；
 - 窗口关闭/关闭 catalog 后没有 detached task、晚到 UI 更新、未提交事务或临时 preview；
 - viewer 手工验收至少覆盖 loading/ready/missing/unsupported/failed、fit、100% 与平移。

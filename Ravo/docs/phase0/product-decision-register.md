@@ -38,13 +38,14 @@ decision can claim support.
 
 | Data or capability group | Source inventory | Required decision evidence | Current state |
 | --- | --- | --- | --- |
-| IOP registry | [Capability inventory](capability-inventory.md) lists all 76 legacy registrations and fixture presence. | Retained operation list; individual migration/rejection rationale; first required fixture and schema target. | Per-row `pending` or `defer`; no full product decision. |
+| IOP registry | [Capability inventory](capability-inventory.md) lists the remaining legacy registrations, retired owners, and fixture presence. | Retained operation list; individual migration/rejection rationale; first required fixture and schema target. | Decisions are made one capability at a time under the root [`TODO.md`](../../../TODO.md) acceptance gate. |
 | Masks and blend | Legacy XMP masks plus `src/develop` behaviour. | Canonical graph scope, supported shapes/blends, legacy migration/rejection strategy, and CPU test plan. | Deferred pending product and render-contract decision. |
 | Metadata and GPS | XMP/EXIF plus the frozen product scope. | Read/write fields, orientation/ICC policy, GPS read-only boundary, and unsupported fields. | Unresolved. |
 | Catalog | Existing catalog/database files. | Import, coexistence, backup, rollback, and user-data-dir policy. | ADR-0007 authorizes a new private SQLite schema and reference-only import for M1; legacy catalog migration remains deferred. |
 | XMP sidecars | Legacy XMP schema 6 and per-operation payloads. | Approved operation mappings, unknown-data policy, and readable rejection schema. | Empty history, the exact frozen `nop.xmp` built-in RAW baseline, and a schema-6/v5 manual zero-black unblended mask-free singleton exposure subset are proven; all other mappings remain unresolved or explicitly rejected. |
 | Styles and presets | Legacy style/preset stores. | Compatibility choice, fragment schema, conflict policy, dry-run report, and data-loss explanation. | Deferred to the M4/M5 product scope. |
 | Local export | JPEG, PNG, TIFF, and original-file copy. | Format, bit depth, alpha, metadata, ICC, overwrite, and disk-full policy. | Ravo CatalogService/CLI/Studio accept JPEG/PNG/original copy and TIFF when the Qt plugin exists. Metadata/ICC embedding remains later. |
+| Default display transform | `filmicrgb`, `sigmoid`, `agx`. | One transform, explicit colour contract, recipe schema, CPU/RAW reference, overlap policy, and leftover disposition. | **Keep Sigmoid.** Decision/review owner: WisdomToNorth, 2026-08-25. `ravo.display.sigmoid` v1 uses linear sRGB, per-channel generalized log-logistic mapping, fixed Standard SDR targets, and recipe-owned contrast/skew/hue preservation. RAW baseline rendering enables it without marking an asset edited. RAW Studio Contrast is owned by Sigmoid; `ravo.core.contrast` remains the raster-input P1 control and old-recipe compatibility op. Highlights/shadows/whites/blacks remain pre-display controls. `filmicrgb` and `agx` are explicit leftover, not fallback implementations. |
 
 ## Completion protocol
 

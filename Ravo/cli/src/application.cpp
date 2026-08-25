@@ -311,8 +311,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             const auto split = owned.find('=');
             if (split == std::string::npos || split == 0 || split + 1 == owned.size())
             {
-                return make_error(ErrorCode::kInvalidArgument,
-                                  "--set requires name=value",
+                return make_error(ErrorCode::kInvalidArgument, "--set requires name=value",
                                   {{"value", owned}});
             }
             auto parsed = parse_double_flag(owned.substr(split + 1), option);
@@ -554,14 +553,14 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return parsed.error();
         }
-        auto params = develop_from_recipe(recipe.value());
-        if (!params)
+        auto has_edits = service.asset_has_edits(flags.value().asset_id);
+        if (!has_edits)
         {
-            return params.error();
+            return has_edits.error();
         }
         return JsonValue{JsonValue::Object{
             {"asset_id", std::string(flags.value().asset_id)},
-            {"has_edits", !params.value().is_identity()},
+            {"has_edits", has_edits.value()},
             {"recipe", std::move(parsed).value()},
         }};
     }

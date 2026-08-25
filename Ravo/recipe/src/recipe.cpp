@@ -409,11 +409,16 @@ required_field(const JsonObject &object, const std::string_view name, const std:
                            {"parameter", rule.name}});
     }
 
-    if (rule.minimum.has_value() || rule.maximum.has_value())
+    if (rule.type == ParameterType::kInteger || rule.type == ParameterType::kNumber)
     {
         const double numeric = std::holds_alternative<std::int64_t>(value.value) ?
                                    static_cast<double>(std::get<std::int64_t>(value.value)) :
                                    std::get<double>(value.value);
+        if (!std::isfinite(numeric))
+        {
+            return make_error(ErrorCode::kValidation, "Recipe numeric parameter must be finite",
+                              {{"operation_id", operation_id}, {"parameter", rule.name}});
+        }
         if ((rule.minimum.has_value() && numeric < *rule.minimum) ||
             (rule.maximum.has_value() && numeric > *rule.maximum))
         {
@@ -787,6 +792,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             if (!curve)
             {
                 auto error = curve.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == "ravo.display.sigmoid")
+        {
+            auto sigmoid = validate_sigmoid_parameters(operation.parameters);
+            if (!sigmoid)
+            {
+                auto error = sigmoid.error();
                 error.context.emplace("operation_id", operation.id);
                 return error;
             }

@@ -41,6 +41,7 @@ public:
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
     [[nodiscard]] Result<void> remove_from_catalog(std::string_view asset_id);
     [[nodiscard]] Result<void> remove_original_and_catalog(std::string_view asset_id);
+    [[nodiscard]] Result<bool> asset_has_edits(std::string_view asset_id) const;
     [[nodiscard]] Result<Recipe> load_recipe(std::string_view asset_id) const;
     [[nodiscard]] Result<AssetRecord> save_recipe(std::string_view asset_id, const Recipe &recipe);
     [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,

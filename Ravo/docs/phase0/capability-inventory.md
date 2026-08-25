@@ -14,7 +14,7 @@ authorize legacy catalog migration or any operation marked deferred below.
 
 The source inventory was collected from the leftover `add_iop(...)`
 registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt)
-(75 after retiring `tonecurve`).
+(74 after retiring `tonecurve` and `sigmoid`).
 The generated fixture manifest records the 68 operation names currently
 represented by XMP regression assets.  A `yes` in the fixture column means
 only that one or more legacy XMP files name that operation; it is not a
@@ -35,7 +35,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.color.input` | `colorin` | first colour-chain planning |
 | `ravo.core.exposure` | `exposure` | P1 CPU develop control |
 | `ravo.color.white_balance` | `temperature` / `colorin` | P1 temperature/tint multipliers on linear RGB |
-| `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 global contrast around mid-grey |
+| `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 raster-input contrast and old-recipe compatibility; RAW Studio uses Sigmoid contrast |
 | `ravo.core.highlights` | `filmicrgb` | P1 highlight compression |
 | `ravo.core.shadows` | `shadows` / `filmicrgb` | P1 shadow lift |
 | `ravo.core.whites` | none | P1 white-point control |
@@ -48,6 +48,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.geometry.straighten` | `ashift` / `clipping` | P1 free-angle straighten before crop |
 | `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
 | `ravo.core.tonecurve` | `tonecurve` | linked RGB point curve; `working_space` is `srgb` or `linear_rgb` |
+| `ravo.display.sigmoid` | `sigmoid` | RAW Standard SDR baseline and Develop display contrast/skew/hue preservation |
 | `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
@@ -72,7 +73,7 @@ struct bytes or call the old dynamic module ABI.
 
 | Legacy IOP | Fixture | Phase 0 Ravo disposition |
 | --- | --- | --- |
-| `agx` | yes | product decision pending; no Phase 1 implementation |
+| `agx` | yes | explicit leftover; Sigmoid is the selected default display transform |
 | `ashift` | yes | defer until geometry/ROI contract exists |
 | `atrous` | yes | defer until shared denoise facilities exist |
 | `basecurve` | yes | product decision pending; no Phase 1 implementation |
@@ -105,7 +106,7 @@ struct bytes or call the old dynamic module ABI.
 | `dither` | yes | defer until output quantisation contract exists |
 | `enlargecanvas` | yes | defer until geometry/ROI contract exists |
 | `exposure` | yes | reserved `ravo.core.exposure`; schema-6/v5 manual, zero-black, unblended, mask-free singleton history maps to `exp2(exposure_ev)` CPU execution; full fixture history and golden comparison remain incomplete |
-| `filmicrgb` | yes | defer until colour operation policy exists |
+| `filmicrgb` | yes | explicit leftover; Sigmoid is the selected default display transform |
 | `finalscale` | no | reserved `ravo.output.scale`; render width/height currently drive the first bounded nearest-sample output path, not a complete scaling operation |
 | `flip` | yes | defer until geometry/ROI contract exists |
 | `gamma` | yes | defer until colour operation policy exists |
@@ -139,7 +140,6 @@ struct bytes or call the old dynamic module ABI.
 | `scalepixels` | no | defer until geometry/ROI contract exists |
 | `shadhi` | yes | defer until shared denoise facilities exist |
 | `sharpen` | yes | defer until shared convolution facilities exist |
-| `sigmoid` | yes | defer until colour operation policy exists |
 | `soften` | yes | product decision pending; no Phase 1 implementation |
 | `splittoning` | yes | product decision pending; no Phase 1 implementation |
 | `temperature` | yes | defer with RAW colour capability |
@@ -155,6 +155,7 @@ struct bytes or call the old dynamic module ABI.
 | Legacy XMP input | Parse only a bounded XML subset; return structured incompatibility outside proven mappings | Prevent old module ABI or opaque bytes from crossing the boundary |
 | Canonical recipe | Version 1 JSON, immutable snapshots, explicit schema upgrades | Required by every future client |
 | RAW/JPEG/PNG/TIFF decode | 16-bit Bayer RAW inspect/decode implemented through fixed LibRaw; raster inputs remain unsupported | Real `mire1.cr2` contract coverage exists, but other sensors and JPEG/PNG/TIFF still need fixture-backed behaviour |
+| Default display transform | `ravo.display.sigmoid` v1 on RAW; no implicit transform on display-referred raster inputs | Fixed per-channel linear-sRGB/Standard-SDR policy keeps CLI, Studio and export deterministic; advanced primaries and alternate transforms are unsupported |
 | JPEG/PNG/TIFF/original export | Catalog export writes JPEG/PNG, TIFF when the Qt plugin exists, or an original-byte copy; existing targets conflict | CLI `catalog export` and Studio File → Export Photo share CatalogService. Metadata/ICC embedding remains later |
 | Masks and blending | Modelled as versioned data only | Pixel semantics require dedicated CPU tests and ROI rules |
 | Catalog, history, styles | New SQLite catalog/viewer authorized for M1; history and styles remain later work | The first product imports originals by reference and does not migrate the legacy catalog |

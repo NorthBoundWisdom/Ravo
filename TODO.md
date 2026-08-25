@@ -81,6 +81,7 @@ ADR-0004「一律等到 M7 整包退役」的删除时点。Ravo ↔ `legacy/` �
 - 旧 catalog 文件格式、styles 二进制、未证明的全量 XMP history 重放
 - map / tethering / 打印 / 幻灯片 / 远程发布
 - 诊断 overlay：`overexposed`、`rawoverexposed`
+- 未选显示变换：`filmicrgb`、`agx`（2026-08-25 选择 Sigmoid 为唯一默认）
 - 专项创意模块（无新决定前不进队列）：`liquify`、`retouch`、`watermark`、
   `overlay`、`censorize`、`negadoctor`、`colorharmonizer`、`colorchecker`、
   `colormapping`、`colorize`
@@ -130,16 +131,35 @@ ADR-0004「一律等到 M7 整包退役」的删除时点。Ravo ↔ `legacy/` �
 - 风险：Windows / Linux 未验证。Studio 手工未在本轮点过。v1 把工作缓冲
   0–1 外的样本夹到端点，不做旧 Lab unbound 外推。
 
-### 3. 显示变换（先选定一个）
+### 3. 显示变换（Sigmoid）— **完成**
 
-- 产品门禁：在 `filmicrgb` / `sigmoid` / `agx` 中**只留一个**作为默认
-  display transform，写入 product-decision-register。未选定不得开工。
-- 旧 owner：被选中的那一个 `legacy/src/iop/<name>.c`。
-- Ravo owner：一个 versioned operation + Develop 必要控件。
-- 验证：合成 + 至少一张真实 RAW 的 Ravo 自有金样（不是跑旧 CPU）。
-- 删除：被选中的 IOP。另外两个进入第 5 节 leftover，或另开 dated 决定。
-- 风险：P1 的 contrast / highlights / shadows 与 display transform 重叠；
-  本项必须写清谁还留在 Develop、谁被吸收。
+- 产品决定：2026-08-25 选择 `sigmoid` 为唯一默认 display transform，记录于
+  product-decision-register。`filmicrgb` / `agx` 进入第 5 节 leftover，无运行时
+  selector 或 fallback。
+- 用户结果：RAW preview/export 默认经过 Standard SDR Sigmoid；Develop Light
+  提供 Contrast、Skew、Preserve Hue，参数随 recipe 重开。JPEG/PNG/TIFF 已是
+  display-referred，不重复套 transform。
+- 旧 owner：`legacy/src/iop/sigmoid.c`。只读取证其 generalized log-logistic、
+  per-channel、negative desaturation 与 hue-energy preservation；未搬 GTK/OpenCL、
+  presets、RGB-ratio 或 primaries 编辑器。
+- Ravo owner：`ravo.display.sigmoid` v1 schema、`ravo_engine` CPU、CatalogService
+  RAW baseline、Inspector。契约固定 `working_space=linear_srgb`、
+  `color_processing=per_channel`，未知模式/非有限值 fail-fast。
+- 重叠决定：RAW Studio Contrast 改由 Sigmoid 拥有；`ravo.core.contrast` 继续服务
+  display-referred raster 输入和旧 recipe。Highlights/Shadows/Whites/Blacks
+  继续是 transform 前的 scene controls。
+- 验证（本机 macOS Debug）：
+  - [x] `RecipeTest.SigmoidRoundTripRequiresExplicitFiniteColorPolicy`
+  - [x] `EngineFacadeTest.SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy`
+  - [x] `EngineFacadeTest.SigmoidHasARealRawReference`
+  - [x] `CatalogServiceTest.RawSigmoidBaselinePersistsOnlyUserOverrides`
+  - [x] `ravo_unit_tests` / `ravo_contract_tests` / `ravo_catalog_tests` / `ravo_studio` build
+  - [ ] Studio 手工：RAW 调整并重开 catalog
+- 删除：已删 `legacy/src/iop/sigmoid.c` 及其 `add_iop`。`filmicrgb.c` / `agx.c`
+  未动。
+- 风险：Windows / Linux 与 Studio 手工未验证。RAW interactive preview 为保证
+  scene-linear 正确性走完整 CPU decode，而不是 embedded-JPEG fallback；后续性能只
+  能用明确的 linear working-image cache 优化。
 
 ### 4. 色彩校准（通道混合）
 
@@ -227,12 +247,12 @@ ADR-0004「一律等到 M7 整包退役」的删除时点。Ravo ↔ `legacy/` �
 
 ## 8. 当前开工命令
 
-第 2 项已完成。下一项是显示变换，但**未选定** `filmicrgb` / `sigmoid` /
-`agx` 之前不得开工。开始前：
+第 3 项已完成。下一项是色彩校准（`channelmixerrgb`）。开始前：
 
 ```text
 git branch --show-current
 git status --short --branch
 ```
 
-先写 product-decision-register，再读被选中的 `legacy/src/iop/<name>.c`。
+只读取证 `legacy/src/iop/channelmixerrgb.c` 与对应 fixture；不要把 CAT16、色卡
+和完整 chromatic-adaptation UI 一次带入。

@@ -17,6 +17,10 @@ versioned recipe/operation contract and a CPU exposure path.
   Identity/default edits store no row (`has_edits = false`).
 - `DevelopParams` is a service/desktop mapping onto the recipe. Persistence
   is recipe JSON, not slider positions or a UI blob.
+- RAW assets synthesize the versioned `ravo.display.sigmoid` Standard SDR
+  baseline when no recipe row exists. Changing Sigmoid or any other edit stores
+  the full canonical recipe; reset clears the row and reconstructs the same
+  baseline. Raster assets do not receive a second display transform.
 - CPU operations for white balance, light, color, rotate, straighten, crop, flip, sharpen,
   vignette, grain, velvia, color balance, a linked RGB tone curve, and the other
   registered global operations execute on a linear RGB working buffer, converting

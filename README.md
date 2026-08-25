@@ -4,7 +4,8 @@
 
 Ravo is a cross-platform photo library and RAW-oriented editor. The current
 product slice creates a local SQLite catalog, imports JPEG/PNG/TIFF/RAW by
-reference, and browses them in Ravo Studio.
+reference, browses them in Ravo Studio, and applies non-destructive Develop
+recipes. RAW rendering uses the versioned Sigmoid Standard SDR display transform.
 
 Frozen Darktable 0.9 lives in [`legacy/`](legacy/README.md) as read-only
 reference. It is not configured, compiled, run, or tested.

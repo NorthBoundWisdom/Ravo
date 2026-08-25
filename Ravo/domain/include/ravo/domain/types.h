@@ -13,7 +13,7 @@ namespace ravo
 {
 
 inline constexpr std::int64_t kCatalogSchemaVersion = 3;
-inline constexpr std::int64_t kPreviewContractVersion = 3;
+inline constexpr std::int64_t kPreviewContractVersion = 4;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;

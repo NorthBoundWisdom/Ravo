@@ -18,6 +18,22 @@ inline constexpr double kDevelopTemperatureMax = 12000.0;
 inline constexpr double kDevelopGammaDefault = 1.0;
 inline constexpr double kDevelopStraightenMin = -45.0;
 inline constexpr double kDevelopStraightenMax = 45.0;
+inline constexpr double kSigmoidMiddleGrey = 0.1845;
+inline constexpr double kSigmoidContrastDefault = 1.5;
+inline constexpr double kSigmoidContrastMin = 0.1;
+inline constexpr double kSigmoidContrastMax = 10.0;
+inline constexpr double kSigmoidSkewDefault = 0.0;
+inline constexpr double kSigmoidSkewMin = -1.0;
+inline constexpr double kSigmoidSkewMax = 1.0;
+inline constexpr double kSigmoidDisplayWhiteDefault = 100.0;
+inline constexpr double kSigmoidDisplayWhiteMin = 20.0;
+inline constexpr double kSigmoidDisplayWhiteMax = 1600.0;
+inline constexpr double kSigmoidDisplayBlackDefault = 0.0152;
+inline constexpr double kSigmoidDisplayBlackMin = 0.0;
+inline constexpr double kSigmoidDisplayBlackMax = 15.0;
+inline constexpr double kSigmoidHuePreservationDefault = 1.0;
+inline constexpr std::string_view kSigmoidWorkingSpaceLinearSrgb = "linear_srgb";
+inline constexpr std::string_view kSigmoidColorProcessingPerChannel = "per_channel";
 inline constexpr std::size_t kToneCurveMinPoints = 2;
 inline constexpr std::size_t kToneCurveMaxPoints = 16;
 inline constexpr std::string_view kToneCurveWorkingSpaceSrgb = "srgb";
@@ -80,6 +96,12 @@ struct DevelopParams
     double gamma = kDevelopGammaDefault;
     std::vector<ToneCurvePoint> tone_curve;
     std::string tone_curve_working_space{std::string(kToneCurveWorkingSpaceSrgb)};
+    bool sigmoid_enabled = false;
+    double sigmoid_contrast = kSigmoidContrastDefault;
+    double sigmoid_skew = kSigmoidSkewDefault;
+    double sigmoid_display_white = kSigmoidDisplayWhiteDefault;
+    double sigmoid_display_black = kSigmoidDisplayBlackDefault;
+    double sigmoid_hue_preservation = kSigmoidHuePreservationDefault;
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;
@@ -87,13 +109,18 @@ struct DevelopParams
 
 [[nodiscard]] bool tone_curve_is_identity(const std::vector<ToneCurvePoint> &points) noexcept;
 void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept;
-[[nodiscard]] double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, double x) noexcept;
+[[nodiscard]] double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points,
+                                         double x) noexcept;
 [[nodiscard]] Result<ToneCurveWorkingSpace> parse_tone_curve_working_space(std::string_view text);
 [[nodiscard]] std::string_view tone_curve_working_space_name(ToneCurveWorkingSpace space) noexcept;
-[[nodiscard]] Result<std::vector<ToneCurvePoint>> parse_tone_curve_points(const ParameterValue &value);
-[[nodiscard]] ParameterValue tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
+[[nodiscard]] Result<std::vector<ToneCurvePoint>>
+parse_tone_curve_points(const ParameterValue &value);
+[[nodiscard]] ParameterValue
+tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
 [[nodiscard]] Result<void> validate_tone_curve_parameters(
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<void>
+validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
 
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);

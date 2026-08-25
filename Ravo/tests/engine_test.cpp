@@ -83,6 +83,10 @@ TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
               std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
                            [](const OperationDescriptor &item)
                            { return item.id == "ravo.core.tonecurve"; }));
+    EXPECT_NE(engine.value().operations().end(),
+              std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
+                           [](const OperationDescriptor &item)
+                           { return item.id == "ravo.display.sigmoid"; }));
 }
 
 TEST(EngineFacadeTest, CancelledRequestsNeverReachRendering)
@@ -411,13 +415,9 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                              std::nullopt});
     ASSERT_TRUE(whites) << whites.error().message;
 
-    auto blacks = render_op(engine.value(), base_raster,
-                            {"ravo.core.blacks",
-                             1,
-                             "blacks-1",
-                             true,
-                             {{"amount", ParameterValue{0.4}}},
-                             std::nullopt});
+    auto blacks = render_op(
+        engine.value(), base_raster,
+        {"ravo.core.blacks", 1, "blacks-1", true, {{"amount", ParameterValue{0.4}}}, std::nullopt});
     ASSERT_TRUE(blacks) << blacks.error().message;
 
     auto vibrance = render_op(engine.value(), base_raster,
@@ -441,13 +441,9 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     EXPECT_NE(wb.value().rgb[mid], base.value().rgb[mid]);
     EXPECT_NE(wb.value().rgb[mid + 2U], base.value().rgb[mid + 2U]);
 
-    auto gamma = render_op(engine.value(), base_raster,
-                           {"ravo.core.gamma",
-                            1,
-                            "gamma-1",
-                            true,
-                            {{"gamma", ParameterValue{1.8}}},
-                            std::nullopt});
+    auto gamma = render_op(
+        engine.value(), base_raster,
+        {"ravo.core.gamma", 1, "gamma-1", true, {{"gamma", ParameterValue{1.8}}}, std::nullopt});
     ASSERT_TRUE(gamma) << gamma.error().message;
 
     auto velvia = render_op(engine.value(), base_raster,
@@ -519,8 +515,8 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     RasterBuffer sided;
     sided.width = 4;
     sided.height = 2;
-    sided.srgb = {255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0, 255, 0, 0, 255, 0, 0, 0, 255, 0, 0,
-                  255, 0};
+    sided.srgb = {255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0,
+                  255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0};
     auto flipped = render_op(engine.value(), sided,
                              {"ravo.geometry.flip",
                               1,
@@ -547,20 +543,12 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     const auto corner = 0U;
     EXPECT_GT(vignette.value().rgb[center], vignette.value().rgb[corner]);
 
-    auto grain_a = render_op(engine.value(), solid_raster(12, 12, 120, 120, 120),
-                             {"ravo.effect.grain",
-                              1,
-                              "grain-1",
-                              true,
-                              {{"amount", ParameterValue{0.8}}},
-                              std::nullopt});
-    auto grain_b = render_op(engine.value(), solid_raster(12, 12, 120, 120, 120),
-                             {"ravo.effect.grain",
-                              1,
-                              "grain-1",
-                              true,
-                              {{"amount", ParameterValue{0.8}}},
-                              std::nullopt});
+    auto grain_a = render_op(
+        engine.value(), solid_raster(12, 12, 120, 120, 120),
+        {"ravo.effect.grain", 1, "grain-1", true, {{"amount", ParameterValue{0.8}}}, std::nullopt});
+    auto grain_b = render_op(
+        engine.value(), solid_raster(12, 12, 120, 120, 120),
+        {"ravo.effect.grain", 1, "grain-1", true, {{"amount", ParameterValue{0.8}}}, std::nullopt});
     ASSERT_TRUE(grain_a) << grain_a.error().message;
     ASSERT_TRUE(grain_b) << grain_b.error().message;
     EXPECT_EQ(grain_a.value().rgb, grain_b.value().rgb);
@@ -586,13 +574,9 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                               std::nullopt});
     ASSERT_TRUE(clarity) << clarity.error().message;
 
-    auto bloom = render_op(engine.value(), base_raster,
-                           {"ravo.effect.bloom",
-                            1,
-                            "bloom-1",
-                            true,
-                            {{"amount", ParameterValue{0.7}}},
-                            std::nullopt});
+    auto bloom = render_op(
+        engine.value(), base_raster,
+        {"ravo.effect.bloom", 1, "bloom-1", true, {{"amount", ParameterValue{0.7}}}, std::nullopt});
     ASSERT_TRUE(bloom) << bloom.error().message;
 
     auto soften = render_op(engine.value(), base_raster,
@@ -642,6 +626,89 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
 [[nodiscard]] ParameterValue tone_curve_points(const std::vector<ToneCurvePoint> &points)
 {
     return tone_curve_points_to_parameter(points);
+}
+
+[[nodiscard]] OperationInstance
+sigmoid_operation(const double contrast = kSigmoidContrastDefault,
+                  const double skew = kSigmoidSkewDefault,
+                  const double hue_preservation = kSigmoidHuePreservationDefault)
+{
+    return {"ravo.display.sigmoid",
+            1,
+            "sigmoid-1",
+            true,
+            {{"working_space", ParameterValue{"linear_srgb"}},
+             {"color_processing", ParameterValue{"per_channel"}},
+             {"middle_grey_contrast", ParameterValue{contrast}},
+             {"contrast_skewness", ParameterValue{skew}},
+             {"display_white_target", ParameterValue{kSigmoidDisplayWhiteDefault}},
+             {"display_black_target", ParameterValue{kSigmoidDisplayBlackDefault}},
+             {"hue_preservation", ParameterValue{hue_preservation}}},
+            std::nullopt};
+}
+
+TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto source = gradient_raster();
+    auto standard = render_op(engine.value(), source, sigmoid_operation());
+    auto skewed = render_op(engine.value(), source, sigmoid_operation(1.5, -0.4, 1.0));
+    ASSERT_TRUE(standard) << standard.error().message;
+    ASSERT_TRUE(skewed) << skewed.error().message;
+    EXPECT_NE(standard.value().rgb, source.srgb);
+    EXPECT_NE(skewed.value().rgb, standard.value().rgb);
+
+    const auto saturated = solid_raster(8, 8, 245, 100, 20);
+    auto preserved = render_op(engine.value(), saturated, sigmoid_operation(1.5, 0.0, 1.0));
+    auto shifted = render_op(engine.value(), saturated, sigmoid_operation(1.5, 0.0, 0.0));
+    ASSERT_TRUE(preserved) << preserved.error().message;
+    ASSERT_TRUE(shifted) << shifted.error().message;
+    EXPECT_NE(preserved.value().rgb, shifted.value().rgb);
+    EXPECT_GT(preserved.value().rgb[0], preserved.value().rgb[1]);
+    EXPECT_GT(preserved.value().rgb[1], preserved.value().rgb[2]);
+
+    auto boundary_operation = sigmoid_operation(kSigmoidContrastMax, kSigmoidSkewMax, 0.0);
+    boundary_operation.parameters["display_white_target"] = ParameterValue{kSigmoidDisplayWhiteMax};
+    boundary_operation.parameters["display_black_target"] = ParameterValue{kSigmoidDisplayBlackMin};
+    auto boundary = render_op(engine.value(), source, std::move(boundary_operation));
+    ASSERT_TRUE(boundary) << boundary.error().message;
+    EXPECT_EQ(boundary.value().rgb.size(), source.srgb.size());
+}
+
+TEST(EngineFacadeTest, SigmoidHasARealRawReference)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(sigmoid_operation());
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64;
+    request.output_height = 48;
+    auto rendered = engine.value().render_to_image(request, nullptr);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().width, 64U);
+    ASSERT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    std::size_t clipped_channels = 0;
+    for (std::size_t index = 0; index + 2 < rendered.value().rgb.size(); index += 3)
+    {
+        for (std::size_t channel = 0; channel < sums.size(); ++channel)
+        {
+            const auto value = rendered.value().rgb[index + channel];
+            sums[channel] += value;
+            clipped_channels += value == 255 ? 1U : 0U;
+        }
+    }
+    // Ravo-owned macOS reference statistics for the pinned mire1.cr2 fixture.
+    // The tolerance permits platform libm/SIMD rounding without accepting a changed look.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 304823.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 281792.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 263085.0, 2000.0);
+    EXPECT_LT(clipped_channels, rendered.value().rgb.size() / 100U);
 }
 
 TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndRejectsLab)
@@ -694,8 +761,7 @@ TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndRejectsLab)
                           1,
                           "curve-lab",
                           true,
-                          {{"working_space", ParameterValue{"lab"}},
-                           {"points", lifted_points}},
+                          {{"working_space", ParameterValue{"lab"}}, {"points", lifted_points}},
                           std::nullopt});
     ASSERT_FALSE(lab);
     EXPECT_EQ(lab.error().code, ErrorCode::kValidation);

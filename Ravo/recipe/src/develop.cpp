@@ -349,8 +349,8 @@ ParameterValue tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> 
     return ParameterValue{std::move(array)};
 }
 
-Result<void> validate_tone_curve_parameters(
-    const std::map<std::string, ParameterValue, std::less<>> &parameters)
+Result<void>
+validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
 {
     if (const auto found = parameters.find("working_space"); found != parameters.end())
     {
@@ -390,6 +390,39 @@ Result<void> validate_tone_curve_parameters(
         {
             return points.error();
         }
+    }
+    return {};
+}
+
+Result<void>
+validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    const auto validate_string = [&](const std::string_view name,
+                                     const std::string_view expected) -> Result<void>
+    {
+        const auto found = parameters.find(std::string(name));
+        if (found == parameters.end())
+        {
+            return {};
+        }
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr || *text != expected)
+        {
+            return make_error(ErrorCode::kValidation, "Sigmoid parameter value is unsupported",
+                              {{"parameter", std::string(name)},
+                               {"value", text == nullptr ? std::string() : *text}});
+        }
+        return {};
+    };
+    auto working_space = validate_string("working_space", kSigmoidWorkingSpaceLinearSrgb);
+    if (!working_space)
+    {
+        return working_space.error();
+    }
+    auto color_processing = validate_string("color_processing", kSigmoidColorProcessingPerChannel);
+    if (!color_processing)
+    {
+        return color_processing.error();
     }
     return {};
 }
@@ -435,6 +468,14 @@ void clamp_develop(DevelopParams &params) noexcept
     params.split_balance = clamp_value(params.split_balance, 0.0, 1.0);
     params.split_amount = clamp_value(params.split_amount, 0.0, 1.0);
     params.gamma = clamp_value(params.gamma, 0.2, 3.0);
+    params.sigmoid_contrast =
+        clamp_value(params.sigmoid_contrast, kSigmoidContrastMin, kSigmoidContrastMax);
+    params.sigmoid_skew = clamp_value(params.sigmoid_skew, kSigmoidSkewMin, kSigmoidSkewMax);
+    params.sigmoid_display_white =
+        clamp_value(params.sigmoid_display_white, kSigmoidDisplayWhiteMin, kSigmoidDisplayWhiteMax);
+    params.sigmoid_display_black =
+        clamp_value(params.sigmoid_display_black, kSigmoidDisplayBlackMin, kSigmoidDisplayBlackMax);
+    params.sigmoid_hue_preservation = clamp_value(params.sigmoid_hue_preservation, 0.0, 1.0);
     if (params.tone_curve_working_space != kToneCurveWorkingSpaceSrgb &&
         params.tone_curve_working_space != kToneCurveWorkingSpaceLinearRgb)
     {
@@ -455,7 +496,8 @@ bool DevelopParams::is_identity() const noexcept
            near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
            near(lift, 0.0) && near(color_gamma, 0.0) && near(gain, 0.0) &&
            near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
-           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve);
+           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
+           !sigmoid_enabled;
 }
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -595,6 +637,21 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     else if (name == "gamma")
     {
         params.gamma = value;
+    }
+    else if (name == "sigmoidContrast")
+    {
+        params.sigmoid_enabled = true;
+        params.sigmoid_contrast = value;
+    }
+    else if (name == "sigmoidSkew")
+    {
+        params.sigmoid_enabled = true;
+        params.sigmoid_skew = value;
+    }
+    else if (name == "sigmoidHuePreservation")
+    {
+        params.sigmoid_enabled = true;
+        params.sigmoid_hue_preservation = value;
     }
     else
     {
@@ -749,6 +806,18 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.tone_curve.clear();
         params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
     }
+    else if (name == "sigmoidContrast")
+    {
+        params.sigmoid_contrast = identity.sigmoid_contrast;
+    }
+    else if (name == "sigmoidSkew")
+    {
+        params.sigmoid_skew = identity.sigmoid_skew;
+    }
+    else if (name == "sigmoidHuePreservation")
+    {
+        params.sigmoid_hue_preservation = identity.sigmoid_hue_preservation;
+    }
     else
     {
         return false;
@@ -787,6 +856,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.gamma = identity.gamma;
         params.tone_curve.clear();
         params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
+        params.sigmoid_contrast = identity.sigmoid_contrast;
+        params.sigmoid_skew = identity.sigmoid_skew;
+        params.sigmoid_display_white = identity.sigmoid_display_white;
+        params.sigmoid_display_black = identity.sigmoid_display_black;
+        params.sigmoid_hue_preservation = identity.sigmoid_hue_preservation;
     }
     else if (section == "color")
     {
@@ -1098,12 +1172,12 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     }
     if (!tone_curve_is_identity(clamped.tone_curve))
     {
-        add_operation(recipe, "ravo.core.tonecurve", "tonecurve-1",
-                      {{"working_space", ParameterValue{clamped.tone_curve_working_space}},
-                       {"interpolation",
-                        ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
-                       {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
-                       {"points", tone_curve_points_to_parameter(clamped.tone_curve)}});
+        add_operation(
+            recipe, "ravo.core.tonecurve", "tonecurve-1",
+            {{"working_space", ParameterValue{clamped.tone_curve_working_space}},
+             {"interpolation", ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
+             {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
+             {"points", tone_curve_points_to_parameter(clamped.tone_curve)}});
     }
     if (!near(clamped.lift, 0.0) || !near(clamped.color_gamma, 0.0) || !near(clamped.gain, 0.0))
     {
@@ -1208,6 +1282,18 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"y", ParameterValue{clamped.crop_y}},
                        {"width", ParameterValue{clamped.crop_width}},
                        {"height", ParameterValue{clamped.crop_height}}});
+    }
+    if (clamped.sigmoid_enabled)
+    {
+        add_operation(
+            recipe, "ravo.display.sigmoid", "sigmoid-1",
+            {{"working_space", ParameterValue{std::string(kSigmoidWorkingSpaceLinearSrgb)}},
+             {"color_processing", ParameterValue{std::string(kSigmoidColorProcessingPerChannel)}},
+             {"middle_grey_contrast", ParameterValue{clamped.sigmoid_contrast}},
+             {"contrast_skewness", ParameterValue{clamped.sigmoid_skew}},
+             {"display_white_target", ParameterValue{clamped.sigmoid_display_white}},
+             {"display_black_target", ParameterValue{clamped.sigmoid_display_black}},
+             {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}});
     }
     return recipe;
 }
@@ -1378,6 +1464,23 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.crop_y = number("y", params.crop_y);
             params.crop_width = number("width", params.crop_width);
             params.crop_height = number("height", params.crop_height);
+        }
+        else if (operation.id == "ravo.display.sigmoid")
+        {
+            auto validated = validate_sigmoid_parameters(operation.parameters);
+            if (!validated)
+            {
+                return validated.error();
+            }
+            params.sigmoid_enabled = true;
+            params.sigmoid_contrast = number("middle_grey_contrast", params.sigmoid_contrast);
+            params.sigmoid_skew = number("contrast_skewness", params.sigmoid_skew);
+            params.sigmoid_display_white =
+                number("display_white_target", params.sigmoid_display_white);
+            params.sigmoid_display_black =
+                number("display_black_target", params.sigmoid_display_black);
+            params.sigmoid_hue_preservation =
+                number("hue_preservation", params.sigmoid_hue_preservation);
         }
     }
     clamp_develop(params);

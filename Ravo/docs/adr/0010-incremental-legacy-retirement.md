@@ -33,6 +33,8 @@ acceptance would destroy static evidence still needed for the rewrite.
 - The first retired owners are `libs/export.c` and `libs/export_metadata.c`,
   replaced by `CatalogService::export_asset`. `iop/tonecurve.c` is retired after
   `ravo.core.tonecurve` acceptance; leftover `rgbcurve.c` stays.
+  `iop/sigmoid.c` is retired after `ravo.display.sigmoid` acceptance;
+  unselected `filmicrgb.c` and `agx.c` stay as explicit leftover.
 
 ## Consequences
 

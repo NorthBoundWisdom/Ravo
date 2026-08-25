@@ -605,6 +605,55 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     EXPECT_EQ(reset.value().review.rating, 3);
 }
 
+TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    EXPECT_FALSE(imported.value().asset->has_edits);
+
+    auto baseline = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    ASSERT_EQ(baseline.value().operations.size(), 1U);
+    EXPECT_EQ(baseline.value().operations.front().id, "ravo.display.sigmoid");
+    auto baseline_params = develop_from_recipe(baseline.value());
+    ASSERT_TRUE(baseline_params) << baseline_params.error().message;
+    EXPECT_TRUE(baseline_params.value().sigmoid_enabled);
+    EXPECT_NEAR(baseline_params.value().sigmoid_contrast, kSigmoidContrastDefault, 1e-9);
+    auto baseline_has_edits = service->asset_has_edits(asset_id);
+    ASSERT_TRUE(baseline_has_edits) << baseline_has_edits.error().message;
+    EXPECT_FALSE(baseline_has_edits.value());
+
+    auto adjusted = baseline_params.value();
+    adjusted.sigmoid_skew = -0.35;
+    auto saved = service->save_develop(asset_id, adjusted);
+    ASSERT_TRUE(saved) << saved.error().message;
+    EXPECT_TRUE(saved.value().has_edits);
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_params = develop_from_recipe(restored.value());
+    ASSERT_TRUE(restored_params) << restored_params.error().message;
+    EXPECT_NEAR(restored_params.value().sigmoid_skew, -0.35, 1e-9);
+
+    auto reset = service->reset_recipe(asset_id);
+    ASSERT_TRUE(reset) << reset.error().message;
+    EXPECT_FALSE(reset.value().has_edits);
+    auto reset_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(reset_recipe) << reset_recipe.error().message;
+    auto reset_params = develop_from_recipe(reset_recipe.value());
+    ASSERT_TRUE(reset_params) << reset_params.error().message;
+    EXPECT_TRUE(reset_params.value().sigmoid_enabled);
+    EXPECT_NEAR(reset_params.value().sigmoid_skew, kSigmoidSkewDefault, 1e-9);
+}
+
 TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
 {
     auto created = open_service(true);

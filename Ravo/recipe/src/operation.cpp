@@ -3,6 +3,8 @@
 #include <cmath>
 #include <utility>
 
+#include "ravo/recipe/develop.h"
+
 namespace ravo
 {
 
@@ -184,10 +186,10 @@ Result<OperationRegistry> make_phase1_registry()
            std::nullopt},
           {"points", ParameterType::kArray, false,
            ParameterValue{ParameterValue::Array{
-               ParameterValue{ParameterValue::Object{{"x", ParameterValue{0.0}},
-                                                     {"y", ParameterValue{0.0}}}},
-               ParameterValue{ParameterValue::Object{{"x", ParameterValue{1.0}},
-                                                     {"y", ParameterValue{1.0}}}},
+               ParameterValue{
+                   ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
+               ParameterValue{
+                   ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
            }},
            std::nullopt, std::nullopt}},
          false,
@@ -272,6 +274,23 @@ Result<OperationRegistry> make_phase1_registry()
          "Dehaze",
          1,
          {{"amount", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0}},
+         false,
+         true},
+        {"ravo.display.sigmoid",
+         "Sigmoid display transform",
+         1,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"color_processing", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"middle_grey_contrast", ParameterType::kNumber, true, std::nullopt, kSigmoidContrastMin,
+           kSigmoidContrastMax},
+          {"contrast_skewness", ParameterType::kNumber, true, std::nullopt, kSigmoidSkewMin,
+           kSigmoidSkewMax},
+          {"display_white_target", ParameterType::kNumber, true, std::nullopt,
+           kSigmoidDisplayWhiteMin, kSigmoidDisplayWhiteMax},
+          {"display_black_target", ParameterType::kNumber, true, std::nullopt,
+           kSigmoidDisplayBlackMin, kSigmoidDisplayBlackMax},
+          {"hue_preservation", ParameterType::kNumber, true, std::nullopt, 0.0, 1.0}},
          false,
          true},
         {"ravo.color.output", "Output colour", 1, {}, false, false},

@@ -358,6 +358,81 @@ Rectangle {
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("exposure")
                         }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                            text: qsTr("Sigmoid Display · Standard SDR")
+                            font.bold: true
+                        }
+                        CustomSlider {
+                            title: qsTr("Contrast")
+                            from: 0.1
+                            to: 10
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 1.5
+                            delayedCommit: true
+                            visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSigmoidContrast : 1.5
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("sigmoidContrast", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("sigmoidContrast", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("sigmoidContrast")
+                        }
+                        CustomSlider {
+                            title: qsTr("Skew")
+                            from: -1
+                            to: 1
+                            stepSize: 0.02
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSigmoidSkew : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("sigmoidSkew", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("sigmoidSkew", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("sigmoidSkew")
+                        }
+                        CustomSlider {
+                            title: qsTr("Preserve Hue")
+                            from: 0
+                            to: 1
+                            stepSize: 0.01
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 1
+                            delayedCommit: true
+                            visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSigmoidHuePreservation : 1
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("sigmoidHuePreservation", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("sigmoidHuePreservation", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("sigmoidHuePreservation")
+                        }
                         CustomSlider {
                             title: qsTr("Contrast")
                             from: -1
@@ -365,6 +440,7 @@ Rectangle {
                             showReset: true
                             resetValue: 0
                             delayedCommit: true
+                            visible: root.hasPresenter && !root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editContrast : 0
                             onValueEdited: function (value) {
@@ -486,13 +562,16 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 200
                             editorEnabled: root.hasSelection
-                            points: root.hasPresenter ? root.presenter.editToneCurve : [{
+                            points: root.hasPresenter ? root.presenter.editToneCurve : [
+                                {
                                     "x": 0,
                                     "y": 0
-                                }, {
+                                },
+                                {
                                     "x": 1,
                                     "y": 1
-                                }]
+                                }
+                            ]
                             samples: root.hasPresenter ? root.presenter.editToneCurveSamples : []
                             onCurveEdited: function (points) {
                                 if (root.commands)

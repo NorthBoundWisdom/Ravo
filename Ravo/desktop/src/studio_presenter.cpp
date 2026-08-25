@@ -64,8 +64,8 @@ namespace
     for (const auto &item : list)
     {
         const auto map = item.toMap();
-        points.push_back({map.value(QStringLiteral("x")).toDouble(),
-                          map.value(QStringLiteral("y")).toDouble()});
+        points.push_back(
+            {map.value(QStringLiteral("x")).toDouble(), map.value(QStringLiteral("y")).toDouble()});
     }
     clamp_tone_curve(points);
     return points;
@@ -1019,6 +1019,22 @@ QVariantList StudioPresenter::editToneCurveSamples() const
 {
     return tone_curve_sample_list(develop_.tone_curve);
 }
+bool StudioPresenter::editSigmoidEnabled() const noexcept
+{
+    return develop_.sigmoid_enabled;
+}
+double StudioPresenter::editSigmoidContrast() const noexcept
+{
+    return develop_.sigmoid_contrast;
+}
+double StudioPresenter::editSigmoidSkew() const noexcept
+{
+    return develop_.sigmoid_skew;
+}
+double StudioPresenter::editSigmoidHuePreservation() const noexcept
+{
+    return develop_.sigmoid_hue_preservation;
+}
 bool StudioPresenter::cropToolActive() const noexcept
 {
     return crop_tool_active_;
@@ -1480,8 +1496,9 @@ void StudioPresenter::exportSelectedToPath(const QString &path, const QString &f
     }
     if (QFileInfo(output).suffix().isEmpty() && format.value() != ExportFormat::kOriginalCopy)
     {
-        output += QString::fromUtf8(export_format_extension(format.value()).data(),
-                                    static_cast<qsizetype>(export_format_extension(format.value()).size()));
+        output += QString::fromUtf8(
+            export_format_extension(format.value()).data(),
+            static_cast<qsizetype>(export_format_extension(format.value()).size()));
     }
     setBusy(true);
     setError({});
@@ -2109,8 +2126,8 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
         QLatin1String(kLibraryCreate),      QLatin1String(kLibraryOpen),
         QLatin1String(kLibraryImportFiles), QLatin1String(kLibraryImportFolder),
         QLatin1String(kLibraryExport),      QLatin1String(kWindowSettings),
-        QLatin1String(kWindowClose),
-        QLatin1String(kWindowQuit),         QLatin1String(kWindowAbout),
+        QLatin1String(kWindowClose),        QLatin1String(kWindowQuit),
+        QLatin1String(kWindowAbout),
     };
     if (kWindowCommands.contains(id))
     {
@@ -2966,7 +2983,9 @@ void StudioPresenter::resetSection(const QString &section)
 void StudioPresenter::resetAllEdits()
 {
     crop_aspect_ = QStringLiteral("free");
-    commit_develop({}, true);
+    DevelopParams reset;
+    reset.sigmoid_enabled = develop_.sigmoid_enabled;
+    commit_develop(reset, true);
 }
 
 void StudioPresenter::undoEdit()

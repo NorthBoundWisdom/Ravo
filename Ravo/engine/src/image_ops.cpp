@@ -50,8 +50,7 @@ namespace
 }
 
 [[nodiscard]] std::string parameter_string(const OperationInstance &operation,
-                                           const std::string_view name,
-                                           const std::string &fallback)
+                                           const std::string_view name, const std::string &fallback)
 {
     const auto found = operation.parameters.find(std::string(name));
     if (found == operation.parameters.end())
@@ -86,8 +85,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     {
         return space.error();
     }
-    const auto interpolation =
-        parameter_string(operation, "interpolation", std::string(kToneCurveInterpolationMonotoneHermite));
+    const auto interpolation = parameter_string(
+        operation, "interpolation", std::string(kToneCurveInterpolationMonotoneHermite));
     if (interpolation != kToneCurveInterpolationMonotoneHermite)
     {
         return make_error(ErrorCode::kValidation, "Tone curve interpolation is unsupported",
@@ -139,9 +138,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         const float scaled = value * static_cast<float>(kLut);
         const int low = static_cast<int>(scaled);
         const float mix = scaled - static_cast<float>(low);
-        const float mapped =
-            lut[static_cast<std::size_t>(low)] * (1.0F - mix) +
-            lut[static_cast<std::size_t>(low + 1)] * mix;
+        const float mapped = lut[static_cast<std::size_t>(low)] * (1.0F - mix) +
+                             lut[static_cast<std::size_t>(low + 1)] * mix;
         return encode ? srgb_decode(mapped) : mapped;
     };
     for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
@@ -149,6 +147,225 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         image.rgb[index] = map_channel(image.rgb[index]);
         image.rgb[index + 1U] = map_channel(image.rgb[index + 1U]);
         image.rgb[index + 2U] = map_channel(image.rgb[index + 2U]);
+    }
+    return {};
+}
+
+struct SigmoidCurve
+{
+    double white_target = 1.0;
+    double black_target = 0.000152;
+    double paper_exposure = 1.0;
+    double film_fog = 0.0;
+    double film_power = 1.0;
+    double paper_power = 1.0;
+    double hue_preservation = 1.0;
+};
+
+[[nodiscard]] double generalized_loglogistic(const double value, const double magnitude,
+                                             const double paper_exposure, const double film_fog,
+                                             const double film_power, const double paper_power)
+{
+    const double clamped = std::max(value, 0.0);
+    const double film_response = std::pow(film_fog + clamped, film_power);
+    return magnitude * std::pow(film_response / (paper_exposure + film_response), paper_power);
+}
+
+[[nodiscard]] Result<SigmoidCurve> make_sigmoid_curve(const OperationInstance &operation)
+{
+    const double contrast = parameter(operation, "middle_grey_contrast", kSigmoidContrastDefault);
+    const double skew = parameter(operation, "contrast_skewness", kSigmoidSkewDefault);
+    SigmoidCurve curve;
+    curve.white_target =
+        0.01 * parameter(operation, "display_white_target", kSigmoidDisplayWhiteDefault);
+    curve.black_target =
+        0.01 * parameter(operation, "display_black_target", kSigmoidDisplayBlackDefault);
+    curve.hue_preservation =
+        parameter(operation, "hue_preservation", kSigmoidHuePreservationDefault);
+    curve.paper_power = std::pow(5.0, -skew);
+
+    constexpr double kDelta = 1e-6;
+    const double reference_exposure =
+        std::pow(kSigmoidMiddleGrey, contrast) * (1.0 / kSigmoidMiddleGrey - 1.0);
+    const double reference_slope =
+        (generalized_loglogistic(kSigmoidMiddleGrey + kDelta, 1.0, reference_exposure, 0.0,
+                                 contrast, 1.0) -
+         generalized_loglogistic(kSigmoidMiddleGrey - kDelta, 1.0, reference_exposure, 0.0,
+                                 contrast, 1.0)) /
+        (2.0 * kDelta);
+
+    const double temporary_white_relation =
+        std::pow(curve.white_target / kSigmoidMiddleGrey, 1.0 / curve.paper_power) - 1.0;
+    const double temporary_exposure = kSigmoidMiddleGrey * temporary_white_relation;
+    const double temporary_slope =
+        (generalized_loglogistic(kSigmoidMiddleGrey + kDelta, curve.white_target,
+                                 temporary_exposure, 0.0, 1.0, curve.paper_power) -
+         generalized_loglogistic(kSigmoidMiddleGrey - kDelta, curve.white_target,
+                                 temporary_exposure, 0.0, 1.0, curve.paper_power)) /
+        (2.0 * kDelta);
+    curve.film_power = reference_slope / temporary_slope;
+
+    const double white_grey_relation =
+        std::pow(curve.white_target / kSigmoidMiddleGrey, 1.0 / curve.paper_power) - 1.0;
+    if (curve.black_target > 0.0)
+    {
+        const double white_black_relation =
+            std::pow(curve.black_target / curve.white_target, -1.0 / curve.paper_power) - 1.0;
+        const double grey_term = std::pow(white_grey_relation, 1.0 / curve.film_power);
+        curve.film_fog = kSigmoidMiddleGrey * grey_term /
+                         (std::pow(white_black_relation, 1.0 / curve.film_power) - grey_term);
+    }
+    curve.paper_exposure =
+        std::pow(curve.film_fog + kSigmoidMiddleGrey, curve.film_power) * white_grey_relation;
+
+    const std::array<double, 7> derived{
+        curve.white_target, curve.black_target, curve.paper_exposure,   curve.film_fog,
+        curve.film_power,   curve.paper_power,  curve.hue_preservation,
+    };
+    if (std::any_of(derived.begin(), derived.end(),
+                    [](const double value) { return !std::isfinite(value); }) ||
+        curve.white_target <= kSigmoidMiddleGrey || curve.black_target < 0.0 ||
+        curve.black_target >= kSigmoidMiddleGrey || curve.paper_exposure <= 0.0 ||
+        curve.film_power <= 0.0 || curve.paper_power <= 0.0 || curve.hue_preservation < 0.0 ||
+        curve.hue_preservation > 1.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Sigmoid parameters do not produce a finite monotonic curve");
+    }
+    return curve;
+}
+
+[[nodiscard]] std::array<std::size_t, 3> channel_order(const std::array<double, 3> &pixel) noexcept
+{
+    std::array<std::size_t, 3> order{0U, 1U, 2U};
+    std::stable_sort(order.begin(), order.end(),
+                     [&](const std::size_t left, const std::size_t right)
+                     { return pixel[left] < pixel[right]; });
+    return order;
+}
+
+[[nodiscard]] std::array<double, 3>
+desaturate_negative_values(const std::array<double, 3> &pixel) noexcept
+{
+    const double average = std::max((pixel[0] + pixel[1] + pixel[2]) / 3.0, 0.0);
+    const double minimum = std::min({pixel[0], pixel[1], pixel[2]});
+    const double saturation = minimum < 0.0 ? -average / (minimum - average) : 1.0;
+    return {
+        average + saturation * (pixel[0] - average),
+        average + saturation * (pixel[1] - average),
+        average + saturation * (pixel[2] - average),
+    };
+}
+
+[[nodiscard]] std::array<double, 3> preserve_sigmoid_hue(const std::array<double, 3> &input,
+                                                         const std::array<double, 3> &per_channel,
+                                                         const double preservation) noexcept
+{
+    const auto order = channel_order(input);
+    const std::size_t minimum = order[0];
+    const std::size_t middle = order[1];
+    const std::size_t maximum = order[2];
+    const double chroma = input[maximum] - input[minimum];
+    const double middle_scale = chroma != 0.0 ? (input[middle] - input[minimum]) / chroma : 0.0;
+    const double full_hue_middle =
+        per_channel[minimum] + (per_channel[maximum] - per_channel[minimum]) * middle_scale;
+    const double naive_hue_middle =
+        (1.0 - preservation) * per_channel[middle] + preservation * full_hue_middle;
+    const double per_channel_energy = per_channel[0] + per_channel[1] + per_channel[2];
+    const double naive_hue_energy = per_channel[minimum] + naive_hue_middle + per_channel[maximum];
+    const double minimum_plus_middle = input[minimum] + input[middle];
+    const double blend =
+        minimum_plus_middle != 0.0 ? 2.0 * input[minimum] / minimum_plus_middle : 0.0;
+    const double target_energy = blend * per_channel_energy + (1.0 - blend) * naive_hue_energy;
+
+    std::array<double, 3> output{};
+    if (naive_hue_middle <= per_channel[middle])
+    {
+        const double corrected_middle =
+            ((1.0 - preservation) * per_channel[middle] +
+             preservation * (middle_scale * per_channel[maximum] +
+                             (1.0 - middle_scale) * (target_energy - per_channel[maximum]))) /
+            (1.0 + preservation * (1.0 - middle_scale));
+        output[minimum] = target_energy - per_channel[maximum] - corrected_middle;
+        output[middle] = corrected_middle;
+        output[maximum] = per_channel[maximum];
+    }
+    else
+    {
+        const double corrected_middle =
+            ((1.0 - preservation) * per_channel[middle] +
+             preservation * (per_channel[minimum] * (1.0 - middle_scale) +
+                             middle_scale * (target_energy - per_channel[minimum]))) /
+            (1.0 + preservation * middle_scale);
+        output[minimum] = per_channel[minimum];
+        output[middle] = corrected_middle;
+        output[maximum] = target_energy - per_channel[minimum] - corrected_middle;
+    }
+    return output;
+}
+
+Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operation,
+                           const CancellationToken &cancellation)
+{
+    const auto working_space =
+        parameter_string(operation, "working_space", std::string(kSigmoidWorkingSpaceLinearSrgb));
+    const auto color_processing = parameter_string(operation, "color_processing",
+                                                   std::string(kSigmoidColorProcessingPerChannel));
+    if (working_space != kSigmoidWorkingSpaceLinearSrgb ||
+        color_processing != kSigmoidColorProcessingPerChannel)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Sigmoid color policy is unsupported",
+            {{"working_space", working_space}, {"color_processing", color_processing}});
+    }
+    auto curve = make_sigmoid_curve(operation);
+    if (!curve)
+    {
+        return curve.error();
+    }
+
+    for (std::uint32_t y = 0; y < image.height; ++y)
+    {
+        auto cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        for (std::uint32_t x = 0; x < image.width; ++x)
+        {
+            const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
+            const std::array<double, 3> input{
+                image.rgb[index],
+                image.rgb[index + 1U],
+                image.rgb[index + 2U],
+            };
+            if (std::any_of(input.begin(), input.end(),
+                            [](const double value) { return !std::isfinite(value); }))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Sigmoid input contains a non-finite sample",
+                                  {{"sample_index", std::to_string(index)}});
+            }
+            const auto positive = desaturate_negative_values(input);
+            std::array<double, 3> mapped{};
+            for (std::size_t channel = 0; channel < mapped.size(); ++channel)
+            {
+                mapped[channel] = generalized_loglogistic(
+                    positive[channel], curve.value().white_target, curve.value().paper_exposure,
+                    curve.value().film_fog, curve.value().film_power, curve.value().paper_power);
+            }
+            const auto output =
+                preserve_sigmoid_hue(positive, mapped, curve.value().hue_preservation);
+            if (std::any_of(output.begin(), output.end(),
+                            [](const double value) { return !std::isfinite(value); }))
+            {
+                return make_error(ErrorCode::kValidation, "Sigmoid produced a non-finite sample",
+                                  {{"sample_index", std::to_string(index)}});
+            }
+            image.rgb[index] = static_cast<float>(output[0]);
+            image.rgb[index + 1U] = static_cast<float>(output[1]);
+            image.rgb[index + 2U] = static_cast<float>(output[2]);
+        }
     }
     return {};
 }
@@ -301,9 +518,10 @@ void apply_highlights_shadows(WorkingImage &image, const double highlights, cons
         float b = 0.0F;
         rgb_to_lab(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], L, a, b);
         const float ln = std::clamp(L / 100.0F, 0.0F, 1.0F);
-        const float hmask = std::clamp((ln - (0.5F + compress * 0.25F)) / (0.5F - compress * 0.25F),
-                                       0.0F, 1.0F);
-        const float smask = 1.0F - std::clamp(ln / std::max(0.15F, 0.5F - compress * 0.25F), 0.0F, 1.0F);
+        const float hmask =
+            std::clamp((ln - (0.5F + compress * 0.25F)) / (0.5F - compress * 0.25F), 0.0F, 1.0F);
+        const float smask =
+            1.0F - std::clamp(ln / std::max(0.15F, 0.5F - compress * 0.25F), 0.0F, 1.0F);
         L *= std::exp2(highlight_ev * hmask) * std::exp2(shadow_ev * smask);
         lab_to_rgb(L, a, b, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
     }
@@ -529,8 +747,7 @@ void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb
             const double inset = std::min(std::min(sx + 0.5, width - 0.5 - sx),
                                           std::min(sy + 0.5, height - 0.5 - sy));
             const float cover = coverage_smoothstep(inset, kEdgeAa);
-            float *dst =
-                output.rgb.data() + (static_cast<std::size_t>(y) * output.width + x) * 3U;
+            float *dst = output.rgb.data() + (static_cast<std::size_t>(y) * output.width + x) * 3U;
             if (cover <= 0.0F)
             {
                 continue;
@@ -586,7 +803,8 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
                     destination[(static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
                                  static_cast<std::size_t>(x)) *
                                     3U +
-                                static_cast<std::size_t>(channel)] = sum / static_cast<float>(count);
+                                static_cast<std::size_t>(channel)] =
+                        sum / static_cast<float>(count);
                 }
             }
         }
@@ -607,7 +825,8 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
                     destination[(static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
                                  static_cast<std::size_t>(x)) *
                                     3U +
-                                static_cast<std::size_t>(channel)] = sum / static_cast<float>(count);
+                                static_cast<std::size_t>(channel)] =
+                        sum / static_cast<float>(count);
                 }
             }
         }
@@ -700,7 +919,8 @@ void apply_unsharp(WorkingImage &image, const double amount, const double radius
     {
         const float diff = L[index] - blurred[index];
         const float absdiff = std::abs(diff);
-        const float detail = absdiff > limit ? std::copysign(std::max(absdiff - limit, 0.0F), diff) : 0.0F;
+        const float detail =
+            absdiff > limit ? std::copysign(std::max(absdiff - limit, 0.0F), diff) : 0.0F;
         lab_to_rgb(L[index] + detail * gain, a[index], b[index], image.rgb[index * 3U],
                    image.rgb[index * 3U + 1U], image.rgb[index * 3U + 2U]);
     }
@@ -768,8 +988,10 @@ void apply_soften(WorkingImage &image, const double amount)
         hsl_to_rgb(h, std::clamp(s, 0.0F, 1.0F), std::clamp(l, 0.0F, 1.0F), orton.rgb[index],
                    orton.rgb[index + 1U], orton.rgb[index + 2U]);
     }
-    const float hypot = std::hypot(static_cast<float>(image.width), static_cast<float>(image.height));
-    const int radius = std::max(1, static_cast<int>(std::lround(hypot * 0.01F * std::clamp(amount, 0.0, 1.0))));
+    const float hypot =
+        std::hypot(static_cast<float>(image.width), static_cast<float>(image.height));
+    const int radius =
+        std::max(1, static_cast<int>(std::lround(hypot * 0.01F * std::clamp(amount, 0.0, 1.0))));
     box_blur(orton, radius, 2);
     const float mix = static_cast<float>(std::clamp(amount, 0.0, 1.0));
     for (std::size_t index = 0; index < image.rgb.size(); ++index)
@@ -896,9 +1118,18 @@ constexpr std::array<int, 256> kSimplexPermutation = {
     115, 121, 50,  45,  127, 4,   150, 254, 138, 236, 205, 93,  222, 114, 67,  29,  24,  72,  243,
     141, 128, 195, 78,  66,  215, 61,  156, 180};
 
-constexpr std::array<std::array<double, 3>, 12> kSimplexGrad = {
-    {{1, 1, 0}, {-1, 1, 0}, {1, -1, 0}, {-1, -1, 0}, {1, 0, 1}, {-1, 0, 1},
-     {1, 0, -1}, {-1, 0, -1}, {0, 1, 1}, {0, -1, 1}, {0, 1, -1}, {0, -1, -1}}};
+constexpr std::array<std::array<double, 3>, 12> kSimplexGrad = {{{1, 1, 0},
+                                                                 {-1, 1, 0},
+                                                                 {1, -1, 0},
+                                                                 {-1, -1, 0},
+                                                                 {1, 0, 1},
+                                                                 {-1, 0, 1},
+                                                                 {1, 0, -1},
+                                                                 {-1, 0, -1},
+                                                                 {0, 1, 1},
+                                                                 {0, -1, 1},
+                                                                 {0, 1, -1},
+                                                                 {0, -1, -1}}};
 
 std::array<std::size_t, 512> g_simplex_perm{};
 std::array<std::size_t, 512> g_simplex_perm_mod{};
@@ -906,7 +1137,8 @@ std::once_flag g_simplex_once;
 
 void init_simplex()
 {
-    std::call_once(g_simplex_once, []
+    std::call_once(g_simplex_once,
+                   []
                    {
                        for (int index = 0; index < 512; ++index)
                        {
@@ -988,8 +1220,8 @@ void init_simplex()
     const std::size_t ii = static_cast<std::size_t>(i) & 255U;
     const std::size_t jj = static_cast<std::size_t>(j) & 255U;
     const std::size_t kk = static_cast<std::size_t>(k) & 255U;
-    const auto contrib = [](const std::array<double, 3> &grad, const double x, const double y,
-                            const double z)
+    const auto contrib =
+        [](const std::array<double, 3> &grad, const double x, const double y, const double z)
     {
         double t0 = 0.6 - x * x - y * y - z * z;
         if (t0 < 0.0)
@@ -1008,7 +1240,8 @@ void init_simplex()
         g_simplex_perm_mod[ii + static_cast<std::size_t>(i2) +
                            g_simplex_perm[jj + static_cast<std::size_t>(j2) +
                                           g_simplex_perm[kk + static_cast<std::size_t>(k2)]]];
-    const auto gi3 = g_simplex_perm_mod[ii + 1U + g_simplex_perm[jj + 1U + g_simplex_perm[kk + 1U]]];
+    const auto gi3 =
+        g_simplex_perm_mod[ii + 1U + g_simplex_perm[jj + 1U + g_simplex_perm[kk + 1U]]];
     return 32.0 * (contrib(kSimplexGrad[gi0], x0, y0, z0) + contrib(kSimplexGrad[gi1], x1, y1, z1) +
                    contrib(kSimplexGrad[gi2], x2, y2, z2) + contrib(kSimplexGrad[gi3], x3, y3, z3));
 }
@@ -1123,13 +1356,14 @@ void apply_velvia(WorkingImage &image, const double amount, const double bias)
         const float pmax = std::max(r, std::max(g, b));
         const float pmin = std::min(r, std::min(g, b));
         const float plum = (pmax + pmin) * 0.5F;
-        const float psat =
-            plum <= 0.5F ? (pmax - pmin) / (1.0e-5F + pmax + pmin)
-                         : (pmax - pmin) / (1.0e-5F + std::max(0.0F, 2.0F - pmax - pmin));
-        const float pweight = std::clamp(((1.0F - (1.5F * psat)) +
-                                          ((1.0F + (std::abs(plum - 0.5F) * 2.0F)) * (1.0F - velvia_bias))) /
-                                             (1.0F + (1.0F - velvia_bias)),
-                                         0.0F, 1.0F);
+        const float psat = plum <= 0.5F ?
+                               (pmax - pmin) / (1.0e-5F + pmax + pmin) :
+                               (pmax - pmin) / (1.0e-5F + std::max(0.0F, 2.0F - pmax - pmin));
+        const float pweight =
+            std::clamp(((1.0F - (1.5F * psat)) +
+                        ((1.0F + (std::abs(plum - 0.5F) * 2.0F)) * (1.0F - velvia_bias))) /
+                           (1.0F + (1.0F - velvia_bias)),
+                       0.0F, 1.0F);
         const float saturation = strength * pweight;
         const float others_r = g + b;
         const float others_g = r + b;
@@ -1478,8 +1712,9 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.geometry.flip")
         {
-            auto flipped = flip_working(std::move(image), parameter(operation, "horizontal", 0.0) != 0.0,
-                                        parameter(operation, "vertical", 0.0) != 0.0);
+            auto flipped =
+                flip_working(std::move(image), parameter(operation, "horizontal", 0.0) != 0.0,
+                             parameter(operation, "vertical", 0.0) != 0.0);
             if (!flipped)
             {
                 return flipped.error();
@@ -1489,8 +1724,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.geometry.straighten")
         {
-            auto straightened = straighten_working(std::move(image),
-                                                   parameter(operation, "degrees", 0.0));
+            auto straightened =
+                straighten_working(std::move(image), parameter(operation, "degrees", 0.0));
             if (!straightened)
             {
                 return straightened.error();
@@ -1515,7 +1750,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == "ravo.color.colorbalance")
         {
             apply_colorbalance(image, parameter(operation, "lift", 0.0),
-                               parameter(operation, "gamma", 0.0), parameter(operation, "gain", 0.0));
+                               parameter(operation, "gamma", 0.0),
+                               parameter(operation, "gain", 0.0));
             continue;
         }
         if (operation.id == "ravo.color.colorcontrast")
@@ -1579,6 +1815,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == "ravo.effect.dehaze")
         {
             apply_dehaze(image, parameter(operation, "amount", 0.0));
+            continue;
+        }
+        if (operation.id == "ravo.display.sigmoid")
+        {
+            auto transformed = apply_sigmoid(image, operation, cancellation);
+            if (!transformed)
+            {
+                return transformed.error();
+            }
             continue;
         }
         return make_error(ErrorCode::kUnsupported, "Operation has no CPU implementation",
