@@ -766,7 +766,7 @@ int StudioPresenter::visibleCount() const
 bool StudioPresenter::filtersActive() const noexcept
 {
     return query_.rating_mode != RatingFilterMode::kAny || !query_.color_labels.empty() ||
-           query_.reject_filter != RejectFilter::kInclude;
+           query_.reject_filter != RejectFilter::kInclude || !query_.tag.empty();
 }
 
 bool StudioPresenter::selectedHasEdits() const noexcept
@@ -1034,6 +1034,163 @@ double StudioPresenter::editSigmoidSkew() const noexcept
 double StudioPresenter::editSigmoidHuePreservation() const noexcept
 {
     return develop_.sigmoid_hue_preservation;
+}
+double StudioPresenter::editRawHighlights() const noexcept
+{
+    return develop_.raw_highlights;
+}
+double StudioPresenter::editDenoise() const noexcept
+{
+    return develop_.denoise;
+}
+double StudioPresenter::editDenoiseChroma() const noexcept
+{
+    return develop_.denoise_chroma;
+}
+double StudioPresenter::editDenoiseRadius() const noexcept
+{
+    return develop_.denoise_radius;
+}
+double StudioPresenter::editLensK1() const noexcept
+{
+    return develop_.lens_k1;
+}
+double StudioPresenter::editLensVignetting() const noexcept
+{
+    return develop_.lens_vignetting;
+}
+double StudioPresenter::editLensMode() const noexcept
+{
+    return develop_.lens_mode == kLensModeLookup ? 1.0 : 0.0;
+}
+int StudioPresenter::editColorEqBand() const noexcept
+{
+    return static_cast<int>(develop_.color_eq_band);
+}
+double StudioPresenter::editColorEqHue() const noexcept
+{
+    return develop_.color_eq_hue[static_cast<std::size_t>(
+        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+}
+double StudioPresenter::editColorEqSat() const noexcept
+{
+    return develop_.color_eq_sat[static_cast<std::size_t>(
+        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+}
+double StudioPresenter::editColorEqLight() const noexcept
+{
+    return develop_.color_eq_light[static_cast<std::size_t>(
+        std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
+}
+double StudioPresenter::editGraduatedDensity() const noexcept
+{
+    return develop_.graduated_density;
+}
+double StudioPresenter::editGraduatedHardness() const noexcept
+{
+    return develop_.graduated_hardness;
+}
+double StudioPresenter::editGraduatedRotation() const noexcept
+{
+    return develop_.graduated_rotation;
+}
+double StudioPresenter::editGraduatedOffset() const noexcept
+{
+    return develop_.graduated_offset;
+}
+double StudioPresenter::editToneEqBlacks() const noexcept
+{
+    return develop_.tone_eq_blacks;
+}
+double StudioPresenter::editToneEqShadows() const noexcept
+{
+    return develop_.tone_eq_shadows;
+}
+double StudioPresenter::editToneEqMidtones() const noexcept
+{
+    return develop_.tone_eq_midtones;
+}
+double StudioPresenter::editToneEqHighlights() const noexcept
+{
+    return develop_.tone_eq_highlights;
+}
+double StudioPresenter::editToneEqWhites() const noexcept
+{
+    return develop_.tone_eq_whites;
+}
+QString StudioPresenter::selectedTags() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset)
+    {
+        return {};
+    }
+    QStringList tags;
+    for (const auto &tag : asset->tags)
+    {
+        tags.push_back(qstring_from_utf8(tag));
+    }
+    return tags.join(QStringLiteral(", "));
+}
+QString StudioPresenter::selectedTitle() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.title ? qstring_from_utf8(*asset->metadata.title) : QString{};
+}
+QString StudioPresenter::selectedDescription() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.description ? qstring_from_utf8(*asset->metadata.description) :
+                                                  QString{};
+}
+QString StudioPresenter::selectedCreator() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.creator ? qstring_from_utf8(*asset->metadata.creator) : QString{};
+}
+QString StudioPresenter::selectedCopyright() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    return asset && asset->metadata.copyright ? qstring_from_utf8(*asset->metadata.copyright) :
+                                                QString{};
+}
+QString StudioPresenter::selectedCaptureSummary() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset)
+    {
+        return {};
+    }
+    QStringList parts;
+    if (asset->capture.camera_make)
+    {
+        parts.push_back(qstring_from_utf8(*asset->capture.camera_make));
+    }
+    if (asset->capture.camera_model)
+    {
+        parts.push_back(qstring_from_utf8(*asset->capture.camera_model));
+    }
+    if (asset->capture.iso)
+    {
+        parts.push_back(QStringLiteral("ISO %1").arg(*asset->capture.iso, 0, 'f', 0));
+    }
+    if (asset->capture.aperture)
+    {
+        parts.push_back(QStringLiteral("f/%1").arg(*asset->capture.aperture, 0, 'f', 1));
+    }
+    if (asset->capture.focal_length_mm)
+    {
+        parts.push_back(QStringLiteral("%1 mm").arg(*asset->capture.focal_length_mm, 0, 'f', 0));
+    }
+    return parts.join(QStringLiteral(" · "));
+}
+QVariantList StudioPresenter::recipeHistory() const
+{
+    return recipe_history_;
+}
+QString StudioPresenter::tagFilter() const
+{
+    return qstring_from_utf8(query_.tag);
 }
 bool StudioPresenter::cropToolActive() const noexcept
 {
@@ -1947,6 +2104,102 @@ void StudioPresenter::toggleRejected()
                            { return service.set_rejected(asset_id, next); });
 }
 
+void StudioPresenter::setAssetTags(const QString &text)
+{
+    auto parsed = parse_tag_list(utf8_from_qstring(text));
+    if (!parsed)
+    {
+        setError(qstring_from_utf8(parsed.error().message));
+        return;
+    }
+    const auto tags = parsed.value();
+    mutate_selected_review([tags](CatalogService &service, const std::string_view asset_id)
+                           { return service.set_tags(asset_id, tags); });
+}
+
+void StudioPresenter::setMetadataField(const QString &name, const QString &value)
+{
+    const auto field = utf8_from_qstring(name);
+    const auto text = utf8_from_qstring(value);
+    mutate_selected_review(
+        [field, text](CatalogService &service, const std::string_view asset_id) -> Result<AssetRecord>
+        {
+            auto listed = service.list_assets();
+            if (!listed)
+            {
+                return listed.error();
+            }
+            WritableMetadata metadata;
+            for (const auto &asset : listed.value())
+            {
+                if (asset.id == asset_id)
+                {
+                    metadata = asset.metadata;
+                    break;
+                }
+            }
+            if (field == "title")
+            {
+                metadata.title = text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
+            }
+            else if (field == "description")
+            {
+                metadata.description =
+                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
+            }
+            else if (field == "creator")
+            {
+                metadata.creator =
+                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
+            }
+            else if (field == "copyright")
+            {
+                metadata.copyright =
+                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
+            }
+            else
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
+                                  {{"field", field}});
+            }
+            return service.set_writable_metadata(asset_id, metadata);
+        });
+}
+
+void StudioPresenter::createSnapshot(const QString &label)
+{
+    const auto text = utf8_from_qstring(label);
+    mutate_selected_review([text](CatalogService &service, const std::string_view asset_id)
+                           { return service.create_recipe_snapshot(asset_id, text); });
+    load_develop_for_selection();
+}
+
+void StudioPresenter::restoreHistory(const int history_id)
+{
+    mutate_selected_review(
+        [history_id](CatalogService &service, const std::string_view asset_id)
+        { return service.restore_recipe_history(asset_id, history_id); });
+    load_develop_for_selection();
+}
+
+void StudioPresenter::setTagFilter(const QString &tag)
+{
+    auto parsed = tag.trimmed().isEmpty() ? Result<std::string>{std::string{}} :
+                                            normalize_tag_name(utf8_from_qstring(tag));
+    if (!parsed)
+    {
+        setError(qstring_from_utf8(parsed.error().message));
+        return;
+    }
+    if (query_.tag == parsed.value())
+    {
+        return;
+    }
+    query_.tag = parsed.value();
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::setRatingFilter(const QString &mode, const int value)
 {
     RatingFilterMode next_mode = RatingFilterMode::kAny;
@@ -2043,6 +2296,7 @@ void StudioPresenter::clearFilters()
     query_.rating_value = 0;
     query_.color_labels.clear();
     query_.reject_filter = RejectFilter::kInclude;
+    query_.tag.clear();
     emit filterChanged();
     reloadVisibleAssets();
 }
@@ -2329,6 +2583,28 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
     {
         toggleBeforeAfter();
     }
+    else if (id == QLatin1String(kPhotoSetTags))
+    {
+        setAssetTags(argument.toString());
+    }
+    else if (id == QLatin1String(kPhotoSetMetadata))
+    {
+        const auto fields = argument.toMap();
+        setMetadataField(fields.value(QStringLiteral("name")).toString(),
+                         fields.value(QStringLiteral("value")).toString());
+    }
+    else if (id == QLatin1String(kPhotoCreateSnapshot))
+    {
+        createSnapshot(argument.toString());
+    }
+    else if (id == QLatin1String(kPhotoRestoreHistory))
+    {
+        restoreHistory(argument.toInt());
+    }
+    else if (id == QLatin1String(kLibrarySetTagFilter))
+    {
+        setTagFilter(argument.toString());
+    }
     else
     {
         setError(QStringLiteral("Unknown command: %1").arg(id));
@@ -2502,6 +2778,7 @@ void StudioPresenter::load_develop_for_selection()
     develop_ = {};
     undo_stack_.clear();
     redo_stack_.clear();
+    recipe_history_.clear();
     if (selected_asset_id_.isEmpty())
     {
         emit editChanged();
@@ -2512,17 +2789,35 @@ void StudioPresenter::load_develop_for_selection()
         [this, asset_id]()
         {
             Result<Recipe> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<RecipeHistoryEntry>> history =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
                 loaded = service_->load_recipe(asset_id);
+                history = service_->list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, loaded = std::move(loaded)]() mutable
+                [this, asset_id, loaded = std::move(loaded),
+                 history = std::move(history)]() mutable
                 {
                     if (utf8_from_qstring(selected_asset_id_) != asset_id)
                     {
                         return;
+                    }
+                    recipe_history_.clear();
+                    if (history)
+                    {
+                        for (const auto &entry : history.value())
+                        {
+                            QVariantMap row;
+                            row.insert(QStringLiteral("id"), QVariant::fromValue(entry.id));
+                            row.insert(QStringLiteral("kind"), qstring_from_utf8(entry.kind));
+                            row.insert(QStringLiteral("label"),
+                                       entry.label ? qstring_from_utf8(*entry.label) : QString{});
+                            row.insert(QStringLiteral("seq"), QVariant::fromValue(entry.seq));
+                            recipe_history_.push_back(row);
+                        }
                     }
                     if (!loaded)
                     {

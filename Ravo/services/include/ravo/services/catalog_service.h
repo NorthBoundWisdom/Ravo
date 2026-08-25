@@ -47,6 +47,16 @@ public:
     [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,
                                                    const DevelopParams &params);
     [[nodiscard]] Result<AssetRecord> reset_recipe(std::string_view asset_id);
+    [[nodiscard]] Result<AssetRecord> set_tags(std::string_view asset_id,
+                                               const std::vector<std::string> &tags);
+    [[nodiscard]] Result<AssetRecord> set_writable_metadata(std::string_view asset_id,
+                                                            const WritableMetadata &metadata);
+    [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>
+    list_recipe_history(std::string_view asset_id) const;
+    [[nodiscard]] Result<AssetRecord> create_recipe_snapshot(std::string_view asset_id,
+                                                             std::string_view label);
+    [[nodiscard]] Result<AssetRecord> restore_recipe_history(std::string_view asset_id,
+                                                             std::int64_t history_id);
     [[nodiscard]] Result<ImportItemResult> import_one(std::string_view path,
                                                       const CancellationToken &cancellation);
     [[nodiscard]] Result<std::vector<ImportItemResult>>

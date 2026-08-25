@@ -24,8 +24,9 @@ belongs in its owning architecture/contract/code/test truth source, not here.
 - General mask/blend ownership: `mask_manager`, drawn masks and parametric masks.
 - Define coordinate spaces, composition order, immutable publication,
   cancellation, ROI/tile behavior and recipe versioning before adding UI.
-- `graduatednd` remains in the active migration TODO as the bounded experiment;
-  it must stop and promote this decision if a generic graph becomes necessary.
+- `ravo.effect.graduatednd` is the first local adjustment and uses the gradient
+  itself as the mask. A generic mask/blend graph still needs this decision
+  before drawn or parametric masks.
 
 ## Additional RAW and optical repair
 
@@ -37,7 +38,7 @@ belongs in its owning architecture/contract/code/test truth source, not here.
 
 - `lut3d`, `colorbalancergb`, `borders`.
 - Admit only capabilities that do not duplicate the accepted Sigmoid,
-  channel-mixer, tone-curve or future HSL ownership.
+  tone-curve, 8-band `colorequal`, or the queued channel-mixer.
 - LUT support requires an explicit format/profile adapter and deterministic
   missing/invalid-file behavior.
 

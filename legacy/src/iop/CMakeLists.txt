@@ -88,7 +88,7 @@ add_iop(dither "dither.c")
 add_iop(monochrome "monochrome.c")
 add_iop(basecurve "basecurve.c" DEFAULT_VISIBLE)
 add_iop(colorzones "colorzones.c")
-add_iop(highlights "highlights.c" DEFAULT_VISIBLE)
+
 add_iop(overlay "overlay.c")
 add_iop(rawoverexposed "rawoverexposed.c")
 add_iop(velvia "velvia.c")
@@ -98,7 +98,7 @@ add_iop(grain "grain.c")
 add_iop(bilateral "bilateral.cc")
 add_iop(profile_gamma "profile_gamma.c")
 add_iop(colormapping "colormapping.c")
-add_iop(graduatednd "graduatednd.c")
+
 add_iop(demosaic "demosaic.c" "demosaicing/amaze.cc" DEFAULT_VISIBLE)
 add_iop(rotatepixels "rotatepixels.c")
 add_iop(scalepixels "scalepixels.c")
@@ -122,12 +122,12 @@ add_iop(colorize "colorize.c")
 add_iop(flip "flip.c" DEFAULT_VISIBLE)
 add_iop(finalscale "finalscale.c")
 add_iop(bilat "bilat.c" DEFAULT_VISIBLE)
-add_iop(denoiseprofile "denoiseprofile.c" DEFAULT_VISIBLE)
+
 add_iop(ashift "ashift.c")
 add_iop(hazeremoval "hazeremoval.c" DEFAULT_VISIBLE)
 add_iop(mask_manager "mask_manager.c")
 add_iop(lut3d "lut3d.c")
-add_iop(toneequal "toneequal.c" DEFAULT_VISIBLE)
+
 add_iop(filmicrgb "filmicrgb.c")
 add_iop(negadoctor "negadoctor.c")
 add_iop(channelmixerrgb "channelmixerrgb.c" "../chart/common.c")
@@ -138,14 +138,14 @@ add_iop(diffuse "diffuse.c")
 add_iop(blurs "blurs.c")
 add_iop(agx "agx.c")
 add_iop(primaries "primaries.c")
-add_iop(colorequal "colorequal.c")
+
 add_iop(rasterfile "rasterfile.c")
 
 if(Rsvg2_FOUND)
   add_iop(watermark "watermark.c")
 endif(Rsvg2_FOUND)
 
-add_iop(lens "lens.cc" DEFAULT_VISIBLE)
+
 
 # fix for Mac when OpenMP is only available in C compiler
 if(APPLE)

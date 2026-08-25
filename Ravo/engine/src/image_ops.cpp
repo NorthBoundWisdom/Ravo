@@ -12,6 +12,7 @@
 
 #include <png.h>
 
+#include "capability_ops.h"
 #include "ravo/recipe/develop.h"
 
 namespace ravo
@@ -1823,6 +1824,58 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             if (!transformed)
             {
                 return transformed.error();
+            }
+            continue;
+        }
+        if (operation.id == "ravo.raw.highlights")
+        {
+            return make_error(
+                ErrorCode::kUnsupported,
+                "RAW highlight reconstruction requires a Bayer CFA working buffer",
+                {{"operation_id", operation.id}});
+        }
+        if (operation.id == "ravo.detail.denoiseprofile")
+        {
+            auto denoised = apply_denoise_profile(image, operation, cancellation);
+            if (!denoised)
+            {
+                return denoised.error();
+            }
+            continue;
+        }
+        if (operation.id == "ravo.geometry.lens")
+        {
+            auto corrected = apply_lens_correction(image, operation, cancellation);
+            if (!corrected)
+            {
+                return corrected.error();
+            }
+            continue;
+        }
+        if (operation.id == "ravo.color.colorequal")
+        {
+            auto equalized = apply_color_equalizer(image, operation, cancellation);
+            if (!equalized)
+            {
+                return equalized.error();
+            }
+            continue;
+        }
+        if (operation.id == "ravo.effect.graduatednd")
+        {
+            auto graduated = apply_graduated_nd(image, operation, cancellation);
+            if (!graduated)
+            {
+                return graduated.error();
+            }
+            continue;
+        }
+        if (operation.id == "ravo.core.toneequal")
+        {
+            auto equalized = apply_tone_equalizer(image, operation, cancellation);
+            if (!equalized)
+            {
+                return equalized.error();
             }
             continue;
         }

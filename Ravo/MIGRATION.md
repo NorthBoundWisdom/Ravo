@@ -85,7 +85,8 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在
 - 诊断 overlay：`overexposed`、`rawoverexposed`；
 - 未选显示变换：`filmicrgb`、`agx`；
 - 专项创意模块：`liquify`、`retouch`、`watermark`、`overlay`、`censorize`、
-  `negadoctor`、`colorharmonizer`、`colorchecker`、`colormapping`、`colorize`。
+  `negadoctor`、`colorharmonizer`、`colorchecker`、`colormapping`、`colorize`；
+- 未选 HSL 分区：`colorzones`（2026-08-25 选择 `colorequal`）。
 
 不得把 leftover 做成空壳迁移，也不得在 active migration TODO 清空前批量删除。
 
@@ -97,12 +98,18 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在
 | Recipe/schema | IOP params/XMP | recipe | 实现中 | versioned round-trip 与有限 exposure mapping 已测 |
 | RAW inspect/decode | imageio/LibRaw | engine + codec adapter | 实现中 | `mire1.cr2` inspect/render 已测；格式与 sensor 覆盖有限 |
 | CPU preview/pixelpipe | `src/develop` | engine | 实现中 | bounded PNG、取消、exposure 亮度已测；完整颜色/ROI 未完成 |
-| SQLite catalog | common/database | domain + SQLite adapter | 实现中 | schema v3 create/reopen/migrate/newer-version reject 已测；无旧 catalog 迁移 |
+| SQLite catalog | common/database | domain + SQLite adapter | 实现中 | schema v4 create/reopen/migrate/newer-version reject 已测；tags/writable metadata/history 已测；无旧 catalog 迁移 |
 | Reference-only import | common/imageio/import | services + adapters | 实现中 | PNG/JPEG + LibRaw RAW（含 ARW）与目录递归已测；JPEG/GIF/WebP/TIFF plugin targets 已设为 required |
 | Preview cache | mipmap/cache/imageio | services + adapters | 实现中 | 库外原子 PNG 缓存与 reopen 重建已测 |
 | Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/fill/100%；长列表资源门槛仍待验收 |
-| Catalog metadata/workflow | common/libs | domain + services | 延后 | active TODO 排队标签/metadata/history |
-| Mask/blend/operations | develop/iop | recipe + engine | 延后 | active TODO 先验证最小渐变边界，通用图另做决定 |
+| Catalog metadata/workflow | common/libs | domain + services | 旧实现已删除 | Unicode 标签筛选、catalog-only 可写 title/creator/copyright、只读 capture EXIF、持久 history/snapshot；faces/map/GPS 写回未做。旧 `libs/tagging.c`/`metadata*.c`/`history.c`/`snapshots.c`/`copy_history.c` 已删 |
+| Mask/blend/operations | develop/iop | recipe + engine | 实现中 | `ravo.effect.graduatednd` 是第一个局部调整，梯度即 mask；通用 mask 图仍未做 |
+| RAW 高光重建 | `iop/highlights.c` | `ravo.raw.highlights` | 旧实现已删除 | Bayer 2×2 clip/inpaint；非 Bayer 与 raster 路径 structured unsupported |
+| 默认降噪 | `iop/denoiseprofile.c` | `ravo.detail.denoiseprofile` | 旧实现已删除 | 线性 RGB 多尺度阈值；`nlmeans`/`atrous`/`bilateral`/`rawdenoise` 不在本项 |
+| 镜头校正 | `iop/lens.cc` | `ravo.geometry.lens` | 旧实现已删除 | 显式 Brown-Conrady + 版本化 lookup 表；无匹配 fail-fast。lensfun source-root 仍是生产数据库后继，本轮未钉依赖 |
+| 颜色均衡 | `iop/colorequal.c` | `ravo.color.colorequal` | 旧实现已删除 | 8 带 HSL；`colorzones` leftover |
+| 渐变滤镜 | `iop/graduatednd.c` | `ravo.effect.graduatednd` | 旧实现已删除 | 线性密度/硬度/旋转/偏移 |
+| 影调均化 | `iop/toneequal.c` | `ravo.core.toneequal` | 旧实现已删除 | Sigmoid 前 5 带 log-luminance EV |
 | 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF plugin target 已设为 required；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
 | 色调曲线 | `iop/tonecurve.c` | `ravo.core.tonecurve` + Develop Inspector | 旧实现已删除 | 一条链接 RGB 点曲线；schema 显式 `working_space=srgb\|linear_rgb`。不是 Lab 三通道移植。`rgbcurve` 未做 |
 | 默认显示变换 | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | 旧实现已删除 | per-channel generalized log-logistic；线性 sRGB、Standard SDR target、合成/真实 RAW/catalog reopen 已测。`filmicrgb`/`agx` 明确留作 leftover |

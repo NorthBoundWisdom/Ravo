@@ -1,5 +1,6 @@
 #include "ravo/cli/application.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -208,6 +209,15 @@ struct CatalogCliArguments
     std::string_view output;
     std::string_view format;
     std::optional<int> quality;
+    std::string_view tag;
+    std::string_view add;
+    std::string_view remove;
+    std::string_view title;
+    std::string_view description;
+    std::string_view creator;
+    std::string_view copyright;
+    std::string_view label;
+    std::optional<std::int64_t> history_id;
 };
 
 [[nodiscard]] Result<int> parse_int_flag(const std::string_view text, const std::string_view option)
@@ -355,6 +365,47 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.quality = quality.value();
         }
+        else if (option == "--tag")
+        {
+            result.tag = value;
+        }
+        else if (option == "--add")
+        {
+            result.add = value;
+        }
+        else if (option == "--remove")
+        {
+            result.remove = value;
+        }
+        else if (option == "--title")
+        {
+            result.title = value;
+        }
+        else if (option == "--description")
+        {
+            result.description = value;
+        }
+        else if (option == "--creator")
+        {
+            result.creator = value;
+        }
+        else if (option == "--copyright")
+        {
+            result.copyright = value;
+        }
+        else if (option == "--label")
+        {
+            result.label = value;
+        }
+        else if (option == "--history-id")
+        {
+            auto parsed = parse_int_flag(value, option);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            result.history_id = parsed.value();
+        }
         else
         {
             return make_error(ErrorCode::kInvalidArgument, "Unknown catalog option",
@@ -383,16 +434,54 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
                                             std::move(cache).value());
 }
 
+[[nodiscard]] JsonValue optional_string_json(const std::optional<std::string> &value)
+{
+    if (!value)
+    {
+        return nullptr;
+    }
+    return *value;
+}
+
 [[nodiscard]] JsonValue asset_to_json(const AssetRecord &asset)
 {
+    JsonValue::Array tags;
+    for (const auto &tag : asset.tags)
+    {
+        tags.push_back(tag);
+    }
+    JsonValue::Object metadata{
+        {"copyright", optional_string_json(asset.metadata.copyright)},
+        {"creator", optional_string_json(asset.metadata.creator)},
+        {"description", optional_string_json(asset.metadata.description)},
+        {"title", optional_string_json(asset.metadata.title)},
+    };
+    JsonValue::Object capture{
+        {"aperture", asset.capture.aperture ?
+                         JsonValue::number(std::to_string(*asset.capture.aperture)) :
+                         JsonValue{nullptr}},
+        {"camera_make", optional_string_json(asset.capture.camera_make)},
+        {"camera_model", optional_string_json(asset.capture.camera_model)},
+        {"focal_length_mm", asset.capture.focal_length_mm ?
+                                JsonValue::number(std::to_string(*asset.capture.focal_length_mm)) :
+                                JsonValue{nullptr}},
+        {"iso", asset.capture.iso ? JsonValue::number(std::to_string(*asset.capture.iso)) :
+                                    JsonValue{nullptr}},
+        {"shutter_s", asset.capture.shutter_s ?
+                          JsonValue::number(std::to_string(*asset.capture.shutter_s)) :
+                          JsonValue{nullptr}},
+    };
     return JsonValue::Object{
+        {"capture", std::move(capture)},
         {"color_label", std::string(color_label_name(asset.review.color_label))},
         {"has_edits", asset.has_edits},
         {"id", asset.id},
         {"import_state", asset.import_state},
         {"media_type", asset.media_type},
+        {"metadata", std::move(metadata)},
         {"rating", JsonValue::number(std::to_string(asset.review.rating))},
         {"rejected", asset.review.rejected},
+        {"tags", std::move(tags)},
         {"uri", asset.normalized_uri},
     };
 }
@@ -404,7 +493,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "Usage: ravo catalog <create|import|list|preview|recipe|develop|rate|"
-                          "export> --catalog <path>");
+                          "export|tag|metadata|history|snapshot|restore> --catalog <path>");
     }
     const auto subcommand = positional[1];
     auto flags = parse_catalog_flags(positional);
@@ -494,7 +583,17 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return snapshot.error();
         }
-        auto listed = service.list_assets();
+        LibraryQuery query;
+        if (!flags.value().tag.empty())
+        {
+            auto tag = normalize_tag_name(flags.value().tag);
+            if (!tag)
+            {
+                return tag.error();
+            }
+            query.tag = tag.value();
+        }
+        auto listed = service.list_assets(query);
         if (!listed)
         {
             return listed.error();
@@ -662,6 +761,179 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"output", exported.value().output_path},
             {"width", JsonValue::number(std::to_string(exported.value().width))},
         }};
+    }
+    if (subcommand == "tag")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog tag requires --asset-id");
+        }
+        auto asset = service.list_assets();
+        if (!asset)
+        {
+            return asset.error();
+        }
+        const AssetRecord *selected = nullptr;
+        for (const auto &item : asset.value())
+        {
+            if (item.id == flags.value().asset_id)
+            {
+                selected = &item;
+                break;
+            }
+        }
+        if (selected == nullptr)
+        {
+            return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                              {{"asset_id", std::string(flags.value().asset_id)}});
+        }
+        std::vector<std::string> tags = selected->tags;
+        if (!flags.value().add.empty())
+        {
+            auto parsed = parse_tag_list(flags.value().add);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            for (auto &tag : parsed.value())
+            {
+                if (std::find(tags.begin(), tags.end(), tag) == tags.end())
+                {
+                    tags.push_back(std::move(tag));
+                }
+            }
+        }
+        if (!flags.value().remove.empty())
+        {
+            auto parsed = parse_tag_list(flags.value().remove);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            tags.erase(std::remove_if(tags.begin(), tags.end(),
+                                      [&](const std::string &tag)
+                                      {
+                                          return std::find(parsed.value().begin(),
+                                                           parsed.value().end(),
+                                                           tag) != parsed.value().end();
+                                      }),
+                       tags.end());
+        }
+        if (!flags.value().add.empty() || !flags.value().remove.empty())
+        {
+            auto saved = service.set_tags(flags.value().asset_id, tags);
+            if (!saved)
+            {
+                return saved.error();
+            }
+            return asset_to_json(saved.value());
+        }
+        return asset_to_json(*selected);
+    }
+    if (subcommand == "metadata")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog metadata requires --asset-id");
+        }
+        auto loaded = service.list_assets();
+        if (!loaded)
+        {
+            return loaded.error();
+        }
+        const AssetRecord *selected = nullptr;
+        for (const auto &item : loaded.value())
+        {
+            if (item.id == flags.value().asset_id)
+            {
+                selected = &item;
+                break;
+            }
+        }
+        if (selected == nullptr)
+        {
+            return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                              {{"asset_id", std::string(flags.value().asset_id)}});
+        }
+        WritableMetadata metadata = selected->metadata;
+        bool write = false;
+        const auto assign = [&](const std::string_view text, std::optional<std::string> &field)
+        {
+            if (!text.empty())
+            {
+                field = std::string(text);
+                write = true;
+            }
+        };
+        assign(flags.value().title, metadata.title);
+        assign(flags.value().description, metadata.description);
+        assign(flags.value().creator, metadata.creator);
+        assign(flags.value().copyright, metadata.copyright);
+        if (write)
+        {
+            auto saved = service.set_writable_metadata(flags.value().asset_id, metadata);
+            if (!saved)
+            {
+                return saved.error();
+            }
+            return asset_to_json(saved.value());
+        }
+        return asset_to_json(*selected);
+    }
+    if (subcommand == "history")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog history requires --asset-id");
+        }
+        auto history = service.list_recipe_history(flags.value().asset_id);
+        if (!history)
+        {
+            return history.error();
+        }
+        JsonValue::Array entries;
+        for (const auto &entry : history.value())
+        {
+            entries.push_back(JsonValue::Object{
+                {"id", JsonValue::number(std::to_string(entry.id))},
+                {"kind", entry.kind},
+                {"label", entry.label ? JsonValue{*entry.label} : JsonValue{nullptr}},
+                {"seq", JsonValue::number(std::to_string(entry.seq))},
+            });
+        }
+        return JsonValue{JsonValue::Object{
+            {"asset_id", std::string(flags.value().asset_id)},
+            {"history", std::move(entries)},
+        }};
+    }
+    if (subcommand == "snapshot")
+    {
+        if (flags.value().asset_id.empty() || flags.value().label.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog snapshot requires --asset-id and --label");
+        }
+        auto saved = service.create_recipe_snapshot(flags.value().asset_id, flags.value().label);
+        if (!saved)
+        {
+            return saved.error();
+        }
+        return asset_to_json(saved.value());
+    }
+    if (subcommand == "restore")
+    {
+        if (flags.value().asset_id.empty() || !flags.value().history_id)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog restore requires --asset-id and --history-id");
+        }
+        auto restored =
+            service.restore_recipe_history(flags.value().asset_id, *flags.value().history_id);
+        if (!restored)
+        {
+            return restored.error();
+        }
+        return asset_to_json(restored.value());
     }
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog subcommand",
                       {{"subcommand", std::string(subcommand)}});

@@ -715,6 +715,7 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
     {
         return params.error();
     }
+    std::string history_json;
     if (matches_develop_baseline(*asset.value(), params.value()))
     {
         const auto cleared = repository_->clear_recipe(asset_id);
@@ -731,6 +732,7 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
         {
             return json.error();
         }
+        history_json = json.value();
         const auto saved =
             repository_->save_recipe_json(asset_id, stored.schema_version, json.value());
         if (!saved)
@@ -738,6 +740,24 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
             return saved.error();
         }
         asset.value()->has_edits = true;
+    }
+    auto existing_history = repository_->list_recipe_history(asset_id);
+    if (!existing_history)
+    {
+        return existing_history.error();
+    }
+    const bool duplicate =
+        !existing_history.value().empty() &&
+        existing_history.value().front().kind == kRecipeHistoryKindHistory &&
+        existing_history.value().front().recipe_json == history_json;
+    if (!duplicate)
+    {
+        auto recorded = repository_->append_recipe_history(
+            asset_id, kRecipeHistoryKindHistory, std::nullopt, history_json);
+        if (!recorded)
+        {
+            return recorded.error();
+        }
     }
     const auto revision = repository_->bump_revision();
     if (!revision)
@@ -769,8 +789,24 @@ Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id
     {
         return location.error();
     }
+    DevelopParams stored = params;
+    if (stored.lens_mode == kLensModeLookup)
+    {
+        if (stored.lens_make.empty() && asset.value()->capture.camera_make)
+        {
+            stored.lens_make = *asset.value()->capture.camera_make;
+        }
+        if (stored.lens_model.empty() && asset.value()->capture.camera_model)
+        {
+            stored.lens_model = *asset.value()->capture.camera_model;
+        }
+        if (stored.lens_focal_mm <= 0.0 && asset.value()->capture.focal_length_mm)
+        {
+            stored.lens_focal_mm = *asset.value()->capture.focal_length_mm;
+        }
+    }
     auto recipe = recipe_from_develop(
-        {asset.value()->id, location.value().path, asset.value()->content_fingerprint}, params);
+        {asset.value()->id, location.value().path, asset.value()->content_fingerprint}, stored);
     if (!recipe)
     {
         return recipe.error();
@@ -795,6 +831,203 @@ Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id
                           {{"asset_id", std::string(asset_id)}});
     }
     return save_develop(asset_id, baseline_develop_for(*asset.value()));
+}
+
+Result<AssetRecord> CatalogService::set_tags(const std::string_view asset_id,
+                                             const std::vector<std::string> &tags)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    std::vector<std::string> normalized;
+    normalized.reserve(tags.size());
+    for (const auto &tag : tags)
+    {
+        auto parsed = normalize_tag_name(tag);
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        if (std::find(normalized.begin(), normalized.end(), parsed.value()) == normalized.end())
+        {
+            normalized.push_back(std::move(parsed).value());
+        }
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    const auto saved = repository_->replace_asset_tags(asset_id, normalized);
+    if (!saved)
+    {
+        return saved.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    asset.value()->tags = std::move(normalized);
+    return *asset.value();
+}
+
+Result<AssetRecord> CatalogService::set_writable_metadata(const std::string_view asset_id,
+                                                          const WritableMetadata &metadata)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    const auto check_field = [](const std::string_view name,
+                                const std::optional<std::string> &value) -> Result<void>
+    {
+        if (!value)
+        {
+            return {};
+        }
+        return validate_metadata_field(name, *value);
+    };
+    auto title = check_field("title", metadata.title);
+    if (!title)
+    {
+        return title.error();
+    }
+    auto description = check_field("description", metadata.description);
+    if (!description)
+    {
+        return description.error();
+    }
+    auto creator = check_field("creator", metadata.creator);
+    if (!creator)
+    {
+        return creator.error();
+    }
+    auto copyright = check_field("copyright", metadata.copyright);
+    if (!copyright)
+    {
+        return copyright.error();
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    const auto saved = repository_->upsert_writable_metadata(asset_id, metadata);
+    if (!saved)
+    {
+        return saved.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    asset.value()->metadata = metadata;
+    return *asset.value();
+}
+
+Result<std::vector<RecipeHistoryEntry>>
+CatalogService::list_recipe_history(const std::string_view asset_id) const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    return repository_->list_recipe_history(asset_id);
+}
+
+Result<AssetRecord> CatalogService::create_recipe_snapshot(const std::string_view asset_id,
+                                                           const std::string_view label)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto trimmed = normalize_tag_name(label);
+    if (!trimmed)
+    {
+        return trimmed.error();
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto json = repository_->load_recipe_json(asset_id);
+    if (!json)
+    {
+        return json.error();
+    }
+    const std::string recipe_json = json.value().value_or(std::string{});
+    auto recorded = repository_->append_recipe_history(asset_id, kRecipeHistoryKindSnapshot,
+                                                       std::string_view{trimmed.value()},
+                                                       recipe_json);
+    if (!recorded)
+    {
+        return recorded.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    return *asset.value();
+}
+
+Result<AssetRecord> CatalogService::restore_recipe_history(const std::string_view asset_id,
+                                                           const std::int64_t history_id)
+{
+    if (repository_ == nullptr || engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto entry = repository_->find_recipe_history(history_id);
+    if (!entry)
+    {
+        return entry.error();
+    }
+    if (!entry.value() || entry.value()->asset_id != asset_id)
+    {
+        return make_error(ErrorCode::kNotFound, "Recipe history entry does not exist",
+                          {{"history_id", std::to_string(history_id)}});
+    }
+    if (entry.value()->recipe_json.empty())
+    {
+        return reset_recipe(asset_id);
+    }
+    auto parsed = parse_recipe_json(entry.value()->recipe_json);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    return save_recipe(asset_id, parsed.value());
 }
 
 Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
@@ -905,6 +1138,19 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         asset.media_type = std::string(kMediaTypeRaw);
         asset.width = inspected.value().width;
         asset.height = inspected.value().height;
+        if (!inspected.value().make.empty())
+        {
+            asset.capture.camera_make = inspected.value().make;
+        }
+        if (!inspected.value().model.empty())
+        {
+            asset.capture.camera_model = inspected.value().model;
+        }
+        asset.capture.iso = inspected.value().iso;
+        asset.capture.aperture = inspected.value().aperture;
+        asset.capture.focal_length_mm = inspected.value().focal_length_mm;
+        asset.capture.shutter_s = inspected.value().shutter_s;
+        asset.capture.captured_unix_s = inspected.value().captured_unix_s;
     }
     else
     {
@@ -915,6 +1161,16 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     if (!inserted)
     {
         return failed_item(location.value().path, inserted.error());
+    }
+    if (asset.capture.camera_make || asset.capture.camera_model || asset.capture.iso ||
+        asset.capture.aperture || asset.capture.focal_length_mm || asset.capture.shutter_s ||
+        asset.capture.captured_unix_s)
+    {
+        const auto captured = repository_->upsert_capture_metadata(asset.id, asset.capture);
+        if (!captured)
+        {
+            return failed_item(location.value().path, captured.error());
+        }
     }
     const auto revision = repository_->bump_revision();
     if (!revision)

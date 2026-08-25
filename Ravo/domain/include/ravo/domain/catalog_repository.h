@@ -33,6 +33,20 @@ public:
                                                         std::int64_t recipe_schema_version,
                                                         std::string_view recipe_json) = 0;
     [[nodiscard]] virtual Result<void> clear_recipe(std::string_view asset_id) = 0;
+    [[nodiscard]] virtual Result<void> replace_asset_tags(std::string_view asset_id,
+                                                          const std::vector<std::string> &tags) = 0;
+    [[nodiscard]] virtual Result<void>
+    upsert_writable_metadata(std::string_view asset_id, const WritableMetadata &metadata) = 0;
+    [[nodiscard]] virtual Result<void>
+    upsert_capture_metadata(std::string_view asset_id, const CaptureMetadata &capture) = 0;
+    [[nodiscard]] virtual Result<std::vector<RecipeHistoryEntry>>
+    list_recipe_history(std::string_view asset_id) const = 0;
+    [[nodiscard]] virtual Result<std::optional<RecipeHistoryEntry>>
+    find_recipe_history(std::int64_t history_id) const = 0;
+    [[nodiscard]] virtual Result<RecipeHistoryEntry>
+    append_recipe_history(std::string_view asset_id, std::string_view kind,
+                          std::optional<std::string_view> label,
+                          std::string_view recipe_json) = 0;
     [[nodiscard]] virtual Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<void> upsert_preview(const PreviewRecord &preview) = 0;

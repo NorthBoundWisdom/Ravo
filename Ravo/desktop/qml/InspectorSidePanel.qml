@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -89,6 +90,89 @@ Rectangle {
                 color: Theme.placeholderTextColor
                 font.pixelSize: Fonts.size10
                 text: root.presenter ? root.presenter.selectedUri : ""
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                wrapMode: Text.Wrap
+                color: Theme.placeholderTextColor
+                text: root.infoRow(qsTr("Capture"), root.presenter ? root.presenter.selectedCaptureSummary : "")
+            }
+
+            CustomLabel {
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.topMargin: Fonts.size8
+                text: qsTr("Tags & Metadata")
+                font.bold: true
+            }
+            TextField {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                placeholderText: qsTr("tags, comma separated")
+                enabled: root.hasSelection
+                text: root.hasPresenter ? root.presenter.selectedTags : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setTags(text)
+            }
+            TextField {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                placeholderText: qsTr("Title")
+                enabled: root.hasSelection
+                text: root.hasPresenter ? root.presenter.selectedTitle : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setMetadata("title", text)
+            }
+            TextField {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                placeholderText: qsTr("Creator")
+                enabled: root.hasSelection
+                text: root.hasPresenter ? root.presenter.selectedCreator : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setMetadata("creator", text)
+            }
+            TextField {
+                Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                placeholderText: qsTr("Copyright")
+                enabled: root.hasSelection
+                text: root.hasPresenter ? root.presenter.selectedCopyright : ""
+                onEditingFinished: if (root.commands)
+                    root.commands.setMetadata("copyright", text)
+            }
+            Repeater {
+                model: root.hasPresenter ? root.presenter.recipeHistory : []
+                delegate: RowLayout {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Fonts.standardMargin
+                    Layout.rightMargin: Fonts.standardMargin
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                        text: (modelData.kind === "snapshot" ? qsTr("Snapshot") : qsTr("History")) +
+                              (modelData.label && modelData.label.length ? " · " + modelData.label : " #" + modelData.seq)
+                    }
+                    CustomButton {
+                        text: qsTr("Restore")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.restoreHistory(modelData.id)
+                    }
+                }
+            }
+            CustomButton {
+                Layout.leftMargin: Fonts.standardMargin
+                text: qsTr("Snapshot")
+                enabled: root.hasSelection
+                onClicked: if (root.commands)
+                    root.commands.createSnapshot(qsTr("Snapshot"))
             }
 
             CustomLabel {
@@ -1042,6 +1126,327 @@ Rectangle {
                             enabled: root.hasSelection
                             onClicked: if (root.commands)
                                 root.commands.resetSection("effects")
+                        }
+                    }
+                }
+
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("RAW / Denoise / Lens")
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Highlight reconstruction")
+                            from: 0
+                            to: 1
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editRawHighlights : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("rawHighlights", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("rawHighlights", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("rawHighlights")
+                        }
+                        CustomSlider {
+                            title: qsTr("Denoise")
+                            from: 0
+                            to: 1
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editDenoise : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("denoise", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("denoise", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("denoise")
+                        }
+                        CustomSlider {
+                            title: qsTr("Lens distortion")
+                            from: -1
+                            to: 1
+                            stepSize: 0.01
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editLensK1 : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("lensK1", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("lensK1", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("lensK1")
+                        }
+                        CustomSlider {
+                            title: qsTr("Lens vignetting")
+                            from: 0
+                            to: 1
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editLensVignetting : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("lensVignetting", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("lensVignetting", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("lensVignetting")
+                        }
+                    }
+                }
+
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Tone equalizer")
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Blacks")
+                            from: -2
+                            to: 2
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editToneEqBlacks : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("toneEqBlacks", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("toneEqBlacks", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("toneEqBlacks")
+                        }
+                        CustomSlider {
+                            title: qsTr("Shadows")
+                            from: -2
+                            to: 2
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editToneEqShadows : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("toneEqShadows", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("toneEqShadows", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("toneEqShadows")
+                        }
+                        CustomSlider {
+                            title: qsTr("Midtones")
+                            from: -2
+                            to: 2
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editToneEqMidtones : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("toneEqMidtones", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("toneEqMidtones", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("toneEqMidtones")
+                        }
+                        CustomSlider {
+                            title: qsTr("Highlights")
+                            from: -2
+                            to: 2
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editToneEqHighlights : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("toneEqHighlights", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("toneEqHighlights", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("toneEqHighlights")
+                        }
+                        CustomSlider {
+                            title: qsTr("Whites")
+                            from: -2
+                            to: 2
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editToneEqWhites : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("toneEqWhites", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("toneEqWhites", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("toneEqWhites")
+                        }
+                    }
+                }
+
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Graduated ND / Color EQ")
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Graduated density")
+                            from: -2
+                            to: 2
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editGraduatedDensity : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("graduatedDensity", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("graduatedDensity", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("graduatedDensity")
+                        }
+                        CustomSlider {
+                            title: qsTr("Graduated rotation")
+                            from: -180
+                            to: 180
+                            stepSize: 1
+                            validatorDecimals: 0
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editGraduatedRotation : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("graduatedRotation", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("graduatedRotation", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("graduatedRotation")
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: ["0", "1", "2", "3", "4", "5", "6", "7"]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editColorEqBand : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("colorEqBand", Number(currentText))
+                        }
+                        CustomSlider {
+                            title: qsTr("Band saturation")
+                            from: -1
+                            to: 1
+                            stepSize: 0.05
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorEqSat : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("colorEqSat", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("colorEqSat", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("colorEqSat")
+                        }
+                        CustomSlider {
+                            title: qsTr("Band hue")
+                            from: -0.25
+                            to: 0.25
+                            stepSize: 0.01
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorEqHue : 0
+                            onValueEdited: function (value) {
+                                if (root.commands)
+                                    root.commands.previewDevelopNumber("colorEqHue", value);
+                            }
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("colorEqHue", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("colorEqHue")
                         }
                     }
                 }

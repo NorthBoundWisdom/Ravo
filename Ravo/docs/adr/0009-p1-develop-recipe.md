@@ -14,6 +14,7 @@ versioned recipe/operation contract and a CPU exposure path.
 
 - Catalog schema version is 3.
 - Each asset may have one active canonical recipe in `asset_recipe`.
+  Schema v4 also stores catalog tags, writable metadata, and recipe history/snapshots.
   Identity/default edits store no row (`has_edits = false`).
 - `DevelopParams` is a service/desktop mapping onto the recipe. Persistence
   is recipe JSON, not slider positions or a UI blob.

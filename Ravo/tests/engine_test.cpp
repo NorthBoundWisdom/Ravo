@@ -621,6 +621,157 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
         }
     }
     EXPECT_TRUE(saw_antialiased_edge);
+
+    auto graduated = render_op(engine.value(), solid_raster(32, 32, 180, 180, 180),
+                               {"ravo.effect.graduatednd",
+                                1,
+                                "grad-1",
+                                true,
+                                {{"density_ev", ParameterValue{1.5}},
+                                 {"hardness", ParameterValue{0.8}},
+                                 {"rotation_deg", ParameterValue{0.0}},
+                                 {"offset", ParameterValue{0.0}}},
+                                std::nullopt});
+    ASSERT_TRUE(graduated) << graduated.error().message;
+    const auto top = (2U * 32U + 16U) * 3U;
+    const auto bottom = (30U * 32U + 16U) * 3U;
+    EXPECT_LT(graduated.value().rgb[bottom], graduated.value().rgb[top]);
+
+    auto toneeq = render_op(engine.value(), gradient_raster(),
+                            {"ravo.core.toneequal",
+                             1,
+                             "toneeq-1",
+                             true,
+                             {{"blacks", ParameterValue{1.2}},
+                              {"shadows", ParameterValue{0.0}},
+                              {"midtones", ParameterValue{0.0}},
+                              {"highlights", ParameterValue{0.0}},
+                              {"whites", ParameterValue{0.0}}},
+                             std::nullopt});
+    ASSERT_TRUE(toneeq) << toneeq.error().message;
+    EXPECT_GT(mean_luma(toneeq.value()), base_mean);
+
+    ParameterValue::Array sat_bands(8, ParameterValue{0.0});
+    sat_bands[0] = ParameterValue{0.8};
+    auto coloreq = render_op(engine.value(), solid_raster(8, 8, 220, 30, 30),
+                             {"ravo.color.colorequal",
+                              1,
+                              "ceq-1",
+                              true,
+                              {{"hue_shift", ParameterValue{ParameterValue::Array(8, ParameterValue{0.0})}},
+                               {"saturation", ParameterValue{sat_bands}},
+                               {"lightness", ParameterValue{ParameterValue::Array(8, ParameterValue{0.0})}}},
+                              std::nullopt});
+    ASSERT_TRUE(coloreq) << coloreq.error().message;
+
+    auto lens = render_op(engine.value(), solid_raster(24, 24, 200, 80, 40),
+                          {"ravo.geometry.lens",
+                           1,
+                           "lens-1",
+                           true,
+                           {{"mode", ParameterValue{"manual"}},
+                            {"k1", ParameterValue{-0.4}},
+                            {"k2", ParameterValue{0.1}},
+                            {"tca_r", ParameterValue{1.02}},
+                            {"tca_b", ParameterValue{0.98}},
+                            {"vignetting", ParameterValue{0.6}}},
+                           std::nullopt});
+    ASSERT_TRUE(lens) << lens.error().message;
+    EXPECT_NE(lens.value().rgb, solid_raster(24, 24, 200, 80, 40).srgb);
+
+    auto missing_lens = render_op(engine.value(), solid_raster(8, 8, 120, 120, 120),
+                                  {"ravo.geometry.lens",
+                                   1,
+                                   "lens-lookup-1",
+                                   true,
+                                   {{"mode", ParameterValue{"lookup"}},
+                                    {"camera_make", ParameterValue{"Missing"}},
+                                    {"camera_model", ParameterValue{"Camera"}},
+                                    {"lens", ParameterValue{"Unknown"}},
+                                    {"focal_mm", ParameterValue{50.0}}},
+                                   std::nullopt});
+    ASSERT_FALSE(missing_lens);
+    EXPECT_EQ(missing_lens.error().code, ErrorCode::kNotFound);
+
+    auto matched_lens = render_op(engine.value(), solid_raster(16, 16, 180, 180, 180),
+                                  {"ravo.geometry.lens",
+                                   1,
+                                   "lens-lookup-2",
+                                   true,
+                                   {{"mode", ParameterValue{"lookup"}},
+                                    {"camera_make", ParameterValue{"RavoTest"}},
+                                    {"camera_model", ParameterValue{"RavoSensor"}},
+                                    {"lens", ParameterValue{"FixtureLens"}},
+                                    {"focal_mm", ParameterValue{50.0}}},
+                                   std::nullopt});
+    ASSERT_TRUE(matched_lens) << matched_lens.error().message;
+
+    RasterBuffer noisy = solid_raster(32, 32, 120, 120, 120);
+    for (std::size_t index = 0; index < noisy.srgb.size(); ++index)
+    {
+        const auto delta = static_cast<int>((index * 37U) % 41U) - 20;
+        noisy.srgb[index] = static_cast<std::uint8_t>(std::clamp(120 + delta, 0, 255));
+    }
+    auto denoised = render_op(engine.value(), noisy,
+                              {"ravo.detail.denoiseprofile",
+                               1,
+                               "denoise-1",
+                               true,
+                               {{"strength", ParameterValue{0.8}},
+                                {"chroma", ParameterValue{1.0}},
+                                {"radius", ParameterValue{1.5}}},
+                               std::nullopt});
+    ASSERT_TRUE(denoised) << denoised.error().message;
+
+    auto raw_on_raster = render_op(engine.value(), solid_raster(8, 8, 10, 10, 10),
+                                   {"ravo.raw.highlights",
+                                    1,
+                                    "raw-hl-1",
+                                    true,
+                                    {{"mode", ParameterValue{"inpaint"}},
+                                     {"amount", ParameterValue{1.0}},
+                                     {"clip", ParameterValue{0.98}}},
+                                    std::nullopt});
+    ASSERT_FALSE(raw_on_raster);
+    EXPECT_EQ(raw_on_raster.error().code, ErrorCode::kUnsupported);
+}
+
+TEST(EngineFacadeTest, RawHighlightReconstructionChangesMire1)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe identity;
+    identity.asset = {"mire1", mire1_path(), std::nullopt};
+    RenderRequest base_request;
+    base_request.asset = identity.asset;
+    base_request.recipe = identity;
+    base_request.output_width = 64;
+    base_request.output_height = 48;
+    auto base = engine.value().render_to_image(base_request);
+    ASSERT_TRUE(base) << base.error().message;
+
+    Recipe reconstructed = identity;
+    reconstructed.operations.push_back({"ravo.raw.highlights",
+                                        1,
+                                        "raw-hl-1",
+                                        true,
+                                        {{"mode", ParameterValue{"inpaint"}},
+                                         {"amount", ParameterValue{1.0}},
+                                         {"clip", ParameterValue{0.92}}},
+                                        std::nullopt});
+    RenderRequest request = base_request;
+    request.recipe = reconstructed;
+    auto rebuilt = engine.value().render_to_image(request);
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    EXPECT_EQ(rebuilt.value().width, base.value().width);
+    EXPECT_EQ(rebuilt.value().height, base.value().height);
+
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("highlights"));
+    request.cancellation = cancellation.token();
+    auto cancelled = engine.value().render_to_image(request);
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
 }
 
 [[nodiscard]] ParameterValue tone_curve_points(const std::vector<ToneCurvePoint> &points)

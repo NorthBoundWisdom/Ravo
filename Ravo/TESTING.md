@@ -23,8 +23,9 @@ adapters/desktop，`Qt6::Qml`/`Qt6::Quick`、`QtQuick.Controls`/`QtQuick.Dialogs
 Widgets。不能删除检查来放行新依赖。
 
 当前 Ravo Debug 图覆盖 foundation/recipe/engine/CLI 与 catalog integration。Review 契约包括 schema
-v2→v3 迁移、review 持久化、筛选与缺失原片状态；Develop 契约包括每张图一份 canonical recipe、CPU
-develop 操作、edited preview，以及 `ravo catalog` JSON 命令走同一 CatalogService。FreeCM Test 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套
+v2→v4 迁移、review 持久化、筛选与缺失原片状态；Develop 契约包括每张图一份 canonical recipe、CPU
+develop 操作、edited preview，以及 `ravo catalog` JSON 命令走同一 CatalogService。
+schema v4 覆盖 Unicode 标签筛选、可写 metadata、history/snapshot 保存与恢复。FreeCM Test 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套
 测试。GitHub Actions 在 `mac_clang_debug`、`linux_clang_debug` 与 `win_msvc_debug` 上跑同一组
 CTest，并额外跑 freeze/capability/boundary 等静态检查。CI 先 `--init` 再改活动锁里的 Qt/PATH，然后
 `--update`。构建走 `cmake --build build/<preset>`，不依赖 Linux 模板里的 `ClangDebug` 构建

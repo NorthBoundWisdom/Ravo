@@ -14,7 +14,7 @@ authorize legacy catalog migration or any operation marked deferred below.
 
 The source inventory was collected from the leftover `add_iop(...)`
 registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt)
-(74 after retiring `tonecurve` and `sigmoid`).
+(68 after retiring `tonecurve`, `sigmoid`, `highlights`, `denoiseprofile`, `lens`, `colorequal`, `graduatednd`, and `toneequal`).
 The generated fixture manifest records the 68 operation names currently
 represented by XMP regression assets.  A `yes` in the fixture column means
 only that one or more legacy XMP files name that operation; it is not a
@@ -49,6 +49,12 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
 | `ravo.core.tonecurve` | `tonecurve` | linked RGB point curve; `working_space` is `srgb` or `linear_rgb` |
 | `ravo.display.sigmoid` | `sigmoid` | RAW Standard SDR baseline and Develop display contrast/skew/hue preservation |
+| `ravo.raw.highlights` | `highlights` | Bayer CFA clip/inpaint reconstruction before demosaic |
+| `ravo.detail.denoiseprofile` | `denoiseprofile` | default-visible profile denoise on linear RGB |
+| `ravo.geometry.lens` | `lens` | Brown-Conrady distortion/TCA/vignetting; lookup uses a versioned calibration table |
+| `ravo.color.colorequal` | `colorequal` | selected 8-band HSL equalizer |
+| `ravo.effect.graduatednd` | `graduatednd` | linear graduated exposure as the first local adjustment |
+| `ravo.core.toneequal` | `toneequal` | 5-band log-luminance equalizer under Sigmoid |
 | `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
@@ -91,17 +97,15 @@ struct bytes or call the old dynamic module ABI.
 | `colorchecker` | yes | defer until colour operation policy exists |
 | `colorcontrast` | yes | defer until colour operation policy exists |
 | `colorcorrection` | yes | defer until colour operation policy exists |
-| `colorequal` | yes | defer until colour operation policy exists |
 | `colorharmonizer` | yes | product decision pending; no Phase 1 implementation |
 | `colorin` | yes | reserved `ravo.color.input`; the exact frozen nop baseline is absorbed by the first RAW slice, but general profile mapping remains deferred |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
 | `colorout` | yes | reserved `ravo.color.output`; the first RAW slice has a fixed sRGB target, while general profile mapping remains deferred |
 | `colorreconstruct` | yes | defer with RAW reconstruction capability |
-| `colorzones` | yes | defer until colour operation policy exists |
+| `colorzones` | yes | leftover; 2026-08-25 dated decision selected `colorequal` for HSL zoning |
 | `crop` | yes | defer until geometry/ROI contract exists |
 | `demosaic` | yes | reserved `ravo.raw.demosaic`; the exact frozen nop baseline currently selects the first 3×3 Bayer implementation only |
-| `denoiseprofile` | yes | defer until denoise model and fixtures exist |
 | `diffuse` | yes | defer until shared denoise facilities exist |
 | `dither` | yes | defer until output quantisation contract exists |
 | `enlargecanvas` | yes | defer until geometry/ROI contract exists |
@@ -110,13 +114,10 @@ struct bytes or call the old dynamic module ABI.
 | `finalscale` | no | reserved `ravo.output.scale`; render width/height currently drive the first bounded nearest-sample output path, not a complete scaling operation |
 | `flip` | yes | defer until geometry/ROI contract exists |
 | `gamma` | yes | defer until colour operation policy exists |
-| `graduatednd` | yes | defer until mask/blend contract exists |
 | `grain` | yes | product decision pending; no Phase 1 implementation |
 | `hazeremoval` | yes | defer until shared dehaze facilities exist |
-| `highlights` | yes | defer with RAW reconstruction capability |
 | `highpass` | yes | defer until shared blur facilities exist |
 | `hotpixels` | yes | defer with RAW decode capability |
-| `lens` | yes | defer until lens database adapter is designed |
 | `liquify` | yes | product decision pending; no Phase 1 implementation |
 | `lowlight` | yes | defer until colour operation policy exists |
 | `lowpass` | yes | defer until shared blur facilities exist |
@@ -143,7 +144,6 @@ struct bytes or call the old dynamic module ABI.
 | `soften` | yes | product decision pending; no Phase 1 implementation |
 | `splittoning` | yes | product decision pending; no Phase 1 implementation |
 | `temperature` | yes | defer with RAW colour capability |
-| `toneequal` | yes | defer until colour operation policy exists |
 | `velvia` | yes | product decision pending; no Phase 1 implementation |
 | `vignette` | yes | product decision pending; no Phase 1 implementation |
 | `watermark` | yes | product decision pending; no Phase 1 implementation |

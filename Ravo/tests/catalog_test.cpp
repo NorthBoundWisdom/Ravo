@@ -447,7 +447,7 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
     ASSERT_TRUE(created) << created.error().message;
     auto snapshot = service->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    EXPECT_EQ(snapshot.value().schema_version, 3);
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
 
     const auto jpeg_path = (root / "keep.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
@@ -520,7 +520,7 @@ TEST_F(CatalogServiceTest, MigratesV1CatalogToReviewSchema)
     ASSERT_TRUE(opened) << opened.error().message;
     auto snapshot = service->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    EXPECT_EQ(snapshot.value().schema_version, 3);
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
     auto listed = service->list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
@@ -603,6 +603,83 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     ASSERT_TRUE(reset) << reset.error().message;
     EXPECT_FALSE(reset.value().has_edits);
     EXPECT_EQ(reset.value().review.rating, 3);
+}
+
+TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "meta.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(QColor(12, 34, 56));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    auto tagged = service->set_tags(asset_id, {"风景", "  风景  ", "archive"});
+    ASSERT_TRUE(tagged) << tagged.error().message;
+    ASSERT_EQ(tagged.value().tags.size(), 2U);
+    EXPECT_EQ(tagged.value().tags.front(), "风景");
+    EXPECT_EQ(tagged.value().tags.back(), "archive");
+
+    WritableMetadata metadata;
+    metadata.title = "标题";
+    metadata.creator = "Ravo";
+    auto written = service->set_writable_metadata(asset_id, metadata);
+    ASSERT_TRUE(written) << written.error().message;
+    EXPECT_EQ(written.value().metadata.title, "标题");
+
+    DevelopParams params;
+    params.exposure_ev = 0.4;
+    params.graduated_density = 0.6;
+    ASSERT_TRUE(service->save_develop(asset_id, params));
+    auto snapshot = service->create_recipe_snapshot(asset_id, "keep");
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    DevelopParams next;
+    next.exposure_ev = -0.5;
+    ASSERT_TRUE(service->save_develop(asset_id, next));
+
+    LibraryQuery query;
+    query.tag = "风景";
+    auto filtered = service->list_assets(query);
+    ASSERT_TRUE(filtered) << filtered.error().message;
+    ASSERT_EQ(filtered.value().size(), 1U);
+
+    auto empty = service->set_tags(asset_id, {""});
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().code, ErrorCode::kValidation);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().tags.size(), 2U);
+    EXPECT_EQ(listed.value().front().metadata.title, "标题");
+    auto history = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history) << history.error().message;
+    ASSERT_FALSE(history.value().empty());
+    std::int64_t snapshot_id = 0;
+    for (const auto &entry : history.value())
+    {
+        if (entry.kind == kRecipeHistoryKindSnapshot)
+        {
+            snapshot_id = entry.id;
+            break;
+        }
+    }
+    ASSERT_NE(snapshot_id, 0);
+    auto restored = service->restore_recipe_history(asset_id, snapshot_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto develop = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_NEAR(develop.value().exposure_ev, 0.4, 1e-6);
+    EXPECT_NEAR(develop.value().graduated_density, 0.6, 1e-6);
 }
 
 TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)

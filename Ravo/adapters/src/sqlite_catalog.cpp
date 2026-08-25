@@ -1,7 +1,9 @@
 #include "ravo/adapters/sqlite_catalog.h"
 
 #include <chrono>
+#include <map>
 #include <utility>
+#include <vector>
 
 #include <QtCore/QFileInfo>
 #include <QtCore/QString>
@@ -60,6 +62,67 @@ const char *kSchemaStatements[] = {
     "  recipe_schema_version INTEGER NOT NULL,"
     "  recipe_json TEXT NOT NULL,"
     "  updated_unix_ms INTEGER NOT NULL"
+    ")",
+    "CREATE TABLE asset_tag ("
+    "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+    "  name TEXT NOT NULL,"
+    "  PRIMARY KEY (asset_id, name)"
+    ")",
+    "CREATE TABLE asset_metadata ("
+    "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+    "  title TEXT,"
+    "  description TEXT,"
+    "  creator TEXT,"
+    "  copyright TEXT,"
+    "  camera_make TEXT,"
+    "  camera_model TEXT,"
+    "  iso REAL,"
+    "  aperture REAL,"
+    "  focal_length_mm REAL,"
+    "  shutter_s REAL,"
+    "  captured_unix_s INTEGER"
+    ")",
+    "CREATE TABLE asset_recipe_history ("
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+    "  seq INTEGER NOT NULL,"
+    "  kind TEXT NOT NULL,"
+    "  label TEXT,"
+    "  recipe_json TEXT NOT NULL,"
+    "  created_unix_ms INTEGER NOT NULL,"
+    "  UNIQUE(asset_id, seq)"
+    ")",
+};
+
+constexpr const char *kSchemaV4Statements[] = {
+    "CREATE TABLE asset_tag ("
+    "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+    "  name TEXT NOT NULL,"
+    "  PRIMARY KEY (asset_id, name)"
+    ")",
+    "CREATE TABLE asset_metadata ("
+    "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+    "  title TEXT,"
+    "  description TEXT,"
+    "  creator TEXT,"
+    "  copyright TEXT,"
+    "  camera_make TEXT,"
+    "  camera_model TEXT,"
+    "  iso REAL,"
+    "  aperture REAL,"
+    "  focal_length_mm REAL,"
+    "  shutter_s REAL,"
+    "  captured_unix_s INTEGER"
+    ")",
+    "CREATE TABLE asset_recipe_history ("
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+    "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+    "  seq INTEGER NOT NULL,"
+    "  kind TEXT NOT NULL,"
+    "  label TEXT,"
+    "  recipe_json TEXT NOT NULL,"
+    "  created_unix_ms INTEGER NOT NULL,"
+    "  UNIQUE(asset_id, seq)"
     ")",
 };
 
@@ -135,6 +198,24 @@ const char *kSchemaStatements[] = {
     return query.value(index).toLongLong();
 }
 
+[[nodiscard]] std::optional<double> double_column(const QSqlQuery &query, const int index)
+{
+    if (query.isNull(index))
+    {
+        return std::nullopt;
+    }
+    return query.value(index).toDouble();
+}
+
+[[nodiscard]] QVariant optional_double(const std::optional<double> &value)
+{
+    if (!value)
+    {
+        return QVariant();
+    }
+    return *value;
+}
+
 [[nodiscard]] AssetRecord read_asset(const QSqlQuery &query)
 {
     AssetRecord asset;
@@ -156,6 +237,90 @@ const char *kSchemaStatements[] = {
     asset.review.rejected = query.value(14).toInt() != 0;
     asset.has_edits = query.value(15).toInt() != 0;
     return asset;
+}
+
+[[nodiscard]] Result<void> attach_asset_fields(QSqlDatabase &database,
+                                               std::vector<AssetRecord> &assets)
+{
+    if (assets.empty())
+    {
+        return {};
+    }
+    std::map<std::string, AssetRecord *, std::less<>> by_id;
+    for (auto &asset : assets)
+    {
+        by_id.emplace(asset.id, &asset);
+    }
+
+    QSqlQuery tags(database);
+    if (!tags.exec(QStringLiteral("SELECT asset_id, name FROM asset_tag ORDER BY name ASC")))
+    {
+        return map_sql_error(tags, "list_asset_tags");
+    }
+    while (tags.next())
+    {
+        const auto id = utf8_from_qstring(tags.value(0).toString());
+        const auto found = by_id.find(id);
+        if (found != by_id.end())
+        {
+            found->second->tags.push_back(utf8_from_qstring(tags.value(1).toString()));
+        }
+    }
+
+    QSqlQuery metadata(database);
+    if (!metadata.exec(QStringLiteral(
+            "SELECT asset_id, title, description, creator, copyright, camera_make, camera_model, "
+            "iso, aperture, focal_length_mm, shutter_s, captured_unix_s FROM asset_metadata")))
+    {
+        return map_sql_error(metadata, "list_asset_metadata");
+    }
+    while (metadata.next())
+    {
+        const auto id = utf8_from_qstring(metadata.value(0).toString());
+        const auto found = by_id.find(id);
+        if (found == by_id.end())
+        {
+            continue;
+        }
+        auto &asset = *found->second;
+        asset.metadata.title = string_column(metadata, 1);
+        asset.metadata.description = string_column(metadata, 2);
+        asset.metadata.creator = string_column(metadata, 3);
+        asset.metadata.copyright = string_column(metadata, 4);
+        asset.capture.camera_make = string_column(metadata, 5);
+        asset.capture.camera_model = string_column(metadata, 6);
+        asset.capture.iso = double_column(metadata, 7);
+        asset.capture.aperture = double_column(metadata, 8);
+        asset.capture.focal_length_mm = double_column(metadata, 9);
+        asset.capture.shutter_s = double_column(metadata, 10);
+        asset.capture.captured_unix_s = i64_column(metadata, 11);
+    }
+    return {};
+}
+
+[[nodiscard]] Result<void> attach_asset_fields(QSqlDatabase &database, AssetRecord &asset)
+{
+    std::vector<AssetRecord> assets{asset};
+    auto attached = attach_asset_fields(database, assets);
+    if (!attached)
+    {
+        return attached.error();
+    }
+    asset = std::move(assets.front());
+    return {};
+}
+
+[[nodiscard]] RecipeHistoryEntry read_history(const QSqlQuery &query)
+{
+    RecipeHistoryEntry entry;
+    entry.id = query.value(0).toLongLong();
+    entry.asset_id = utf8_from_qstring(query.value(1).toString());
+    entry.seq = query.value(2).toLongLong();
+    entry.kind = utf8_from_qstring(query.value(3).toString());
+    entry.label = string_column(query, 4);
+    entry.recipe_json = utf8_from_qstring(query.value(5).toString());
+    entry.created_unix_ms = query.value(6).toLongLong();
+    return entry;
 }
 
 [[nodiscard]] PreviewRecord read_preview(const QSqlQuery &query)
@@ -416,6 +581,19 @@ SqliteCatalogRepository::open(const std::string_view database_path)
             }
             version = 3;
         }
+        if (version == 3)
+        {
+            for (const char *sql : kSchemaV4Statements)
+            {
+                const auto created = impl->exec(QString::fromUtf8(sql), "migrate_v4_catalog_fields");
+                if (!created)
+                {
+                    impl->database.rollback();
+                    return created.error();
+                }
+            }
+            version = 4;
+        }
         if (version != kCatalogSchemaVersion)
         {
             impl->database.rollback();
@@ -476,6 +654,11 @@ Result<std::vector<AssetRecord>> SqliteCatalogRepository::list_assets() const
     {
         assets.push_back(read_asset(query));
     }
+    auto attached = attach_asset_fields(impl_->database, assets);
+    if (!attached)
+    {
+        return attached.error();
+    }
     return assets;
 }
 
@@ -497,7 +680,13 @@ SqliteCatalogRepository::find_asset_by_id(const std::string_view asset_id) const
     {
         return std::optional<AssetRecord>{};
     }
-    return std::optional<AssetRecord>{read_asset(query)};
+    auto asset = read_asset(query);
+    auto attached = attach_asset_fields(impl_->database, asset);
+    if (!attached)
+    {
+        return attached.error();
+    }
+    return std::optional<AssetRecord>{std::move(asset)};
 }
 
 Result<std::optional<AssetRecord>>
@@ -518,7 +707,13 @@ SqliteCatalogRepository::find_asset_by_uri(const std::string_view normalized_uri
     {
         return std::optional<AssetRecord>{};
     }
-    return std::optional<AssetRecord>{read_asset(query)};
+    auto asset = read_asset(query);
+    auto attached = attach_asset_fields(impl_->database, asset);
+    if (!attached)
+    {
+        return attached.error();
+    }
+    return std::optional<AssetRecord>{std::move(asset)};
 }
 
 Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
@@ -761,6 +956,213 @@ Result<void> SqliteCatalogRepository::clear_recipe(const std::string_view asset_
         return map_sql_error(query, "clear_recipe");
     }
     return {};
+}
+
+Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view asset_id,
+                                                         const std::vector<std::string> &tags)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start tag replacement transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    QSqlQuery clear(impl_->database);
+    clear.prepare(QStringLiteral("DELETE FROM asset_tag WHERE asset_id = ?"));
+    clear.addBindValue(qstring_from_utf8(asset_id));
+    if (!clear.exec())
+    {
+        impl_->database.rollback();
+        return map_sql_error(clear, "clear_asset_tags");
+    }
+    QSqlQuery insert(impl_->database);
+    insert.prepare(QStringLiteral("INSERT INTO asset_tag(asset_id, name) VALUES (?, ?)"));
+    for (const auto &tag : tags)
+    {
+        insert.addBindValue(qstring_from_utf8(asset_id));
+        insert.addBindValue(qstring_from_utf8(tag));
+        if (!insert.exec())
+        {
+            impl_->database.rollback();
+            return map_sql_error(insert, "insert_asset_tag");
+        }
+        insert.finish();
+    }
+    if (!impl_->database.commit())
+    {
+        impl_->database.rollback();
+        return make_error(ErrorCode::kIo, "Unable to commit tag replacement",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    return {};
+}
+
+Result<void> SqliteCatalogRepository::upsert_writable_metadata(const std::string_view asset_id,
+                                                               const WritableMetadata &metadata)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO asset_metadata(asset_id, title, description, creator, copyright) "
+        "VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT(asset_id) DO UPDATE SET title = excluded.title, "
+        "description = excluded.description, creator = excluded.creator, "
+        "copyright = excluded.copyright"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    query.addBindValue(optional_string(metadata.title));
+    query.addBindValue(optional_string(metadata.description));
+    query.addBindValue(optional_string(metadata.creator));
+    query.addBindValue(optional_string(metadata.copyright));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "upsert_writable_metadata");
+    }
+    return {};
+}
+
+Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_view asset_id,
+                                                              const CaptureMetadata &capture)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "INSERT INTO asset_metadata(asset_id, camera_make, camera_model, iso, aperture, "
+        "focal_length_mm, shutter_s, captured_unix_s) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(asset_id) DO UPDATE SET camera_make = excluded.camera_make, "
+        "camera_model = excluded.camera_model, iso = excluded.iso, aperture = excluded.aperture, "
+        "focal_length_mm = excluded.focal_length_mm, shutter_s = excluded.shutter_s, "
+        "captured_unix_s = excluded.captured_unix_s"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    query.addBindValue(optional_string(capture.camera_make));
+    query.addBindValue(optional_string(capture.camera_model));
+    query.addBindValue(optional_double(capture.iso));
+    query.addBindValue(optional_double(capture.aperture));
+    query.addBindValue(optional_double(capture.focal_length_mm));
+    query.addBindValue(optional_double(capture.shutter_s));
+    query.addBindValue(optional_i64(capture.captured_unix_s));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "upsert_capture_metadata");
+    }
+    return {};
+}
+
+Result<std::vector<RecipeHistoryEntry>>
+SqliteCatalogRepository::list_recipe_history(const std::string_view asset_id) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
+        "FROM asset_recipe_history WHERE asset_id = ? ORDER BY seq DESC, id DESC"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "list_recipe_history");
+    }
+    std::vector<RecipeHistoryEntry> entries;
+    while (query.next())
+    {
+        entries.push_back(read_history(query));
+    }
+    return entries;
+}
+
+Result<std::optional<RecipeHistoryEntry>>
+SqliteCatalogRepository::find_recipe_history(const std::int64_t history_id) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
+        "FROM asset_recipe_history WHERE id = ?"));
+    query.addBindValue(static_cast<qlonglong>(history_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "find_recipe_history");
+    }
+    if (!query.next())
+    {
+        return std::optional<RecipeHistoryEntry>{};
+    }
+    return std::optional<RecipeHistoryEntry>{read_history(query)};
+}
+
+Result<RecipeHistoryEntry>
+SqliteCatalogRepository::append_recipe_history(const std::string_view asset_id,
+                                               const std::string_view kind,
+                                               const std::optional<std::string_view> label,
+                                               const std::string_view recipe_json)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (kind != kRecipeHistoryKindHistory && kind != kRecipeHistoryKindSnapshot)
+    {
+        return make_error(ErrorCode::kValidation, "Recipe history kind is unsupported",
+                          {{"kind", std::string(kind)}});
+    }
+    QSqlQuery max_seq(impl_->database);
+    max_seq.prepare(
+        QStringLiteral("SELECT COALESCE(MAX(seq), 0) FROM asset_recipe_history WHERE asset_id = ?"));
+    max_seq.addBindValue(qstring_from_utf8(asset_id));
+    if (!max_seq.exec() || !max_seq.next())
+    {
+        return map_sql_error(max_seq, "max_recipe_history_seq");
+    }
+    const auto seq = max_seq.value(0).toLongLong() + 1;
+    const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+    QSqlQuery insert(impl_->database);
+    insert.prepare(QStringLiteral(
+        "INSERT INTO asset_recipe_history(asset_id, seq, kind, label, recipe_json, created_unix_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?)"));
+    insert.addBindValue(qstring_from_utf8(asset_id));
+    insert.addBindValue(seq);
+    insert.addBindValue(qstring_from_utf8(kind));
+    if (label)
+    {
+        insert.addBindValue(qstring_from_utf8(*label));
+    }
+    else
+    {
+        insert.addBindValue(QVariant());
+    }
+    insert.addBindValue(qstring_from_utf8(recipe_json));
+    insert.addBindValue(static_cast<qlonglong>(now));
+    if (!insert.exec())
+    {
+        return map_sql_error(insert, "append_recipe_history");
+    }
+    RecipeHistoryEntry entry;
+    entry.id = insert.lastInsertId().toLongLong();
+    entry.asset_id = std::string(asset_id);
+    entry.seq = seq;
+    entry.kind = std::string(kind);
+    if (label)
+    {
+        entry.label = std::string(*label);
+    }
+    entry.recipe_json = std::string(recipe_json);
+    entry.created_unix_ms = now;
+    return entry;
 }
 
 Result<std::int64_t> SqliteCatalogRepository::bump_revision()

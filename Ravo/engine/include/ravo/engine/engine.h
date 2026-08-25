@@ -65,6 +65,11 @@ struct InspectionResult
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     bool is_raw = false;
+    std::optional<double> iso;
+    std::optional<double> aperture;
+    std::optional<double> focal_length_mm;
+    std::optional<double> shutter_s;
+    std::optional<std::int64_t> captured_unix_s;
 };
 
 struct EmbeddedPreview

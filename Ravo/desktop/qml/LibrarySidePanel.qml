@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -18,6 +19,17 @@ Rectangle {
             Layout.bottomMargin: Fonts.size8
             text: qsTr("Library")
             font.bold: true
+        }
+
+        TextField {
+            Layout.fillWidth: true
+            Layout.leftMargin: Fonts.standardMargin
+            Layout.rightMargin: Fonts.standardMargin
+            Layout.bottomMargin: Fonts.size8
+            placeholderText: qsTr("Filter by tag")
+            text: root.presenter ? root.presenter.tagFilter : ""
+            onEditingFinished: if (root.presenter)
+                root.presenter.setTagFilter(text)
         }
 
         ListView {

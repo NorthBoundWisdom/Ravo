@@ -1,6 +1,7 @@
 #include "ravo/recipe/develop.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -167,6 +168,75 @@ struct ToneCurveSpline
 [[nodiscard]] const std::string *as_string_if(const ParameterValue &value)
 {
     return std::get_if<std::string>(&value.value);
+}
+
+[[nodiscard]] bool bands_near_zero(const std::array<double, kColorEqualizerBandCount> &values) noexcept
+{
+    for (const double value : values)
+    {
+        if (!near(value, 0.0))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] ParameterValue
+band_array_parameter(const std::array<double, kColorEqualizerBandCount> &values)
+{
+    ParameterValue::Array array;
+    array.reserve(values.size());
+    for (const double value : values)
+    {
+        array.push_back(ParameterValue{value});
+    }
+    return ParameterValue{std::move(array)};
+}
+
+[[nodiscard]] Result<std::array<double, kColorEqualizerBandCount>>
+parse_band_array(const ParameterValue &value, const std::string_view name)
+{
+    const auto *array = std::get_if<ParameterValue::Array>(&value.value);
+    if (array == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Color equalizer parameter must be an array",
+                          {{"parameter", std::string(name)}});
+    }
+    if (array->size() != kColorEqualizerBandCount)
+    {
+        return make_error(ErrorCode::kValidation, "Color equalizer array must have 8 values",
+                          {{"parameter", std::string(name)},
+                           {"count", std::to_string(array->size())}});
+    }
+    std::array<double, kColorEqualizerBandCount> parsed{};
+    for (std::size_t index = 0; index < parsed.size(); ++index)
+    {
+        const double sample = as_number((*array)[index], std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(sample))
+        {
+            return make_error(ErrorCode::kValidation, "Color equalizer band must be finite",
+                              {{"parameter", std::string(name)}, {"index", std::to_string(index)}});
+        }
+        parsed[index] = sample;
+    }
+    return parsed;
+}
+
+[[nodiscard]] bool parse_band_field(const std::string_view name, const std::string_view prefix,
+                                    std::size_t &index) noexcept
+{
+    if (!name.starts_with(prefix) || name.size() != prefix.size() + 1U)
+    {
+        return false;
+    }
+    const char digit = name[prefix.size()];
+    if (digit < '0' || digit > '7')
+    {
+        return false;
+    }
+    index = static_cast<std::size_t>(digit - '0');
+    return true;
 }
 
 } // namespace
@@ -476,6 +546,49 @@ void clamp_develop(DevelopParams &params) noexcept
     params.sigmoid_display_black =
         clamp_value(params.sigmoid_display_black, kSigmoidDisplayBlackMin, kSigmoidDisplayBlackMax);
     params.sigmoid_hue_preservation = clamp_value(params.sigmoid_hue_preservation, 0.0, 1.0);
+    params.raw_highlights = clamp_value(params.raw_highlights, 0.0, 1.0);
+    params.raw_highlights_clip = clamp_value(params.raw_highlights_clip, 0.5, 1.0);
+    if (params.raw_highlights_mode != kRawHighlightsModeClip &&
+        params.raw_highlights_mode != kRawHighlightsModeInpaint)
+    {
+        params.raw_highlights_mode = std::string(kRawHighlightsModeInpaint);
+    }
+    params.denoise = clamp_value(params.denoise, 0.0, 1.0);
+    params.denoise_chroma = clamp_value(params.denoise_chroma, 0.0, 1.0);
+    params.denoise_radius = clamp_value(params.denoise_radius, 0.5, 8.0);
+    params.lens_k1 = clamp_value(params.lens_k1, -2.0, 2.0);
+    params.lens_k2 = clamp_value(params.lens_k2, -2.0, 2.0);
+    params.lens_tca_r = clamp_value(params.lens_tca_r, 0.9, 1.1);
+    params.lens_tca_b = clamp_value(params.lens_tca_b, 0.9, 1.1);
+    params.lens_vignetting = clamp_value(params.lens_vignetting, 0.0, 1.0);
+    if (params.lens_mode != kLensModeManual && params.lens_mode != kLensModeLookup)
+    {
+        params.lens_mode = std::string(kLensModeManual);
+    }
+    params.lens_focal_mm = clamp_value(params.lens_focal_mm, 1.0, 2000.0);
+    for (double &value : params.color_eq_hue)
+    {
+        value = clamp_value(value, -0.5, 0.5);
+    }
+    for (double &value : params.color_eq_sat)
+    {
+        value = clamp_value(value, -1.0, 1.0);
+    }
+    for (double &value : params.color_eq_light)
+    {
+        value = clamp_value(value, -1.0, 1.0);
+    }
+    params.color_eq_band = std::clamp(params.color_eq_band, std::int64_t{0},
+                                      static_cast<std::int64_t>(kColorEqualizerBandCount - 1U));
+    params.graduated_density = clamp_value(params.graduated_density, -4.0, 4.0);
+    params.graduated_hardness = clamp_value(params.graduated_hardness, 0.0, 1.0);
+    params.graduated_rotation = clamp_value(params.graduated_rotation, -180.0, 180.0);
+    params.graduated_offset = clamp_value(params.graduated_offset, -1.0, 1.0);
+    params.tone_eq_blacks = clamp_value(params.tone_eq_blacks, -4.0, 4.0);
+    params.tone_eq_shadows = clamp_value(params.tone_eq_shadows, -4.0, 4.0);
+    params.tone_eq_midtones = clamp_value(params.tone_eq_midtones, -4.0, 4.0);
+    params.tone_eq_highlights = clamp_value(params.tone_eq_highlights, -4.0, 4.0);
+    params.tone_eq_whites = clamp_value(params.tone_eq_whites, -4.0, 4.0);
     if (params.tone_curve_working_space != kToneCurveWorkingSpaceSrgb &&
         params.tone_curve_working_space != kToneCurveWorkingSpaceLinearRgb)
     {
@@ -497,7 +610,13 @@ bool DevelopParams::is_identity() const noexcept
            near(lift, 0.0) && near(color_gamma, 0.0) && near(gain, 0.0) &&
            near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
            near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
-           !sigmoid_enabled;
+           !sigmoid_enabled && near(raw_highlights, 0.0) && near(denoise, 0.0) &&
+           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
+           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
+           bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
+           near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
+           near(tone_eq_highlights, 0.0) && near(tone_eq_whites, 0.0);
 }
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -653,9 +772,133 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
         params.sigmoid_enabled = true;
         params.sigmoid_hue_preservation = value;
     }
+    else if (name == "rawHighlights")
+    {
+        params.raw_highlights = value;
+    }
+    else if (name == "rawHighlightsClip")
+    {
+        params.raw_highlights_clip = value;
+    }
+    else if (name == "rawHighlightsMode")
+    {
+        params.raw_highlights_mode = value >= 0.5 ? std::string(kRawHighlightsModeInpaint) :
+                                                   std::string(kRawHighlightsModeClip);
+    }
+    else if (name == "denoise")
+    {
+        params.denoise = value;
+    }
+    else if (name == "denoiseChroma")
+    {
+        params.denoise_chroma = value;
+    }
+    else if (name == "denoiseRadius")
+    {
+        params.denoise_radius = value;
+    }
+    else if (name == "lensK1")
+    {
+        params.lens_k1 = value;
+    }
+    else if (name == "lensK2")
+    {
+        params.lens_k2 = value;
+    }
+    else if (name == "lensTcaR")
+    {
+        params.lens_tca_r = value;
+    }
+    else if (name == "lensTcaB")
+    {
+        params.lens_tca_b = value;
+    }
+    else if (name == "lensVignetting")
+    {
+        params.lens_vignetting = value;
+    }
+    else if (name == "lensMode")
+    {
+        params.lens_mode = value >= 0.5 ? std::string(kLensModeLookup) : std::string(kLensModeManual);
+    }
+    else if (name == "lensFocal")
+    {
+        params.lens_focal_mm = value;
+    }
+    else if (name == "colorEqBand")
+    {
+        params.color_eq_band = static_cast<std::int64_t>(std::llround(value));
+    }
+    else if (name == "colorEqHue")
+    {
+        params.color_eq_hue[static_cast<std::size_t>(
+            std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+    }
+    else if (name == "colorEqSat")
+    {
+        params.color_eq_sat[static_cast<std::size_t>(
+            std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+    }
+    else if (name == "colorEqLight")
+    {
+        params.color_eq_light[static_cast<std::size_t>(
+            std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+    }
+    else if (name == "graduatedDensity")
+    {
+        params.graduated_density = value;
+    }
+    else if (name == "graduatedHardness")
+    {
+        params.graduated_hardness = value;
+    }
+    else if (name == "graduatedRotation")
+    {
+        params.graduated_rotation = value;
+    }
+    else if (name == "graduatedOffset")
+    {
+        params.graduated_offset = value;
+    }
+    else if (name == "toneEqBlacks")
+    {
+        params.tone_eq_blacks = value;
+    }
+    else if (name == "toneEqShadows")
+    {
+        params.tone_eq_shadows = value;
+    }
+    else if (name == "toneEqMidtones")
+    {
+        params.tone_eq_midtones = value;
+    }
+    else if (name == "toneEqHighlights")
+    {
+        params.tone_eq_highlights = value;
+    }
+    else if (name == "toneEqWhites")
+    {
+        params.tone_eq_whites = value;
+    }
     else
     {
-        return false;
+        std::size_t band = 0;
+        if (parse_band_field(name, "colorEqHue", band))
+        {
+            params.color_eq_hue[band] = value;
+        }
+        else if (parse_band_field(name, "colorEqSat", band))
+        {
+            params.color_eq_sat[band] = value;
+        }
+        else if (parse_band_field(name, "colorEqLight", band))
+        {
+            params.color_eq_light[band] = value;
+        }
+        else
+        {
+            return false;
+        }
     }
     clamp_develop(params);
     return true;
@@ -818,9 +1061,101 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.sigmoid_hue_preservation = identity.sigmoid_hue_preservation;
     }
+    else if (name == "rawHighlights" || name == "rawHighlightsClip" || name == "rawHighlightsMode")
+    {
+        params.raw_highlights = identity.raw_highlights;
+        params.raw_highlights_clip = identity.raw_highlights_clip;
+        params.raw_highlights_mode = identity.raw_highlights_mode;
+    }
+    else if (name == "denoise" || name == "denoiseChroma" || name == "denoiseRadius")
+    {
+        params.denoise = identity.denoise;
+        if (name != "denoise")
+        {
+            params.denoise_chroma = identity.denoise_chroma;
+            params.denoise_radius = identity.denoise_radius;
+        }
+    }
+    else if (name == "lensK1" || name == "lensK2" || name == "lensTcaR" || name == "lensTcaB" ||
+             name == "lensVignetting" || name == "lensMode" || name == "lensFocal")
+    {
+        params.lens_k1 = identity.lens_k1;
+        params.lens_k2 = identity.lens_k2;
+        params.lens_tca_r = identity.lens_tca_r;
+        params.lens_tca_b = identity.lens_tca_b;
+        params.lens_vignetting = identity.lens_vignetting;
+        params.lens_mode = identity.lens_mode;
+        params.lens_focal_mm = identity.lens_focal_mm;
+    }
+    else if (name == "colorEqHue" || name == "colorEqSat" || name == "colorEqLight" ||
+             name == "colorEqBand")
+    {
+        const auto band = static_cast<std::size_t>(
+            std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}));
+        if (name == "colorEqHue")
+        {
+            params.color_eq_hue[band] = 0.0;
+        }
+        else if (name == "colorEqSat")
+        {
+            params.color_eq_sat[band] = 0.0;
+        }
+        else if (name == "colorEqLight")
+        {
+            params.color_eq_light[band] = 0.0;
+        }
+        else
+        {
+            params.color_eq_band = 0;
+        }
+    }
+    else if (name == "graduatedDensity" || name == "graduatedHardness" ||
+             name == "graduatedRotation" || name == "graduatedOffset")
+    {
+        params.graduated_density = identity.graduated_density;
+        params.graduated_hardness = identity.graduated_hardness;
+        params.graduated_rotation = identity.graduated_rotation;
+        params.graduated_offset = identity.graduated_offset;
+    }
+    else if (name == "toneEqBlacks")
+    {
+        params.tone_eq_blacks = identity.tone_eq_blacks;
+    }
+    else if (name == "toneEqShadows")
+    {
+        params.tone_eq_shadows = identity.tone_eq_shadows;
+    }
+    else if (name == "toneEqMidtones")
+    {
+        params.tone_eq_midtones = identity.tone_eq_midtones;
+    }
+    else if (name == "toneEqHighlights")
+    {
+        params.tone_eq_highlights = identity.tone_eq_highlights;
+    }
+    else if (name == "toneEqWhites")
+    {
+        params.tone_eq_whites = identity.tone_eq_whites;
+    }
     else
     {
-        return false;
+        std::size_t band = 0;
+        if (parse_band_field(name, "colorEqHue", band))
+        {
+            params.color_eq_hue[band] = 0.0;
+        }
+        else if (parse_band_field(name, "colorEqSat", band))
+        {
+            params.color_eq_sat[band] = 0.0;
+        }
+        else if (parse_band_field(name, "colorEqLight", band))
+        {
+            params.color_eq_light[band] = 0.0;
+        }
+        else
+        {
+            return false;
+        }
     }
     clamp_develop(params);
     return true;
@@ -839,6 +1174,13 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.crop_y = 0.0;
         params.crop_width = 1.0;
         params.crop_height = 1.0;
+        params.lens_k1 = identity.lens_k1;
+        params.lens_k2 = identity.lens_k2;
+        params.lens_tca_r = identity.lens_tca_r;
+        params.lens_tca_b = identity.lens_tca_b;
+        params.lens_vignetting = identity.lens_vignetting;
+        params.lens_mode = identity.lens_mode;
+        params.lens_focal_mm = identity.lens_focal_mm;
     }
     else if (section == "whiteBalance")
     {
@@ -861,6 +1203,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.sigmoid_display_white = identity.sigmoid_display_white;
         params.sigmoid_display_black = identity.sigmoid_display_black;
         params.sigmoid_hue_preservation = identity.sigmoid_hue_preservation;
+        params.tone_eq_blacks = identity.tone_eq_blacks;
+        params.tone_eq_shadows = identity.tone_eq_shadows;
+        params.tone_eq_midtones = identity.tone_eq_midtones;
+        params.tone_eq_highlights = identity.tone_eq_highlights;
+        params.tone_eq_whites = identity.tone_eq_whites;
     }
     else if (section == "color")
     {
@@ -876,6 +1223,10 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.split_highlights_hue = identity.split_highlights_hue;
         params.split_balance = identity.split_balance;
         params.split_amount = identity.split_amount;
+        params.color_eq_hue = {};
+        params.color_eq_sat = {};
+        params.color_eq_light = {};
+        params.color_eq_band = 0;
     }
     else if (section == "detail")
     {
@@ -883,6 +1234,9 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.sharpen_radius = identity.sharpen_radius;
         params.clarity = identity.clarity;
         params.grain = identity.grain;
+        params.denoise = identity.denoise;
+        params.denoise_chroma = identity.denoise_chroma;
+        params.denoise_radius = identity.denoise_radius;
     }
     else if (section == "effects")
     {
@@ -890,6 +1244,16 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.bloom = identity.bloom;
         params.soften = identity.soften;
         params.dehaze = identity.dehaze;
+        params.graduated_density = identity.graduated_density;
+        params.graduated_hardness = identity.graduated_hardness;
+        params.graduated_rotation = identity.graduated_rotation;
+        params.graduated_offset = identity.graduated_offset;
+    }
+    else if (section == "raw")
+    {
+        params.raw_highlights = identity.raw_highlights;
+        params.raw_highlights_clip = identity.raw_highlights_clip;
+        params.raw_highlights_mode = identity.raw_highlights_mode;
     }
     else
     {
@@ -1135,10 +1499,59 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       {{"temperature", ParameterValue{clamped.temperature}},
                        {"tint", ParameterValue{clamped.tint}}});
     }
+    if (!near(clamped.raw_highlights, 0.0))
+    {
+        add_operation(recipe, "ravo.raw.highlights", "raw-highlights-1",
+                      {{"mode", ParameterValue{clamped.raw_highlights_mode}},
+                       {"amount", ParameterValue{clamped.raw_highlights}},
+                       {"clip", ParameterValue{clamped.raw_highlights_clip}}});
+    }
+    if (!near(clamped.denoise, 0.0))
+    {
+        add_operation(recipe, "ravo.detail.denoiseprofile", "denoiseprofile-1",
+                      {{"strength", ParameterValue{clamped.denoise}},
+                       {"chroma", ParameterValue{clamped.denoise_chroma}},
+                       {"radius", ParameterValue{clamped.denoise_radius}}});
+    }
+    if (clamped.lens_mode == kLensModeLookup || !near(clamped.lens_k1, 0.0) ||
+        !near(clamped.lens_k2, 0.0) || !near(clamped.lens_tca_r, 1.0) ||
+        !near(clamped.lens_tca_b, 1.0) || !near(clamped.lens_vignetting, 0.0))
+    {
+        add_operation(recipe, "ravo.geometry.lens", "lens-1",
+                      {{"mode", ParameterValue{clamped.lens_mode}},
+                       {"k1", ParameterValue{clamped.lens_k1}},
+                       {"k2", ParameterValue{clamped.lens_k2}},
+                       {"tca_r", ParameterValue{clamped.lens_tca_r}},
+                       {"tca_b", ParameterValue{clamped.lens_tca_b}},
+                       {"vignetting", ParameterValue{clamped.lens_vignetting}},
+                       {"camera_make", ParameterValue{clamped.lens_make}},
+                       {"camera_model", ParameterValue{clamped.lens_model}},
+                       {"lens", ParameterValue{clamped.lens_name}},
+                       {"focal_mm", ParameterValue{clamped.lens_focal_mm}}});
+    }
     if (!near(clamped.exposure_ev, 0.0))
     {
         add_operation(recipe, "ravo.core.exposure", "exposure-1",
                       {{"exposure_ev", ParameterValue{clamped.exposure_ev}}});
+    }
+    if (!near(clamped.tone_eq_blacks, 0.0) || !near(clamped.tone_eq_shadows, 0.0) ||
+        !near(clamped.tone_eq_midtones, 0.0) || !near(clamped.tone_eq_highlights, 0.0) ||
+        !near(clamped.tone_eq_whites, 0.0))
+    {
+        add_operation(recipe, "ravo.core.toneequal", "toneequal-1",
+                      {{"blacks", ParameterValue{clamped.tone_eq_blacks}},
+                       {"shadows", ParameterValue{clamped.tone_eq_shadows}},
+                       {"midtones", ParameterValue{clamped.tone_eq_midtones}},
+                       {"highlights", ParameterValue{clamped.tone_eq_highlights}},
+                       {"whites", ParameterValue{clamped.tone_eq_whites}}});
+    }
+    if (!near(clamped.graduated_density, 0.0))
+    {
+        add_operation(recipe, "ravo.effect.graduatednd", "graduatednd-1",
+                      {{"density_ev", ParameterValue{clamped.graduated_density}},
+                       {"hardness", ParameterValue{clamped.graduated_hardness}},
+                       {"rotation_deg", ParameterValue{clamped.graduated_rotation}},
+                       {"offset", ParameterValue{clamped.graduated_offset}}});
     }
     if (!near(clamped.highlights, 0.0))
     {
@@ -1205,6 +1618,14 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     {
         add_operation(recipe, "ravo.color.saturation", "saturation-1",
                       {{"amount", ParameterValue{clamped.saturation}}});
+    }
+    if (!bands_near_zero(clamped.color_eq_hue) || !bands_near_zero(clamped.color_eq_sat) ||
+        !bands_near_zero(clamped.color_eq_light))
+    {
+        add_operation(recipe, "ravo.color.colorequal", "colorequal-1",
+                      {{"hue_shift", band_array_parameter(clamped.color_eq_hue)},
+                       {"saturation", band_array_parameter(clamped.color_eq_sat)},
+                       {"lightness", band_array_parameter(clamped.color_eq_light)}});
     }
     if (!near(clamped.monochrome, 0.0))
     {
@@ -1481,6 +1902,104 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 number("display_black_target", params.sigmoid_display_black);
             params.sigmoid_hue_preservation =
                 number("hue_preservation", params.sigmoid_hue_preservation);
+        }
+        else if (operation.id == "ravo.raw.highlights")
+        {
+            params.raw_highlights = number("amount", params.raw_highlights);
+            params.raw_highlights_clip = number("clip", params.raw_highlights_clip);
+            if (const auto found = operation.parameters.find("mode");
+                found != operation.parameters.end())
+            {
+                if (const auto *text = as_string_if(found->second); text != nullptr)
+                {
+                    params.raw_highlights_mode = *text;
+                }
+            }
+        }
+        else if (operation.id == "ravo.detail.denoiseprofile")
+        {
+            params.denoise = number("strength", params.denoise);
+            params.denoise_chroma = number("chroma", params.denoise_chroma);
+            params.denoise_radius = number("radius", params.denoise_radius);
+        }
+        else if (operation.id == "ravo.geometry.lens")
+        {
+            params.lens_k1 = number("k1", params.lens_k1);
+            params.lens_k2 = number("k2", params.lens_k2);
+            params.lens_tca_r = number("tca_r", params.lens_tca_r);
+            params.lens_tca_b = number("tca_b", params.lens_tca_b);
+            params.lens_vignetting = number("vignetting", params.lens_vignetting);
+            params.lens_focal_mm = number("focal_mm", params.lens_focal_mm);
+            if (const auto found = operation.parameters.find("mode");
+                found != operation.parameters.end())
+            {
+                if (const auto *text = as_string_if(found->second); text != nullptr)
+                {
+                    params.lens_mode = *text;
+                }
+            }
+            const auto take_text = [&](const char *name, std::string &target)
+            {
+                if (const auto found = operation.parameters.find(name);
+                    found != operation.parameters.end())
+                {
+                    if (const auto *text = as_string_if(found->second); text != nullptr)
+                    {
+                        target = *text;
+                    }
+                }
+            };
+            take_text("camera_make", params.lens_make);
+            take_text("camera_model", params.lens_model);
+            take_text("lens", params.lens_name);
+        }
+        else if (operation.id == "ravo.color.colorequal")
+        {
+            if (const auto found = operation.parameters.find("hue_shift");
+                found != operation.parameters.end())
+            {
+                auto parsed = parse_band_array(found->second, "hue_shift");
+                if (!parsed)
+                {
+                    return parsed.error();
+                }
+                params.color_eq_hue = parsed.value();
+            }
+            if (const auto found = operation.parameters.find("saturation");
+                found != operation.parameters.end())
+            {
+                auto parsed = parse_band_array(found->second, "saturation");
+                if (!parsed)
+                {
+                    return parsed.error();
+                }
+                params.color_eq_sat = parsed.value();
+            }
+            if (const auto found = operation.parameters.find("lightness");
+                found != operation.parameters.end())
+            {
+                auto parsed = parse_band_array(found->second, "lightness");
+                if (!parsed)
+                {
+                    return parsed.error();
+                }
+                params.color_eq_light = parsed.value();
+            }
+        }
+        else if (operation.id == "ravo.effect.graduatednd")
+        {
+            params.graduated_density = number("density_ev", params.graduated_density);
+            params.graduated_hardness = number("hardness", params.graduated_hardness);
+            params.graduated_rotation = number("rotation_deg", params.graduated_rotation);
+            params.graduated_offset = number("offset", params.graduated_offset);
+        }
+        else if (operation.id == "ravo.core.toneequal")
+        {
+            params.tone_eq_blacks = number("blacks", params.tone_eq_blacks);
+            params.tone_eq_shadows = number("shadows", params.tone_eq_shadows);
+            params.tone_eq_midtones = number("midtones", params.tone_eq_midtones);
+            params.tone_eq_highlights = number("highlights", params.tone_eq_highlights);
+            params.tone_eq_whites = number("whites", params.tone_eq_whites);
         }
     }
     clamp_develop(params);

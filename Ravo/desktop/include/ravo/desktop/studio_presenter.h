@@ -187,6 +187,34 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
+    Q_PROPERTY(double editRawHighlights READ editRawHighlights NOTIFY editChanged)
+    Q_PROPERTY(double editDenoise READ editDenoise NOTIFY editChanged)
+    Q_PROPERTY(double editDenoiseChroma READ editDenoiseChroma NOTIFY editChanged)
+    Q_PROPERTY(double editDenoiseRadius READ editDenoiseRadius NOTIFY editChanged)
+    Q_PROPERTY(double editLensK1 READ editLensK1 NOTIFY editChanged)
+    Q_PROPERTY(double editLensVignetting READ editLensVignetting NOTIFY editChanged)
+    Q_PROPERTY(double editLensMode READ editLensMode NOTIFY editChanged)
+    Q_PROPERTY(int editColorEqBand READ editColorEqBand NOTIFY editChanged)
+    Q_PROPERTY(double editColorEqHue READ editColorEqHue NOTIFY editChanged)
+    Q_PROPERTY(double editColorEqSat READ editColorEqSat NOTIFY editChanged)
+    Q_PROPERTY(double editColorEqLight READ editColorEqLight NOTIFY editChanged)
+    Q_PROPERTY(double editGraduatedDensity READ editGraduatedDensity NOTIFY editChanged)
+    Q_PROPERTY(double editGraduatedHardness READ editGraduatedHardness NOTIFY editChanged)
+    Q_PROPERTY(double editGraduatedRotation READ editGraduatedRotation NOTIFY editChanged)
+    Q_PROPERTY(double editGraduatedOffset READ editGraduatedOffset NOTIFY editChanged)
+    Q_PROPERTY(double editToneEqBlacks READ editToneEqBlacks NOTIFY editChanged)
+    Q_PROPERTY(double editToneEqShadows READ editToneEqShadows NOTIFY editChanged)
+    Q_PROPERTY(double editToneEqMidtones READ editToneEqMidtones NOTIFY editChanged)
+    Q_PROPERTY(double editToneEqHighlights READ editToneEqHighlights NOTIFY editChanged)
+    Q_PROPERTY(double editToneEqWhites READ editToneEqWhites NOTIFY editChanged)
+    Q_PROPERTY(QString selectedTags READ selectedTags NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedTitle READ selectedTitle NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedDescription READ selectedDescription NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedCreator READ selectedCreator NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedCopyright READ selectedCopyright NOTIFY selectionChanged)
+    Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
+    Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
+    Q_PROPERTY(QString tagFilter READ tagFilter NOTIFY filterChanged)
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
@@ -291,6 +319,34 @@ public:
     [[nodiscard]] double editSigmoidContrast() const noexcept;
     [[nodiscard]] double editSigmoidSkew() const noexcept;
     [[nodiscard]] double editSigmoidHuePreservation() const noexcept;
+    [[nodiscard]] double editRawHighlights() const noexcept;
+    [[nodiscard]] double editDenoise() const noexcept;
+    [[nodiscard]] double editDenoiseChroma() const noexcept;
+    [[nodiscard]] double editDenoiseRadius() const noexcept;
+    [[nodiscard]] double editLensK1() const noexcept;
+    [[nodiscard]] double editLensVignetting() const noexcept;
+    [[nodiscard]] double editLensMode() const noexcept;
+    [[nodiscard]] int editColorEqBand() const noexcept;
+    [[nodiscard]] double editColorEqHue() const noexcept;
+    [[nodiscard]] double editColorEqSat() const noexcept;
+    [[nodiscard]] double editColorEqLight() const noexcept;
+    [[nodiscard]] double editGraduatedDensity() const noexcept;
+    [[nodiscard]] double editGraduatedHardness() const noexcept;
+    [[nodiscard]] double editGraduatedRotation() const noexcept;
+    [[nodiscard]] double editGraduatedOffset() const noexcept;
+    [[nodiscard]] double editToneEqBlacks() const noexcept;
+    [[nodiscard]] double editToneEqShadows() const noexcept;
+    [[nodiscard]] double editToneEqMidtones() const noexcept;
+    [[nodiscard]] double editToneEqHighlights() const noexcept;
+    [[nodiscard]] double editToneEqWhites() const noexcept;
+    [[nodiscard]] QString selectedTags() const;
+    [[nodiscard]] QString selectedTitle() const;
+    [[nodiscard]] QString selectedDescription() const;
+    [[nodiscard]] QString selectedCreator() const;
+    [[nodiscard]] QString selectedCopyright() const;
+    [[nodiscard]] QString selectedCaptureSummary() const;
+    [[nodiscard]] QVariantList recipeHistory() const;
+    [[nodiscard]] QString tagFilter() const;
     [[nodiscard]] bool cropToolActive() const noexcept;
     [[nodiscard]] bool cropGuideReady() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
@@ -343,6 +399,11 @@ public:
     Q_INVOKABLE void setZoomFactor(double factor);
     Q_INVOKABLE void adjustZoom(int wheel_delta);
     Q_INVOKABLE void setThumbnailSize(int size);
+    Q_INVOKABLE void setAssetTags(const QString &text);
+    Q_INVOKABLE void setMetadataField(const QString &name, const QString &value);
+    Q_INVOKABLE void createSnapshot(const QString &label);
+    Q_INVOKABLE void restoreHistory(int history_id);
+    Q_INVOKABLE void setTagFilter(const QString &tag);
     Q_INVOKABLE void setRating(int rating);
     Q_INVOKABLE void setColorLabel(const QString &label);
     Q_INVOKABLE void toggleRejected();
@@ -451,6 +512,7 @@ private:
     bool develop_job_in_flight_ = false;
     std::optional<PendingDevelopWork> pending_save_;
     std::optional<PendingDevelopWork> pending_preview_;
+    QVariantList recipe_history_;
 };
 
 } // namespace ravo

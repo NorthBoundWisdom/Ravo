@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -12,7 +13,11 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 3;
+inline constexpr std::int64_t kCatalogSchemaVersion = 4;
+inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
+inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
+inline constexpr std::size_t kTagMaxLength = 128;
+inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
 inline constexpr std::int64_t kPreviewContractVersion = 4;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
@@ -116,6 +121,41 @@ struct LibraryQuery
     AssetSortField sort_field = AssetSortField::kImportTime;
     SortDirection sort_direction = SortDirection::kDescending;
     std::string folder_uri;
+    std::string tag;
+};
+
+struct CaptureMetadata
+{
+    std::optional<std::string> camera_make;
+    std::optional<std::string> camera_model;
+    std::optional<double> iso;
+    std::optional<double> aperture;
+    std::optional<double> focal_length_mm;
+    std::optional<double> shutter_s;
+    std::optional<std::int64_t> captured_unix_s;
+
+    [[nodiscard]] bool operator==(const CaptureMetadata &) const noexcept = default;
+};
+
+struct WritableMetadata
+{
+    std::optional<std::string> title;
+    std::optional<std::string> description;
+    std::optional<std::string> creator;
+    std::optional<std::string> copyright;
+
+    [[nodiscard]] bool operator==(const WritableMetadata &) const noexcept = default;
+};
+
+struct RecipeHistoryEntry
+{
+    std::int64_t id = 0;
+    std::string asset_id;
+    std::int64_t seq = 0;
+    std::string kind{kRecipeHistoryKindHistory};
+    std::optional<std::string> label;
+    std::string recipe_json;
+    std::int64_t created_unix_ms = 0;
 };
 
 struct FolderRecord
@@ -151,6 +191,9 @@ struct AssetRecord
     std::int64_t created_unix_ms = 0;
     ReviewState review;
     bool has_edits = false;
+    std::vector<std::string> tags;
+    CaptureMetadata capture;
+    WritableMetadata metadata;
 };
 
 struct PreviewRecord
@@ -255,6 +298,9 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] std::string_view export_format_extension(ExportFormat format) noexcept;
 [[nodiscard]] Result<ExportFormat> parse_export_format(std::string_view name);
 [[nodiscard]] Result<void> validate_jpeg_quality(int quality);
+[[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
+[[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
+[[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);
 [[nodiscard]] std::string asset_display_name(const AssetRecord &asset);
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
 [[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,

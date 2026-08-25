@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <string_view>
@@ -40,6 +41,11 @@ inline constexpr std::string_view kToneCurveWorkingSpaceSrgb = "srgb";
 inline constexpr std::string_view kToneCurveWorkingSpaceLinearRgb = "linear_rgb";
 inline constexpr std::string_view kToneCurveInterpolationMonotoneHermite = "monotone_hermite";
 inline constexpr std::string_view kToneCurveChannelModeRgb = "rgb";
+inline constexpr std::size_t kColorEqualizerBandCount = 8;
+inline constexpr std::string_view kRawHighlightsModeClip = "clip";
+inline constexpr std::string_view kRawHighlightsModeInpaint = "inpaint";
+inline constexpr std::string_view kLensModeManual = "manual";
+inline constexpr std::string_view kLensModeLookup = "lookup";
 
 struct ToneCurvePoint
 {
@@ -102,6 +108,35 @@ struct DevelopParams
     double sigmoid_display_white = kSigmoidDisplayWhiteDefault;
     double sigmoid_display_black = kSigmoidDisplayBlackDefault;
     double sigmoid_hue_preservation = kSigmoidHuePreservationDefault;
+    double raw_highlights = 0.0;
+    double raw_highlights_clip = 0.987;
+    std::string raw_highlights_mode{std::string(kRawHighlightsModeInpaint)};
+    double denoise = 0.0;
+    double denoise_chroma = 1.0;
+    double denoise_radius = 1.0;
+    double lens_k1 = 0.0;
+    double lens_k2 = 0.0;
+    double lens_tca_r = 1.0;
+    double lens_tca_b = 1.0;
+    double lens_vignetting = 0.0;
+    std::string lens_mode{std::string(kLensModeManual)};
+    std::string lens_make;
+    std::string lens_model;
+    std::string lens_name;
+    double lens_focal_mm = 50.0;
+    std::array<double, kColorEqualizerBandCount> color_eq_hue{};
+    std::array<double, kColorEqualizerBandCount> color_eq_sat{};
+    std::array<double, kColorEqualizerBandCount> color_eq_light{};
+    std::int64_t color_eq_band = 0;
+    double graduated_density = 0.0;
+    double graduated_hardness = 0.5;
+    double graduated_rotation = 0.0;
+    double graduated_offset = 0.0;
+    double tone_eq_blacks = 0.0;
+    double tone_eq_shadows = 0.0;
+    double tone_eq_midtones = 0.0;
+    double tone_eq_highlights = 0.0;
+    double tone_eq_whites = 0.0;
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;

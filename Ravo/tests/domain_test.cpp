@@ -250,5 +250,26 @@ TEST(LibraryFolderTest, BuildsTreeFromImportedAssetUris)
     EXPECT_EQ(filtered.front().id, "ast_trip");
 }
 
+TEST(DomainTypesTest, NormalizesUnicodeTagsAndFiltersAssets)
+{
+    auto parsed = parse_tag_list("  风景, archive, 风景 ");
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_EQ(parsed.value().size(), 2U);
+    EXPECT_EQ(parsed.value().front(), "风景");
+    EXPECT_EQ(parsed.value().back(), "archive");
+    auto empty = normalize_tag_name("   ");
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().code, ErrorCode::kValidation);
+
+    AssetRecord tagged;
+    tagged.id = "ast_tag";
+    tagged.tags = {"风景"};
+    LibraryQuery query;
+    query.tag = "风景";
+    EXPECT_TRUE(asset_matches_query(tagged, query));
+    query.tag = "archive";
+    EXPECT_FALSE(asset_matches_query(tagged, query));
+}
+
 } // namespace
 } // namespace ravo

@@ -1,5 +1,6 @@
 #include "raw_pipeline.h"
 
+#include "capability_ops.h"
 #include "image_ops.h"
 
 #include <algorithm>
@@ -90,13 +91,35 @@ Result<InspectionResult> identify_raw(const std::string_view input_uri)
         return make_error(ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions",
                           {{"input_uri", std::string(input_uri)}});
     }
-    return InspectionResult{std::string(input_uri),
-                            "raw",
-                            raw.idata.make,
-                            raw.idata.model,
-                            static_cast<std::uint32_t>(raw.sizes.width),
-                            static_cast<std::uint32_t>(raw.sizes.height),
-                            true};
+    InspectionResult result;
+    result.input_uri = std::string(input_uri);
+    result.format = "raw";
+    result.make = raw.idata.make;
+    result.model = raw.idata.model;
+    result.width = static_cast<std::uint32_t>(raw.sizes.width);
+    result.height = static_cast<std::uint32_t>(raw.sizes.height);
+    result.is_raw = true;
+    if (raw.other.iso_speed > 0.0F)
+    {
+        result.iso = static_cast<double>(raw.other.iso_speed);
+    }
+    if (raw.other.aperture > 0.0F)
+    {
+        result.aperture = static_cast<double>(raw.other.aperture);
+    }
+    if (raw.other.focal_len > 0.0F)
+    {
+        result.focal_length_mm = static_cast<double>(raw.other.focal_len);
+    }
+    if (raw.other.shutter > 0.0F)
+    {
+        result.shutter_s = static_cast<double>(raw.other.shutter);
+    }
+    if (raw.other.timestamp > 0)
+    {
+        result.captured_unix_s = static_cast<std::int64_t>(raw.other.timestamp);
+    }
+    return result;
 }
 
 [[nodiscard]] int select_libraw_jpeg_thumb_index(const libraw_thumbnail_list_t &list,
@@ -289,13 +312,28 @@ Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &req
         return make_error(ErrorCode::kValidation, "Render memory budget is too small",
                           {{"required_bytes", std::to_string(working_bytes)}});
     }
-    auto working = working_from_raw(raw, width, height, request.cancellation);
+    DecodedRaw prepared = raw;
+    Recipe rgb_recipe = request.recipe;
+    for (auto &operation : rgb_recipe.operations)
+    {
+        if (!operation.enabled || operation.id != "ravo.raw.highlights")
+        {
+            continue;
+        }
+        auto reconstructed = apply_raw_highlights(prepared, operation, request.cancellation);
+        if (!reconstructed)
+        {
+            return reconstructed.error();
+        }
+        operation.enabled = false;
+    }
+    auto working = working_from_raw(prepared, width, height, request.cancellation);
     if (!working)
     {
         return working.error();
     }
     auto adjusted =
-        apply_recipe_ops(std::move(working).value(), request.recipe, request.cancellation);
+        apply_recipe_ops(std::move(working).value(), rgb_recipe, request.cancellation);
     if (!adjusted)
     {
         return adjusted.error();

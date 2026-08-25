@@ -5,3 +5,15 @@ libs/export.c
 libs/export_metadata.c
 iop/tonecurve.c
 iop/sigmoid.c
+iop/highlights.c
+iop/denoiseprofile.c
+iop/lens.cc
+iop/colorequal.c
+iop/graduatednd.c
+iop/toneequal.c
+libs/tagging.c
+libs/metadata.c
+libs/metadata_view.c
+libs/history.c
+libs/snapshots.c
+libs/copy_history.c

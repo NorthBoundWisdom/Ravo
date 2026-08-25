@@ -27,6 +27,11 @@ Item {
         readonly property string photoSelect: "photo.select"
         readonly property string photoRate: "photo.rate"
         readonly property string photoColor: "photo.color"
+        readonly property string photoSetTags: "photo.setTags"
+        readonly property string photoSetMetadata: "photo.setMetadata"
+        readonly property string photoCreateSnapshot: "photo.createSnapshot"
+        readonly property string photoRestoreHistory: "photo.restoreHistory"
+        readonly property string librarySetTagFilter: "library.setTagFilter"
         readonly property string photoReject: "photo.reject"
         readonly property string photoRemove: "photo.remove"
         readonly property string photoRemoveFromDisk: "photo.removeFromDisk"
@@ -146,6 +151,29 @@ Item {
 
     function setColorLabel(value) {
         root.run(root.ids.photoColor, value);
+    }
+
+    function setTags(value) {
+        root.run(root.ids.photoSetTags, value);
+    }
+
+    function setMetadata(name, value) {
+        root.run(root.ids.photoSetMetadata, {
+            "name": name,
+            "value": value
+        });
+    }
+
+    function createSnapshot(label) {
+        root.run(root.ids.photoCreateSnapshot, label);
+    }
+
+    function restoreHistory(id) {
+        root.run(root.ids.photoRestoreHistory, id);
+    }
+
+    function setTagFilter(value) {
+        root.run(root.ids.librarySetTagFilter, value);
     }
 
     function previewDevelopNumber(name, value) {

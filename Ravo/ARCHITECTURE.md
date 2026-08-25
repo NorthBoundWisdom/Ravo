@@ -73,7 +73,9 @@ catalog 是单个用户选择的 SQLite 文件。schema v1 至少保存：
 
 规范化 URI 在一个 catalog 内唯一。数据库不保存原片或完整 preview blob，不保存 presentation 状态、recipe
 对象布局、codec 句柄或数据库行地址。schema v2 在 `asset` 上保存 rating/color/reject；schema v3 用
-`asset_recipe` 保存每张图最多一份 canonical recipe JSON。新库和每次 migration 使用事务；未知更高
+`asset_recipe` 保存每张图最多一份 canonical recipe JSON；schema v4 增加
+`asset_tag`、`asset_metadata`（只读 capture EXIF + catalog-only 可写字段）和
+`asset_recipe_history`（history/snapshot）。新库和每次 migration 使用事务；未知更高
 schema 版本 fail-fast。
 
 首版不读取或迁移冻结 0.9 catalog。未来兼容工作必须有独立产品决定、备份/回滚和 fixture。
@@ -117,7 +119,8 @@ TGA/WBMP/ICO 和其他 SQL drivers 没有产品消费者，不进入 required �
 black/white target 与 hue preservation。它是 RAW 基线与 scene-referred operation 链的末端，
 随后才做 sRGB encoding。RAW Studio 的 Contrast 由 Sigmoid 拥有；`ravo.core.contrast`
 继续服务 display-referred raster 输入和旧 recipe。highlights/shadows/whites/blacks 仍是
-transform 之前的 scene controls。
+transform 之前的 scene controls。RAW 路径可在 demosaic 前运行 `ravo.raw.highlights`；
+默认降噪、镜头校正、8 带 HSL `colorequal`、渐变滤镜和影调均化走同一 recipe/engine。
 
 所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
 或无标记 buffer 不得隐式选择色彩策略。完整约束见

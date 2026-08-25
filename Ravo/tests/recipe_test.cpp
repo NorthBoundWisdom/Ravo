@@ -108,6 +108,12 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     params.flip_horizontal = 1;
     params.gamma = 1.2;
     params.split_amount = 0.4;
+    params.raw_highlights = 0.7;
+    params.denoise = 0.4;
+    params.lens_k1 = -0.12;
+    params.tone_eq_shadows = 0.35;
+    params.graduated_density = 0.8;
+    params.color_eq_sat[2] = 0.4;
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto valid = validate_recipe(recipe.value(), registry.value());
@@ -117,6 +123,12 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(restored.value().sharpen, 0.4, 1e-6);
     EXPECT_NEAR(restored.value().vignette, 0.5, 1e-6);
     EXPECT_EQ(restored.value().flip_horizontal, 1);
+    EXPECT_NEAR(restored.value().raw_highlights, 0.7, 1e-6);
+    EXPECT_NEAR(restored.value().denoise, 0.4, 1e-6);
+    EXPECT_NEAR(restored.value().lens_k1, -0.12, 1e-6);
+    EXPECT_NEAR(restored.value().tone_eq_shadows, 0.35, 1e-6);
+    EXPECT_NEAR(restored.value().graduated_density, 0.8, 1e-6);
+    EXPECT_NEAR(restored.value().color_eq_sat[2], 0.4, 1e-6);
     EXPECT_NEAR(restored.value().gamma, 1.2, 1e-6);
 
     DevelopParams crop;

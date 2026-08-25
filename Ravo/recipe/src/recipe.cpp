@@ -806,6 +806,34 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == "ravo.raw.highlights")
+        {
+            if (const auto found = operation.parameters.find("mode");
+                found != operation.parameters.end())
+            {
+                const auto *text = std::get_if<std::string>(&found->second.value);
+                if (text == nullptr ||
+                    (*text != kRawHighlightsModeClip && *text != kRawHighlightsModeInpaint))
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "RAW highlight reconstruction mode is unsupported",
+                                      {{"operation_id", operation.id}});
+                }
+            }
+        }
+        if (operation.id == "ravo.geometry.lens")
+        {
+            if (const auto found = operation.parameters.find("mode");
+                found != operation.parameters.end())
+            {
+                const auto *text = std::get_if<std::string>(&found->second.value);
+                if (text == nullptr || (*text != kLensModeManual && *text != kLensModeLookup))
+                {
+                    return make_error(ErrorCode::kValidation, "Lens correction mode is unsupported",
+                                      {{"operation_id", operation.id}});
+                }
+            }
+        }
     }
     return {};
 }

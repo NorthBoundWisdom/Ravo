@@ -3,6 +3,7 @@
 #include "ravo/domain/uri.h"
 
 #include <algorithm>
+#include <cctype>
 #include <map>
 #include <random>
 #include <set>
@@ -273,7 +274,118 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
     {
         return false;
     }
+    if (!query.tag.empty())
+    {
+        const auto found = std::find(asset.tags.begin(), asset.tags.end(), query.tag);
+        if (found == asset.tags.end())
+        {
+            return false;
+        }
+    }
     return true;
+}
+
+Result<std::string> normalize_tag_name(const std::string_view name)
+{
+    std::string trimmed;
+    trimmed.reserve(name.size());
+    std::size_t start = 0;
+    while (start < name.size() &&
+           (name[start] == ' ' || name[start] == '\t' || name[start] == '\n' ||
+            name[start] == '\r'))
+    {
+        ++start;
+    }
+    std::size_t end = name.size();
+    while (end > start &&
+           (name[end - 1U] == ' ' || name[end - 1U] == '\t' || name[end - 1U] == '\n' ||
+            name[end - 1U] == '\r'))
+    {
+        --end;
+    }
+    for (std::size_t index = start; index < end; ++index)
+    {
+        const auto byte = static_cast<unsigned char>(name[index]);
+        if (byte == '\0' || byte == '\n' || byte == '\r')
+        {
+            return make_error(ErrorCode::kValidation, "Tag name contains an invalid control character");
+        }
+        trimmed.push_back(name[index]);
+    }
+    if (trimmed.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Tag name must not be empty");
+    }
+    if (trimmed.size() > kTagMaxLength)
+    {
+        return make_error(ErrorCode::kValidation, "Tag name exceeds the maximum length",
+                          {{"max_length", std::to_string(kTagMaxLength)}});
+    }
+    return trimmed;
+}
+
+Result<std::vector<std::string>> parse_tag_list(const std::string_view text)
+{
+    std::vector<std::string> tags;
+    std::string current;
+    auto flush = [&]() -> Result<void>
+    {
+        if (current.empty())
+        {
+            return {};
+        }
+        auto normalized = normalize_tag_name(current);
+        current.clear();
+        if (!normalized)
+        {
+            return normalized.error();
+        }
+        if (std::find(tags.begin(), tags.end(), normalized.value()) == tags.end())
+        {
+            tags.push_back(std::move(normalized).value());
+        }
+        return {};
+    };
+    for (const char ch : text)
+    {
+        if (ch == ',' || ch == ';')
+        {
+            auto flushed = flush();
+            if (!flushed)
+            {
+                return flushed.error();
+            }
+            continue;
+        }
+        current.push_back(ch);
+    }
+    auto flushed = flush();
+    if (!flushed)
+    {
+        return flushed.error();
+    }
+    return tags;
+}
+
+Result<void> validate_metadata_field(const std::string_view name, const std::string_view value)
+{
+    if (name != "title" && name != "description" && name != "creator" && name != "copyright")
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Writable metadata field is unknown",
+                          {{"field", std::string(name)}});
+    }
+    if (value.size() > kMetadataFieldMaxLength)
+    {
+        return make_error(ErrorCode::kValidation, "Writable metadata field exceeds the maximum length",
+                          {{"field", std::string(name)},
+                           {"max_length", std::to_string(kMetadataFieldMaxLength)}});
+    }
+    if (value.find('\0') != std::string_view::npos)
+    {
+        return make_error(ErrorCode::kValidation, "Writable metadata cannot contain NUL",
+                          {{"field", std::string(name)}});
+    }
+    return {};
 }
 
 bool asset_in_folder(const AssetRecord &asset, const std::string_view folder_uri) noexcept
