@@ -78,10 +78,166 @@ namespace
     return clamped <= 0.04045F ? clamped / 12.92F : std::pow((clamped + 0.055F) / 1.055F, 2.4F);
 }
 
+constexpr int kToneCurveLut = 0x10000;
+
+void linear_rgb_to_xyz_d50(const float r, const float g, const float b, float xyz[3]) noexcept
+{
+    xyz[0] = 0.4360747F * r + 0.3850649F * g + 0.1430804F * b;
+    xyz[1] = 0.2225045F * r + 0.7168786F * g + 0.0606169F * b;
+    xyz[2] = 0.0139322F * r + 0.0971045F * g + 0.7141733F * b;
+}
+
+void xyz_d50_to_linear_rgb(const float xyz[3], float &r, float &g, float &b) noexcept
+{
+    r = 3.1338561F * xyz[0] - 1.6168667F * xyz[1] - 0.4906146F * xyz[2];
+    g = -0.9787684F * xyz[0] + 1.9161415F * xyz[1] + 0.0334540F * xyz[2];
+    b = 0.0719453F * xyz[0] - 0.2289914F * xyz[1] + 1.4052427F * xyz[2];
+}
+
+void xyz_d50_to_lab(const float xyz[3], float lab[3]) noexcept
+{
+    constexpr float kD50[3] = {0.9642F, 1.0F, 0.8249F};
+    constexpr float kEpsilon = 216.0F / 24389.0F;
+    constexpr float kKappa = 24389.0F / 27.0F;
+    float f[3]{};
+    for (int i = 0; i < 3; ++i)
+    {
+        const float x = xyz[i] / kD50[i];
+        f[i] = x > kEpsilon ? std::cbrt(x) : (kKappa * x + 16.0F) / 116.0F;
+    }
+    lab[0] = 116.0F * f[1] - 16.0F;
+    lab[1] = 500.0F * (f[0] - f[1]);
+    lab[2] = 200.0F * (f[1] - f[2]);
+}
+
+void lab_to_xyz_d50(const float lab[3], float xyz[3]) noexcept
+{
+    constexpr float kD50[3] = {0.9642F, 1.0F, 0.8249F};
+    constexpr float kEpsilon = 0.20689655172413796F;
+    constexpr float kKappa = 24389.0F / 27.0F;
+    const float fy = (lab[0] + 16.0F) / 116.0F;
+    const float fx = fy + lab[1] / 500.0F;
+    const float fz = fy - lab[2] / 200.0F;
+    const auto inv = [](const float x)
+    {
+        return x > kEpsilon ? x * x * x : (116.0F * x - 16.0F) / kKappa;
+    };
+    xyz[0] = kD50[0] * inv(fx);
+    xyz[1] = kD50[1] * inv(fy);
+    xyz[2] = kD50[2] * inv(fz);
+}
+
+void xyz_to_prophoto(const float xyz[3], float rgb[3]) noexcept
+{
+    rgb[0] = 1.3459433F * xyz[0] - 0.2556075F * xyz[1] - 0.0511118F * xyz[2];
+    rgb[1] = -0.5445989F * xyz[0] + 1.5081673F * xyz[1] + 0.0205351F * xyz[2];
+    rgb[2] = 0.0000000F * xyz[0] + 0.0000000F * xyz[1] + 1.2118128F * xyz[2];
+}
+
+void prophoto_to_xyz(const float rgb[3], float xyz[3]) noexcept
+{
+    xyz[0] = 0.7976749F * rgb[0] + 0.1351917F * rgb[1] + 0.0313534F * rgb[2];
+    xyz[1] = 0.2880402F * rgb[0] + 0.7118741F * rgb[1] + 0.0000857F * rgb[2];
+    xyz[2] = 0.0000000F * rgb[0] + 0.0000000F * rgb[1] + 0.8252100F * rgb[2];
+}
+
+void lab_to_prophoto(const float lab[3], float rgb[3]) noexcept
+{
+    float xyz[3]{};
+    lab_to_xyz_d50(lab, xyz);
+    xyz_to_prophoto(xyz, rgb);
+}
+
+void prophoto_to_lab(const float rgb[3], float lab[3]) noexcept
+{
+    float xyz[3]{};
+    prophoto_to_xyz(rgb, xyz);
+    xyz_d50_to_lab(xyz, lab);
+}
+
+[[nodiscard]] float rgb_norm(const float rgb[3], const std::string_view preserve) noexcept
+{
+    if (preserve == kToneCurvePreserveColorsNone)
+    {
+        return (rgb[0] + rgb[1] + rgb[2]) / 3.0F;
+    }
+    if (preserve == kToneCurvePreserveColorsLuminance)
+    {
+        return 0.2880402F * rgb[0] + 0.7118741F * rgb[1] + 0.0000857F * rgb[2];
+    }
+    if (preserve == kToneCurvePreserveColorsMax)
+    {
+        return std::max(rgb[0], std::max(rgb[1], rgb[2]));
+    }
+    if (preserve == kToneCurvePreserveColorsSum)
+    {
+        return rgb[0] + rgb[1] + rgb[2];
+    }
+    if (preserve == kToneCurvePreserveColorsNorm)
+    {
+        return std::sqrt(rgb[0] * rgb[0] + rgb[1] * rgb[1] + rgb[2] * rgb[2]);
+    }
+    if (preserve == kToneCurvePreserveColorsPower)
+    {
+        const float r2 = rgb[0] * rgb[0];
+        const float g2 = rgb[1] * rgb[1];
+        const float b2 = rgb[2] * rgb[2];
+        const float denom = r2 + g2 + b2;
+        return denom > 0.0F ? (rgb[0] * r2 + rgb[1] * g2 + rgb[2] * b2) / denom : 0.0F;
+    }
+    return (rgb[0] + rgb[1] + rgb[2]) / 3.0F;
+}
+
+void estimate_exp(const float *x, const float *y, const int num, float coeff[3]) noexcept
+{
+    const float x0 = x[num - 1];
+    const float y0 = y[num - 1];
+    float g = 0.0F;
+    int count = 0;
+    for (int k = 0; k < num - 1; ++k)
+    {
+        if (y[k] / y0 > 0.0F && x[k] / x0 > 0.0F)
+        {
+            g += std::log(y[k] / y0) / std::log(x[k] / x0);
+            ++count;
+        }
+    }
+    coeff[0] = 1.0F / x0;
+    coeff[1] = y0;
+    coeff[2] = count > 0 ? g / static_cast<float>(count) : 1.0F;
+}
+
+[[nodiscard]] float eval_exp(const float coeff[3], const float x) noexcept
+{
+    return coeff[1] * std::pow(x * coeff[0], coeff[2]);
+}
+
+[[nodiscard]] float lookup_curve_lut(const std::vector<float> &lut, const float x, const float xm,
+                                     const float coeff[3]) noexcept
+{
+    if (x < xm)
+    {
+        const int index = std::clamp(static_cast<int>(x * static_cast<float>(kToneCurveLut)), 0,
+                                     kToneCurveLut - 1);
+        return lut[static_cast<std::size_t>(index)];
+    }
+    return eval_exp(coeff, x);
+}
+
+void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float> &lut)
+{
+    lut.assign(static_cast<std::size_t>(kToneCurveLut), 0.0F);
+    for (int k = 0; k < kToneCurveLut; ++k)
+    {
+        lut[static_cast<std::size_t>(k)] = static_cast<float>(
+            evaluate_tone_curve(points, static_cast<double>(k) / static_cast<double>(kToneCurveLut)));
+    }
+}
+
 Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &operation)
 {
     auto space = parse_tone_curve_working_space(
-        parameter_string(operation, "working_space", std::string(kToneCurveWorkingSpaceSrgb)));
+        parameter_string(operation, "working_space", std::string(kToneCurveWorkingSpaceRgb)));
     if (!space)
     {
         return space.error();
@@ -95,11 +251,14 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     }
     const auto channel_mode =
         parameter_string(operation, "channel_mode", std::string(kToneCurveChannelModeRgb));
-    if (channel_mode != kToneCurveChannelModeRgb)
+    if (channel_mode != kToneCurveChannelModeRgb &&
+        channel_mode != kToneCurveChannelModeIndependent)
     {
         return make_error(ErrorCode::kValidation, "Tone curve channel_mode is unsupported",
                           {{"channel_mode", channel_mode}});
     }
+    const auto preserve =
+        parameter_string(operation, "preserve_colors", std::string(kToneCurvePreserveColorsAverage));
     std::vector<ToneCurvePoint> points;
     if (const auto found = operation.parameters.find("points"); found != operation.parameters.end())
     {
@@ -110,44 +269,166 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         }
         points = std::move(parsed).value();
     }
-    if (tone_curve_is_identity(points))
+    std::vector<ToneCurvePoint> points_a;
+    std::vector<ToneCurvePoint> points_b;
+    if (const auto found = operation.parameters.find("points_a"); found != operation.parameters.end())
+    {
+        auto parsed = parse_tone_curve_points(found->second);
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        points_a = std::move(parsed).value();
+    }
+    if (const auto found = operation.parameters.find("points_b"); found != operation.parameters.end())
+    {
+        auto parsed = parse_tone_curve_points(found->second);
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        points_b = std::move(parsed).value();
+    }
+    const bool independent =
+        channel_mode == kToneCurveChannelModeIndependent ||
+        space.value() == ToneCurveWorkingSpace::kLabIndependent;
+    if (tone_curve_is_identity(points) &&
+        (!independent || (tone_curve_is_identity(points_a) && tone_curve_is_identity(points_b))))
     {
         return {};
     }
-    constexpr int kLut = 256;
-    std::array<float, kLut + 1> lut{};
-    for (int index = 0; index <= kLut; ++index)
+
+    std::vector<float> table_l;
+    std::vector<float> table_a;
+    std::vector<float> table_b;
+    build_unit_lut(points, table_l);
+    build_unit_lut(points_a, table_a);
+    build_unit_lut(points_b, table_b);
+    for (int k = 0; k < kToneCurveLut; ++k)
     {
-        lut[static_cast<std::size_t>(index)] = static_cast<float>(
-            evaluate_tone_curve(points, static_cast<double>(index) / static_cast<double>(kLut)));
+        table_l[static_cast<std::size_t>(k)] *= 100.0F;
+        table_a[static_cast<std::size_t>(k)] = table_a[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
+        table_b[static_cast<std::size_t>(k)] = table_b[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
     }
-    const bool encode = space.value() == ToneCurveWorkingSpace::kSrgb;
-    const auto map_channel = [&](float value)
+
+    const bool rgb_linked = !independent && space.value() != ToneCurveWorkingSpace::kLab &&
+                            space.value() != ToneCurveWorkingSpace::kXyz;
+    const bool xyz_linked = space.value() == ToneCurveWorkingSpace::kXyz;
+    const bool lab_linked = space.value() == ToneCurveWorkingSpace::kLab && !independent;
+
+    if (xyz_linked)
     {
-        if (encode)
+        for (int k = 0; k < kToneCurveLut; ++k)
         {
-            value = srgb_encode(value);
+            const float t = static_cast<float>(k) / static_cast<float>(kToneCurveLut);
+            float xyz[3]{t, t, t};
+            float lab[3]{};
+            xyz_d50_to_lab(xyz, lab);
+            const int index = std::clamp(static_cast<int>(lab[0] / 100.0F * kToneCurveLut), 0,
+                                         kToneCurveLut - 1);
+            lab[0] = table_l[static_cast<std::size_t>(index)];
+            lab_to_xyz_d50(lab, xyz);
+            table_l[static_cast<std::size_t>(k)] = xyz[1];
         }
-        if (value <= 0.0F)
+    }
+    else if (rgb_linked)
+    {
+        for (int k = 0; k < kToneCurveLut; ++k)
         {
-            return encode ? srgb_decode(lut.front()) : lut.front();
+            const float t = static_cast<float>(k) / static_cast<float>(kToneCurveLut);
+            float rgb[3]{t, t, t};
+            float lab[3]{};
+            prophoto_to_lab(rgb, lab);
+            const int index = std::clamp(static_cast<int>(lab[0] / 100.0F * kToneCurveLut), 0,
+                                         kToneCurveLut - 1);
+            lab[0] = table_l[static_cast<std::size_t>(index)];
+            lab_to_prophoto(lab, rgb);
+            table_l[static_cast<std::size_t>(k)] = rgb[1];
         }
-        if (value >= 1.0F)
-        {
-            return encode ? srgb_decode(lut.back()) : lut.back();
-        }
-        const float scaled = value * static_cast<float>(kLut);
-        const int low = static_cast<int>(scaled);
-        const float mix = scaled - static_cast<float>(low);
-        const float mapped = lut[static_cast<std::size_t>(low)] * (1.0F - mix) +
-                             lut[static_cast<std::size_t>(low + 1)] * mix;
-        return encode ? srgb_decode(mapped) : mapped;
-    };
+    }
+
+    const float xm_l = points.empty() ? 1.0F : static_cast<float>(points.back().x);
+    const float x_l[4] = {0.7F * xm_l, 0.8F * xm_l, 0.9F * xm_l, 1.0F * xm_l};
+    float y_l[4]{};
+    for (int i = 0; i < 4; ++i)
+    {
+        const int index = std::clamp(static_cast<int>(x_l[i] * kToneCurveLut), 0, kToneCurveLut - 1);
+        y_l[i] = table_l[static_cast<std::size_t>(index)];
+    }
+    float unbounded_l[3]{};
+    estimate_exp(x_l, y_l, 4, unbounded_l);
+
+    const float low_approximation = table_l[static_cast<std::size_t>(0.01F * kToneCurveLut)];
+
     for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
     {
-        image.rgb[index] = map_channel(image.rgb[index]);
-        image.rgb[index + 1U] = map_channel(image.rgb[index + 1U]);
-        image.rgb[index + 2U] = map_channel(image.rgb[index + 2U]);
+        float xyz[3]{};
+        linear_rgb_to_xyz_d50(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], xyz);
+        float lab[3]{};
+        xyz_d50_to_lab(xyz, lab);
+        const float l_in = lab[0] / 100.0F;
+        if (rgb_linked)
+        {
+            float rgb[3]{};
+            lab_to_prophoto(lab, rgb);
+            if (preserve == kToneCurvePreserveColorsNone)
+            {
+                for (int c = 0; c < 3; ++c)
+                {
+                    rgb[c] = lookup_curve_lut(table_l, rgb[c], xm_l, unbounded_l);
+                }
+            }
+            else
+            {
+                const float lum = rgb_norm(rgb, preserve);
+                if (lum > 0.0F)
+                {
+                    const float curve_lum = lookup_curve_lut(table_l, lum, xm_l, unbounded_l);
+                    const float ratio = curve_lum / lum;
+                    rgb[0] *= ratio;
+                    rgb[1] *= ratio;
+                    rgb[2] *= ratio;
+                }
+            }
+            prophoto_to_lab(rgb, lab);
+        }
+        else if (xyz_linked)
+        {
+            for (int c = 0; c < 3; ++c)
+            {
+                xyz[c] = lookup_curve_lut(table_l, xyz[c], xm_l, unbounded_l);
+            }
+            xyz_d50_to_lab(xyz, lab);
+        }
+        else if (lab_linked)
+        {
+            const float orig_l = lab[0];
+            const float orig_a = lab[1];
+            const float orig_b = lab[2];
+            lab[0] = lookup_curve_lut(table_l, l_in, xm_l, unbounded_l);
+            if (l_in > 0.01F)
+            {
+                lab[1] = orig_a * lab[0] / orig_l;
+                lab[2] = orig_b * lab[0] / orig_l;
+            }
+            else
+            {
+                lab[1] = orig_a * low_approximation;
+                lab[2] = orig_b * low_approximation;
+            }
+        }
+        else
+        {
+            lab[0] = lookup_curve_lut(table_l, l_in, xm_l, unbounded_l);
+            const float a_in = (lab[1] + 128.0F) / 256.0F;
+            const float b_in = (lab[2] + 128.0F) / 256.0F;
+            const int ia = std::clamp(static_cast<int>(a_in * kToneCurveLut), 0, kToneCurveLut - 1);
+            const int ib = std::clamp(static_cast<int>(b_in * kToneCurveLut), 0, kToneCurveLut - 1);
+            lab[1] = table_a[static_cast<std::size_t>(ia)];
+            lab[2] = table_b[static_cast<std::size_t>(ib)];
+        }
+        lab_to_xyz_d50(lab, xyz);
+        xyz_d50_to_linear_rgb(xyz, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
     }
     return {};
 }
@@ -169,7 +450,9 @@ struct SigmoidCurve
 {
     const double clamped = std::max(value, 0.0);
     const double film_response = std::pow(film_fog + clamped, film_power);
-    return magnitude * std::pow(film_response / (paper_exposure + film_response), paper_power);
+    const double paper_response =
+        magnitude * std::pow(film_response / (paper_exposure + film_response), paper_power);
+    return std::isfinite(paper_response) ? paper_response : magnitude;
 }
 
 [[nodiscard]] Result<SigmoidCurve> make_sigmoid_curve(const OperationInstance &operation)
@@ -313,7 +596,8 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     const auto color_processing = parameter_string(operation, "color_processing",
                                                    std::string(kSigmoidColorProcessingPerChannel));
     if (working_space != kSigmoidWorkingSpaceLinearSrgb ||
-        color_processing != kSigmoidColorProcessingPerChannel)
+        (color_processing != kSigmoidColorProcessingPerChannel &&
+         color_processing != kSigmoidColorProcessingRgbRatio))
     {
         return make_error(
             ErrorCode::kValidation, "Sigmoid color policy is unsupported",
@@ -348,15 +632,59 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
                                   {{"sample_index", std::to_string(index)}});
             }
             const auto positive = desaturate_negative_values(input);
-            std::array<double, 3> mapped{};
-            for (std::size_t channel = 0; channel < mapped.size(); ++channel)
+            std::array<double, 3> output{};
+            if (color_processing == kSigmoidColorProcessingRgbRatio)
             {
-                mapped[channel] = generalized_loglogistic(
-                    positive[channel], curve.value().white_target, curve.value().paper_exposure,
+                const double luma = (positive[0] + positive[1] + positive[2]) / 3.0;
+                const double mapped_luma = generalized_loglogistic(
+                    luma, curve.value().white_target, curve.value().paper_exposure,
                     curve.value().film_fog, curve.value().film_power, curve.value().paper_power);
+                std::array<double, 3> pre_out{};
+                if (luma > 1.0e-9)
+                {
+                    const double scale = mapped_luma / luma;
+                    pre_out = {scale * positive[0], scale * positive[1], scale * positive[2]};
+                }
+                else
+                {
+                    pre_out = {mapped_luma, mapped_luma, mapped_luma};
+                }
+                const auto order = channel_order(pre_out);
+                const double pixel_min = pre_out[order[0]];
+                const double pixel_max = pre_out[order[2]];
+                constexpr double kEpsilon = 1.0e-6;
+                const double display_white =
+                    (curve.value().white_target - mapped_luma) /
+                    (pixel_max - mapped_luma + kEpsilon);
+                const double display_black =
+                    (curve.value().black_target - mapped_luma) /
+                    (pixel_min - mapped_luma - kEpsilon);
+                const double display_border = std::min(display_white, display_black);
+                const double chroma_vs_border =
+                    (mapped_luma - pixel_min) / (mapped_luma + kEpsilon);
+                const double adjustment =
+                    1.0 / (chroma_vs_border * display_border + kEpsilon);
+                const double hyperbolic = 2.0 * chroma_vs_border /
+                                          (1.0 - chroma_vs_border * chroma_vs_border + kEpsilon) *
+                                          adjustment;
+                const double hyperbolic_z = std::sqrt(hyperbolic * hyperbolic + 1.0);
+                const double chroma_factor =
+                    hyperbolic / (1.0 + hyperbolic_z) * display_border;
+                output = {mapped_luma + chroma_factor * (pre_out[0] - mapped_luma),
+                          mapped_luma + chroma_factor * (pre_out[1] - mapped_luma),
+                          mapped_luma + chroma_factor * (pre_out[2] - mapped_luma)};
             }
-            const auto output =
-                preserve_sigmoid_hue(positive, mapped, curve.value().hue_preservation);
+            else
+            {
+                std::array<double, 3> mapped{};
+                for (std::size_t channel = 0; channel < mapped.size(); ++channel)
+                {
+                    mapped[channel] = generalized_loglogistic(
+                        positive[channel], curve.value().white_target, curve.value().paper_exposure,
+                        curve.value().film_fog, curve.value().film_power, curve.value().paper_power);
+                }
+                output = preserve_sigmoid_hue(positive, mapped, curve.value().hue_preservation);
+            }
             if (std::any_of(output.begin(), output.end(),
                             [](const double value) { return !std::isfinite(value); }))
             {

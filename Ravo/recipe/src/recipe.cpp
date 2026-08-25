@@ -813,7 +813,8 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             {
                 const auto *text = std::get_if<std::string>(&found->second.value);
                 if (text == nullptr ||
-                    (*text != kRawHighlightsModeClip && *text != kRawHighlightsModeInpaint))
+                    (*text != kRawHighlightsModeClip && *text != kRawHighlightsModeInpaint &&
+                     *text != kRawHighlightsModeOpposed && *text != kRawHighlightsModeLch))
                 {
                     return make_error(ErrorCode::kValidation,
                                       "RAW highlight reconstruction mode is unsupported",

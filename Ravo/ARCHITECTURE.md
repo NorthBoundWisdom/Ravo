@@ -111,16 +111,16 @@ TGA/WBMP/ICO 和其他 SQL drivers 没有产品消费者，不进入 required �
 既有 canonical recipe、operation descriptor、`RenderRequest`/`RenderResult` 和显式 colour contract
 继续有效。第一版 viewer 只依赖生成可信 preview 所需的最小 CPU 链，不要求先迁完全部旧 operation。
 后续编辑 UI 只能映射 versioned schema，不拥有第二套算法或 history 格式。
-色调曲线是 `ravo.core.tonecurve`：0–1 点列表、`working_space`（`srgb` 或
-`linear_rgb`）、`interpolation=monotone_hermite`、`channel_mode=rgb`。Inspector
-只转发点；求值在 recipe/engine。
+色调曲线是 `ravo.core.tonecurve`：冻结 C 默认 RGB linked（Lab D50 → ProPhoto，
+`preserve_colors=average`），0–1 点列表、`interpolation=monotone_hermite`。
+`working_space=lab|xyz|lab_independent` 是显式 C mode。Inspector 只转发点；求值在 recipe/engine。
 唯一默认显示变换是 `ravo.display.sigmoid` v1：`working_space=linear_srgb`、
 `color_processing=per_channel`，显式保存 middle-grey contrast、skew、Standard SDR
 black/white target 与 hue preservation。它是 RAW 基线与 scene-referred operation 链的末端，
 随后才做 sRGB encoding。RAW Studio 的 Contrast 由 Sigmoid 拥有；`ravo.core.contrast`
 继续服务 display-referred raster 输入和旧 recipe。highlights/shadows/whites/blacks 仍是
 transform 之前的 scene controls。RAW 路径可在 demosaic 前运行 `ravo.raw.highlights`；
-默认降噪、镜头校正、8 带 HSL `colorequal`、渐变滤镜和影调均化走同一 recipe/engine。
+默认降噪、镜头校正、dt UCS `colorequal`、渐变滤镜和 9 带 toneequal 走同一 recipe/engine。
 
 所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
 或无标记 buffer 不得隐式选择色彩策略。完整约束见

@@ -47,14 +47,14 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.geometry.flip` | `flip` | horizontal/vertical mirror |
 | `ravo.geometry.straighten` | `ashift` / `clipping` | P1 free-angle straighten before crop |
 | `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
-| `ravo.core.tonecurve` | `tonecurve` | linked RGB point curve; `working_space` is `srgb` or `linear_rgb` |
-| `ravo.display.sigmoid` | `sigmoid` | RAW Standard SDR baseline and Develop display contrast/skew/hue preservation |
-| `ravo.raw.highlights` | `highlights` | Bayer CFA clip/inpaint reconstruction before demosaic |
-| `ravo.detail.denoiseprofile` | `denoiseprofile` | default-visible profile denoise on linear RGB |
-| `ravo.geometry.lens` | `lens` | Brown-Conrady distortion/TCA/vignetting; lookup uses a versioned calibration table |
-| `ravo.color.colorequal` | `colorequal` | selected 8-band HSL equalizer |
-| `ravo.effect.graduatednd` | `graduatednd` | linear graduated exposure as the first local adjustment |
-| `ravo.core.toneequal` | `toneequal` | 5-band log-luminance equalizer under Sigmoid |
+| `ravo.core.tonecurve` | `tonecurve` | frozen C default RGB-linked ProPhoto curve; `lab`/`xyz`/`lab_independent` are explicit modes |
+| `ravo.display.sigmoid` | `sigmoid` | RAW Standard SDR baseline; per-channel default and C `rgb_ratio` color processing |
+| `ravo.raw.highlights` | `highlights` | Bayer CFA opposed/clip/inpaint/LCh before demosaic |
+| `ravo.detail.denoiseprofile` | `denoiseprofile` | default wavelets + Y0U0V0 profile denoise on linear RGB |
+| `ravo.geometry.lens` | `lens` | lensfun poly3/poly5 + linear TCA + manual vignette spline; lookup uses a versioned calibration table |
+| `ravo.color.colorequal` | `colorequal` | selected 8-node dt UCS 22 RBF equalizer |
+| `ravo.effect.graduatednd` | `graduatednd` | `_compute_density` graduated exposure as the first local adjustment |
+| `ravo.core.toneequal` | `toneequal` | 9-band [-8,0] EV RBF equalizer under Sigmoid |
 | `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |

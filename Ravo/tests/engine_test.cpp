@@ -635,9 +635,12 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     ASSERT_TRUE(graduated) << graduated.error().message;
     const auto top = (2U * 32U + 16U) * 3U;
     const auto bottom = (30U * 32U + 16U) * 3U;
-    EXPECT_LT(graduated.value().rgb[bottom], graduated.value().rgb[top]);
+    EXPECT_LT(graduated.value().rgb[top], graduated.value().rgb[bottom]);
 
-    auto toneeq = render_op(engine.value(), gradient_raster(),
+    const auto dark_raster = solid_raster(16, 16, 12, 12, 12);
+    auto dark_base = engine.value().render_to_image(identity_request, &dark_raster);
+    ASSERT_TRUE(dark_base) << dark_base.error().message;
+    auto toneeq = render_op(engine.value(), dark_raster,
                             {"ravo.core.toneequal",
                              1,
                              "toneeq-1",
@@ -649,7 +652,7 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                               {"whites", ParameterValue{0.0}}},
                              std::nullopt});
     ASSERT_TRUE(toneeq) << toneeq.error().message;
-    EXPECT_GT(mean_luma(toneeq.value()), base_mean);
+    EXPECT_GT(mean_luma(toneeq.value()), mean_luma(dark_base.value()));
 
     ParameterValue::Array sat_bands(8, ParameterValue{0.0});
     sat_bands[0] = ParameterValue{0.8};
@@ -755,7 +758,7 @@ TEST(EngineFacadeTest, RawHighlightReconstructionChangesMire1)
                                         1,
                                         "raw-hl-1",
                                         true,
-                                        {{"mode", ParameterValue{"inpaint"}},
+                                        {{"mode", ParameterValue{"opposed"}},
                                          {"amount", ParameterValue{1.0}},
                                          {"clip", ParameterValue{0.92}}},
                                         std::nullopt});
@@ -819,6 +822,12 @@ TEST(EngineFacadeTest, SigmoidMapsSyntheticPixelsAndPreservesHueByPolicy)
     EXPECT_GT(preserved.value().rgb[0], preserved.value().rgb[1]);
     EXPECT_GT(preserved.value().rgb[1], preserved.value().rgb[2]);
 
+    auto ratio = sigmoid_operation();
+    ratio.parameters["color_processing"] = ParameterValue{"rgb_ratio"};
+    auto ratio_rendered = render_op(engine.value(), saturated, std::move(ratio));
+    ASSERT_TRUE(ratio_rendered) << ratio_rendered.error().message;
+    EXPECT_NE(ratio_rendered.value().rgb, preserved.value().rgb);
+
     auto boundary_operation = sigmoid_operation(kSigmoidContrastMax, kSigmoidSkewMax, 0.0);
     boundary_operation.parameters["display_white_target"] = ParameterValue{kSigmoidDisplayWhiteMax};
     boundary_operation.parameters["display_black_target"] = ParameterValue{kSigmoidDisplayBlackMin};
@@ -862,7 +871,7 @@ TEST(EngineFacadeTest, SigmoidHasARealRawReference)
     EXPECT_LT(clipped_channels, rendered.value().rgb.size() / 100U);
 }
 
-TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndRejectsLab)
+TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndAcceptsLab)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
@@ -872,40 +881,29 @@ TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndRejectsLab)
                                1,
                                "curve-identity",
                                true,
-                               {{"working_space", ParameterValue{"srgb"}},
+                               {{"working_space", ParameterValue{"rgb"}},
                                 {"interpolation", ParameterValue{"monotone_hermite"}},
                                 {"channel_mode", ParameterValue{"rgb"}},
+                                {"preserve_colors", ParameterValue{"average"}},
                                 {"points", tone_curve_points({{0.0, 0.0}, {1.0, 1.0}})}},
                                std::nullopt});
     ASSERT_TRUE(identity) << identity.error().message;
     EXPECT_EQ(identity.value().rgb[0], 128);
 
     const auto lifted_points = tone_curve_points({{0.0, 0.0}, {128.0 / 255.0, 0.75}, {1.0, 1.0}});
-    auto srgb = render_op(engine.value(), gray,
-                          {"ravo.core.tonecurve",
-                           1,
-                           "curve-srgb",
-                           true,
-                           {{"working_space", ParameterValue{"srgb"}},
-                            {"interpolation", ParameterValue{"monotone_hermite"}},
-                            {"channel_mode", ParameterValue{"rgb"}},
-                            {"points", lifted_points}},
-                           std::nullopt});
-    ASSERT_TRUE(srgb) << srgb.error().message;
-    EXPECT_NEAR(srgb.value().rgb[0], 191, 2);
-
-    auto linear = render_op(engine.value(), gray,
-                            {"ravo.core.tonecurve",
-                             1,
-                             "curve-linear",
-                             true,
-                             {{"working_space", ParameterValue{"linear_rgb"}},
-                              {"interpolation", ParameterValue{"monotone_hermite"}},
-                              {"channel_mode", ParameterValue{"rgb"}},
-                              {"points", lifted_points}},
-                             std::nullopt});
-    ASSERT_TRUE(linear) << linear.error().message;
-    EXPECT_NE(linear.value().rgb[0], srgb.value().rgb[0]);
+    auto rgb = render_op(engine.value(), gray,
+                         {"ravo.core.tonecurve",
+                          1,
+                          "curve-rgb",
+                          true,
+                          {{"working_space", ParameterValue{"rgb"}},
+                           {"interpolation", ParameterValue{"monotone_hermite"}},
+                           {"channel_mode", ParameterValue{"rgb"}},
+                           {"preserve_colors", ParameterValue{"average"}},
+                           {"points", lifted_points}},
+                          std::nullopt});
+    ASSERT_TRUE(rgb) << rgb.error().message;
+    EXPECT_GT(rgb.value().rgb[0], 128);
 
     auto lab = render_op(engine.value(), gray,
                          {"ravo.core.tonecurve",
@@ -914,8 +912,29 @@ TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndRejectsLab)
                           true,
                           {{"working_space", ParameterValue{"lab"}}, {"points", lifted_points}},
                           std::nullopt});
-    ASSERT_FALSE(lab);
-    EXPECT_EQ(lab.error().code, ErrorCode::kValidation);
+    ASSERT_TRUE(lab) << lab.error().message;
+    EXPECT_GT(lab.value().rgb[0], 128);
+
+    const auto red = solid_raster(8, 8, 220, 40, 30);
+    auto rgb_red = render_op(engine.value(), red,
+                             {"ravo.core.tonecurve",
+                              1,
+                              "curve-rgb-red",
+                              true,
+                              {{"working_space", ParameterValue{"rgb"}},
+                               {"preserve_colors", ParameterValue{"average"}},
+                               {"points", lifted_points}},
+                              std::nullopt});
+    auto lab_red = render_op(engine.value(), red,
+                             {"ravo.core.tonecurve",
+                              1,
+                              "curve-lab-red",
+                              true,
+                              {{"working_space", ParameterValue{"lab"}}, {"points", lifted_points}},
+                              std::nullopt});
+    ASSERT_TRUE(rgb_red) << rgb_red.error().message;
+    ASSERT_TRUE(lab_red) << lab_red.error().message;
+    EXPECT_NE(lab_red.value().rgb, rgb_red.value().rgb);
 }
 
 TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)

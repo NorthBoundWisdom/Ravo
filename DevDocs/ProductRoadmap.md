@@ -19,6 +19,14 @@ the execution sequence, dependencies, validation commands and completion gate.
 Remove the promoted item from this document in the same change. Completed work
 belongs in its owning architecture/contract/code/test truth source, not here.
 
+Do not promote another RAW/color IOP or a lensfun source-root until
+[`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md) finishes C1 closeout
+and L1 `channelmixerrgb`. Promoted algorithm work must replicate the frozen C
+default CPU path and then retire the old owner; it must not land a simplified
+substitute and treat that as migration complete. The next algorithm batch, if
+promoted, is either `hotpixels` plus one CA method, or `colorbalancergb`—not
+both, and not a generic denoise stack.
+
 ## Mask and local adjustment graph
 
 - General mask/blend ownership: `mask_manager`, drawn masks and parametric masks.

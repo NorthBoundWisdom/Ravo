@@ -35,15 +35,30 @@ inline constexpr double kSigmoidDisplayBlackMax = 15.0;
 inline constexpr double kSigmoidHuePreservationDefault = 1.0;
 inline constexpr std::string_view kSigmoidWorkingSpaceLinearSrgb = "linear_srgb";
 inline constexpr std::string_view kSigmoidColorProcessingPerChannel = "per_channel";
+inline constexpr std::string_view kSigmoidColorProcessingRgbRatio = "rgb_ratio";
 inline constexpr std::size_t kToneCurveMinPoints = 2;
-inline constexpr std::size_t kToneCurveMaxPoints = 16;
+inline constexpr std::size_t kToneCurveMaxPoints = 20;
 inline constexpr std::string_view kToneCurveWorkingSpaceSrgb = "srgb";
 inline constexpr std::string_view kToneCurveWorkingSpaceLinearRgb = "linear_rgb";
+inline constexpr std::string_view kToneCurveWorkingSpaceRgb = "rgb";
+inline constexpr std::string_view kToneCurveWorkingSpaceLab = "lab";
+inline constexpr std::string_view kToneCurveWorkingSpaceXyz = "xyz";
+inline constexpr std::string_view kToneCurveWorkingSpaceLabIndependent = "lab_independent";
 inline constexpr std::string_view kToneCurveInterpolationMonotoneHermite = "monotone_hermite";
 inline constexpr std::string_view kToneCurveChannelModeRgb = "rgb";
+inline constexpr std::string_view kToneCurveChannelModeIndependent = "independent";
+inline constexpr std::string_view kToneCurvePreserveColorsAverage = "average";
+inline constexpr std::string_view kToneCurvePreserveColorsNone = "none";
+inline constexpr std::string_view kToneCurvePreserveColorsLuminance = "luminance";
+inline constexpr std::string_view kToneCurvePreserveColorsMax = "max";
+inline constexpr std::string_view kToneCurvePreserveColorsSum = "sum";
+inline constexpr std::string_view kToneCurvePreserveColorsNorm = "norm";
+inline constexpr std::string_view kToneCurvePreserveColorsPower = "power";
 inline constexpr std::size_t kColorEqualizerBandCount = 8;
 inline constexpr std::string_view kRawHighlightsModeClip = "clip";
 inline constexpr std::string_view kRawHighlightsModeInpaint = "inpaint";
+inline constexpr std::string_view kRawHighlightsModeOpposed = "opposed";
+inline constexpr std::string_view kRawHighlightsModeLch = "lch";
 inline constexpr std::string_view kLensModeManual = "manual";
 inline constexpr std::string_view kLensModeLookup = "lookup";
 
@@ -59,6 +74,10 @@ enum class ToneCurveWorkingSpace
 {
     kSrgb,
     kLinearRgb,
+    kRgb,
+    kLab,
+    kXyz,
+    kLabIndependent,
 };
 
 struct DevelopParams
@@ -110,7 +129,7 @@ struct DevelopParams
     double sigmoid_hue_preservation = kSigmoidHuePreservationDefault;
     double raw_highlights = 0.0;
     double raw_highlights_clip = 0.987;
-    std::string raw_highlights_mode{std::string(kRawHighlightsModeInpaint)};
+    std::string raw_highlights_mode{std::string(kRawHighlightsModeOpposed)};
     double denoise = 0.0;
     double denoise_chroma = 1.0;
     double denoise_radius = 1.0;

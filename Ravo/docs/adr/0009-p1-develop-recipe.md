@@ -26,8 +26,8 @@ versioned recipe/operation contract and a CPU exposure path.
   vignette, grain, velvia, color balance, a linked RGB tone curve, and the other
   registered global operations execute on a linear RGB working buffer, converting
   to Lab when the frozen `legacy/src/iop` `process()` path is Lab. The tone curve
-  schema records `working_space` (`srgb` or `linear_rgb`) and interpolates
-  monotone Hermite on a 0–1 point list; it is not the leftover Lab L/a/b widget. Raster inputs are linearized
+  follows frozen `tonecurve.c`: default `RGB, linked channels` in ProPhoto with
+  `preserve_colors=average`, monotone Hermite on a 0–1 point list. Raster inputs are linearized
   from sRGB8; RAW continues through the existing Bayer path before the same ops.
   The math follows the CPU kernels (USM on L, simplex grain, lift/gamma/gain,
   velvia, superellipse vignette, Orton soften) without GTK, OpenCL, or blend

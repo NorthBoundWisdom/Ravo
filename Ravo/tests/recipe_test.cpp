@@ -308,7 +308,12 @@ TEST(RecipeTest, ToneCurveRoundTripAndRejectsUnknownColourPolicy)
 
     auto lab = recipe.value();
     lab.operations.front().parameters["working_space"] = ParameterValue{"lab"};
-    const auto rejected_space = validate_recipe(lab, registry.value());
+    const auto accepted_lab = validate_recipe(lab, registry.value());
+    ASSERT_TRUE(accepted_lab) << accepted_lab.error().message;
+
+    auto unknown_space = recipe.value();
+    unknown_space.operations.front().parameters["working_space"] = ParameterValue{"display_p3"};
+    const auto rejected_space = validate_recipe(unknown_space, registry.value());
     ASSERT_FALSE(rejected_space);
     EXPECT_EQ(rejected_space.error().code, ErrorCode::kValidation);
 
@@ -353,8 +358,13 @@ TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
     EXPECT_NEAR(restored.value().sigmoid_skew, -0.25, 1e-9);
     EXPECT_NEAR(restored.value().sigmoid_hue_preservation, 0.75, 1e-9);
 
+    auto rgb_ratio = recipe.value();
+    rgb_ratio.operations.front().parameters["color_processing"] = ParameterValue{"rgb_ratio"};
+    const auto accepted_ratio = validate_recipe(rgb_ratio, registry.value());
+    ASSERT_TRUE(accepted_ratio) << accepted_ratio.error().message;
+
     auto unsupported = recipe.value();
-    unsupported.operations.front().parameters["color_processing"] = ParameterValue{"rgb_ratio"};
+    unsupported.operations.front().parameters["color_processing"] = ParameterValue{"unknown"};
     const auto rejected_mode = validate_recipe(unsupported, registry.value());
     ASSERT_FALSE(rejected_mode);
     EXPECT_EQ(rejected_mode.error().code, ErrorCode::kValidation);

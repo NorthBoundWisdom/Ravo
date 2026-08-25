@@ -65,9 +65,11 @@
 ## 算法迁移
 
 - 迁移单位是可由 CLI 观察的 capability/operation 批次，不是目录或行数。
-- 直接阅读冻结 C 源码并重写 C++20 行为；用聚焦 Ravo UT 覆盖旧实现的关键分支，但不得编译或运行旧 UT。
-- 可以移植可理解的数学思想或纯算法，但不得连带复制 GUI、旧 module lifecycle、配置 shim、
-  动态注册、OpenCL 类型或无消费者代码。
+- 直接阅读冻结 C 源码并复刻默认 CPU 路径：公式、色彩空间、滤波器与默认 mode 必须对齐旧 C，
+  再用聚焦 Ravo UT 覆盖关键分支。不得编译或运行旧 UT。
+- 允许去掉 GUI、旧 module lifecycle、配置 shim、动态注册、OpenCL 类型或无消费者代码。
+  不允许用简化替代算法（HSL 代替 UCS、邻域 inpaint 代替 opposed、3 级 Gaussian 代替
+  a-trous Y0U0V0、5 带代替 9 带 toneequal）充当迁入完成态。
 - 按根 active migration TODO 在该项 Ravo 已验收后删除对应 `legacy/` owner（CMake、
   注册、资源、文档与检查）。未验收项与 leftover 不得提前删除。全仓搜索确认无消费者。
 - 旧 OpenCL 不迁入 Ravo，也不在 0.9 内改成 Metal；Ravo GPU 只能在自身 CPU 路径验收后以独立

@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
 #include <limits>
 #include <numbers>
 #include <string>
@@ -335,6 +336,22 @@ Result<ToneCurveWorkingSpace> parse_tone_curve_working_space(const std::string_v
     {
         return ToneCurveWorkingSpace::kLinearRgb;
     }
+    if (text == kToneCurveWorkingSpaceRgb)
+    {
+        return ToneCurveWorkingSpace::kRgb;
+    }
+    if (text == kToneCurveWorkingSpaceLab)
+    {
+        return ToneCurveWorkingSpace::kLab;
+    }
+    if (text == kToneCurveWorkingSpaceXyz)
+    {
+        return ToneCurveWorkingSpace::kXyz;
+    }
+    if (text == kToneCurveWorkingSpaceLabIndependent)
+    {
+        return ToneCurveWorkingSpace::kLabIndependent;
+    }
     return make_error(ErrorCode::kValidation, "Tone curve working space is unsupported",
                       {{"working_space", std::string(text)}});
 }
@@ -347,8 +364,16 @@ std::string_view tone_curve_working_space_name(const ToneCurveWorkingSpace space
         return kToneCurveWorkingSpaceSrgb;
     case ToneCurveWorkingSpace::kLinearRgb:
         return kToneCurveWorkingSpaceLinearRgb;
+    case ToneCurveWorkingSpace::kRgb:
+        return kToneCurveWorkingSpaceRgb;
+    case ToneCurveWorkingSpace::kLab:
+        return kToneCurveWorkingSpaceLab;
+    case ToneCurveWorkingSpace::kXyz:
+        return kToneCurveWorkingSpaceXyz;
+    case ToneCurveWorkingSpace::kLabIndependent:
+        return kToneCurveWorkingSpaceLabIndependent;
     }
-    return kToneCurveWorkingSpaceSrgb;
+    return kToneCurveWorkingSpaceRgb;
 }
 
 Result<std::vector<ToneCurvePoint>> parse_tone_curve_points(const ParameterValue &value)
@@ -447,10 +472,24 @@ validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::
     if (const auto found = parameters.find("channel_mode"); found != parameters.end())
     {
         const auto *text = as_string_if(found->second);
-        if (text == nullptr || *text != kToneCurveChannelModeRgb)
+        if (text == nullptr ||
+            (*text != kToneCurveChannelModeRgb && *text != kToneCurveChannelModeIndependent))
         {
             return make_error(ErrorCode::kValidation, "Tone curve channel_mode is unsupported",
                               {{"channel_mode", text == nullptr ? std::string() : *text}});
+        }
+    }
+    if (const auto found = parameters.find("preserve_colors"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr ||
+            (*text != kToneCurvePreserveColorsAverage && *text != kToneCurvePreserveColorsNone &&
+             *text != kToneCurvePreserveColorsLuminance && *text != kToneCurvePreserveColorsMax &&
+             *text != kToneCurvePreserveColorsSum && *text != kToneCurvePreserveColorsNorm &&
+             *text != kToneCurvePreserveColorsPower))
+        {
+            return make_error(ErrorCode::kValidation, "Tone curve preserve_colors is unsupported",
+                              {{"preserve_colors", text == nullptr ? std::string() : *text}});
         }
     }
     if (const auto found = parameters.find("points"); found != parameters.end())
@@ -467,8 +506,8 @@ validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::
 Result<void>
 validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
 {
-    const auto validate_string = [&](const std::string_view name,
-                                     const std::string_view expected) -> Result<void>
+    const auto validate_one_of = [&](const std::string_view name,
+                                     const std::initializer_list<std::string_view> allowed) -> Result<void>
     {
         const auto found = parameters.find(std::string(name));
         if (found == parameters.end())
@@ -476,20 +515,29 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
             return {};
         }
         const auto *text = as_string_if(found->second);
-        if (text == nullptr || *text != expected)
+        if (text == nullptr)
         {
             return make_error(ErrorCode::kValidation, "Sigmoid parameter value is unsupported",
-                              {{"parameter", std::string(name)},
-                               {"value", text == nullptr ? std::string() : *text}});
+                              {{"parameter", std::string(name)}});
         }
-        return {};
+        for (const auto expected : allowed)
+        {
+            if (*text == expected)
+            {
+                return {};
+            }
+        }
+        return make_error(ErrorCode::kValidation, "Sigmoid parameter value is unsupported",
+                          {{"parameter", std::string(name)}, {"value", *text}});
     };
-    auto working_space = validate_string("working_space", kSigmoidWorkingSpaceLinearSrgb);
+    auto working_space = validate_one_of("working_space", {kSigmoidWorkingSpaceLinearSrgb});
     if (!working_space)
     {
         return working_space.error();
     }
-    auto color_processing = validate_string("color_processing", kSigmoidColorProcessingPerChannel);
+    auto color_processing = validate_one_of(
+        "color_processing",
+        {kSigmoidColorProcessingPerChannel, kSigmoidColorProcessingRgbRatio});
     if (!color_processing)
     {
         return color_processing.error();
@@ -549,9 +597,11 @@ void clamp_develop(DevelopParams &params) noexcept
     params.raw_highlights = clamp_value(params.raw_highlights, 0.0, 1.0);
     params.raw_highlights_clip = clamp_value(params.raw_highlights_clip, 0.5, 1.0);
     if (params.raw_highlights_mode != kRawHighlightsModeClip &&
-        params.raw_highlights_mode != kRawHighlightsModeInpaint)
+        params.raw_highlights_mode != kRawHighlightsModeInpaint &&
+        params.raw_highlights_mode != kRawHighlightsModeOpposed &&
+        params.raw_highlights_mode != kRawHighlightsModeLch)
     {
-        params.raw_highlights_mode = std::string(kRawHighlightsModeInpaint);
+        params.raw_highlights_mode = std::string(kRawHighlightsModeOpposed);
     }
     params.denoise = clamp_value(params.denoise, 0.0, 1.0);
     params.denoise_chroma = clamp_value(params.denoise_chroma, 0.0, 1.0);
@@ -590,9 +640,13 @@ void clamp_develop(DevelopParams &params) noexcept
     params.tone_eq_highlights = clamp_value(params.tone_eq_highlights, -4.0, 4.0);
     params.tone_eq_whites = clamp_value(params.tone_eq_whites, -4.0, 4.0);
     if (params.tone_curve_working_space != kToneCurveWorkingSpaceSrgb &&
-        params.tone_curve_working_space != kToneCurveWorkingSpaceLinearRgb)
+        params.tone_curve_working_space != kToneCurveWorkingSpaceLinearRgb &&
+        params.tone_curve_working_space != kToneCurveWorkingSpaceRgb &&
+        params.tone_curve_working_space != kToneCurveWorkingSpaceLab &&
+        params.tone_curve_working_space != kToneCurveWorkingSpaceXyz &&
+        params.tone_curve_working_space != kToneCurveWorkingSpaceLabIndependent)
     {
-        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
+        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceRgb);
     }
     clamp_tone_curve(params.tone_curve);
 }
@@ -1590,6 +1644,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
             {{"working_space", ParameterValue{clamped.tone_curve_working_space}},
              {"interpolation", ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
              {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
+             {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
              {"points", tone_curve_points_to_parameter(clamped.tone_curve)}});
     }
     if (!near(clamped.lift, 0.0) || !near(clamped.color_gamma, 0.0) || !near(clamped.gain, 0.0))

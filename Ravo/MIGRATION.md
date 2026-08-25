@@ -48,7 +48,10 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在
 1. 盘点旧 owner、注册、调用者、参数、线程、缓存、GPU、资源和 fixture；
 2. 静态冻结真实 RAW/XMP/像素/metadata 证据，不运行旧 CPU 路径；
 3. 定义 canonical schema、输入输出、ownership、取消/失败和不兼容项；
-4. 只迁所需数学与行为，去除 GUI、旧生命周期、全局状态、动态 ABI 和 OpenCL 类型；
+4. 复刻冻结 C 默认 CPU 路径的数学与行为（公式、色彩空间、滤波器、默认 mode），
+   去除 GUI、旧生命周期、全局状态、动态 ABI 和 OpenCL 类型。不得用简化替代算法
+   （例如 HSL 代替 UCS、邻域平均代替 opposed、3 级 Gaussian 代替 a-trous Y0U0V0）
+   作为迁入完成态或删除旧 owner 的理由；
 5. 运行 unit、synthetic、legacy mapping、真实 RAW/golden、错误/取消和资源验证；
 6. 让 CLI/Studio 通过同一 services/engine 成为正式消费者；
 7. 按根 active migration TODO 在该项 Ravo 已验收后删除对应旧 owner，并同步
@@ -68,7 +71,8 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在
 ## 迁移顺序
 
 1. 已验收的 catalog/review/develop/export 基线保持可回归；
-2. 严格按根 active migration TODO 一次迁一个 legacy capability，并同步删除旧 owner；
+2. 严格按根 active migration TODO：已迁入但未收口的能力先完成缓存/保存重开/交互门槛，
+   再开下一项 IOP；一项达到「Ravo 已验收」后删除对应旧 owner；
 3. 队列后的 mask、额外 RAW/颜色、styles/catalog 兼容先做 dated 产品决定；
 4. 横向可靠性、三平台安装与可选 GPU 按 TODO 门槛验收；
 5. 队列清空后证明发行切换/回滚，再处理明确 leftover 的归档或最终清理。
@@ -104,15 +108,15 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在
 | Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/fill/100%；长列表资源门槛仍待验收 |
 | Catalog metadata/workflow | common/libs | domain + services | 旧实现已删除 | Unicode 标签筛选、catalog-only 可写 title/creator/copyright、只读 capture EXIF、持久 history/snapshot；faces/map/GPS 写回未做。旧 `libs/tagging.c`/`metadata*.c`/`history.c`/`snapshots.c`/`copy_history.c` 已删 |
 | Mask/blend/operations | develop/iop | recipe + engine | 实现中 | `ravo.effect.graduatednd` 是第一个局部调整，梯度即 mask；通用 mask 图仍未做 |
-| RAW 高光重建 | `iop/highlights.c` | `ravo.raw.highlights` | 旧实现已删除 | Bayer 2×2 clip/inpaint；非 Bayer 与 raster 路径 structured unsupported |
-| 默认降噪 | `iop/denoiseprofile.c` | `ravo.detail.denoiseprofile` | 旧实现已删除 | 线性 RGB 多尺度阈值；`nlmeans`/`atrous`/`bilateral`/`rawdenoise` 不在本项 |
-| 镜头校正 | `iop/lens.cc` | `ravo.geometry.lens` | 旧实现已删除 | 显式 Brown-Conrady + 版本化 lookup 表；无匹配 fail-fast。lensfun source-root 仍是生产数据库后继，本轮未钉依赖 |
-| 颜色均衡 | `iop/colorequal.c` | `ravo.color.colorequal` | 旧实现已删除 | 8 带 HSL；`colorzones` leftover |
-| 渐变滤镜 | `iop/graduatednd.c` | `ravo.effect.graduatednd` | 旧实现已删除 | 线性密度/硬度/旋转/偏移 |
-| 影调均化 | `iop/toneequal.c` | `ravo.core.toneequal` | 旧实现已删除 | Sigmoid 前 5 带 log-luminance EV |
+| RAW 高光重建 | `iop/highlights.c` | `ravo.raw.highlights` | 旧实现已删除 | 默认 Bayer opposed（`_process_opposed`）；clip / reconstruct-color inpaint / LCh 为显式 mode。非 Bayer、raster、laplacian、segmentation structured unsupported |
+| 默认降噪 | `iop/denoiseprofile.c` | `ravo.detail.denoiseprofile` | 旧实现已删除 | 默认 wavelets + Y0U0V0 + a-trous BayesShrink；无 camera profile 时用记录的 generic a/b。`nlmeans`/`atrous`/`bilateral`/`rawdenoise` 不在本项 |
+| 镜头校正 | `iop/lens.cc` | `ravo.geometry.lens` | 旧实现已删除 | 显式 lensfun poly3/poly5 + 线性 TCA + 手动 vignette spline；lookup 用版本化系数表，无匹配 fail-fast。lensfun source-root 仍是生产数据库后继，本轮未钉依赖 |
+| 颜色均衡 | `iop/colorequal.c` | `ravo.color.colorequal` | 旧实现已删除 | dt UCS 22 八节点周期 RBF LUT；`colorzones` leftover |
+| 渐变滤镜 | `iop/graduatednd.c` | `ravo.effect.graduatednd` | 旧实现已删除 | `_compute_density` + hue/sat RGB；正密度压暗旋转轴正方向（默认天空在上） |
+| 影调均化 | `iop/toneequal.c` | `ravo.core.toneequal` | 旧实现已删除 | Sigmoid 前 9 带 [-8,0] EV RBF LUT，默认 RGB L2 luminance |
 | 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF plugin target 已设为 required；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
-| 色调曲线 | `iop/tonecurve.c` | `ravo.core.tonecurve` + Develop Inspector | 旧实现已删除 | 一条链接 RGB 点曲线；schema 显式 `working_space=srgb\|linear_rgb`。不是 Lab 三通道移植。`rgbcurve` 未做 |
-| 默认显示变换 | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | 旧实现已删除 | per-channel generalized log-logistic；线性 sRGB、Standard SDR target、合成/真实 RAW/catalog reopen 已测。`filmicrgb`/`agx` 明确留作 leftover |
+| 色调曲线 | `iop/tonecurve.c` | `ravo.core.tonecurve` + Develop Inspector | 旧实现已删除 | 冻结 C 默认 `RGB, linked`：Lab D50 → ProPhoto、`preserve_colors=average`、monotone Hermite LUT。`lab` / `xyz` / `lab_independent` 为显式 mode。`rgbcurve` leftover |
+| 默认显示变换 | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | 旧实现已删除 | 默认 per-channel generalized log-logistic + hue preservation；`rgb_ratio` 为 C 第二 mode。线性 sRGB、Standard SDR target。`filmicrgb`/`agx` leftover |
 | CLI | `src/cli` | cli | 实现中 | engine/recipe/catalog/develop/export JSON 均走正式 services/engine |
 | GPU | OpenCL/pixelpipe | engine adapter | 延后 | active TODO / GPU baseline：CPU goldens 和端到端收益证明后开始 |
 
