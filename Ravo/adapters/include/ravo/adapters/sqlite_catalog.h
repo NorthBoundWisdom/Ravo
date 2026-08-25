@@ -52,6 +52,7 @@ public:
                           std::string_view recipe_json) override;
     [[nodiscard]] Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const override;
+    [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const override;
     [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;
     [[nodiscard]] Result<std::int64_t> bump_revision() override;
     Result<void> close() override;

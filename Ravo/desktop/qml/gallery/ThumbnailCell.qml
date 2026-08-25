@@ -66,7 +66,7 @@ Item {
             anchors.margins: 2
             fillMode: Image.PreserveAspectFit
             asynchronous: true
-            cache: false
+            cache: true
             source: root.thumbnailUrl
             visible: root.thumbnailUrl.toString().length > 0
         }
@@ -245,6 +245,7 @@ Item {
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
+            preventStealing: false
             onClicked: function (mouse) {
                 root.clicked(mouse);
             }

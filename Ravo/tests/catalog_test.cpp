@@ -217,6 +217,46 @@ TEST_F(CatalogServiceTest, ImportPngAndRawThenReopenPreview)
     EXPECT_TRUE(std::filesystem::exists(previewed_again.value().cache_path));
 }
 
+TEST_F(CatalogServiceTest, RawImportCachesEmbeddedThumbnailSeparatelyFromProcessedPreview)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest browse;
+    browse.asset_id = asset_id;
+    browse.max_edge = kThumbnailMaxEdge;
+    browse.prefer_embedded_preview = true;
+    auto thumb = service->request_preview(browse);
+    ASSERT_TRUE(thumb) << thumb.error().message;
+    EXPECT_TRUE(std::filesystem::exists(thumb.value().cache_path));
+    EXPECT_NE(thumb.value().cache_key.find(std::string(kEmbeddedBrowsePreviewDigest)),
+              std::string::npos);
+    auto listed_previews = service->list_previews();
+    ASSERT_TRUE(listed_previews) << listed_previews.error().message;
+    ASSERT_EQ(listed_previews.value().size(), 1U);
+    EXPECT_EQ(listed_previews.value().front().asset_id, asset_id);
+    EXPECT_EQ(listed_previews.value().front().state, kPreviewStateReady);
+    ASSERT_TRUE(listed_previews.value().front().cache_relpath);
+    EXPECT_FALSE(listed_previews.value().front().cache_relpath->empty());
+
+    PreviewRequest processed;
+    processed.asset_id = asset_id;
+    processed.max_edge = kDefaultPreviewMaxEdge;
+    auto full = service->request_preview(processed);
+    ASSERT_TRUE(full) << full.error().message;
+    EXPECT_TRUE(std::filesystem::exists(full.value().cache_path));
+    EXPECT_EQ(full.value().cache_key.find(std::string(kEmbeddedBrowsePreviewDigest)),
+              std::string::npos);
+    EXPECT_NE(full.value().cache_path, thumb.value().cache_path);
+    EXPECT_GT(std::max(full.value().width, full.value().height),
+              std::max(thumb.value().width, thumb.value().height));
+}
+
 TEST_F(CatalogServiceTest, ImportJpegAndDirectorySkipsSidecars)
 {
     auto created = open_service(true);
@@ -260,6 +300,36 @@ TEST_F(CatalogServiceTest, ImportJpegAndDirectorySkipsSidecars)
     auto listed = service->list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     EXPECT_EQ(listed.value().size(), 2U);
+}
+
+TEST_F(CatalogServiceTest, ImportProgressReportsEachImportedItemWithThumbnail)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.fill(QColor(20, 40, 80));
+    const auto folder = root / "batch";
+    std::filesystem::create_directories(folder);
+    ASSERT_TRUE(image.save(QString::fromStdString((folder / "a.jpg").string()), "JPEG", 90));
+    ASSERT_TRUE(image.save(QString::fromStdString((folder / "b.jpg").string()), "JPEG", 90));
+
+    int imported_progress = 0;
+    auto imported = service->import_inputs(
+        {folder.string()}, CancellationToken{},
+        [&](const std::size_t, const std::size_t, const ImportItemResult *item)
+        {
+            if (item != nullptr && item->status == ImportItemStatus::kImported)
+            {
+                ++imported_progress;
+                ASSERT_TRUE(item->asset);
+                ASSERT_TRUE(item->preview_cache_path);
+                EXPECT_TRUE(std::filesystem::exists(*item->preview_cache_path));
+            }
+        });
+    ASSERT_TRUE(imported) << imported.error().message;
+    EXPECT_EQ(imported_progress, 2);
+    EXPECT_EQ(imported.value().size(), 2U);
 }
 
 TEST_F(CatalogServiceTest, MissingAndUnsupportedInputsDoNotCreateReadyAssets)

@@ -52,16 +52,21 @@ Rectangle {
                 CustomSlider {
                     anchors.fill: parent
                     from: 120
-                    to: 260
+                    to: 320
                     stepSize: 10
                     value: root.hasPresenter ? root.presenter.thumbnailSize : 180
                     showTitle: false
                     showStepButton: false
                     showValueLabel: false
-                    delayedCommit: true
-                    commitDelay: 40
-                    onValueChanged: if (root.hasPresenter)
-                        root.presenter.thumbnailSize = Math.round(value)
+                    delayedCommit: false
+                    onValueEdited: function (v) {
+                        if (root.hasPresenter)
+                            root.presenter.thumbnailSize = Math.round(v);
+                    }
+                    onValueCommitted: function (v) {
+                        if (root.hasPresenter)
+                            root.presenter.thumbnailSize = Math.round(v);
+                    }
                 }
             }
         }

@@ -49,6 +49,7 @@ public:
                           std::string_view recipe_json) = 0;
     [[nodiscard]] virtual Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const = 0;
+    [[nodiscard]] virtual Result<std::vector<PreviewRecord>> list_previews() const = 0;
     [[nodiscard]] virtual Result<void> upsert_preview(const PreviewRecord &preview) = 0;
     [[nodiscard]] virtual Result<std::int64_t> bump_revision() = 0;
     virtual Result<void> close() = 0;

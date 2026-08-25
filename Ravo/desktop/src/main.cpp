@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
 #include <QGuiApplication>
@@ -6,6 +7,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QString>
 #include <QUrl>
 
 #include "ravo/desktop/studio_presenter.h"
@@ -58,10 +60,31 @@ int main(int argc, char *argv[])
     QGuiApplication::setFont(ui_font);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     ravo::init_logging("RavoStudio");
-    const bool smoke = QCoreApplication::arguments().contains(QStringLiteral("--smoke"));
+    const QStringList arguments = QCoreApplication::arguments();
+    const bool smoke = arguments.contains(QStringLiteral("--smoke"));
+    QString catalog_path;
+    for (int index = 1; index < arguments.size(); ++index)
+    {
+        const QString &argument = arguments.at(index);
+        if (argument == QLatin1String("--catalog") && index + 1 < arguments.size())
+        {
+            catalog_path = arguments.at(++index);
+            continue;
+        }
+        if (argument.startsWith(QLatin1String("--catalog=")))
+        {
+            catalog_path = argument.mid(QStringLiteral("--catalog=").size());
+        }
+    }
     LOG_INFO(ravo::logger(), "Ravo Studio starting");
 
     ravo::StudioPresenter presenter;
+    if (!catalog_path.isEmpty())
+    {
+        presenter.setStartupCatalogPath(QFileInfo(catalog_path).absoluteFilePath());
+        LOG_INFO(ravo::logger(), "startup catalog path={}",
+                 presenter.startupCatalogPath().toStdString());
+    }
     QQmlApplicationEngine engine;
     engine.addImportPath(QStringLiteral("qrc:/"));
     engine.addImageProvider(QStringLiteral("studioPreview"),

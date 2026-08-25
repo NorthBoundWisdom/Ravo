@@ -1,7 +1,9 @@
 #include "ravo/desktop/asset_list_model.h"
 
+#include <algorithm>
 #include <utility>
 
+#include <QModelIndex>
 #include <QUrl>
 
 #include "ravo/domain/types.h"
@@ -87,25 +89,36 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
             {HasEditsRole, "hasEdits"},         {SelectedRole, "selected"}};
 }
 
-void AssetListModel::setAssets(std::vector<AssetRecord> assets)
+void AssetListModel::setAssets(std::vector<AssetRecord> assets,
+                               std::unordered_map<std::string, QUrl> thumbnail_urls,
+                               std::unordered_map<std::string, QString> thumbnail_states)
 {
     beginResetModel();
     assets_ = std::move(assets);
-    std::unordered_map<std::string, QUrl> kept_urls;
-    std::unordered_map<std::string, QString> kept_states;
-    for (const auto &asset : assets_)
+    if (!thumbnail_urls.empty() || !thumbnail_states.empty())
     {
-        if (const auto found = thumbnail_urls_.find(asset.id); found != thumbnail_urls_.end())
-        {
-            kept_urls.emplace(found->first, found->second);
-        }
-        if (const auto found = thumbnail_states_.find(asset.id); found != thumbnail_states_.end())
-        {
-            kept_states.emplace(found->first, found->second);
-        }
+        thumbnail_urls_ = std::move(thumbnail_urls);
+        thumbnail_states_ = std::move(thumbnail_states);
     }
-    thumbnail_urls_ = std::move(kept_urls);
-    thumbnail_states_ = std::move(kept_states);
+    else
+    {
+        std::unordered_map<std::string, QUrl> kept_urls;
+        std::unordered_map<std::string, QString> kept_states;
+        for (const auto &asset : assets_)
+        {
+            if (const auto found = thumbnail_urls_.find(asset.id); found != thumbnail_urls_.end())
+            {
+                kept_urls.emplace(found->first, found->second);
+            }
+            if (const auto found = thumbnail_states_.find(asset.id);
+                found != thumbnail_states_.end())
+            {
+                kept_states.emplace(found->first, found->second);
+            }
+        }
+        thumbnail_urls_ = std::move(kept_urls);
+        thumbnail_states_ = std::move(kept_states);
+    }
     std::unordered_set<std::string> kept_selected;
     for (const auto &asset : assets_)
     {
@@ -116,6 +129,29 @@ void AssetListModel::setAssets(std::vector<AssetRecord> assets)
     }
     selected_ids_ = std::move(kept_selected);
     endResetModel();
+}
+
+void AssetListModel::insertAsset(const int row, AssetRecord asset)
+{
+    const int clamped = std::clamp(row, 0, static_cast<int>(assets_.size()));
+    beginInsertRows(QModelIndex{}, clamped, clamped);
+    assets_.insert(assets_.begin() + clamped, std::move(asset));
+    endInsertRows();
+}
+
+std::vector<AssetRecord> AssetListModel::records() const
+{
+    return assets_;
+}
+
+QString AssetListModel::thumbnailState(const std::string &asset_id) const
+{
+    const auto found = thumbnail_states_.find(asset_id);
+    if (found != thumbnail_states_.end())
+    {
+        return found->second;
+    }
+    return QStringLiteral("pending");
 }
 
 void AssetListModel::setThumbnail(const std::string &asset_id, const QUrl &url,

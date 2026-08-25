@@ -20,8 +20,11 @@ Rectangle {
     Connections {
         target: root.presenter
         function onSelectionChanged() {
-            if (root.presenter && root.presenter.selectedAssetId.length > 0)
-                root.presenter.ensureThumbnail(root.presenter.selectedAssetId);
+            if (!root.presenter || root.presenter.selectedAssetId.length === 0)
+                return;
+            if (root.presenter.selectedThumbnailUrl.toString().length > 0)
+                return;
+            root.presenter.ensureThumbnail(root.presenter.selectedAssetId);
         }
     }
 
@@ -36,6 +39,90 @@ Rectangle {
             Layout.bottomMargin: Fonts.size8
             text: qsTr("Library")
             font.bold: true
+        }
+
+        ColumnLayout {
+            id: libraryWork
+            Layout.fillWidth: true
+            Layout.leftMargin: Fonts.standardMargin
+            Layout.rightMargin: Fonts.standardMargin
+            Layout.bottomMargin: Fonts.size8
+            spacing: Fonts.size6
+            visible: root.presenter && (root.presenter.importWorkActive || root.presenter.previewWorkActive ||
+                     (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) ||
+                     (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
+
+            function meterVisible(active, completed, total) {
+                return active || (total > 0 && completed < total);
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                visible: libraryWork.meterVisible(root.presenter.importWorkActive, root.presenter.importWorkCompleted, root.presenter.importWorkTotal)
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        text: qsTr("Import")
+                        font.pixelSize: Fonts.size10
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    CustomLabel {
+                        text: root.presenter.importWorkTotal > 0 ? (root.presenter.importWorkCompleted + " / " + root.presenter.importWorkTotal) : qsTr("Scanning…")
+                        color: Theme.placeholderTextColor
+                        font.pixelSize: Fonts.size10
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 6
+                    radius: 3
+                    color: Theme.midlightColor
+                    Rectangle {
+                        width: parent.width * (root.presenter.importWorkTotal > 0 ? Math.min(1, root.presenter.importWorkCompleted / root.presenter.importWorkTotal) : 0.35)
+                        height: parent.height
+                        radius: 3
+                        color: Theme.accentColor
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                visible: libraryWork.meterVisible(root.presenter.previewWorkActive, root.presenter.previewWorkCompleted, root.presenter.previewWorkTotal)
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        text: qsTr("Previews")
+                        font.pixelSize: Fonts.size10
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    CustomLabel {
+                        text: root.presenter.previewWorkCompleted + " / " + root.presenter.previewWorkTotal
+                        color: Theme.placeholderTextColor
+                        font.pixelSize: Fonts.size10
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 6
+                    radius: 3
+                    color: Theme.midlightColor
+                    Rectangle {
+                        width: parent.width * (root.presenter.previewWorkTotal > 0 ? Math.min(1, root.presenter.previewWorkCompleted / root.presenter.previewWorkTotal) : 0)
+                        height: parent.height
+                        radius: 3
+                        color: Theme.highlightColor
+                    }
+                }
+            }
         }
 
         Item {
@@ -368,15 +455,15 @@ Rectangle {
 
             CustomButton {
                 Layout.fillWidth: true
-                text: qsTr("Import…")
-                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy
+                text: qsTr("Import Folder…")
+                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive
                 onClicked: if (root.commands)
-                    root.commands.importPhotos.trigger()
+                    root.commands.importFolder.trigger()
             }
             CustomButton {
                 Layout.fillWidth: true
                 text: qsTr("Export…")
-                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && root.presenter.selectedAssetId.length > 0
+                enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive && root.presenter.selectedAssetId.length > 0
                 onClicked: if (root.commands)
                     root.commands.exportPhoto.trigger()
             }

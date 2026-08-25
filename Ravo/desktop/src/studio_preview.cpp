@@ -57,6 +57,29 @@ void StudioPresenter::clear_scopes()
     emit scopesChanged();
 }
 
+void StudioPresenter::refresh_scopes_from_thumbnail(const QString &asset_id)
+{
+    if (asset_id.isEmpty())
+    {
+        clear_scopes();
+        return;
+    }
+    const int row = assets_.indexOf(asset_id);
+    if (row < 0)
+    {
+        clear_scopes();
+        return;
+    }
+    const QUrl url =
+        assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+    if (!url.isLocalFile())
+    {
+        clear_scopes();
+        return;
+    }
+    refresh_scopes(QImage(url.toLocalFile()));
+}
+
 void StudioPresenter::refresh_scopes(const QImage &image)
 {
     if (image.isNull())
@@ -198,13 +221,22 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
     {
         return;
     }
-    const auto existing = assets_.assetById(asset_id);
-    if (!existing)
+    const auto id = utf8_from_qstring(asset_id);
+    const QString state = assets_.thumbnailState(id);
+    if (state == QLatin1String("ready") || state == QLatin1String("missing") ||
+        state == QLatin1String("failed"))
+    {
+        return;
+    }
+    if (thumbnail_requests_.contains(id))
+    {
+        return;
+    }
+    if (!assets_.assetById(asset_id))
     {
         return;
     }
     const auto revision = ++thumbnail_revision_;
-    const auto id = utf8_from_qstring(asset_id);
     thumbnail_requests_[id] = revision;
     executor_.post(
         [this, id, revision]()
@@ -216,6 +248,7 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                 request.asset_id = id;
                 request.max_edge = kThumbnailMaxEdge;
                 request.request_revision = revision;
+                request.prefer_embedded_preview = true;
                 request.cancellation = shutdown_.token();
                 preview = service_->request_preview(request);
             }
@@ -226,10 +259,13 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                     const auto latest = thumbnail_requests_.find(id);
                     if (latest == thumbnail_requests_.end() || latest->second != revision)
                     {
+                        finishPreviewJob(false);
                         return;
                     }
+                    thumbnail_requests_.erase(latest);
                     if (catalog_path_.isEmpty() || !assets_.assetById(qstring_from_utf8(id)))
                     {
+                        finishPreviewJob(false);
                         return;
                     }
                     if (preview)
@@ -240,12 +276,17 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                                                                QStringLiteral("ready"));
                         if (utf8_from_qstring(selected_asset_id_) == id)
                         {
-                            emit selectionChanged();
+                            emit thumbnailsChanged();
+                            if (browse_mode_ == QLatin1String("grid"))
+                            {
+                                refresh_scopes_from_thumbnail(qstring_from_utf8(id));
+                            }
                         }
                         if (preview.value().original_missing)
                         {
                             assets_.markOriginalMissing(id);
                         }
+                        finishPreviewJob(true);
                         return;
                     }
                     if (preview.error().code == ErrorCode::kNotFound)
@@ -254,11 +295,13 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                         assets_.setThumbnail(id, {}, QStringLiteral("missing"));
                         if (selected_ids_.contains(id))
                         {
-                            emit selectionChanged();
+                            emit thumbnailsChanged();
                         }
+                        finishPreviewJob(false);
                         return;
                     }
                     assets_.setThumbnail(id, {}, QStringLiteral("failed"));
+                    finishPreviewJob(false);
                 },
                 Qt::QueuedConnection);
         });
@@ -266,6 +309,13 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
 
 void StudioPresenter::requestPreviewForSelection()
 {
+    if (browse_mode_ == QLatin1String("grid"))
+    {
+        preview_loading_ = false;
+        emit previewChanged();
+        refresh_scopes_from_thumbnail(selected_asset_id_);
+        return;
+    }
     enqueue_preview();
 }
 

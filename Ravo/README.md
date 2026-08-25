@@ -161,7 +161,8 @@ services，作为无 UI 验收客户端。
 Debug 构建后的 Studio 入口是
 `build/mac_clang_debug/Ravo/desktop/ravo_studio.app`（Windows 为
 `build/win_msvc_debug/Ravo/desktop/ravo_studio.exe`，Linux 为
-`build/linux_clang_debug/Ravo/desktop/ravo_studio`）。FreeCM 的 Run 与 GeoDebugger/DwgParser 一样：先
+`build/linux_clang_debug/Ravo/desktop/ravo_studio`）。可带
+`--catalog <library.sqlite>` 直接打开已有图库。FreeCM 的 Run 与 GeoDebugger/DwgParser 一样：先
 `cmake --build --preset … --target ravo_studio`，再直接启动这个 GUI。
 第一版手工闭环：Create Library → Import `legacy/tests/0000-nop/expected.png` 与
 `legacy/tests/images/mire1.cr2` → 选择资产 → Fit / 100%。

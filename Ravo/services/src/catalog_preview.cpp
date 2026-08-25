@@ -1,5 +1,6 @@
 #include "ravo/services/catalog_service.h"
 
+#include <chrono>
 #include <filesystem>
 #include <optional>
 #include <system_error>
@@ -38,6 +39,79 @@ CatalogService::request_preview(const PreviewRequest &request,
                           {{"asset_id", request.asset_id}});
     }
     return generate_preview(*asset.value(), request, live_develop);
+}
+
+Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
+    const AssetRecord &asset, const EmbeddedPreview &embedded, const std::uint32_t max_edge,
+    const CancellationToken &cancellation)
+{
+    if (raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width, height);
+    const auto fingerprint = asset.content_fingerprint.value_or("none");
+    const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
+                                                  kEmbeddedBrowsePreviewDigest);
+    PreviewResult result;
+    result.asset_id = asset.id;
+    result.cache_key = cache_key;
+    auto existing = cache_->existing_png(cache_key);
+    if (!existing)
+    {
+        return existing.error();
+    }
+    if (existing.value())
+    {
+        result.cache_path = *existing.value();
+        result.width = width;
+        result.height = height;
+        PreviewRecord record;
+        record.asset_id = asset.id;
+        record.cache_key = cache_key;
+        record.width = width;
+        record.height = height;
+        record.state = std::string(kPreviewStateReady);
+        record.cache_relpath = cache_->relative_png_path(cache_key);
+        record.last_success_unix_ms = now_unix_ms();
+        static_cast<void>(repository_->upsert_preview(record));
+        return result;
+    }
+
+    auto encoded = raster_->decode_memory(embedded.bytes, max_edge, cancellation);
+    if (!encoded)
+    {
+        return encoded.error();
+    }
+    auto committed = cache_->commit_png_bytes(cache_key, encoded.value().bytes);
+    if (!committed)
+    {
+        return committed.error();
+    }
+    result.cache_path = committed.value();
+    result.width = encoded.value().width;
+    result.height = encoded.value().height;
+    PreviewRecord record;
+    record.asset_id = asset.id;
+    record.cache_key = cache_key;
+    record.width = result.width;
+    record.height = result.height;
+    record.state = std::string(kPreviewStateReady);
+    record.cache_relpath = cache_->relative_png_path(cache_key);
+    record.last_success_unix_ms = now_unix_ms();
+    const auto stored = repository_->upsert_preview(record);
+    if (!stored)
+    {
+        return stored.error();
+    }
+    return result;
 }
 
 Result<PreviewResult>
@@ -95,6 +169,64 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     std::uint32_t height = 0;
     fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
     const auto fingerprint = asset.content_fingerprint.value_or("none");
+    const bool embedded_browse =
+        request.prefer_embedded_preview && request.persist_preview_record &&
+        is_raw_media_type(working.media_type) && !live_develop.has_value() &&
+        !request.ignore_edits && !request.ignore_crop && !request.ignore_straighten &&
+        !working.has_edits;
+    if (embedded_browse && original_exists)
+    {
+        const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
+                                                      kEmbeddedBrowsePreviewDigest);
+        auto existing = cache_->existing_png(cache_key);
+        if (!existing)
+        {
+            return existing.error();
+        }
+        if (existing.value())
+        {
+            PreviewResult result;
+            result.asset_id = asset.id;
+            result.request_revision = request.request_revision;
+            result.cache_key = cache_key;
+            result.cache_path = *existing.value();
+            result.width = width;
+            result.height = height;
+            PreviewRecord record;
+            record.asset_id = asset.id;
+            record.cache_key = cache_key;
+            record.width = width;
+            record.height = height;
+            record.state = std::string(kPreviewStateReady);
+            record.cache_relpath = cache_->relative_png_path(cache_key);
+            record.last_success_unix_ms = now_unix_ms();
+            static_cast<void>(repository_->upsert_preview(record));
+            return result;
+        }
+        auto extracted =
+            engine_->extract_embedded_preview(location.value().path, request.max_edge,
+                                              request.cancellation);
+        if (extracted)
+        {
+            auto persisted = persist_embedded_browse_preview(
+                working, extracted.value(), request.max_edge, request.cancellation);
+            if (persisted)
+            {
+                persisted.value().request_revision = request.request_revision;
+                persisted.value().original_missing = false;
+                return persisted;
+            }
+            LOG_INFO(ravo::logger(),
+                     "embedded browse preview persist failed asset={} error={}", asset.id,
+                     persisted.error().message);
+        }
+        else
+        {
+            LOG_INFO(ravo::logger(),
+                     "embedded browse preview unavailable asset={} error={}", asset.id,
+                     extracted.error().message);
+        }
+    }
     auto baseline_recipe = baseline_recipe_for(working, location.value().path);
     if (!baseline_recipe)
     {

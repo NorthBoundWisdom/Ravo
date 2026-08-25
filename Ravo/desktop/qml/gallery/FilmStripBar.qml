@@ -54,7 +54,7 @@ Rectangle {
             required property int index
             width: Math.max(72, height)
             height: strip.height
-            Component.onCompleted: if (root.presenter)
+            Component.onCompleted: if (root.presenter && stripDelegate.thumbnailState !== "ready")
                 root.presenter.ensureThumbnail(stripDelegate.assetId)
 
             ThumbnailCell {

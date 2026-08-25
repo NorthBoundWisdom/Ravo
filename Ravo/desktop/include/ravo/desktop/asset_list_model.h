@@ -45,8 +45,13 @@ public:
     [[nodiscard]] int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override;
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
-    void setAssets(std::vector<AssetRecord> assets);
+    void setAssets(std::vector<AssetRecord> assets,
+                   std::unordered_map<std::string, QUrl> thumbnail_urls = {},
+                   std::unordered_map<std::string, QString> thumbnail_states = {});
+    void insertAsset(int row, AssetRecord asset);
     void setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state);
+    [[nodiscard]] std::vector<AssetRecord> records() const;
+    [[nodiscard]] QString thumbnailState(const std::string &asset_id) const;
     void updateAsset(const AssetRecord &asset);
     void markOriginalMissing(const std::string &asset_id);
     void setSelectedIds(std::unordered_set<std::string> ids);

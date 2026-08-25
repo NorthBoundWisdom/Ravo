@@ -8,7 +8,9 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 
 #include <QByteArray>
 #include <QFile>
@@ -78,14 +80,9 @@ namespace
 
 } // namespace
 
-Result<InspectionResult> identify_raw(const std::string_view input_uri)
+Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::string_view input_uri)
 {
-    auto decoder = open_libraw_file(input_uri);
-    if (!decoder)
-    {
-        return decoder.error();
-    }
-    const auto &raw = decoder.value()->imgdata;
+    const auto &raw = decoder.imgdata;
     if (raw.sizes.width == 0 || raw.sizes.height == 0)
     {
         return make_error(ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions",
@@ -120,6 +117,16 @@ Result<InspectionResult> identify_raw(const std::string_view input_uri)
         result.captured_unix_s = static_cast<std::int64_t>(raw.other.timestamp);
     }
     return result;
+}
+
+Result<InspectionResult> identify_raw(const std::string_view input_uri)
+{
+    auto decoder = open_libraw_file(input_uri);
+    if (!decoder)
+    {
+        return decoder.error();
+    }
+    return inspection_from_libraw(*decoder.value(), input_uri);
 }
 
 [[nodiscard]] int select_libraw_jpeg_thumb_index(const libraw_thumbnail_list_t &list,
@@ -176,6 +183,28 @@ Result<EmbeddedPreview> copy_unpacked_jpeg_thumb(LibRaw &decoder, const std::str
     return preview;
 }
 
+Result<EmbeddedPreview> unpack_open_jpeg_thumb(LibRaw &decoder, const std::string_view input_uri,
+                                               const std::uint32_t max_edge)
+{
+    const int selected = select_libraw_jpeg_thumb_index(decoder.imgdata.thumbs_list, max_edge);
+    int thumb_status = LIBRAW_UNSPECIFIED_ERROR;
+    if (selected >= 0)
+    {
+        thumb_status = decoder.unpack_thumb_ex(selected);
+    }
+    if (thumb_status != LIBRAW_SUCCESS)
+    {
+        thumb_status = decoder.unpack_thumb();
+    }
+    if (thumb_status != LIBRAW_SUCCESS)
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "RAW file has no embedded preview",
+            {{"detail", libraw_strerror(thumb_status)}, {"input_uri", std::string(input_uri)}});
+    }
+    return copy_unpacked_jpeg_thumb(decoder, input_uri);
+}
+
 Result<EmbeddedPreview> extract_libraw_preview(const std::string_view input_uri,
                                                const std::uint32_t max_edge,
                                                const CancellationToken &cancellation)
@@ -195,24 +224,41 @@ Result<EmbeddedPreview> extract_libraw_preview(const std::string_view input_uri,
     {
         return cancelled.error();
     }
-    const int selected =
-        select_libraw_jpeg_thumb_index(decoder.value()->imgdata.thumbs_list, max_edge);
-    int thumb_status = LIBRAW_UNSPECIFIED_ERROR;
-    if (selected >= 0)
+    return unpack_open_jpeg_thumb(*decoder.value(), input_uri, max_edge);
+}
+
+Result<RawInspectPreview> inspect_raw_with_embedded_preview(const std::string_view input_uri,
+                                                            const std::uint32_t max_edge,
+                                                            const CancellationToken &cancellation)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
     {
-        thumb_status = decoder.value()->unpack_thumb_ex(selected);
+        return cancelled.error();
     }
-    if (thumb_status != LIBRAW_SUCCESS)
+    auto decoder = open_libraw_file(input_uri);
+    if (!decoder)
     {
-        thumb_status = decoder.value()->unpack_thumb();
+        return decoder.error();
     }
-    if (thumb_status != LIBRAW_SUCCESS)
+    auto inspection = inspection_from_libraw(*decoder.value(), input_uri);
+    if (!inspection)
     {
-        return make_error(
-            ErrorCode::kUnsupported, "RAW file has no embedded preview",
-            {{"detail", libraw_strerror(thumb_status)}, {"input_uri", std::string(input_uri)}});
+        return inspection.error();
     }
-    return copy_unpacked_jpeg_thumb(*decoder.value(), input_uri);
+    cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    RawInspectPreview result;
+    result.inspection = std::move(inspection).value();
+    auto preview = unpack_open_jpeg_thumb(*decoder.value(), input_uri, max_edge);
+    if (preview)
+    {
+        result.embedded_preview = std::move(preview).value();
+    }
+    return result;
 }
 
 Result<DecodedRaw> decode_raw(const std::string_view input_uri)

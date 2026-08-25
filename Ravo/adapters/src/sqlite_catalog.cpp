@@ -449,6 +449,18 @@ SqliteCatalogRepository::open_database(const std::string_view database_path, con
     {
         return map_sql_error(pragma, "enable_foreign_keys");
     }
+    if (!pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL")))
+    {
+        return map_sql_error(pragma, "enable_wal");
+    }
+    if (!pragma.exec(QStringLiteral("PRAGMA synchronous = NORMAL")))
+    {
+        return map_sql_error(pragma, "set_synchronous");
+    }
+    if (!pragma.exec(QStringLiteral("PRAGMA busy_timeout = 5000")))
+    {
+        return map_sql_error(pragma, "set_busy_timeout");
+    }
     return impl;
 }
 
@@ -862,6 +874,25 @@ SqliteCatalogRepository::find_preview(const std::string_view asset_id) const
         return std::optional<PreviewRecord>{};
     }
     return std::optional<PreviewRecord>{read_preview(query)};
+}
+
+Result<std::vector<PreviewRecord>> SqliteCatalogRepository::list_previews() const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QString(kPreviewSelect)))
+    {
+        return map_sql_error(query, "list_previews");
+    }
+    std::vector<PreviewRecord> previews;
+    while (query.next())
+    {
+        previews.push_back(read_preview(query));
+    }
+    return previews;
 }
 
 Result<void> SqliteCatalogRepository::upsert_preview(const PreviewRecord &preview)

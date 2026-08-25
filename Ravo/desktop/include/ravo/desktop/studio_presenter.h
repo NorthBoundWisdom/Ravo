@@ -154,7 +154,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
-    Q_PROPERTY(QUrl selectedThumbnailUrl READ selectedThumbnailUrl NOTIFY selectionChanged)
+    Q_PROPERTY(QUrl selectedThumbnailUrl READ selectedThumbnailUrl NOTIFY thumbnailsChanged)
     Q_PROPERTY(QString selectedFolderUri READ selectedFolderUri NOTIFY folderChanged)
     Q_PROPERTY(QString selectedDisplayName READ selectedDisplayName NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedFolderPath READ selectedFolderPath NOTIFY selectionChanged)
@@ -164,6 +164,13 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedUri READ selectedUri NOTIFY selectionChanged)
     Q_PROPERTY(QUrl defaultCatalogFolder READ defaultCatalogFolder CONSTANT)
     Q_PROPERTY(QUrl defaultCatalogFile READ defaultCatalogFile CONSTANT)
+    Q_PROPERTY(QString startupCatalogPath READ startupCatalogPath CONSTANT)
+    Q_PROPERTY(bool importWorkActive READ importWorkActive NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int importWorkCompleted READ importWorkCompleted NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int importWorkTotal READ importWorkTotal NOTIFY libraryWorkChanged)
+    Q_PROPERTY(bool previewWorkActive READ previewWorkActive NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int previewWorkCompleted READ previewWorkCompleted NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int previewWorkTotal READ previewWorkTotal NOTIFY libraryWorkChanged)
 
 public:
     explicit StudioPresenter(QObject *parent = nullptr);
@@ -173,7 +180,15 @@ public:
     [[nodiscard]] QString catalogPath() const;
     [[nodiscard]] QUrl defaultCatalogFolder() const;
     [[nodiscard]] QUrl defaultCatalogFile() const;
+    [[nodiscard]] QString startupCatalogPath() const;
+    void setStartupCatalogPath(const QString &path);
     Q_INVOKABLE bool defaultCatalogExists() const;
+    [[nodiscard]] bool importWorkActive() const noexcept;
+    [[nodiscard]] int importWorkCompleted() const noexcept;
+    [[nodiscard]] int importWorkTotal() const noexcept;
+    [[nodiscard]] bool previewWorkActive() const noexcept;
+    [[nodiscard]] int previewWorkCompleted() const noexcept;
+    [[nodiscard]] int previewWorkTotal() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] QString statusText() const;
     [[nodiscard]] QString errorText() const;
@@ -375,15 +390,24 @@ signals:
     void folderChanged();
     void editChanged();
     void uiCommandRequested(const QString &id);
+    void libraryWorkChanged();
+    void thumbnailsChanged();
 
 private:
     void setBusy(bool busy);
     void setStatus(QString text);
     void setError(QString text);
-    void applyAssets(std::vector<AssetRecord> assets, bool restore_selection);
+    void applyAssets(std::vector<AssetRecord> assets, bool restore_selection,
+                     std::unordered_map<std::string, QUrl> thumbnail_urls = {},
+                     std::unordered_map<std::string, QString> thumbnail_states = {});
     void applyFolders(std::vector<FolderRecord> folders);
     void requestPreviewForSelection();
     void reloadVisibleAssets();
+    void queuePreviewWarmup();
+    void kickPreviewWarmup();
+    void setImportWork(int completed, int total, bool active);
+    void ingestImportedItem(const ImportItemResult &item);
+    void finishPreviewJob(bool success);
     void load_develop_for_selection();
     void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true);
     void preview_develop(DevelopParams params);
@@ -397,6 +421,7 @@ private:
     void clear_displayed_preview();
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision);
     void refresh_scopes(const QImage &image);
+    void refresh_scopes_from_thumbnail(const QString &asset_id);
     void clear_scopes();
     [[nodiscard]] static QVariantList histogram_channel_list(
         const std::array<std::uint32_t, kRgbHistogramBins> &channel);
@@ -432,6 +457,15 @@ private:
     FolderListModel folders_;
     LibraryQuery query_;
     QString catalog_path_;
+    QString startup_catalog_path_;
+    bool import_work_active_ = false;
+    int import_work_completed_ = 0;
+    int import_work_total_ = 0;
+    bool preview_work_active_ = false;
+    int preview_work_completed_ = 0;
+    int preview_work_total_ = 0;
+    bool preview_warmup_in_flight_ = false;
+    std::vector<std::string> pending_preview_ids_;
     QString status_text_{QStringLiteral("Create or open a library to import photos.")};
     QString error_text_;
     QString selected_asset_id_;

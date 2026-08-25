@@ -59,6 +59,24 @@ EngineFacade::extract_embedded_preview(const std::string_view input_uri,
     return extract_libraw_preview(input_uri, max_edge, cancellation);
 }
 
+Result<RawInspectPreview>
+EngineFacade::inspect_with_embedded_preview(const std::string_view input_uri,
+                                            const std::uint32_t max_edge,
+                                            const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    if (input_uri.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Input URI must not be empty for inspection");
+    }
+    return inspect_raw_with_embedded_preview(input_uri, max_edge, cancellation);
+}
+
 const std::vector<OperationDescriptor> &EngineFacade::operations() const noexcept
 {
     return registry_.descriptors();

@@ -97,14 +97,23 @@ SQLite adapter 至少测试：
 - preview contract v4 的 RAW 路径必须验证完整 decode + 默认 Sigmoid；raster 基线不得被二次
   display-transform。Sigmoid 至少有 schema 往返、合成色块、`mire1.cr2` channel-sum
   reference 与 catalog reset/reopen；
+- RAW 导入与 Gallery 缩略图可持久化 embedded JPEG browse 缓存，cache key 必须带
+  `embedded-jpeg` digest，且与 1600px processed preview 分文件；`prefer_embedded_preview`
+  不得影响 interactive/develop/export；
 - 交互预览使用 scene-linear 工作缓冲：RAW unpack/demosaic 缓存在 CatalogService，拖动时只把
   已缓存的 linear buffer 套上 recipe；不得把 embedded JPEG 当作可编辑数据。CLI/Studio 同一
   `request_preview` 合同；晚到结果按 request revision 丢弃；
 - 示波器从当前 preview 的 display-referred sRGB 收集：RGB 直方图跳过 bin 0 求峰值，
-  parade 用 8/9 映射和 160 档 tone；不得静默改用 embedded JPEG；
+  parade 用 8/9 映射和 160 档 tone。Gallery 网格用 browse 缩略图计算示波器，避免选中时
+  完整 RAW decode；loupe/develop 仍用 processed preview，不得把 embedded JPEG 当可编辑数据；
 - 快速切换资产时，旧 request revision 的晚到结果被丢弃；
 - 窗口关闭/关闭 catalog 后没有 detached task、晚到 UI 更新、未提交事务或临时 preview；
-- viewer 手工验收至少覆盖 loading/ready/missing/unsupported/failed、fit、100% 与平移。
+- viewer 手工验收至少覆盖 loading/ready/missing/unsupported/failed、fit、100% 与平移；
+- Gallery 网格滚动只走 browse 缩略图，不得为网格选中项排队 1600px processed preview；
+  打开已有 cache 的 catalog 不得再对每张图跑一遍 ensureThumbnail 工作队列；
+- 导入使用系统文件/文件夹对话框；选完路径后扫描/导入必须在 worker 上跑，左侧
+  Import/Previews 进度条从 Scanning 起可见，窗口不得卡住；每张成功导入的照片立刻
+  出现在网格里并带 browse 缩略图。
 
 ## 冻结 fixture 复用
 

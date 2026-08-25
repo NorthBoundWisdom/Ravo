@@ -1,7 +1,9 @@
 #include "ravo/services/catalog_service.h"
 
+#include <chrono>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "catalog_internal.h"
@@ -77,6 +79,15 @@ Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery 
         return listed.error();
     }
     return filter_and_sort_assets(std::move(listed).value(), query);
+}
+
+Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    return repository_->list_previews();
 }
 
 Result<std::vector<FolderRecord>> CatalogService::list_folders() const
@@ -758,63 +769,84 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
 
     const std::filesystem::path file_path(
         std::u8string(location.value().path.begin(), location.value().path.end()));
-    Result<RasterInfo> raster = make_error(ErrorCode::kUnsupported, "Not probed as raster");
-    if (!is_raw_extension(file_path))
+    std::optional<EmbeddedPreview> embedded_preview;
+    const auto apply_inspection = [&](const InspectionResult &inspected) -> Result<void>
     {
-        raster = raster_->probe(location.value().path);
-    }
-    if (raster)
-    {
-        asset.media_type = raster.value().media_type;
-        asset.width = raster.value().width;
-        asset.height = raster.value().height;
-    }
-    else if (raster.error().code == ErrorCode::kUnsupported)
-    {
-        const auto inspected = engine_->inspect(location.value().path, cancellation);
-        if (!inspected)
+        if (!inspected.is_raw)
         {
-            if (inspected.error().code == ErrorCode::kUnsupported)
-            {
-                return unsupported_item(location.value().path, inspected.error());
-            }
-            if (inspected.error().code == ErrorCode::kCancelled)
-            {
-                return failed_item(location.value().path, inspected.error());
-            }
-            if (inspected.error().code == ErrorCode::kValidation)
-            {
-                return unsupported_item(location.value().path, inspected.error());
-            }
-            return failed_item(location.value().path, inspected.error());
-        }
-        if (!inspected.value().is_raw)
-        {
-            return unsupported_item(location.value().path,
-                                    make_error(ErrorCode::kUnsupported,
-                                               "Input is not a supported RAW file",
-                                               {{"path", location.value().path}}));
+            return make_error(ErrorCode::kUnsupported, "Input is not a supported RAW file",
+                              {{"path", location.value().path}});
         }
         asset.media_type = std::string(kMediaTypeRaw);
-        asset.width = inspected.value().width;
-        asset.height = inspected.value().height;
-        if (!inspected.value().make.empty())
+        asset.width = inspected.width;
+        asset.height = inspected.height;
+        if (!inspected.make.empty())
         {
-            asset.capture.camera_make = inspected.value().make;
+            asset.capture.camera_make = inspected.make;
         }
-        if (!inspected.value().model.empty())
+        if (!inspected.model.empty())
         {
-            asset.capture.camera_model = inspected.value().model;
+            asset.capture.camera_model = inspected.model;
         }
-        asset.capture.iso = inspected.value().iso;
-        asset.capture.aperture = inspected.value().aperture;
-        asset.capture.focal_length_mm = inspected.value().focal_length_mm;
-        asset.capture.shutter_s = inspected.value().shutter_s;
-        asset.capture.captured_unix_s = inspected.value().captured_unix_s;
+        asset.capture.iso = inspected.iso;
+        asset.capture.aperture = inspected.aperture;
+        asset.capture.focal_length_mm = inspected.focal_length_mm;
+        asset.capture.shutter_s = inspected.shutter_s;
+        asset.capture.captured_unix_s = inspected.captured_unix_s;
+        return {};
+    };
+    const auto map_raw_probe_error = [&](const TaskError &error) -> ImportItemResult
+    {
+        if (error.code == ErrorCode::kUnsupported || error.code == ErrorCode::kValidation)
+        {
+            return unsupported_item(location.value().path, error);
+        }
+        return failed_item(location.value().path, error);
+    };
+
+    if (is_raw_extension(file_path))
+    {
+        auto probed = engine_->inspect_with_embedded_preview(location.value().path,
+                                                             kThumbnailMaxEdge, cancellation);
+        if (!probed)
+        {
+            return map_raw_probe_error(probed.error());
+        }
+        auto applied = apply_inspection(probed.value().inspection);
+        if (!applied)
+        {
+            return unsupported_item(location.value().path, applied.error());
+        }
+        embedded_preview = std::move(probed.value().embedded_preview);
     }
     else
     {
-        return failed_item(location.value().path, raster.error());
+        auto raster = raster_->probe(location.value().path);
+        if (raster)
+        {
+            asset.media_type = raster.value().media_type;
+            asset.width = raster.value().width;
+            asset.height = raster.value().height;
+        }
+        else if (raster.error().code == ErrorCode::kUnsupported)
+        {
+            auto probed = engine_->inspect_with_embedded_preview(
+                location.value().path, kThumbnailMaxEdge, cancellation);
+            if (!probed)
+            {
+                return map_raw_probe_error(probed.error());
+            }
+            auto applied = apply_inspection(probed.value().inspection);
+            if (!applied)
+            {
+                return unsupported_item(location.value().path, applied.error());
+            }
+            embedded_preview = std::move(probed.value().embedded_preview);
+        }
+        else
+        {
+            return failed_item(location.value().path, raster.error());
+        }
     }
 
     const auto inserted = repository_->insert_asset(asset);
@@ -839,9 +871,19 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     }
 
     PreviewRequest imported_preview;
-    imported_preview.max_edge = kDefaultPreviewMaxEdge;
+    imported_preview.max_edge = kThumbnailMaxEdge;
+    imported_preview.prefer_embedded_preview = is_raw_media_type(asset.media_type);
     imported_preview.cancellation = cancellation;
-    auto preview = generate_preview(asset, imported_preview, {});
+    Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Preview was not generated");
+    if (embedded_preview)
+    {
+        preview = persist_embedded_browse_preview(asset, *embedded_preview, kThumbnailMaxEdge,
+                                                  cancellation);
+    }
+    if (!preview)
+    {
+        preview = generate_preview(asset, imported_preview, {});
+    }
     if (!preview)
     {
         LOG_ERROR(ravo::logger(), "preview failed asset={} path={} error={}", asset.id,
@@ -864,13 +906,17 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     result.status = ImportItemStatus::kImported;
     result.input_path = location.value().path;
     result.asset = asset;
+    if (preview)
+    {
+        result.preview_cache_path = preview.value().cache_path;
+    }
     return result;
 }
 
 Result<std::vector<ImportItemResult>>
-CatalogService::import_inputs(const std::vector<std::string> &paths,
-                              const CancellationToken &cancellation,
-                              const std::function<void(std::size_t, std::size_t)> &progress)
+CatalogService::import_inputs(
+    const std::vector<std::string> &paths, const CancellationToken &cancellation,
+    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
     auto files = collect_import_paths(paths, cancellation);
     if (!files)
@@ -883,10 +929,19 @@ CatalogService::import_inputs(const std::vector<std::string> &paths,
     {
         if (progress)
         {
-            progress(0, 0);
+            progress(0, 0, nullptr);
         }
         return results;
     }
+    const auto started = std::chrono::steady_clock::now();
+    if (progress)
+    {
+        progress(0, files.value().size(), nullptr);
+    }
+    int imported_count = 0;
+    int duplicate_count = 0;
+    int unsupported_count = 0;
+    int failed_count = 0;
     for (std::size_t index = 0; index < files.value().size(); ++index)
     {
         auto cancelled = cancellation.check();
@@ -897,22 +952,46 @@ CatalogService::import_inputs(const std::vector<std::string> &paths,
             stopped.input_path = files.value()[index];
             stopped.error = cancelled.error();
             results.push_back(std::move(stopped));
+            ++failed_count;
             break;
         }
         auto item = import_one(files.value()[index], cancellation);
         if (!item)
         {
             results.push_back(failed_item(files.value()[index], item.error()));
+            ++failed_count;
         }
         else
         {
+            switch (item.value().status)
+            {
+            case ImportItemStatus::kImported:
+                ++imported_count;
+                break;
+            case ImportItemStatus::kDuplicate:
+                ++duplicate_count;
+                break;
+            case ImportItemStatus::kUnsupported:
+                ++unsupported_count;
+                break;
+            case ImportItemStatus::kFailed:
+                ++failed_count;
+                break;
+            }
             results.push_back(std::move(item).value());
         }
         if (progress)
         {
-            progress(index + 1U, files.value().size());
+            progress(index + 1U, files.value().size(), &results.back());
         }
     }
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - started)
+                                .count();
+    LOG_INFO(ravo::logger(),
+             "import batch files={} imported={} duplicate={} unsupported={} failed={} {}ms",
+             files.value().size(), imported_count, duplicate_count, unsupported_count, failed_count,
+             elapsed_ms);
     return results;
 }
 

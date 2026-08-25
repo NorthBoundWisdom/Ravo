@@ -126,6 +126,12 @@ struct EmbeddedPreview
     std::vector<std::uint8_t> bytes;
 };
 
+struct RawInspectPreview
+{
+    InspectionResult inspection;
+    std::optional<EmbeddedPreview> embedded_preview;
+};
+
 struct ProgressEvent
 {
     std::string correlation_id;
@@ -152,6 +158,11 @@ public:
     [[nodiscard]] Result<EmbeddedPreview>
     extract_embedded_preview(std::string_view input_uri, std::uint32_t max_edge,
                              const CancellationToken &cancellation) const;
+    // One LibRaw open: metadata plus optional JPEG thumbnail. Missing thumbs are
+    // not an inspection failure; `embedded_preview` stays empty.
+    [[nodiscard]] Result<RawInspectPreview>
+    inspect_with_embedded_preview(std::string_view input_uri, std::uint32_t max_edge,
+                                  const CancellationToken &cancellation) const;
     [[nodiscard]] const std::vector<OperationDescriptor> &operations() const noexcept;
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;

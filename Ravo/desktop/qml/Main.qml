@@ -98,6 +98,10 @@ ApplicationWindow {
     function startLibrarySession() {
         if (studio.catalogOpen)
             return;
+        if (studio.startupCatalogPath.length) {
+            studio.openCatalogFromPath(studio.startupCatalogPath);
+            return;
+        }
         if (studio.defaultCatalogExists())
             studio.openCatalog(studio.defaultCatalogFile);
         else
@@ -148,6 +152,11 @@ ApplicationWindow {
         windowHost: window
     }
 
+    menuBar: StudioMenuBar {
+        id: studioMenuBar
+        actions: studioActions
+    }
+
     Component.onCompleted: {
         applyAppearance();
         Qt.callLater(startLibrarySession);
@@ -185,26 +194,6 @@ ApplicationWindow {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
-
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: Math.max(studioMenuBar.implicitHeight, Fonts.menuBarHeight)
-            color: Theme.windowColor
-
-            StudioMenuBar {
-                id: studioMenuBar
-                width: parent.width
-                actions: studioActions
-            }
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 1
-                color: Theme.dividerColor
-            }
-        }
 
         Rectangle {
             Layout.fillWidth: true
@@ -383,8 +372,28 @@ ApplicationWindow {
             }
 
             Item {
+                id: galleryStage
                 SplitView.fillWidth: true
                 SplitView.minimumWidth: 280
+
+                readonly property int gridMinCell: 120
+                readonly property int gridMaxCell: 320
+                readonly property int gridScrollGutter: 14
+                function fittedGridCell(availableWidth, preferred) {
+                    const inner = Math.max(gridMinCell, availableWidth - gridScrollGutter);
+                    const target = Math.min(gridMaxCell, Math.max(gridMinCell, preferred));
+                    const cols = Math.max(1, Math.floor(inner / target));
+                    return inner / cols;
+                }
+                function revealGridSelection() {
+                    if (studio.browseMode !== "grid" || studio.selectedIndex < 0 || grid.count === 0)
+                        return;
+                    const cols = Math.max(1, Math.floor(grid.width / Math.max(1, grid.cellWidth)));
+                    const row = Math.floor(studio.selectedIndex / cols);
+                    const itemY = row * grid.cellHeight;
+                    if (itemY < grid.contentY || itemY + grid.cellHeight > grid.contentY + grid.height)
+                        grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain);
+                }
 
                 Rectangle {
                     anchors.fill: parent
@@ -400,21 +409,26 @@ ApplicationWindow {
                     anchors.margins: Fonts.size8
                     visible: studio.browseMode === "grid"
                     clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.VerticalFlick
+                    pixelAligned: true
                     model: studio.assets
-                    cellWidth: studio.thumbnailSize + Fonts.size12
-                    cellHeight: studio.thumbnailSize + Fonts.size12
-                    cacheBuffer: cellHeight * 4
-                    onVisibleChanged: if (visible && studio.selectedIndex >= 0)
-                        positionViewAtIndex(studio.selectedIndex, GridView.Contain)
+                    cellWidth: galleryStage.fittedGridCell(width, studio.thumbnailSize + Fonts.size12)
+                    cellHeight: cellWidth
+                    cacheBuffer: cellHeight * 8
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AlwaysOn
+                        implicitWidth: 10
+                    }
+                    onVisibleChanged: if (visible)
+                        galleryStage.revealGridSelection()
                     Connections {
                         target: studio
                         function onBrowseModeChanged() {
-                            if (studio.browseMode === "grid" && studio.selectedIndex >= 0)
-                                grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain);
+                            galleryStage.revealGridSelection();
                         }
                         function onSelectionChanged() {
-                            if (studio.browseMode === "grid" && studio.selectedIndex >= 0)
-                                grid.positionViewAtIndex(studio.selectedIndex, GridView.Contain);
+                            galleryStage.revealGridSelection();
                         }
                     }
                     delegate: Item {
@@ -436,7 +450,8 @@ ApplicationWindow {
                         width: grid.cellWidth
                         height: grid.cellHeight
 
-                        Component.onCompleted: studio.ensureThumbnail(tile.assetId)
+                        Component.onCompleted: if (tile.thumbnailState !== "ready")
+                            studio.ensureThumbnail(tile.assetId)
 
                         ThumbnailCell {
                             anchors.fill: parent

@@ -36,6 +36,7 @@ public:
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query) const;
     [[nodiscard]] Result<std::vector<FolderRecord>> list_folders() const;
+    [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const;
     [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
     [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
@@ -61,7 +62,8 @@ public:
                                                       const CancellationToken &cancellation);
     [[nodiscard]] Result<std::vector<ImportItemResult>>
     import_inputs(const std::vector<std::string> &paths, const CancellationToken &cancellation,
-                  const std::function<void(std::size_t, std::size_t)> &progress = {});
+                  const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
+                      &progress = {});
     [[nodiscard]] Result<PreviewResult>
     request_preview(const PreviewRequest &request,
                     const std::optional<DevelopParams> &live_develop = {});
@@ -97,6 +99,9 @@ private:
     [[nodiscard]] Result<PreviewResult>
     generate_preview(const AssetRecord &asset, const PreviewRequest &request,
                      const std::optional<DevelopParams> &live_develop);
+    [[nodiscard]] Result<PreviewResult>
+    persist_embedded_browse_preview(const AssetRecord &asset, const EmbeddedPreview &embedded,
+                                    std::uint32_t max_edge, const CancellationToken &cancellation);
     [[nodiscard]] Result<RasterBuffer> decode_preview_source(const AssetRecord &asset,
                                                              std::string_view path,
                                                              std::uint32_t max_edge,

@@ -49,6 +49,14 @@ Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 servi
 映射给 QML。QML/JavaScript 只拥有瞬时 view state、布局、绑定和输入，不实现 catalog/import/preview
 业务规则。Studio 的菜单、快捷键、右键菜单和 inspector 控件都通过同一组 QML `Action` 调用
 `StudioPresenter::executeCommand`；窗口对话框由该入口发出 `uiCommandRequested`，QML 只负责弹出。
+Gallery 网格模式只调度 `kThumbnailMaxEdge` browse 缩略图，不为选中项排队 1600px processed
+preview；直方图/parade 由该缩略图计算。切到 loupe/develop 后再请求完整 decode。打开/导入后 presenter 从 preview 表灌入已有
+cache 路径，网格委托不再为 ready 缩略图打满单线程队列。左侧 Library 面板顶部分别显示导入与
+preview 构建进度。选完系统文件夹/文件对话框后，扫描和导入在 worker 上跑，不阻塞 UI。每张成功导入的
+照片立刻插入网格并带上 browse 缩略图，不必等整批结束。
+网格按可用宽度把 cell 拟合到 120–320 的范围并显示纵向滚动条，滚动时只有选中
+项滚出视口才 `positionViewAtIndex`。`--catalog <library.sqlite>` 由 C++ 交给 presenter，QML
+在启动会话时打开该路径而不是默认库。
 Develop 预览由 presenter 做有界合并：同一时刻最多一个 in-flight 渲染，另加最多一份待保存
 recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已验证 preview。拖动时 presenter 只转发
 内存中的 develop 参数，不写 recipe；服务层按 `kInteractivePreviewMaxEdge` 在已缓存的
@@ -77,7 +85,8 @@ catalog 是单个用户选择的 SQLite 文件。schema v1 至少保存：
 对象布局、codec 句柄或数据库行地址。schema v2 在 `asset` 上保存 rating/color/reject；schema v3 用
 `asset_recipe` 保存每张图最多一份 canonical recipe JSON；schema v4 增加
 `asset_tag`、`asset_metadata`（只读 capture EXIF + catalog-only 可写字段）和
-`asset_recipe_history`（history/snapshot）。新库和每次 migration 使用事务；未知更高
+`asset_recipe_history`（history/snapshot）。SQLite adapter 打开时启用 WAL、`synchronous=NORMAL`
+和 `busy_timeout`，导入批次不会被每条 autocommit 的 FULL 同步写放大。新库和每次 migration 使用事务；未知更高
 schema 版本 fail-fast。
 
 首版不读取或迁移冻结 0.9 catalog。未来兼容工作必须有独立产品决定、备份/回滚和 fixture。
@@ -89,7 +98,8 @@ ID。`ImportItemResult` 对每个输入返回 imported、duplicate、unsupported
 成功丢失失败明细。
 
 导入首版只登记原文件，不复制、移动、改名、改写 metadata 或删除。格式由 codec 探测确认，扩展名只做
-候选过滤。先验证可信 metadata，再通过事务发布可见 asset；取消停止未派发工作，已提交结果仍保持有效。
+候选过滤。RAW 一次 LibRaw open 读取拍摄 metadata 与 embedded JPEG，并持久化
+`kThumbnailMaxEdge` browse 缩略图；不在导入时做 1600px 完整 decode。先验证可信 metadata，再通过事务发布可见 asset；取消停止未派发工作，已提交结果仍保持有效。
 
 ### Preview
 
@@ -99,10 +109,14 @@ ID。`ImportItemResult` 对每个输入返回 imported、duplicate、unsupported
 RAW 通过 Ravo CPU engine，JPEG/PNG/TIFF 通过 raster adapter；两条路径统一 orientation、颜色、alpha、
 缩放、有限值与错误契约。preview 在数据库外原子写入受控缓存，cache key 包含源指纹、目标尺寸和 contract
 版本。缓存损坏或缺失时可从只读原片重建。
-preview contract v4 对 RAW 使用完整 CPU decode/render，并在 scene-linear 工作缓冲末端应用
-`ravo.display.sigmoid` 基线；不再把 embedded JPEG 当作可编辑的 scene-linear 数据。基线 operation
-不产生 `asset_recipe` 行，也不标记 `has_edits`；用户覆盖参数后才持久化。已有 JPEG/PNG/TIFF 是
-display-referred 输入，不隐式重复应用 Sigmoid。
+导入和 Gallery 缩略图走 browse 缓存：RAW 在一次 LibRaw open 中读取 metadata 与 embedded JPEG，
+按 `kThumbnailMaxEdge` 写入 cache key digest `embedded-jpeg` 的 PNG。这不是可编辑的
+scene-linear 数据。Loupe、Develop、示波器、export 和 `prefer_embedded_preview=false` 的
+`request_preview` 仍走 preview contract v4：完整 CPU decode/render，并在 scene-linear
+工作缓冲末端应用 `ravo.display.sigmoid` 基线。两种缓存不得共用 digest。无 embedded JPEG 时
+browse 路径 fail-open 到完整 decode，不写空图。基线 operation 不产生 `asset_recipe` 行，也不标记
+`has_edits`；用户覆盖参数后才持久化。已有 JPEG/PNG/TIFF 是 display-referred 输入，不隐式重复应用
+Sigmoid；导入同样只持久化 thumbnail 尺寸，loupe 按需生成 1600px。
 
 Qt raster adapter 实际接受 PNG/JPEG/BMP/GIF/WebP/TIFF，并导出 PNG/JPEG/TIFF；因此对应
 JPEG/GIF/WebP/TIFF plugin targets 与 catalog 使用的 QSQLITE driver 都是 configure-time required。

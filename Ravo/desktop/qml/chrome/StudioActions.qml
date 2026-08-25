@@ -11,7 +11,8 @@ Item {
     property var presenter
     property var windowHost
 
-    readonly property bool catalogReady: presenter && presenter.catalogOpen && !presenter.busy
+    readonly property bool catalogReady: presenter && presenter.catalogOpen && !presenter.busy &&
+                                         !presenter.importWorkActive
     readonly property bool interactive: windowHost && !windowHost.settingsOpen
     readonly property bool developOpen: presenter && presenter.browseMode === "develop"
     readonly property bool hasSelection: presenter && presenter.selectedAssetId.length > 0

@@ -137,6 +137,24 @@ TEST(EngineFacadeTest, ExtractsBoundedEmbeddedJpegPreview)
     EXPECT_EQ(preview.value().bytes[1], 0xd8);
 }
 
+TEST(EngineFacadeTest, InspectWithEmbeddedPreviewReturnsMetadataAndJpeg)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+
+    const auto probed =
+        engine.value().inspect_with_embedded_preview(mire1_path(), 320, CancellationToken{});
+    ASSERT_TRUE(probed) << probed.error().message;
+    EXPECT_TRUE(probed.value().inspection.is_raw);
+    EXPECT_GT(probed.value().inspection.width, 0U);
+    EXPECT_GT(probed.value().inspection.height, 0U);
+    ASSERT_TRUE(probed.value().embedded_preview.has_value());
+    EXPECT_EQ(probed.value().embedded_preview->mime_type, "image/jpeg");
+    ASSERT_GE(probed.value().embedded_preview->bytes.size(), 4U);
+    EXPECT_EQ(probed.value().embedded_preview->bytes[0], 0xff);
+    EXPECT_EQ(probed.value().embedded_preview->bytes[1], 0xd8);
+}
+
 TEST(EngineFacadeTest, RenderWritesBoundedPngAndRejectsOutputConflict)
 {
     const auto engine = EngineFacade::create_phase1();

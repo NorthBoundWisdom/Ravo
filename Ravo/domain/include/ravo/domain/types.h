@@ -22,6 +22,7 @@ inline constexpr std::int64_t kPreviewContractVersion = 4;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
+inline constexpr std::string_view kEmbeddedBrowsePreviewDigest = "embedded-jpeg";
 inline constexpr int kDefaultJpegQuality = 90;
 inline constexpr int kJpegQualityMin = 1;
 inline constexpr int kJpegQualityMax = 100;
@@ -213,6 +214,7 @@ struct ImportItemResult
     ImportItemStatus status = ImportItemStatus::kFailed;
     std::string input_path;
     std::optional<AssetRecord> asset;
+    std::optional<std::string> preview_cache_path;
     std::optional<TaskError> error;
 };
 
@@ -225,6 +227,10 @@ struct PreviewRequest
     bool ignore_crop = false;
     bool ignore_straighten = false;
     bool persist_preview_record = true;
+    // Gallery/import thumbnails may use a RAW embedded JPEG. Develop, loupe, scopes,
+    // export and interactive preview must leave this false so processed pixels stay
+    // on the CPU RAW + Sigmoid contract.
+    bool prefer_embedded_preview = false;
     CancellationToken cancellation{};
     std::string correlation_id;
 };
