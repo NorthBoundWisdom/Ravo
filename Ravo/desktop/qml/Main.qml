@@ -470,8 +470,8 @@ ApplicationWindow {
                             pixelWidth: tile.pixelWidth
                             pixelHeight: tile.pixelHeight
                             swatchColor: window.swatchColor
-                            onClicked: function (mouse) {
-                                studioActions.handlePhotoClick(tile.assetId, mouse);
+                            onClicked: function (button, modifiers) {
+                                studioActions.handlePhotoClick(tile.assetId, button, modifiers);
                             }
                             onDoubleClicked: studioActions.handlePhotoDoubleClick(tile.assetId)
                         }

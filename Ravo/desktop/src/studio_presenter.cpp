@@ -42,6 +42,19 @@ struct CatalogListing
     std::unordered_map<std::string, QString> thumbnail_states;
 };
 
+QString photo_select_mode_from_modifiers(const Qt::KeyboardModifiers modifiers)
+{
+    if (modifiers.testFlag(Qt::ShiftModifier))
+    {
+        return QStringLiteral("range");
+    }
+    if (modifiers.testFlag(Qt::ControlModifier) || modifiers.testFlag(Qt::MetaModifier))
+    {
+        return QStringLiteral("toggle");
+    }
+    return QStringLiteral("single");
+}
+
 void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
 {
     if (!listing.assets)
@@ -1705,7 +1718,15 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
         if (!fields.isEmpty())
         {
             asset_id = fields.value(QStringLiteral("id")).toString();
-            mode = fields.value(QStringLiteral("mode"), QStringLiteral("single")).toString();
+            if (fields.contains(QStringLiteral("modifiers")))
+            {
+                mode = photo_select_mode_from_modifiers(Qt::KeyboardModifiers(
+                    static_cast<unsigned int>(fields.value(QStringLiteral("modifiers")).toInt())));
+            }
+            else
+            {
+                mode = fields.value(QStringLiteral("mode"), QStringLiteral("single")).toString();
+            }
         }
         if (mode == QStringLiteral("range"))
         {

@@ -116,26 +116,19 @@ Item {
             root.presenter.executeCommand(id, argument);
     }
 
-    function handlePhotoClick(assetId, mouse) {
-        const right = mouse && mouse.button === Qt.RightButton;
-        const shift = mouse && (mouse.modifiers & Qt.ShiftModifier);
-        const toggle = mouse && (mouse.modifiers & Qt.ControlModifier);
+    function handlePhotoClick(assetId, button, modifiers) {
+        const mods = Number(modifiers);
+        const right = button === Qt.RightButton;
+        const shift = (mods & Qt.ShiftModifier) !== 0;
+        // Cmd on macOS and Ctrl on Windows/Linux are Qt.ControlModifier; some
+        // mouse paths report the macOS Control key as Qt.MetaModifier.
+        const toggle = (mods & (Qt.ControlModifier | Qt.MetaModifier)) !== 0;
         if (right && root.presenter && root.presenter.isAssetSelected(assetId) && !shift && !toggle) {
             // Keep the current multi-selection when opening the context menu.
-        } else if (shift)
+        } else
             root.run(root.ids.photoSelect, {
                 "id": assetId,
-                "mode": "range"
-            });
-        else if (toggle)
-            root.run(root.ids.photoSelect, {
-                "id": assetId,
-                "mode": "toggle"
-            });
-        else
-            root.run(root.ids.photoSelect, {
-                "id": assetId,
-                "mode": "single"
+                "modifiers": mods
             });
         if (right && root.windowHost)
             root.windowHost.showPhotoMenu();

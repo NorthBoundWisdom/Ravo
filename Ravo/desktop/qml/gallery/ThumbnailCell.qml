@@ -24,8 +24,8 @@ Item {
         return Theme.midColor;
     }
 
-    signal clicked(var mouse)
-    signal doubleClicked()
+    signal clicked(int button, int modifiers)
+    signal doubleClicked
 
     readonly property bool missing: importState === "missing" || thumbnailState === "missing"
     readonly property string kindLabel: {
@@ -243,11 +243,22 @@ Item {
         }
 
         MouseArea {
+            id: clickArea
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             preventStealing: false
+            property int pressModifiers: Qt.NoModifier
+
+            onPressed: function (mouse) {
+                pressModifiers = mouse.modifiers;
+                // Keep modifier clicks from turning into a grid/film-strip flick.
+                preventStealing = (mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier | Qt.MetaModifier)) !== 0;
+            }
+            onReleased: preventStealing = false
+            onCanceled: preventStealing = false
             onClicked: function (mouse) {
-                root.clicked(mouse);
+                const modifiers = mouse.modifiers !== 0 ? mouse.modifiers : pressModifiers;
+                root.clicked(mouse.button, modifiers);
             }
             onDoubleClicked: root.doubleClicked()
         }

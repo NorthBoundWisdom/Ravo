@@ -75,9 +75,9 @@ Rectangle {
                 pixelWidth: stripDelegate.pixelWidth
                 pixelHeight: stripDelegate.pixelHeight
                 swatchColor: root.swatchColor
-                onClicked: function (mouse) {
+                onClicked: function (button, modifiers) {
                     if (root.commands)
-                        root.commands.handlePhotoClick(stripDelegate.assetId, mouse);
+                        root.commands.handlePhotoClick(stripDelegate.assetId, button, modifiers);
                 }
                 onDoubleClicked: if (root.commands)
                     root.commands.handlePhotoDoubleClick(stripDelegate.assetId)
