@@ -8,6 +8,7 @@
 #include <QtGui/QImage>
 #include <QtGui/QImageIOHandler>
 #include <QtGui/QImageReader>
+#include <QtGui/QImageWriter>
 
 namespace ravo
 {
@@ -85,6 +86,38 @@ namespace
     return {};
 }
 
+[[nodiscard]] QSize transformed_reader_size(const QImageReader &reader)
+{
+    QSize size = reader.size();
+    const auto transformation = reader.transformation();
+    if (transformation == QImageIOHandler::TransformationRotate90 ||
+        transformation == QImageIOHandler::TransformationRotate270 ||
+        transformation == QImageIOHandler::TransformationMirrorAndRotate90 ||
+        transformation == QImageIOHandler::TransformationFlipAndRotate90)
+    {
+        size.transpose();
+    }
+    return size;
+}
+
+void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge)
+{
+    const QSize size = transformed_reader_size(reader);
+    if (size.width() <= 0 || size.height() <= 0)
+    {
+        return;
+    }
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    fit_within_max_edge(static_cast<std::uint32_t>(size.width()),
+                        static_cast<std::uint32_t>(size.height()), max_edge, width, height);
+    if (width != static_cast<std::uint32_t>(size.width()) ||
+        height != static_cast<std::uint32_t>(size.height()))
+    {
+        reader.setScaledSize(QSize(static_cast<int>(width), static_cast<int>(height)));
+    }
+}
+
 [[nodiscard]] Result<EncodedPng> encode_preview(QImage image, const std::uint32_t max_edge,
                                                 const CancellationToken &cancellation,
                                                 const std::string_view context)
@@ -108,16 +141,24 @@ namespace
         height != static_cast<std::uint32_t>(image.height()))
     {
         image = image.scaled(static_cast<int>(width), static_cast<int>(height),
-                             Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                             Qt::IgnoreAspectRatio, Qt::FastTransformation);
     }
     image = image.convertToFormat(QImage::Format_RGB888);
 
     QByteArray encoded;
     QBuffer buffer(&encoded);
-    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG"))
+    if (!buffer.open(QIODevice::WriteOnly))
     {
         return make_error(ErrorCode::kIo, "Unable to encode PNG preview",
                           {{"path", std::string(context)}});
+    }
+    QImageWriter writer(&buffer, "png");
+    writer.setCompression(1);
+    if (!writer.write(image))
+    {
+        return make_error(ErrorCode::kIo, "Unable to encode PNG preview",
+                          {{"path", std::string(context)},
+                           {"qt_error", writer.errorString().toUtf8().toStdString()}});
     }
 
     EncodedPng result;
@@ -173,6 +214,7 @@ Result<EncodedPng> QtRasterDecoder::decode(const std::string_view path,
     {
         return prepared.error();
     }
+    apply_scaled_decode_size(reader, max_edge);
     return encode_preview(reader.read(), max_edge, cancellation, path);
 }
 
@@ -199,6 +241,7 @@ Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t
     }
     QImageReader reader(&buffer);
     reader.setAutoTransform(true);
+    apply_scaled_decode_size(reader, max_edge);
     return encode_preview(reader.read(), max_edge, cancellation, "memory");
 }
 

@@ -653,6 +653,94 @@ double StudioPresenter::editCropHeight() const noexcept
 {
     return develop_.crop_height;
 }
+bool StudioPresenter::editFlipHorizontal() const noexcept
+{
+    return develop_.flip_horizontal != 0;
+}
+bool StudioPresenter::editFlipVertical() const noexcept
+{
+    return develop_.flip_vertical != 0;
+}
+double StudioPresenter::editSharpen() const noexcept
+{
+    return develop_.sharpen;
+}
+double StudioPresenter::editSharpenRadius() const noexcept
+{
+    return develop_.sharpen_radius;
+}
+double StudioPresenter::editClarity() const noexcept
+{
+    return develop_.clarity;
+}
+double StudioPresenter::editVignette() const noexcept
+{
+    return develop_.vignette;
+}
+double StudioPresenter::editGrain() const noexcept
+{
+    return develop_.grain;
+}
+double StudioPresenter::editBloom() const noexcept
+{
+    return develop_.bloom;
+}
+double StudioPresenter::editSoften() const noexcept
+{
+    return develop_.soften;
+}
+double StudioPresenter::editDehaze() const noexcept
+{
+    return develop_.dehaze;
+}
+double StudioPresenter::editVelvia() const noexcept
+{
+    return develop_.velvia;
+}
+double StudioPresenter::editLift() const noexcept
+{
+    return develop_.lift;
+}
+double StudioPresenter::editColorGamma() const noexcept
+{
+    return develop_.color_gamma;
+}
+double StudioPresenter::editGain() const noexcept
+{
+    return develop_.gain;
+}
+double StudioPresenter::editColorContrast() const noexcept
+{
+    return develop_.color_contrast;
+}
+double StudioPresenter::editMonochrome() const noexcept
+{
+    return develop_.monochrome;
+}
+double StudioPresenter::editSplitShadowsHue() const noexcept
+{
+    return develop_.split_shadows_hue;
+}
+double StudioPresenter::editSplitHighlightsHue() const noexcept
+{
+    return develop_.split_highlights_hue;
+}
+double StudioPresenter::editSplitBalance() const noexcept
+{
+    return develop_.split_balance;
+}
+double StudioPresenter::editSplitAmount() const noexcept
+{
+    return develop_.split_amount;
+}
+double StudioPresenter::editGamma() const noexcept
+{
+    return develop_.gamma;
+}
+bool StudioPresenter::cropToolActive() const noexcept
+{
+    return crop_tool_active_;
+}
 
 AssetListModel *StudioPresenter::assets() noexcept
 {
@@ -1168,6 +1256,8 @@ void StudioPresenter::selectAsset(const QString &asset_id)
     preview_url_.clear();
     preview_loading_ = !asset_id.isEmpty();
     before_after_ = false;
+    crop_tool_active_ = false;
+    pending_preview_.reset();
     load_develop_for_selection();
     emit selectionChanged();
     emit previewChanged();
@@ -1604,11 +1694,27 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
     {
         resetSection(argument.toString());
     }
+    else if (id == QLatin1String(kEditResetControl))
+    {
+        resetControl(argument.toString());
+    }
     else if (id == QLatin1String(kEditSetNumber))
     {
         const auto fields = argument.toMap();
         setDevelopNumber(fields.value(QStringLiteral("name")).toString(),
                          fields.value(QStringLiteral("value")).toDouble());
+    }
+    else if (id == QLatin1String(kEditSetCrop))
+    {
+        const auto fields = argument.toMap();
+        setCropRect(fields.value(QStringLiteral("x")).toDouble(),
+                    fields.value(QStringLiteral("y")).toDouble(),
+                    fields.value(QStringLiteral("width")).toDouble(),
+                    fields.value(QStringLiteral("height")).toDouble());
+    }
+    else if (id == QLatin1String(kEditSetCropAspect))
+    {
+        setCropAspect(argument.toString());
     }
     else if (id == QLatin1String(kEditRotateLeft))
     {
@@ -1617,6 +1723,18 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
     else if (id == QLatin1String(kEditRotateRight))
     {
         rotateRight();
+    }
+    else if (id == QLatin1String(kEditFlipHorizontal))
+    {
+        flipHorizontal();
+    }
+    else if (id == QLatin1String(kEditFlipVertical))
+    {
+        flipVertical();
+    }
+    else if (id == QLatin1String(kEditCropTool))
+    {
+        setCropToolActive(argument.isValid() ? argument.toBool() : !crop_tool_active_);
     }
     else if (id == QLatin1String(kEditBeforeAfter))
     {
@@ -1749,7 +1867,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     {
         return;
     }
-    params.rotate_quarters = ((params.rotate_quarters % 4) + 4) % 4;
+    clamp_develop(params);
     const auto previous = develop_;
     if (push_history)
     {
@@ -1764,70 +1882,148 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     emit editChanged();
     preview_loading_ = true;
     emit previewChanged();
-    const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    const auto revision = ++preview_revision_;
-    const auto ignore_edits = before_after_;
+    ++preview_revision_;
+    pending_save_ = PendingDevelopWork{
+        true, params, previous, push_history, utf8_from_qstring(selected_asset_id_), before_after_,
+        crop_tool_active_ && !before_after_};
+    pending_preview_.reset();
+    kick_develop_work();
+}
+
+void StudioPresenter::enqueue_preview()
+{
+    if (selected_asset_id_.isEmpty())
+    {
+        preview_loading_ = false;
+        emit previewChanged();
+        return;
+    }
+    preview_loading_ = true;
+    emit previewChanged();
+    ++preview_revision_;
+    pending_preview_ = PendingDevelopWork{false,
+                                          develop_,
+                                          {},
+                                          false,
+                                          utf8_from_qstring(selected_asset_id_),
+                                          before_after_,
+                                          crop_tool_active_ && !before_after_};
+    kick_develop_work();
+}
+
+void StudioPresenter::kick_develop_work()
+{
+    if (develop_job_in_flight_)
+    {
+        return;
+    }
+    PendingDevelopWork job;
+    if (pending_save_.has_value())
+    {
+        job = *pending_save_;
+        pending_save_.reset();
+    }
+    else if (pending_preview_.has_value())
+    {
+        job = *pending_preview_;
+        pending_preview_.reset();
+    }
+    else
+    {
+        return;
+    }
+    develop_job_in_flight_ = true;
+    const auto revision = preview_revision_;
     executor_.post(
-        [this, asset_id, params, revision, ignore_edits, previous, push_history]()
+        [this, job, revision]()
         {
             Result<AssetRecord> saved = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
+            bool save_ok = !job.save;
             if (service_ != nullptr)
             {
-                saved = service_->save_develop(asset_id, params);
-                if (saved)
+                if (job.save)
+                {
+                    saved = service_->save_develop(job.asset_id, job.params);
+                    save_ok = static_cast<bool>(saved);
+                }
+                if (save_ok)
                 {
                     PreviewRequest request;
-                    request.asset_id = asset_id;
+                    request.asset_id = job.asset_id;
                     request.max_edge = kDefaultPreviewMaxEdge;
                     request.request_revision = revision;
-                    request.ignore_edits = ignore_edits;
+                    request.ignore_edits = job.ignore_edits;
+                    request.ignore_crop = job.ignore_crop;
                     request.cancellation = shutdown_.token();
                     preview = service_->request_preview(request);
                 }
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, revision, previous, push_history, saved = std::move(saved),
+                [this, job, revision, saved = std::move(saved),
                  preview = std::move(preview)]() mutable
                 {
-                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    develop_job_in_flight_ = false;
+                    const bool selected_matches =
+                        utf8_from_qstring(selected_asset_id_) == job.asset_id;
+                    if (job.save)
                     {
-                        return;
-                    }
-                    if (!saved)
-                    {
-                        if (revision == preview_revision_)
+                        if (!saved)
                         {
-                            develop_ = previous;
-                            if (push_history && !undo_stack_.empty())
+                            if (selected_matches && !pending_save_.has_value() &&
+                                develop_ == job.params)
                             {
-                                undo_stack_.pop_back();
+                                develop_ = job.previous;
+                                if (job.push_history && !undo_stack_.empty())
+                                {
+                                    undo_stack_.pop_back();
+                                }
+                                preview_loading_ = false;
+                                emit editChanged();
+                                emit previewChanged();
                             }
-                            preview_loading_ = false;
-                            emit editChanged();
-                            emit previewChanged();
+                            setError(qstring_from_utf8(saved.error().message));
+                            kick_develop_work();
+                            return;
                         }
-                        setError(qstring_from_utf8(saved.error().message));
-                        return;
+                        if (selected_matches)
+                        {
+                            assets_.updateAsset(saved.value());
+                            emit selectionChanged();
+                            emit editChanged();
+                        }
                     }
-                    assets_.updateAsset(saved.value());
-                    emit selectionChanged();
-                    emit editChanged();
-                    if (revision != preview_revision_)
+                    if (revision != preview_revision_ || !selected_matches)
                     {
+                        kick_develop_work();
                         return;
                     }
                     preview_loading_ = false;
                     if (!preview)
                     {
-                        setError(qstring_from_utf8(preview.error().message));
+                        if (preview.error().code == ErrorCode::kNotFound)
+                        {
+                            assets_.markOriginalMissing(job.asset_id);
+                            emit selectionChanged();
+                        }
+                        else
+                        {
+                            setError(qstring_from_utf8(preview.error().message));
+                        }
                         emit previewChanged();
+                        kick_develop_work();
                         return;
+                    }
+                    if (preview.value().original_missing)
+                    {
+                        assets_.markOriginalMissing(job.asset_id);
+                        emit selectionChanged();
                     }
                     preview_url_ =
                         QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
                     emit previewChanged();
+                    kick_develop_work();
                 },
                 Qt::QueuedConnection);
         });
@@ -1836,63 +2032,29 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
 void StudioPresenter::setDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = develop_;
-    if (name == QStringLiteral("temperature"))
+    if (!apply_develop_field(next, utf8_from_qstring(name), value))
     {
-        next.temperature = value;
+        return;
     }
-    else if (name == QStringLiteral("tint"))
-    {
-        next.tint = value;
-    }
-    else if (name == QStringLiteral("exposure"))
-    {
-        next.exposure_ev = value;
-    }
-    else if (name == QStringLiteral("contrast"))
-    {
-        next.contrast = value;
-    }
-    else if (name == QStringLiteral("highlights"))
-    {
-        next.highlights = value;
-    }
-    else if (name == QStringLiteral("shadows"))
-    {
-        next.shadows = value;
-    }
-    else if (name == QStringLiteral("whites"))
-    {
-        next.whites = value;
-    }
-    else if (name == QStringLiteral("blacks"))
-    {
-        next.blacks = value;
-    }
-    else if (name == QStringLiteral("vibrance"))
-    {
-        next.vibrance = value;
-    }
-    else if (name == QStringLiteral("saturation"))
-    {
-        next.saturation = value;
-    }
-    else if (name == QStringLiteral("cropX"))
-    {
-        next.crop_x = value;
-    }
-    else if (name == QStringLiteral("cropY"))
-    {
-        next.crop_y = value;
-    }
-    else if (name == QStringLiteral("cropWidth"))
-    {
-        next.crop_width = value;
-    }
-    else if (name == QStringLiteral("cropHeight"))
-    {
-        next.crop_height = value;
-    }
-    else
+    commit_develop(next, true);
+}
+
+void StudioPresenter::setCropRect(const double x, const double y, const double width,
+                                  const double height)
+{
+    DevelopParams next = develop_;
+    next.crop_x = x;
+    next.crop_y = y;
+    next.crop_width = width;
+    next.crop_height = height;
+    clamp_develop(next);
+    commit_develop(next, true);
+}
+
+void StudioPresenter::setCropAspect(const QString &aspect)
+{
+    DevelopParams next = develop_;
+    if (!apply_crop_aspect(next, utf8_from_qstring(aspect)))
     {
         return;
     }
@@ -1913,58 +2075,35 @@ void StudioPresenter::rotateRight()
     commit_develop(next, true);
 }
 
+void StudioPresenter::flipHorizontal()
+{
+    DevelopParams next = develop_;
+    next.flip_horizontal = next.flip_horizontal == 0 ? 1 : 0;
+    commit_develop(next, true);
+}
+
+void StudioPresenter::flipVertical()
+{
+    DevelopParams next = develop_;
+    next.flip_vertical = next.flip_vertical == 0 ? 1 : 0;
+    commit_develop(next, true);
+}
+
+void StudioPresenter::setCropToolActive(const bool active)
+{
+    if (crop_tool_active_ == active)
+    {
+        return;
+    }
+    crop_tool_active_ = active;
+    emit editChanged();
+    enqueue_preview();
+}
+
 void StudioPresenter::resetControl(const QString &name)
 {
     DevelopParams next = develop_;
-    if (name == QStringLiteral("temperature") || name == QStringLiteral("tint"))
-    {
-        next.temperature = kDevelopTemperatureDefault;
-        next.tint = 0.0;
-    }
-    else if (name == QStringLiteral("exposure"))
-    {
-        next.exposure_ev = 0.0;
-    }
-    else if (name == QStringLiteral("contrast"))
-    {
-        next.contrast = 0.0;
-    }
-    else if (name == QStringLiteral("highlights"))
-    {
-        next.highlights = 0.0;
-    }
-    else if (name == QStringLiteral("shadows"))
-    {
-        next.shadows = 0.0;
-    }
-    else if (name == QStringLiteral("whites"))
-    {
-        next.whites = 0.0;
-    }
-    else if (name == QStringLiteral("blacks"))
-    {
-        next.blacks = 0.0;
-    }
-    else if (name == QStringLiteral("vibrance"))
-    {
-        next.vibrance = 0.0;
-    }
-    else if (name == QStringLiteral("saturation"))
-    {
-        next.saturation = 0.0;
-    }
-    else if (name == QStringLiteral("rotate"))
-    {
-        next.rotate_quarters = 0;
-    }
-    else if (name == QStringLiteral("crop"))
-    {
-        next.crop_x = 0.0;
-        next.crop_y = 0.0;
-        next.crop_width = 1.0;
-        next.crop_height = 1.0;
-    }
-    else
+    if (!reset_develop_field(next, utf8_from_qstring(name)))
     {
         return;
     }
@@ -1974,34 +2113,7 @@ void StudioPresenter::resetControl(const QString &name)
 void StudioPresenter::resetSection(const QString &section)
 {
     DevelopParams next = develop_;
-    if (section == QStringLiteral("geometry"))
-    {
-        next.rotate_quarters = 0;
-        next.crop_x = 0.0;
-        next.crop_y = 0.0;
-        next.crop_width = 1.0;
-        next.crop_height = 1.0;
-    }
-    else if (section == QStringLiteral("whiteBalance"))
-    {
-        next.temperature = kDevelopTemperatureDefault;
-        next.tint = 0.0;
-    }
-    else if (section == QStringLiteral("light"))
-    {
-        next.exposure_ev = 0.0;
-        next.contrast = 0.0;
-        next.highlights = 0.0;
-        next.shadows = 0.0;
-        next.whites = 0.0;
-        next.blacks = 0.0;
-    }
-    else if (section == QStringLiteral("color"))
-    {
-        next.vibrance = 0.0;
-        next.saturation = 0.0;
-    }
-    else
+    if (!reset_develop_section(next, utf8_from_qstring(section)))
     {
         return;
     }
@@ -2041,70 +2153,12 @@ void StudioPresenter::toggleBeforeAfter()
 {
     before_after_ = !before_after_;
     emit editChanged();
-    preview_loading_ = true;
-    emit previewChanged();
-    requestPreviewForSelection();
+    enqueue_preview();
 }
 
 void StudioPresenter::requestPreviewForSelection()
 {
-    if (selected_asset_id_.isEmpty())
-    {
-        preview_loading_ = false;
-        emit previewChanged();
-        return;
-    }
-    const auto revision = ++preview_revision_;
-    const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    const bool ignore_edits = before_after_;
-    executor_.post(
-        [this, asset_id, revision, ignore_edits]()
-        {
-            Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (service_ != nullptr)
-            {
-                PreviewRequest request;
-                request.asset_id = asset_id;
-                request.max_edge = kDefaultPreviewMaxEdge;
-                request.request_revision = revision;
-                request.ignore_edits = ignore_edits;
-                request.cancellation = shutdown_.token();
-                preview = service_->request_preview(request);
-            }
-            QMetaObject::invokeMethod(
-                this,
-                [this, revision, asset_id, preview = std::move(preview)]() mutable
-                {
-                    if (revision != preview_revision_)
-                    {
-                        return;
-                    }
-                    preview_loading_ = false;
-                    if (!preview)
-                    {
-                        preview_url_.clear();
-                        if (preview.error().code == ErrorCode::kNotFound)
-                        {
-                            assets_.markOriginalMissing(asset_id);
-                            emit selectionChanged();
-                            emit previewChanged();
-                            return;
-                        }
-                        setError(qstring_from_utf8(preview.error().message));
-                        emit previewChanged();
-                        return;
-                    }
-                    if (preview.value().original_missing)
-                    {
-                        assets_.markOriginalMissing(asset_id);
-                        emit selectionChanged();
-                    }
-                    preview_url_ =
-                        QUrl::fromLocalFile(qstring_from_utf8(preview.value().cache_path));
-                    emit previewChanged();
-                },
-                Qt::QueuedConnection);
-        });
+    enqueue_preview();
 }
 
 } // namespace ravo

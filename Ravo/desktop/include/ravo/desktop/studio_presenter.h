@@ -141,6 +141,28 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editCropY READ editCropY NOTIFY editChanged)
     Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
     Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
+    Q_PROPERTY(bool editFlipHorizontal READ editFlipHorizontal NOTIFY editChanged)
+    Q_PROPERTY(bool editFlipVertical READ editFlipVertical NOTIFY editChanged)
+    Q_PROPERTY(double editSharpen READ editSharpen NOTIFY editChanged)
+    Q_PROPERTY(double editSharpenRadius READ editSharpenRadius NOTIFY editChanged)
+    Q_PROPERTY(double editClarity READ editClarity NOTIFY editChanged)
+    Q_PROPERTY(double editVignette READ editVignette NOTIFY editChanged)
+    Q_PROPERTY(double editGrain READ editGrain NOTIFY editChanged)
+    Q_PROPERTY(double editBloom READ editBloom NOTIFY editChanged)
+    Q_PROPERTY(double editSoften READ editSoften NOTIFY editChanged)
+    Q_PROPERTY(double editDehaze READ editDehaze NOTIFY editChanged)
+    Q_PROPERTY(double editVelvia READ editVelvia NOTIFY editChanged)
+    Q_PROPERTY(double editLift READ editLift NOTIFY editChanged)
+    Q_PROPERTY(double editColorGamma READ editColorGamma NOTIFY editChanged)
+    Q_PROPERTY(double editGain READ editGain NOTIFY editChanged)
+    Q_PROPERTY(double editColorContrast READ editColorContrast NOTIFY editChanged)
+    Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
+    Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
+    Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
+    Q_PROPERTY(double editSplitBalance READ editSplitBalance NOTIFY editChanged)
+    Q_PROPERTY(double editSplitAmount READ editSplitAmount NOTIFY editChanged)
+    Q_PROPERTY(double editGamma READ editGamma NOTIFY editChanged)
+    Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
     Q_PROPERTY(FolderListModel *folders READ folders CONSTANT)
     Q_PROPERTY(QString selectedFolderUri READ selectedFolderUri NOTIFY folderChanged)
@@ -206,6 +228,28 @@ public:
     [[nodiscard]] double editCropY() const noexcept;
     [[nodiscard]] double editCropWidth() const noexcept;
     [[nodiscard]] double editCropHeight() const noexcept;
+    [[nodiscard]] bool editFlipHorizontal() const noexcept;
+    [[nodiscard]] bool editFlipVertical() const noexcept;
+    [[nodiscard]] double editSharpen() const noexcept;
+    [[nodiscard]] double editSharpenRadius() const noexcept;
+    [[nodiscard]] double editClarity() const noexcept;
+    [[nodiscard]] double editVignette() const noexcept;
+    [[nodiscard]] double editGrain() const noexcept;
+    [[nodiscard]] double editBloom() const noexcept;
+    [[nodiscard]] double editSoften() const noexcept;
+    [[nodiscard]] double editDehaze() const noexcept;
+    [[nodiscard]] double editVelvia() const noexcept;
+    [[nodiscard]] double editLift() const noexcept;
+    [[nodiscard]] double editColorGamma() const noexcept;
+    [[nodiscard]] double editGain() const noexcept;
+    [[nodiscard]] double editColorContrast() const noexcept;
+    [[nodiscard]] double editMonochrome() const noexcept;
+    [[nodiscard]] double editSplitShadowsHue() const noexcept;
+    [[nodiscard]] double editSplitHighlightsHue() const noexcept;
+    [[nodiscard]] double editSplitBalance() const noexcept;
+    [[nodiscard]] double editSplitAmount() const noexcept;
+    [[nodiscard]] double editGamma() const noexcept;
+    [[nodiscard]] bool cropToolActive() const noexcept;
     [[nodiscard]] AssetListModel *assets() noexcept;
     [[nodiscard]] FolderListModel *folders() noexcept;
     [[nodiscard]] QString selectedFolderUri() const;
@@ -232,8 +276,13 @@ public:
     Q_INVOKABLE void openDevelop();
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
+    Q_INVOKABLE void setCropRect(double x, double y, double width, double height);
+    Q_INVOKABLE void setCropAspect(const QString &aspect);
     Q_INVOKABLE void rotateLeft();
     Q_INVOKABLE void rotateRight();
+    Q_INVOKABLE void flipHorizontal();
+    Q_INVOKABLE void flipVertical();
+    Q_INVOKABLE void setCropToolActive(bool active);
     Q_INVOKABLE void resetControl(const QString &name);
     Q_INVOKABLE void resetSection(const QString &section);
     Q_INVOKABLE void resetAllEdits();
@@ -282,6 +331,18 @@ private:
     void reloadVisibleAssets();
     void load_develop_for_selection();
     void commit_develop(DevelopParams params, bool push_history);
+    void enqueue_preview();
+    void kick_develop_work();
+    struct PendingDevelopWork
+    {
+        bool save = false;
+        DevelopParams params{};
+        DevelopParams previous{};
+        bool push_history = false;
+        std::string asset_id;
+        bool ignore_edits = false;
+        bool ignore_crop = false;
+    };
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<std::unique_ptr<CatalogService>>
     make_catalog_service(const std::string &path, bool create);
@@ -314,6 +375,10 @@ private:
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;
     bool before_after_ = false;
+    bool crop_tool_active_ = false;
+    bool develop_job_in_flight_ = false;
+    std::optional<PendingDevelopWork> pending_save_;
+    std::optional<PendingDevelopWork> pending_preview_;
 };
 
 } // namespace ravo

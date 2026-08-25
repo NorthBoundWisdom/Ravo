@@ -17,11 +17,21 @@ versioned recipe/operation contract and a CPU exposure path.
   Identity/default edits store no row (`has_edits = false`).
 - `DevelopParams` is a service/desktop mapping onto the recipe. Persistence
   is recipe JSON, not slider positions or a UI blob.
-- CPU operations for white balance, light, color, rotate and crop execute on a
-  linear RGB working buffer. Raster inputs are linearized from sRGB8; RAW
-  continues through the existing Bayer path before the same ops.
+- CPU operations for white balance, light, color, rotate, crop, flip, sharpen,
+  vignette, grain, velvia, color balance and the other registered global
+  operations execute on a linear RGB working buffer, converting to Lab when the
+  frozen `legacy/src/iop` `process()` path is Lab. Raster inputs are linearized
+  from sRGB8; RAW continues through the existing Bayer path before the same ops.
+  The math follows the CPU kernels (USM on L, simplex grain, lift/gamma/gain,
+  velvia, superellipse vignette, Orton soften) without GTK, OpenCL, or blend
+  ABI.
 - Interactive previews include a recipe digest in the cache key. Before/after
-  requests the identity preview without changing stored edits.
+  requests the identity preview without changing stored edits. Crop-overlay
+  previews strip `ravo.geometry.crop` for display only (`ignore_crop`) and use a
+  distinct cache key.
+- Studio coalesces develop work to one in-flight render plus at most one pending
+  save and one pending preview. Stale results are discarded; render failure
+  keeps the last verified preview.
 - Undo/redo is in-session only.
 
 ## Consequences

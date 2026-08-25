@@ -15,6 +15,7 @@
 #include "ravo/cli/application.h"
 #include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/operation.h"
 #include "ravo/recipe/recipe.h"
 
 #include "test_support.h"
@@ -99,7 +100,7 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
     const auto *operations = data->find("operations");
     ASSERT_NE(operations, nullptr);
     ASSERT_NE(operations->array_if(), nullptr);
-    EXPECT_EQ(operations->array_if()->size(), 17U);
+    EXPECT_EQ(operations->array_if()->size(), kPhase1OperationCount);
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
@@ -589,9 +590,9 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 
     stdout_stream.str({});
     stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "develop", "--catalog",
-                                                            catalog, "--asset-id", id,
-                                                            "--exposure-ev", "0.5", "--json"}),
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "develop", "--catalog", catalog, "--asset-id", id, "--exposure-ev",
+                  "0.5", "--set", "vignette=0.4", "--set", "velvia=0.2", "--json"}),
               0)
         << stdout_stream.str();
 

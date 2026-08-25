@@ -99,7 +99,7 @@ public:
     [[nodiscard]] Result<InspectionResult> inspect(std::string_view input_uri,
                                                    const CancellationToken &cancellation) const;
     [[nodiscard]] Result<EmbeddedPreview>
-    extract_embedded_preview(std::string_view input_uri,
+    extract_embedded_preview(std::string_view input_uri, std::uint32_t max_edge,
                              const CancellationToken &cancellation) const;
     [[nodiscard]] const std::vector<OperationDescriptor> &operations() const noexcept;
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;

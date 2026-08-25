@@ -12,6 +12,7 @@
 #include <png.h>
 
 #include "ravo/engine/engine.h"
+#include "ravo/recipe/operation.h"
 
 #include "test_support.h"
 
@@ -70,9 +71,13 @@ TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
     const auto engine = EngineFacade::create_phase1();
 
     ASSERT_TRUE(engine) << engine.error().message;
-    ASSERT_EQ(engine.value().operations().size(), 17U);
+    ASSERT_EQ(engine.value().operations().size(), kPhase1OperationCount);
     EXPECT_EQ(engine.value().operations().front().id, "ravo.core.identity");
     EXPECT_EQ(engine.value().operations().back().id, "ravo.output.scale");
+    EXPECT_NE(engine.value().operations().end(),
+              std::find_if(engine.value().operations().begin(), engine.value().operations().end(),
+                           [](const OperationDescriptor &item)
+                           { return item.id == "ravo.detail.sharpen"; }));
 }
 
 TEST(EngineFacadeTest, CancelledRequestsNeverReachRendering)
@@ -105,6 +110,22 @@ TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)
     EXPECT_FALSE(inspected.value().model.empty());
     EXPECT_GT(inspected.value().width, 0U);
     EXPECT_GT(inspected.value().height, 0U);
+}
+
+TEST(EngineFacadeTest, ExtractsBoundedEmbeddedJpegPreview)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+
+    const auto preview =
+        engine.value().extract_embedded_preview(mire1_path(), 320, CancellationToken{});
+    ASSERT_TRUE(preview) << preview.error().message;
+    EXPECT_EQ(preview.value().mime_type, "image/jpeg");
+    EXPECT_GT(preview.value().width, 0U);
+    EXPECT_GT(preview.value().height, 0U);
+    ASSERT_GE(preview.value().bytes.size(), 4U);
+    EXPECT_EQ(preview.value().bytes[0], 0xff);
+    EXPECT_EQ(preview.value().bytes[1], 0xd8);
 }
 
 TEST(EngineFacadeTest, RenderWritesBoundedPngAndRejectsOutputConflict)
@@ -261,6 +282,341 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
     ASSERT_GE(rendered.value().rgb.size(), 3U);
     EXPECT_NEAR(rendered.value().rgb[0], rendered.value().rgb[1], 8);
     EXPECT_NEAR(rendered.value().rgb[1], rendered.value().rgb[2], 8);
+}
+
+[[nodiscard]] RasterBuffer solid_raster(const std::uint32_t width, const std::uint32_t height,
+                                        const std::uint8_t r, const std::uint8_t g,
+                                        const std::uint8_t b)
+{
+    RasterBuffer raster;
+    raster.width = width;
+    raster.height = height;
+    raster.srgb.resize(static_cast<std::size_t>(width) * height * 3U);
+    for (std::size_t index = 0; index < raster.srgb.size(); index += 3)
+    {
+        raster.srgb[index] = r;
+        raster.srgb[index + 1U] = g;
+        raster.srgb[index + 2U] = b;
+    }
+    return raster;
+}
+
+[[nodiscard]] RasterBuffer gradient_raster()
+{
+    RasterBuffer raster;
+    raster.width = 16;
+    raster.height = 16;
+    raster.srgb.resize(16U * 16U * 3U);
+    for (std::uint32_t y = 0; y < 16; ++y)
+    {
+        for (std::uint32_t x = 0; x < 16; ++x)
+        {
+            const std::size_t index = (static_cast<std::size_t>(y) * 16U + x) * 3U;
+            raster.srgb[index] = static_cast<std::uint8_t>(x * 16U);
+            raster.srgb[index + 1U] = static_cast<std::uint8_t>(y * 16U);
+            raster.srgb[index + 2U] = 80;
+        }
+    }
+    return raster;
+}
+
+[[nodiscard]] std::uint64_t mean_luma(const RenderedImage &image)
+{
+    std::uint64_t sum = 0;
+    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+    {
+        sum += static_cast<std::uint64_t>(image.rgb[index]) * 21U +
+               static_cast<std::uint64_t>(image.rgb[index + 1U]) * 72U +
+               static_cast<std::uint64_t>(image.rgb[index + 2U]) * 7U;
+    }
+    return sum / std::max<std::size_t>(1, image.rgb.size() / 3U);
+}
+
+[[nodiscard]] Result<RenderedImage> render_op(const EngineFacade &engine, RasterBuffer raster,
+                                              OperationInstance operation)
+{
+    Recipe recipe;
+    recipe.asset = {"raster", "memory:raster", std::nullopt};
+    recipe.operations.push_back(std::move(operation));
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    return engine.render_to_image(request, &raster);
+}
+
+TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto base_raster = gradient_raster();
+    Recipe identity;
+    identity.asset = {"raster", "memory:raster", std::nullopt};
+    RenderRequest identity_request;
+    identity_request.asset = identity.asset;
+    identity_request.recipe = identity;
+    auto base = engine.value().render_to_image(identity_request, &base_raster);
+    ASSERT_TRUE(base) << base.error().message;
+    const auto base_mean = mean_luma(base.value());
+
+    auto exposed = render_op(engine.value(), base_raster,
+                             {"ravo.core.exposure",
+                              1,
+                              "exposure-1",
+                              true,
+                              {{"exposure_ev", ParameterValue{1.0}}},
+                              std::nullopt});
+    ASSERT_TRUE(exposed) << exposed.error().message;
+    EXPECT_GT(mean_luma(exposed.value()), base_mean);
+
+    auto shadowed = render_op(engine.value(), base_raster,
+                              {"ravo.core.shadows",
+                               1,
+                               "shadows-1",
+                               true,
+                               {{"amount", ParameterValue{0.8}}},
+                               std::nullopt});
+    ASSERT_TRUE(shadowed) << shadowed.error().message;
+    EXPECT_GT(mean_luma(shadowed.value()), base_mean);
+
+    auto highlighted = render_op(engine.value(), base_raster,
+                                 {"ravo.core.highlights",
+                                  1,
+                                  "highlights-1",
+                                  true,
+                                  {{"amount", ParameterValue{-0.8}}},
+                                  std::nullopt});
+    ASSERT_TRUE(highlighted) << highlighted.error().message;
+    EXPECT_LT(mean_luma(highlighted.value()), base_mean);
+
+    auto contrast = render_op(engine.value(), base_raster,
+                              {"ravo.core.contrast",
+                               1,
+                               "contrast-1",
+                               true,
+                               {{"amount", ParameterValue{0.6}}},
+                               std::nullopt});
+    ASSERT_TRUE(contrast) << contrast.error().message;
+
+    auto whites = render_op(engine.value(), base_raster,
+                            {"ravo.core.whites",
+                             1,
+                             "whites-1",
+                             true,
+                             {{"amount", ParameterValue{-0.5}}},
+                             std::nullopt});
+    ASSERT_TRUE(whites) << whites.error().message;
+
+    auto blacks = render_op(engine.value(), base_raster,
+                            {"ravo.core.blacks",
+                             1,
+                             "blacks-1",
+                             true,
+                             {{"amount", ParameterValue{0.4}}},
+                             std::nullopt});
+    ASSERT_TRUE(blacks) << blacks.error().message;
+
+    auto vibrance = render_op(engine.value(), base_raster,
+                              {"ravo.color.vibrance",
+                               1,
+                               "vibrance-1",
+                               true,
+                               {{"amount", ParameterValue{0.8}}},
+                               std::nullopt});
+    ASSERT_TRUE(vibrance) << vibrance.error().message;
+
+    auto wb = render_op(engine.value(), base_raster,
+                        {"ravo.color.white_balance",
+                         1,
+                         "wb-1",
+                         true,
+                         {{"temperature", ParameterValue{4000.0}}, {"tint", ParameterValue{20.0}}},
+                         std::nullopt});
+    ASSERT_TRUE(wb) << wb.error().message;
+    const auto mid = (8U * 16U + 8U) * 3U;
+    EXPECT_NE(wb.value().rgb[mid], base.value().rgb[mid]);
+    EXPECT_NE(wb.value().rgb[mid + 2U], base.value().rgb[mid + 2U]);
+
+    auto gamma = render_op(engine.value(), base_raster,
+                           {"ravo.core.gamma",
+                            1,
+                            "gamma-1",
+                            true,
+                            {{"gamma", ParameterValue{1.8}}},
+                            std::nullopt});
+    ASSERT_TRUE(gamma) << gamma.error().message;
+
+    auto velvia = render_op(engine.value(), base_raster,
+                            {"ravo.color.velvia",
+                             1,
+                             "velvia-1",
+                             true,
+                             {{"amount", ParameterValue{0.8}}, {"bias", ParameterValue{1.0}}},
+                             std::nullopt});
+    ASSERT_TRUE(velvia) << velvia.error().message;
+
+    auto balance = render_op(engine.value(), base_raster,
+                             {"ravo.color.colorbalance",
+                              1,
+                              "cb-1",
+                              true,
+                              {{"lift", ParameterValue{0.2}},
+                               {"gamma", ParameterValue{-0.1}},
+                               {"gain", ParameterValue{0.3}}},
+                              std::nullopt});
+    ASSERT_TRUE(balance) << balance.error().message;
+
+    auto contrast_color = render_op(engine.value(), base_raster,
+                                    {"ravo.color.colorcontrast",
+                                     1,
+                                     "cc-1",
+                                     true,
+                                     {{"amount", ParameterValue{0.7}}},
+                                     std::nullopt});
+    ASSERT_TRUE(contrast_color) << contrast_color.error().message;
+
+    auto mono = render_op(engine.value(), solid_raster(8, 8, 220, 20, 20),
+                          {"ravo.color.monochrome",
+                           1,
+                           "mono-1",
+                           true,
+                           {{"amount", ParameterValue{1.0}}},
+                           std::nullopt});
+    ASSERT_TRUE(mono) << mono.error().message;
+    EXPECT_NEAR(mono.value().rgb[0], mono.value().rgb[1], 8);
+    EXPECT_NEAR(mono.value().rgb[1], mono.value().rgb[2], 8);
+
+    auto split = render_op(engine.value(), base_raster,
+                           {"ravo.color.splittoning",
+                            1,
+                            "split-1",
+                            true,
+                            {{"shadows_hue", ParameterValue{0.6}},
+                             {"highlights_hue", ParameterValue{0.1}},
+                             {"balance", ParameterValue{0.5}},
+                             {"amount", ParameterValue{0.8}}},
+                            std::nullopt});
+    ASSERT_TRUE(split) << split.error().message;
+
+    auto crop = render_op(engine.value(), base_raster,
+                          {"ravo.geometry.crop",
+                           1,
+                           "crop-1",
+                           true,
+                           {{"x", ParameterValue{0.25}},
+                            {"y", ParameterValue{0.25}},
+                            {"width", ParameterValue{0.5}},
+                            {"height", ParameterValue{0.5}}},
+                           std::nullopt});
+    ASSERT_TRUE(crop) << crop.error().message;
+    EXPECT_EQ(crop.value().width, 8U);
+    EXPECT_EQ(crop.value().height, 8U);
+
+    RasterBuffer sided;
+    sided.width = 4;
+    sided.height = 2;
+    sided.srgb = {255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255, 0, 255, 0, 0, 255, 0, 0, 0, 255, 0, 0,
+                  255, 0};
+    auto flipped = render_op(engine.value(), sided,
+                             {"ravo.geometry.flip",
+                              1,
+                              "flip-1",
+                              true,
+                              {{"horizontal", ParameterValue{std::int64_t{1}}},
+                               {"vertical", ParameterValue{std::int64_t{0}}}},
+                              std::nullopt});
+    ASSERT_TRUE(flipped) << flipped.error().message;
+    EXPECT_EQ(flipped.value().rgb[0], 0);
+    EXPECT_EQ(flipped.value().rgb[1], 255);
+
+    auto vignette = render_op(engine.value(), solid_raster(32, 32, 200, 200, 200),
+                              {"ravo.effect.vignette",
+                               1,
+                               "vig-1",
+                               true,
+                               {{"amount", ParameterValue{1.0}},
+                                {"midpoint", ParameterValue{0.3}},
+                                {"falloff", ParameterValue{0.4}}},
+                               std::nullopt});
+    ASSERT_TRUE(vignette) << vignette.error().message;
+    const auto center = (16U * 32U + 16U) * 3U;
+    const auto corner = 0U;
+    EXPECT_GT(vignette.value().rgb[center], vignette.value().rgb[corner]);
+
+    auto grain_a = render_op(engine.value(), solid_raster(12, 12, 120, 120, 120),
+                             {"ravo.effect.grain",
+                              1,
+                              "grain-1",
+                              true,
+                              {{"amount", ParameterValue{0.8}}},
+                              std::nullopt});
+    auto grain_b = render_op(engine.value(), solid_raster(12, 12, 120, 120, 120),
+                             {"ravo.effect.grain",
+                              1,
+                              "grain-1",
+                              true,
+                              {{"amount", ParameterValue{0.8}}},
+                              std::nullopt});
+    ASSERT_TRUE(grain_a) << grain_a.error().message;
+    ASSERT_TRUE(grain_b) << grain_b.error().message;
+    EXPECT_EQ(grain_a.value().rgb, grain_b.value().rgb);
+    EXPECT_NE(grain_a.value().rgb, solid_raster(12, 12, 120, 120, 120).srgb);
+
+    auto sharpen = render_op(engine.value(), base_raster,
+                             {"ravo.detail.sharpen",
+                              1,
+                              "sharp-1",
+                              true,
+                              {{"amount", ParameterValue{1.2}},
+                               {"radius", ParameterValue{1.0}},
+                               {"threshold", ParameterValue{0.0}}},
+                              std::nullopt});
+    ASSERT_TRUE(sharpen) << sharpen.error().message;
+
+    auto clarity = render_op(engine.value(), base_raster,
+                             {"ravo.detail.clarity",
+                              1,
+                              "clarity-1",
+                              true,
+                              {{"amount", ParameterValue{0.6}}},
+                              std::nullopt});
+    ASSERT_TRUE(clarity) << clarity.error().message;
+
+    auto bloom = render_op(engine.value(), base_raster,
+                           {"ravo.effect.bloom",
+                            1,
+                            "bloom-1",
+                            true,
+                            {{"amount", ParameterValue{0.7}}},
+                            std::nullopt});
+    ASSERT_TRUE(bloom) << bloom.error().message;
+
+    auto soften = render_op(engine.value(), base_raster,
+                            {"ravo.effect.soften",
+                             1,
+                             "soften-1",
+                             true,
+                             {{"amount", ParameterValue{0.7}}},
+                             std::nullopt});
+    ASSERT_TRUE(soften) << soften.error().message;
+
+    auto dehaze = render_op(engine.value(), base_raster,
+                            {"ravo.effect.dehaze",
+                             1,
+                             "dehaze-1",
+                             true,
+                             {{"amount", ParameterValue{0.5}}},
+                             std::nullopt});
+    ASSERT_TRUE(dehaze) << dehaze.error().message;
+}
+
+TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto rendered = render_op(engine.value(), solid_raster(4, 4, 10, 20, 30),
+                              {"ravo.creative.unknown", 1, "x", true, {}, std::nullopt});
+    ASSERT_FALSE(rendered);
+    EXPECT_EQ(rendered.error().code, ErrorCode::kUnsupported);
 }
 
 } // namespace

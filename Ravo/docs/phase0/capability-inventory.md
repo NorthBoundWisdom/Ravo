@@ -43,6 +43,20 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.color.saturation` | `colorcontrast` | P1 saturation |
 | `ravo.geometry.rotate` | `flip` | P1 90° quarter turns |
 | `ravo.geometry.crop` | `crop` | P1 normalized free crop |
+| `ravo.geometry.flip` | `flip` | horizontal/vertical mirror |
+| `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
+| `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
+| `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
+| `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
+| `ravo.color.monochrome` | `monochrome` | luma mix |
+| `ravo.color.splittoning` | `splittoning` | shadow/highlight hue mix |
+| `ravo.detail.sharpen` | `sharpen` | unsharp mask |
+| `ravo.detail.clarity` | `highpass` | large-radius local contrast |
+| `ravo.effect.vignette` | `vignette` | radial darkening |
+| `ravo.effect.grain` | `grain` | deterministic luminance noise |
+| `ravo.effect.bloom` | `bloom` | highlight glow |
+| `ravo.effect.soften` | `soften` | blur mix |
+| `ravo.effect.dehaze` | `hazeremoval` | simple airlight mix |
 | `ravo.color.output` | `colorout` | first colour-chain planning |
 | `ravo.output.scale` | `finalscale` | output request negotiation |
 

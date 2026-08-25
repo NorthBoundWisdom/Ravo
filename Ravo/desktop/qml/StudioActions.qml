@@ -39,9 +39,15 @@ Item {
         readonly property string editRedo: "edit.redo"
         readonly property string editResetAll: "edit.resetAll"
         readonly property string editResetSection: "edit.resetSection"
+        readonly property string editResetControl: "edit.resetControl"
         readonly property string editSetNumber: "edit.setNumber"
+        readonly property string editSetCrop: "edit.setCrop"
+        readonly property string editSetCropAspect: "edit.setCropAspect"
         readonly property string editRotateLeft: "edit.rotateLeft"
         readonly property string editRotateRight: "edit.rotateRight"
+        readonly property string editFlipHorizontal: "edit.flipHorizontal"
+        readonly property string editFlipVertical: "edit.flipVertical"
+        readonly property string editCropTool: "edit.cropTool"
         readonly property string editBeforeAfter: "edit.beforeAfter"
         readonly property string windowSettings: "window.settings"
         readonly property string windowClose: "window.close"
@@ -71,6 +77,8 @@ Item {
     property alias resetEdits: resetEditsAction
     property alias rotateLeft: rotateLeftAction
     property alias rotateRight: rotateRightAction
+    property alias flipHorizontal: flipHorizontalAction
+    property alias flipVertical: flipVerticalAction
     property alias about: aboutAction
     property alias rating0: rating0Action
     property alias rating1: rating1Action
@@ -123,6 +131,27 @@ Item {
 
     function resetSection(section) {
         root.run(root.ids.editResetSection, section);
+    }
+
+    function resetControl(name) {
+        root.run(root.ids.editResetControl, name);
+    }
+
+    function setCropRect(x, y, width, height) {
+        root.run(root.ids.editSetCrop, {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        });
+    }
+
+    function setCropAspect(aspect) {
+        root.run(root.ids.editSetCropAspect, aspect);
+    }
+
+    function toggleCropTool() {
+        root.run(root.ids.editCropTool);
     }
 
     Action {
@@ -273,6 +302,20 @@ Item {
         shortcut: "Ctrl+]"
         enabled: root.interactive && root.developOpen && root.hasSelection
         onTriggered: root.run(root.ids.editRotateRight)
+    }
+    Action {
+        id: flipHorizontalAction
+        text: qsTr("Flip Horizontal")
+        shortcut: "Ctrl+Shift+H"
+        enabled: root.interactive && root.developOpen && root.hasSelection
+        onTriggered: root.run(root.ids.editFlipHorizontal)
+    }
+    Action {
+        id: flipVerticalAction
+        text: qsTr("Flip Vertical")
+        shortcut: "Ctrl+Shift+V"
+        enabled: root.interactive && root.developOpen && root.hasSelection
+        onTriggered: root.run(root.ids.editFlipVertical)
     }
     Action {
         id: aboutAction

@@ -109,6 +109,12 @@ MenuBar {
         MenuItem {
             action: actions.rotateRight
         }
+        MenuItem {
+            action: actions.flipHorizontal
+        }
+        MenuItem {
+            action: actions.flipVertical
+        }
         MenuSeparator {}
         Menu {
             title: qsTr("Rating")

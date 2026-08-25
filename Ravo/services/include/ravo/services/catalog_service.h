@@ -57,7 +57,8 @@ private:
                                                          std::uint32_t max_edge,
                                                          const CancellationToken &cancellation,
                                                          std::uint64_t request_revision,
-                                                         bool ignore_edits = false);
+                                                         bool ignore_edits = false,
+                                                         bool ignore_crop = false);
 
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;

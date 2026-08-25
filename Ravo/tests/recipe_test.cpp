@@ -92,6 +92,40 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     EXPECT_TRUE(DevelopParams{}.is_identity());
 }
 
+TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    ASSERT_EQ(registry.value().descriptors().size(), kPhase1OperationCount);
+    DevelopParams params;
+    params.sharpen = 0.4;
+    params.vignette = 0.5;
+    params.velvia = 0.3;
+    params.flip_horizontal = 1;
+    params.gamma = 1.2;
+    params.split_amount = 0.4;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto valid = validate_recipe(recipe.value(), registry.value());
+    ASSERT_TRUE(valid) << valid.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_NEAR(restored.value().sharpen, 0.4, 1e-6);
+    EXPECT_NEAR(restored.value().vignette, 0.5, 1e-6);
+    EXPECT_EQ(restored.value().flip_horizontal, 1);
+    EXPECT_NEAR(restored.value().gamma, 1.2, 1e-6);
+
+    DevelopParams crop;
+    ASSERT_TRUE(apply_crop_aspect(crop, "3:2"));
+    EXPECT_NEAR(crop.crop_width / crop.crop_height, 1.5, 1e-6);
+    EXPECT_TRUE(apply_develop_field(crop, "exposure", -0.25));
+    EXPECT_NEAR(crop.exposure_ev, -0.25, 1e-6);
+    EXPECT_TRUE(reset_develop_field(crop, "exposure"));
+    EXPECT_NEAR(crop.exposure_ev, 0.0, 1e-6);
+    EXPECT_TRUE(reset_develop_section(crop, "geometry"));
+    EXPECT_NEAR(crop.crop_width, 1.0, 1e-6);
+}
+
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)
 {
     const auto recipe = parse_recipe_json(

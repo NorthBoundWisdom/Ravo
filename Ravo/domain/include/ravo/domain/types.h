@@ -167,6 +167,7 @@ struct PreviewRequest
     std::uint32_t max_edge = kDefaultPreviewMaxEdge;
     std::uint64_t request_revision = 0;
     bool ignore_edits = false;
+    bool ignore_crop = false;
     CancellationToken cancellation{};
     std::string correlation_id;
 };

@@ -29,6 +29,7 @@ struct DecodedRaw
 
 [[nodiscard]] Result<InspectionResult> identify_raw(std::string_view input_uri);
 [[nodiscard]] Result<EmbeddedPreview> extract_libraw_preview(std::string_view input_uri,
+                                                             std::uint32_t max_edge,
                                                              const CancellationToken &cancellation);
 [[nodiscard]] Result<DecodedRaw> decode_raw(std::string_view input_uri);
 [[nodiscard]] Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &request);

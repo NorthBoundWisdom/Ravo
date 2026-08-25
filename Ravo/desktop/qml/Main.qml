@@ -550,6 +550,18 @@ ApplicationWindow {
                                         return implicitHeight;
                                     return implicitHeight * studio.zoomFactor;
                                 }
+
+                                CropOverlay {
+                                    anchors.fill: parent
+                                    visible: studio.browseMode === "develop" && studio.cropToolActive
+                                    cropX: studio.editCropX
+                                    cropY: studio.editCropY
+                                    cropWidth: studio.editCropWidth
+                                    cropHeight: studio.editCropHeight
+                                    onCropCommitted: function (x, y, w, h) {
+                                        studioActions.setCropRect(x, y, w, h);
+                                    }
+                                }
                             }
 
                             WheelHandler {

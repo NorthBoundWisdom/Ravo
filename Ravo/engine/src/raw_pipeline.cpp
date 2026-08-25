@@ -99,7 +99,62 @@ Result<InspectionResult> identify_raw(const std::string_view input_uri)
                             true};
 }
 
+[[nodiscard]] int select_libraw_jpeg_thumb_index(const libraw_thumbnail_list_t &list,
+                                                 const std::uint32_t max_edge)
+{
+    int best_sufficient = -1;
+    std::uint32_t best_sufficient_span = 0;
+    int best_any = -1;
+    std::uint32_t best_any_span = 0;
+    const int count = std::min(list.thumbcount, LIBRAW_THUMBNAIL_MAXCOUNT);
+    for (int index = 0; index < count; ++index)
+    {
+        const auto &item = list.thumblist[index];
+        if (item.tformat != LIBRAW_INTERNAL_THUMBNAIL_JPEG)
+        {
+            continue;
+        }
+        const auto width = static_cast<std::uint32_t>(item.twidth);
+        const auto height = static_cast<std::uint32_t>(item.theight);
+        const auto span = std::max(width, height);
+        if (span == 0)
+        {
+            continue;
+        }
+        if (span > best_any_span)
+        {
+            best_any_span = span;
+            best_any = index;
+        }
+        if (max_edge > 0 && span >= max_edge &&
+            (best_sufficient < 0 || span < best_sufficient_span))
+        {
+            best_sufficient_span = span;
+            best_sufficient = index;
+        }
+    }
+    return best_sufficient >= 0 ? best_sufficient : best_any;
+}
+
+Result<EmbeddedPreview> copy_unpacked_jpeg_thumb(LibRaw &decoder, const std::string_view input_uri)
+{
+    const auto &thumb = decoder.imgdata.thumbnail;
+    if (thumb.tformat != LIBRAW_THUMBNAIL_JPEG || thumb.thumb == nullptr || thumb.tlength == 0)
+    {
+        return make_error(ErrorCode::kUnsupported, "RAW embedded preview is not JPEG",
+                          {{"input_uri", std::string(input_uri)}});
+    }
+    EmbeddedPreview preview;
+    preview.mime_type = "image/jpeg";
+    preview.width = static_cast<std::uint32_t>(thumb.twidth);
+    preview.height = static_cast<std::uint32_t>(thumb.theight);
+    const auto *begin = reinterpret_cast<const std::uint8_t *>(thumb.thumb);
+    preview.bytes.assign(begin, begin + thumb.tlength);
+    return preview;
+}
+
 Result<EmbeddedPreview> extract_libraw_preview(const std::string_view input_uri,
+                                               const std::uint32_t max_edge,
                                                const CancellationToken &cancellation)
 {
     auto cancelled = cancellation.check();
@@ -117,26 +172,24 @@ Result<EmbeddedPreview> extract_libraw_preview(const std::string_view input_uri,
     {
         return cancelled.error();
     }
-    const int thumb_status = decoder.value()->unpack_thumb();
+    const int selected =
+        select_libraw_jpeg_thumb_index(decoder.value()->imgdata.thumbs_list, max_edge);
+    int thumb_status = LIBRAW_UNSPECIFIED_ERROR;
+    if (selected >= 0)
+    {
+        thumb_status = decoder.value()->unpack_thumb_ex(selected);
+    }
+    if (thumb_status != LIBRAW_SUCCESS)
+    {
+        thumb_status = decoder.value()->unpack_thumb();
+    }
     if (thumb_status != LIBRAW_SUCCESS)
     {
         return make_error(
             ErrorCode::kUnsupported, "RAW file has no embedded preview",
             {{"detail", libraw_strerror(thumb_status)}, {"input_uri", std::string(input_uri)}});
     }
-    const auto &thumb = decoder.value()->imgdata.thumbnail;
-    if (thumb.tformat != LIBRAW_THUMBNAIL_JPEG || thumb.thumb == nullptr || thumb.tlength == 0)
-    {
-        return make_error(ErrorCode::kUnsupported, "RAW embedded preview is not JPEG",
-                          {{"input_uri", std::string(input_uri)}});
-    }
-    EmbeddedPreview preview;
-    preview.mime_type = "image/jpeg";
-    preview.width = static_cast<std::uint32_t>(thumb.twidth);
-    preview.height = static_cast<std::uint32_t>(thumb.theight);
-    const auto *begin = reinterpret_cast<const std::uint8_t *>(thumb.thumb);
-    preview.bytes.assign(begin, begin + thumb.tlength);
-    return preview;
+    return copy_unpacked_jpeg_thumb(*decoder.value(), input_uri);
 }
 
 Result<DecodedRaw> decode_raw(const std::string_view input_uri)

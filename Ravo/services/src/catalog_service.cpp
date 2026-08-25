@@ -749,14 +749,15 @@ Result<PreviewResult> CatalogService::request_preview(const PreviewRequest &requ
                           {{"asset_id", request.asset_id}});
     }
     return generate_preview(*asset.value(), request.max_edge, request.cancellation,
-                            request.request_revision, request.ignore_edits);
+                            request.request_revision, request.ignore_edits, request.ignore_crop);
 }
 
 Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
                                                        const std::uint32_t max_edge,
                                                        const CancellationToken &cancellation,
                                                        const std::uint64_t request_revision,
-                                                       const bool ignore_edits)
+                                                       const bool ignore_edits,
+                                                       const bool ignore_crop)
 {
     if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
@@ -833,6 +834,11 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
             }
             edit_recipe = std::move(parsed).value();
             edit_digest = fnv1a64_hex(*stored.value());
+            if (ignore_crop)
+            {
+                strip_crop_operations(edit_recipe);
+                edit_digest += "_nocrop";
+            }
         }
     }
     const auto cache_key =
@@ -928,7 +934,8 @@ Result<PreviewResult> CatalogService::generate_preview(const AssetRecord &asset,
     {
         if (!apply_edits)
         {
-            auto embedded = engine_->extract_embedded_preview(location.value().path, cancellation);
+            auto embedded =
+                engine_->extract_embedded_preview(location.value().path, max_edge, cancellation);
             if (embedded)
             {
                 auto decoded =

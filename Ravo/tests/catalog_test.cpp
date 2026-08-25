@@ -501,6 +501,8 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     DevelopParams params;
     params.exposure_ev = 0.75;
     params.saturation = -0.2;
+    params.vignette = 0.35;
+    params.flip_horizontal = 1;
     auto saved = service->save_develop(asset_id, params);
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
@@ -517,6 +519,8 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     ASSERT_TRUE(roundtrip) << roundtrip.error().message;
     EXPECT_NEAR(roundtrip.value().exposure_ev, 0.75, 1e-6);
     EXPECT_NEAR(roundtrip.value().saturation, -0.2, 1e-6);
+    EXPECT_NEAR(roundtrip.value().vignette, 0.35, 1e-6);
+    EXPECT_EQ(roundtrip.value().flip_horizontal, 1);
     auto listed = service->list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
@@ -529,6 +533,24 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     auto previewed = service->request_preview(preview);
     ASSERT_TRUE(previewed) << previewed.error().message;
     EXPECT_FALSE(previewed.value().original_missing);
+
+    DevelopParams cropped_params = roundtrip.value();
+    cropped_params.crop_x = 0.25;
+    cropped_params.crop_y = 0.25;
+    cropped_params.crop_width = 0.5;
+    cropped_params.crop_height = 0.5;
+    ASSERT_TRUE(service->save_develop(asset_id, cropped_params));
+    PreviewRequest guides;
+    guides.asset_id = asset_id;
+    guides.ignore_crop = true;
+    auto uncropped = service->request_preview(guides);
+    ASSERT_TRUE(uncropped) << uncropped.error().message;
+    PreviewRequest applied;
+    applied.asset_id = asset_id;
+    auto cropped_again = service->request_preview(applied);
+    ASSERT_TRUE(cropped_again) << cropped_again.error().message;
+    EXPECT_GT(uncropped.value().width, cropped_again.value().width);
+    EXPECT_GT(uncropped.value().height, cropped_again.value().height);
 
     auto reset = service->reset_recipe(asset_id);
     ASSERT_TRUE(reset) << reset.error().message;

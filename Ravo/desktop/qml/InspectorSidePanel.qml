@@ -157,6 +157,9 @@ Rectangle {
             ColumnLayout {
                 visible: root.developOpen
                 Layout.fillWidth: true
+                Layout.leftMargin: Fonts.standardMargin
+                Layout.rightMargin: Fonts.standardMargin
+                Layout.bottomMargin: Fonts.size12
                 spacing: Fonts.smallSpacing
 
                 RowLayout {
@@ -186,256 +189,660 @@ Rectangle {
                     }
                 }
 
-                CustomLabel {
-                    text: qsTr("Geometry")
-                    font.bold: true
-                }
-                RowLayout {
-                    CustomButton {
-                        text: qsTr("Rotate L")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.rotateLeft.trigger()
-                    }
-                    CustomButton {
-                        text: qsTr("Rotate R")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.rotateRight.trigger()
-                    }
-                    CustomButton {
-                        text: qsTr("Reset")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.resetSection("geometry")
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Crop X")
-                    from: 0
-                    to: 0.9
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editCropX : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("cropX", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Crop Y")
-                    from: 0
-                    to: 0.9
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editCropY : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("cropY", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Crop W")
-                    from: 0.1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editCropWidth : 1
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("cropWidth", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Crop H")
-                    from: 0.1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editCropHeight : 1
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("cropHeight", value);
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Geometry")
+                    expanded: true
+                    ColumnLayout {
+                        width: parent.width
+                        spacing: Fonts.smallSpacing
+                        RowLayout {
+                            CustomButton {
+                                text: qsTr("Rotate L")
+                                enabled: root.hasSelection
+                                onClicked: if (root.commands)
+                                    root.commands.rotateLeft.trigger()
+                            }
+                            CustomButton {
+                                text: qsTr("Rotate R")
+                                enabled: root.hasSelection
+                                onClicked: if (root.commands)
+                                    root.commands.rotateRight.trigger()
+                            }
+                            CustomButton {
+                                text: qsTr("Flip H")
+                                enabled: root.hasSelection
+                                onClicked: if (root.commands)
+                                    root.commands.flipHorizontal.trigger()
+                            }
+                            CustomButton {
+                                text: qsTr("Flip V")
+                                enabled: root.hasSelection
+                                onClicked: if (root.commands)
+                                    root.commands.flipVertical.trigger()
+                            }
+                        }
+                        CustomButton {
+                            text: root.hasPresenter && root.presenter.cropToolActive ? qsTr("Done cropping") : qsTr("Crop overlay")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.toggleCropTool()
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: ["free", "1:1", "3:2", "4:3", "5:4", "16:9"]
+                            enabled: root.hasSelection
+                            onActivated: if (root.commands)
+                                root.commands.setCropAspect(currentText)
+                        }
+                        CustomSlider {
+                            title: qsTr("Crop X")
+                            from: 0
+                            to: 0.9
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editCropX : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("cropX", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("cropX")
+                        }
+                        CustomSlider {
+                            title: qsTr("Crop Y")
+                            from: 0
+                            to: 0.9
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editCropY : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("cropY", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("cropY")
+                        }
+                        CustomSlider {
+                            title: qsTr("Crop W")
+                            from: 0.1
+                            to: 1
+                            showReset: true
+                            resetValue: 1
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editCropWidth : 1
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("cropWidth", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("cropWidth")
+                        }
+                        CustomSlider {
+                            title: qsTr("Crop H")
+                            from: 0.1
+                            to: 1
+                            showReset: true
+                            resetValue: 1
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editCropHeight : 1
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("cropHeight", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("cropHeight")
+                        }
+                        CustomButton {
+                            text: qsTr("Reset geometry")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetSection("geometry")
+                        }
                     }
                 }
 
-                CustomLabel {
-                    text: qsTr("White Balance")
-                    font.bold: true
-                }
-                CustomSlider {
-                    title: qsTr("Temp")
-                    from: 2000
-                    to: 12000
-                    stepSize: 50
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editTemperature : 6500
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("temperature", value);
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("White Balance")
+                    ColumnLayout {
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Temp")
+                            from: 2000
+                            to: 12000
+                            stepSize: 50
+                            validatorDecimals: 0
+                            showReset: true
+                            resetValue: 6500
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editTemperature : 6500
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("temperature", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("temperature")
+                        }
+                        CustomSlider {
+                            title: qsTr("Tint")
+                            from: -150
+                            to: 150
+                            stepSize: 1
+                            validatorDecimals: 0
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editTint : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("tint", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("tint")
+                        }
+                        CustomButton {
+                            text: qsTr("Reset WB")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetSection("whiteBalance")
+                        }
                     }
-                }
-                CustomSlider {
-                    title: qsTr("Tint")
-                    from: -150
-                    to: 150
-                    stepSize: 1
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editTint : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("tint", value);
-                    }
-                }
-                CustomButton {
-                    text: qsTr("Reset WB")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetSection("whiteBalance")
                 }
 
-                CustomLabel {
-                    text: qsTr("Light")
-                    font.bold: true
-                }
-                CustomSlider {
-                    title: qsTr("Exposure")
-                    from: -5
-                    to: 5
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editExposure : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("exposure", value);
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Light")
+                    ColumnLayout {
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Exposure")
+                            from: -5
+                            to: 5
+                            stepSize: 0.05
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editExposure : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("exposure", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("exposure")
+                        }
+                        CustomSlider {
+                            title: qsTr("Contrast")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editContrast : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("contrast", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("contrast")
+                        }
+                        CustomSlider {
+                            title: qsTr("Highlights")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editHighlights : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("highlights", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("highlights")
+                        }
+                        CustomSlider {
+                            title: qsTr("Shadows")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editShadows : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("shadows", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("shadows")
+                        }
+                        CustomSlider {
+                            title: qsTr("Whites")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editWhites : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("whites", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("whites")
+                        }
+                        CustomSlider {
+                            title: qsTr("Blacks")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editBlacks : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("blacks", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("blacks")
+                        }
+                        CustomSlider {
+                            title: qsTr("Gamma")
+                            from: 0.2
+                            to: 3
+                            showReset: true
+                            resetValue: 1
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editGamma : 1
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("gamma", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("gamma")
+                        }
+                        CustomButton {
+                            text: qsTr("Reset light")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetSection("light")
+                        }
                     }
-                }
-                CustomSlider {
-                    title: qsTr("Contrast")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editContrast : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("contrast", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Highlights")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editHighlights : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("highlights", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Shadows")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editShadows : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("shadows", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Whites")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editWhites : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("whites", value);
-                    }
-                }
-                CustomSlider {
-                    title: qsTr("Blacks")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editBlacks : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("blacks", value);
-                    }
-                }
-                CustomButton {
-                    text: qsTr("Reset light")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetSection("light")
                 }
 
-                CustomLabel {
-                    text: qsTr("Color")
-                    font.bold: true
-                }
-                CustomSlider {
-                    title: qsTr("Vibrance")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editVibrance : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("vibrance", value);
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Color")
+                    ColumnLayout {
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Vibrance")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editVibrance : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("vibrance", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("vibrance")
+                        }
+                        CustomSlider {
+                            title: qsTr("Saturation")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSaturation : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("saturation", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("saturation")
+                        }
+                        CustomSlider {
+                            title: qsTr("Velvia")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editVelvia : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("velvia", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("velvia")
+                        }
+                        CustomSlider {
+                            title: qsTr("Lift")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editLift : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("lift", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("lift")
+                        }
+                        CustomSlider {
+                            title: qsTr("Color gamma")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorGamma : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("colorGamma", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("colorGamma")
+                        }
+                        CustomSlider {
+                            title: qsTr("Gain")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editGain : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("gain", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("gain")
+                        }
+                        CustomSlider {
+                            title: qsTr("Color contrast")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorContrast : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("colorContrast", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("colorContrast")
+                        }
+                        CustomSlider {
+                            title: qsTr("Monochrome")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editMonochrome : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("monochrome", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("monochrome")
+                        }
+                        CustomSlider {
+                            title: qsTr("Split amount")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSplitAmount : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("splitAmount", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("splitAmount")
+                        }
+                        HueSlider {
+                            Layout.fillWidth: true
+                            title: qsTr("Shadow hue")
+                            showReset: true
+                            resetValue: 0.55
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSplitShadowsHue : 0.55
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("splitShadowsHue", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("splitShadowsHue")
+                        }
+                        HueSlider {
+                            Layout.fillWidth: true
+                            title: qsTr("Highlight hue")
+                            showReset: true
+                            resetValue: 0.08
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSplitHighlightsHue : 0.08
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("splitHighlightsHue", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("splitHighlightsHue")
+                        }
+                        CustomSlider {
+                            title: qsTr("Split balance")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0.5
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSplitBalance : 0.5
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("splitBalance", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("splitBalance")
+                        }
+                        CustomButton {
+                            text: qsTr("Reset color")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetSection("color")
+                        }
                     }
                 }
-                CustomSlider {
-                    title: qsTr("Saturation")
-                    from: -1
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editSaturation : 0
-                    delayedCommit: true
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("saturation", value);
+
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Detail")
+                    ColumnLayout {
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Sharpen")
+                            from: 0
+                            to: 2
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSharpen : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("sharpen", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("sharpen")
+                        }
+                        CustomSlider {
+                            title: qsTr("Radius")
+                            from: 0
+                            to: 12
+                            showReset: true
+                            resetValue: 1
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSharpenRadius : 1
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("sharpenRadius", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("sharpenRadius")
+                        }
+                        CustomSlider {
+                            title: qsTr("Clarity")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editClarity : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("clarity", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("clarity")
+                        }
+                        CustomSlider {
+                            title: qsTr("Grain")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editGrain : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("grain", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("grain")
+                        }
+                        CustomButton {
+                            text: qsTr("Reset detail")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetSection("detail")
+                        }
                     }
                 }
-                CustomButton {
-                    text: qsTr("Reset color")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetSection("color")
+
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Effects")
+                    ColumnLayout {
+                        width: parent.width
+                        CustomSlider {
+                            title: qsTr("Vignette")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editVignette : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("vignette", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("vignette")
+                        }
+                        CustomSlider {
+                            title: qsTr("Bloom")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editBloom : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("bloom", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("bloom")
+                        }
+                        CustomSlider {
+                            title: qsTr("Soften")
+                            from: 0
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editSoften : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("soften", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("soften")
+                        }
+                        CustomSlider {
+                            title: qsTr("Dehaze")
+                            from: -1
+                            to: 1
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editDehaze : 0
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("dehaze", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("dehaze")
+                        }
+                        CustomButton {
+                            text: qsTr("Reset effects")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetSection("effects")
+                        }
+                    }
                 }
             }
         }

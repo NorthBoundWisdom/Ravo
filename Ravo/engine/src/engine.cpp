@@ -41,6 +41,7 @@ Result<InspectionResult> EngineFacade::inspect(const std::string_view input_uri,
 
 Result<EmbeddedPreview>
 EngineFacade::extract_embedded_preview(const std::string_view input_uri,
+                                       const std::uint32_t max_edge,
                                        const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
@@ -53,7 +54,7 @@ EngineFacade::extract_embedded_preview(const std::string_view input_uri,
         return make_error(ErrorCode::kInvalidArgument,
                           "Input URI must not be empty for preview extraction");
     }
-    return extract_libraw_preview(input_uri, cancellation);
+    return extract_libraw_preview(input_uri, max_edge, cancellation);
 }
 
 const std::vector<OperationDescriptor> &EngineFacade::operations() const noexcept

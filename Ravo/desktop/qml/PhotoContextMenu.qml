@@ -163,6 +163,12 @@ Menu {
         action: root.commands.rotateRight
     }
     StyledItem {
+        action: root.commands.flipHorizontal
+    }
+    StyledItem {
+        action: root.commands.flipVertical
+    }
+    StyledItem {
         action: root.commands.resetEdits
     }
     StyledSeparator {}

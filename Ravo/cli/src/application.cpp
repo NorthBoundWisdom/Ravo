@@ -204,6 +204,7 @@ struct CatalogCliArguments
     std::optional<double> saturation;
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
+    std::vector<std::pair<std::string, double>> develop_sets;
 };
 
 [[nodiscard]] Result<int> parse_int_flag(const std::string_view text, const std::string_view option)
@@ -300,6 +301,23 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return parsed.error();
             }
             result.contrast = parsed.value();
+        }
+        else if (option == "--set")
+        {
+            const auto owned = std::string(value);
+            const auto split = owned.find('=');
+            if (split == std::string::npos || split == 0 || split + 1 == owned.size())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--set requires name=value",
+                                  {{"value", owned}});
+            }
+            auto parsed = parse_double_flag(owned.substr(split + 1), option);
+            if (!parsed)
+            {
+                return parsed.error();
+            }
+            result.develop_sets.emplace_back(owned.substr(0, split), parsed.value());
         }
         else if (option == "--max-edge")
         {
@@ -547,6 +565,15 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             params.value().contrast = *flags.value().contrast;
         }
+        for (const auto &[name, value] : flags.value().develop_sets)
+        {
+            if (!apply_develop_field(params.value(), name, value))
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Unknown develop field",
+                                  {{"name", name}});
+            }
+        }
+        clamp_develop(params.value());
         auto saved = service.save_develop(flags.value().asset_id, params.value());
         if (!saved)
         {
