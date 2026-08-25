@@ -1,0 +1,5 @@
+# Paths relative to legacy/src (and the freeze commit's src/).
+# Remaining leftover files must still match the freeze blobs.
+# Add one path per retired owner after that capability is Ravo-accepted.
+libs/export.c
+libs/export_metadata.c

@@ -54,6 +54,7 @@ public:
     [[nodiscard]] Result<PreviewResult>
     request_preview(const PreviewRequest &request,
                     const std::optional<DevelopParams> &live_develop = {});
+    [[nodiscard]] Result<ExportResult> export_asset(const ExportRequest &request);
     Result<void> close();
 
 private:
@@ -72,6 +73,9 @@ private:
                                                              std::string_view path,
                                                              std::uint32_t max_edge,
                                                              const CancellationToken &cancellation);
+    [[nodiscard]] Result<RenderedImage>
+    render_for_export(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
+                      std::uint32_t max_edge, const CancellationToken &cancellation);
 
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;

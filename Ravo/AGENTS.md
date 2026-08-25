@@ -7,9 +7,10 @@
 1. 运行 `git status --short --branch`，保留用户已有改动。
 2. 阅读 `Ravo/README.md`、`ARCHITECTURE.md`、`MIGRATION.md`、`TESTING.md` 和相关 ADR。
 3. 涉及旧行为或算法时，阅读对应 `legacy/src/` 实现和 fixture；不得根据上游 darktable 习惯猜测。
-4. 确认本次工作属于 `../TODO_REWRITE.md` 当前 M1–M3 第一版纵切片。现在允许创建
-   `domain/services/desktop` target；desktop 明确使用 Qt 6 Quick/QML，Qt Sql 只进入私有 SQLite adapter。
-   Qt Widgets、第二套 presentation 架构和旧 GTK adapter 仍未获准。
+4. 确认本次工作属于根目录 [`../TODO.md`](../TODO.md) 的当前队列项，或
+   `../TODO_REWRITE.md` 仍未关闭的 M2/M3 加固。desktop 使用 Qt 6 Quick/QML，
+   Qt Sql 只进入私有 SQLite adapter。Qt Widgets、第二套 presentation 架构和旧
+   GTK adapter 仍未获准。
 5. 写明所有权、生命周期、线程边界、错误/取消路径和最小验证集后再跨层修改。
 
 ## 当前技术边界
@@ -46,8 +47,8 @@
   codec、engine 私有状态或拥有业务规则。
 - Ravo 生产代码不得包含 `legacy/src/` 头、链接旧库、`dlopen` 旧模块或读取旧全局状态。测试只能读取已冻结
   fixture 与源码；不得配置、编译或运行旧 CLI、旧 CTest 或 `legacy/tests/run`。
-- 冻结的旧应用不复用 Ravo，也不增加 adapter；生产依赖必须保持完全独立，直到 Ravo 达到发行切换
-  门槛后整体退役旧应用。
+- 旧应用不复用 Ravo，也不增加 adapter；生产依赖必须保持完全独立。旧 owner 按
+  [`../TODO.md`](../TODO.md) 验收后删除。
 
 ## C++ 实施规则
 
@@ -66,9 +67,10 @@
 - 直接阅读冻结 C 源码并重写 C++20 行为；用聚焦 Ravo UT 覆盖旧实现的关键分支，但不得编译或运行旧 UT。
 - 可以移植可理解的数学思想或纯算法，但不得连带复制 GUI、旧 module lifecycle、配置 shim、
   动态注册、OpenCL 类型或无消费者代码。
-- Ravo 通过完整产品验收并完成发行切换后，才在 M7 删除 `src` 所有权。删除必须覆盖 CMake、
-  资源、配置、文档与测试，并以全仓搜索证明没有可达消费者；迁移期间不逐项修改冻结的旧实现。
-- 旧 OpenCL 保持冻结并随 0.9 整体退役；Ravo GPU 只能在自身 CPU 路径验收后以独立 adapter 实现。
+- 按 [`../TODO.md`](../TODO.md) 在该项 Ravo 已验收后删除对应 `legacy/` owner（CMake、
+  注册、资源、文档与检查）。未验收项与 leftover 不得提前删除。全仓搜索确认无消费者。
+- 旧 OpenCL 不迁入 Ravo，也不在 0.9 内改成 Metal；Ravo GPU 只能在自身 CPU 路径验收后以独立
+  adapter 实现。
 
 ## 验证与交付
 

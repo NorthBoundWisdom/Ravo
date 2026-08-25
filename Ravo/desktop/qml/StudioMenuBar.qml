@@ -41,6 +41,9 @@ MenuBar {
         MenuItem {
             action: actions.importFolder
         }
+        MenuItem {
+            action: actions.exportPhoto
+        }
         MenuSeparator {}
         MenuItem {
             action: actions.closeWindow

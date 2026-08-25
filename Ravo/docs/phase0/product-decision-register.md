@@ -44,7 +44,7 @@ decision can claim support.
 | Catalog | Existing catalog/database files. | Import, coexistence, backup, rollback, and user-data-dir policy. | ADR-0007 authorizes a new private SQLite schema and reference-only import for M1; legacy catalog migration remains deferred. |
 | XMP sidecars | Legacy XMP schema 6 and per-operation payloads. | Approved operation mappings, unknown-data policy, and readable rejection schema. | Empty history, the exact frozen `nop.xmp` built-in RAW baseline, and a schema-6/v5 manual zero-black unblended mask-free singleton exposure subset are proven; all other mappings remain unresolved or explicitly rejected. |
 | Styles and presets | Legacy style/preset stores. | Compatibility choice, fragment schema, conflict policy, dry-run report, and data-loss explanation. | Deferred to the M4/M5 product scope. |
-| Local export | JPEG, PNG, TIFF, and original-file copy. | Format, bit depth, alpha, metadata, ICC, overwrite, and disk-full policy. | Technical contract drafted; product acceptance unresolved. |
+| Local export | JPEG, PNG, TIFF, and original-file copy. | Format, bit depth, alpha, metadata, ICC, overwrite, and disk-full policy. | Ravo CatalogService/CLI/Studio accept JPEG/PNG/original copy and TIFF when the Qt plugin exists. Metadata/ICC embedding remains later. |
 
 ## Completion protocol
 
@@ -57,4 +57,4 @@ decision can claim support.
    old expected PNG exists.
 4. A capability reaches `Ravo accepted` only after its CPU, error, cancellation,
    resource, and fixture evidence meets the migration policy. Old-owner removal
-   remains an M7 action.
+   follows the root [`TODO.md`](../../../TODO.md) gate, not a single M7 sweep.

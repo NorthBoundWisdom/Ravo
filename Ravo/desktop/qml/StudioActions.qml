@@ -22,6 +22,8 @@ Item {
         readonly property string libraryOpen: "library.open"
         readonly property string libraryImportFiles: "library.importFiles"
         readonly property string libraryImportFolder: "library.importFolder"
+        readonly property string libraryExport: "library.export"
+        readonly property string libraryExportWrite: "library.exportWrite"
         readonly property string photoSelect: "photo.select"
         readonly property string photoRate: "photo.rate"
         readonly property string photoColor: "photo.color"
@@ -60,6 +62,7 @@ Item {
     property alias openLibrary: openLibraryAction
     property alias importPhotos: importPhotosAction
     property alias importFolder: importFolderAction
+    property alias exportPhoto: exportPhotoAction
     property alias closeWindow: closeWindowAction
     property alias preferences: preferencesAction
     property alias quitApp: quitAction
@@ -219,6 +222,13 @@ Item {
         shortcut: "Ctrl+Shift+I"
         enabled: root.catalogReady
         onTriggered: root.run(root.ids.libraryImportFolder)
+    }
+    Action {
+        id: exportPhotoAction
+        text: qsTr("Export Photo…")
+        shortcut: "Ctrl+Shift+E"
+        enabled: root.catalogReady && root.hasSelection
+        onTriggered: root.run(root.ids.libraryExport)
     }
     Action {
         id: closeWindowAction

@@ -162,7 +162,8 @@ catalog create/import/list/preview 命令，用于验证同一 services；人类
 
 ## 当前非目标
 
-- 第一版不实现编辑、完整 history/styles、mask/blend、全部 operation、完整导出或旧 catalog 迁移。
+- 本地 JPEG/PNG/TIFF/原片复制导出已由 CatalogService 拥有；完整 metadata/ICC、批量任务和旧导出预设仍不在范围内。
+- 第一版不实现完整 history/styles、mask/blend、全部 operation 或旧 catalog 迁移。
 - CPU 正确性和 viewer 资源门槛完成前不实现 GPU backend。
 - 不为尚无消费者的网络、云同步、公共插件 ABI 或复杂查询语言冻结接口。
 - 不修改冻结 0.9 来调用 Ravo，也不让 Ravo 生产代码调用冻结应用。

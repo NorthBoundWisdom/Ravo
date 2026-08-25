@@ -245,4 +245,84 @@ Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t
     return encode_preview(reader.read(), max_edge, cancellation, "memory");
 }
 
+Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(const std::uint32_t width,
+                                                          const std::uint32_t height,
+                                                          const std::vector<std::uint8_t> &rgb,
+                                                          const ExportFormat format,
+                                                          const int jpeg_quality,
+                                                          const CancellationToken &cancellation) const
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    if (format == ExportFormat::kOriginalCopy)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Original-copy export does not encode pixels");
+    }
+    const auto expected =
+        static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;
+    if (width == 0 || height == 0 || rgb.size() != expected)
+    {
+        return make_error(ErrorCode::kValidation, "Export image buffer does not match dimensions",
+                          {{"height", std::to_string(height)},
+                           {"size_bytes", std::to_string(rgb.size())},
+                           {"width", std::to_string(width)}});
+    }
+    if (width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
+        height > static_cast<std::uint32_t>(std::numeric_limits<int>::max()))
+    {
+        return make_error(ErrorCode::kValidation, "Export image is too large to encode");
+    }
+    QByteArray format_id;
+    if (format == ExportFormat::kPng)
+    {
+        format_id = QByteArrayLiteral("png");
+    }
+    else if (format == ExportFormat::kJpeg)
+    {
+        format_id = QByteArrayLiteral("jpeg");
+    }
+    else if (format == ExportFormat::kTiff)
+    {
+        format_id = QByteArrayLiteral("tiff");
+    }
+    if (!QImageWriter::supportedImageFormats().contains(format_id))
+    {
+        return make_error(ErrorCode::kUnsupported, "Export format is not available in this Qt build",
+                          {{"format", std::string(export_format_name(format))}});
+    }
+    QImage image(rgb.data(), static_cast<int>(width), static_cast<int>(height),
+                 static_cast<int>(width * 3U), QImage::Format_RGB888);
+    if (image.isNull())
+    {
+        return make_error(ErrorCode::kIo, "Unable to wrap export pixels");
+    }
+    const QImage owned = image.copy();
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    if (!buffer.open(QIODevice::WriteOnly))
+    {
+        return make_error(ErrorCode::kIo, "Unable to open export encoder buffer");
+    }
+    QImageWriter writer(&buffer, format_id);
+    if (format == ExportFormat::kJpeg)
+    {
+        writer.setQuality(jpeg_quality);
+    }
+    if (format == ExportFormat::kPng)
+    {
+        writer.setCompression(1);
+    }
+    if (!writer.write(owned))
+    {
+        return make_error(ErrorCode::kIo, "Unable to encode export image",
+                          {{"format", std::string(export_format_name(format))},
+                           {"qt_error", writer.errorString().toUtf8().toStdString()}});
+    }
+    return std::vector<std::uint8_t>(encoded.cbegin(), encoded.cend());
+}
+
 } // namespace ravo

@@ -635,6 +635,34 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     EXPECT_TRUE(std::filesystem::exists(*cache_path->string_if()));
     EXPECT_TRUE(stderr_stream.str().empty());
 
+    const auto export_png = (root / "cli-export.png").string();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "export", "--catalog", catalog, "--asset-id", id, "--output",
+                  export_png, "--format", "png", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto exported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(exported) << exported.error().message;
+    EXPECT_TRUE(std::filesystem::exists(export_png));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "export", "--catalog", catalog, "--asset-id", id, "--output",
+                  export_png, "--format", "png", "--json"}),
+              6)
+        << stdout_stream.str();
+    auto conflict = parse_json(stdout_stream.str());
+    ASSERT_TRUE(conflict) << conflict.error().message;
+    const auto *error = conflict.value().find("error");
+    ASSERT_NE(error, nullptr);
+    const auto *code = error->find("code");
+    ASSERT_NE(code, nullptr);
+    ASSERT_NE(code->string_if(), nullptr);
+    EXPECT_EQ(*code->string_if(), "conflict");
+
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);
 }

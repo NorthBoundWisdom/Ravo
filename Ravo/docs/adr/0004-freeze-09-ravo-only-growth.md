@@ -1,6 +1,6 @@
 # ADR-0004: Freeze 0.9 and make Ravo the only growth path
 
-- Status: Accepted
+- Status: Partially superseded by 0010 (deletion timing)
 - Date: 2026-07-21
 - Supersedes: ADR-0002
 

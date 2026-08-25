@@ -14,6 +14,10 @@ public:
     [[nodiscard]] Result<EncodedPng>
     decode_memory(const std::vector<std::uint8_t> &encoded, std::uint32_t max_edge,
                   const CancellationToken &cancellation) const override;
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(std::uint32_t width, std::uint32_t height, const std::vector<std::uint8_t> &rgb,
+           ExportFormat format, int jpeg_quality,
+           const CancellationToken &cancellation) const override;
 };
 
 } // namespace ravo

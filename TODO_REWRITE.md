@@ -212,10 +212,11 @@ M0 是可复用底层，不是第一版软件完成状态。
 - [ ] GPU 类型不进入 recipe、domain、services 或 UI；失败从可信输入回退 CPU。
 - [ ] 按 [GPU baseline](DevDocs/GPU_Baseline.md) 验证 preview、viewer 和 export 的正确性、性能与能耗。
 
-### M7：发行切换与冻结实现退役
+### M7：发行切换与 leftover 清理
 
-- [ ] Ravo 覆盖冻结产品范围、迁移/回滚可用并完成并行试用后，才切换默认发行物。
-- [ ] 切换决定完成后统一删除旧 `src`、GTK、OpenCL、构建、资源、配置和重复测试。
+- [ ] Ravo 覆盖承诺产品范围、迁移/回滚可用并完成并行试用后，才切换默认发行物。
+- [ ] 队列内能力按 [`TODO.md`](TODO.md) 验收后即删对应旧 owner；M7 只清理 leftover
+      （GTK 壳、Lua、OpenCL、明确不迁移模块）以及重复构建/资源/测试。
 - [ ] 用全仓搜索、链接图和发布验收证明不存在 `src → Ravo` 或 `Ravo → src` 生产依赖。
 
 ## 最小验证矩阵
@@ -234,19 +235,20 @@ M0 是可复用底层，不是第一版软件完成状态。
 
 ## 0.9 冻结基线与 Ravo 承接项
 
-0.9 继续是只读事实来源，不再维护或重构：
+0.9 仍禁止配置、编译、运行；生产代码不得链接或加载旧实现。增量删除时点改由
+[`TODO.md`](TODO.md) 执行：一项能力达到该文件的「Ravo 已验收」门槛后，删除对应
+旧 owner，并更新 freeze/inventory 检查。未验收能力与「明确不迁移」清单不得提前删除。
 
-- 保留为静态参考：GTK Lighttable/Darkroom、catalog/history、masks、色彩、pixelpipe、OpenCL、配置和 fixture；
-- Ravo 第一版承接：本地 SQLite catalog、JPEG/PNG/TIFF/RAW reference-only 导入、Gallery 和图片 viewer；
-- 后续承接：history/styles、非破坏编辑、保留 operation、本地导出、完整 metadata/ICC；
-- 明确不承接：Lua、历史插件/UI ABI、map/tethering、打印、幻灯片、远程发布和已删除旧格式兼容；
-- 旧 OpenCL 不在 0.9 中替换为 Metal；它只在 M7 随冻结应用整体退役。
+- 静态取证：GTK Lighttable/Darkroom、catalog/history、masks、色彩、pixelpipe、OpenCL、配置和 fixture；
+- 已承接：本地 SQLite catalog、JPEG/PNG/TIFF/RAW reference-only 导入、Gallery、viewer、P1 develop；
+- 下一阶段承接：见 [`TODO.md`](TODO.md) 队列（导出、曲线、显示变换等）；
+- 明确不承接：Lua、历史插件/UI ABI、map/tethering、打印、幻灯片、远程发布、诊断 overlay 与专项创意模块（清单在 `TODO.md` §5）；
+- 旧 OpenCL 不在 0.9 中替换为 Metal；Ravo GPU 只走 M6。剩余 leftover 在迁移队列清空后一并清理。
 
-迁移期间两套生产实现完全独立。Ravo 测试可以读取冻结源码和 fixture，生产代码不得包含 `legacy/src/` 私有头、
+迁移期间两套生产实现完全独立。Ravo 测试可以读取剩余 `legacy/` 源码和 fixture，生产代码不得包含 `legacy/src/` 私有头、
 链接旧库、加载旧 IOP 或访问全局 `darktable` 状态。
 
 ## 下一次开工的最小批次
 
-1. Gallery 异步缩略图、占位/失败状态、滚动虚拟化；viewer 平移与连续缩放。
-2. CLI catalog create/import/list/preview JSON，以及导入取消/部分失败/源文件消失加固。
-3. 不要在这个批次扩展编辑、全量 IOP 或通用框架。
+当前执行队列是 [`TODO.md`](TODO.md)。下一项是 **本地导出 JPEG/PNG/TIFF/原片复制**。
+不要并行开队列中的下一项，也不要在该项验收前删除 `legacy/`。

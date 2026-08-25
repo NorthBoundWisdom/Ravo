@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <map>
 #include <set>
 #include <system_error>
 #include <utility>
@@ -162,6 +165,172 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     Recipe recipe;
     recipe.asset = {asset.id, path, asset.content_fingerprint};
     return recipe;
+}
+
+[[nodiscard]] std::filesystem::path utf8_path(const std::string_view text)
+{
+    return std::filesystem::path(std::u8string(text.begin(), text.end()));
+}
+
+[[nodiscard]] bool is_disk_full(const std::error_code &error) noexcept
+{
+    return error == std::errc::no_space_on_device || errno == ENOSPC;
+}
+
+[[nodiscard]] TaskError export_io_error(std::string message, const std::string_view path,
+                                        const std::error_code &error)
+{
+    std::map<std::string, std::string, std::less<>> context{{"path", std::string(path)}};
+    if (error)
+    {
+        context.emplace("detail", error.message());
+    }
+    if (is_disk_full(error))
+    {
+        context.emplace("reason", "disk_full");
+    }
+    return make_error(ErrorCode::kIo, std::move(message), std::move(context));
+}
+
+[[nodiscard]] Result<void> write_bytes_atomically(const std::string_view dest_utf8,
+                                                  const std::vector<std::uint8_t> &bytes,
+                                                  const CancellationToken &cancellation)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const auto dest = utf8_path(dest_utf8);
+    std::error_code error;
+    if (std::filesystem::exists(dest, error))
+    {
+        return make_error(ErrorCode::kConflict, "Export output already exists",
+                          {{"path", std::string(dest_utf8)}});
+    }
+    if (error)
+    {
+        return export_io_error("Unable to inspect export output path", dest_utf8, error);
+    }
+    const auto parent = dest.parent_path();
+    if (!parent.empty() && !std::filesystem::is_directory(parent, error))
+    {
+        return make_error(ErrorCode::kIo, "Export directory does not exist",
+                          {{"path", std::string(dest_utf8)}});
+    }
+    auto temporary = dest;
+    temporary += ".ravo-export-tmp";
+    std::filesystem::remove(temporary, error);
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output)
+        {
+            std::filesystem::remove(temporary, error);
+            return export_io_error("Unable to open temporary export file", dest_utf8,
+                                   std::error_code(errno, std::generic_category()));
+        }
+        constexpr std::size_t kChunk = 64U * 1024U;
+        std::size_t offset = 0;
+        while (offset < bytes.size())
+        {
+            cancelled = cancellation.check();
+            if (!cancelled)
+            {
+                output.close();
+                std::filesystem::remove(temporary, error);
+                return cancelled.error();
+            }
+            const auto remaining = bytes.size() - offset;
+            const auto step = remaining < kChunk ? remaining : kChunk;
+            output.write(reinterpret_cast<const char *>(bytes.data() + offset),
+                         static_cast<std::streamsize>(step));
+            if (!output)
+            {
+                output.close();
+                std::filesystem::remove(temporary, error);
+                return export_io_error("Unable to write export file", dest_utf8,
+                                       std::error_code(errno, std::generic_category()));
+            }
+            offset += step;
+        }
+        output.close();
+        if (!output)
+        {
+            std::filesystem::remove(temporary, error);
+            return export_io_error("Unable to finish export file", dest_utf8,
+                                   std::error_code(errno, std::generic_category()));
+        }
+    }
+    std::filesystem::rename(temporary, dest, error);
+    if (error)
+    {
+        std::filesystem::remove(temporary, error);
+        if (std::filesystem::exists(dest))
+        {
+            return make_error(ErrorCode::kConflict, "Export output already exists",
+                              {{"path", std::string(dest_utf8)}});
+        }
+        return export_io_error("Unable to commit export file", dest_utf8, error);
+    }
+    return {};
+}
+
+[[nodiscard]] Result<std::uint64_t> copy_file_atomically(const std::string_view source_utf8,
+                                                         const std::string_view dest_utf8,
+                                                         const CancellationToken &cancellation)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const auto source = utf8_path(source_utf8);
+    const auto dest = utf8_path(dest_utf8);
+    std::error_code error;
+    if (std::filesystem::exists(dest, error))
+    {
+        return make_error(ErrorCode::kConflict, "Export output already exists",
+                          {{"path", std::string(dest_utf8)}});
+    }
+    if (error)
+    {
+        return export_io_error("Unable to inspect export output path", dest_utf8, error);
+    }
+    std::ifstream input(source, std::ios::binary);
+    if (!input)
+    {
+        return make_error(ErrorCode::kNotFound, "Original file is missing",
+                          {{"path", std::string(source_utf8)}});
+    }
+    std::vector<std::uint8_t> bytes;
+    constexpr std::size_t kChunk = 64U * 1024U;
+    std::vector<char> buffer(kChunk);
+    while (input)
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        const auto read = input.gcount();
+        if (read > 0)
+        {
+            const auto *data = reinterpret_cast<const std::uint8_t *>(buffer.data());
+            bytes.insert(bytes.end(), data, data + static_cast<std::size_t>(read));
+        }
+    }
+    if (!input.eof())
+    {
+        return export_io_error("Unable to read original file", source_utf8,
+                               std::error_code(errno, std::generic_category()));
+    }
+    auto written = write_bytes_atomically(dest_utf8, bytes, cancellation);
+    if (!written)
+    {
+        return written.error();
+    }
+    return static_cast<std::uint64_t>(bytes.size());
 }
 
 } // namespace
@@ -1030,6 +1199,168 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         return stored.error();
     }
     return result;
+}
+
+Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
+{
+    if (engine_ == nullptr || raster_ == nullptr || repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    if (request.asset_id.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Export requires an asset ID");
+    }
+    if (request.output_path.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Export requires an output path");
+    }
+    if (request.format == ExportFormat::kJpeg)
+    {
+        auto quality = validate_jpeg_quality(request.jpeg_quality);
+        if (!quality)
+        {
+            return quality.error();
+        }
+    }
+    auto output = normalize_local_input(request.output_path);
+    if (!output)
+    {
+        return output.error();
+    }
+    auto asset = repository_->find_asset_by_id(request.asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", request.asset_id}});
+    }
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+    {
+        return location.error();
+    }
+    std::error_code exists_error;
+    const bool original_exists =
+        std::filesystem::is_regular_file(utf8_path(location.value().path), exists_error) &&
+        !exists_error;
+    if (!original_exists)
+    {
+        return make_error(ErrorCode::kNotFound, "Original file is missing",
+                          {{"asset_id", request.asset_id}, {"path", location.value().path}});
+    }
+
+    ExportResult result;
+    result.asset_id = request.asset_id;
+    result.output_path = output.value().path;
+    result.format = request.format;
+    if (request.format == ExportFormat::kOriginalCopy)
+    {
+        auto copied =
+            copy_file_atomically(location.value().path, output.value().path, request.cancellation);
+        if (!copied)
+        {
+            return copied.error();
+        }
+        result.width = asset.value()->width.value_or(0);
+        result.height = asset.value()->height.value_or(0);
+        result.bytes_written = copied.value();
+        LOG_INFO(ravo::logger(), "export original asset={} output={} bytes={}", request.asset_id,
+                 output.value().path, result.bytes_written);
+        return result;
+    }
+
+    Recipe edit_recipe = identity_recipe_for(*asset.value(), location.value().path);
+    auto stored = repository_->load_recipe_json(request.asset_id);
+    if (!stored)
+    {
+        return stored.error();
+    }
+    if (stored.value())
+    {
+        auto parsed = parse_recipe_json(*stored.value());
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        parsed.value().asset = edit_recipe.asset;
+        auto valid = engine_->validate(parsed.value());
+        if (!valid)
+        {
+            return valid.error();
+        }
+        edit_recipe = std::move(parsed).value();
+    }
+    auto rendered = render_for_export(*asset.value(), location.value().path, edit_recipe,
+                                      request.max_edge, request.cancellation);
+    if (!rendered)
+    {
+        return rendered.error();
+    }
+    auto encoded =
+        raster_->encode(rendered.value().width, rendered.value().height, rendered.value().rgb,
+                        request.format, request.jpeg_quality, request.cancellation);
+    if (!encoded)
+    {
+        return encoded.error();
+    }
+    auto written = write_bytes_atomically(output.value().path, encoded.value(), request.cancellation);
+    if (!written)
+    {
+        return written.error();
+    }
+    result.width = rendered.value().width;
+    result.height = rendered.value().height;
+    result.bytes_written = encoded.value().size();
+    LOG_INFO(ravo::logger(), "export asset={} format={} output={} {}x{} bytes={}", request.asset_id,
+             export_format_name(request.format), output.value().path, result.width, result.height,
+             result.bytes_written);
+    return result;
+}
+
+Result<RenderedImage> CatalogService::render_for_export(const AssetRecord &asset,
+                                                        const std::string_view path,
+                                                        const Recipe &recipe,
+                                                        const std::uint32_t max_edge,
+                                                        const CancellationToken &cancellation)
+{
+    RenderRequest render;
+    render.asset = {asset.id, std::string(path), asset.content_fingerprint};
+    render.recipe = recipe;
+    render.cancellation = cancellation;
+    render.correlation_id = asset.id;
+    if (max_edge > 0)
+    {
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width,
+                            height);
+        render.output_width = width;
+        render.output_height = height;
+    }
+    if (is_raster_media_type(asset.media_type))
+    {
+        auto source = decode_preview_source(asset, path, max_edge, cancellation);
+        if (!source)
+        {
+            return source.error();
+        }
+        return engine_->render_to_image(render, &source.value());
+    }
+    if (is_raw_media_type(asset.media_type))
+    {
+        return engine_->render_to_image(render, nullptr);
+    }
+    return make_error(ErrorCode::kUnsupported, "Asset media type cannot be exported",
+                      {{"media_type", asset.media_type}, {"asset_id", asset.id}});
 }
 
 Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,

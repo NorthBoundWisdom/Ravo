@@ -72,6 +72,46 @@ namespace
     return QUrl::fromLocalFile(trimmed);
 }
 
+[[nodiscard]] Result<ExportFormat> export_format_from_ui(const QString &path, const QString &filter)
+{
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    if (suffix == QLatin1String("png"))
+    {
+        return ExportFormat::kPng;
+    }
+    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg"))
+    {
+        return ExportFormat::kJpeg;
+    }
+    if (suffix == QLatin1String("tif") || suffix == QLatin1String("tiff"))
+    {
+        return ExportFormat::kTiff;
+    }
+    const QString lowered = filter.toLower();
+    if (lowered.contains(QLatin1String("original")))
+    {
+        return ExportFormat::kOriginalCopy;
+    }
+    if (lowered.contains(QLatin1String("jpeg")) || lowered.contains(QLatin1String("jpg")))
+    {
+        return ExportFormat::kJpeg;
+    }
+    if (lowered.contains(QLatin1String("png")))
+    {
+        return ExportFormat::kPng;
+    }
+    if (lowered.contains(QLatin1String("tif")))
+    {
+        return ExportFormat::kTiff;
+    }
+    if (suffix.isEmpty())
+    {
+        return ExportFormat::kPng;
+    }
+    return make_error(ErrorCode::kValidation, "Unable to infer export format",
+                      {{"path", utf8_from_qstring(path)}, {"filter", utf8_from_qstring(filter)}});
+}
+
 [[nodiscard]] QString describe_import(const std::vector<ImportItemResult> &results)
 {
     int imported = 0;
@@ -1361,6 +1401,71 @@ void StudioPresenter::importFolderFromPath(const QString &path)
     importFolder(url_from_dialog_path(path));
 }
 
+void StudioPresenter::exportSelectedToPath(const QString &path, const QString &filter)
+{
+    if (busy_ || catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
+    {
+        return;
+    }
+    QString output = path.trimmed();
+    if (output.startsWith(QStringLiteral("file:")))
+    {
+        output = QUrl(output).toLocalFile();
+    }
+    if (output.isEmpty())
+    {
+        setError(QStringLiteral("Export path must not be empty."));
+        return;
+    }
+    auto format = export_format_from_ui(output, filter);
+    if (!format)
+    {
+        setError(qstring_from_utf8(format.error().message));
+        return;
+    }
+    if (QFileInfo(output).suffix().isEmpty() && format.value() != ExportFormat::kOriginalCopy)
+    {
+        output += QString::fromUtf8(export_format_extension(format.value()).data(),
+                                    static_cast<qsizetype>(export_format_extension(format.value()).size()));
+    }
+    setBusy(true);
+    setError({});
+    setStatus(QStringLiteral("Exporting…"));
+    executor_.post(
+        [this, asset_id = utf8_from_qstring(selected_asset_id_),
+         output_path = utf8_from_qstring(output), export_format = format.value()]()
+        {
+            Result<ExportResult> exported = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                ExportRequest request;
+                request.asset_id = asset_id;
+                request.output_path = output_path;
+                request.format = export_format;
+                request.cancellation = shutdown_.token();
+                exported = service_->export_asset(request);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, exported = std::move(exported)]() mutable
+                {
+                    setBusy(false);
+                    if (!exported)
+                    {
+                        setError(qstring_from_utf8(exported.error().message));
+                        setStatus(QStringLiteral("Export failed."));
+                        return;
+                    }
+                    setStatus(QStringLiteral("Exported %1 (%2×%3)")
+                                  .arg(QFileInfo(qstring_from_utf8(exported.value().output_path))
+                                           .fileName())
+                                  .arg(exported.value().width)
+                                  .arg(exported.value().height));
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 void StudioPresenter::importFiles(const QList<QUrl> &files)
 {
     if (busy_ || catalog_path_.isEmpty())
@@ -1948,7 +2053,8 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
     static const QStringList kWindowCommands{
         QLatin1String(kLibraryCreate),      QLatin1String(kLibraryOpen),
         QLatin1String(kLibraryImportFiles), QLatin1String(kLibraryImportFolder),
-        QLatin1String(kWindowSettings),     QLatin1String(kWindowClose),
+        QLatin1String(kLibraryExport),      QLatin1String(kWindowSettings),
+        QLatin1String(kWindowClose),
         QLatin1String(kWindowQuit),         QLatin1String(kWindowAbout),
     };
     if (kWindowCommands.contains(id))
@@ -1957,7 +2063,13 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
         return;
     }
 
-    if (id == QLatin1String(kPhotoSelect))
+    if (id == QLatin1String(kLibraryExportWrite))
+    {
+        const auto fields = argument.toMap();
+        exportSelectedToPath(fields.value(QStringLiteral("path"), argument.toString()).toString(),
+                             fields.value(QStringLiteral("filter")).toString());
+    }
+    else if (id == QLatin1String(kPhotoSelect))
     {
         QString asset_id = argument.toString();
         QString mode = QStringLiteral("single");

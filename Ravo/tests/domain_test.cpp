@@ -114,6 +114,19 @@ TEST(ReviewStateTest, ValidatesRatingAndParsesColorLabels)
     EXPECT_FALSE(parse_color_label("orange"));
 }
 
+TEST(ExportFormatTest, ParsesNamesAndRejectsUnknownValues)
+{
+    auto jpeg = parse_export_format("jpg");
+    ASSERT_TRUE(jpeg);
+    EXPECT_EQ(jpeg.value(), ExportFormat::kJpeg);
+    EXPECT_EQ(export_format_name(ExportFormat::kOriginalCopy), "original");
+    EXPECT_EQ(export_format_extension(ExportFormat::kPng), ".png");
+    EXPECT_TRUE(validate_jpeg_quality(90));
+    EXPECT_FALSE(validate_jpeg_quality(0));
+    EXPECT_FALSE(validate_jpeg_quality(101));
+    EXPECT_FALSE(parse_export_format("heif"));
+}
+
 TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
 {
     AssetRecord first;

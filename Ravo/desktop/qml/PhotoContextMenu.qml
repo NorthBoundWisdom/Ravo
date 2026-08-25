@@ -176,6 +176,10 @@ Menu {
     }
     StyledSeparator {}
     StyledItem {
+        action: root.commands.exportPhoto
+    }
+    StyledSeparator {}
+    StyledItem {
         action: root.commands.removePhoto
     }
     StyledItem {

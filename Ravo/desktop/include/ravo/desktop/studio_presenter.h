@@ -298,6 +298,7 @@ public:
     Q_INVOKABLE void openCatalogFromPath(const QString &path);
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
     Q_INVOKABLE void importFolderFromPath(const QString &path);
+    Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &filter = {});
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);

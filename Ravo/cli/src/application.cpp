@@ -205,6 +205,9 @@ struct CatalogCliArguments
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
     std::vector<std::pair<std::string, double>> develop_sets;
+    std::string_view output;
+    std::string_view format;
+    std::optional<int> quality;
 };
 
 [[nodiscard]] Result<int> parse_int_flag(const std::string_view text, const std::string_view option)
@@ -328,6 +331,31 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.max_edge = dimension.value();
         }
+        else if (option == "--output")
+        {
+            if (!result.output.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Output path was specified twice");
+            }
+            result.output = value;
+        }
+        else if (option == "--format")
+        {
+            if (!result.format.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Export format was specified twice");
+            }
+            result.format = value;
+        }
+        else if (option == "--quality")
+        {
+            auto quality = parse_int_flag(value, option);
+            if (!quality)
+            {
+                return quality.error();
+            }
+            result.quality = quality.value();
+        }
         else
         {
             return make_error(ErrorCode::kInvalidArgument, "Unknown catalog option",
@@ -376,8 +404,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (positional.size() < 2)
     {
         return make_error(ErrorCode::kInvalidArgument,
-                          "Usage: ravo catalog <create|import|list|preview|recipe|develop|rate> "
-                          "--catalog <path>");
+                          "Usage: ravo catalog <create|import|list|preview|recipe|develop|rate|"
+                          "export> --catalog <path>");
     }
     const auto subcommand = positional[1];
     auto flags = parse_catalog_flags(positional);
@@ -594,6 +622,47 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return rated.error();
         }
         return asset_to_json(rated.value());
+    }
+    if (subcommand == "export")
+    {
+        if (flags.value().asset_id.empty() || flags.value().output.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export requires --asset-id and --output");
+        }
+        ExportRequest request;
+        request.asset_id = std::string(flags.value().asset_id);
+        request.output_path = std::string(flags.value().output);
+        if (!flags.value().format.empty())
+        {
+            auto format = parse_export_format(flags.value().format);
+            if (!format)
+            {
+                return format.error();
+            }
+            request.format = format.value();
+        }
+        if (flags.value().quality)
+        {
+            request.jpeg_quality = *flags.value().quality;
+        }
+        if (flags.value().max_edge)
+        {
+            request.max_edge = *flags.value().max_edge;
+        }
+        auto exported = service.export_asset(request);
+        if (!exported)
+        {
+            return exported.error();
+        }
+        return JsonValue{JsonValue::Object{
+            {"asset_id", exported.value().asset_id},
+            {"bytes", JsonValue::number(std::to_string(exported.value().bytes_written))},
+            {"format", std::string(export_format_name(exported.value().format))},
+            {"height", JsonValue::number(std::to_string(exported.value().height))},
+            {"output", exported.value().output_path},
+            {"width", JsonValue::number(std::to_string(exported.value().width))},
+        }};
     }
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog subcommand",
                       {{"subcommand", std::string(subcommand)}});

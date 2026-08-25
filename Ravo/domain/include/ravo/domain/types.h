@@ -17,6 +17,9 @@ inline constexpr std::int64_t kPreviewContractVersion = 3;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
+inline constexpr int kDefaultJpegQuality = 90;
+inline constexpr int kJpegQualityMin = 1;
+inline constexpr int kJpegQualityMax = 100;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
 inline constexpr std::string_view kMediaTypeJpeg = "image/jpeg";
@@ -87,6 +90,14 @@ enum class SortDirection
 {
     kAscending,
     kDescending,
+};
+
+enum class ExportFormat
+{
+    kPng,
+    kJpeg,
+    kTiff,
+    kOriginalCopy,
 };
 
 struct ReviewState
@@ -187,6 +198,27 @@ struct PreviewResult
     std::vector<std::uint8_t> srgb;
 };
 
+struct ExportRequest
+{
+    std::string asset_id;
+    std::string output_path;
+    ExportFormat format = ExportFormat::kPng;
+    int jpeg_quality = kDefaultJpegQuality;
+    std::uint32_t max_edge = 0;
+    CancellationToken cancellation{};
+    std::string correlation_id;
+};
+
+struct ExportResult
+{
+    std::string asset_id;
+    std::string output_path;
+    ExportFormat format = ExportFormat::kPng;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint64_t bytes_written = 0;
+};
+
 struct RasterInfo
 {
     std::string media_type;
@@ -219,6 +251,10 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] Result<void> validate_rating(int rating);
 [[nodiscard]] std::string_view color_label_name(ColorLabel label) noexcept;
 [[nodiscard]] Result<ColorLabel> parse_color_label(std::string_view name);
+[[nodiscard]] std::string_view export_format_name(ExportFormat format) noexcept;
+[[nodiscard]] std::string_view export_format_extension(ExportFormat format) noexcept;
+[[nodiscard]] Result<ExportFormat> parse_export_format(std::string_view name);
+[[nodiscard]] Result<void> validate_jpeg_quality(int quality);
 [[nodiscard]] std::string asset_display_name(const AssetRecord &asset);
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
 [[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,

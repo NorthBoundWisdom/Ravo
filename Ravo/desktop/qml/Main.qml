@@ -63,6 +63,14 @@ ApplicationWindow {
         importFolderDialog.openDialog();
     }
 
+    function openExportDialog() {
+        if (!studio.selectedAssetId.length)
+            return;
+        exportDialog.currentFolder = studio.defaultCatalogFolder;
+        exportDialog.initialSelectedFile = studio.selectedDisplayName;
+        exportDialog.openDialog();
+    }
+
     function startLibrarySession() {
         if (studio.catalogOpen)
             return;
@@ -142,6 +150,8 @@ ApplicationWindow {
                 openImportDialog();
             else if (id === ids.libraryImportFolder)
                 openImportFolderDialog();
+            else if (id === ids.libraryExport)
+                openExportDialog();
             else if (id === ids.windowSettings)
                 window.settingsOpen = true;
             else if (id === ids.windowClose)
@@ -828,6 +838,19 @@ ApplicationWindow {
         dialogTitle: qsTr("Import Folder")
         onFolderAccepted: function (folderPath) {
             studio.importFolderFromPath(folderPath);
+        }
+    }
+
+    QmlFileDialogPage {
+        id: exportDialog
+        dialogTitle: qsTr("Export Photo")
+        dialogMode: "save"
+        nameFilters: ["JPEG (*.jpg *.jpeg)", "PNG (*.png)", "TIFF (*.tif *.tiff)", "Original copy (*)"]
+        onFileAccepted: function (filePath, selectedFilter) {
+            studioActions.run(studioActions.ids.libraryExportWrite, {
+                    "path": filePath,
+                    "filter": selectedFilter
+                });
         }
     }
 }

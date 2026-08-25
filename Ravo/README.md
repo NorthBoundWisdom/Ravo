@@ -133,6 +133,7 @@ ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|original [--quality 90] --json
 ```
 
 已有输出路径返回结构化 `conflict`，不会被隐式覆盖。catalog 命令调用与 Studio 相同的

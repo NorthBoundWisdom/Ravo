@@ -148,6 +148,70 @@ Result<ColorLabel> parse_color_label(const std::string_view name)
                       {{"color_label", std::string(name)}});
 }
 
+std::string_view export_format_name(const ExportFormat format) noexcept
+{
+    switch (format)
+    {
+    case ExportFormat::kPng:
+        return "png";
+    case ExportFormat::kJpeg:
+        return "jpeg";
+    case ExportFormat::kTiff:
+        return "tiff";
+    case ExportFormat::kOriginalCopy:
+        return "original";
+    }
+    return "png";
+}
+
+std::string_view export_format_extension(const ExportFormat format) noexcept
+{
+    switch (format)
+    {
+    case ExportFormat::kPng:
+        return ".png";
+    case ExportFormat::kJpeg:
+        return ".jpg";
+    case ExportFormat::kTiff:
+        return ".tif";
+    case ExportFormat::kOriginalCopy:
+        return {};
+    }
+    return ".png";
+}
+
+Result<ExportFormat> parse_export_format(const std::string_view name)
+{
+    if (name == "png")
+    {
+        return ExportFormat::kPng;
+    }
+    if (name == "jpeg" || name == "jpg")
+    {
+        return ExportFormat::kJpeg;
+    }
+    if (name == "tiff" || name == "tif")
+    {
+        return ExportFormat::kTiff;
+    }
+    if (name == "original" || name == "copy" || name == "original-copy")
+    {
+        return ExportFormat::kOriginalCopy;
+    }
+    return make_error(ErrorCode::kValidation, "Unknown export format",
+                      {{"format", std::string(name)}});
+}
+
+Result<void> validate_jpeg_quality(const int quality)
+{
+    if (quality < kJpegQualityMin || quality > kJpegQualityMax)
+    {
+        return make_error(ErrorCode::kValidation, "JPEG quality must be between 1 and 100",
+                          {{"quality", std::to_string(quality)}});
+    }
+    return {};
+}
+
 std::string asset_display_name(const AssetRecord &asset)
 {
     const auto slash = asset.normalized_uri.find_last_of('/');

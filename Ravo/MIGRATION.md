@@ -2,9 +2,9 @@
 
 ## 目标
 
-Ravo 最终整体取代冻结的 `legacy/src/`，但当前第一迁移成果不再是“迁完全部无头内核”，而是可使用的
-catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保持静态源码与 fixture 事实来源，
-直到 M7 完成发行切换后整体退役。
+Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ravo 落地。下一阶段按
+[`../TODO.md`](../TODO.md) 逐项重写；一项达到「Ravo 已验收」后删除对应旧 owner。
+新所有权只进入 `Ravo/`。0.9 仍禁止配置、编译、运行。
 
 ## 单向边界
 
@@ -50,7 +50,8 @@ catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保�
 4. 只迁所需数学与行为，去除 GUI、旧生命周期、全局状态、动态 ABI 和 OpenCL 类型；
 5. 运行 unit、synthetic、legacy mapping、真实 RAW/golden、错误/取消和资源验证；
 6. 让 CLI/Studio 通过同一 services/engine 成为正式消费者；
-7. 只在 M7 产品切换后删除旧 owner。
+7. 按 [`../TODO.md`](../TODO.md) 在该项 Ravo 已验收后删除对应旧 owner，并同步
+   freeze/inventory 检查。
 
 ## “已被 Ravo 吃掉”的定义
 
@@ -60,7 +61,7 @@ catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保�
 - 承诺 fixture、service/desktop 测试和平台门槛达到阈值；
 - 历史数据迁移或显式拒绝策略已记录并测试；
 - 发行切换完成，生产构建没有第二份可达旧实现；
-- `src` 对应源码、构建、注册、配置、资源和入口已在 M7 删除；
+- `src` 对应源码、构建、注册、配置、资源和入口已按 [`../TODO.md`](../TODO.md) 删除；
 - 文档、搜索和链接图没有意外消费者或反向依赖。
 
 ## 迁移顺序
@@ -69,7 +70,7 @@ catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保�
 2. M4：metadata、评分/标签、筛选、照片版本、history 和本地工作流。
 3. M5：完整 recipe 编辑、保留 operation、mask/blend、色彩/ROI/分块与本地导出。
 4. M6：CPU 门槛后的可选 GPU adapter、性能与跨平台发布优化。
-5. M7：发行切换、数据回滚证明和冻结应用整体退役。
+5. M7：发行切换、数据回滚证明，以及 [`../TODO.md`](../TODO.md) leftover 清理。
 
 ## 迁移 ledger
 
@@ -85,9 +86,9 @@ catalog/import/viewer 软件纵切片。新所有权只进入 `Ravo/`；0.9 保�
 | Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/100%；平移与长列表仍属 M2 |
 | Catalog metadata/workflow | common/libs | domain + services | 延后 | M4 产品与数据契约 |
 | Mask/blend/operations | develop/iop | recipe + engine | 延后 | M5 每项 operation 验收 |
-| 本地导出 | imageio | services + engine/adapters | 实现中 | PNG 原子输出存在；完整 JPEG/TIFF/metadata 在 M5 |
+| 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF 取决于 Qt plugin；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
 | CLI | `src/cli` | cli | 实现中 | engine/recipe JSON 已测；catalog 命令计划在 M2 |
 | GPU | OpenCL/pixelpipe | engine adapter | 延后 | M6，CPU goldens 和收益证明后开始 |
 
-状态只使用“未开始 / 基线冻结 / 实现中 / Ravo 已验收 / 旧实现已删除 / 延后 / 不支持”。所有旧 owner
-的物理删除统一等待 M7 完整产品切换。
+状态只使用“未开始 / 基线冻结 / 实现中 / Ravo 已验收 / 旧实现已删除 / 延后 / 不支持”。旧 owner
+的物理删除以 [`../TODO.md`](../TODO.md) 该项验收为准，不是整包等到 M7。

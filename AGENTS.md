@@ -3,8 +3,8 @@
 ## 项目定位
 
 Ravo 是当前唯一可构建的产品：C++20 Engine、`ravo` CLI 与 Ravo Studio。仓库根
-`CMakeLists.txt` 只构建 `Ravo/`。冻结的 Darktable 0.9 全部放在 `legacy/`，只允许静态阅读；
-不得配置、编译、运行或修改。
+`CMakeLists.txt` 只构建 `Ravo/`。Darktable 0.9 全部放在 `legacy/`：只允许静态阅读，
+不得配置、编译或运行。删除旧实现只能按根目录 [`TODO.md`](TODO.md) 的验收门槛进行。
 
 `Ravo/` 由它自己的 `AGENTS.md` 增加约束；`FreeCM/` 是独立子模块。所有
 `build/dependency_*` 内容都是父仓库工作流生成的外部源码，不得把它们当作本仓库源码修改。
@@ -26,13 +26,13 @@ Ravo 是当前唯一可构建的产品：C++20 Engine、`ravo` CLI 与 Ravo Stud
 
 1. 运行 `git branch --show-current` 和 `git status --short --branch`，识别当前分支与用户已有改动并保留它们。
 2. 阅读与任务直接相关的源文件和文档，不根据上游 darktable 习惯猜测当前行为。
-3. 产品删减先读 `TODO_REWRITE.md` 的“0.9 冻结基线与 Ravo 承接项”；GPU 任务先读
-   `DevDocs/GPU_Baseline.md`。
+3. 产品删减先读 `TODO_REWRITE.md` 的“0.9 冻结基线与 Ravo 承接项”和根目录
+   [`TODO.md`](TODO.md)；GPU 任务先读 `DevDocs/GPU_Baseline.md`。
 4. 跨层改动先明确所有权、生命周期、线程边界和最小验证集。
 
-现有行为以冻结的 `legacy/` 和 `legacy/tests` fixture 为准；`DevDocs/` 是 Ravo 开发文档，
-`legacy/docs/` 是旧源码地图。新产品边界以 `TODO_REWRITE.md` 为准。除非用户明确重新开放 0.9，
-任务不得修改 `legacy/`。
+现有行为以剩余的 `legacy/` 和 `legacy/tests` fixture 为准；`DevDocs/` 是 Ravo 开发文档，
+`legacy/docs/` 是旧源码地图。新产品边界以 `TODO_REWRITE.md` 为准。下一阶段迁移顺序以
+[`TODO.md`](TODO.md) 为准。未达该文件「Ravo 已验收」门槛时不得修改 `legacy/`。
 
 ## Ravo 下一代边界
 
@@ -46,8 +46,9 @@ Ravo 是当前唯一可构建的产品：C++20 Engine、`ravo` CLI 与 Ravo Stud
   转发意图；SQL、codec、图像算法、业务状态和任务 owner 必须留在 C++ domain/services/engine/adapters。
 - Ravo 生产代码不得依赖 `legacy/src/` 私有头、旧库、动态 IOP、GTK 类型或全局 `darktable` 状态。验证只能
   静态读取冻结源码与 fixture；不得配置、编译或执行旧 CLI/旧测试工程。
-- 迁移期间 Ravo 与冻结的 `legacy/src` 独立并行；不创建 `legacy/src` → Ravo 或 Ravo → `legacy/src`
-  的生产依赖。只有 Ravo 全产品达到切换门槛后，才在 M7 退役阶段删除旧实现、构建项、资源、配置和重复测试。
+- 迁移期间 Ravo 与 `legacy/src` 独立并行；不创建 `legacy/src` → Ravo 或 Ravo → `legacy/src`
+  的生产依赖。对应旧实现只在 [`TODO.md`](TODO.md) 该项验收后删除；明确不迁移的 leftover
+  留到队列清空后的清理，而不是提前掏空共享解码或 GTK 壳。
 - 在 `Ravo/` 工作前必须阅读 `Ravo/AGENTS.md`、`Ravo/ARCHITECTURE.md`、`Ravo/MIGRATION.md` 和
   `Ravo/TESTING.md`。
 
@@ -55,12 +56,13 @@ Ravo 是当前唯一可构建的产品：C++20 Engine、`ravo` CLI 与 Ravo Stud
 
 - 本项目没有维护 darktable 历史插件、Lua、旧格式或旧 UI ABI 的默认义务；不要为
   已明确移除的能力增加空壳、兼容开关或迁移 shim。
-- Ravo 决定不支持某项旧功能时，先记录显式拒绝或迁移策略，不在冻结的 0.9 中提前删除。M7
-  退役旧 owner 时才同步清理构建项、注册表、资源、配置、文档和测试，并用全仓搜索确认无消费者。
-- 不维护或修改现有 GTK 前端与旧 C/C++ 核心；发现差异或缺陷时记录为 oracle 限制，不用修补 `src`
-  推进 Ravo。
-- 0.9 OpenCL 保持冻结，不在旧应用内替换为 Metal；它只在 M7 随整个旧实现退役。Ravo GPU 按
-  `TODO_REWRITE.md` M6 独立实现，不复用 OpenCL API。
+- Ravo 决定不支持某项旧功能时，先写入 [`TODO.md`](TODO.md) leftover 或 dated 产品决定，
+  不把未验收 IOP 从 `legacy/` 提前删掉充数。已验收项按该文件删除实现、注册、资源和检查，
+  并用全仓搜索确认无消费者。
+- 不维护或修补现有 GTK 前端与旧 C/C++ 核心来推进 Ravo；发现差异记为 oracle 限制。
+  允许的 `legacy/` 改动只有：按 `TODO.md` 删除已验收 owner，以及同步 freeze/inventory。
+- 0.9 OpenCL 不在旧应用内替换为 Metal。Ravo GPU 按 `TODO_REWRITE.md` M6 独立实现，
+  不复用 OpenCL API。
 - 遵循相邻 C/C++/CMake 文件的现有风格，只格式化触及的代码。不要借任务批量格式化
   遗留源码。
 - 新依赖、公共 API、线程模型、数据库 schema 和产品范围变化都应在同一变更中记录
@@ -69,11 +71,9 @@ Ravo 是当前唯一可构建的产品：C++20 Engine、`ravo` CLI 与 Ravo Stud
 
 ## 现有 UI 与核心边界
 
-- GTK 前端、dtgtk/Bauhaus 控件、Lighttable、Darkroom、导入、导出、catalog、history、masks、
-  色彩空间和 pixelpipe 保留为只读旧实现；当前 M1 catalog/import/viewer 与后续 UI/服务工作只进入
-  Ravo，不移植或修改这些旧 owner。
-- 不在旧 UI 中增加入口、运行时、工具包、adapter 或 Ravo 调用。需要的行为只通过只读源码研究和
-  已提交 fixture 取证，不运行独立旧进程。
+- GTK 前端、dtgtk/Bauhaus、Lighttable、Darkroom 仍不移植进 Ravo，也不在旧 UI 里加 Ravo 入口。
+  后续能力只在 Ravo 重写；旧 owner 仅在 [`TODO.md`](TODO.md) 验收后删除，不在 GTK 应用内改行为。
+- 需要的行为只通过只读源码研究和已提交 fixture 取证，不运行独立旧进程。
 
 ## FreeCM 与依赖源码
 

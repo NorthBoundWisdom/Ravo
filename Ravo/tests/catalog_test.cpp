@@ -21,6 +21,7 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/uri.h"
+#include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
@@ -710,6 +711,107 @@ TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingRevi
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().review.rating, 2);
     EXPECT_TRUE(listed.value().front().has_edits);
+}
+
+TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "source.jpg").string();
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(QColor(40, 120, 200));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    const auto original_hash = file_sha256(jpeg_path);
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    DevelopParams params;
+    params.exposure_ev = 0.5;
+    ASSERT_TRUE(service->save_develop(asset_id, params));
+
+    const auto png_out = (root / "out.png").string();
+    ExportRequest png;
+    png.asset_id = asset_id;
+    png.output_path = png_out;
+    png.format = ExportFormat::kPng;
+    auto exported_png = service->export_asset(png);
+    ASSERT_TRUE(exported_png) << exported_png.error().message;
+    EXPECT_EQ(exported_png.value().format, ExportFormat::kPng);
+    EXPECT_GT(exported_png.value().bytes_written, 0U);
+    EXPECT_TRUE(std::filesystem::exists(png_out));
+    QImage read_png(QString::fromStdString(png_out));
+    ASSERT_FALSE(read_png.isNull());
+    EXPECT_EQ(read_png.width(), static_cast<int>(exported_png.value().width));
+    EXPECT_EQ(read_png.height(), static_cast<int>(exported_png.value().height));
+    EXPECT_EQ(file_sha256(jpeg_path), original_hash);
+
+    auto conflict = service->export_asset(png);
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
+    EXPECT_TRUE(std::filesystem::exists(png_out));
+    const auto after_conflict = file_sha256(png_out);
+
+    const auto jpeg_out = (root / "out.jpg").string();
+    ExportRequest jpeg;
+    jpeg.asset_id = asset_id;
+    jpeg.output_path = jpeg_out;
+    jpeg.format = ExportFormat::kJpeg;
+    jpeg.jpeg_quality = 85;
+    auto exported_jpeg = service->export_asset(jpeg);
+    ASSERT_TRUE(exported_jpeg) << exported_jpeg.error().message;
+    EXPECT_TRUE(std::filesystem::exists(jpeg_out));
+    EXPECT_FALSE(QImage(QString::fromStdString(jpeg_out)).isNull());
+
+    const auto tiff_out = (root / "out.tif").string();
+    ExportRequest tiff;
+    tiff.asset_id = asset_id;
+    tiff.output_path = tiff_out;
+    tiff.format = ExportFormat::kTiff;
+    auto exported_tiff = service->export_asset(tiff);
+    if (exported_tiff)
+    {
+        EXPECT_TRUE(std::filesystem::exists(tiff_out));
+        EXPECT_FALSE(QImage(QString::fromStdString(tiff_out)).isNull());
+    }
+    else
+    {
+        EXPECT_EQ(exported_tiff.error().code, ErrorCode::kUnsupported);
+        EXPECT_FALSE(std::filesystem::exists(tiff_out));
+    }
+
+    const auto copy_out = (root / "original-copy.jpg").string();
+    ExportRequest copy;
+    copy.asset_id = asset_id;
+    copy.output_path = copy_out;
+    copy.format = ExportFormat::kOriginalCopy;
+    auto exported_copy = service->export_asset(copy);
+    ASSERT_TRUE(exported_copy) << exported_copy.error().message;
+    EXPECT_EQ(file_sha256(copy_out), original_hash);
+    EXPECT_EQ(file_sha256(jpeg_path), original_hash);
+    EXPECT_EQ(file_sha256(png_out), after_conflict);
+
+    const auto cancelled_out = (root / "cancelled.png").string();
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("test"));
+    ExportRequest cancel;
+    cancel.asset_id = asset_id;
+    cancel.output_path = cancelled_out;
+    cancel.format = ExportFormat::kPng;
+    cancel.cancellation = cancelled.token();
+    auto exported_cancel = service->export_asset(cancel);
+    ASSERT_FALSE(exported_cancel);
+    EXPECT_EQ(exported_cancel.error().code, ErrorCode::kCancelled);
+    EXPECT_FALSE(std::filesystem::exists(cancelled_out));
+    EXPECT_FALSE(std::filesystem::exists(cancelled_out + ".ravo-export-tmp"));
+
+    ExportRequest bad_quality = jpeg;
+    bad_quality.output_path = (root / "bad-quality.jpg").string();
+    bad_quality.jpeg_quality = 0;
+    auto invalid_quality = service->export_asset(bad_quality);
+    ASSERT_FALSE(invalid_quality);
+    EXPECT_EQ(invalid_quality.error().code, ErrorCode::kValidation);
+    EXPECT_FALSE(std::filesystem::exists(bad_quality.output_path));
 }
 
 } // namespace
