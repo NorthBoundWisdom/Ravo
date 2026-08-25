@@ -230,15 +230,19 @@ jobs:
           python configs/source_root_workflow.py --init
           prefix_args=(--prefix-path "${QT_ROOT_DIR}" --prefix-path "${RUNNER_TEMP}/ci-prefix")
           path_args=(--path-entry "${QT_ROOT_DIR}/bin" --path-entry "${RUNNER_TEMP}/ci-prefix/bin")
+          runtime_args=()
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             prefix_args+=(--prefix-path "$(brew --prefix)" --prefix-path "$(brew --prefix zlib)")
             path_args+=(--path-entry "$(brew --prefix)/bin")
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            runtime_args+=(--runtime-search-path "${VCToolsRedistDir}/x64/Microsoft.VC143.CRT")
           fi
           python .github/scripts/prepare_ci_lock.py \
             --repo-root . \
             --platform "${{ matrix.platform }}" \
             "${prefix_args[@]}" \
-            "${path_args[@]}"
+            "${path_args[@]}" \
+            "${runtime_args[@]}"
           python configs/source_root_workflow.py --update
           python configs/source_roots.py show --format json
           python configs/source_roots.py resolve --format json
@@ -483,15 +487,19 @@ jobs:
           python configs/source_root_workflow.py --init
           prefix_args=(--prefix-path "${QT_ROOT_DIR}" --prefix-path "${RUNNER_TEMP}/ci-prefix")
           path_args=(--path-entry "${QT_ROOT_DIR}/bin" --path-entry "${RUNNER_TEMP}/ci-prefix/bin")
+          runtime_args=()
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             prefix_args+=(--prefix-path "$(brew --prefix)" --prefix-path "$(brew --prefix zlib)")
             path_args+=(--path-entry "$(brew --prefix)/bin")
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            runtime_args+=(--runtime-search-path "${VCToolsRedistDir}/x64/Microsoft.VC143.CRT")
           fi
           python .github/scripts/prepare_ci_lock.py \
             --repo-root . \
             --platform "${{ matrix.platform }}" \
             "${prefix_args[@]}" \
-            "${path_args[@]}"
+            "${path_args[@]}" \
+            "${runtime_args[@]}"
           python configs/source_root_workflow.py --update
           python configs/source_roots.py show --format json
           python configs/source_roots.py resolve --format json

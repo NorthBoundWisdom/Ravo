@@ -29,7 +29,7 @@
     "win": {
       "CMAKE_TOOLCHAIN_FILE": "C:/Users/<user>/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "CMAKE_PREFIX_PATH": "C:/Users/<user>/vcpkg/installed/x64-windows;C:/Users/<user>/Qt/6.11.2/msvc2022_64",
-      "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS": "C:/Users/<user>/vcpkg/installed/x64-windows/bin;C:/Users/<user>/Qt/6.11.2/msvc2022_64/bin",
+      "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS": "C:/Users/<user>/vcpkg/installed/x64-windows/bin;C:/Users/<user>/Qt/6.11.2/msvc2022_64/bin;C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Redist/MSVC/<version>/x64/Microsoft.VC143.CRT",
       "CMAKE_C_COMPILER_LAUNCHER": "ccache",
       "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
     }

@@ -65,10 +65,18 @@ def cmake_path_env(entries: list[str], *, platform: str) -> str:
     return separator.join(parts)
 
 
-def package_runtime_search_paths(prefix_path: str, *, platform: str) -> str:
+def package_runtime_search_paths(
+    prefix_path: str,
+    *,
+    platform: str,
+    additional_entries: list[str] | None = None,
+) -> str:
     prefixes = normalize_path_entries([prefix_path], separator=";")
     suffixes = ("bin",) if platform == "win" else ("lib", "lib64")
-    return ";".join(f"{prefix}/{suffix}" for prefix in prefixes for suffix in suffixes)
+    paths = [f"{prefix}/{suffix}" for prefix in prefixes for suffix in suffixes]
+    if additional_entries:
+        paths.extend(normalize_path_entries(additional_entries, separator=";"))
+    return ";".join(dict.fromkeys(paths))
 
 
 def apply_ci_lock(
@@ -77,6 +85,7 @@ def apply_ci_lock(
     platform: str,
     prefix_path: str,
     path_env: str,
+    additional_runtime_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     if platform not in VALID_PLATFORMS:
         raise ValueError(f"platform must be one of {VALID_PLATFORMS}, got {platform!r}")
@@ -97,7 +106,9 @@ def apply_ci_lock(
     updated_platform = dict(platform_map)
     updated_platform["CMAKE_PREFIX_PATH"] = prefix_path
     updated_platform[PACKAGE_RUNTIME_SEARCH_PATHS_KEY] = package_runtime_search_paths(
-        prefix_path, platform=platform
+        prefix_path,
+        platform=platform,
+        additional_entries=additional_runtime_paths,
     )
     updated_platform.pop("CMAKE_TOOLCHAIN_FILE", None)
     cache[platform] = updated_platform
@@ -117,6 +128,7 @@ def assert_ci_lock(
     platform: str,
     prefix_path: str,
     path_env: str,
+    additional_runtime_paths: list[str] | None = None,
 ) -> None:
     platform_map = lock["cmakeCacheVariables"][platform]
     encoded = json.dumps(platform_map)
@@ -124,7 +136,11 @@ def assert_ci_lock(
         raise ValueError(f"CI lock still contains {USER_PLACEHOLDER!r} in {platform} cache")
     if platform_map.get("CMAKE_PREFIX_PATH") != prefix_path:
         raise ValueError("CI lock CMAKE_PREFIX_PATH does not match the requested prefixes")
-    expected_runtime_paths = package_runtime_search_paths(prefix_path, platform=platform)
+    expected_runtime_paths = package_runtime_search_paths(
+        prefix_path,
+        platform=platform,
+        additional_entries=additional_runtime_paths,
+    )
     if platform_map.get(PACKAGE_RUNTIME_SEARCH_PATHS_KEY) != expected_runtime_paths:
         raise ValueError(
             "CI lock RAVO_PACKAGE_RUNTIME_SEARCH_PATHS does not match the requested prefixes"
@@ -175,6 +191,9 @@ def self_check(repo_root: Path) -> None:
             [r"D:\a\Ravo\Qt\6.11.2\msvc2022_64\bin"],
             platform="win",
         )
+        win_runtime_paths = [
+            r"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\14.44.35112\x64\Microsoft.VC143.CRT"
+        ]
         if win_path != "D:/a/Ravo/Qt/6.11.2/msvc2022_64/bin;$penv{PATH}":
             raise ValueError(f"unexpected Windows PATH rewrite: {win_path}")
         win_lock = apply_ci_lock(
@@ -182,8 +201,15 @@ def self_check(repo_root: Path) -> None:
             platform="win",
             prefix_path=win_prefix,
             path_env=win_path,
+            additional_runtime_paths=win_runtime_paths,
         )
-        assert_ci_lock(win_lock, platform="win", prefix_path=win_prefix, path_env=win_path)
+        assert_ci_lock(
+            win_lock,
+            platform="win",
+            prefix_path=win_prefix,
+            path_env=win_path,
+            additional_runtime_paths=win_runtime_paths,
+        )
         if workspace_lock == active.resolve():
             raise ValueError("self-check must not write the workspace active lock")
     print("prepare_ci_lock self-check passed")
@@ -233,6 +259,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="append",
         default=[],
         help="cmakeEnvironment.PATH entry; Qt bin and other host tool dirs",
+    )
+    parser.add_argument(
+        "--runtime-search-path",
+        action="append",
+        default=[],
+        help="additional RAVO_PACKAGE_RUNTIME_SEARCH_PATHS entry, such as an MSVC redist directory",
     )
     parser.add_argument(
         "--lock",
@@ -285,8 +317,15 @@ def main(argv: list[str] | None = None) -> int:
         platform=args.platform,
         prefix_path=prefix_path,
         path_env=path_env,
+        additional_runtime_paths=args.runtime_search_path,
     )
-    assert_ci_lock(lock, platform=args.platform, prefix_path=prefix_path, path_env=path_env)
+    assert_ci_lock(
+        lock,
+        platform=args.platform,
+        prefix_path=prefix_path,
+        path_env=path_env,
+        additional_runtime_paths=args.runtime_search_path,
+    )
     write_lock(lock_path, lock)
     print(f"patched CI lock {lock_path}")
     return 0

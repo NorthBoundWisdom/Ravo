@@ -55,6 +55,11 @@ lock for the current machine, then run
 the generated configure presets. Ravo CMake consumes it without probing host
 package layouts; an empty value is a configuration error.
 
+Windows runtime roots must also include the active MSVC toolset's
+`x64/Microsoft.VC143.CRT` directory so FreeCM can satisfy the explicit
+`MSVCP140.dll` / `VCRUNTIME140*.dll` dependency closure. CI obtains this root
+from `VCToolsRedistDir` and writes it to the active lock before `--update`.
+
 Run the Release Config action first, then the matching FreeCM Package action.
 The direct CMake equivalent is:
 
