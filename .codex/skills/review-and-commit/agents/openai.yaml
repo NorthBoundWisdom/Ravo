@@ -1,4 +1,4 @@
 interface:
   display_name: "Review and Commit"
   short_description: "Review, validate, and commit repository changes"
-  default_prompt: "Use $review-and-commit to review all current changes, run proportional validation, and create an intentional commit."
+  default_prompt: "Use $review-and-commit. If any source-root seed is dirty, commit and push it and pin the published SHA before committing the parent repo."

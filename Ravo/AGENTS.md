@@ -90,7 +90,8 @@
   fixture 比较；不启动旧进程生成即时差分。
 - 公共头或调度广泛改动：运行完整 Ravo unit/contract、保留 fixture 和跨平台可行构建。
 - 不把未运行测试写成通过，不把 macOS 构建写成全平台通过。
-- 未经明确要求，不提交、amend、rebase 或 push。
+- 未经明确要求，不提交、amend、rebase 或 push 主仓。含 seed 改动的提交必须走根目录
+  `review-and-commit` skill：先 push 依赖仓并钉已发布 SHA，再提交主仓。
 
 Ravo 的 Windows/MSVC 构建命令和 FreeCM 项目命令分别记录在 `README.md` 与
 `../configs/freecm.commands.jsonc`；这些入口只能配置、构建、运行和测试 Ravo。

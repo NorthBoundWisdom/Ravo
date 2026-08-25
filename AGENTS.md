@@ -176,6 +176,14 @@ Ravo configure/build；当前环境缺少相应工具链时，执行可行的静
 
 ## Git 与交付
 
+- 用户要求提交（含“提交全部 diff”）时必须执行 `review-and-commit` skill：
+  Grok 读 `.grok/skills/review-and-commit/SKILL.md`，Codex 读
+  `.codex/skills/review-and-commit/SKILL.md`。不要只根据主仓 `git status` 提交。
+- 若本轮改了 seed / source-root（当前为 GeoControls、LibRaw），必须先在该依赖仓
+  提交并 push 到其 remote 默认分支，用 `git ls-remote` 确认 SHA 已在远端，再把
+  `source_roots.lock.jsonc.in` 钉到该 SHA，最后才提交主仓。禁止先提交主仓、把
+  seed 留在本机，也禁止把未发布 SHA 写入模板。依赖仓 push 属于该提交流程；主仓
+  仍默认不自动 push。
 - 提交钩子实现属于 `FreeCM/hooks/`。本仓只拥有 `hooks/path.ini.sample`、
   `hooks/install.py` 与 `hooks/README.md`。
 - 首次克隆后创建被忽略的 `hooks/path.ini` 并运行 `python3 hooks/install.py`。
@@ -183,21 +191,15 @@ Ravo configure/build；当前环境缺少相应工具链时，执行可行的静
   QML/JS；`legacy/` 与 `FreeCM/` 不在格式化范围内。
 - 提交说明使用 `[type]: description`。合法 type 见 `hooks/README.md`。
 - 钩子对任务范围内文件的纯格式化改动视为预期输出，不是外部脏改或阻断；重新暂存后继续。
-- 未经明确要求不要提交、amend、rebase 或 push。
-- 用户要求“提交全部 diff”时，先审查 staged、unstaged 和 untracked 的完整内容，区分
-  本次变更与用户已有变更，并执行与风险相称的验证。
+- 未经明确要求不要提交、amend、rebase 或 push 主仓。
 - 提交前检查 `git diff --check`、完整 diff 和 `git diff --cached`；不要意外提交本地锁、
   预设、构建产物、密钥或绝对个人路径。
 - 一个提交应表达一个可回退意图。
 - 交付说明列出结果、主要文件、实际运行的验证和仍存在的风险，不把计划中的功能说成
   已实现。
 
-## 仓库级 Codex 工作流
+## 仓库级技能
 
-`.codex/skills/` 提供三个可复用工作流：
-
-- `$build-repo`：依赖物化、配置、构建、测试与构建诊断；
-- `$review-and-commit`：完整 diff 审查、比例验证和显式提交；
-- `$context-handoff`：为长周期维护记录可继续执行的状态。
-
-调用这些工作流时仍以本文件和更深层 `AGENTS.md` 为最高仓库约束。
+- Grok：`.grok/skills/`（会自动发现并按 description 调用）。
+- Codex：`.codex/skills/`（`$build-repo`、`$review-and-commit`、`$context-handoff`）。
+- 两套 skill 正文应对齐。调用时仍以本文件和更深层 `AGENTS.md` 为最高仓库约束。
