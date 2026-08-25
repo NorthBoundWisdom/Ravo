@@ -3,8 +3,9 @@
 
 ``--init`` copies ``source_roots.lock.jsonc.in`` to the gitignored
 ``source_roots.lock.jsonc``. This script then rewrites runner paths in that
-generated lock so ``--update`` can emit presets with the CI Qt/host prefix
-and ``cmakeEnvironment.PATH``. It never overwrites the committed template.
+generated lock so ``--update`` can emit presets with the CI Qt/host prefix,
+package runtime roots, and ``cmakeEnvironment.PATH``. It never overwrites the
+committed template.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from typing import Any
 USER_PLACEHOLDER = "<user>"
 VALID_PLATFORMS = ("mac", "linux", "win")
 PENV_PATH = "$penv{PATH}"
+PACKAGE_RUNTIME_SEARCH_PATHS_KEY = "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS"
 
 
 def repo_root_from_script() -> Path:
@@ -63,6 +65,12 @@ def cmake_path_env(entries: list[str], *, platform: str) -> str:
     return separator.join(parts)
 
 
+def package_runtime_search_paths(prefix_path: str, *, platform: str) -> str:
+    prefixes = normalize_path_entries([prefix_path], separator=";")
+    suffixes = ("bin",) if platform == "win" else ("lib", "lib64")
+    return ";".join(f"{prefix}/{suffix}" for prefix in prefixes for suffix in suffixes)
+
+
 def apply_ci_lock(
     lock: dict[str, Any],
     *,
@@ -88,6 +96,9 @@ def apply_ci_lock(
         raise ValueError(f"cmakeCacheVariables.{platform} must be an object")
     updated_platform = dict(platform_map)
     updated_platform["CMAKE_PREFIX_PATH"] = prefix_path
+    updated_platform[PACKAGE_RUNTIME_SEARCH_PATHS_KEY] = package_runtime_search_paths(
+        prefix_path, platform=platform
+    )
     updated_platform.pop("CMAKE_TOOLCHAIN_FILE", None)
     cache[platform] = updated_platform
 
@@ -113,6 +124,11 @@ def assert_ci_lock(
         raise ValueError(f"CI lock still contains {USER_PLACEHOLDER!r} in {platform} cache")
     if platform_map.get("CMAKE_PREFIX_PATH") != prefix_path:
         raise ValueError("CI lock CMAKE_PREFIX_PATH does not match the requested prefixes")
+    expected_runtime_paths = package_runtime_search_paths(prefix_path, platform=platform)
+    if platform_map.get(PACKAGE_RUNTIME_SEARCH_PATHS_KEY) != expected_runtime_paths:
+        raise ValueError(
+            "CI lock RAVO_PACKAGE_RUNTIME_SEARCH_PATHS does not match the requested prefixes"
+        )
     if "CMAKE_TOOLCHAIN_FILE" in platform_map:
         raise ValueError("CI lock must not keep a developer vcpkg toolchain")
     if lock["cmakeEnvironment"].get("PATH") != path_env:

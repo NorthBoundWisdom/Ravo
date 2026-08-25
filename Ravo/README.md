@@ -56,7 +56,9 @@ python3 configs/source_root_workflow.py --update
 ```
 
 `--init` 是唯一允许联网的依赖动作；`--update` 离线物化 source roots 并生成根
-`CMakePresets.json`。普通 Build/Test/Run 不隐式代跑 Config 或依赖更新。
+`CMakePresets.json`。打包运行时路径由 active lock 的
+`RAVO_PACKAGE_RUNTIME_SEARCH_PATHS` 提供，模板只保存三平台示例。普通 Build/Test/Run 不隐式代跑
+Config 或依赖更新。
 
 macOS Debug：
 
@@ -76,6 +78,23 @@ cmake --build --preset mac_clang_release
 cmake --install build/mac_clang_release --prefix install/mac_clang_release
 ```
 
+Release package with FreeCM runtime deployment:
+
+```text
+cmake --preset mac_clang_release
+cmake --build build/mac_clang_release --target RavoPackage
+```
+
+The same target produces a Windows ZIP with `win_msvc_release` and a Linux
+AppDir tar.gz with `linux_clang_release`. `RavoPackage` includes Ravo Studio,
+the `ravo` CLI, Qt/QML runtime dependencies, and the license. Output paths and
+CI artifact ownership are documented in
+[Packaging](../DevDocs/Packaging.md).
+
+FreeCM Package follows the active Config, so both Debug and Release Configs
+have matching Package variants. Run Config before Package; tagged CI releases
+always use Release.
+
 仓库根 CMake 只构建 Ravo，不得配置、编译或运行冻结 0.9（`legacy/src/`）。
 Windows/MSVC 与本机 macOS/Clang 曾验证当前 engine/CLI 图；Linux 仍需在目标主机验证。第一版增加
 Qt Gui/Qml/Quick/Sql、QML modules、runtime plugins 和 desktop 后必须重新建立三平台结果。
@@ -83,7 +102,8 @@ Qt Gui/Qml/Quick/Sql、QML modules、runtime plugins 和 desktop 后必须重新
 ## FreeCM 项目工作流
 
 `configs/freecm.commands.jsonc` 使用 manifest v2。Debug/Release 和 Windows/macOS/Linux 是独立 Config；
-Build、Run、Test、Package 显式绑定兼容 Config，不会暗中 Configure。
+Build、Run、Test、Package 显式绑定兼容 Config，不会暗中 Configure。Release Package 直接调用
+`RavoPackage`，与 GitHub Actions 共用 FreeCM 部署路径。
 
 维护动作：
 

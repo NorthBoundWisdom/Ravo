@@ -1,0 +1,38 @@
+{
+  "app": {
+    "name": "ravo_studio",
+    "displayName": "Ravo Studio",
+    "version": "@PROJECT_VERSION@"
+  },
+  "paths": {
+    "sourceDir": "@CMAKE_SOURCE_DIR@",
+    "binaryDir": "@CMAKE_BINARY_DIR@",
+    "targetPath": "@CMAKE_CURRENT_BINARY_DIR@/desktop/ravo_studio",
+    "distDir": "@RAVO_PACKAGE_DIST_ROOT@/@RAVO_PACKAGE_DIST_NAME@"
+  },
+  "qt": {
+    "binDir": "@RAVO_PACKAGE_QT_BIN_DIR@",
+    "qmlDir": "@RAVO_PACKAGE_QML_DIR@"
+  },
+  "resources": {
+    "copyFiles": [
+      {
+        "source": "@CMAKE_CURRENT_BINARY_DIR@/cli/ravo",
+        "destinationDir": "."
+      },
+      {
+        "source": "@CMAKE_SOURCE_DIR@/LICENSE",
+        "destinationDir": "."
+      }
+    ]
+  },
+  "linux": {
+    "packageName": "Ravo-@PROJECT_VERSION@-Linux",
+    "iconFile": "@CMAKE_CURRENT_SOURCE_DIR@/desktop/icons/AppIcon.png",
+    "desktop": {
+      "categories": "Graphics;Photography;"
+    },
+    "extraLibraries": @RAVO_PACKAGE_LINUX_RUNTIME_LIBRARIES_JSON@,
+    "debugPackage": false
+  }
+}

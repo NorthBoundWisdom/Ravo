@@ -1,0 +1,40 @@
+{
+  "app": {
+    "name": "ravo_studio",
+    "displayName": "Ravo Studio",
+    "version": "@PROJECT_VERSION@"
+  },
+  "paths": {
+    "sourceDir": "@CMAKE_SOURCE_DIR@",
+    "binaryDir": "@CMAKE_BINARY_DIR@",
+    "targetPath": "@CMAKE_CURRENT_BINARY_DIR@/desktop/ravo_studio.app",
+    "distDir": "@RAVO_PACKAGE_DIST_ROOT@"
+  },
+  "qt": {
+    "binDir": "@RAVO_PACKAGE_QT_BIN_DIR@",
+    "qmlDir": "@RAVO_PACKAGE_QML_DIR@"
+  },
+  "resources": {
+    "copyFiles": [
+      {
+        "source": "@CMAKE_SOURCE_DIR@/LICENSE",
+        "destinationDir": "."
+      }
+    ]
+  },
+  "mac": {
+    "bundlePath": "@CMAKE_CURRENT_BINARY_DIR@/desktop/ravo_studio.app",
+    "deploymentTool": "qt",
+    "entitlementsFile": "@CMAKE_CURRENT_SOURCE_DIR@/desktop/macos.entitlements",
+    "additionalExecutables": [
+      "Contents/MacOS/ravo"
+    ],
+    "removeBundlePaths": [
+      "Contents/PlugIns/sqldrivers/libqsqlmimer.dylib"
+    ],
+    "dmgOutputPath": "@RAVO_PACKAGE_DIST_ROOT@/@RAVO_PACKAGE_DIST_NAME@.dmg",
+    "dmgVolumeName": "Ravo Studio",
+    "verifyBundledQt": true,
+    "librarySearchPaths": @RAVO_PACKAGE_RUNTIME_SEARCH_PATHS_JSON@
+  }
+}

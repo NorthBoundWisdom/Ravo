@@ -66,6 +66,11 @@ python3 configs/source_roots.py verify
 应用公共值，再叠加当前主机的 `win`、`mac` 或 `linux` map。个人 SDK 位置、临时工具路径和只适用于
 一个 checkout 的开关应留在活动锁或外部工具链环境；只有团队评审过的跨机器默认值才进入模板。
 
+Ravo 打包使用同一机制：`cmakeCacheVariables.<platform>.RAVO_PACKAGE_RUNTIME_SEARCH_PATHS` 是当前
+机器可部署动态库目录的分号列表。受版本控制的模板只给出三平台路径形状；开发者必须在 active lock
+中替换 `<user>`、Qt kit 和包管理器路径，再运行 `--update`。Ravo CMake 不从 `CMAKE_PREFIX_PATH`、
+Zlib/PNG imported target 或宿主默认目录猜测这些路径；缺失时 Config 直接失败。
+
 如果活动锁显式定义 `cmakeCacheVariables.CMAKE_PREFIX_PATH`，它会完全取代 FreeCM 自动生成的 managed
 dependency install prefixes；不要把它当作自动追加项。`--update` 解析出的 source-root 环境变量则会覆盖
 同名 `cmakeEnvironment` 值，确保 pinned 与 manual root 按实际解析结果进入 preset。修改这些字段后同样
@@ -256,8 +261,9 @@ path 变化后总要重新执行 `--update`，否则现有 `CMakePresets.json` �
 ## GitHub Actions
 
 `.github/workflows/ci.yml` 在干净 runner 上走和本机相同的 FreeCM 路径：先 `--init`
-从模板生成被忽略的活动锁，再改写该锁里当前平台的 `CMAKE_PREFIX_PATH` 与
-`cmakeEnvironment.PATH`（Qt bin 与 host prefix），然后 `--update` 生成 preset。
+从模板生成被忽略的活动锁，再改写该锁里当前平台的 `CMAKE_PREFIX_PATH`、
+`RAVO_PACKAGE_RUNTIME_SEARCH_PATHS` 与 `cmakeEnvironment.PATH`（Qt bin 与 host prefix），然后
+`--update` 生成 preset。
 三端都用 `cmake --build build/<preset>`：Linux 的生成 build preset 名叫
 `ClangDebug`，Windows gtest discovery 需要继承 runner 上已写入锁和 `Path` 的 Qt bin。
 模板 `source_roots.lock.jsonc.in`、本机活动锁和生成的 `CMakePresets.json` 都不作为

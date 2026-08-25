@@ -1,0 +1,35 @@
+{
+  "app": {
+    "name": "ravo_studio",
+    "displayName": "Ravo Studio",
+    "version": "@PROJECT_VERSION@"
+  },
+  "paths": {
+    "sourceDir": "@CMAKE_SOURCE_DIR@",
+    "binaryDir": "@CMAKE_BINARY_DIR@",
+    "targetPath": "@CMAKE_CURRENT_BINARY_DIR@/desktop/ravo_studio.exe",
+    "distDir": "@RAVO_PACKAGE_DIST_ROOT@/@RAVO_PACKAGE_DIST_NAME@"
+  },
+  "qt": {
+    "binDir": "@RAVO_PACKAGE_QT_BIN_DIR@",
+    "qmlDir": "@RAVO_PACKAGE_QML_DIR@"
+  },
+  "resources": {
+    "copyFiles": [
+      {
+        "source": "@CMAKE_CURRENT_BINARY_DIR@/cli/ravo.exe",
+        "destinationDir": "."
+      },
+      {
+        "source": "@CMAKE_SOURCE_DIR@/LICENSE",
+        "destinationDir": "."
+      }
+    ]
+  },
+  "windows": {
+    "windeployqt": "@RAVO_PACKAGE_QT_BIN_DIR@/windeployqt.exe",
+    "dllSearchPaths": @RAVO_PACKAGE_RUNTIME_SEARCH_PATHS_JSON@,
+    "requiredDlls": [],
+    "optionalDlls": []
+  }
+}

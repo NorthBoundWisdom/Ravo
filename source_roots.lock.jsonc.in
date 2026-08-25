@@ -10,21 +10,26 @@
   "cmakeCacheVariables": {
     // Copy these platform maps into the machine-local source_roots.lock.jsonc and
     // replace <user> plus the Qt kit version before Config. Do not leave <user> in
-    // the active lock; CMake would treat it as a literal path. The workflow still
-    // prepends managed dependency installs to CMAKE_PREFIX_PATH.
+    // the active lock; CMake would treat it as a literal path. Package runtime
+    // search roots must point at directories containing deployable dylib/DLL/SO
+    // files. Run --update after every active-lock change so the values reach the
+    // generated CMake presets.
     "mac": {
-      "CMAKE_PREFIX_PATH": "/Users/<user>/vcpkg/installed/arm64-osx;/Users/<user>/vcpkg/installed/arm64-osx/debug;/Users/<user>/Qt/6.11.2/macos;/opt/homebrew",
+      "CMAKE_PREFIX_PATH": "/Users/<user>/vcpkg/installed/arm64-osx;/Users/<user>/vcpkg/installed/arm64-osx/debug;/Users/<user>/Qt/6.11.2/macos;/opt/homebrew;/opt/homebrew/opt/zlib",
+      "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS": "/Users/<user>/vcpkg/installed/arm64-osx/lib;/Users/<user>/vcpkg/installed/arm64-osx/debug/lib;/Users/<user>/Qt/6.11.2/macos/lib;/opt/homebrew/lib;/opt/homebrew/opt/zlib/lib",
       "CMAKE_C_COMPILER_LAUNCHER": "ccache",
       "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
     },
     "linux": {
       "CMAKE_PREFIX_PATH": "/home/<user>/vcpkg/installed/x64-linux;/home/<user>/Qt/6.11.2/gcc_64;/usr/local",
+      "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS": "/home/<user>/vcpkg/installed/x64-linux/lib;/home/<user>/Qt/6.11.2/gcc_64/lib;/usr/local/lib;/usr/local/lib64",
       "CMAKE_C_COMPILER_LAUNCHER": "ccache",
       "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
     },
     "win": {
       "CMAKE_TOOLCHAIN_FILE": "C:/Users/<user>/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "CMAKE_PREFIX_PATH": "C:/Users/<user>/vcpkg/installed/x64-windows;C:/Users/<user>/Qt/6.11.2/msvc2022_64",
+      "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS": "C:/Users/<user>/vcpkg/installed/x64-windows/bin;C:/Users/<user>/Qt/6.11.2/msvc2022_64/bin",
       "CMAKE_C_COMPILER_LAUNCHER": "ccache",
       "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
     }

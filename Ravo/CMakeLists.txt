@@ -146,3 +146,125 @@ if(WIN32)
       PATTERN "*.dll"
       PATTERN "CMakeFiles" EXCLUDE)
 endif()
+
+# Release deployment is owned by FreeCM. Ravo supplies only the product
+# targets, platform metadata, and dependency search roots.
+include("${CMAKE_SOURCE_DIR}/FreeCM/repomgrcpp/cmake/CppKitPackage.cmake")
+
+cppkit_qt_bin_dir(RAVO_PACKAGE_QT_BIN_DIR)
+set(RAVO_PACKAGE_QML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/desktop/qml")
+set(RAVO_PACKAGE_DIST_ROOT "${CMAKE_BINARY_DIR}/dist")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/package")
+
+set(RAVO_PACKAGE_RUNTIME_SEARCH_PATHS "" CACHE STRING
+  "Runtime library directories supplied by the active FreeCM lock")
+if(NOT RAVO_PACKAGE_RUNTIME_SEARCH_PATHS)
+  message(FATAL_ERROR
+    "RAVO_PACKAGE_RUNTIME_SEARCH_PATHS is required; update the active source-roots lock and run --update")
+endif()
+set(_ravo_package_runtime_search_paths
+  ${RAVO_PACKAGE_RUNTIME_SEARCH_PATHS})
+list(REMOVE_DUPLICATES _ravo_package_runtime_search_paths)
+cppkit_json_string_array(
+  RAVO_PACKAGE_RUNTIME_SEARCH_PATHS_JSON
+  _ravo_package_runtime_search_paths)
+
+if(APPLE)
+  set(RAVO_PACKAGE_DIST_NAME "Ravo-Studio-${PROJECT_VERSION}-macOS")
+  set(RAVO_PACKAGE_CONFIG "${CMAKE_BINARY_DIR}/package/package_mac.json")
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/configs/package_mac.json.in"
+    "${RAVO_PACKAGE_CONFIG}"
+    @ONLY)
+
+  add_custom_target(RavoPackagePayload
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+      "$<TARGET_BUNDLE_DIR:ravo_studio>/Contents/MacOS"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE:ravo>"
+      "$<TARGET_BUNDLE_DIR:ravo_studio>/Contents/MacOS/ravo"
+    DEPENDS ravo ravo_studio
+    COMMENT "Adding the ravo CLI to the Ravo Studio bundle"
+    VERBATIM)
+  set_target_properties(RavoPackagePayload PROPERTIES FOLDER "Deployment")
+
+  cppkit_add_package_deploy(ravo_studio
+    CONFIG "${RAVO_PACKAGE_CONFIG}"
+    PLATFORM mac
+    TARGET_NAME RavoDeploy
+    DEPENDS RavoPackagePayload)
+  add_custom_target(RavoPackage DEPENDS RavoDeploy)
+elseif(WIN32)
+  set(RAVO_PACKAGE_DIST_NAME "Ravo-${PROJECT_VERSION}-Windows")
+  set(RAVO_PACKAGE_CONFIG "${CMAKE_BINARY_DIR}/package/package_win.json")
+  set(RAVO_PACKAGE_ARCHIVE
+    "${CMAKE_BINARY_DIR}/package/${RAVO_PACKAGE_DIST_NAME}.zip")
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/configs/package_win.json.in"
+    "${RAVO_PACKAGE_CONFIG}"
+    @ONLY)
+
+  cppkit_add_package_deploy(ravo_studio
+    CONFIG "${RAVO_PACKAGE_CONFIG}"
+    PLATFORM win
+    TARGET_NAME RavoDeploy
+    DEPENDS ravo)
+  add_custom_target(RavoPackage
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${RAVO_PACKAGE_ARCHIVE}"
+    COMMAND ${CMAKE_COMMAND} -E tar cf "${RAVO_PACKAGE_ARCHIVE}"
+      --format=zip "${RAVO_PACKAGE_DIST_NAME}"
+    WORKING_DIRECTORY "${RAVO_PACKAGE_DIST_ROOT}"
+    DEPENDS RavoDeploy
+    COMMENT "Creating ${RAVO_PACKAGE_ARCHIVE}"
+    VERBATIM)
+elseif(UNIX)
+  set(RAVO_PACKAGE_DIST_NAME "Ravo-${PROJECT_VERSION}-Linux.AppDir")
+  set(RAVO_PACKAGE_CONFIG "${CMAKE_BINARY_DIR}/package/package_linux.json")
+  set(RAVO_PACKAGE_ARCHIVE
+    "${CMAKE_BINARY_DIR}/package/Ravo-${PROJECT_VERSION}-Linux.tar.gz")
+
+  set(_ravo_linux_runtime_libraries "")
+  foreach(_ravo_library_dir IN LISTS _ravo_package_runtime_search_paths)
+    file(GLOB _ravo_prefix_runtime_libraries LIST_DIRECTORIES FALSE
+      "${_ravo_library_dir}/libQt6*.so"
+      "${_ravo_library_dir}/libQt6*.so.*"
+      "${_ravo_library_dir}/libpng*.so"
+      "${_ravo_library_dir}/libpng*.so.*"
+      "${_ravo_library_dir}/libquill*.so"
+      "${_ravo_library_dir}/libquill*.so.*"
+      "${_ravo_library_dir}/libsqlite3.so"
+      "${_ravo_library_dir}/libsqlite3.so.*"
+      "${_ravo_library_dir}/libz.so"
+      "${_ravo_library_dir}/libz.so.*")
+    list(APPEND _ravo_linux_runtime_libraries
+      ${_ravo_prefix_runtime_libraries})
+  endforeach()
+  list(REMOVE_DUPLICATES _ravo_linux_runtime_libraries)
+  if(NOT _ravo_linux_runtime_libraries)
+    message(FATAL_ERROR
+      "Ravo packaging could not find runtime libraries under RAVO_PACKAGE_RUNTIME_SEARCH_PATHS")
+  endif()
+  cppkit_json_string_array(
+    RAVO_PACKAGE_LINUX_RUNTIME_LIBRARIES_JSON
+    _ravo_linux_runtime_libraries)
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/configs/package_linux.json.in"
+    "${RAVO_PACKAGE_CONFIG}"
+    @ONLY)
+
+  cppkit_add_package_deploy(ravo_studio
+    CONFIG "${RAVO_PACKAGE_CONFIG}"
+    PLATFORM linux
+    TARGET_NAME RavoDeploy
+    DEPENDS ravo)
+  add_custom_target(RavoPackage
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${RAVO_PACKAGE_ARCHIVE}"
+    COMMAND ${CMAKE_COMMAND} -E tar czf "${RAVO_PACKAGE_ARCHIVE}"
+      "${RAVO_PACKAGE_DIST_NAME}"
+    WORKING_DIRECTORY "${RAVO_PACKAGE_DIST_ROOT}"
+    DEPENDS RavoDeploy
+    COMMENT "Creating ${RAVO_PACKAGE_ARCHIVE}"
+    VERBATIM)
+endif()
+
+set_target_properties(RavoPackage PROPERTIES FOLDER "Deployment")
