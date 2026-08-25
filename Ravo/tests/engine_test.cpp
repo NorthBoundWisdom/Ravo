@@ -106,6 +106,21 @@ TEST(EngineFacadeTest, CancelledRequestsNeverReachRendering)
     EXPECT_EQ(rendered.error().code, ErrorCode::kCancelled);
 }
 
+TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)
+{
+    std::uint32_t width = 9504;
+    std::uint32_t height = 6336;
+    apply_display_rotation_to_size(width, height, 3);
+    EXPECT_EQ(width, 6336U);
+    EXPECT_EQ(height, 9504U);
+    apply_display_rotation_to_size(width, height, 0);
+    EXPECT_EQ(width, 6336U);
+    EXPECT_EQ(height, 9504U);
+    apply_display_rotation_to_size(width, height, 2);
+    EXPECT_EQ(width, 6336U);
+    EXPECT_EQ(height, 9504U);
+}
+
 TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)
 {
     const auto engine = EngineFacade::create_phase1();

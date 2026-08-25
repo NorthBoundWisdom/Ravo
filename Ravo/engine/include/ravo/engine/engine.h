@@ -86,10 +86,27 @@ struct RgbParade
 [[nodiscard]] Result<RgbHistogram> collect_rgb_histogram(const RasterBuffer &raster);
 [[nodiscard]] Result<RgbParade> collect_rgb_parade(const RasterBuffer &raster);
 
+[[nodiscard]] inline int normalized_rotate_quarters(const int quarters) noexcept
+{
+    return ((quarters % 4) + 4) % 4;
+}
+
+inline void apply_display_rotation_to_size(std::uint32_t &width, std::uint32_t &height,
+                                           const int rotate_quarters) noexcept
+{
+    if (normalized_rotate_quarters(rotate_quarters) % 2 != 0)
+    {
+        const auto swapped = width;
+        width = height;
+        height = swapped;
+    }
+}
+
 struct DecodedRaw
 {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    int rotate_quarters = 0;
     std::uint32_t cfa_width = 0;
     std::uint32_t cfa_height = 0;
     std::int32_t black_level = 0;
@@ -123,6 +140,7 @@ struct EmbeddedPreview
     std::string mime_type;
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    int rotate_quarters = 0;
     std::vector<std::uint8_t> bytes;
 };
 

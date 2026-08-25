@@ -78,6 +78,22 @@ namespace
     return decoder;
 }
 
+// LibRaw/dcraw flip: 0 none, 3 180°, 5 90° CCW, 6 90° CW.
+[[nodiscard]] int clockwise_quarters_from_libraw_flip(const int flip) noexcept
+{
+    switch (flip)
+    {
+    case 3:
+        return 2;
+    case 5:
+        return 3;
+    case 6:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 } // namespace
 
 Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::string_view input_uri)
@@ -95,6 +111,8 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
     result.model = raw.idata.model;
     result.width = static_cast<std::uint32_t>(raw.sizes.width);
     result.height = static_cast<std::uint32_t>(raw.sizes.height);
+    apply_display_rotation_to_size(result.width, result.height,
+                                   clockwise_quarters_from_libraw_flip(raw.sizes.flip));
     result.is_raw = true;
     if (raw.other.iso_speed > 0.0F)
     {
@@ -178,6 +196,18 @@ Result<EmbeddedPreview> copy_unpacked_jpeg_thumb(LibRaw &decoder, const std::str
     preview.mime_type = "image/jpeg";
     preview.width = static_cast<std::uint32_t>(thumb.twidth);
     preview.height = static_cast<std::uint32_t>(thumb.theight);
+    const int quarters = clockwise_quarters_from_libraw_flip(decoder.imgdata.sizes.flip);
+    const bool jpeg_portrait = preview.height > preview.width;
+    const bool sensor_portrait = decoder.imgdata.sizes.height > decoder.imgdata.sizes.width;
+    if (quarters % 2 != 0 && jpeg_portrait != sensor_portrait)
+    {
+        preview.rotate_quarters = 0;
+    }
+    else
+    {
+        preview.rotate_quarters = quarters;
+        apply_display_rotation_to_size(preview.width, preview.height, quarters);
+    }
     const auto *begin = reinterpret_cast<const std::uint8_t *>(thumb.thumb);
     preview.bytes.assign(begin, begin + thumb.tlength);
     return preview;
@@ -293,6 +323,7 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     DecodedRaw result;
     result.width = sizes.width;
     result.height = sizes.height;
+    result.rotate_quarters = clockwise_quarters_from_libraw_flip(sizes.flip);
     result.black_level = static_cast<std::int32_t>(
         std::min(raw.color.black, static_cast<unsigned>(std::numeric_limits<std::int32_t>::max())));
     result.white_level = raw.color.maximum > 0 ? raw.color.maximum : 65535U;
@@ -348,8 +379,11 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
 
 Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &request)
 {
-    const std::uint32_t width = request.output_width.value_or(raw.width);
-    const std::uint32_t height = request.output_height.value_or(raw.height);
+    std::uint32_t default_width = raw.width;
+    std::uint32_t default_height = raw.height;
+    apply_display_rotation_to_size(default_width, default_height, raw.rotate_quarters);
+    const std::uint32_t width = request.output_width.value_or(default_width);
+    const std::uint32_t height = request.output_height.value_or(default_height);
     const std::uint64_t output_bytes = static_cast<std::uint64_t>(width) * height * 3U;
     const std::uint64_t working_bytes =
         output_bytes + static_cast<std::uint64_t>(raw.pixels.size()) * sizeof(std::uint16_t);
@@ -378,8 +412,7 @@ Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &req
     {
         return working.error();
     }
-    auto adjusted =
-        apply_recipe_ops(std::move(working).value(), rgb_recipe, request.cancellation);
+    auto adjusted = apply_recipe_ops(std::move(working).value(), rgb_recipe, request.cancellation);
     if (!adjusted)
     {
         return adjusted.error();

@@ -5,6 +5,7 @@
 #include <system_error>
 #include <vector>
 
+#include <QBuffer>
 #include <QByteArray>
 #include <QColor>
 #include <QCoreApplication>
@@ -215,6 +216,29 @@ TEST_F(CatalogServiceTest, ImportPngAndRawThenReopenPreview)
     auto previewed_again = service->request_preview(reopen_preview);
     ASSERT_TRUE(previewed_again) << previewed_again.error().message;
     EXPECT_TRUE(std::filesystem::exists(previewed_again.value().cache_path));
+}
+
+TEST(QtRasterDecoderTest, DecodeMemoryAppliesClockwiseQuarterTurnsWithoutExif)
+{
+    QImage source(32, 16, QImage::Format_RGB888);
+    source.fill(QColor(12, 80, 200));
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    ASSERT_TRUE(buffer.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(source.save(&buffer, "JPEG", 95));
+    buffer.close();
+    std::vector<std::uint8_t> bytes(encoded.cbegin(), encoded.cend());
+
+    QtRasterDecoder decoder;
+    auto identity = decoder.decode_memory(bytes, 64, CancellationToken{}, 0);
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_EQ(identity.value().width, 32U);
+    EXPECT_EQ(identity.value().height, 16U);
+
+    auto rotated = decoder.decode_memory(bytes, 64, CancellationToken{}, 3);
+    ASSERT_TRUE(rotated) << rotated.error().message;
+    EXPECT_EQ(rotated.value().width, 16U);
+    EXPECT_EQ(rotated.value().height, 32U);
 }
 
 TEST_F(CatalogServiceTest, RawImportCachesEmbeddedThumbnailSeparatelyFromProcessedPreview)

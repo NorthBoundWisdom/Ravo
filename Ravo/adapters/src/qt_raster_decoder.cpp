@@ -9,6 +9,7 @@
 #include <QtGui/QImageIOHandler>
 #include <QtGui/QImageReader>
 #include <QtGui/QImageWriter>
+#include <QtGui/QTransform>
 
 namespace ravo
 {
@@ -98,6 +99,18 @@ namespace
         size.transpose();
     }
     return size;
+}
+
+[[nodiscard]] QImage apply_display_rotation(QImage image, const int rotate_quarters)
+{
+    const int turns = ((rotate_quarters % 4) + 4) % 4;
+    if (turns == 0 || image.isNull())
+    {
+        return image;
+    }
+    QTransform transform;
+    transform.rotate(static_cast<qreal>(turns) * 90.0);
+    return image.transformed(transform, Qt::FastTransformation);
 }
 
 void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge)
@@ -220,7 +233,8 @@ Result<EncodedPng> QtRasterDecoder::decode(const std::string_view path,
 
 Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t> &encoded,
                                                   const std::uint32_t max_edge,
-                                                  const CancellationToken &cancellation) const
+                                                  const CancellationToken &cancellation,
+                                                  const int rotate_quarters) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -242,15 +256,14 @@ Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t
     QImageReader reader(&buffer);
     reader.setAutoTransform(true);
     apply_scaled_decode_size(reader, max_edge);
-    return encode_preview(reader.read(), max_edge, cancellation, "memory");
+    return encode_preview(apply_display_rotation(reader.read(), rotate_quarters), max_edge,
+                          cancellation, "memory");
 }
 
-Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(const std::uint32_t width,
-                                                          const std::uint32_t height,
-                                                          const std::vector<std::uint8_t> &rgb,
-                                                          const ExportFormat format,
-                                                          const int jpeg_quality,
-                                                          const CancellationToken &cancellation) const
+Result<std::vector<std::uint8_t>>
+QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
+                        const std::vector<std::uint8_t> &rgb, const ExportFormat format,
+                        const int jpeg_quality, const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -291,7 +304,8 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(const std::uint32_t wi
     }
     if (!QImageWriter::supportedImageFormats().contains(format_id))
     {
-        return make_error(ErrorCode::kUnsupported, "Export format is not available in this Qt build",
+        return make_error(ErrorCode::kUnsupported,
+                          "Export format is not available in this Qt build",
                           {{"format", std::string(export_format_name(format))}});
     }
     QImage image(rgb.data(), static_cast<int>(width), static_cast<int>(height),

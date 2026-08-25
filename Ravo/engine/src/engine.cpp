@@ -142,7 +142,7 @@ Result<RenderResult> EngineFacade::render(const RenderRequest &request,
 }
 
 Result<DecodedRaw> EngineFacade::decode_raw_frame(const std::string_view input_uri,
-                                                 const CancellationToken &cancellation) const
+                                                  const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -253,8 +253,11 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     {
         return decoded.error();
     }
-    const std::uint32_t width = request.output_width.value_or(decoded.value().width);
-    const std::uint32_t height = request.output_height.value_or(decoded.value().height);
+    std::uint32_t default_width = decoded.value().width;
+    std::uint32_t default_height = decoded.value().height;
+    apply_display_rotation_to_size(default_width, default_height, decoded.value().rotate_quarters);
+    const std::uint32_t width = request.output_width.value_or(default_width);
+    const std::uint32_t height = request.output_height.value_or(default_height);
     const std::uint64_t output_bytes = static_cast<std::uint64_t>(width) * height * 3U;
     const std::uint64_t working_bytes =
         output_bytes +

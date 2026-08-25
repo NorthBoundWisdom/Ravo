@@ -7,7 +7,7 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 当前实现状态：
 
 - 已完成 foundation/recipe/engine/adapters/CLI/test 骨架和版本化 JSON/错误契约；
-- `ravo inspect` 可读取 LibRaw 支持的首个 16-bit Bayer RAW 切片；
+- `ravo inspect` 可读取 LibRaw 支持的首个 16-bit Bayer RAW 切片，宽高为相机方向下的显示尺寸；
 - `ravo render` 可执行 nop 与 `ravo.core.exposure`，完成裁剪、black/white 归一化、camera WB、
   LibRaw camera-to-sRGB、基础 3×3 Bayer 插值、sRGB 编码和原子 PNG 输出；
 - legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
@@ -21,6 +21,7 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
   Studio 保存/重开收口。macOS Debug 已跑通无 UI create/import/preview/recipe/reopen。
 - RAW preview/export 以 `ravo.display.sigmoid` v1 作为唯一 Standard SDR 显示变换；
   recipe 可调 contrast/skew/hue preservation，默认基线不标记为用户编辑。
+  Gallery 内嵌 JPEG 缩略图与 inspect 尺寸按相机方向转正。
   Configure 强制要求 JPEG/GIF/WebP/TIFF imageformat plugins 与 QSQLITE driver；缺失直接阻断。
 
 当前 legacy 迁移执行顺序见

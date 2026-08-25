@@ -54,14 +54,24 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     {
         return cancelled.error();
     }
+    AssetRecord catalog_asset = asset;
+    if (embedded.width > 0 && embedded.height > 0 && catalog_asset.width && catalog_asset.height &&
+        (*catalog_asset.width >= *catalog_asset.height) != (embedded.width >= embedded.height))
+    {
+        const auto previous_width = catalog_asset.width;
+        catalog_asset.width = catalog_asset.height;
+        catalog_asset.height = previous_width;
+        static_cast<void>(repository_->update_asset(catalog_asset));
+    }
     std::uint32_t width = 0;
     std::uint32_t height = 0;
-    fit_within_max_edge(asset.width.value_or(0), asset.height.value_or(0), max_edge, width, height);
+    fit_within_max_edge(catalog_asset.width.value_or(0), catalog_asset.height.value_or(0), max_edge,
+                        width, height);
     const auto fingerprint = asset.content_fingerprint.value_or("none");
-    const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
+    const auto cache_key = make_preview_cache_key(catalog_asset.id, width, height, fingerprint,
                                                   kEmbeddedBrowsePreviewDigest);
     PreviewResult result;
-    result.asset_id = asset.id;
+    result.asset_id = catalog_asset.id;
     result.cache_key = cache_key;
     auto existing = cache_->existing_png(cache_key);
     if (!existing)
@@ -74,7 +84,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
         result.width = width;
         result.height = height;
         PreviewRecord record;
-        record.asset_id = asset.id;
+        record.asset_id = catalog_asset.id;
         record.cache_key = cache_key;
         record.width = width;
         record.height = height;
@@ -85,7 +95,8 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
         return result;
     }
 
-    auto encoded = raster_->decode_memory(embedded.bytes, max_edge, cancellation);
+    auto encoded =
+        raster_->decode_memory(embedded.bytes, max_edge, cancellation, embedded.rotate_quarters);
     if (!encoded)
     {
         return encoded.error();
@@ -99,7 +110,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     result.width = encoded.value().width;
     result.height = encoded.value().height;
     PreviewRecord record;
-    record.asset_id = asset.id;
+    record.asset_id = catalog_asset.id;
     record.cache_key = cache_key;
     record.width = result.width;
     record.height = result.height;
@@ -203,9 +214,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             static_cast<void>(repository_->upsert_preview(record));
             return result;
         }
-        auto extracted =
-            engine_->extract_embedded_preview(location.value().path, request.max_edge,
-                                              request.cancellation);
+        auto extracted = engine_->extract_embedded_preview(location.value().path, request.max_edge,
+                                                           request.cancellation);
         if (extracted)
         {
             auto persisted = persist_embedded_browse_preview(
@@ -216,15 +226,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                 persisted.value().original_missing = false;
                 return persisted;
             }
-            LOG_INFO(ravo::logger(),
-                     "embedded browse preview persist failed asset={} error={}", asset.id,
-                     persisted.error().message);
+            LOG_INFO(ravo::logger(), "embedded browse preview persist failed asset={} error={}",
+                     asset.id, persisted.error().message);
         }
         else
         {
-            LOG_INFO(ravo::logger(),
-                     "embedded browse preview unavailable asset={} error={}", asset.id,
-                     extracted.error().message);
+            LOG_INFO(ravo::logger(), "embedded browse preview unavailable asset={} error={}",
+                     asset.id, extracted.error().message);
         }
     }
     auto baseline_recipe = baseline_recipe_for(working, location.value().path);
@@ -505,10 +513,11 @@ Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &a
     return &decoded_raw_->raw;
 }
 
-Result<const LinearWorkingBuffer *> CatalogService::cached_linear_working(
-    const AssetRecord &asset, const std::string_view path, const Recipe &recipe,
-    const std::uint32_t width, const std::uint32_t height, const std::uint32_t max_edge,
-    const CancellationToken &cancellation)
+Result<const LinearWorkingBuffer *>
+CatalogService::cached_linear_working(const AssetRecord &asset, const std::string_view path,
+                                      const Recipe &recipe, const std::uint32_t width,
+                                      const std::uint32_t height, const std::uint32_t max_edge,
+                                      const CancellationToken &cancellation)
 {
     if (engine_ == nullptr)
     {
@@ -594,7 +603,8 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
         auto embedded = engine_->extract_embedded_preview(path, max_edge, cancellation);
         if (embedded)
         {
-            auto decoded = raster_->decode_memory(embedded.value().bytes, max_edge, cancellation);
+            auto decoded = raster_->decode_memory(embedded.value().bytes, max_edge, cancellation,
+                                                  embedded.value().rotate_quarters);
             if (!decoded)
             {
                 return decoded.error();

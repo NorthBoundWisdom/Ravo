@@ -1972,26 +1972,31 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     {
         return make_error(ErrorCode::kInvalidArgument, "Render output dimensions must be non-zero");
     }
+    const int turns = normalized_rotate_quarters(raw.rotate_quarters);
+    std::uint32_t demosaic_width = width;
+    std::uint32_t demosaic_height = height;
+    apply_display_rotation_to_size(demosaic_width, demosaic_height, turns);
     WorkingImage image;
-    image.width = width;
-    image.height = height;
-    image.rgb.resize(static_cast<std::size_t>(width) * height * 3U);
+    image.width = demosaic_width;
+    image.height = demosaic_height;
+    image.rgb.resize(static_cast<std::size_t>(demosaic_width) * demosaic_height * 3U);
     const float denominator = static_cast<float>(
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
 
     auto rows = for_each_row(
-        height, cancellation,
+        demosaic_height, cancellation,
         [&](const std::uint32_t output_y)
         {
             const std::uint32_t source_y =
                 std::min(raw.height - 1, static_cast<std::uint32_t>(
                                              static_cast<std::uint64_t>(output_y) * raw.height /
-                                             height));
-            for (std::uint32_t output_x = 0; output_x < width; ++output_x)
+                                             demosaic_height));
+            for (std::uint32_t output_x = 0; output_x < demosaic_width; ++output_x)
             {
                 const std::uint32_t source_x = std::min(
-                    raw.width - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) *
-                                                              raw.width / width));
+                    raw.width - 1,
+                    static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) * raw.width /
+                                               demosaic_width));
                 std::array<float, 3> sum{};
                 std::array<std::uint32_t, 3> count{};
                 for (int offset_y = -1; offset_y <= 1; ++offset_y)
@@ -2024,7 +2029,7 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                                           raw.white_balance[channel];
                 }
                 const std::size_t output_index =
-                    (static_cast<std::size_t>(output_y) * width + output_x) * 3U;
+                    (static_cast<std::size_t>(output_y) * demosaic_width + output_x) * 3U;
                 for (std::size_t output_channel = 0; output_channel < 3; ++output_channel)
                 {
                     float linear = 0.0F;
@@ -2041,7 +2046,11 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     {
         return rows.error();
     }
-    return image;
+    if (turns == 0)
+    {
+        return image;
+    }
+    return rotate_working(std::move(image), turns);
 }
 
 Result<WorkingImage> working_from_srgb8(const RasterBuffer &raster)
