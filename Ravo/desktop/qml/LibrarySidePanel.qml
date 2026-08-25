@@ -5,7 +5,7 @@ import GeoControls 1.0
 Rectangle {
     id: root
     property var presenter
-    color: Theme.contentSurfaceColor
+    color: Theme.railSurfaceColor
 
     ColumnLayout {
         anchors.fill: parent
@@ -88,13 +88,5 @@ Rectangle {
                 }
             }
         }
-    }
-
-    Rectangle {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        width: 1
-        color: Theme.dividerColor
     }
 }

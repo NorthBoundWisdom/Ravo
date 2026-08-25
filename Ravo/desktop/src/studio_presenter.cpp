@@ -2,6 +2,7 @@
 #include "ravo/desktop/studio_commands.h"
 
 #include <algorithm>
+#include <unordered_set>
 #include <utility>
 
 #include <QDir>
@@ -12,6 +13,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariant>
+#include <QVariantMap>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
@@ -201,6 +203,8 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         return asset.height.value_or(0);
     case HasEditsRole:
         return asset.has_edits;
+    case SelectedRole:
+        return selected_ids_.contains(asset.id);
     default:
         return {};
     }
@@ -214,7 +218,7 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
             {ColorLabelRole, "colorLabel"},     {RejectedRole, "rejected"},
             {ThumbnailUrlRole, "thumbnailUrl"}, {ThumbnailStateRole, "thumbnailState"},
             {WidthRole, "pixelWidth"},          {HeightRole, "pixelHeight"},
-            {HasEditsRole, "hasEdits"}};
+            {HasEditsRole, "hasEdits"},         {SelectedRole, "selected"}};
 }
 
 void AssetListModel::setAssets(std::vector<AssetRecord> assets)
@@ -236,6 +240,15 @@ void AssetListModel::setAssets(std::vector<AssetRecord> assets)
     }
     thumbnail_urls_ = std::move(kept_urls);
     thumbnail_states_ = std::move(kept_states);
+    std::unordered_set<std::string> kept_selected;
+    for (const auto &asset : assets_)
+    {
+        if (selected_ids_.contains(asset.id))
+        {
+            kept_selected.insert(asset.id);
+        }
+    }
+    selected_ids_ = std::move(kept_selected);
     endResetModel();
 }
 
@@ -277,6 +290,31 @@ void AssetListModel::markOriginalMissing(const std::string &asset_id)
     thumbnail_states_[asset_id] = QStringLiteral("missing");
     const auto model_index = index(row, 0);
     emit dataChanged(model_index, model_index, {ImportStateRole, ThumbnailStateRole});
+}
+
+void AssetListModel::setSelectedIds(std::unordered_set<std::string> ids)
+{
+    std::unordered_set<std::string> changed = selected_ids_;
+    for (const auto &id : ids)
+    {
+        changed.insert(id);
+    }
+    selected_ids_ = std::move(ids);
+    for (const auto &id : changed)
+    {
+        const auto row = indexOf(qstring_from_utf8(id));
+        if (row < 0)
+        {
+            continue;
+        }
+        const auto model_index = index(row, 0);
+        emit dataChanged(model_index, model_index, {SelectedRole});
+    }
+}
+
+bool AssetListModel::isSelected(const std::string &asset_id) const
+{
+    return selected_ids_.contains(asset_id);
 }
 
 int AssetListModel::indexOf(const QString &asset_id) const
@@ -469,6 +507,16 @@ int StudioPresenter::selectedIndex() const
     return assets_.indexOf(selected_asset_id_);
 }
 
+int StudioPresenter::selectedCount() const noexcept
+{
+    return static_cast<int>(selected_ids_.size());
+}
+
+bool StudioPresenter::isAssetSelected(const QString &asset_id) const
+{
+    return selected_ids_.contains(utf8_from_qstring(asset_id));
+}
+
 int StudioPresenter::selectedRating() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
@@ -492,6 +540,23 @@ QString StudioPresenter::selectedImportState() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
     return asset ? qstring_from_utf8(asset->import_state) : QString{};
+}
+
+bool StudioPresenter::canDeleteFromDisk() const
+{
+    if (selected_ids_.empty())
+    {
+        return false;
+    }
+    for (const auto &id : selected_ids_)
+    {
+        const auto asset = assets_.assetById(qstring_from_utf8(id));
+        if (!asset || asset->import_state == kImportStateMissing)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 QUrl StudioPresenter::previewUrl() const
@@ -854,6 +919,16 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
 {
     const QString previous = selected_asset_id_;
     assets_.setAssets(std::move(assets));
+    std::unordered_set<std::string> kept;
+    for (const auto &id : selected_ids_)
+    {
+        if (assets_.indexOf(qstring_from_utf8(id)) >= 0)
+        {
+            kept.insert(id);
+        }
+    }
+    selected_ids_ = std::move(kept);
+    assets_.setSelectedIds(selected_ids_);
     emit filterChanged();
     emit selectionChanged();
     if (!restore_selection)
@@ -866,15 +941,28 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
         {
             selectAsset(previous);
         }
+        else
+        {
+            publish_selection();
+        }
         return;
     }
     if (assets_.rowCount() == 0)
     {
         selected_asset_id_.clear();
+        selection_anchor_id_.clear();
+        selected_ids_.clear();
+        assets_.setSelectedIds({});
         preview_url_.clear();
         preview_loading_ = false;
         emit selectionChanged();
         emit previewChanged();
+        return;
+    }
+    if (!selected_ids_.empty())
+    {
+        const auto remaining = selected_asset_ids();
+        activate_primary(qstring_from_utf8(remaining.front()), true);
         return;
     }
     if (selected_asset_id_.isEmpty() || assets_.indexOf(selected_asset_id_) < 0)
@@ -1246,23 +1334,118 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
         });
 }
 
-void StudioPresenter::selectAsset(const QString &asset_id)
+void StudioPresenter::publish_selection()
 {
-    if (selected_asset_id_ == asset_id && !preview_url_.isEmpty())
+    assets_.setSelectedIds(selected_ids_);
+    emit selectionChanged();
+}
+
+void StudioPresenter::activate_primary(const QString &asset_id, const bool reload_preview)
+{
+    const bool same = selected_asset_id_ == asset_id;
+    selected_asset_id_ = asset_id;
+    if (!reload_preview && same && !preview_url_.isEmpty())
     {
+        publish_selection();
         return;
     }
-    selected_asset_id_ = asset_id;
     preview_url_.clear();
     preview_loading_ = !asset_id.isEmpty();
     before_after_ = false;
     crop_tool_active_ = false;
     pending_preview_.reset();
     load_develop_for_selection();
-    emit selectionChanged();
+    publish_selection();
     emit previewChanged();
     emit editChanged();
     requestPreviewForSelection();
+}
+
+std::vector<std::string> StudioPresenter::selected_asset_ids() const
+{
+    std::vector<std::string> ids;
+    ids.reserve(selected_ids_.size());
+    for (int row = 0; row < assets_.rowCount(); ++row)
+    {
+        const auto id = utf8_from_qstring(assets_.assetIdAt(row));
+        if (selected_ids_.contains(id))
+        {
+            ids.push_back(id);
+        }
+    }
+    return ids;
+}
+
+void StudioPresenter::selectAsset(const QString &asset_id)
+{
+    if (selected_asset_id_ == asset_id && selected_ids_.size() == 1U && !preview_url_.isEmpty())
+    {
+        return;
+    }
+    selected_ids_.clear();
+    if (!asset_id.isEmpty())
+    {
+        selected_ids_.insert(utf8_from_qstring(asset_id));
+    }
+    selection_anchor_id_ = asset_id;
+    activate_primary(asset_id, true);
+}
+
+void StudioPresenter::selectAssetRange(const QString &asset_id)
+{
+    if (asset_id.isEmpty())
+    {
+        return;
+    }
+    const int clicked = assets_.indexOf(asset_id);
+    if (clicked < 0)
+    {
+        return;
+    }
+    int anchor = assets_.indexOf(selection_anchor_id_);
+    if (anchor < 0)
+    {
+        anchor = assets_.indexOf(selected_asset_id_);
+    }
+    if (anchor < 0)
+    {
+        selectAsset(asset_id);
+        return;
+    }
+    const int begin = std::min(anchor, clicked);
+    const int end = std::max(anchor, clicked);
+    selected_ids_.clear();
+    for (int row = begin; row <= end; ++row)
+    {
+        selected_ids_.insert(utf8_from_qstring(assets_.assetIdAt(row)));
+    }
+    activate_primary(asset_id, true);
+}
+
+void StudioPresenter::toggleAssetSelected(const QString &asset_id)
+{
+    if (asset_id.isEmpty())
+    {
+        return;
+    }
+    const auto id = utf8_from_qstring(asset_id);
+    if (selected_ids_.contains(id))
+    {
+        selected_ids_.erase(id);
+        selection_anchor_id_ = asset_id;
+        if (selected_asset_id_ == asset_id)
+        {
+            const auto remaining = selected_asset_ids();
+            activate_primary(remaining.empty() ? QString{} : qstring_from_utf8(remaining.back()),
+                             true);
+            return;
+        }
+        publish_selection();
+        return;
+    }
+    selected_ids_.insert(id);
+    selection_anchor_id_ = asset_id;
+    activate_primary(asset_id, true);
 }
 
 void StudioPresenter::selectNext()
@@ -1384,30 +1567,47 @@ void StudioPresenter::setThumbnailSize(const int size)
 }
 
 void StudioPresenter::mutate_selected_review(
-    const std::function<Result<AssetRecord>(CatalogService &)> &action)
+    const std::function<Result<AssetRecord>(CatalogService &, std::string_view)> &action)
 {
-    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    if (selected_ids_.empty() || catalog_path_.isEmpty())
     {
         return;
     }
+    const auto ids = selected_asset_ids();
     executor_.post(
-        [this, action]()
+        [this, action, ids]()
         {
-            Result<AssetRecord> updated = make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::vector<AssetRecord> updated;
+            TaskError error = make_error(ErrorCode::kIo, "Catalog session is closed");
+            bool ok = false;
             if (service_ != nullptr)
             {
-                updated = action(*service_);
+                ok = true;
+                for (const auto &asset_id : ids)
+                {
+                    auto result = action(*service_, asset_id);
+                    if (!result)
+                    {
+                        error = result.error();
+                        ok = false;
+                        break;
+                    }
+                    updated.push_back(std::move(result).value());
+                }
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, updated = std::move(updated)]() mutable
+                [this, ok, error = std::move(error), updated = std::move(updated)]() mutable
                 {
-                    if (!updated)
+                    if (!ok)
                     {
-                        setError(qstring_from_utf8(updated.error().message));
+                        setError(qstring_from_utf8(error.message));
                         return;
                     }
-                    assets_.updateAsset(updated.value());
+                    for (const auto &asset : updated)
+                    {
+                        assets_.updateAsset(asset);
+                    }
                     emit selectionChanged();
                     if (filtersActive())
                     {
@@ -1420,8 +1620,7 @@ void StudioPresenter::mutate_selected_review(
 
 void StudioPresenter::setRating(const int rating)
 {
-    const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    mutate_selected_review([asset_id, rating](CatalogService &service)
+    mutate_selected_review([rating](CatalogService &service, const std::string_view asset_id)
                            { return service.set_rating(asset_id, rating); });
 }
 
@@ -1433,17 +1632,15 @@ void StudioPresenter::setColorLabel(const QString &label)
         setError(qstring_from_utf8(parsed.error().message));
         return;
     }
-    const auto asset_id = utf8_from_qstring(selected_asset_id_);
     const auto color = parsed.value();
-    mutate_selected_review([asset_id, color](CatalogService &service)
+    mutate_selected_review([color](CatalogService &service, const std::string_view asset_id)
                            { return service.set_color_label(asset_id, color); });
 }
 
 void StudioPresenter::toggleRejected()
 {
     const bool next = !selectedRejected();
-    const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    mutate_selected_review([asset_id, next](CatalogService &service)
+    mutate_selected_review([next](CatalogService &service, const std::string_view asset_id)
                            { return service.set_rejected(asset_id, next); });
 }
 
@@ -1596,6 +1793,10 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                         if (preview.value().original_missing)
                         {
                             assets_.markOriginalMissing(id);
+                            if (selected_ids_.contains(id))
+                            {
+                                emit selectionChanged();
+                            }
                         }
                         return;
                     }
@@ -1603,6 +1804,10 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                     {
                         assets_.markOriginalMissing(id);
                         assets_.setThumbnail(id, {}, QStringLiteral("missing"));
+                        if (selected_ids_.contains(id))
+                        {
+                            emit selectionChanged();
+                        }
                         return;
                     }
                     assets_.setThumbnail(id, {}, QStringLiteral("failed"));
@@ -1628,7 +1833,26 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
 
     if (id == QLatin1String(kPhotoSelect))
     {
-        selectAsset(argument.toString());
+        QString asset_id = argument.toString();
+        QString mode = QStringLiteral("single");
+        const auto fields = argument.toMap();
+        if (!fields.isEmpty())
+        {
+            asset_id = fields.value(QStringLiteral("id")).toString();
+            mode = fields.value(QStringLiteral("mode"), QStringLiteral("single")).toString();
+        }
+        if (mode == QStringLiteral("range"))
+        {
+            selectAssetRange(asset_id);
+        }
+        else if (mode == QStringLiteral("toggle"))
+        {
+            toggleAssetSelected(asset_id);
+        }
+        else
+        {
+            selectAsset(asset_id);
+        }
     }
     else if (id == QLatin1String(kPhotoRate))
     {
@@ -1646,13 +1870,39 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
     {
         remove_selected_from_catalog();
     }
+    else if (id == QLatin1String(kPhotoRemoveFromDisk))
+    {
+        remove_selected_from_disk();
+    }
     else if (id == QLatin1String(kPhotoPrevious))
     {
-        selectPrevious();
+        if (argument.toString() == QStringLiteral("range") && !selected_asset_id_.isEmpty())
+        {
+            const auto row = assets_.indexOf(selected_asset_id_);
+            if (row > 0)
+            {
+                selectAssetRange(assets_.assetIdAt(row - 1));
+            }
+        }
+        else
+        {
+            selectPrevious();
+        }
     }
     else if (id == QLatin1String(kPhotoNext))
     {
-        selectNext();
+        if (argument.toString() == QStringLiteral("range") && !selected_asset_id_.isEmpty())
+        {
+            const auto row = assets_.indexOf(selected_asset_id_);
+            if (row >= 0 && row + 1 < assets_.rowCount())
+            {
+                selectAssetRange(assets_.assetIdAt(row + 1));
+            }
+        }
+        else
+        {
+            selectNext();
+        }
     }
     else if (id == QLatin1String(kViewGrid))
     {
@@ -1748,14 +1998,15 @@ void StudioPresenter::executeCommand(const QString &id, const QVariant &argument
 
 void StudioPresenter::remove_selected_from_catalog()
 {
-    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    if (selected_ids_.empty() || catalog_path_.isEmpty())
     {
         return;
     }
-    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    const auto ids = selected_asset_ids();
     const int keep_index = std::max(0, selectedIndex());
+    const auto count = ids.size();
     executor_.post(
-        [this, asset_id, keep_index]()
+        [this, ids, keep_index, count]()
         {
             Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<AssetRecord>> listed =
@@ -1763,7 +2014,15 @@ void StudioPresenter::remove_selected_from_catalog()
             Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
             if (service_ != nullptr)
             {
-                removed = service_->remove_from_catalog(asset_id);
+                removed = Result<void>{};
+                for (const auto &asset_id : ids)
+                {
+                    removed = service_->remove_from_catalog(asset_id);
+                    if (!removed)
+                    {
+                        break;
+                    }
+                }
                 if (removed)
                 {
                     listed = service_->list_assets(current_query());
@@ -1773,7 +2032,7 @@ void StudioPresenter::remove_selected_from_catalog()
             QMetaObject::invokeMethod(
                 this,
                 [this, removed = std::move(removed), listed = std::move(listed),
-                 folders = std::move(folders), keep_index]() mutable
+                 folders = std::move(folders), keep_index, count]() mutable
                 {
                     if (!removed)
                     {
@@ -1795,6 +2054,9 @@ void StudioPresenter::remove_selected_from_catalog()
                     if (assets_.rowCount() == 0)
                     {
                         selected_asset_id_.clear();
+                        selection_anchor_id_.clear();
+                        selected_ids_.clear();
+                        assets_.setSelectedIds({});
                         preview_url_.clear();
                         preview_loading_ = false;
                         emit selectionChanged();
@@ -1805,8 +2067,89 @@ void StudioPresenter::remove_selected_from_catalog()
                         const int row = std::min(keep_index, assets_.rowCount() - 1);
                         selectAsset(assets_.assetIdAt(row));
                     }
-                    setStatus(
-                        QStringLiteral("Removed from catalog. Original file was not deleted."));
+                    setStatus(count == 1 ?
+                                  QStringLiteral("Removed from catalog. Original file was not deleted.") :
+                                  QStringLiteral("Removed %1 photos from catalog. Original files were not deleted.")
+                                      .arg(count));
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::remove_selected_from_disk()
+{
+    if (!canDeleteFromDisk() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    const auto ids = selected_asset_ids();
+    const int keep_index = std::max(0, selectedIndex());
+    const auto count = ids.size();
+    executor_.post(
+        [this, ids, keep_index, count]()
+        {
+            Result<void> removed = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<AssetRecord>> listed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
+            if (service_ != nullptr)
+            {
+                removed = Result<void>{};
+                for (const auto &asset_id : ids)
+                {
+                    removed = service_->remove_original_and_catalog(asset_id);
+                    if (!removed)
+                    {
+                        break;
+                    }
+                }
+                if (removed)
+                {
+                    listed = service_->list_assets(current_query());
+                    folders = service_->list_folders();
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, removed = std::move(removed), listed = std::move(listed),
+                 folders = std::move(folders), keep_index, count]() mutable
+                {
+                    if (!removed)
+                    {
+                        setError(qstring_from_utf8(removed.error().message));
+                        return;
+                    }
+                    if (!listed)
+                    {
+                        setError(qstring_from_utf8(listed.error().message));
+                        return;
+                    }
+                    if (!folders)
+                    {
+                        setError(qstring_from_utf8(folders.error().message));
+                        return;
+                    }
+                    applyFolders(std::move(folders).value());
+                    applyAssets(std::move(listed).value(), false);
+                    if (assets_.rowCount() == 0)
+                    {
+                        selected_asset_id_.clear();
+                        selection_anchor_id_.clear();
+                        selected_ids_.clear();
+                        assets_.setSelectedIds({});
+                        preview_url_.clear();
+                        preview_loading_ = false;
+                        emit selectionChanged();
+                        emit previewChanged();
+                    }
+                    else
+                    {
+                        const int row = std::min(keep_index, assets_.rowCount() - 1);
+                        selectAsset(assets_.assetIdAt(row));
+                    }
+                    setStatus(count == 1 ? QStringLiteral("Deleted original file and catalog record.") :
+                                           QStringLiteral("Deleted %1 original files and catalog records.")
+                                               .arg(count));
                 },
                 Qt::QueuedConnection);
         });

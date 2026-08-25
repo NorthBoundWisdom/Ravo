@@ -104,6 +104,7 @@ qt_add_qml_module(ravo_studio
     qml/InspectorSidePanel.qml
     qml/FilmStripBar.qml
     qml/DarkThemePalette.qml
+    qml/LightThemePalette.qml
     qml/SettingsPage.qml
     qml/StudioActions.qml
     qml/StudioMenuBar.qml

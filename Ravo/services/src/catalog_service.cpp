@@ -380,6 +380,54 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
     return {};
 }
 
+Result<void> CatalogService::remove_original_and_catalog(const std::string_view asset_id)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+    {
+        return location.error();
+    }
+    const auto path = std::filesystem::path(
+        std::u8string(location.value().path.begin(), location.value().path.end()));
+    std::error_code exists_error;
+    const bool exists = std::filesystem::exists(path, exists_error);
+    if (exists_error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to inspect original file",
+                          {{"path", location.value().path},
+                           {"asset_id", std::string(asset_id)},
+                           {"detail", exists_error.message()}});
+    }
+    if (!exists)
+    {
+        return make_error(ErrorCode::kNotFound, "Original file is missing",
+                          {{"path", location.value().path}, {"asset_id", std::string(asset_id)}});
+    }
+    std::error_code remove_error;
+    if (!std::filesystem::remove(path, remove_error) || remove_error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to delete original file",
+                          {{"path", location.value().path},
+                           {"asset_id", std::string(asset_id)},
+                           {"detail", remove_error.message()}});
+    }
+    return remove_from_catalog(asset_id);
+}
+
 Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
 {
     if (repository_ == nullptr || engine_ == nullptr)

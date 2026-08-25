@@ -11,9 +11,24 @@ ApplicationWindow {
     visible: true
     color: Theme.windowColor
     title: studio.catalogOpen ? ("Ravo Studio — " + studio.catalogPath) : "Ravo Studio"
+    palette.window: Theme.windowColor
+    palette.windowText: Theme.windowTextColor
+    palette.base: Theme.baseColor
+    palette.alternateBase: Theme.alternateBaseColor
+    palette.text: Theme.textColor
+    palette.button: Theme.buttonColor
+    palette.buttonText: Theme.buttonTextColor
+    palette.light: Theme.lightColor
+    palette.midlight: Theme.midlightColor
+    palette.mid: Theme.midColor
+    palette.dark: Theme.darkColor
+    palette.shadow: Theme.shadowColor
+    palette.highlight: Theme.highlightColor
+    palette.highlightedText: Theme.highlightedTextColor
+    palette.placeholderText: Theme.placeholderTextColor
+    palette.accent: Theme.accentColor
 
     property bool settingsOpen: false
-    property var lightThemeHelper: null
     readonly property bool studioInteractive: !settingsOpen
 
     readonly property var colorChoices: ["red", "yellow", "green", "blue", "purple"]
@@ -72,18 +87,29 @@ ApplicationWindow {
     function askRemovePhoto() {
         if (!studio.selectedAssetId.length)
             return;
+        removeDialog.messageText = studio.selectedCount > 1 ? qsTr("Remove %1 photos from the library? Original files on disk will not be deleted.").arg(studio.selectedCount) : qsTr("Remove this photo from the library? The original file on disk will not be deleted.");
         removeDialog.openWithButtons();
     }
 
+    function askDeleteFromDisk() {
+        if (!studio.canDeleteFromDisk)
+            return;
+        deleteDiskDialog.messageText = studio.selectedCount > 1 ? qsTr("Permanently delete %1 original files from disk and remove them from the library? This cannot be undone.").arg(studio.selectedCount) : qsTr("Permanently delete the original file from disk and remove it from the library? This cannot be undone.");
+        deleteDiskDialog.openWithButtons();
+    }
+
     function applyAppearance() {
-        if (window.lightThemeHelper === null) {
-            window.lightThemeHelper = Theme.helper;
-            darkThemePalette.appFont = Theme.helper.appFont;
-            darkThemePalette.monoFont = Theme.helper.monoFont;
-        }
-        Theme.helper = studio.nightMode ? darkThemePalette : window.lightThemeHelper;
+        lightThemePalette.appFont = Qt.application.font;
+        lightThemePalette.monoFont = Qt.application.font;
+        darkThemePalette.appFont = Qt.application.font;
+        darkThemePalette.monoFont = Qt.application.font;
+        Theme.helper = studio.nightMode ? darkThemePalette : lightThemePalette;
         Theme.colorsChanged();
         Theme.fontsChanged();
+    }
+
+    LightThemePalette {
+        id: lightThemePalette
     }
 
     DarkThemePalette {
@@ -155,7 +181,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             implicitHeight: Math.max(Fonts.toolbarHeight, Fonts.inputFieldHeight + Fonts.size12)
             Layout.preferredHeight: implicitHeight
-            color: Theme.contentSurfaceColor
+            color: Theme.toolbarSurfaceColor
             visible: studio.catalogOpen
             clip: true
 
@@ -310,6 +336,11 @@ ApplicationWindow {
             Layout.fillHeight: true
             orientation: Qt.Horizontal
             visible: studio.catalogOpen
+            handle: Rectangle {
+                implicitWidth: 1
+                implicitHeight: 1
+                color: SplitHandle.pressed || SplitHandle.hovered ? Theme.midColor : Theme.splitHandleColor
+            }
 
             LibrarySidePanel {
                 SplitView.preferredWidth: 240
@@ -320,6 +351,11 @@ ApplicationWindow {
             Item {
                 SplitView.fillWidth: true
                 SplitView.minimumWidth: 280
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: studio.browseMode === "grid" ? Theme.contentSurfaceColor : Theme.imageSurroundColor
+                }
 
                 GridView {
                     id: grid
@@ -355,6 +391,7 @@ ApplicationWindow {
                         required property string thumbnailState
                         required property string importState
                         required property bool hasEdits
+                        required property bool selected
                         width: grid.cellWidth
                         height: grid.cellHeight
 
@@ -364,8 +401,8 @@ ApplicationWindow {
                             anchors.fill: parent
                             anchors.margins: Fonts.size4
                             color: Theme.pageSurfaceColor
-                            border.width: assetId === studio.selectedAssetId ? 2 : 1
-                            border.color: assetId === studio.selectedAssetId ? Theme.highlightColor : Theme.dividerColor
+                            border.width: selected || assetId === studio.selectedAssetId ? 2 : 1
+                            border.color: assetId === studio.selectedAssetId ? Theme.selectedBorderColor : (selected ? Theme.selectedSecondaryBorderColor : Theme.dividerColor)
 
                             Image {
                                 anchors.fill: parent
@@ -482,7 +519,7 @@ ApplicationWindow {
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: Fonts.toolbarHeight
-                        color: Qt.lighter(Theme.windowColor, 1.1)
+                        color: Theme.viewerToolbarColor
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: Fonts.standardMargin
@@ -625,10 +662,11 @@ ApplicationWindow {
             commands: studioActions
         }
 
-        Item {
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: !studio.catalogOpen
+            color: Theme.windowColor
             CustomLabel {
                 anchors.centerIn: parent
                 text: qsTr("Create or open a library to import photos.")
@@ -666,6 +704,19 @@ ApplicationWindow {
         onFinished: function (buttonText) {
             if (buttonText === qsTr("Remove"))
                 studioActions.run(studioActions.ids.photoRemove);
+        }
+    }
+
+    MessageDialog {
+        id: deleteDiskDialog
+        parentItem: window.contentItem
+        titleText: qsTr("Delete from Disk")
+        messageText: qsTr("Permanently delete the original file from disk and remove it from the library? This cannot be undone.")
+        buttons: [qsTr("Cancel"), qsTr("Delete")]
+        defaultButtonText: qsTr("Delete")
+        onFinished: function (buttonText) {
+            if (buttonText === qsTr("Delete"))
+                studioActions.run(studioActions.ids.photoRemoveFromDisk);
         }
     }
 

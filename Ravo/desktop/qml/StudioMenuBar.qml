@@ -165,6 +165,9 @@ MenuBar {
         MenuItem {
             action: actions.removePhoto
         }
+        MenuItem {
+            action: actions.removeFromDisk
+        }
     }
 
     Menu {

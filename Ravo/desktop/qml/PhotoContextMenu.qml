@@ -175,4 +175,7 @@ Menu {
     StyledItem {
         action: root.commands.removePhoto
     }
+    StyledItem {
+        action: root.commands.removeFromDisk
+    }
 }

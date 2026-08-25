@@ -394,6 +394,51 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
 }
 
+TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogDeletesTheFile)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    QImage image(32, 32, QImage::Format_RGB888);
+    image.fill(QColor(12, 34, 56));
+    const auto photo = root / "delete-original.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(std::filesystem::exists(photo));
+
+    auto removed = service->remove_original_and_catalog(asset_id);
+    ASSERT_TRUE(removed) << removed.error().message;
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    EXPECT_TRUE(listed.value().empty());
+    EXPECT_FALSE(std::filesystem::exists(photo));
+}
+
+TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogFailsWhenFileIsMissing)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(QColor(90, 12, 12));
+    const auto photo = root / "already-gone.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(std::filesystem::remove(photo));
+
+    auto removed = service->remove_original_and_catalog(asset_id);
+    ASSERT_FALSE(removed);
+    EXPECT_EQ(removed.error().code, ErrorCode::kNotFound);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, asset_id);
+}
+
 TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 {
     auto created = open_service(true);

@@ -27,6 +27,7 @@ Item {
         readonly property string photoColor: "photo.color"
         readonly property string photoReject: "photo.reject"
         readonly property string photoRemove: "photo.remove"
+        readonly property string photoRemoveFromDisk: "photo.removeFromDisk"
         readonly property string photoPrevious: "photo.previous"
         readonly property string photoNext: "photo.next"
         readonly property string viewGrid: "view.grid"
@@ -93,6 +94,7 @@ Item {
     property alias colorBlue: colorBlueAction
     property alias colorPurple: colorPurpleAction
     property alias removePhoto: removeAction
+    property alias removeFromDisk: removeFromDiskAction
 
     function run(id, argument) {
         if (!root.presenter)
@@ -104,8 +106,28 @@ Item {
     }
 
     function handlePhotoClick(assetId, mouse) {
-        root.run(root.ids.photoSelect, assetId);
-        if (mouse && mouse.button === Qt.RightButton && root.windowHost)
+        const right = mouse && mouse.button === Qt.RightButton;
+        const shift = mouse && (mouse.modifiers & Qt.ShiftModifier);
+        const toggle = mouse && (mouse.modifiers & Qt.ControlModifier);
+        if (right && root.presenter && root.presenter.isAssetSelected(assetId) && !shift && !toggle) {
+            // Keep the current multi-selection when opening the context menu.
+        }
+        else if (shift)
+            root.run(root.ids.photoSelect, {
+                "id": assetId,
+                "mode": "range"
+            });
+        else if (toggle)
+            root.run(root.ids.photoSelect, {
+                "id": assetId,
+                "mode": "toggle"
+            });
+        else
+            root.run(root.ids.photoSelect, {
+                "id": assetId,
+                "mode": "single"
+            });
+        if (right && root.windowHost)
             root.windowHost.showPhotoMenu();
     }
 
@@ -275,6 +297,16 @@ Item {
         enabled: root.interactive && root.hasSelection
         onTriggered: root.run(root.ids.photoNext)
     }
+    Shortcut {
+        enabled: root.interactive && root.hasSelection
+        sequence: "Shift+Left"
+        onActivated: root.run(root.ids.photoPrevious, "range")
+    }
+    Shortcut {
+        enabled: root.interactive && root.hasSelection
+        sequence: "Shift+Right"
+        onActivated: root.run(root.ids.photoNext, "range")
+    }
     Action {
         id: rejectAction
         text: root.presenter && root.presenter.selectedRejected ? qsTr("Unreject") : qsTr("Reject")
@@ -407,6 +439,13 @@ Item {
         enabled: root.interactive && root.hasSelection
         onTriggered: if (root.windowHost)
             root.windowHost.askRemovePhoto()
+    }
+    Action {
+        id: removeFromDiskAction
+        text: qsTr("Delete from Disk…")
+        enabled: root.interactive && root.hasSelection && root.presenter && root.presenter.canDeleteFromDisk
+        onTriggered: if (root.windowHost)
+            root.windowHost.askDeleteFromDisk()
     }
 
     Shortcut {

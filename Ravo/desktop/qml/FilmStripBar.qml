@@ -6,7 +6,7 @@ Rectangle {
     id: root
     property var presenter
     property var commands
-    color: Qt.lighter(Theme.windowColor, 1.08)
+    color: Theme.toolbarSurfaceColor
 
     Rectangle {
         anchors.left: parent.left
@@ -40,6 +40,7 @@ Rectangle {
             required property string thumbnailState
             required property int rating
             required property bool rejected
+            required property bool selected
             width: 88
             height: strip.height
             Component.onCompleted: if (root.presenter)
@@ -48,8 +49,8 @@ Rectangle {
             Rectangle {
                 anchors.fill: parent
                 color: Theme.pageSurfaceColor
-                border.width: root.presenter && assetId === root.presenter.selectedAssetId ? 2 : 1
-                border.color: root.presenter && assetId === root.presenter.selectedAssetId ? Theme.highlightColor : Theme.dividerColor
+                border.width: selected || (root.presenter && assetId === root.presenter.selectedAssetId) ? 2 : 1
+                border.color: root.presenter && assetId === root.presenter.selectedAssetId ? Theme.selectedBorderColor : (selected ? Theme.selectedSecondaryBorderColor : Theme.dividerColor)
                 Image {
                     anchors.fill: parent
                     anchors.margins: 2

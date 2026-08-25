@@ -14,16 +14,7 @@ Rectangle {
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property bool developOpen: hasPresenter && presenter.browseMode === "develop"
 
-    color: Theme.contentSurfaceColor
-
-    Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.bottom: parent.bottom
-        width: 1
-        color: Theme.dividerColor
-        z: 1
-    }
+    color: Theme.railSurfaceColor
 
     function infoRow(label, value) {
         return label + ": " + (value && value.length ? value : "—");

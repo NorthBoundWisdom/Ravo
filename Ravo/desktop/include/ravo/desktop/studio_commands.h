@@ -14,6 +14,7 @@ inline constexpr auto kPhotoRate = "photo.rate";
 inline constexpr auto kPhotoColor = "photo.color";
 inline constexpr auto kPhotoReject = "photo.reject";
 inline constexpr auto kPhotoRemove = "photo.remove";
+inline constexpr auto kPhotoRemoveFromDisk = "photo.removeFromDisk";
 inline constexpr auto kPhotoPrevious = "photo.previous";
 inline constexpr auto kPhotoNext = "photo.next";
 inline constexpr auto kViewGrid = "view.grid";

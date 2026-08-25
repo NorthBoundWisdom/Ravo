@@ -5,7 +5,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <QAbstractListModel>
@@ -47,6 +49,7 @@ public:
         WidthRole,
         HeightRole,
         HasEditsRole,
+        SelectedRole,
     };
 
     explicit AssetListModel(QObject *parent = nullptr);
@@ -58,6 +61,8 @@ public:
     void setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state);
     void updateAsset(const AssetRecord &asset);
     void markOriginalMissing(const std::string &asset_id);
+    void setSelectedIds(std::unordered_set<std::string> ids);
+    [[nodiscard]] bool isSelected(const std::string &asset_id) const;
     [[nodiscard]] int indexOf(const QString &asset_id) const;
     [[nodiscard]] std::optional<AssetRecord> assetById(const QString &asset_id) const;
     [[nodiscard]] QString assetIdAt(int row) const;
@@ -66,6 +71,7 @@ private:
     std::vector<AssetRecord> assets_;
     std::unordered_map<std::string, QUrl> thumbnail_urls_;
     std::unordered_map<std::string, QString> thumbnail_states_;
+    std::unordered_set<std::string> selected_ids_;
 };
 
 class FolderListModel final : public QAbstractListModel
@@ -103,10 +109,12 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString errorText READ errorText NOTIFY errorChanged)
     Q_PROPERTY(QString selectedAssetId READ selectedAssetId NOTIFY selectionChanged)
     Q_PROPERTY(int selectedIndex READ selectedIndex NOTIFY selectionChanged)
+    Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
     Q_PROPERTY(int selectedRating READ selectedRating NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedColorLabel READ selectedColorLabel NOTIFY selectionChanged)
     Q_PROPERTY(bool selectedRejected READ selectedRejected NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedImportState READ selectedImportState NOTIFY selectionChanged)
+    Q_PROPERTY(bool canDeleteFromDisk READ canDeleteFromDisk NOTIFY selectionChanged)
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
@@ -191,10 +199,13 @@ public:
     [[nodiscard]] QString errorText() const;
     [[nodiscard]] QString selectedAssetId() const;
     [[nodiscard]] int selectedIndex() const;
+    [[nodiscard]] int selectedCount() const noexcept;
+    Q_INVOKABLE bool isAssetSelected(const QString &asset_id) const;
     [[nodiscard]] int selectedRating() const;
     [[nodiscard]] QString selectedColorLabel() const;
     [[nodiscard]] bool selectedRejected() const noexcept;
     [[nodiscard]] QString selectedImportState() const;
+    [[nodiscard]] bool canDeleteFromDisk() const;
     [[nodiscard]] QUrl previewUrl() const;
     [[nodiscard]] bool previewLoading() const noexcept;
     [[nodiscard]] QString browseMode() const;
@@ -269,6 +280,8 @@ public:
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
     Q_INVOKABLE void importFolderFromPath(const QString &path);
     Q_INVOKABLE void selectAsset(const QString &asset_id);
+    Q_INVOKABLE void selectAssetRange(const QString &asset_id);
+    Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);
     Q_INVOKABLE void selectNext();
     Q_INVOKABLE void selectPrevious();
     Q_INVOKABLE void setBrowseMode(const QString &mode);
@@ -346,8 +359,13 @@ private:
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<std::unique_ptr<CatalogService>>
     make_catalog_service(const std::string &path, bool create);
-    void mutate_selected_review(const std::function<Result<AssetRecord>(CatalogService &)> &action);
+    void mutate_selected_review(
+        const std::function<Result<AssetRecord>(CatalogService &, std::string_view)> &action);
     void remove_selected_from_catalog();
+    void remove_selected_from_disk();
+    void publish_selection();
+    void activate_primary(const QString &asset_id, bool reload_preview);
+    [[nodiscard]] std::vector<std::string> selected_asset_ids() const;
 
     SerialExecutor executor_;
     std::optional<EngineFacade> engine_;
@@ -360,6 +378,8 @@ private:
     QString status_text_{QStringLiteral("Create or open a library to import photos.")};
     QString error_text_;
     QString selected_asset_id_;
+    QString selection_anchor_id_;
+    std::unordered_set<std::string> selected_ids_;
     QUrl preview_url_;
     QString browse_mode_{QStringLiteral("grid")};
     QString zoom_mode_{QStringLiteral("fit")};

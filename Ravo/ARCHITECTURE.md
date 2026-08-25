@@ -51,7 +51,8 @@ Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 servi
 `StudioPresenter::executeCommand`；窗口对话框由该入口发出 `uiCommandRequested`，QML 只负责弹出。
 Develop 预览由 presenter 做有界合并：同一时刻最多一个 in-flight 渲染，另加最多一份待保存
 recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已验证 preview。
-删除照片只从 catalog 移除记录和 preview cache，不删除原片。QML 资源通过 `qt_add_qml_module`
+删除照片默认只从 catalog 移除记录和 preview cache，不删除原片。显式的
+“Delete from Disk” 命令在确认后删除原文件，再移除 catalog 记录。QML 资源通过 `qt_add_qml_module`
 纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。
 
 ## 核心数据契约
