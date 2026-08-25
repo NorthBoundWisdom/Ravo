@@ -326,6 +326,7 @@ Rectangle {
                                 root.commands.setCropAspect(currentText)
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Angle")
                             from: -45
                             to: 45
@@ -336,10 +337,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editStraighten : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("straighten", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("straighten", value);
@@ -363,6 +360,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Temp")
                             from: 2000
                             to: 12000
@@ -373,10 +371,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editTemperature : 6500
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("temperature", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("temperature", value);
@@ -385,6 +379,7 @@ Rectangle {
                                 root.commands.resetControl("temperature")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Tint")
                             from: -150
                             to: 150
@@ -395,10 +390,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editTint : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("tint", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("tint", value);
@@ -422,6 +413,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Exposure")
                             from: -5
                             to: 5
@@ -431,10 +423,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editExposure : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("exposure", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("exposure", value);
@@ -449,6 +437,7 @@ Rectangle {
                             font.bold: true
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Contrast")
                             from: 0.1
                             to: 10
@@ -460,10 +449,6 @@ Rectangle {
                             visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSigmoidContrast : 1.5
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("sigmoidContrast", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sigmoidContrast", value);
@@ -472,6 +457,7 @@ Rectangle {
                                 root.commands.resetControl("sigmoidContrast")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Skew")
                             from: -1
                             to: 1
@@ -483,10 +469,6 @@ Rectangle {
                             visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSigmoidSkew : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("sigmoidSkew", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sigmoidSkew", value);
@@ -495,6 +477,7 @@ Rectangle {
                                 root.commands.resetControl("sigmoidSkew")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Preserve Hue")
                             from: 0
                             to: 1
@@ -506,10 +489,6 @@ Rectangle {
                             visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSigmoidHuePreservation : 1
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("sigmoidHuePreservation", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sigmoidHuePreservation", value);
@@ -518,6 +497,7 @@ Rectangle {
                                 root.commands.resetControl("sigmoidHuePreservation")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Contrast")
                             from: -1
                             to: 1
@@ -527,10 +507,6 @@ Rectangle {
                             visible: root.hasPresenter && !root.presenter.editSigmoidEnabled
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editContrast : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("contrast", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("contrast", value);
@@ -539,6 +515,7 @@ Rectangle {
                                 root.commands.resetControl("contrast")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Highlights")
                             from: -1
                             to: 1
@@ -547,10 +524,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editHighlights : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("highlights", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("highlights", value);
@@ -559,6 +532,7 @@ Rectangle {
                                 root.commands.resetControl("highlights")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Shadows")
                             from: -1
                             to: 1
@@ -567,10 +541,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editShadows : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("shadows", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("shadows", value);
@@ -579,6 +549,7 @@ Rectangle {
                                 root.commands.resetControl("shadows")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Whites")
                             from: -1
                             to: 1
@@ -587,10 +558,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editWhites : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("whites", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("whites", value);
@@ -599,6 +566,7 @@ Rectangle {
                                 root.commands.resetControl("whites")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Blacks")
                             from: -1
                             to: 1
@@ -607,10 +575,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editBlacks : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("blacks", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("blacks", value);
@@ -619,6 +583,7 @@ Rectangle {
                                 root.commands.resetControl("blacks")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Gamma")
                             from: 0.2
                             to: 3
@@ -627,10 +592,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGamma : 1
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("gamma", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("gamma", value);
@@ -694,6 +655,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Vibrance")
                             from: -1
                             to: 1
@@ -702,10 +664,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editVibrance : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("vibrance", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("vibrance", value);
@@ -714,6 +672,7 @@ Rectangle {
                                 root.commands.resetControl("vibrance")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Saturation")
                             from: -1
                             to: 1
@@ -722,10 +681,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSaturation : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("saturation", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("saturation", value);
@@ -734,6 +689,7 @@ Rectangle {
                                 root.commands.resetControl("saturation")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Velvia")
                             from: 0
                             to: 1
@@ -742,10 +698,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editVelvia : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("velvia", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("velvia", value);
@@ -754,6 +706,7 @@ Rectangle {
                                 root.commands.resetControl("velvia")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Lift")
                             from: -1
                             to: 1
@@ -762,10 +715,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLift : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("lift", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("lift", value);
@@ -774,6 +723,7 @@ Rectangle {
                                 root.commands.resetControl("lift")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Color gamma")
                             from: -1
                             to: 1
@@ -782,10 +732,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorGamma : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("colorGamma", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorGamma", value);
@@ -794,6 +740,7 @@ Rectangle {
                                 root.commands.resetControl("colorGamma")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Gain")
                             from: -1
                             to: 1
@@ -802,10 +749,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGain : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("gain", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("gain", value);
@@ -814,6 +757,7 @@ Rectangle {
                                 root.commands.resetControl("gain")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Color contrast")
                             from: -1
                             to: 1
@@ -822,10 +766,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorContrast : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("colorContrast", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorContrast", value);
@@ -834,6 +774,7 @@ Rectangle {
                                 root.commands.resetControl("colorContrast")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Monochrome")
                             from: 0
                             to: 1
@@ -842,10 +783,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editMonochrome : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("monochrome", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("monochrome", value);
@@ -854,6 +791,7 @@ Rectangle {
                                 root.commands.resetControl("monochrome")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Split amount")
                             from: 0
                             to: 1
@@ -862,10 +800,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitAmount : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("splitAmount", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitAmount", value);
@@ -881,10 +815,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitShadowsHue : 0.55
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("splitShadowsHue", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitShadowsHue", value);
@@ -900,10 +830,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitHighlightsHue : 0.08
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("splitHighlightsHue", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitHighlightsHue", value);
@@ -912,6 +838,7 @@ Rectangle {
                                 root.commands.resetControl("splitHighlightsHue")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Split balance")
                             from: 0
                             to: 1
@@ -920,10 +847,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSplitBalance : 0.5
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("splitBalance", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("splitBalance", value);
@@ -947,6 +870,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Sharpen")
                             from: 0
                             to: 2
@@ -955,10 +879,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSharpen : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("sharpen", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sharpen", value);
@@ -967,6 +887,7 @@ Rectangle {
                                 root.commands.resetControl("sharpen")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Radius")
                             from: 0
                             to: 12
@@ -975,10 +896,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSharpenRadius : 1
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("sharpenRadius", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("sharpenRadius", value);
@@ -987,6 +904,7 @@ Rectangle {
                                 root.commands.resetControl("sharpenRadius")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Clarity")
                             from: -1
                             to: 1
@@ -995,10 +913,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editClarity : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("clarity", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("clarity", value);
@@ -1007,6 +921,7 @@ Rectangle {
                                 root.commands.resetControl("clarity")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Grain")
                             from: 0
                             to: 1
@@ -1015,10 +930,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGrain : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("grain", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("grain", value);
@@ -1042,6 +953,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Vignette")
                             from: 0
                             to: 1
@@ -1050,10 +962,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editVignette : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("vignette", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("vignette", value);
@@ -1062,6 +970,7 @@ Rectangle {
                                 root.commands.resetControl("vignette")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Bloom")
                             from: 0
                             to: 1
@@ -1070,10 +979,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editBloom : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("bloom", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("bloom", value);
@@ -1082,6 +987,7 @@ Rectangle {
                                 root.commands.resetControl("bloom")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Soften")
                             from: 0
                             to: 1
@@ -1090,10 +996,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editSoften : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("soften", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("soften", value);
@@ -1102,6 +1004,7 @@ Rectangle {
                                 root.commands.resetControl("soften")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Dehaze")
                             from: -1
                             to: 1
@@ -1110,10 +1013,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editDehaze : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("dehaze", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("dehaze", value);
@@ -1137,6 +1036,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Highlight reconstruction")
                             from: 0
                             to: 1
@@ -1147,10 +1047,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editRawHighlights : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("rawHighlights", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("rawHighlights", value);
@@ -1159,6 +1055,7 @@ Rectangle {
                                 root.commands.resetControl("rawHighlights")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Denoise")
                             from: 0
                             to: 1
@@ -1169,10 +1066,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editDenoise : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("denoise", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("denoise", value);
@@ -1181,6 +1074,7 @@ Rectangle {
                                 root.commands.resetControl("denoise")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Lens distortion")
                             from: -1
                             to: 1
@@ -1191,10 +1085,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLensK1 : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("lensK1", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("lensK1", value);
@@ -1203,6 +1093,7 @@ Rectangle {
                                 root.commands.resetControl("lensK1")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Lens vignetting")
                             from: 0
                             to: 1
@@ -1213,10 +1104,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLensVignetting : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("lensVignetting", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("lensVignetting", value);
@@ -1234,6 +1121,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Blacks")
                             from: -2
                             to: 2
@@ -1244,10 +1132,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqBlacks : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("toneEqBlacks", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqBlacks", value);
@@ -1256,6 +1140,7 @@ Rectangle {
                                 root.commands.resetControl("toneEqBlacks")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Shadows")
                             from: -2
                             to: 2
@@ -1266,10 +1151,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqShadows : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("toneEqShadows", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqShadows", value);
@@ -1278,6 +1159,7 @@ Rectangle {
                                 root.commands.resetControl("toneEqShadows")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Midtones")
                             from: -2
                             to: 2
@@ -1288,10 +1170,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqMidtones : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("toneEqMidtones", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqMidtones", value);
@@ -1300,6 +1178,7 @@ Rectangle {
                                 root.commands.resetControl("toneEqMidtones")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Highlights")
                             from: -2
                             to: 2
@@ -1310,10 +1189,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqHighlights : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("toneEqHighlights", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqHighlights", value);
@@ -1322,6 +1197,7 @@ Rectangle {
                                 root.commands.resetControl("toneEqHighlights")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Whites")
                             from: -2
                             to: 2
@@ -1332,10 +1208,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editToneEqWhites : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("toneEqWhites", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("toneEqWhites", value);
@@ -1353,6 +1225,7 @@ Rectangle {
                         Layout.fillWidth: true
                         width: parent.width
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Graduated density")
                             from: -2
                             to: 2
@@ -1363,10 +1236,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGraduatedDensity : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("graduatedDensity", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("graduatedDensity", value);
@@ -1375,6 +1244,7 @@ Rectangle {
                                 root.commands.resetControl("graduatedDensity")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Graduated rotation")
                             from: -180
                             to: 180
@@ -1385,10 +1255,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editGraduatedRotation : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("graduatedRotation", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("graduatedRotation", value);
@@ -1405,6 +1271,7 @@ Rectangle {
                                 root.commands.setDevelopNumber("colorEqBand", Number(currentText))
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Band saturation")
                             from: -1
                             to: 1
@@ -1415,10 +1282,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorEqSat : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("colorEqSat", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorEqSat", value);
@@ -1427,6 +1290,7 @@ Rectangle {
                                 root.commands.resetControl("colorEqSat")
                         }
                         CustomSlider {
+                            Layout.fillWidth: true
                             title: qsTr("Band hue")
                             from: -0.25
                             to: 0.25
@@ -1437,10 +1301,6 @@ Rectangle {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorEqHue : 0
-                            onValueEdited: function (value) {
-                                if (root.commands)
-                                    root.commands.previewDevelopNumber("colorEqHue", value);
-                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber("colorEqHue", value);

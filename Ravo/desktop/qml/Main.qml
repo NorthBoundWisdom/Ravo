@@ -645,32 +645,14 @@ ApplicationWindow {
                                 CropOverlay {
                                     anchors.fill: parent
                                     visible: studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady && photoPlane.width > 1
-                                    imageX: photoPlane.x
-                                    imageY: photoPlane.y
-                                    imageWidth: photoPlane.width
-                                    imageHeight: photoPlane.height
-                                    imageRotation: photoPlane.rotation
-                                    limitX: studio.validCropX
-                                    limitY: studio.validCropY
-                                    limitWidth: studio.validCropWidth
-                                    limitHeight: studio.validCropHeight
+                                    sourceWidth: photoPlane.width
+                                    sourceHeight: photoPlane.height
                                     cropX: studio.editCropX
                                     cropY: studio.editCropY
                                     cropWidth: studio.editCropWidth
                                     cropHeight: studio.editCropHeight
-                                    aspectRatio: studio.cropAspectRatio
-                                    straighten: studio.editStraighten
-                                    onCropEdited: function (x, y, w, h) {
-                                        studioActions.previewCropRect(x, y, w, h);
-                                    }
                                     onCropCommitted: function (x, y, w, h) {
                                         studioActions.setCropRect(x, y, w, h);
-                                    }
-                                    onStraightenEdited: function (degrees) {
-                                        studioActions.previewDevelopNumber("straighten", degrees);
-                                    }
-                                    onStraightenCommitted: function (degrees) {
-                                        studioActions.setDevelopNumber("straighten", degrees);
                                     }
                                 }
                             }

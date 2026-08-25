@@ -10,6 +10,7 @@
 #include <QQuickStyle>
 #include <QResource>
 #include <QSize>
+#include <QUrl>
 
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
@@ -88,6 +89,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setFont(ui_font);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     ravo::init_logging("RavoStudio");
+    const bool smoke = QCoreApplication::arguments().contains(QStringLiteral("--smoke"));
     LOG_INFO(ravo::logger(), "Ravo Studio starting");
 
     ravo::StudioPresenter presenter;
@@ -99,6 +101,13 @@ int main(int argc, char *argv[])
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+    if (smoke)
+    {
+        QObject::connect(
+            &engine, &QQmlApplicationEngine::objectCreated, &application,
+            [](QObject *object, const QUrl &)
+            { QCoreApplication::exit(object == nullptr ? 1 : 0); }, Qt::QueuedConnection);
+    }
     engine.loadFromModule("Ravo.Studio", "Main");
     const int exit_code = QGuiApplication::exec();
     ravo::shutdown_logging();

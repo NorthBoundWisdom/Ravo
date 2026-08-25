@@ -34,6 +34,8 @@ unit/contract 覆盖 foundation/recipe/executor、CLI JSON/退出码、有限 XM
 `mire1.cr2` inspect/render。catalog 测试覆盖 schema create/reopen/newer-version reject、
 PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、原片哈希不变、preview 缓存、缺失/不支持输入，以及
 recipe 与 review 独立性。它们不替代本机 Studio 手工 Fit/100%/Develop 验收。
+`ravo_studio` 每次成功链接后会以 `--smoke` 在 `offscreen` 平台加载主 QML 并立即退出；
+QML 组件失败会使该 target 的构建失败。手动检查：`$<TARGET_FILE:ravo_studio> --smoke`。
 
 ## Test framework 与 target 边界
 

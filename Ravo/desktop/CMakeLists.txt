@@ -114,3 +114,14 @@ qt_add_qml_module(ravo_studio
 qt_add_resources(ravo_studio "studio_app_icon"
   PREFIX "/ravo/studio"
   FILES icons/AppIcon.png icons/AppIcon.ico)
+
+if(NOT Python3_Interpreter_FOUND)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+endif()
+add_custom_command(
+  TARGET ravo_studio
+  POST_BUILD
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"
+          "$<TARGET_FILE:ravo_studio>"
+  COMMENT "Smoke-load Ravo Studio QML and exit"
+  VERBATIM)
