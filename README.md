@@ -88,11 +88,19 @@ Studio after a macOS Debug build:
 | `legacy/` | Frozen 0.9 sources, fixtures, and maps (not built) |
 | `FreeCM/` | Dependency-management submodule |
 
+## Documentation policy
+
+Developer documents describe the current contract, not an implementation diary.
+Each topic has one authority indexed by [`DevDocs/README.md`](DevDocs/README.md).
+Root `TODO_<TOPIC>.md` files contain unfinished execution only and are deleted
+after durable conclusions move to their owning docs; Git history preserves the
+completed process.
+
 ## Further reading
 
 - [Ravo project](Ravo/README.md)
 - [Commit hooks](hooks/README.md)
-- [Product plan](TODO_REWRITE.md)
+- [Active legacy migration TODO](TODO_LEGACY_MIGRATION.md)
 - [Dependency workflow](DevDocs/Dependency_Workflow.md)
 - [Packaging](DevDocs/Packaging.md)
 - [GPU baseline](DevDocs/GPU_Baseline.md)

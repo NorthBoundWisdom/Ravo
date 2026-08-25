@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-24
-- Relates to: ADR-0007, SPEC.md P0
+- Relates to: ADR-0007, Ravo accepted catalog/review baseline
 
 ## Context
 

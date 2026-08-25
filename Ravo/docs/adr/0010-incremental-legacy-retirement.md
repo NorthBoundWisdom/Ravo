@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-25
 - Supersedes: ADR-0004 deletion timing only
-- Relates to: ADR-0004, root `TODO.md`
+- Relates to: ADR-0004, root `TODO_LEGACY_MIGRATION.md`
 
 ## Context
 
@@ -21,7 +21,7 @@ acceptance would destroy static evidence still needed for the rewrite.
 - Ravo remains the only production growth path. Production code still must
   not include, link, or load `legacy/src`.
 - Configuring, compiling, or running the 0.9 application remains forbidden.
-- After a `TODO.md` item meets its Ravo-accepted gate, delete only the named
+- After an active migration TODO item meets its Ravo-accepted gate, delete only the named
   old owner files. Record them in
   [`../phase0/legacy-retired-src-paths.txt`](../phase0/legacy-retired-src-paths.txt).
 - Remaining leftover files must continue to match the freeze-commit blobs.
@@ -29,7 +29,7 @@ acceptance would destroy static evidence still needed for the rewrite.
   Leftover `iop/CMakeLists.txt` and `libs/CMakeLists.txt` may drop retired
   registrations and are not blob-compared to the freeze.
 - Shared decode, fixture, and leftover GTK/Lua/OpenCL paths stay until their
-  own acceptance or the leftover list in `TODO.md` §5.
+  own acceptance or the leftover list in `Ravo/MIGRATION.md`.
 - The first retired owners are `libs/export.c` and `libs/export_metadata.c`,
   replaced by `CatalogService::export_asset`. `iop/tonecurve.c` is retired after
   `ravo.core.tonecurve` acceptance; leftover `rgbcurve.c` stays.
@@ -41,10 +41,11 @@ acceptance would destroy static evidence still needed for the rewrite.
 - Freeze checks no longer require a bit-identical `legacy/src` tree.
 - A mistaken retirement is a documentation-and-checker change, not a silent
   source edit.
-- M7 still cleans leftover that Ravo will never own.
+- After the migration queue is empty, the root roadmap still requires a
+  separate archive/removal decision for leftover that Ravo will never own.
 
 ## Rejected alternatives
 
-- **Keep ADR-0004’s M7-only deletion:** leftover would keep product owners
+- **Keep ADR-0004’s final-bulk-only deletion:** leftover would keep product owners
   that Ravo already replaced.
 - **Delete imageio encode and decode together:** import still needs decode.

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-24
-- Relates to: ADR-0008, SPEC.md P1
+- Relates to: ADR-0008, Ravo accepted Develop baseline
 
 ## Context
 

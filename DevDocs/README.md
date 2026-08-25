@@ -8,7 +8,29 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM lock modes, `--update`, and publication order |
 | [Packaging.md](Packaging.md) | FreeCM release packaging, platform artifacts, and CI ownership |
 | [GPU_Baseline.md](GPU_Baseline.md) | CPU gold samples and later GPU performance gates |
+| [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities awaiting product decisions |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
 | [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and current product slice |
-| [../TODO_REWRITE.md](../TODO_REWRITE.md) | Milestone plan |
+| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, lifecycle, and data boundaries |
+| [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
+| [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
+| [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Accepted architecture decisions |
+| [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Unfinished legacy migration execution |
 | [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |
+
+## Maintenance rules
+
+1. Describe current ownership, invariants, failure behavior and reproducible
+   validation commands. Do not append implementation diaries, completed
+   checklists or per-run samples.
+2. Keep one authority per topic. Fold durable conclusions into that document
+   and delete superseded designs instead of preserving competing summaries.
+3. Treat code, manifests, checkers and repository workflows as executable
+   truth. Update the owning document in the same change when their contract
+   changes.
+4. Keep transient measurements and reports under `build/` or `/tmp`; document
+   only stable metric definitions and hard gates.
+5. Update generated documentation only through its owning generator.
+6. Put unfinished execution work in a root `TODO_<TOPIC>.md`. File-local
+   refactoring notes stay with the implementation, not in a repository-wide
+   backlog.

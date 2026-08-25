@@ -4,10 +4,9 @@
 
 This is a historical Phase 0 contract. It still records valid CLI behaviours
 and service-boundary evidence, but [ADR-0007](../adr/0007-first-usable-catalog-viewer.md)
-and [TODO_REWRITE.md](../../../TODO_REWRITE.md) supersede its original delivery
-order. DC-01 catalog import and browse is now the current M1 product slice;
-DC-02 through DC-06 remain later work unless the roadmap explicitly promotes
-them.
+and the root [active migration TODO](../../../TODO_LEGACY_MIGRATION.md) supersede its original delivery order.
+The implementation-state column remains evidence; only the root roadmap can
+promote an unfinished use case.
 
 The command names, JSON envelope, exit codes, and no-write failure semantics
 are part of the `ravo-cli/v1` contract. Adding a machine-visible command or

@@ -14,4 +14,4 @@ ADR 记录已接受且会约束后续实现的重要决定。新 ADR 使用递�
 | [0007](0007-first-usable-catalog-viewer.md) | Accepted | C++ + Qt Quick/QML 第一版优先交付 SQLite catalog、图片导入与桌面 viewer 纵切片 |
 | [0008](0008-p0-review-catalog-v2.md) | Accepted | Catalog schema v2 持久化 P0 rating/color/reject，并提升 preview contract |
 | [0009](0009-p1-develop-recipe.md) | Accepted | Catalog schema v3 每张图一份 canonical recipe，P1 Develop 只持久化该配方 |
-| [0010](0010-incremental-legacy-retirement.md) | Accepted | Ravo 已验收的旧 owner 按 `TODO.md` 增量删除；剩余 leftover 仍对照 freeze blob |
+| [0010](0010-incremental-legacy-retirement.md) | Accepted | Ravo 已验收的旧 owner 按 active migration TODO 增量删除；剩余 leftover 仍对照 freeze blob |

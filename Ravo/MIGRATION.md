@@ -2,8 +2,9 @@
 
 ## 目标
 
-Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ravo 落地。下一阶段按
-[`../TODO.md`](../TODO.md) 逐项重写；一项达到「Ravo 已验收」后删除对应旧 owner。
+Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在 Ravo 落地。下一阶段按
+根 [`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md) 逐项重写；
+一项达到「Ravo 已验收」后删除对应旧 owner。
 新所有权只进入 `Ravo/`。0.9 仍禁止配置、编译、运行。
 
 ## 单向边界
@@ -50,7 +51,7 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ra
 4. 只迁所需数学与行为，去除 GUI、旧生命周期、全局状态、动态 ABI 和 OpenCL 类型；
 5. 运行 unit、synthetic、legacy mapping、真实 RAW/golden、错误/取消和资源验证；
 6. 让 CLI/Studio 通过同一 services/engine 成为正式消费者；
-7. 按 [`../TODO.md`](../TODO.md) 在该项 Ravo 已验收后删除对应旧 owner，并同步
+7. 按根 active migration TODO 在该项 Ravo 已验收后删除对应旧 owner，并同步
    freeze/inventory 检查。
 
 ## “已被 Ravo 吃掉”的定义
@@ -61,16 +62,32 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ra
 - 承诺 fixture、service/desktop 测试和平台门槛达到阈值；
 - 历史数据迁移或显式拒绝策略已记录并测试；
 - 发行切换完成，生产构建没有第二份可达旧实现；
-- `src` 对应源码、构建、注册、配置、资源和入口已按 [`../TODO.md`](../TODO.md) 删除；
+- `src` 对应源码、构建、注册、配置、资源和入口已按 active migration TODO 删除；
 - 文档、搜索和链接图没有意外消费者或反向依赖。
 
 ## 迁移顺序
 
-1. M1–M3：SQLite catalog、reference-only import、CPU preview、Gallery/viewer 与第一版加固。
-2. M4：metadata、评分/标签、筛选、照片版本、history 和本地工作流。
-3. M5：完整 recipe 编辑、保留 operation、mask/blend、色彩/ROI/分块与本地导出。
-4. M6：CPU 门槛后的可选 GPU adapter、性能与跨平台发布优化。
-5. M7：发行切换、数据回滚证明，以及 [`../TODO.md`](../TODO.md) leftover 清理。
+1. 已验收的 catalog/review/develop/export 基线保持可回归；
+2. 严格按根 active migration TODO 一次迁一个 legacy capability，并同步删除旧 owner；
+3. 队列后的 mask、额外 RAW/颜色、styles/catalog 兼容先做 dated 产品决定；
+4. 横向可靠性、三平台安装与可选 GPU 按 TODO 门槛验收；
+5. 队列清空后证明发行切换/回滚，再处理明确 leftover 的归档或最终清理。
+
+## 明确不迁移的 leftover
+
+除非另有 dated 产品决定，以下只保留为冻结证据，不进入 Ravo：
+
+- GTK Lighttable/Darkroom、dtgtk、Bauhaus 和旧模块布局/UI ABI；
+- Lua、动态 IOP 加载、历史插件 ABI；
+- 0.9 OpenCL；Ravo GPU 不复用该 API；
+- 旧 catalog/styles 二进制和未证明的全量 XMP history 重放；
+- map、tethering、打印、幻灯片、远程发布；
+- 诊断 overlay：`overexposed`、`rawoverexposed`；
+- 未选显示变换：`filmicrgb`、`agx`；
+- 专项创意模块：`liquify`、`retouch`、`watermark`、`overlay`、`censorize`、
+  `negadoctor`、`colorharmonizer`、`colorchecker`、`colormapping`、`colorize`。
+
+不得把 leftover 做成空壳迁移，也不得在 active migration TODO 清空前批量删除。
 
 ## 迁移 ledger
 
@@ -80,17 +97,17 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 P1 develop 已在 Ra
 | Recipe/schema | IOP params/XMP | recipe | 实现中 | versioned round-trip 与有限 exposure mapping 已测 |
 | RAW inspect/decode | imageio/LibRaw | engine + codec adapter | 实现中 | `mire1.cr2` inspect/render 已测；格式与 sensor 覆盖有限 |
 | CPU preview/pixelpipe | `src/develop` | engine | 实现中 | bounded PNG、取消、exposure 亮度已测；完整颜色/ROI 未完成 |
-| SQLite catalog | common/database | domain + SQLite adapter | 实现中 | schema v1 create/reopen/newer-version reject 已测；无旧 catalog 迁移 |
+| SQLite catalog | common/database | domain + SQLite adapter | 实现中 | schema v3 create/reopen/migrate/newer-version reject 已测；无旧 catalog 迁移 |
 | Reference-only import | common/imageio/import | services + adapters | 实现中 | PNG/JPEG + LibRaw RAW（含 ARW）与目录递归已测；JPEG/GIF/WebP/TIFF plugin targets 已设为 required |
 | Preview cache | mipmap/cache/imageio | services + adapters | 实现中 | 库外原子 PNG 缓存与 reopen 重建已测 |
-| Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/100%；平移与长列表仍属 M2 |
-| Catalog metadata/workflow | common/libs | domain + services | 延后 | M4 产品与数据契约 |
-| Mask/blend/operations | develop/iop | recipe + engine | 延后 | M5 每项 operation 验收 |
+| Gallery/viewer | lighttable/darkroom | desktop + services | 实现中 | Studio 可创建/打开/导入/fit/fill/100%；长列表资源门槛仍待验收 |
+| Catalog metadata/workflow | common/libs | domain + services | 延后 | active TODO 排队标签/metadata/history |
+| Mask/blend/operations | develop/iop | recipe + engine | 延后 | active TODO 先验证最小渐变边界，通用图另做决定 |
 | 本地导出 | imageio / `libs/export.c` | services + raster encoder + CLI/Studio | 旧实现已删除 | JPEG/PNG/原片复制与 conflict/cancel 已测；TIFF plugin target 已设为 required；metadata/ICC 未做。旧 `libs/export*.c` 已删 |
 | 色调曲线 | `iop/tonecurve.c` | `ravo.core.tonecurve` + Develop Inspector | 旧实现已删除 | 一条链接 RGB 点曲线；schema 显式 `working_space=srgb\|linear_rgb`。不是 Lab 三通道移植。`rgbcurve` 未做 |
 | 默认显示变换 | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | 旧实现已删除 | per-channel generalized log-logistic；线性 sRGB、Standard SDR target、合成/真实 RAW/catalog reopen 已测。`filmicrgb`/`agx` 明确留作 leftover |
-| CLI | `src/cli` | cli | 实现中 | engine/recipe JSON 已测；catalog 命令计划在 M2 |
-| GPU | OpenCL/pixelpipe | engine adapter | 延后 | M6，CPU goldens 和收益证明后开始 |
+| CLI | `src/cli` | cli | 实现中 | engine/recipe/catalog/develop/export JSON 均走正式 services/engine |
+| GPU | OpenCL/pixelpipe | engine adapter | 延后 | active TODO / GPU baseline：CPU goldens 和端到端收益证明后开始 |
 
 状态只使用“未开始 / 基线冻结 / 实现中 / Ravo 已验收 / 旧实现已删除 / 延后 / 不支持”。旧 owner
-的物理删除以 [`../TODO.md`](../TODO.md) 该项验收为准，不是整包等到 M7。
+的物理删除以 active migration TODO 的该项验收为准，不再等待整包退役。

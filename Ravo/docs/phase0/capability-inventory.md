@@ -3,7 +3,7 @@
 ## Purpose and status
 
 This is a historical Phase 0 implementation inventory, not a promise to reproduce every
-legacy IOP. [`TODO_REWRITE.md`](../../../TODO_REWRITE.md) retains the
+legacy IOP. [`Ravo/MIGRATION.md`](../../MIGRATION.md) retains the
 product-boundary authority; several creative and specialised modules are still
 explicit candidates for a separate keep/remove decision. The table identifies
 work that must not be silently implied by a successful Ravo build.

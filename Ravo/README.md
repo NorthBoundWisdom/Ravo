@@ -11,17 +11,18 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 - `ravo render` 可执行 nop 与 `ravo.core.exposure`，完成裁剪、black/white 归一化、camera WB、
   LibRaw camera-to-sRGB、基础 3×3 Bayer 插值、sRGB 编码和原子 PNG 输出；
 - legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
-- M1 catalog 纵切片已落地：reference-only JPEG/PNG/RAW 导入、库外 preview cache、
+- Catalog 纵切片已落地：reference-only JPEG/PNG/RAW 导入、库外 preview cache、
   `ravo_studio` Qt Quick 窗口，控件来自 source-root `GeoControls`。
-- P0 Browse & Review：catalog schema v2、评分/色标/拒绝、Grid/Loupe/filmstrip、Fit/Fill/100%、筛选排序。
-- P1 Basic Develop：catalog schema v3 每张图一份 canonical recipe；CPU 全局曝光/对比/高光阴影/
+- Browse & Review：catalog schema v2、评分/色标/拒绝、Grid/Loupe/filmstrip、Fit/Fill/100%、筛选排序。
+- Basic Develop：catalog schema v3 每张图一份 canonical recipe；CPU 全局曝光/对比/高光阴影/
   白黑场、白平衡、自然饱和度/饱和度、90° 旋转与自由裁剪；Studio 有 Edit 面板、before/after 与
   会话内 undo/redo。macOS Debug 已跑通无 UI create/import/preview/recipe/reopen。
 - RAW preview/export 以 `ravo.display.sigmoid` v1 作为唯一 Standard SDR 显示变换；
   recipe 可调 contrast/skew/hue preservation，默认基线不标记为用户编辑。
   Configure 强制要求 JPEG/GIF/WebP/TIFF imageformat plugins 与 QSQLITE driver；缺失直接阻断。
 
-完整执行顺序见 [TODO_REWRITE.md](../TODO_REWRITE.md)，方向变化见
+当前 legacy 迁移执行顺序见
+[TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md)，方向变化见
 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md)。
 
 ## 第一版闭环
@@ -167,7 +168,7 @@ Debug 构建后的 Studio 入口是
 
 `legacy/src/` 是 0.9 行为的只读事实来源；Ravo 是唯一增长方向。Ravo 可以静态读取源码和 fixture，但生产
 target 不得包含旧私有头、链接旧库、加载旧 IOP 或访问全局 `darktable`。冻结应用也不得增加 Ravo
-adapter。只有 Ravo 全产品满足发行切换与回滚门槛后，才在 M7 整体删除旧应用。
+adapter。只有 Ravo 满足根 TODO 的发行切换与回滚门槛后，才处理剩余旧应用。
 
 ## 文档入口
 
@@ -176,6 +177,6 @@ adapter。只有 Ravo 全产品满足发行切换与回滚门槛后，才在 M7 
 - [MIGRATION.md](MIGRATION.md)：单向迁移、ledger 与退役规则；
 - [TESTING.md](TESTING.md)：第一版 catalog/import/viewer 与冻结 fixture 验收；
 - [ADR 索引](docs/adr/README.md)：长期架构决定；
-- [根执行计划](../TODO_REWRITE.md)：M0–M7 路线图。
+- [根 legacy 迁移 TODO](../TODO_LEGACY_MIGRATION.md)：仅记录未完成执行项与门槛。
 
 仓库整体采用 GPLv3，详见根目录 [LICENSE](../LICENSE)。

@@ -1,6 +1,6 @@
 ---
 name: context-handoff
-description: Capture a durable, evidence-based continuation note for an unfinished DarkTableNext maintenance task or investigation. Use when pausing a long task, moving work to another session or agent, documenting a blocker, or preserving exact repository state and next actions.
+description: Capture an evidence-based continuation note for an unfinished Ravo task or investigation. Use when pausing a long task, moving work to another session or agent, documenting a blocker, or preserving exact repository state and next actions.
 ---
 
 # Context Handoff
@@ -20,8 +20,12 @@ git diff
 git diff --cached
 ```
 
-Record the current goal, relevant product boundary documents, files actually changed, and the
-latest build/test output. If a linked dependency checkout is involved, collect its Git state,
+Record the current goal and point to existing truth sources before summarizing them:
+`TODO_<TOPIC>.md` for unfinished execution, `Ravo/README.md` for current capability,
+`Ravo/ARCHITECTURE.md` for ownership, `Ravo/MIGRATION.md` for legacy boundaries, and
+`Ravo/TESTING.md` for validation. A handoff supplements these files and never replaces them.
+
+Record files actually changed and the latest build/test output. If a linked dependency checkout is involved, collect its Git state,
 the active dependency mode, path, pinned commit, and whether that commit was pushed.
 
 Do not include secrets, tokens, private URLs, huge patches, or generated build output.
@@ -40,9 +44,10 @@ Use these sections in this order:
 8. **Remaining sequence** — ordered steps to reach the goal.
 9. **Do not do** — known destructive, stale, or architecturally invalid paths.
 
-When no output path is requested, return the handoff in the conversation. When a repository file
-is explicitly requested, use the requested path; otherwise prefer a clearly temporary or
-task-specific name rather than silently overwriting roadmap documents.
+When no output path is requested, return the handoff in the conversation. Only write a
+repository file when the user explicitly requests it. Use a root
+`HANDOFF_<TOPIC>.md` name, never `TODO_`, and do not create handoff/archive
+subdirectories or overwrite roadmap documents.
 
 ## Accuracy rules
 
@@ -51,6 +56,7 @@ task-specific name rather than silently overwriting roadmap documents.
 - Say whether tests were not run, failed, or passed.
 - Identify generated and ignored files so the next session does not stage them.
 - For linked repositories, never collapse two dirty worktrees into one Git state.
+- Treat handoff status as facts/plans/validation context, not architecture or product truth.
 - End with an executable next step, not “continue investigating.”
 
 Creating a handoff does not authorize a commit, push, cleanup, reset, dependency update, or other

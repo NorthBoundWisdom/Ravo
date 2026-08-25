@@ -78,7 +78,26 @@ Validate in proportion (use `$build-repo` for commands):
 - C++ / catalog: build affected targets; run the relevant Ravo tests
 - Do not call unrun checks “passed”
 
-## 4. Commit the parent
+## 4. Reconcile documentation and TODOs
+
+Before staging, classify whether the diff changes user behavior, product scope,
+commands, configuration, architecture/ownership, validation, dependencies, or
+legacy migration state.
+
+- Update the single owning document in the same change:
+  `Ravo/README.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `TESTING.md`, an ADR,
+  or `DevDocs/README.md` as appropriate.
+- Fix factual paths, commands, names, versions, and coverage directly.
+  Do not perform a broad narrative rewrite unless the user requested it.
+- Root `TODO_<TOPIC>.md` files contain unfinished execution only. Move durable
+  conclusions to stable truth sources, remove completed items, and hard-cut
+  renames without redirects or compatibility copies.
+- Validate relative links and search for stale references after deleting or
+  renaming documentation.
+- If no documentation changes are needed, record the concrete reason in the
+  delivery report.
+
+## 5. Commit the parent
 
 1. Stage explicit paths.
 2. Re-read `git diff --cached`.
@@ -90,8 +109,9 @@ Validate in proportion (use `$build-repo` for commands):
 If hooks reformat staged files, review those diffs before treating the commit
 as done.
 
-## 5. Report
+## 6. Report
 
 Commit hashes (seed and parent), whether each seed was pushed, `ls-remote`
 SHA, whether the lock template was updated, validation actually run, leftover
-dirty files, and that the parent was not pushed unless requested.
+dirty files, documentation/TODO reconciliation, and that the parent was not
+pushed unless requested.

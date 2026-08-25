@@ -7,8 +7,9 @@
 1. 运行 `git status --short --branch`，保留用户已有改动。
 2. 阅读 `Ravo/README.md`、`ARCHITECTURE.md`、`MIGRATION.md`、`TESTING.md` 和相关 ADR。
 3. 涉及旧行为或算法时，阅读对应 `legacy/src/` 实现和 fixture；不得根据上游 darktable 习惯猜测。
-4. 确认本次工作属于根目录 [`../TODO.md`](../TODO.md) 的当前队列项，或
-   `../TODO_REWRITE.md` 仍未关闭的 M2/M3 加固。desktop 使用 Qt 6 Quick/QML，
+4. 确认本次工作属于根目录
+   [`../TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md) 的当前队列项或横向可靠性门槛。
+   desktop 使用 Qt 6 Quick/QML，
    Qt Sql 只进入私有 SQLite adapter。Qt Widgets、第二套 presentation 架构和旧
    GTK adapter 仍未获准。
 5. 写明所有权、生命周期、线程边界、错误/取消路径和最小验证集后再跨层修改。
@@ -16,8 +17,8 @@
 ## 当前技术边界
 
 - 第一方新代码统一使用 C++20、CMake 与 FreeCM；不加入 Rust/Cargo 构建图。
-- CPU 是正确性参考和可靠回退。GPU 只能在 M6、第一版软件和对应 CPU 编辑路径门槛完成后作为 adapter
-  引入。
+- CPU 是正确性参考和可靠回退。GPU 只能在 `MIGRATION.md` 与
+  `../DevDocs/GPU_Baseline.md` 的 CPU/金样/收益门槛完成后作为 adapter 引入。
 - `ravo` CLI 与 Ravo Studio 都是正式客户端；算法必须在 engine 中，catalog/import/preview 编排必须在
   services 中，CLI/UI 只负责输入输出、进度、选择和错误呈现。
 - operation 首版为内建注册，不恢复旧动态 IOP ABI、GTK ABI 或插件兼容层。
@@ -48,7 +49,7 @@
 - Ravo 生产代码不得包含 `legacy/src/` 头、链接旧库、`dlopen` 旧模块或读取旧全局状态。测试只能读取已冻结
   fixture 与源码；不得配置、编译或运行旧 CLI、旧 CTest 或 `legacy/tests/run`。
 - 旧应用不复用 Ravo，也不增加 adapter；生产依赖必须保持完全独立。旧 owner 按
-  [`../TODO.md`](../TODO.md) 验收后删除。
+  active migration TODO 验收后删除。
 
 ## C++ 实施规则
 
@@ -67,7 +68,7 @@
 - 直接阅读冻结 C 源码并重写 C++20 行为；用聚焦 Ravo UT 覆盖旧实现的关键分支，但不得编译或运行旧 UT。
 - 可以移植可理解的数学思想或纯算法，但不得连带复制 GUI、旧 module lifecycle、配置 shim、
   动态注册、OpenCL 类型或无消费者代码。
-- 按 [`../TODO.md`](../TODO.md) 在该项 Ravo 已验收后删除对应 `legacy/` owner（CMake、
+- 按根 active migration TODO 在该项 Ravo 已验收后删除对应 `legacy/` owner（CMake、
   注册、资源、文档与检查）。未验收项与 leftover 不得提前删除。全仓搜索确认无消费者。
 - 旧 OpenCL 不迁入 Ravo，也不在 0.9 内改成 Metal；Ravo GPU 只能在自身 CPU 路径验收后以独立
   adapter 实现。

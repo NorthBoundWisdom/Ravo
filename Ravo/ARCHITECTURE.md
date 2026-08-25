@@ -55,7 +55,7 @@ recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已�
 只返回内存像素、不写 PNG/cache/recipe。松手后再保存并请求完整 preview。
 Develop 裁剪在画布上交互：crop tool 预览去掉 crop 与 straighten，由 Qt Quick 旋转工作图；
 描边与照片共用这一 GPU 变换，裁剪框保持屏幕轴向并内接旋转后的照片。框选和 Angle 拖动只更新
-内存参数，松手后写入 recipe；导出仍走 CPU straighten，不是 M6 GPU adapter。
+内存参数，松手后写入 recipe；导出仍走 CPU straighten，不是 engine GPU adapter。
 删除照片默认只从 catalog 移除记录和 preview cache，不删除原片。显式的
 “Delete from Disk” 命令在确认后删除原文件，再移除 catalog 记录。QML 资源通过 `qt_add_qml_module`
 纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。
@@ -174,8 +174,8 @@ Ravo Studio 不负责：
 
 ## CLI 边界
 
-CLI 继续负责参数、stdin/stdout、版本化 JSON、稳定退出码和 headless composition。M2 可增加
-catalog create/import/list/preview 命令，用于验证同一 services；人类日志不能污染 JSON stdout。
+CLI 继续负责参数、stdin/stdout、版本化 JSON、稳定退出码和 headless composition。现有
+catalog create/import/list/preview/develop/export 命令验证同一 services；人类日志不能污染 JSON stdout。
 
 ## 当前非目标
 

@@ -38,5 +38,6 @@ designed GPU adapters. The old OpenCL path remains unchanged until the entire
 0.9 application is retired.
 
 See [the README](README.md) for build instructions and
-[the frozen 0.9 and Ravo implementation plan](TODO_REWRITE.md) for the product
-boundary and roadmap.
+[the Ravo migration policy](../Ravo/MIGRATION.md) plus
+[active migration TODO](../TODO_LEGACY_MIGRATION.md) for the product boundary
+and execution order.
