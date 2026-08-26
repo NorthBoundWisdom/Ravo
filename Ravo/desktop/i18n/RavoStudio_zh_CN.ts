@@ -252,6 +252,10 @@
         <translation>饱和度</translation>
     </message>
     <message>
+        <source>Reset</source>
+        <translation>重置</translation>
+    </message>
+    <message>
         <source>Input Profile</source>
         <translation>输入配置文件</translation>
     </message>
@@ -438,6 +442,78 @@
     <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
+    </message>
+    <message>
+        <source>Color look-up table · D50 Lab</source>
+        <translation>颜色查找表 · D50 Lab</translation>
+    </message>
+    <message>
+        <source>Enable color look-up table</source>
+        <translation>启用颜色查找表</translation>
+    </message>
+    <message>
+        <source>IT8 skin tones</source>
+        <translation>IT8 肤色</translation>
+    </message>
+    <message>
+        <source>Expanded color checker</source>
+        <translation>扩展色卡</translation>
+    </message>
+    <message>
+        <source>Helmholtz/Kohlrausch monochrome</source>
+        <translation>Helmholtz/Kohlrausch 单色</translation>
+    </message>
+    <message>
+        <source>Fuji Astia emulation</source>
+        <translation>富士 Astia 模拟</translation>
+    </message>
+    <message>
+        <source>Fuji Classic Chrome emulation</source>
+        <translation>富士 Classic Chrome 模拟</translation>
+    </message>
+    <message>
+        <source>Fuji Monochrome emulation</source>
+        <translation>富士 Monochrome 模拟</translation>
+    </message>
+    <message>
+        <source>Fuji Provia emulation</source>
+        <translation>富士 Provia 模拟</translation>
+    </message>
+    <message>
+        <source>Fuji Velvia emulation</source>
+        <translation>富士 Velvia 模拟</translation>
+    </message>
+    <message>
+        <source>Patch %1</source>
+        <translation>色块 %1</translation>
+    </message>
+    <message>
+        <source>Source · L*</source>
+        <translation>源色 · L*</translation>
+    </message>
+    <message>
+        <source>Source · a*</source>
+        <translation>源色 · a*</translation>
+    </message>
+    <message>
+        <source>Source · b*</source>
+        <translation>源色 · b*</translation>
+    </message>
+    <message>
+        <source>Target · L*</source>
+        <translation>目标色 · L*</translation>
+    </message>
+    <message>
+        <source>Target · a*</source>
+        <translation>目标色 · a*</translation>
+    </message>
+    <message>
+        <source>Target · b*</source>
+        <translation>目标色 · b*</translation>
+    </message>
+    <message>
+        <source>Disable and reset color look-up table</source>
+        <translation>禁用并重置颜色查找表</translation>
     </message>
     <message>
         <source>Color Balance · legacy Lab / ProPhoto RGB</source>

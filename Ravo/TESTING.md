@@ -58,14 +58,15 @@ three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
-profile gamma + exposure + RGB primaries + channel mixer + Legacy Color Balance
-and Color Balance RGB parameter/pixel reopen, and preview-owner cancellation of a
-superseded token with old revision/asset rejection. Separate final-display
+profile gamma + exposure + RGB primaries + channel mixer + Color Checker +
+Legacy Color Balance and Color Balance RGB parameter/pixel reopen, and preview-
+owner cancellation of a superseded token with old revision/asset rejection.
+Separate final-display
 contracts cover private RGB8 packing and strict legacy display-boundary
 absorption; neither is a Develop recipe operation or pixel-reopen claim.
 Desktop QML smoke verifies that Input Profile, Unbreak Input Profile, Output &
-Soft Proof, White Balance, Exposure, RGB Primaries, Color Calibration, Legacy
-Color Balance, and full Color Balance RGB bindings load;
+Soft Proof, White Balance, Exposure, RGB Primaries, Color Calibration, Color
+Checker, Legacy Color Balance, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
 The real `ravo` process is also a protocol contract: `--json` stdout contains
@@ -256,6 +257,33 @@ directories, corrupt files, and more RAW files.
   preview/save/reopen/export, Studio presenter/QML smoke, and interactive/full
   render parity all consume the same engine context; no test treats the GTK
   area picker as serialized recipe behavior.
+- `colorchecker` statically inventories all 158 frozen XMPs. Exactly one actual
+  record exists, in 0098: enabled v2, priority zero, empty name, blend v11,
+  history `num=8`, default unmasked, and 24 active patches. A minimal document
+  containing that verbatim record is positive evidence; the complete 0098
+  history remains negative because an unrelated earlier operation is not
+  mapped. Synthetic v1 proves only the historical 24-patch source-table upgrade.
+  Disabled state, duplicate entries, non-canonical lexical/multi/name/blend/mask
+  state, bad lengths/counts, and non-finite active patches reject structurally;
+  inactive v2 tail planes are ignored, including stale NaN bits.
+- Color Checker CPU tests use an independent scalar/Gaussian oracle plus fixed
+  goldens for the exact bit-level fast-log kernel, matrix orientation, N=3 float
+  addition, and the verbatim 0098 patch set. A libm substitution perturbation
+  proves that the oracle detects kernel drift. N=0/1/2/3/4, RBF N=5 and N=49,
+  sequential per-channel N=2/N=3 singular fallback, and shared N=4/RBF identity
+  fallback are explicit. The RGB↔XYZ D50↔Lab bridge, dimensions/buffer/profile,
+  denominator and all non-finite states, fit/output resource estimates,
+  pre/row cancellation, operation dispatch/mask rejection, owned output, source
+  immutability, and profile/analysis retention are covered.
+- Eight preset bit hashes are checked against the frozen source tables. IT8 and
+  Expanded also match all 295 parsed C-assignment words; Helmholtz/Kohlrausch,
+  Astia, Classic Chrome, Monochrome, Provia, and Velvia each match all 1180
+  decoded frozen bytes. The 0098 operation on pinned `mire1.cr2` has bounded
+  64×48 channel sums near 295886/283466/247458 and leaves source hash, size, and
+  mtime unchanged. Recipe/Develop explicit-default presence, CLI descriptor and
+  render parity, Catalog preview/save/reopen/export pixels, Studio presenter/QML
+  bindings, localization, and offscreen smoke share the same canonical engine
+  and cache path.
 - `colorbalancergb` uses statically decoded `0083-colorbalancergb` schema-v4
   and `0093-colorbalancergb-ucs` schema-v5 parameters, Filmlight Yrg/grading
   RGB plus three-zone-opacity synthetic tests, DT UCS gamut/soft clip, JzAzBz

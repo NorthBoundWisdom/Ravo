@@ -115,6 +115,18 @@ Current implementation status:
   CPU matrix normalization, CAT16/Bradford/XYZ/RGB, XYZ gamut, saturation,
   lightness, and grey paths. Studio exposes an explicit 3×3 matrix, while CLI,
   preview, and export reuse the same engine operation.
+- Color Checker provides the independent `ravo.color.colorchecker` v1 contract
+  in D50 Lab. An explicitly present operation owns 0–49 ordered source/target
+  patch pairs and the frozen N=0–4 polynomial or N>4 thin-plate RBF fit, while
+  absence alone skips the operation. The fit exactly retains the frozen fast-log,
+  Gaussian solve, and singular fallback; Ravo privately adds the explicit
+  linear-Rec709↔D50 Lab bridge around the Lab owner. Studio exposes all eight
+  frozen presets and direct Lab patch editing; CLI and Catalog share the same
+  recipe, cache, and CPU path. Strict XMP import accepts the one evidenced
+  enabled v2 default-unmasked record and a synthetic v1 history upgrade. The
+  complete 0098 history remains a structured negative because unrelated earlier
+  operations are unsupported; masks, custom blend, multiple instances, and
+  disabled legacy state also reject rather than acquiring invented semantics.
 - Color Balance RGB provides `ravo.color.colorbalancergb` v1 in the explicit
   `linear_srgb_d50` workspace, with Filmlight Yrg three-zone luminance mask,
   grading RGB offset/slope/power, fulcrumed luminance, and DT UCS 2022 as the

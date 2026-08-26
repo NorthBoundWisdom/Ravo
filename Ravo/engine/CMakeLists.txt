@@ -5,6 +5,8 @@ target_sources(ravo_engine
     src/capability_ops.cpp
     src/color_balance_rgb.cpp
     src/color_balance_rgb.h
+    src/color_checker.cpp
+    src/color_checker.h
     src/engine.cpp
     src/image_ops.cpp
     src/input_color.cpp

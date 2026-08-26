@@ -109,6 +109,44 @@ ColumnLayout {
             root.commands.resetControl(modelData.field)
     }
 
+    component ColorCheckerNumberField: RowLayout {
+        required property var modelData
+        Layout.fillWidth: true
+        spacing: Fonts.smallSpacing
+
+        CustomLabel {
+            Layout.fillWidth: true
+            text: modelData.title
+        }
+        CustomTextField {
+            Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 12
+            showEmptyIndicator: false
+            showClipIndicator: false
+            enabled: root.hasSelection && root.hasPresenter
+                     && root.presenter.editColorChecker.patchCount > 0
+            validator: DoubleValidator {
+                bottom: -3.402823466e38
+                top: 3.402823466e38
+                decimals: 9
+                notation: DoubleValidator.ScientificNotation
+            }
+            text: root.hasPresenter
+                  ? Number(root.presenter.editColorChecker[modelData.key]).toString() : "0"
+            onEditingCommitted: function (committedText) {
+                const parsed = Number(committedText);
+                if (Number.isFinite(parsed) && root.commands)
+                    root.commands.setDevelopNumber(modelData.field, parsed);
+            }
+        }
+        CustomButton {
+            text: qsTr("Reset")
+            enabled: root.hasSelection && root.hasPresenter
+                     && root.presenter.editColorChecker.patchCount > 0
+            onClicked: if (root.commands)
+                root.commands.resetControl(modelData.field)
+        }
+    }
+
             CustomLabel {
                 Layout.leftMargin: Fonts.standardMargin
                 Layout.topMargin: Fonts.size8
@@ -1044,6 +1082,71 @@ ColumnLayout {
                             }
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("velvia")
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: qsTr("Color look-up table · D50 Lab")
+                            font.bold: true
+                            wrapMode: Text.WordWrap
+                        }
+                        CustomCheckBox {
+                            text: qsTr("Enable color look-up table")
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter && root.presenter.editColorChecker.enabled
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("colorCheckerEnabled", checked ? 1 : 0)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [
+                                qsTr("IT8 skin tones"),
+                                qsTr("Expanded color checker"),
+                                qsTr("Helmholtz/Kohlrausch monochrome"),
+                                qsTr("Fuji Astia emulation"),
+                                qsTr("Fuji Classic Chrome emulation"),
+                                qsTr("Fuji Monochrome emulation"),
+                                qsTr("Fuji Provia emulation"),
+                                qsTr("Fuji Velvia emulation")
+                            ]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter
+                                          ? root.presenter.editColorChecker.presetIndex : -1
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("colorCheckerPreset", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: {
+                                const labels = [];
+                                const count = root.hasPresenter
+                                              ? root.presenter.editColorChecker.patchCount : 0;
+                                for (let index = 0; index < count; ++index)
+                                    labels.push(qsTr("Patch %1").arg(index + 1));
+                                return labels;
+                            }
+                            enabled: root.hasSelection && root.hasPresenter
+                                     && root.presenter.editColorChecker.patchCount > 0
+                            currentIndex: root.hasPresenter
+                                          ? root.presenter.editColorChecker.patchIndex : -1
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("colorCheckerPatch", currentIndex)
+                        }
+                        Repeater {
+                            model: [
+                                { "title": qsTr("Source · L*"), "key": "sourceL", "field": "colorCheckerSourceL" },
+                                { "title": qsTr("Source · a*"), "key": "sourceA", "field": "colorCheckerSourceA" },
+                                { "title": qsTr("Source · b*"), "key": "sourceB", "field": "colorCheckerSourceB" },
+                                { "title": qsTr("Target · L*"), "key": "targetL", "field": "colorCheckerTargetL" },
+                                { "title": qsTr("Target · a*"), "key": "targetA", "field": "colorCheckerTargetA" },
+                                { "title": qsTr("Target · b*"), "key": "targetB", "field": "colorCheckerTargetB" }
+                            ]
+                            delegate: ColorCheckerNumberField {}
+                        }
+                        CustomButton {
+                            text: qsTr("Disable and reset color look-up table")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetControl("colorChecker")
                         }
                         CustomLabel {
                             Layout.fillWidth: true

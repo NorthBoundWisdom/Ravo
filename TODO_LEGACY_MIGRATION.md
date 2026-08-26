@@ -4,8 +4,10 @@
 >
 > **Updated: 2026-08-27**
 >
-> **Current execution focus: C11 colorchecker.** Do not migrate
-> colorcorrection, cacorrectrgb, or the general mask graph in parallel.
+> **Current execution focus: C12 colorcorrection static owner/dependency
+> audit.** Its CPU implementation is blocked by S1/M1; first define and complete
+> a separately owned prerequisite tranche. Do not begin C12 implementation,
+> colorcontrast, or cacorrectrgb in parallel with that audit.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -38,19 +40,21 @@ ready for execution.
 
 ## 2. Migration queue
 
-C11 colorchecker is current. Its owner, scope, dependencies, and acceptance gate
-are recorded in section 3.2. Complete its static owner and fixture analysis before
-changing code; do not start a later IOP algorithm row in parallel. Independent
-adapter or reliability work may run only when its dependencies are met and its
-owners and files do not overlap.
+C12 colorcorrection static owner/dependency audit is current. Its owner, scope,
+dependencies, and acceptance gate are recorded in section 3.2. Implementation
+remains blocked by S1/M1: the audit must define a bounded, independently owned
+prerequisite tranche and move execution focus to that owner before algorithm
+changes. Do not start a later IOP algorithm row in parallel. Independent adapter
+or reliability work may run only when its dependencies are met and its owners
+and files do not overlap.
 
 ## 3. Complete remaining-module inventory and serial order
 
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 54 unconditional IOP registrations plus two
-  conditional owners (`liquify`, `watermark`); all 56 have a row in section 3.2.
+- legacy/src/iop/CMakeLists.txt has 53 unconditional IOP registrations plus two
+  conditional owners (`liquify`, `watermark`); all 55 have a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
@@ -60,10 +64,11 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C11 only. **Queued** waits for dependencies and
-all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
-move it before migration completes. When a module meets its gate, first update
-stable truth, then remove its row. Do not leave historical checked marks here.
+Status terms: **current** means the C12 static dependency audit only; C12 CPU
+implementation remains blocked. **Queued** waits for dependencies and all
+earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not move
+it before migration completes. When a module meets its gate, first update stable
+truth, then remove its row. Do not leave historical checked marks here.
 
 General completion gates:
 
@@ -99,8 +104,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C11 | colorchecker — iop/colorchecker.c | yes | **Current / ALG**; depends on explicit input-profile state/S1; move algorithm/calibration tables and delete GTK chart/picker |
-| C12 | colorcorrection — iop/colorcorrection.c | yes | Queued / ALG; depends on S1/M1; Lab/chroma and blend contract |
+| C12 | colorcorrection — iop/colorcorrection.c | yes | **Current static audit / blocked ALG**; depends on S1/M1; define and complete an independent prerequisite tranche before Lab/chroma/blend implementation |
 | C13 | colorcontrast — iop/colorcontrast.c | yes | Queued / ALG; simplified control is not acceptance; reproduce frozen colour-space mathematics |
 | C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / ALG; depends on S1/M1; colour harmony and mask/ROI |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
@@ -313,7 +317,7 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later IOP algorithm rows in parallel before C11 completes. Independent adapter
+later IOP algorithm rows in parallel before C12 completes. Independent adapter
 or reliability work requires satisfied dependencies and explicitly non-
 overlapping owners and files.
 
@@ -321,7 +325,7 @@ overlapping owners and files.
 
 Delete this document only when all are true:
 
-- [ ] C11 and every later raised algorithm are accepted and removed from this
+- [ ] C12 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

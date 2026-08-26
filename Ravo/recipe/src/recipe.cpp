@@ -988,6 +988,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == kColorCheckerOperationId)
+        {
+            auto color_checker = validate_color_checker_parameters(operation.parameters);
+            if (!color_checker)
+            {
+                auto error = color_checker.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.raw.highlights")
         {
             if (const auto found = operation.parameters.find("mode");

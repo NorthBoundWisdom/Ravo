@@ -356,6 +356,42 @@ normalization, adaptation, illuminant xy, gamut, and clip. Studio normally
 edits only the `adaptation=rgb` 3×3 matrix; CAT16/Bradford/XYZ are selected
 only through explicit canonical parameters and never hidden camera/ICC state.
 
+`ravo.color.colorchecker` v1 is an independent, explicitly present calibration
+operation. Its canonical state is `working_space=lab_d50`,
+`algorithm=thin_plate_rbf_v2`, and 0–49 ordered source/target Lab patch pairs;
+it shares neither schema nor cache identity with Color Calibration, Primaries,
+or Color Balance RGB. Canonical Develop order places it after the accepted
+tone-equalizer and graduated-filter stages and before subsequent colour grading.
+Absence skips it, while an explicitly present default 24-patch operation is
+serialized, rendered, cached, and reopened rather than treated as identity.
+
+The CPU engine requires the explicit linear-Rec709 working state and privately
+bridges RGB through XYZ D50 to Lab and back. Zero through four patches use the
+frozen special polynomial fits; larger sets use the `(N+4)` thin-plate RBF
+system. Coefficient layout, float addition order, bit-level fast-log kernel,
+Gaussian pivoting, and the sequential N=2/N=3 versus shared N=4/RBF singular
+fallbacks remain source-exact. Fit matrices, pivots, coefficients, patch copies,
+and output bytes enter render memory estimates. Invalid profiles, dimensions,
+buffers, components, denominators, kernels, coefficients, results, allocation,
+or cancellation fail before an owned output is published; input pixels, profile,
+and immutable exposure-analysis state are retained unchanged.
+
+The strict decoder accepts only the evidenced enabled-v2, default-unmasked
+singleton presentation and a synthetic v1 parameter-history upgrade. It ignores
+inactive v2 tail planes because frozen patch removal leaves stale bytes. The one
+real record is preserved verbatim in a minimal positive document; the complete
+0098 history remains structured unsupported because unrelated preceding
+operations have no canonical mapping. Disabled legacy state, duplicates, masks,
+custom blend, multi-instance, malformed, non-finite active, and unsupported
+version state reject explicitly. Studio owns preset selection and direct Lab
+patch intent, not fitting mathematics. All eight frozen presets are exact data;
+the GTK live chart, picker, add/remove interaction, and OpenCL execution are not
+new product contracts. Shared `common/colorchecker.h`, Gaussian helpers,
+`extended.cl`, order, and registry text remain D0.3/D0.4/S1/S4 cleanup owners,
+not runtime dependencies of the canonical operation.
+[ADR-0026](docs/adr/0026-colorchecker-calibration-contract.md)
+freezes these boundaries.
+
 `ravo.color.colorbalancergb` v1 also explicitly declares
 `linear_srgb_d50`. It stores four Y/C/H zones, three falloff/fulcrum values,
 chroma/saturation/brilliance, hue/vibrance/contrast, and formula. The engine

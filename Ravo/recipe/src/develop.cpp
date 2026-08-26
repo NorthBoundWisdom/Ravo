@@ -560,6 +560,156 @@ void clamp_legacy_color_balance(ColorBalanceParams &params) noexcept
     }
 }
 
+[[nodiscard]] std::optional<std::size_t>
+selected_color_checker_patch(const DevelopParams &params) noexcept
+{
+    if (params.color_checker_patch < 0 ||
+        params.color_checker_patch >=
+            static_cast<std::int64_t>(params.color_checker.patches.size()))
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(params.color_checker_patch);
+}
+
+[[nodiscard]] bool apply_color_checker_field(DevelopParams &params, const std::string_view name,
+                                             const double value)
+{
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+    if (name == "colorCheckerEnabled")
+    {
+        params.color_checker_enabled = value >= 0.5;
+        return true;
+    }
+    if (name == "colorCheckerPreset")
+    {
+        const auto index = static_cast<std::int64_t>(std::llround(value));
+        const auto presets = color_checker_presets();
+        if (value != static_cast<double>(index) || index < 0 ||
+            index >= static_cast<std::int64_t>(presets.size()))
+        {
+            return false;
+        }
+        auto preset = color_checker_params_for_preset(presets[static_cast<std::size_t>(index)].id);
+        if (!preset)
+        {
+            return false;
+        }
+        params.color_checker = std::move(preset).value();
+        params.color_checker_enabled = true;
+        params.color_checker_patch = 0;
+        return true;
+    }
+    if (name == "colorCheckerPatch")
+    {
+        const auto index = static_cast<std::int64_t>(std::llround(value));
+        if (value != static_cast<double>(index) || index < 0 ||
+            index >= static_cast<std::int64_t>(params.color_checker.patches.size()))
+        {
+            return false;
+        }
+        params.color_checker_patch = index;
+        return true;
+    }
+    const auto patch = selected_color_checker_patch(params);
+    if (!patch || !std::isfinite(static_cast<float>(value)))
+    {
+        return false;
+    }
+    auto &selected = params.color_checker.patches[*patch];
+    double *component = nullptr;
+    if (name == "colorCheckerSourceL")
+    {
+        component = &selected.source_lab[0];
+    }
+    else if (name == "colorCheckerSourceA")
+    {
+        component = &selected.source_lab[1];
+    }
+    else if (name == "colorCheckerSourceB")
+    {
+        component = &selected.source_lab[2];
+    }
+    else if (name == "colorCheckerTargetL")
+    {
+        component = &selected.target_lab[0];
+    }
+    else if (name == "colorCheckerTargetA")
+    {
+        component = &selected.target_lab[1];
+    }
+    else if (name == "colorCheckerTargetB")
+    {
+        component = &selected.target_lab[2];
+    }
+    else
+    {
+        return false;
+    }
+    *component = value;
+    params.color_checker_enabled = true;
+    return true;
+}
+
+[[nodiscard]] bool reset_color_checker_field(DevelopParams &params, const std::string_view name)
+{
+    if (name == "colorChecker")
+    {
+        params.color_checker_enabled = false;
+        params.color_checker = ColorCheckerParams{};
+        params.color_checker_patch = 0;
+        return true;
+    }
+    if (name == "colorCheckerEnabled")
+    {
+        params.color_checker_enabled = false;
+        return true;
+    }
+    if (name == "colorCheckerPatch")
+    {
+        params.color_checker_patch = 0;
+        return true;
+    }
+    const auto patch = selected_color_checker_patch(params);
+    if (!patch)
+    {
+        return false;
+    }
+    auto &selected = params.color_checker.patches[*patch];
+    if (name == "colorCheckerSourceL")
+    {
+        selected.source_lab[0] = selected.target_lab[0];
+    }
+    else if (name == "colorCheckerSourceA")
+    {
+        selected.source_lab[1] = selected.target_lab[1];
+    }
+    else if (name == "colorCheckerSourceB")
+    {
+        selected.source_lab[2] = selected.target_lab[2];
+    }
+    else if (name == "colorCheckerTargetL")
+    {
+        selected.target_lab[0] = selected.source_lab[0];
+    }
+    else if (name == "colorCheckerTargetA")
+    {
+        selected.target_lab[1] = selected.source_lab[1];
+    }
+    else if (name == "colorCheckerTargetB")
+    {
+        selected.target_lab[2] = selected.source_lab[2];
+    }
+    else
+    {
+        return false;
+    }
+    return true;
+}
+
 struct ColorBalanceNumericField
 {
     std::string_view parameter_name;
@@ -1828,6 +1978,11 @@ void clamp_develop(DevelopParams &params) noexcept
         clamp_value(params.channel_mixer.illuminant_y, 0.000001, 0.999999);
     params.channel_mixer.gamut = clamp_value(params.channel_mixer.gamut, 0.0, 12.0);
     clamp_legacy_color_balance(params.color_balance);
+    params.color_checker_patch =
+        params.color_checker.patches.empty() ?
+            0 :
+            std::clamp(params.color_checker_patch, std::int64_t{0},
+                       static_cast<std::int64_t>(params.color_checker.patches.size() - 1U));
     clamp_color_balance(params.color_balance_rgb);
     if (params.exposure_mode != kExposureModeManual &&
         params.exposure_mode != kExposureModeDeflicker)
@@ -1968,8 +2123,8 @@ bool DevelopParams::is_identity() const noexcept
            near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
            near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
            near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) && !color_balance_enabled &&
-           color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
-           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
+           !color_checker_enabled && color_balance_rgb.is_identity() && near(color_contrast, 0.0) &&
+           near(monochrome, 0.0) && near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
            tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
            near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
            near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
@@ -2408,6 +2563,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (apply_legacy_color_balance_field(params.color_balance, name, value))
     {
         params.color_balance_enabled = true;
+    }
+    else if (apply_color_checker_field(params, name, value))
+    {
     }
     else if (apply_color_balance_field(params.color_balance_rgb, name, value))
     {
@@ -2848,6 +3006,9 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
             params.color_balance_enabled = false;
         }
     }
+    else if (reset_color_checker_field(params, name))
+    {
+    }
     else if (reset_color_balance_field(params.color_balance_rgb, name))
     {
     }
@@ -3090,6 +3251,9 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.velvia = identity.velvia;
         params.color_balance_enabled = identity.color_balance_enabled;
         params.color_balance = identity.color_balance;
+        params.color_checker_enabled = identity.color_checker_enabled;
+        params.color_checker = identity.color_checker;
+        params.color_checker_patch = identity.color_checker_patch;
         params.color_balance_rgb = identity.color_balance_rgb;
         params.color_contrast = identity.color_contrast;
         params.monochrome = identity.monochrome;
@@ -3497,6 +3661,16 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"rotation_deg", ParameterValue{clamped.graduated_rotation}},
                        {"offset", ParameterValue{clamped.graduated_offset}}});
     }
+    if (clamped.color_checker_enabled)
+    {
+        auto color_checker = color_checker_to_parameters(clamped.color_checker);
+        if (!color_checker)
+        {
+            return color_checker.error();
+        }
+        add_operation(recipe, std::string(kColorCheckerOperationId), "colorchecker-1",
+                      std::move(color_checker).value(), kColorCheckerOperationSchemaVersion);
+    }
     if (!near(clamped.highlights, 0.0))
     {
         add_operation(recipe, "ravo.core.highlights", "highlights-1",
@@ -3773,6 +3947,16 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.exposure_compensate_exposure_bias = exposure.value().compensate_exposure_bias;
             params.exposure_compensate_highlight_preservation =
                 exposure.value().compensate_highlight_preservation;
+        }
+        else if (operation.id == kColorCheckerOperationId)
+        {
+            auto color_checker = color_checker_from_parameters(operation.parameters);
+            if (!color_checker)
+            {
+                return color_checker.error();
+            }
+            params.color_checker_enabled = true;
+            params.color_checker = std::move(color_checker).value();
         }
         else if (operation.id == "ravo.core.contrast")
         {

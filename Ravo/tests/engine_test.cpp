@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -25,6 +26,7 @@
 
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
+#include "color_checker.h"
 #include "image_ops.h"
 #include "input_color.h"
 #include "primaries.h"
@@ -750,6 +752,31 @@ TEST(ExposureAnalysisTest, MemoryEstimateIncludesHistogramContextAndOwnedFailure
               raw.pixels.size() * sizeof(std::uint16_t) + failure_capacity + 1U);
 }
 
+TEST(ColorCheckerTest, MemoryEstimateIncludesTypedParamsFitAndLinearSolveScratch)
+{
+    DecodedRaw raw;
+    raw.width = 2U;
+    raw.height = 2U;
+    raw.pixels.assign(4U, 0U);
+    Recipe recipe;
+    const std::uint64_t baseline = estimate_raw_render_memory(raw, recipe, 2U, 2U);
+    ColorCheckerParams params;
+    auto parameters = color_checker_to_parameters(params);
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    recipe.operations.push_back({std::string(kColorCheckerOperationId),
+                                 kColorCheckerOperationSchemaVersion, "colorchecker-1", true,
+                                 std::move(parameters).value(), std::nullopt});
+
+    const std::uint64_t estimated = estimate_raw_render_memory(raw, recipe, 2U, 2U);
+    const std::uint64_t count = kColorCheckerDefaultPatchCount;
+    const std::uint64_t fit_size = count + 4U;
+    const std::uint64_t expected_scratch =
+        count * sizeof(ColorCheckerPatch) + count * sizeof(std::array<float, 3>) +
+        3U * fit_size * sizeof(float) + fit_size * fit_size * sizeof(double) +
+        fit_size * sizeof(int) + fit_size * sizeof(double);
+    EXPECT_EQ(estimated - baseline, expected_scratch);
+}
+
 TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)
 {
     std::uint32_t width = 9504;
@@ -1364,6 +1391,283 @@ frozen_legacy_color_balance_reference(const WorkingImage &input, const ColorBala
     return result;
 }
 
+struct FrozenColorCheckerFit
+{
+    std::vector<std::array<float, 3>> sources;
+    std::array<std::vector<float>, 3> coefficients;
+};
+
+[[nodiscard]] float frozen_color_checker_kernel_oracle(const std::array<float, 3> &left,
+                                                       const std::array<float, 3> &right,
+                                                       const bool use_libm = false)
+{
+    std::array<float, 3> squared{};
+    for (std::size_t channel = 0U; channel < squared.size(); ++channel)
+    {
+        squared[channel] = left[channel] - right[channel];
+        squared[channel] *= squared[channel];
+    }
+    const float radius_squared = squared[0] + squared[1] + squared[2];
+    if (use_libm)
+    {
+        return radius_squared * std::log(std::max(1.0e-8F, radius_squared));
+    }
+    const float argument = std::max(1.0e-8F, radius_squared);
+    const std::uint32_t bits = std::bit_cast<std::uint32_t>(argument);
+    const float mantissa = std::bit_cast<float>((bits & 0x007fffffU) | 0x3f000000U);
+    float exponent = static_cast<float>(bits);
+    exponent *= 1.1920928955078125e-7F;
+    const float log2 = exponent - 124.22551499F - 1.498030302F * mantissa -
+                       1.72587999F / (0.3520887068F + mantissa);
+    return radius_squared * (0.69314718055994530942F * log2);
+}
+
+[[nodiscard]] bool frozen_color_checker_triangular(std::vector<double> &matrix,
+                                                   std::vector<int> &pivots, const std::size_t size)
+{
+    pivots[size - 1U] = static_cast<int>(size - 1U);
+    for (std::size_t column = 0U; column < size; ++column)
+    {
+        std::size_t best_row = column;
+        for (std::size_t row = column + 1U; row < size; ++row)
+        {
+            if (std::fabs(matrix[row * size + column]) >
+                std::fabs(matrix[best_row * size + column]))
+            {
+                best_row = row;
+            }
+        }
+        pivots[column] = static_cast<int>(best_row);
+        const double pivot = matrix[best_row * size + column];
+        std::swap(matrix[best_row * size + column], matrix[column * size + column]);
+        if (pivot == 0.0)
+        {
+            return false;
+        }
+        for (std::size_t row = column + 1U; row < size; ++row)
+        {
+            matrix[row * size + column] /= -pivot;
+        }
+        if (best_row != column)
+        {
+            for (std::size_t remaining = column + 1U; remaining < size; ++remaining)
+            {
+                std::swap(matrix[best_row * size + remaining], matrix[column * size + remaining]);
+            }
+        }
+        for (std::size_t row = column + 1U; row < size; ++row)
+        {
+            for (std::size_t remaining = column + 1U; remaining < size; ++remaining)
+            {
+                matrix[row * size + remaining] +=
+                    matrix[row * size + column] * matrix[column * size + remaining];
+            }
+        }
+    }
+    return true;
+}
+
+void frozen_color_checker_back_substitute(const std::vector<double> &matrix,
+                                          const std::vector<int> &pivots,
+                                          std::vector<double> &right, const std::size_t size)
+{
+    for (std::size_t column = 0U; column + 1U < size; ++column)
+    {
+        const std::size_t pivot = static_cast<std::size_t>(pivots[column]);
+        const double value = right[pivot];
+        std::swap(right[pivot], right[column]);
+        for (std::size_t row = column + 1U; row < size; ++row)
+        {
+            right[row] += matrix[row * size + column] * value;
+        }
+    }
+    for (std::size_t column = size - 1U; column > 0U; --column)
+    {
+        right[column] /= matrix[column * size + column];
+        for (std::size_t row = 0U; row < column; ++row)
+        {
+            right[row] -= matrix[row * size + column] * right[column];
+        }
+    }
+    right[0] /= matrix[0];
+}
+
+[[nodiscard]] bool frozen_color_checker_solve(std::vector<double> matrix,
+                                              std::vector<double> &right)
+{
+    std::vector<int> pivots(right.size());
+    if (!frozen_color_checker_triangular(matrix, pivots, right.size()))
+    {
+        return false;
+    }
+    frozen_color_checker_back_substitute(matrix, pivots, right, right.size());
+    return true;
+}
+
+[[nodiscard]] FrozenColorCheckerFit
+frozen_color_checker_fit_oracle(const ColorCheckerParams &params, const bool use_libm = false,
+                                const bool promote_n3_sum = false)
+{
+    FrozenColorCheckerFit fit;
+    fit.sources.reserve(params.patches.size());
+    for (const auto &patch : params.patches)
+    {
+        fit.sources.push_back({static_cast<float>(patch.source_lab[0]),
+                               static_cast<float>(patch.source_lab[1]),
+                               static_cast<float>(patch.source_lab[2])});
+    }
+    const std::size_t count = fit.sources.size();
+    for (auto &coefficients : fit.coefficients)
+    {
+        coefficients.assign(count + 4U, 0.0F);
+    }
+    fit.coefficients[0][count + 1U] = 1.0F;
+    fit.coefficients[1][count + 2U] = 1.0F;
+    fit.coefficients[2][count + 3U] = 1.0F;
+    const auto target = [&](const std::size_t patch, const std::size_t channel)
+    { return static_cast<float>(params.patches[patch].target_lab[channel]); };
+
+    if (count == 0U)
+    {
+        return fit;
+    }
+    if (count == 1U)
+    {
+        for (std::size_t channel = 0U; channel < 3U; ++channel)
+        {
+            fit.coefficients[channel][count + channel + 1U] =
+                target(0U, channel) / fit.sources[0][channel];
+        }
+        return fit;
+    }
+    if (count == 2U)
+    {
+        for (std::size_t channel = 0U; channel < 3U; ++channel)
+        {
+            std::vector<double> right{target(0U, channel), target(1U, channel)};
+            if (!frozen_color_checker_solve(
+                    {1.0, fit.sources[0][channel], 1.0, fit.sources[1][channel]}, right))
+            {
+                return fit;
+            }
+            fit.coefficients[channel][count] = static_cast<float>(right[0]);
+            fit.coefficients[channel][count + channel + 1U] = static_cast<float>(right[1]);
+        }
+        return fit;
+    }
+    if (count == 3U)
+    {
+        for (std::size_t channel = 0U; channel < 3U; ++channel)
+        {
+            std::vector<double> matrix;
+            for (std::size_t patch = 0U; patch < count; ++patch)
+            {
+                const std::size_t other0 = (channel + 1U) % 3U;
+                const std::size_t other1 = (channel + 2U) % 3U;
+                const double other_sum = promote_n3_sum ?
+                                             static_cast<double>(fit.sources[patch][other0]) +
+                                                 fit.sources[patch][other1] :
+                                             static_cast<double>(fit.sources[patch][other0] +
+                                                                 fit.sources[patch][other1]);
+                matrix.insert(matrix.end(), {1.0, fit.sources[patch][channel], other_sum});
+            }
+            std::vector<double> right{target(0U, channel), target(1U, channel),
+                                      target(2U, channel)};
+            if (!frozen_color_checker_solve(std::move(matrix), right))
+            {
+                return fit;
+            }
+            fit.coefficients[channel][count] = static_cast<float>(right[0]);
+            fit.coefficients[channel][count + channel + 1U] = static_cast<float>(right[1]);
+            for (std::size_t input = 0U; input < 3U; ++input)
+            {
+                if (input != channel)
+                {
+                    fit.coefficients[channel][count + input + 1U] = static_cast<float>(right[2]);
+                }
+            }
+        }
+        return fit;
+    }
+
+    const std::size_t fit_size = count == 4U ? 4U : count + 4U;
+    std::vector<double> matrix(fit_size * fit_size, 0.0);
+    if (count == 4U)
+    {
+        for (std::size_t patch = 0U; patch < count; ++patch)
+        {
+            matrix[patch * fit_size] = 1.0;
+            for (std::size_t channel = 0U; channel < 3U; ++channel)
+            {
+                matrix[patch * fit_size + channel + 1U] = fit.sources[patch][channel];
+            }
+        }
+    }
+    else
+    {
+        for (std::size_t row = 0U; row < count; ++row)
+        {
+            for (std::size_t column = 0U; column < count; ++column)
+            {
+                matrix[row * fit_size + column] = frozen_color_checker_kernel_oracle(
+                    fit.sources[row], fit.sources[column], use_libm);
+            }
+            matrix[row * fit_size + count] = matrix[count * fit_size + row] = 1.0;
+            for (std::size_t channel = 0U; channel < 3U; ++channel)
+            {
+                matrix[row * fit_size + count + channel + 1U] =
+                    matrix[(count + channel + 1U) * fit_size + row] = fit.sources[row][channel];
+            }
+        }
+    }
+    std::vector<int> pivots(fit_size);
+    if (!frozen_color_checker_triangular(matrix, pivots, fit_size))
+    {
+        return fit;
+    }
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        std::vector<double> right(fit_size, 0.0);
+        for (std::size_t patch = 0U; patch < count; ++patch)
+        {
+            right[patch] = target(patch, channel);
+        }
+        frozen_color_checker_back_substitute(matrix, pivots, right, fit_size);
+        const std::size_t offset = count == 4U ? count : 0U;
+        for (std::size_t index = 0U; index < fit_size; ++index)
+        {
+            fit.coefficients[channel][offset + index] = static_cast<float>(right[index]);
+        }
+    }
+    return fit;
+}
+
+[[nodiscard]] std::array<float, 3>
+frozen_color_checker_lab_reference(const ColorCheckerParams &params,
+                                   const std::array<float, 3> &lab, const bool use_libm = false,
+                                   const bool promote_n3_sum = false)
+{
+    const auto fit = frozen_color_checker_fit_oracle(params, use_libm, promote_n3_sum);
+    const std::size_t count = fit.sources.size();
+    std::array<float, 3> result{};
+    for (std::size_t channel = 0U; channel < result.size(); ++channel)
+    {
+        const float term_l = fit.coefficients[channel][count + 1U] * lab[0];
+        const float term_a = fit.coefficients[channel][count + 2U] * lab[1];
+        const float term_b = fit.coefficients[channel][count + 3U] * lab[2];
+        result[channel] = fit.coefficients[channel][count] + (term_l + term_a + term_b);
+    }
+    for (std::size_t patch = 0U; patch < count; ++patch)
+    {
+        const float phi = frozen_color_checker_kernel_oracle(lab, fit.sources[patch], use_libm);
+        for (std::size_t channel = 0U; channel < result.size(); ++channel)
+        {
+            result[channel] += fit.coefficients[channel][patch] * phi;
+        }
+    }
+    return result;
+}
+
 [[nodiscard]] OperationInstance temperature_operation(const TemperatureParams &params,
                                                       std::string instance_id = "temperature-1")
 {
@@ -1830,6 +2134,395 @@ TEST(LegacyColorBalanceTest, SopAndLggModesPreserveFrozenMathAndOwnedPublication
     EXPECT_EQ(input.rgb, original.rgb);
     EXPECT_EQ(input.color_profile, original.color_profile);
     EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ColorCheckerTest, ThinPlateKernelUsesTheFrozenFastLogApproximation)
+{
+    struct KernelCase
+    {
+        std::array<float, 3> point;
+        float squared_distance;
+        std::uint32_t expected_bits;
+    };
+    const std::array<KernelCase, 4> cases{{
+        {{1.0F, 0.0F, 0.0F}, 1.0F, 0xb5ddce9eU},
+        {{1.0F, 1.0F, 0.0F}, 2.0F, 0x3fb171fcU},
+        {{3.0F, 1.0F, 0.0F}, 10.0F, 0x41b8340aU},
+        {{100.0F, 0.0F, 0.0F}, 10000.0F, 0x47b3e369U},
+    }};
+    for (const auto &[point, squared_distance, expected_bits] : cases)
+    {
+        const float actual = color_checker_thin_plate_kernel(point, {});
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual), expected_bits) << squared_distance;
+    }
+}
+
+TEST(ColorCheckerTest, TwoPatchGaussianOrientationMatchesTheFrozenScalarOracle)
+{
+    ColorCheckerParams params{{
+        {{{1.0, 2.0, 4.0}}, {{3.0, 8.0, 20.0}}},
+        {{{3.0, 5.0, 9.0}}, {{7.0, 20.0, 45.0}}},
+    }};
+    const std::array<float, 3> input{2.0F, 3.0F, 6.0F};
+    const auto oracle = frozen_color_checker_lab_reference(params, input);
+    const std::array<float, 3> golden{5.0F, 12.0F, 30.0F};
+    EXPECT_EQ(oracle, golden);
+
+    auto actual = apply_color_checker_lab(params, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), golden);
+    EXPECT_EQ(actual.value(), oracle);
+}
+
+TEST(ColorCheckerTest, ThreePatchOtherChannelSumRoundsInFloatBeforePromotion)
+{
+    ColorCheckerParams params{{
+        {{{-52.407073974609375, 16777224.0, -16777207.0}},
+         {{-5.947298526763916, 67.29228973388672, -4.729358196258545}}},
+        {{{-5.189292907714844, 16777200.0, -16777184.0}},
+         {{27.813627243041992, -69.87671661376953, 26.972131729125977}}},
+        {{{-6.1535325050354, 16777212.0, -16777192.0}},
+         {{73.60906219482422, 4.636241912841797, 48.250370025634766}}},
+    }};
+    const std::array<float, 3> input{12.5F, 16777220.0F, -16777216.0F};
+    const auto oracle = frozen_color_checker_lab_reference(params, input);
+    const auto promoted = frozen_color_checker_lab_reference(params, input, false, true);
+    EXPECT_NE(oracle, promoted)
+        << "the independent oracle must detect promotion before the frozen float addition";
+    EXPECT_FLOAT_EQ(oracle[1], 48.0F);
+    EXPECT_FLOAT_EQ(promoted[1], 40.0F);
+
+    auto actual = apply_color_checker_lab(params, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), oracle);
+}
+
+TEST(ColorCheckerTest, Real0098PayloadMatchesIndependentRbfOracleAndFixedLabGolden)
+{
+    ColorCheckerParams params;
+    params.patches[7].target_lab = {92.74998474121094, 97.59593200683594, 82.81928253173828};
+    params.patches[19].target_lab = {72.97999572753906, 43.90998840332031, 35.799983978271484};
+    params.patches[22].target_lab = {45.439998626708984, -0.41999998688697815, 59.32999801635742};
+    const std::array<float, 3> input{50.0F, 0.0F, 0.0F};
+    // Fixed by compiling a standalone transcription of frozen kernel(),
+    // gaussian_elimination.h, commit_params(), and process() against the
+    // verbatim 0098 v2 payload; no production Ravo helper generated these bits.
+    const std::array<float, 3> golden{std::bit_cast<float>(0x4249cbddU),
+                                      std::bit_cast<float>(0x3eb8dc37U),
+                                      std::bit_cast<float>(0x40409a08U)};
+
+    const auto oracle = frozen_color_checker_lab_reference(params, input);
+    const auto libm_perturbation = frozen_color_checker_lab_reference(params, input, true);
+    bool oracle_detects_libm = false;
+    for (std::size_t channel = 0U; channel < golden.size(); ++channel)
+    {
+        EXPECT_NEAR(oracle[channel], golden[channel], 2.0e-5F) << channel;
+        oracle_detects_libm |= std::abs(oracle[channel] - libm_perturbation[channel]) > 1.0e-5F;
+    }
+    EXPECT_TRUE(oracle_detects_libm)
+        << "the independent oracle must distinguish the frozen fastlog from libm";
+
+    auto actual = apply_color_checker_lab(params, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    for (std::size_t channel = 0U; channel < golden.size(); ++channel)
+    {
+        EXPECT_NEAR(actual.value()[channel], golden[channel], 2.0e-5F) << channel;
+        EXPECT_NEAR(actual.value()[channel], oracle[channel], 2.0e-5F) << channel;
+    }
+}
+
+TEST(ColorCheckerTest, ZeroOneFourAndRbfPatchModesMatchTheIndependentOracle)
+{
+    const std::array<float, 3> input{0.25F, 0.5F, 0.75F};
+
+    ColorCheckerParams zero{{}};
+    auto actual = apply_color_checker_lab(zero, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), input);
+
+    ColorCheckerParams one{{{{{2.0, 4.0, 5.0}}, {{6.0, 2.0, 10.0}}}}};
+    actual = apply_color_checker_lab(one, {1.0F, 8.0F, 2.5F}, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), (std::array<float, 3>{3.0F, 4.0F, 5.0F}));
+
+    ColorCheckerParams four{{
+        {{{0.0, 0.0, 0.0}}, {{1.0, -2.0, 0.5}}},
+        {{{1.0, 0.0, 0.0}}, {{3.0, -1.5, -0.5}}},
+        {{{0.0, 1.0, 0.0}}, {{4.0, -1.0, 2.5}}},
+        {{{0.0, 0.0, 1.0}}, {{5.0, -0.5, 4.5}}},
+    }};
+    const auto four_oracle = frozen_color_checker_lab_reference(four, input);
+    EXPECT_EQ(four_oracle, (std::array<float, 3>{6.0F, -0.25F, 4.25F}));
+    actual = apply_color_checker_lab(four, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), four_oracle);
+
+    ColorCheckerParams five = four;
+    five.patches.push_back({{{1.0, 1.0, 1.0}}, {{12.0, 3.0, -7.0}}});
+    const auto five_oracle = frozen_color_checker_lab_reference(five, input);
+    actual = apply_color_checker_lab(five, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        EXPECT_NEAR(actual.value()[channel], five_oracle[channel], 2.0e-5F) << channel;
+    }
+    EXPECT_NE(actual.value(), input);
+
+    auto expanded = color_checker_params_for_preset("expanded_color_checker");
+    ASSERT_TRUE(expanded) << expanded.error().message;
+    ASSERT_EQ(expanded.value().patches.size(), kColorCheckerMaxPatchCount);
+    const std::array<float, 3> expanded_input{52.0F, 18.0F, -21.0F};
+    const auto expanded_oracle =
+        frozen_color_checker_lab_reference(expanded.value(), expanded_input);
+    actual = apply_color_checker_lab(expanded.value(), expanded_input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        EXPECT_NEAR(actual.value()[channel], expanded_oracle[channel], 2.0e-5F) << channel;
+    }
+}
+
+TEST(ColorCheckerTest, SingularFallbackPreservesFrozenSequentialAndSharedMatrixSemantics)
+{
+    ColorCheckerParams two{{
+        {{{1.0, 2.0, 3.0}}, {{2.0, 7.0, 11.0}}},
+        {{{3.0, 2.0, 6.0}}, {{10.0, 9.0, 17.0}}},
+    }};
+    const std::array<float, 3> input{2.0F, 5.0F, 7.0F};
+    const auto two_oracle = frozen_color_checker_lab_reference(two, input);
+    EXPECT_FLOAT_EQ(two_oracle[0], 6.0F);
+    EXPECT_FLOAT_EQ(two_oracle[1], input[1]);
+    EXPECT_FLOAT_EQ(two_oracle[2], input[2]);
+    auto actual = apply_color_checker_lab(two, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), two_oracle);
+
+    ColorCheckerParams three{{
+        {{{1.0, 1.0, 5.0}}, {{2.0, -1.0, 12.0}}},
+        {{{2.0, 3.0, 5.0}}, {{7.0, 4.0, 18.0}}},
+        {{{4.0, 2.0, 5.0}}, {{11.0, 9.0, 24.0}}},
+    }};
+    const auto three_oracle = frozen_color_checker_lab_reference(three, input);
+    EXPECT_NE(three_oracle[0], input[0]);
+    EXPECT_NE(three_oracle[1], input[1]);
+    EXPECT_FLOAT_EQ(three_oracle[2], input[2]);
+    actual = apply_color_checker_lab(three, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), three_oracle);
+
+    ColorCheckerParams four_singular{{
+        {{{1.0, 2.0, 3.0}}, {{8.0, 9.0, 10.0}}},
+        {{{1.0, 2.0, 3.0}}, {{11.0, 12.0, 13.0}}},
+        {{{2.0, 3.0, 4.0}}, {{14.0, 15.0, 16.0}}},
+        {{{3.0, 4.0, 5.0}}, {{17.0, 18.0, 19.0}}},
+    }};
+    actual = apply_color_checker_lab(four_singular, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), input);
+
+    ColorCheckerParams rbf_singular = four_singular;
+    rbf_singular.patches.push_back({{{4.0, 5.0, 6.0}}, {{20.0, 21.0, 22.0}}});
+    actual = apply_color_checker_lab(rbf_singular, input, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    EXPECT_EQ(actual.value(), input);
+}
+
+TEST(ColorCheckerTest, WorkingPublicationIsOwnedImmutableAndRejectsEveryInvalidBoundary)
+{
+    WorkingImage input = legacy_color_balance_working_fixture();
+    input.rgb.front() = -0.1F;
+    input.rgb.back() = 1.2F;
+    const WorkingImage original = input;
+
+    auto output = apply_color_checker(input, ColorCheckerParams{}, CancellationToken{});
+    ASSERT_TRUE(output) << output.error().message;
+    EXPECT_EQ(output.value().width, input.width);
+    EXPECT_EQ(output.value().height, input.height);
+    EXPECT_EQ(output.value().color_profile, input.color_profile);
+    EXPECT_EQ(output.value().exposure_analysis, input.exposure_analysis);
+    EXPECT_NE(output.value().rgb.data(), input.rgb.data());
+    ASSERT_FALSE(input.color_profile.icc_bytes.empty());
+    EXPECT_NE(output.value().color_profile.icc_bytes.data(), input.color_profile.icc_bytes.data());
+    output.value().rgb[0] = 42.0F;
+    output.value().color_profile.icc_bytes[0] = 99U;
+    EXPECT_EQ(input.width, original.width);
+    EXPECT_EQ(input.height, original.height);
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+
+    auto operation_parameters = color_checker_to_parameters(ColorCheckerParams{});
+    ASSERT_TRUE(operation_parameters) << operation_parameters.error().message;
+    OperationInstance operation{std::string(kColorCheckerOperationId),
+                                kColorCheckerOperationSchemaVersion,
+                                "colorchecker-dispatch",
+                                true,
+                                operation_parameters.value(),
+                                std::nullopt};
+    auto dispatched = apply_color_checker(input, operation, CancellationToken{});
+    ASSERT_TRUE(dispatched) << dispatched.error().message;
+    auto direct = apply_color_checker(input, ColorCheckerParams{}, CancellationToken{});
+    ASSERT_TRUE(direct) << direct.error().message;
+    EXPECT_EQ(dispatched.value().rgb, direct.value().rgb);
+    operation.enabled = false;
+    auto disabled = apply_color_checker(input, operation, CancellationToken{});
+    ASSERT_TRUE(disabled) << disabled.error().message;
+    EXPECT_EQ(disabled.value().rgb, input.rgb);
+    EXPECT_NE(disabled.value().rgb.data(), input.rgb.data());
+
+    WorkingImage zero = input;
+    zero.width = 0U;
+    auto rejected = apply_color_checker(zero, ColorCheckerParams{}, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorchecker_dimensions");
+    WorkingImage wrong_size = input;
+    wrong_size.rgb.pop_back();
+    rejected = apply_color_checker(wrong_size, ColorCheckerParams{}, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorchecker_buffer");
+    WorkingImage wrong_model = input;
+    wrong_model.color_profile.model = ColorModel::kLab;
+    rejected = apply_color_checker(wrong_model, ColorCheckerParams{}, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_colorchecker_working_space");
+    WorkingImage wrong_profile = input;
+    wrong_profile.color_profile.identifier = "srgb";
+    rejected = apply_color_checker(wrong_profile, ColorCheckerParams{}, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_colorchecker_working_space");
+    for (const float invalid :
+         {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+          -std::numeric_limits<float>::infinity()})
+    {
+        WorkingImage nonfinite = input;
+        nonfinite.rgb[1] = invalid;
+        const auto source = nonfinite.rgb;
+        rejected = apply_color_checker(nonfinite, ColorCheckerParams{}, CancellationToken{});
+        ASSERT_FALSE(rejected);
+        EXPECT_EQ(rejected.error().context.at("reason"), "nonfinite_colorchecker_input");
+        ASSERT_EQ(nonfinite.rgb.size(), source.size());
+        for (std::size_t index = 0U; index < source.size(); ++index)
+        {
+            EXPECT_EQ(std::bit_cast<std::uint32_t>(nonfinite.rgb[index]),
+                      std::bit_cast<std::uint32_t>(source[index]));
+        }
+    }
+
+    ColorCheckerParams invalid_params;
+    invalid_params.patches[0].target_lab[1] = std::numeric_limits<double>::infinity();
+    auto invalid_fit =
+        apply_color_checker_lab(invalid_params, {50.0F, 0.0F, 0.0F}, CancellationToken{});
+    ASSERT_FALSE(invalid_fit);
+    ColorCheckerParams zero_denominator{{{{{1.0, 0.0, 2.0}}, {{2.0, 1.0, 4.0}}}}};
+    invalid_fit =
+        apply_color_checker_lab(zero_denominator, {1.0F, 2.0F, 3.0F}, CancellationToken{});
+    ASSERT_FALSE(invalid_fit);
+    EXPECT_EQ(invalid_fit.error().context.at("reason"), "invalid_colorchecker_denominator");
+
+    CancellationSource pre_cancelled;
+    ASSERT_TRUE(pre_cancelled.cancel("colorchecker-pre"));
+    rejected = apply_color_checker(input, ColorCheckerParams{}, pre_cancelled.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(input.width, original.width);
+    EXPECT_EQ(input.height, original.height);
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+
+    auto canonical = color_checker_to_parameters(ColorCheckerParams{});
+    ASSERT_TRUE(canonical) << canonical.error().message;
+    OperationInstance masked{std::string(kColorCheckerOperationId),
+                             kColorCheckerOperationSchemaVersion,
+                             "colorchecker-mask",
+                             true,
+                             std::move(canonical).value(),
+                             "mask-1"};
+    rejected = apply_color_checker(input, masked, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "colorchecker_mask_graph_unavailable");
+    EXPECT_EQ(input.width, original.width);
+    EXPECT_EQ(input.height, original.height);
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ColorCheckerTest, RgbAndD50LabBridgeMatchesTheFrozenScalarReference)
+{
+    const auto reference = [](const std::array<float, 3> &rgb)
+    {
+        constexpr std::array<float, 3> d50{0.9642F, 1.0F, 0.8249F};
+        constexpr float epsilon = 216.0F / 24389.0F;
+        constexpr float kappa = 24389.0F / 27.0F;
+        const std::array<float, 3> xyz{
+            0.4360747F * rgb[0] + 0.3850649F * rgb[1] + 0.1430804F * rgb[2],
+            0.2225045F * rgb[0] + 0.7168786F * rgb[1] + 0.0606169F * rgb[2],
+            0.0139322F * rgb[0] + 0.0971045F * rgb[1] + 0.7141733F * rgb[2]};
+        std::array<float, 3> f{};
+        for (std::size_t channel = 0U; channel < 3U; ++channel)
+        {
+            const float normalized = xyz[channel] / d50[channel];
+            f[channel] = normalized > epsilon ? std::cbrt(normalized) :
+                                                (kappa * normalized + 16.0F) / 116.0F;
+        }
+        const std::array<float, 3> lab{116.0F * f[1] - 16.0F, 500.0F * (f[0] - f[1]),
+                                       200.0F * (f[1] - f[2])};
+        const float fy = (lab[0] + 16.0F) / 116.0F;
+        const std::array<float, 3> inverse_f{fy + lab[1] / 500.0F, fy, fy - lab[2] / 200.0F};
+        std::array<float, 3> roundtrip_xyz{};
+        for (std::size_t channel = 0U; channel < 3U; ++channel)
+        {
+            const float value = inverse_f[channel] > 0.20689655172413796F ?
+                                    inverse_f[channel] * inverse_f[channel] * inverse_f[channel] :
+                                    (116.0F * inverse_f[channel] - 16.0F) / kappa;
+            roundtrip_xyz[channel] = d50[channel] * value;
+        }
+        return std::array<float, 3>{3.1338561F * roundtrip_xyz[0] - 1.6168667F * roundtrip_xyz[1] -
+                                        0.4906146F * roundtrip_xyz[2],
+                                    -0.9787684F * roundtrip_xyz[0] + 1.9161415F * roundtrip_xyz[1] +
+                                        0.0334540F * roundtrip_xyz[2],
+                                    0.0719453F * roundtrip_xyz[0] - 0.2289914F * roundtrip_xyz[1] +
+                                        1.4052427F * roundtrip_xyz[2]};
+    };
+    WorkingImage input;
+    input.width = 1U;
+    input.height = 1U;
+    input.rgb = {0.25F, 0.5F, 0.75F};
+    input.color_profile.model = ColorModel::kRgb;
+    input.color_profile.identifier = std::string(kInputProfileLinearRec709);
+    const auto expected = reference({input.rgb[0], input.rgb[1], input.rgb[2]});
+    ColorCheckerParams no_patches{{}};
+
+    const auto actual = apply_color_checker(input, no_patches, CancellationToken{});
+
+    ASSERT_TRUE(actual) << actual.error().message;
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        EXPECT_NEAR(actual.value().rgb[channel], expected[channel], 1.0e-6F) << channel;
+        EXPECT_NEAR(actual.value().rgb[channel], input.rgb[channel], 2.0e-6F) << channel;
+    }
+}
+
+TEST(ColorCheckerTest, DeadlineCancellationDuringRowsNeverMutatesTheSource)
+{
+    WorkingImage input;
+    input.width = 1024U;
+    input.height = 4096U;
+    input.rgb.assign(static_cast<std::size_t>(input.width) * input.height * 3U, 0.25F);
+    input.color_profile.model = ColorModel::kRgb;
+    input.color_profile.identifier = std::string(kInputProfileLinearRec709);
+    const auto first = input.rgb.front();
+    const auto last = input.rgb.back();
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+
+    const auto cancelled = apply_color_checker(input, ColorCheckerParams{}, deadline.token());
+
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_FLOAT_EQ(input.rgb.front(), first);
+    EXPECT_FLOAT_EQ(input.rgb.back(), last);
 }
 
 TEST(LegacyColorBalanceTest, ModeSpecificNearOneContrastThresholdIsFrozen)
@@ -2941,6 +3634,52 @@ TEST(EngineFacadeTest, ColorBalanceRgb0083HasARealRawReference)
     EXPECT_NEAR(static_cast<double>(sums[0]), 270856.0, 2500.0);
     EXPECT_NEAR(static_cast<double>(sums[1]), 283113.0, 2500.0);
     EXPECT_NEAR(static_cast<double>(sums[2]), 241983.0, 2500.0);
+}
+
+TEST(EngineFacadeTest, ColorChecker0098HasARealRawReferenceAndPreservesTheSource)
+{
+    const auto source_before = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(source_before.has_value());
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorCheckerParams params;
+    params.patches[7].target_lab = {92.74998474121094, 97.59593200683594, 82.81928253173828};
+    params.patches[19].target_lab = {72.97999572753906, 43.90998840332031, 35.799983978271484};
+    params.patches[22].target_lab = {45.439998626708984, -0.41999998688697815, 59.32999801635742};
+    auto parameters = color_checker_to_parameters(params);
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
+    recipe.operations.push_back({std::string(kColorCheckerOperationId),
+                                 kColorCheckerOperationSchemaVersion, "colorchecker-0098", true,
+                                 std::move(parameters).value(), std::nullopt});
+    recipe.operations.push_back(sigmoid_operation());
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64U;
+    request.output_height = 48U;
+    auto rendered = engine.value().render_to_image(request);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().width, 64U);
+    ASSERT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0U; index + 2U < rendered.value().rgb.size(); index += 3U)
+    {
+        for (std::size_t channel = 0U; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    // Ravo-owned macOS reference for the verbatim frozen 0098 active patch set on
+    // the pinned RAW fixture. The independent scalar oracle above owns fit parity.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 295886.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 283466.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 247458.0, 2500.0);
+    const auto source_after = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(source_after.has_value());
+    EXPECT_EQ(*source_after, *source_before);
 }
 
 TEST(EngineFacadeTest, LegacyColorBalanceV4HasARealRawReferenceAndPreservesTheSource)

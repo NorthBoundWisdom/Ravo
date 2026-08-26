@@ -25,6 +25,7 @@
 #include <exiv2/exiv2.hpp>
 #include <libraw/libraw.h>
 
+#include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/profile_gamma.h"
 
@@ -849,6 +850,36 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         if (operation.id == kProfileGammaOperationId)
         {
             working_bytes += float_rgb_bytes + 0x10000U * sizeof(float);
+        }
+        if (operation.id == kColorCheckerOperationId)
+        {
+            std::uint64_t patch_count = kColorCheckerMaxPatchCount;
+            const auto patches = operation.parameters.find("patches");
+            if (patches != operation.parameters.end())
+            {
+                if (const auto *array = std::get_if<ParameterValue::Array>(&patches->second.value);
+                    array != nullptr && array->size() <= kColorCheckerMaxPatchCount)
+                {
+                    patch_count = array->size();
+                }
+            }
+            const std::uint64_t fit_size = patch_count + 4U;
+            working_bytes += patch_count * sizeof(ColorCheckerPatch);
+            working_bytes += patch_count * sizeof(std::array<float, 3>);
+            working_bytes += 3U * fit_size * sizeof(float);
+            if (patch_count >= 2U && patch_count <= 4U)
+            {
+                const std::uint64_t solve_size = patch_count;
+                working_bytes += solve_size * solve_size * sizeof(double);
+                working_bytes += solve_size * sizeof(int);
+                working_bytes += solve_size * sizeof(double);
+            }
+            else if (patch_count > 4U)
+            {
+                working_bytes += fit_size * fit_size * sizeof(double);
+                working_bytes += fit_size * sizeof(int);
+                working_bytes += fit_size * sizeof(double);
+            }
         }
     }
     // A RAW repair operation copies the decoded frame before mutation. Its

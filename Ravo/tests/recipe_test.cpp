@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <numbers>
 #include <string>
@@ -8,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -29,6 +32,35 @@ namespace
         std::find_if(recipe.operations.begin(), recipe.operations.end(),
                      [id](const OperationInstance &operation) { return operation.id == id; });
     return found == recipe.operations.end() ? nullptr : &*found;
+}
+
+[[nodiscard]] std::uint64_t color_checker_patch_bits_hash(const ColorCheckerParams &params)
+{
+    std::uint64_t hash = 1469598103934665603ULL;
+    const auto byte = [&](const std::uint8_t value)
+    {
+        hash ^= value;
+        hash *= 1099511628211ULL;
+    };
+    const auto word = [&](const std::uint32_t value)
+    {
+        for (unsigned shift = 0U; shift < 32U; shift += 8U)
+        {
+            byte(static_cast<std::uint8_t>((value >> shift) & 0xffU));
+        }
+    };
+    word(static_cast<std::uint32_t>(params.patches.size()));
+    for (const auto &patch : params.patches)
+    {
+        for (const auto &lab : {&patch.source_lab, &patch.target_lab})
+        {
+            for (const double component : *lab)
+            {
+                word(std::bit_cast<std::uint32_t>(static_cast<float>(component)));
+            }
+        }
+    }
+    return hash;
 }
 
 TEST(RecipeTest, CanonicalRoundTripValidatesAgainstThePhaseOneRegistry)
@@ -1128,6 +1160,153 @@ TEST(RecipeTest, ColorBalanceRgbFullSchemaRoundTripsTheFrozen0083Parameters)
     auto restored = develop_from_recipe(parsed.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_EQ(restored.value().color_balance_rgb, fixture);
+}
+
+TEST(RecipeTest, ColorCheckerSchemaPreservesExplicitDefaultPresenceAndOrderedPatches)
+{
+    const ColorCheckerParams defaults;
+    ASSERT_EQ(defaults.patches.size(), 24U);
+
+    const auto parameters = color_checker_to_parameters(defaults);
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    EXPECT_EQ(parameters.value().size(), 3U);
+    auto decoded = color_checker_from_parameters(parameters.value());
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), defaults);
+
+    DevelopParams develop;
+    EXPECT_FALSE(develop.color_checker_enabled);
+    develop.color_checker_enabled = true;
+    develop.color_checker = defaults;
+    develop.tone_eq_midtones = 0.25;
+    develop.graduated_density = 0.5;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto *operation = operation_by_id(recipe.value(), kColorCheckerOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_EQ(operation->schema_version, kColorCheckerOperationSchemaVersion);
+    auto operation_params = color_checker_from_parameters(operation->parameters);
+    ASSERT_TRUE(operation_params) << operation_params.error().message;
+    EXPECT_EQ(operation_params.value(), defaults);
+    const auto *tone_equal = operation_by_id(recipe.value(), "ravo.core.toneequal");
+    const auto *graduated = operation_by_id(recipe.value(), "ravo.effect.graduatednd");
+    ASSERT_NE(tone_equal, nullptr);
+    ASSERT_NE(graduated, nullptr);
+    EXPECT_LT(tone_equal, graduated);
+    EXPECT_LT(graduated, operation);
+
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_checker_enabled);
+    EXPECT_EQ(restored.value().color_checker, defaults);
+}
+
+TEST(RecipeTest, ColorCheckerDevelopSerializationRejectsInvalidPatchPayloadAtomically)
+{
+    DevelopParams develop;
+    develop.color_checker_enabled = true;
+    develop.color_checker.patches.resize(kColorCheckerMaxPatchCount + 1U);
+    auto too_many = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_FALSE(too_many);
+    EXPECT_EQ(too_many.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(too_many.error().context.at("patch_count"), "50");
+
+    develop.color_checker = ColorCheckerParams{};
+    develop.color_checker.patches.front().target_lab[2] = std::numeric_limits<double>::infinity();
+    auto non_finite =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_FALSE(non_finite);
+    EXPECT_EQ(non_finite.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(non_finite.error().context.at("field"), "target_lab");
+}
+
+TEST(RecipeTest, ColorCheckerDevelopFieldsPresetsSelectionResetAndRecipePropagationAreExact)
+{
+    DevelopParams develop;
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorCheckerPreset", 1.0));
+    EXPECT_TRUE(develop.color_checker_enabled);
+    ASSERT_EQ(develop.color_checker.patches.size(), kColorCheckerMaxPatchCount);
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorCheckerPatch", 48.0));
+    EXPECT_EQ(develop.color_checker_patch, 48);
+    const std::array assignments{
+        std::pair{"colorCheckerSourceL", -12345.5}, std::pair{"colorCheckerSourceA", 2.5e20},
+        std::pair{"colorCheckerSourceB", -2.5e20},  std::pair{"colorCheckerTargetL", 98.25},
+        std::pair{"colorCheckerTargetA", -127.75},  std::pair{"colorCheckerTargetB", 126.5},
+    };
+    for (const auto &[name, value] : assignments)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, name, value)) << name;
+    }
+    const auto &patch = develop.color_checker.patches[48];
+    EXPECT_EQ(patch.source_lab, (std::array<double, 3>{-12345.5, 2.5e20, -2.5e20}));
+    EXPECT_EQ(patch.target_lab, (std::array<double, 3>{98.25, -127.75, 126.5}));
+
+    const DevelopParams before_invalid = develop;
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorCheckerPatch", 49.0));
+    EXPECT_EQ(develop, before_invalid);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorCheckerSourceL",
+                                            std::numeric_limits<double>::max()));
+    EXPECT_EQ(develop, before_invalid);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorCheckerTargetB",
+                                            std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_EQ(develop, before_invalid);
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_checker_enabled);
+    EXPECT_EQ(restored.value().color_checker, develop.color_checker);
+    EXPECT_EQ(restored.value().color_checker_patch, 0);
+
+    ASSERT_TRUE(reset_develop_field(develop, "colorCheckerTargetL"));
+    EXPECT_TRUE(develop.color_checker_enabled);
+    EXPECT_DOUBLE_EQ(develop.color_checker.patches[48].target_lab[0],
+                     develop.color_checker.patches[48].source_lab[0]);
+    ASSERT_TRUE(reset_develop_field(develop, "colorCheckerPatch"));
+    EXPECT_EQ(develop.color_checker_patch, 0);
+    ASSERT_TRUE(reset_develop_field(develop, "colorChecker"));
+    EXPECT_FALSE(develop.color_checker_enabled);
+    EXPECT_EQ(develop.color_checker, ColorCheckerParams{});
+
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorCheckerEnabled", 1.0));
+    ASSERT_TRUE(reset_develop_section(develop, "color"));
+    EXPECT_FALSE(develop.color_checker_enabled);
+    EXPECT_EQ(develop.color_checker, ColorCheckerParams{});
+}
+
+TEST(RecipeTest, ColorCheckerBuiltInPresetsRetainEveryFrozenFloatBit)
+{
+    const auto presets = color_checker_presets();
+    ASSERT_EQ(presets.size(), 8U);
+    const std::array<std::string_view, 8> ids{
+        "it8_skin_tones",
+        "expanded_color_checker",
+        "helmholtz_kohlrausch_monochrome",
+        "fuji_astia",
+        "fuji_classic_chrome",
+        "fuji_monochrome",
+        "fuji_provia",
+        "fuji_velvia",
+    };
+    const std::array<std::size_t, 8> counts{24U, 49U, 24U, 49U, 49U, 49U, 49U, 49U};
+    const std::array<std::uint64_t, 8> hashes{
+        0xd1fa2f4eeccd087fULL, 0xdad449f7b528d042ULL, 0x16df310bb0600905ULL, 0x653efef5b16f72dfULL,
+        0x8616fc5291b47864ULL, 0xf791711d73468245ULL, 0x2b549f35e1d53c30ULL, 0x60efc6c59221405fULL,
+    };
+    for (std::size_t index = 0U; index < presets.size(); ++index)
+    {
+        SCOPED_TRACE(ids[index]);
+        EXPECT_EQ(presets[index].id, ids[index]);
+        EXPECT_EQ(presets[index].patch_count, counts[index]);
+        auto params = color_checker_params_for_preset(ids[index]);
+        ASSERT_TRUE(params) << params.error().message;
+        EXPECT_EQ(params.value().patches.size(), counts[index]);
+        EXPECT_EQ(color_checker_patch_bits_hash(params.value()), hashes[index]);
+    }
+    auto unknown = color_checker_params_for_preset("generic_lut");
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().code, ErrorCode::kUnsupported);
 }
 
 TEST(RecipeTest, LegacyColorBalanceSchemaRoundTripsAllFrozenV4FieldsIndependently)

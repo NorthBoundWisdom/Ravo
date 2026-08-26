@@ -75,6 +75,18 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("contrast")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("greyFulcrum")).toDouble(), 18.0);
     EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("outputSaturation")).toDouble(), 1.0);
+    const auto color_checker = presenter.editColorChecker();
+    EXPECT_EQ(color_checker.size(), 10);
+    EXPECT_FALSE(color_checker.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(color_checker.value(QStringLiteral("presetIndex")).toInt(), -1);
+    EXPECT_EQ(color_checker.value(QStringLiteral("patchIndex")).toInt(), 0);
+    EXPECT_EQ(color_checker.value(QStringLiteral("patchCount")).toInt(), 24);
+    EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("sourceL")).toDouble(), 37.990001678466797);
+    EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("sourceA")).toDouble(), 13.5600004196167);
+    EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("sourceB")).toDouble(), 14.0600004196167);
+    EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetL")).toDouble(), 37.990001678466797);
+    EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetA")).toDouble(), 13.5600004196167);
+    EXPECT_DOUBLE_EQ(color_checker.value(QStringLiteral("targetB")).toDouble(), 14.0600004196167);
     const auto balance = presenter.editColorBalanceRgb();
     EXPECT_EQ(balance.size(), 33);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
@@ -174,6 +186,33 @@ TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
         "\"field\": \"legacyColorBalanceGreyFulcrum\", \"minimum\": 0.1, \"maximum\": 100")));
 }
 
+TEST(StudioQmlContract, ColorCheckerExposesEveryLabFieldWithoutClampingCanonicalFloats)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    constexpr std::array<const char *, 6> fields{
+        "colorCheckerSourceL", "colorCheckerSourceA", "colorCheckerSourceB",
+        "colorCheckerTargetL", "colorCheckerTargetA", "colorCheckerTargetB",
+    };
+    for (const auto *field : fields)
+    {
+        EXPECT_TRUE(
+            source.contains(QStringLiteral("\"field\": \"%1\"").arg(QString::fromLatin1(field))))
+            << field;
+    }
+    EXPECT_TRUE(source.contains(QStringLiteral("bottom: -3.402823466e38")));
+    EXPECT_TRUE(source.contains(QStringLiteral("top: 3.402823466e38")));
+    EXPECT_TRUE(source.contains(QStringLiteral("DoubleValidator.ScientificNotation")));
+    EXPECT_TRUE(source.contains(QStringLiteral("colorCheckerPreset")));
+    EXPECT_TRUE(source.contains(QStringLiteral("colorCheckerPatch")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editColorChecker.patchCount > 0")));
+    EXPECT_FALSE(source.contains(QStringLiteral("root.hasSelection && count > 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorChecker\")")));
+}
+
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
@@ -196,6 +235,8 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("RGB 原色"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Unbreak input profile"),
               QStringLiteral("修正输入配置文件"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color look-up table · D50 Lab"),
+              QStringLiteral("颜色查找表 · D50 Lab"));
 
     QCoreApplication::removeTranslator(&translator);
 }

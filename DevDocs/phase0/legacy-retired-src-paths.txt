@@ -32,3 +32,4 @@ iop/profile_gamma.c
 iop/gamma.c
 iop/exposure.c
 iop/colorbalance.c
+iop/colorchecker.c

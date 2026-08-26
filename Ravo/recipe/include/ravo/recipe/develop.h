@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ravo/recipe/color_input.h"
+#include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -241,6 +242,9 @@ struct DevelopParams
     double velvia = 0.0;
     bool color_balance_enabled = false;
     ColorBalanceParams color_balance;
+    bool color_checker_enabled = false;
+    ColorCheckerParams color_checker;
+    std::int64_t color_checker_patch = 0;
     ColorBalanceRgbParams color_balance_rgb;
     double color_contrast = 0.0;
     double monochrome = 0.0;

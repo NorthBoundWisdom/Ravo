@@ -20,6 +20,7 @@
 #include <zlib.h>
 
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/operation.h"
 
 namespace ravo
@@ -278,6 +279,25 @@ struct LegacyColorBalanceCandidate
     std::uint64_t history_position = 0;
 };
 
+struct LegacyColorCheckerCandidate
+{
+    QXmlStreamAttributes attributes;
+    std::uint64_t history_position = 0;
+};
+
+// Repository-history evidence used only for the synthetic legacy v1 upgrade.
+constexpr std::array<std::array<float, 3>, kColorCheckerDefaultPatchCount>
+    kLegacyColorCheckerV1Sources{{
+        {39.19F, 13.76F, 14.29F},  {65.18F, 19.00F, 17.32F},  {49.46F, -4.23F, -22.95F},
+        {42.85F, -13.33F, 22.12F}, {55.18F, 9.44F, -24.94F},  {70.36F, -32.77F, -0.04F},
+        {62.92F, 35.49F, 57.10F},  {40.75F, 11.41F, -46.03F}, {52.10F, 48.11F, 16.89F},
+        {30.67F, 21.19F, -20.81F}, {73.08F, -23.55F, 56.97F}, {72.43F, 17.48F, 68.20F},
+        {30.97F, 12.67F, -46.30F}, {56.43F, -40.66F, 31.94F}, {43.40F, 50.68F, 28.84F},
+        {82.45F, 2.41F, 80.25F},   {51.98F, 50.68F, -14.84F}, {51.02F, -27.63F, -28.03F},
+        {95.97F, -0.40F, 1.24F},   {81.10F, -0.83F, -0.43F},  {66.81F, -1.08F, -0.70F},
+        {50.98F, -0.19F, -0.30F},  {35.72F, -0.69F, -1.11F},  {21.46F, 0.06F, -0.95F},
+    }};
+
 [[nodiscard]] Result<std::uint64_t> nonnegative_decimal(const std::string_view value,
                                                         const std::string_view attribute)
 {
@@ -364,6 +384,159 @@ capture_color_balance_candidate(const QXmlStreamAttributes &attributes)
                            {"reason", "unsupported_legacy_colorbalance_multi_state"}});
     }
     return LegacyColorBalanceCandidate{attributes, parsed_position};
+}
+
+[[nodiscard]] Result<LegacyColorCheckerCandidate>
+capture_color_checker_candidate(const QXmlStreamAttributes &attributes)
+{
+    const auto position = required_attribute(attributes, u"num", "colorchecker");
+    const auto priority = required_attribute(attributes, u"multi_priority", "colorchecker");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!position || !priority || !name)
+    {
+        return !position ? position.error() :
+               !priority ? priority.error() :
+                           make_error(ErrorCode::kUnsupported,
+                                      "Legacy color checker singleton name is missing",
+                                      {{"attribute", "multi_name"},
+                                       {"legacy_operation", "colorchecker"},
+                                       {"reason", "unsupported_legacy_colorchecker_multi_state"}});
+    }
+    std::uint64_t parsed_position = 0U;
+    const auto [end, error] =
+        std::from_chars(position.value().data(), position.value().data() + position.value().size(),
+                        parsed_position);
+    if (position.value().empty() || error != std::errc{} ||
+        end != position.value().data() + position.value().size() ||
+        std::to_string(parsed_position) != position.value())
+    {
+        return make_error(ErrorCode::kValidation, "Legacy color checker revision state is invalid",
+                          {{"attribute", "num"},
+                           {"legacy_operation", "colorchecker"},
+                           {"reason", "invalid_legacy_colorchecker_revision"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy color checker instance is not the frozen singleton priority",
+                          {{"legacy_operation", "colorchecker"},
+                           {"reason", "unsupported_legacy_colorchecker_multi_state"}});
+    }
+    return LegacyColorCheckerCandidate{attributes, parsed_position};
+}
+
+[[nodiscard]] Result<ColorCheckerParams>
+decode_legacy_color_checker_parameters(const std::string &version, const std::string_view encoded)
+{
+    if (version == "1")
+    {
+        constexpr std::size_t count = kColorCheckerDefaultPatchCount;
+        auto decoded =
+            decode_legacy_parameter_blob(encoded, count * 3U * sizeof(float), "colorchecker");
+        if (!decoded)
+        {
+            auto error = decoded.error();
+            error.context.emplace("legacy_version", version);
+            error.context.emplace("reason", "invalid_legacy_colorchecker_parameters");
+            return error;
+        }
+        std::vector<ColorCheckerPatch> patches;
+        patches.reserve(count);
+        for (std::size_t patch = 0U; patch < count; ++patch)
+        {
+            std::array<double, 3> target{};
+            for (std::size_t channel = 0U; channel < 3U; ++channel)
+            {
+                const float value =
+                    read_f32(decoded.value(), (channel * count + patch) * sizeof(float));
+                if (!std::isfinite(value))
+                {
+                    return make_error(
+                        ErrorCode::kValidation,
+                        "Legacy color checker v1 target contains a non-finite component",
+                        {{"legacy_operation", "colorchecker"},
+                         {"legacy_version", version},
+                         {"patch_index", std::to_string(patch)},
+                         {"reason", "invalid_legacy_colorchecker_parameters"}});
+                }
+                target[channel] = value;
+            }
+            patches.push_back(
+                {{{kLegacyColorCheckerV1Sources[patch][0], kLegacyColorCheckerV1Sources[patch][1],
+                   kLegacyColorCheckerV1Sources[patch][2]}},
+                 target});
+        }
+        return ColorCheckerParams{std::move(patches)};
+    }
+    if (version != "2")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy color checker module version is not supported",
+                          {{"legacy_operation", "colorchecker"},
+                           {"legacy_version", version},
+                           {"reason", "unsupported_legacy_colorchecker_version"}});
+    }
+
+    constexpr std::size_t plane_count = 6U;
+    constexpr std::size_t stride = kColorCheckerMaxPatchCount;
+    constexpr std::size_t payload_size =
+        plane_count * stride * sizeof(float) + sizeof(std::int32_t);
+    auto decoded = decode_legacy_parameter_blob(encoded, payload_size, "colorchecker");
+    if (!decoded)
+    {
+        auto error = decoded.error();
+        error.context.emplace("legacy_version", version);
+        error.context.emplace("reason", "invalid_legacy_colorchecker_parameters");
+        return error;
+    }
+    const std::int32_t signed_count =
+        read_i32(decoded.value(), payload_size - sizeof(std::int32_t));
+    if (signed_count < 0 || signed_count > static_cast<std::int32_t>(kColorCheckerMaxPatchCount))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy color checker patch count is outside 0..49",
+                          {{"legacy_operation", "colorchecker"},
+                           {"legacy_version", version},
+                           {"reason", "invalid_legacy_colorchecker_parameters"}});
+    }
+    const std::size_t count = static_cast<std::size_t>(signed_count);
+    std::vector<ColorCheckerPatch> patches;
+    patches.reserve(count);
+    for (std::size_t patch = 0U; patch < count; ++patch)
+    {
+        ColorCheckerPatch value;
+        for (std::size_t channel = 0U; channel < 3U; ++channel)
+        {
+            const float source =
+                read_f32(decoded.value(), (channel * stride + patch) * sizeof(float));
+            const float target =
+                read_f32(decoded.value(), ((channel + 3U) * stride + patch) * sizeof(float));
+            if (!std::isfinite(source) || !std::isfinite(target))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Legacy color checker patch contains a non-finite component",
+                                  {{"legacy_operation", "colorchecker"},
+                                   {"legacy_version", version},
+                                   {"patch_index", std::to_string(patch)},
+                                   {"reason", "invalid_legacy_colorchecker_parameters"}});
+            }
+            value.source_lab[channel] = source;
+            value.target_lab[channel] = target;
+        }
+        patches.push_back(value);
+    }
+    ColorCheckerParams params{std::move(patches)};
+    auto canonical = color_checker_to_parameters(params);
+    if (!canonical)
+    {
+        auto error = canonical.error();
+        error.context.emplace("legacy_operation", "colorchecker");
+        error.context.emplace("legacy_version", version);
+        error.context.insert_or_assign("reason", "invalid_legacy_colorchecker_parameters");
+        return error;
+    }
+    return params;
 }
 
 [[nodiscard]] Result<LegacyExposureParams>
@@ -616,6 +789,90 @@ constexpr std::array<std::string_view, 2> kFrozenColorBalanceParametricBlends{
     "gz06eJxjZWBgYGYAgRNODFDAyASlGfADjrXTbE8t2m/rW1Brz8DQYI+QaRgQvqYrl/3DZH77p/8r7OfK1dHRfuwAALvfIn8=",
     "gz05eJxjZWBgYGEAgRNODFDAyASlGfADjrXTbE8t2m/78Lik/cxncvYImQZ7CKYvf4M0l32GFb991c4ie6Mb5XS0HzsAACQpI3A=",
 };
+
+constexpr std::string_view kFrozenColorCheckerBlendV11 =
+    "gz13eJxjYGBgYAJiCQYYOOHEgAZY0QVwggZ7CB6pfNoAAFJgGQo=";
+
+[[nodiscard]] bool is_allowed_color_checker_attribute(const QStringView name) noexcept
+{
+    return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
+           name == u"params" || name == u"multi_name" || name == u"multi_priority" ||
+           name == u"multi_name_hand_edited" || name == u"blendop_version" ||
+           name == u"blendop_params";
+}
+
+[[nodiscard]] Result<OperationInstance>
+map_color_checker_candidate(const LegacyColorCheckerCandidate &candidate)
+{
+    for (const auto &attribute : candidate.attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy color checker mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "colorchecker"},
+                               {"reason", "unsupported_legacy_colorchecker_mask"}});
+        }
+        if (!is_allowed_color_checker_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy color checker contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "colorchecker"},
+                               {"reason", "unsupported_legacy_colorchecker_attribute"}});
+        }
+    }
+    const auto version = required_attribute(candidate.attributes, u"modversion", "colorchecker");
+    const auto enabled = required_attribute(candidate.attributes, u"enabled", "colorchecker");
+    const auto encoded = required_attribute(candidate.attributes, u"params", "colorchecker");
+    const auto blend_version =
+        required_attribute(candidate.attributes, u"blendop_version", "colorchecker");
+    const auto blend_parameters =
+        required_attribute(candidate.attributes, u"blendop_params", "colorchecker");
+    if (!version || !enabled || !encoded || !blend_version || !blend_parameters)
+    {
+        return !version       ? version.error() :
+               !enabled       ? enabled.error() :
+               !encoded       ? encoded.error() :
+               !blend_version ? blend_version.error() :
+                                blend_parameters.error();
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy color checker enabled state is outside the frozen fixture evidence",
+            {{"legacy_operation", "colorchecker"},
+             {"reason", "unsupported_legacy_colorchecker_enabled_state"}});
+    }
+    if (blend_version.value() != "11" || blend_parameters.value() != kFrozenColorCheckerBlendV11)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy color checker blend is not the frozen unmasked default",
+                          {{"legacy_blend_version", blend_version.value()},
+                           {"legacy_operation", "colorchecker"},
+                           {"reason", "unsupported_legacy_colorchecker_blend"}});
+    }
+    auto decoded = decode_legacy_color_checker_parameters(version.value(), encoded.value());
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    auto parameters = color_checker_to_parameters(decoded.value());
+    if (!parameters)
+    {
+        return parameters.error();
+    }
+    return OperationInstance{std::string(kColorCheckerOperationId),
+                             kColorCheckerOperationSchemaVersion,
+                             "legacy-colorchecker-" + std::to_string(candidate.history_position),
+                             true,
+                             std::move(parameters).value(),
+                             std::nullopt};
+}
 
 [[nodiscard]] bool is_allowed_color_balance_attribute(const QStringView name) noexcept
 {
@@ -1101,6 +1358,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::vector<OperationInstance> operations;
     std::vector<LegacyExposureCandidate> exposure_candidates;
     std::vector<LegacyColorBalanceCandidate> color_balance_candidates;
+    std::vector<LegacyColorCheckerCandidate> color_checker_candidates;
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
     std::optional<OperationInstance> primaries;
@@ -1362,6 +1620,25 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "colorchecker")
+            {
+                auto captured = capture_color_checker_candidate(reader.attributes());
+                if (!captured)
+                {
+                    return captured.error();
+                }
+                if (!color_checker_candidates.empty())
+                {
+                    return make_error(
+                        ErrorCode::kConflict,
+                        "Multiple legacy color checker singleton entries have no canonical mapping",
+                        {{"legacy_operation", "colorchecker"},
+                         {"reason", "duplicate_legacy_colorchecker"}});
+                }
+                color_checker_candidates.push_back(std::move(captured).value());
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -1434,6 +1711,18 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
             return mapped.error();
         }
         operations.push_back(std::move(mapped).value());
+    }
+    if (!color_checker_candidates.empty())
+    {
+        auto mapped = map_color_checker_candidate(color_checker_candidates.front());
+        if (!mapped)
+        {
+            return mapped.error();
+        }
+        const auto color_balance = std::find_if(
+            operations.begin(), operations.end(), [](const OperationInstance &operation)
+            { return operation.id == kColorBalanceOperationId; });
+        operations.insert(color_balance, std::move(mapped).value());
     }
     operations.insert(operations.begin(),
                       input_color.value_or(OperationInstance{

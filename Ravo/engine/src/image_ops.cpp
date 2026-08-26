@@ -19,6 +19,7 @@
 #include <zlib.h>
 
 #include "capability_ops.h"
+#include "color_checker.h"
 #include "output_color.h"
 #include "primaries.h"
 #include "raw_temperature.h"
@@ -2741,6 +2742,16 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 return balanced.error();
             }
             image = std::move(balanced).value();
+            continue;
+        }
+        if (operation.id == kColorCheckerOperationId)
+        {
+            auto corrected = apply_color_checker(image, operation, cancellation);
+            if (!corrected)
+            {
+                return corrected.error();
+            }
+            image = std::move(corrected).value();
             continue;
         }
         if (operation.id == "ravo.color.colorbalancergb")

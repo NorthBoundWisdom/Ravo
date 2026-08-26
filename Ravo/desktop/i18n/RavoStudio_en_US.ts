@@ -252,6 +252,10 @@
         <translation>Saturation</translation>
     </message>
     <message>
+        <source>Reset</source>
+        <translation>Reset</translation>
+    </message>
+    <message>
         <source>Input Profile</source>
         <translation>Input Profile</translation>
     </message>
@@ -438,6 +442,78 @@
     <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
+    </message>
+    <message>
+        <source>Color look-up table · D50 Lab</source>
+        <translation>Color look-up table · D50 Lab</translation>
+    </message>
+    <message>
+        <source>Enable color look-up table</source>
+        <translation>Enable color look-up table</translation>
+    </message>
+    <message>
+        <source>IT8 skin tones</source>
+        <translation>IT8 skin tones</translation>
+    </message>
+    <message>
+        <source>Expanded color checker</source>
+        <translation>Expanded color checker</translation>
+    </message>
+    <message>
+        <source>Helmholtz/Kohlrausch monochrome</source>
+        <translation>Helmholtz/Kohlrausch monochrome</translation>
+    </message>
+    <message>
+        <source>Fuji Astia emulation</source>
+        <translation>Fuji Astia emulation</translation>
+    </message>
+    <message>
+        <source>Fuji Classic Chrome emulation</source>
+        <translation>Fuji Classic Chrome emulation</translation>
+    </message>
+    <message>
+        <source>Fuji Monochrome emulation</source>
+        <translation>Fuji Monochrome emulation</translation>
+    </message>
+    <message>
+        <source>Fuji Provia emulation</source>
+        <translation>Fuji Provia emulation</translation>
+    </message>
+    <message>
+        <source>Fuji Velvia emulation</source>
+        <translation>Fuji Velvia emulation</translation>
+    </message>
+    <message>
+        <source>Patch %1</source>
+        <translation>Patch %1</translation>
+    </message>
+    <message>
+        <source>Source · L*</source>
+        <translation>Source · L*</translation>
+    </message>
+    <message>
+        <source>Source · a*</source>
+        <translation>Source · a*</translation>
+    </message>
+    <message>
+        <source>Source · b*</source>
+        <translation>Source · b*</translation>
+    </message>
+    <message>
+        <source>Target · L*</source>
+        <translation>Target · L*</translation>
+    </message>
+    <message>
+        <source>Target · a*</source>
+        <translation>Target · a*</translation>
+    </message>
+    <message>
+        <source>Target · b*</source>
+        <translation>Target · b*</translation>
+    </message>
+    <message>
+        <source>Disable and reset color look-up table</source>
+        <translation>Disable and reset color look-up table</translation>
     </message>
     <message>
         <source>Color Balance · legacy Lab / ProPhoto RGB</source>

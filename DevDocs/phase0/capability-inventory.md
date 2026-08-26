@@ -36,6 +36,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.core.exposure` | `exposure` | accepted v2 manual/black, metadata compensation, and original-RAW deflicker; exact default-unmasked legacy boundary |
 | `ravo.color.temperature` | `temperature` | pre-demosaic/RGB four-channel scaling with explicit as-shot, camera-reference, late-reference and manual ownership |
 | `ravo.color.channelmixerrgb` | `channelmixerrgb` | frozen V3 matrix normalization, explicit adaptation, XYZ gamut and LMS/RGB saturation-lightness calibration |
+| `ravo.color.colorchecker` | `colorchecker` | explicit 0–49 ordered D50 Lab patch pairs, exact polynomial/thin-plate RBF fitting, eight frozen presets, and strict enabled default-unmasked v2 plus synthetic-v1 import boundary |
 | `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 raster-input contrast and old-recipe compatibility; RAW Studio uses Sigmoid contrast |
 | `ravo.core.highlights` | `filmicrgb` | P1 highlight compression |
 | `ravo.core.shadows` | `shadows` / `filmicrgb` | P1 shadow lift |
@@ -95,7 +96,6 @@ struct bytes or call the old dynamic module ABI.
 | `borders` | yes | queued by ADR-0015; requires canvas/export geometry contract |
 | `cacorrectrgb` | no | defer with RAW geometry capability |
 | `censorize` | yes | queued by ADR-0015; requires mask/ROI graph |
-| `colorchecker` | yes | defer until colour operation policy exists |
 | `colorcontrast` | yes | defer until colour operation policy exists |
 | `colorcorrection` | yes | defer until colour operation policy exists |
 | `colorharmonizer` | yes | queued by ADR-0015; requires explicit color-space and overlap contract |
@@ -145,12 +145,12 @@ struct bytes or call the old dynamic module ABI.
 
 | Capability | Current Ravo state | Rationale |
 | --- | --- | --- |
-| Legacy XMP input | Parse only bounded strict mappings; exposure selects the greatest v5/v6/v7 revision independently of XML order and accepts exact default-unmasked singleton state | Modified payload/version/enabled/blend/mask/multi/conflicting-revision state returns structured incompatibility; no old ABI bytes cross the boundary |
-| Canonical recipe | Versioned JSON, immutable snapshots, explicit schema upgrades | Exposure v1 upgrades to v2 with explicit mode, black, percentile/target, and compensation flags |
+| Legacy XMP input | Parse only bounded strict mappings; exposure selects the greatest v5/v6/v7 revision independently of XML order, while Color Checker accepts its sole evidenced enabled-v2 default-unmasked singleton and a synthetic v1 upgrade | Modified payload/version/enabled/blend/mask/multi/conflicting-revision state returns structured incompatibility; inactive Color Checker v2 tail planes are intentionally ignored and no old ABI bytes cross the boundary |
+| Canonical recipe | Versioned JSON, immutable snapshots, explicit schema upgrades | Exposure v1 upgrades to v2 with explicit mode, black, percentile/target, and compensation flags; Color Checker v1 preserves explicit presence and every ordered source/target Lab pair |
 | RAW/JPEG/PNG/TIFF decode | 16-bit Bayer RAW inspect/decode implemented through fixed LibRaw; raster inputs remain unsupported | Real `mire1.cr2` contract coverage exists, but other sensors and JPEG/PNG/TIFF still need fixture-backed behaviour |
 | Default display transform | `ravo.display.sigmoid` v1 on RAW; no implicit transform on display-referred raster inputs | Fixed per-channel linear-sRGB/Standard-SDR policy keeps CLI, Studio and export deterministic; advanced primaries and alternate transforms are unsupported |
 | JPEG/PNG/TIFF/original export | Catalog export writes JPEG/PNG, TIFF when the Qt plugin exists, or an original-byte copy; existing targets conflict | CLI `catalog export` and Studio File → Export Photo share CatalogService. Metadata/ICC embedding remains later |
-| Masks and blending | Exposure accepts one exact default-unmasked legacy state and rejects mask/custom-blend/multi state structurally; the general mask graph remains deferred | The exposure-specific retirement boundary does not invent general mask/ROI semantics |
+| Masks and blending | Exposure and Color Checker accept their exact default-unmasked legacy state and reject mask/custom-blend/multi state structurally; the general mask graph remains deferred | Operation-specific retirement boundaries do not invent general mask/ROI semantics |
 | Catalog, history, styles | New SQLite catalog/viewer authorized for M1; history and styles remain later work | The first product imports originals by reference and does not migrate the legacy catalog |
 | GPU/OpenCL/Metal | Explicitly out of Phase 1 | CPU-only reference work precedes any backend adapter |
 

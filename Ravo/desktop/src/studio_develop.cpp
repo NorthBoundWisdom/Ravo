@@ -392,6 +392,39 @@ QVariantMap StudioPresenter::editLegacyColorBalance() const
             {QStringLiteral("outputSaturation"), params.output_saturation}};
 }
 
+QVariantMap StudioPresenter::editColorChecker() const
+{
+    int preset_index = -1;
+    const auto presets = color_checker_presets();
+    for (std::size_t index = 0U; index < presets.size(); ++index)
+    {
+        auto preset = color_checker_params_for_preset(presets[index].id);
+        if (preset && preset.value() == develop_.color_checker)
+        {
+            preset_index = static_cast<int>(index);
+            break;
+        }
+    }
+    const auto patch_count = develop_.color_checker.patches.size();
+    const std::size_t patch_index =
+        patch_count == 0U ?
+            0U :
+            static_cast<std::size_t>(std::clamp(develop_.color_checker_patch, std::int64_t{0},
+                                                static_cast<std::int64_t>(patch_count - 1U)));
+    const ColorCheckerPatch patch =
+        patch_count == 0U ? ColorCheckerPatch{} : develop_.color_checker.patches[patch_index];
+    return {{QStringLiteral("enabled"), develop_.color_checker_enabled},
+            {QStringLiteral("presetIndex"), preset_index},
+            {QStringLiteral("patchIndex"), static_cast<int>(patch_index)},
+            {QStringLiteral("patchCount"), static_cast<int>(patch_count)},
+            {QStringLiteral("sourceL"), patch.source_lab[0]},
+            {QStringLiteral("sourceA"), patch.source_lab[1]},
+            {QStringLiteral("sourceB"), patch.source_lab[2]},
+            {QStringLiteral("targetL"), patch.target_lab[0]},
+            {QStringLiteral("targetA"), patch.target_lab[1]},
+            {QStringLiteral("targetB"), patch.target_lab[2]}};
+}
+
 QVariantMap StudioPresenter::editColorBalanceRgb() const
 {
     const auto &params = develop_.color_balance_rgb;
