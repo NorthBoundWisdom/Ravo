@@ -13,7 +13,6 @@
 #include <vector>
 
 #include <png.h>
-#include <zlib.h>
 
 #include "capability_ops.h"
 #include "raw_temperature.h"
@@ -2352,21 +2351,6 @@ Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
                           {{"png_error", png.message}});
     }
     encoded.resize(encoded_size);
-    constexpr std::size_t kAfterIhdr = 8U + 4U + 4U + 13U + 4U;
-    if (encoded.size() < kAfterIhdr || encoded[12] != 'I' || encoded[13] != 'H' ||
-        encoded[14] != 'D' || encoded[15] != 'R')
-    {
-        return make_error(ErrorCode::kValidation, "PNG encoder produced an invalid IHDR layout");
-    }
-    std::array<std::uint8_t, 13> srgb_chunk{0U, 0U, 0U, 1U, 's', 'R', 'G', 'B', 0U, 0U, 0U, 0U, 0U};
-    uLong crc = crc32(0L, Z_NULL, 0);
-    crc = crc32(crc, srgb_chunk.data() + 4U, 5U);
-    srgb_chunk[9] = static_cast<std::uint8_t>((crc >> 24U) & 0xffU);
-    srgb_chunk[10] = static_cast<std::uint8_t>((crc >> 16U) & 0xffU);
-    srgb_chunk[11] = static_cast<std::uint8_t>((crc >> 8U) & 0xffU);
-    srgb_chunk[12] = static_cast<std::uint8_t>(crc & 0xffU);
-    encoded.insert(encoded.begin() + static_cast<std::ptrdiff_t>(kAfterIhdr), srgb_chunk.begin(),
-                   srgb_chunk.end());
     return encoded;
 }
 

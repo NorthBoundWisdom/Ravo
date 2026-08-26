@@ -64,7 +64,8 @@ void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
     for (const auto &asset : listing.assets.value())
     {
         const auto found = by_id.find(asset.id);
-        if (found == by_id.end() || found->second.state != kPreviewStateReady ||
+        if (found == by_id.end() || found->second.contract_version != kPreviewContractVersion ||
+            found->second.state != kPreviewStateReady ||
             !found->second.cache_relpath)
         {
             continue;

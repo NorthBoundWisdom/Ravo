@@ -64,7 +64,7 @@ Current implementation status:
   Missing, corrupt, singular, or unsupported profiles fail structurally; no
   generic matrix or sRGB fallback is used. Canonical recipe schema v2 upgrades
   prior Ravo recipes by inserting the explicit source → linear Rec709 contract.
-  Profile state and external ICC content participate in preview contract v5
+  Profile state and external ICC content participate in preview contract v6
   cache keys, and Studio exposes the canonical Input Profile controls.
 - Color Calibration provides `ravo.color.channelmixerrgb` v1 with frozen V3
   CPU matrix normalization, CAT16/Bradford/XYZ/RGB, XYZ gamut, saturation,

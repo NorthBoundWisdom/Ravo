@@ -171,10 +171,11 @@ Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
 Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v5: full CPU
+`prefer_embedded_preview=false` use preview contract v6: full CPU
 decode/render followed by the `ravo.display.sigmoid` baseline at the end of
 the scene-linear buffer. The cache types must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.
+Cached PNGs contain one standard `sRGB` chunk; v6 rebuilds prior cache output.
 The baseline creates no `asset_recipe` row and does not set `has_edits`;
 persistence begins only after a user override. Existing JPEG/PNG/TIFF are
 display-referred input and do not receive Sigmoid twice. Import persists

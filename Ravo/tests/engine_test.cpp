@@ -10,6 +10,7 @@
 #include <numbers>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <png.h>
@@ -97,6 +98,37 @@ void declare_input(Recipe &recipe)
     }
     png_image_free(&image);
     return result;
+}
+
+[[nodiscard]] std::size_t png_chunk_count(const std::string &png_bytes,
+                                          const std::string_view chunk_type)
+{
+    if (png_bytes.size() < 8U || chunk_type.size() != 4U)
+    {
+        return 0;
+    }
+    std::size_t offset = 8U;
+    std::size_t count = 0;
+    while (png_bytes.size() - offset >= 12U)
+    {
+        const auto byte = [&png_bytes, offset](const std::size_t index)
+        {
+            return static_cast<std::uint32_t>(
+                static_cast<unsigned char>(png_bytes[offset + index]));
+        };
+        const auto length = (byte(0U) << 24U) | (byte(1U) << 16U) | (byte(2U) << 8U) | byte(3U);
+        const auto remaining = png_bytes.size() - offset;
+        if (static_cast<std::size_t>(length) > remaining - 12U)
+        {
+            return 0;
+        }
+        if (std::equal(chunk_type.begin(), chunk_type.end(), png_bytes.data() + offset + 4U))
+        {
+            ++count;
+        }
+        offset += 12U + static_cast<std::size_t>(length);
+    }
+    return offset == png_bytes.size() ? count : 0;
 }
 
 TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
@@ -268,7 +300,7 @@ TEST(EngineFacadeTest, RenderWritesBoundedPngAndRejectsOutputConflict)
     output.seekg(0, std::ios::beg);
     std::string png_bytes(static_cast<std::size_t>(file_size), '\0');
     output.read(png_bytes.data(), static_cast<std::streamsize>(png_bytes.size()));
-    EXPECT_NE(png_bytes.find("sRGB"), std::string::npos);
+    EXPECT_EQ(png_chunk_count(png_bytes, "sRGB"), 1U);
     output.close();
     const auto decoded = read_rgb_png(request.output_uri);
     ASSERT_TRUE(decoded.has_value());

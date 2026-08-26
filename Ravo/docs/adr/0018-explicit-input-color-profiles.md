@@ -47,7 +47,8 @@ acceptable replacement.
   accepted only when decode supplied that exact matrix kind.
 - Profile parameters and external ICC content participate in the scene-linear
   and preview cache keys. Preview contract v5 invalidates caches created before
-  explicit profile ownership.
+  explicit profile ownership; v6 rebuilds cache PNGs with one standard `sRGB`
+  chunk.
 - C5 owns selectable output profiles. Until C5, render/export output is
   explicitly sRGB and the PNG/JPEG/TIFF encoder embeds that declaration.
 

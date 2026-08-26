@@ -150,11 +150,12 @@ directories, corrupt files, and more RAW files.
   missing cache can be rebuilt.
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v5 validates complete decode + explicit input profile +
+- RAW preview contract v6 validates complete decode + explicit input profile +
   default Sigmoid; the
   raster baseline must not receive a second display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`
   channel-sum reference, and catalog reset/reopen.
+- Cached PNG validation requires exactly one standard `sRGB` chunk.
 - RAW import and Gallery thumbnails may persist embedded-JPEG browse cache. Its
   key must use the `embedded-jpeg` digest and be a separate file from the
   1600px processed preview; `prefer_embedded_preview` must not affect
