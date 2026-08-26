@@ -11,6 +11,7 @@
 
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
+#include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
@@ -184,7 +185,13 @@ struct DevelopParams
     OutputColorParams output_color;
     PrimariesParams primaries;
     ChannelMixerParams channel_mixer;
+    std::string exposure_mode{std::string(kExposureModeManual)};
+    double exposure_black = 0.0;
     double exposure_ev = 0.0;
+    double exposure_deflicker_percentile = kExposureDeflickerPercentileDefault;
+    double exposure_deflicker_target_ev = kExposureDeflickerTargetEvDefault;
+    bool exposure_compensate_exposure_bias = false;
+    bool exposure_compensate_highlight_preservation = false;
     double contrast = 0.0;
     double highlights = 0.0;
     double shadows = 0.0;

@@ -17,6 +17,14 @@ using WorkingImage = LinearWorkingBuffer;
                                                     const std::array<float, 4> &white_balance,
                                                     const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster);
+// The input is borrowed and never mutated. A successful result owns its pixels and
+// retains the exact declared RGB working-profile state.
+[[nodiscard]] Result<WorkingImage> apply_exposure(const WorkingImage &input,
+                                                  const ExposureParams &params,
+                                                  const CancellationToken &cancellation);
+[[nodiscard]] Result<WorkingImage> apply_exposure(const WorkingImage &input,
+                                                  const OperationInstance &operation,
+                                                  const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                                                     const CancellationToken &cancellation);
 [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image);

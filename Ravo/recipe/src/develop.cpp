@@ -63,10 +63,11 @@ constexpr double kEpsilon = 1e-6;
 }
 
 void add_operation(Recipe &recipe, std::string id, std::string instance_id,
-                   std::map<std::string, ParameterValue, std::less<>> parameters)
+                   std::map<std::string, ParameterValue, std::less<>> parameters,
+                   const std::int64_t schema_version = 1)
 {
-    recipe.operations.push_back(
-        {std::move(id), 1, std::move(instance_id), true, std::move(parameters), std::nullopt});
+    recipe.operations.push_back({std::move(id), schema_version, std::move(instance_id), true,
+                                 std::move(parameters), std::nullopt});
 }
 
 [[nodiscard]] std::int64_t flag01(const std::int64_t value) noexcept
@@ -1497,7 +1498,28 @@ void clamp_develop(DevelopParams &params) noexcept
         clamp_value(params.channel_mixer.illuminant_y, 0.000001, 0.999999);
     params.channel_mixer.gamut = clamp_value(params.channel_mixer.gamut, 0.0, 12.0);
     clamp_color_balance(params.color_balance_rgb);
-    params.exposure_ev = clamp_value(params.exposure_ev, -10.0, 10.0);
+    if (params.exposure_mode != kExposureModeManual &&
+        params.exposure_mode != kExposureModeDeflicker)
+    {
+        params.exposure_mode = std::string(kExposureModeManual);
+    }
+    params.exposure_black =
+        clamp_value(params.exposure_black, kExposureBlackMin, kExposureBlackMax);
+    params.exposure_ev = clamp_value(params.exposure_ev, kExposureEvMin, kExposureEvMax);
+    params.exposure_deflicker_percentile =
+        clamp_value(params.exposure_deflicker_percentile, kExposureDeflickerPercentileMin,
+                    kExposureDeflickerPercentileMax);
+    params.exposure_deflicker_target_ev =
+        clamp_value(params.exposure_deflicker_target_ev, kExposureDeflickerTargetEvMin,
+                    kExposureDeflickerTargetEvMax);
+    if (params.exposure_mode == kExposureModeManual)
+    {
+        const double white = std::exp2(-params.exposure_ev);
+        if (params.exposure_black >= white)
+        {
+            params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
+        }
+    }
     params.contrast = clamp_value(params.contrast, -1.0, 1.0);
     params.highlights = clamp_value(params.highlights, -1.0, 1.0);
     params.shadows = clamp_value(params.shadows, -1.0, 1.0);
@@ -1603,13 +1625,18 @@ bool DevelopParams::is_identity() const noexcept
 {
     return temperature.is_identity() && !profile_gamma_enabled && input_color.is_identity() &&
            output_color.is_identity() && primaries.is_identity() && channel_mixer.is_identity() &&
-           near(exposure_ev, 0.0) && near(contrast, 0.0) && near(highlights, 0.0) &&
-           near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) &&
-           near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
-           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(crop_x, 0.0) &&
-           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
-           near(sharpen, 0.0) && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
-           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
+           exposure_mode == kExposureModeManual && near(exposure_black, 0.0) &&
+           near(exposure_ev, 0.0) &&
+           near(exposure_deflicker_percentile, kExposureDeflickerPercentileDefault) &&
+           near(exposure_deflicker_target_ev, kExposureDeflickerTargetEvDefault) &&
+           !exposure_compensate_exposure_bias && !exposure_compensate_highlight_preservation &&
+           near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
+           near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
+           rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
+           near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
+           near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
+           near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
+           near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
            color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
            near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
            tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
@@ -1904,6 +1931,14 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (name == "exposure")
     {
         params.exposure_ev = value;
+        if (std::isfinite(value))
+        {
+            const double white = std::exp2(-value);
+            if (params.exposure_black >= white)
+            {
+                params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
+            }
+        }
     }
     else if (name == "contrast")
     {
@@ -2604,7 +2639,14 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     }
     else if (section == "light")
     {
+        params.exposure_mode = identity.exposure_mode;
+        params.exposure_black = identity.exposure_black;
         params.exposure_ev = identity.exposure_ev;
+        params.exposure_deflicker_percentile = identity.exposure_deflicker_percentile;
+        params.exposure_deflicker_target_ev = identity.exposure_deflicker_target_ev;
+        params.exposure_compensate_exposure_bias = identity.exposure_compensate_exposure_bias;
+        params.exposure_compensate_highlight_preservation =
+            identity.exposure_compensate_highlight_preservation;
         params.contrast = identity.contrast;
         params.highlights = identity.highlights;
         params.shadows = identity.shadows;
@@ -3005,10 +3047,17 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"lens", ParameterValue{clamped.lens_name}},
                        {"focal_mm", ParameterValue{clamped.lens_focal_mm}}});
     }
-    if (!near(clamped.exposure_ev, 0.0))
+    const ExposureParams exposure{clamped.exposure_mode,
+                                  clamped.exposure_black,
+                                  clamped.exposure_ev,
+                                  clamped.exposure_deflicker_percentile,
+                                  clamped.exposure_deflicker_target_ev,
+                                  clamped.exposure_compensate_exposure_bias,
+                                  clamped.exposure_compensate_highlight_preservation};
+    if (!exposure.is_identity())
     {
-        add_operation(recipe, "ravo.core.exposure", "exposure-1",
-                      {{"exposure_ev", ParameterValue{clamped.exposure_ev}}});
+        add_operation(recipe, std::string(kExposureOperationId), "exposure-1",
+                      exposure_to_parameters(exposure), kExposureOperationSchemaVersion);
     }
     if (!near(clamped.tone_eq_blacks, 0.0) || !near(clamped.tone_eq_shadows, 0.0) ||
         !near(clamped.tone_eq_midtones, 0.0) || !near(clamped.tone_eq_highlights, 0.0) ||
@@ -3278,9 +3327,27 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.channel_mixer = std::move(mixer).value();
         }
-        else if (operation.id == "ravo.core.exposure")
+        else if (operation.id == kExposureOperationId)
         {
-            params.exposure_ev = number("exposure_ev", params.exposure_ev);
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_exposure_operation(canonical);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            auto exposure = exposure_from_parameters(canonical.parameters);
+            if (!exposure)
+            {
+                return exposure.error();
+            }
+            params.exposure_mode = exposure.value().mode;
+            params.exposure_black = exposure.value().black;
+            params.exposure_ev = exposure.value().exposure_ev;
+            params.exposure_deflicker_percentile = exposure.value().deflicker_percentile;
+            params.exposure_deflicker_target_ev = exposure.value().deflicker_target_ev;
+            params.exposure_compensate_exposure_bias = exposure.value().compensate_exposure_bias;
+            params.exposure_compensate_highlight_preservation =
+                exposure.value().compensate_highlight_preservation;
         }
         else if (operation.id == "ravo.core.contrast")
         {

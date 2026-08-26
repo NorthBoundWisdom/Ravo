@@ -184,6 +184,70 @@ struct LegacyGammaXmpOptions
     return document;
 }
 
+inline constexpr std::string_view kLegacyExposureV5ManualOne =
+    "00000000000000000000803f00004842000080c0";
+inline constexpr std::string_view kLegacyExposureV6ManualOneBias =
+    "00000000000000000000803f00004842000080c001000000";
+inline constexpr std::string_view kLegacyExposureV7ManualOneBothCompensations =
+    "00000000000000000000803f00004842000080c00100000001000000";
+
+struct LegacyExposureXmpOptions
+{
+    std::optional<std::string_view> history_position = "8";
+    std::optional<std::string_view> version = "5";
+    std::optional<std::string_view> enabled = "1";
+    std::optional<std::string_view> parameters = kLegacyExposureV5ManualOne;
+    std::optional<std::string_view> blend_version = "9";
+    std::optional<std::string_view> blend_parameters = kLegacyGammaBlendV9;
+    std::optional<std::string_view> multi_priority = "0";
+    std::optional<std::string_view> multi_name = "";
+    std::optional<std::string_view> multi_name_hand_edited;
+    std::string_view extra_attributes;
+};
+
+[[nodiscard]] std::string legacy_exposure_xmp(const std::vector<LegacyExposureXmpOptions> &entries)
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>)";
+    const auto append_attribute =
+        [&](const std::string_view name, const std::optional<std::string_view> value)
+    {
+        if (value)
+        {
+            document += " darktable:";
+            document += name;
+            document += "=\"";
+            document += *value;
+            document += '"';
+        }
+    };
+    for (const auto &entry : entries)
+    {
+        document += R"(<rdf:li darktable:operation="exposure")";
+        append_attribute("num", entry.history_position);
+        append_attribute("modversion", entry.version);
+        append_attribute("enabled", entry.enabled);
+        append_attribute("params", entry.parameters);
+        append_attribute("multi_name", entry.multi_name);
+        append_attribute("multi_priority", entry.multi_priority);
+        append_attribute("multi_name_hand_edited", entry.multi_name_hand_edited);
+        append_attribute("blendop_version", entry.blend_version);
+        append_attribute("blendop_params", entry.blend_parameters);
+        document += entry.extra_attributes;
+        document += "/>";
+    }
+    document += R"(</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+[[nodiscard]] std::string legacy_exposure_xmp(const LegacyExposureXmpOptions &options = {})
+{
+    return legacy_exposure_xmp(std::vector<LegacyExposureXmpOptions>{options});
+}
+
 [[nodiscard]] std::optional<std::string> xml_attribute_value(const QXmlStreamAttributes &attributes,
                                                              const QStringView name)
 {
@@ -979,30 +1043,73 @@ TEST_F(CliTest, LegacyXmpProfileGammaRejectsMissingFrozenPayloadEvidence)
     EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_profile_gamma_no_fixture");
 }
 
-TEST_F(CliTest, LegacyXmpMapsTheProvenManualExposureV5Subset)
+TEST_F(CliTest, LegacyXmpMapsStrictExposureV5V6AndV7Payloads)
 {
-    constexpr std::string_view xmp = R"(<?xml version="1.0"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:darktable="http://darktable.sf.net/">
-  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
-    <rdf:li darktable:operation="exposure" darktable:modversion="5" darktable:enabled="1"
-            darktable:params="00000000000000000000803f00004842000080c0"/>
-  </rdf:Seq></darktable:history></rdf:Description>
-</rdf:RDF>)";
-    const LegacyXmpImportRequest request{xmp, {"asset-1", "file:///fixture.raw", std::nullopt}};
+    struct Case
+    {
+        std::string_view version;
+        std::string_view parameters;
+        bool enabled;
+        bool exposure_bias;
+        bool highlight_preservation;
+    };
+    constexpr std::array cases{
+        Case{"5", kLegacyExposureV5ManualOne, true, false, false},
+        Case{"6", kLegacyExposureV6ManualOneBias, true, true, false},
+        Case{"7", kLegacyExposureV7ManualOneBothCompensations, false, true, true},
+    };
+    for (const auto &test_case : cases)
+    {
+        LegacyExposureXmpOptions options;
+        options.version = test_case.version;
+        options.parameters = test_case.parameters;
+        options.enabled = test_case.enabled ? "1" : "0";
+        const auto xmp = legacy_exposure_xmp(options);
+        const LegacyXmpImportRequest request{xmp, {"asset-1", "file:///fixture.raw", std::nullopt}};
 
-    const auto imported = import_legacy_xmp(request);
+        const auto imported = import_legacy_xmp(request);
+
+        ASSERT_TRUE(imported) << test_case.version << ": " << imported.error().message;
+        ASSERT_EQ(imported.value().operations.size(), 3U);
+        EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
+        const auto &operation = imported.value().operations[1];
+        EXPECT_EQ(operation.id, kExposureOperationId);
+        EXPECT_EQ(operation.schema_version, kExposureOperationSchemaVersion);
+        EXPECT_EQ(operation.instance_id, "legacy-exposure-8");
+        EXPECT_EQ(operation.enabled, test_case.enabled);
+        auto params = exposure_from_parameters(operation.parameters);
+        ASSERT_TRUE(params) << params.error().message;
+        EXPECT_EQ(params.value().mode, kExposureModeManual);
+        EXPECT_DOUBLE_EQ(params.value().black, 0.0);
+        EXPECT_DOUBLE_EQ(params.value().exposure_ev, 1.0);
+        EXPECT_DOUBLE_EQ(params.value().deflicker_percentile, 50.0);
+        EXPECT_DOUBLE_EQ(params.value().deflicker_target_ev, -4.0);
+        EXPECT_EQ(params.value().compensate_exposure_bias, test_case.exposure_bias);
+        EXPECT_EQ(params.value().compensate_highlight_preservation,
+                  test_case.highlight_preservation);
+    }
+}
+
+TEST_F(CliTest, LegacyXmpImportsTheFrozenRealExposureFixture)
+{
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                      "0001-exposure" / "exposure.xmp";
+    const auto source = read_utf8_text_file(path.string());
+    ASSERT_TRUE(source) << source.error().message;
+
+    const auto imported =
+        import_legacy_xmp({source.value(), {"asset-1", "file:///fixture.raw", std::nullopt}});
 
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_EQ(imported.value().operations.size(), 3U);
-    EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
     const auto &operation = imported.value().operations[1];
-    EXPECT_EQ(operation.id, "ravo.core.exposure");
-    EXPECT_EQ(operation.schema_version, 1);
-    EXPECT_EQ(operation.instance_id, "legacy-exposure-0");
-    EXPECT_TRUE(operation.enabled);
-    ASSERT_TRUE(operation.parameters.contains("exposure_ev"));
-    EXPECT_DOUBLE_EQ(std::get<double>(operation.parameters.at("exposure_ev").value), 1.0);
+    EXPECT_EQ(operation.id, kExposureOperationId);
+    EXPECT_EQ(operation.schema_version, kExposureOperationSchemaVersion);
+    auto params = exposure_from_parameters(operation.parameters);
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_EQ(params.value().mode, kExposureModeManual);
+    EXPECT_DOUBLE_EQ(params.value().black, 0.0);
+    EXPECT_DOUBLE_EQ(params.value().exposure_ev, 1.0);
 }
 
 TEST_F(CliTest, LegacyXmpImportCommandWritesTheProvenManualExposureRecipe)
@@ -1016,14 +1123,7 @@ TEST_F(CliTest, LegacyXmpImportCommandWritesTheProvenManualExposureRecipe)
     {
         std::ofstream output(xmp_path, std::ios::binary);
         ASSERT_TRUE(output);
-        output << R"(<?xml version="1.0"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:darktable="http://darktable.sf.net/">
-  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
-    <rdf:li darktable:operation="exposure" darktable:modversion="5" darktable:enabled="1"
-            darktable:params="00000000000000000000803f00004842000080c0"/>
-  </rdf:Seq></darktable:history></rdf:Description>
-</rdf:RDF>)";
+        output << legacy_exposure_xmp();
     }
 
     const auto xmp_u8 = xmp_path.generic_u8string();
@@ -1053,64 +1153,122 @@ TEST_F(CliTest, LegacyXmpImportCommandWritesTheProvenManualExposureRecipe)
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
-TEST_F(CliTest, LegacyXmpRejectsAutomaticExposureV5InsteadOfGuessingHistogramState)
+TEST_F(CliTest, LegacyXmpPreservesDeflickerAsAnExplicitDeferredContract)
 {
-    constexpr std::string_view xmp = R"(<?xml version="1.0"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:darktable="http://darktable.sf.net/">
-  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
-    <rdf:li darktable:operation="exposure" darktable:modversion="5" darktable:enabled="1"
-            darktable:params="01000000000000000000803f00004842000080c0"/>
-  </rdf:Seq></darktable:history></rdf:Description>
-</rdf:RDF>)";
+    LegacyExposureXmpOptions options;
+    options.parameters = "01000000000000000000803f00004842000080c0";
+    const auto xmp = legacy_exposure_xmp(options);
     const LegacyXmpImportRequest request{xmp, {"asset-1", "file:///fixture.raw", std::nullopt}};
 
     const auto imported = import_legacy_xmp(request);
 
-    ASSERT_FALSE(imported);
-    EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_exposure_mode");
+    ASSERT_TRUE(imported) << imported.error().message;
+    auto params = exposure_from_parameters(imported.value().operations[1].parameters);
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_EQ(params.value().mode, kExposureModeDeflicker);
+    EXPECT_DOUBLE_EQ(params.value().deflicker_percentile, 50.0);
+    EXPECT_DOUBLE_EQ(params.value().deflicker_target_ev, -4.0);
 }
 
-TEST_F(CliTest, LegacyXmpRejectsExposureBlendDataWithoutACanonicalMask)
+TEST_F(CliTest, LegacyXmpExposureRejectsMalformedVersionedPayloads)
 {
-    constexpr std::string_view xmp = R"(<?xml version="1.0"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:darktable="http://darktable.sf.net/">
-  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
-    <rdf:li darktable:operation="exposure" darktable:modversion="5" darktable:enabled="1"
-            darktable:params="00000000000000000000803f00004842000080c0"
-            darktable:blendop_params="legacy-blend"/>
-  </rdf:Seq></darktable:history></rdf:Description>
-</rdf:RDF>)";
-    const LegacyXmpImportRequest request{xmp, {"asset-1", "file:///fixture.raw", std::nullopt}};
+    const auto expect_rejected = [&](const LegacyExposureXmpOptions &options, const ErrorCode code,
+                                     const std::string_view reason)
+    {
+        const auto imported = import_legacy_xmp(
+            {legacy_exposure_xmp(options), {"asset-1", "file:///fixture.raw", std::nullopt}});
+        ASSERT_FALSE(imported);
+        EXPECT_EQ(imported.error().code, code);
+        EXPECT_EQ(imported.error().context.at("reason"), reason);
+    };
 
-    const auto imported = import_legacy_xmp(request);
+    LegacyExposureXmpOptions unsupported_version;
+    unsupported_version.version = "8";
+    expect_rejected(unsupported_version, ErrorCode::kUnsupported,
+                    "unsupported_legacy_exposure_version");
 
-    ASSERT_FALSE(imported);
-    EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_blend");
+    LegacyExposureXmpOptions wrong_length;
+    wrong_length.parameters = "00000000";
+    expect_rejected(wrong_length, ErrorCode::kValidation, "invalid_legacy_exposure_parameters");
+
+    LegacyExposureXmpOptions invalid_mode;
+    invalid_mode.parameters = "02000000000000000000803f00004842000080c0";
+    expect_rejected(invalid_mode, ErrorCode::kValidation, "invalid_legacy_exposure_parameters");
+
+    LegacyExposureXmpOptions invalid_boolean;
+    invalid_boolean.version = "6";
+    invalid_boolean.parameters = "00000000000000000000803f00004842000080c002000000";
+    expect_rejected(invalid_boolean, ErrorCode::kValidation, "invalid_legacy_exposure_parameters");
+
+    LegacyExposureXmpOptions non_finite;
+    non_finite.parameters = "00000000000000000000c07f00004842000080c0";
+    expect_rejected(non_finite, ErrorCode::kValidation, "invalid_legacy_exposure_parameters");
 }
 
-TEST_F(CliTest, LegacyXmpRejectsMultipleExposureEntriesWithoutGuessingInstanceSemantics)
+TEST_F(CliTest, LegacyXmpExposureAcceptsOnlyFrozenUnmaskedSingletonState)
 {
-    constexpr std::string_view xmp = R"(<?xml version="1.0"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:darktable="http://darktable.sf.net/">
-  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
-    <rdf:li darktable:operation="exposure" darktable:modversion="5" darktable:enabled="1"
-            darktable:params="00000000000000000000803f00004842000080c0"/>
-    <rdf:li darktable:operation="exposure" darktable:modversion="5" darktable:enabled="1"
-            darktable:params="00000000000000000000803f00004842000080c0"/>
-  </rdf:Seq></darktable:history></rdf:Description>
-</rdf:RDF>)";
+    const auto expect_reason =
+        [&](const LegacyExposureXmpOptions &options, const std::string_view reason)
+    {
+        const auto imported = import_legacy_xmp(
+            {legacy_exposure_xmp(options), {"asset-1", "file:///fixture.raw", std::nullopt}});
+        ASSERT_FALSE(imported);
+        EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
+        EXPECT_EQ(imported.error().context.at("reason"), reason);
+    };
+
+    LegacyExposureXmpOptions blend;
+    blend.blend_parameters = "legacy-blend";
+    expect_reason(blend, "unsupported_legacy_exposure_blend");
+
+    LegacyExposureXmpOptions mask;
+    mask.extra_attributes = R"( darktable:mask_id="42")";
+    expect_reason(mask, "unsupported_legacy_exposure_mask");
+
+    LegacyExposureXmpOptions priority;
+    priority.multi_priority = "1";
+    expect_reason(priority, "unsupported_legacy_exposure_multi_state");
+
+    LegacyExposureXmpOptions noncanonical_priority;
+    noncanonical_priority.multi_priority = "00";
+    expect_reason(noncanonical_priority, "unsupported_legacy_exposure_multi_state");
+
+    LegacyExposureXmpOptions named;
+    named.multi_name = "second";
+    expect_reason(named, "unsupported_legacy_exposure_multi_state");
+
+    LegacyExposureXmpOptions unknown;
+    unknown.extra_attributes = R"( darktable:unproven="1")";
+    expect_reason(unknown, "unsupported_legacy_exposure_attribute");
+}
+
+TEST_F(CliTest, LegacyXmpExposureFoldsRevisionsByNumWithoutUsingDocumentOrder)
+{
+    LegacyExposureXmpOptions final;
+    final.history_position = "11";
+    final.parameters = kLegacyExposureV5ManualOne;
+    LegacyExposureXmpOptions superseded;
+    superseded.history_position = "9";
+    superseded.parameters = "00000000000000000000003f00004842000080c0";
+    const auto xmp = legacy_exposure_xmp({final, superseded});
     const LegacyXmpImportRequest request{xmp, {"asset-1", "file:///fixture.raw", std::nullopt}};
 
     const auto imported = import_legacy_xmp(request);
 
-    ASSERT_FALSE(imported);
-    EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_history");
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().operations.size(), 3U);
+    const auto &operation = imported.value().operations[1];
+    EXPECT_EQ(operation.instance_id, "legacy-exposure-11");
+    auto params = exposure_from_parameters(operation.parameters);
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_DOUBLE_EQ(params.value().exposure_ev, 1.0);
+
+    superseded.history_position = "11";
+    const auto duplicate = import_legacy_xmp({legacy_exposure_xmp({final, superseded}),
+                                              {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_legacy_exposure_revision");
 }
 
 TEST_F(CliTest, LegacyXmpAllowsAnEmptyMaskHistoryContainer)
@@ -1476,7 +1634,7 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
     stdout_stream.clear();
     EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "probe", "--catalog",
                                                             catalog, "--asset-id", id, "--baseline",
-                                                            "--set", "exposure=11", "--json"}),
+                                                            "--set", "exposure=19", "--json"}),
               2);
     auto rejected = parse_json(stdout_stream.str());
     ASSERT_TRUE(rejected) << rejected.error().message;
@@ -1491,7 +1649,7 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
     stdout_stream.clear();
     EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "develop", "--catalog",
                                                             catalog, "--asset-id", id, "--set",
-                                                            "exposure=11", "--json"}),
+                                                            "exposure=19", "--json"}),
               2);
     auto rejected_save = parse_json(stdout_stream.str());
     ASSERT_TRUE(rejected_save) << rejected_save.error().message;

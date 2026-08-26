@@ -15,6 +15,44 @@
 namespace ravo
 {
 
+inline constexpr std::string_view kExposureOperationId = "ravo.core.exposure";
+inline constexpr std::int64_t kExposureOperationSchemaVersion = 2;
+inline constexpr std::string_view kExposureModeManual = "manual";
+inline constexpr std::string_view kExposureModeDeflicker = "deflicker";
+
+inline constexpr double kExposureBlackMin = -1.0;
+inline constexpr double kExposureBlackMax = 1.0;
+inline constexpr double kExposureEvMin = -18.0;
+inline constexpr double kExposureEvMax = 18.0;
+inline constexpr double kExposureDeflickerPercentileMin = 0.0;
+inline constexpr double kExposureDeflickerPercentileMax = 100.0;
+inline constexpr double kExposureDeflickerPercentileDefault = 50.0;
+inline constexpr double kExposureDeflickerTargetEvMin = -18.0;
+inline constexpr double kExposureDeflickerTargetEvMax = 18.0;
+inline constexpr double kExposureDeflickerTargetEvDefault = -4.0;
+
+struct ExposureParams
+{
+    std::string mode{std::string(kExposureModeManual)};
+    double black = 0.0;
+    double exposure_ev = 0.0;
+    double deflicker_percentile = kExposureDeflickerPercentileDefault;
+    double deflicker_target_ev = kExposureDeflickerTargetEvDefault;
+    bool compensate_exposure_bias = false;
+    bool compensate_highlight_preservation = false;
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const ExposureParams &) const noexcept = default;
+};
+
+[[nodiscard]] Result<ExposureParams>
+exposure_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+exposure_to_parameters(const ExposureParams &params);
+[[nodiscard]] Result<void>
+validate_exposure_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<void> upgrade_exposure_operation(OperationInstance &operation);
+
 enum class ParameterType
 {
     kBoolean,

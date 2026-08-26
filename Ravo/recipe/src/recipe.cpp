@@ -624,6 +624,18 @@ Result<Recipe> parse_recipe_json(const std::string_view text)
 
 Result<Recipe> upgrade_recipe(Recipe recipe)
 {
+    for (auto &operation : recipe.operations)
+    {
+        if (operation.id != kExposureOperationId)
+        {
+            continue;
+        }
+        auto upgraded = upgrade_exposure_operation(operation);
+        if (!upgraded)
+        {
+            return upgraded.error();
+        }
+    }
     if (recipe.schema_version == 1)
     {
         for (auto &operation : recipe.operations)
@@ -792,8 +804,21 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     }
 
     std::set<std::string, std::less<>> instances;
-    for (const auto &operation : recipe.operations)
+    for (const auto &stored_operation : recipe.operations)
     {
+        OperationInstance upgraded_operation;
+        const OperationInstance *operation_pointer = &stored_operation;
+        if (stored_operation.id == kExposureOperationId && stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_exposure_operation(upgraded_operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            operation_pointer = &upgraded_operation;
+        }
+        const auto &operation = *operation_pointer;
         if (operation.id.empty() || operation.instance_id.empty())
         {
             return make_error(ErrorCode::kValidation,
@@ -899,6 +924,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             if (!primaries)
             {
                 auto error = primaries.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kExposureOperationId)
+        {
+            auto exposure = validate_exposure_parameters(operation.parameters);
+            if (!exposure)
+            {
+                auto error = exposure.error();
                 error.context.emplace("operation_id", operation.id);
                 return error;
             }

@@ -59,6 +59,16 @@ TEST(RecipeTest, OlderSchemasUpgradeToExplicitColorBoundaries)
     ASSERT_EQ(upgraded.value().operations.size(), 3U);
     EXPECT_EQ(upgraded.value().operations.front().id, "ravo.color.input");
     EXPECT_EQ(upgraded.value().operations[1].id, "ravo.core.exposure");
+    EXPECT_EQ(upgraded.value().operations[1].schema_version, kExposureOperationSchemaVersion);
+    auto exposure = exposure_from_parameters(upgraded.value().operations[1].parameters);
+    ASSERT_TRUE(exposure) << exposure.error().message;
+    EXPECT_EQ(exposure.value().mode, kExposureModeManual);
+    EXPECT_DOUBLE_EQ(exposure.value().black, 0.0);
+    EXPECT_DOUBLE_EQ(exposure.value().exposure_ev, 0.5);
+    EXPECT_DOUBLE_EQ(exposure.value().deflicker_percentile, kExposureDeflickerPercentileDefault);
+    EXPECT_DOUBLE_EQ(exposure.value().deflicker_target_ev, kExposureDeflickerTargetEvDefault);
+    EXPECT_FALSE(exposure.value().compensate_exposure_bias);
+    EXPECT_FALSE(exposure.value().compensate_highlight_preservation);
     EXPECT_EQ(upgraded.value().operations.back().id, "ravo.color.output");
     ASSERT_TRUE(validate_recipe(upgraded.value(), registry.value()));
 
@@ -72,6 +82,60 @@ TEST(RecipeTest, OlderSchemasUpgradeToExplicitColorBoundaries)
     EXPECT_EQ(reserved_input.value(), InputColorParams{});
     EXPECT_EQ(reserved.value().operations.back().id, "ravo.color.output");
     ASSERT_TRUE(validate_recipe(reserved.value(), registry.value()));
+}
+
+TEST(RecipeTest, ExposureSchemaV2IsExplicitAndRejectsAmbiguousParameters)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto *descriptor = registry.value().find(kExposureOperationId);
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_EQ(descriptor->parameter_schema_version, kExposureOperationSchemaVersion);
+    ASSERT_EQ(descriptor->parameters.size(), 7U);
+    EXPECT_TRUE(std::all_of(descriptor->parameters.begin(), descriptor->parameters.end(),
+                            [](const ParameterRule &rule) { return rule.required; }));
+
+    Recipe recipe;
+    recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    ExposureParams params;
+    params.black = -1.0 / 4096.0;
+    params.exposure_ev = 18.0;
+    params.deflicker_percentile = 100.0;
+    params.deflicker_target_ev = -18.0;
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure-1", true, exposure_to_parameters(params), std::nullopt});
+    ASSERT_TRUE(validate_recipe(recipe, registry.value()));
+
+    auto invalid_mode = recipe;
+    invalid_mode.operations.front().parameters["mode"] = ParameterValue{"automatic"};
+    auto mode_result = validate_recipe(invalid_mode, registry.value());
+    ASSERT_FALSE(mode_result);
+    EXPECT_EQ(mode_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(mode_result.error().context.at("parameter"), "mode");
+
+    auto invalid_boolean = recipe;
+    invalid_boolean.operations.front().parameters["compensate_exposure_bias"] =
+        ParameterValue{std::int64_t{1}};
+    auto boolean_result = validate_recipe(invalid_boolean, registry.value());
+    ASSERT_FALSE(boolean_result);
+    EXPECT_EQ(boolean_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(boolean_result.error().context.at("parameter"), "compensate_exposure_bias");
+
+    auto invalid_denominator = recipe;
+    invalid_denominator.operations.front().parameters["black"] = ParameterValue{1.0};
+    invalid_denominator.operations.front().parameters["exposure_ev"] = ParameterValue{0.0};
+    auto denominator_result = validate_recipe(invalid_denominator, registry.value());
+    ASSERT_FALSE(denominator_result);
+    EXPECT_EQ(denominator_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(denominator_result.error().context.at("reason"), "invalid_exposure_denominator");
+
+    auto non_finite = recipe;
+    non_finite.operations.front().parameters["exposure_ev"] =
+        ParameterValue{std::numeric_limits<double>::quiet_NaN()};
+    auto finite_result = validate_recipe(non_finite, registry.value());
+    ASSERT_FALSE(finite_result);
+    EXPECT_EQ(finite_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(finite_result.error().context.at("parameter"), "exposure_ev");
 }
 
 TEST(RecipeTest, RejectsUnknownFieldsRatherThanGuessingCompatibility)
@@ -117,7 +181,7 @@ TEST(RecipeTest, EnforcesExposureParameterRange)
 TEST(RecipeTest, StrictDevelopFieldAssignmentRejectsInsteadOfClamping)
 {
     DevelopParams params;
-    auto rejected = apply_develop_field_strict(params, "exposure", 11.0);
+    auto rejected = apply_develop_field_strict(params, "exposure", 19.0);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kInvalidArgument);
     EXPECT_DOUBLE_EQ(params.exposure_ev, 0.0);
@@ -129,6 +193,35 @@ TEST(RecipeTest, StrictDevelopFieldAssignmentRejectsInsteadOfClamping)
     auto accepted = apply_develop_field_strict(params, "exposure", -1.0);
     ASSERT_TRUE(accepted) << accepted.error().message;
     EXPECT_DOUBLE_EQ(params.exposure_ev, -1.0);
+}
+
+TEST(RecipeTest, DevelopRoundTripRetainsTheFullExposureV2Contract)
+{
+    DevelopParams params;
+    params.exposure_mode = std::string(kExposureModeDeflicker);
+    params.exposure_black = -1.0 / 4096.0;
+    params.exposure_ev = 0.7;
+    params.exposure_deflicker_percentile = 72.5;
+    params.exposure_deflicker_target_ev = -3.25;
+    params.exposure_compensate_exposure_bias = true;
+    params.exposure_compensate_highlight_preservation = true;
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto *operation = operation_by_id(recipe.value(), kExposureOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_EQ(operation->schema_version, kExposureOperationSchemaVersion);
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().exposure_mode, params.exposure_mode);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_black, params.exposure_black);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, params.exposure_ev);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_deflicker_percentile,
+                     params.exposure_deflicker_percentile);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_deflicker_target_ev,
+                     params.exposure_deflicker_target_ev);
+    EXPECT_TRUE(restored.value().exposure_compensate_exposure_bias);
+    EXPECT_TRUE(restored.value().exposure_compensate_highlight_preservation);
 }
 
 TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)

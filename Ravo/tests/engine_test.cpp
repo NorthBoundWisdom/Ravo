@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -171,6 +172,170 @@ TEST(EngineFacadeTest, CancelledRequestsNeverReachRendering)
 
     ASSERT_FALSE(rendered);
     EXPECT_EQ(rendered.error().code, ErrorCode::kCancelled);
+}
+
+TEST(ExposureTest, ManualEvAndBlackUseTheFrozenLegacyFormulaWithoutMutatingSource)
+{
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = "working-fixture";
+    profile.has_matrix = true;
+    profile.camera_input = true;
+    profile.icc_bytes = {1U, 2U, 3U};
+    const WorkingImage input{2, 1, {-0.5F, 0.0F, 0.25F, 0.5F, 1.0F, 2.0F}, profile};
+    const auto original = input;
+    ExposureParams params;
+    params.black = -0.25;
+    params.exposure_ev = 1.0;
+
+    auto output = apply_exposure(input, params, CancellationToken{});
+
+    ASSERT_TRUE(output) << output.error().message;
+    const double scale = 1.0 / (std::exp2(-params.exposure_ev) - params.black);
+    ASSERT_EQ(output.value().rgb.size(), input.rgb.size());
+    for (std::size_t index = 0; index < input.rgb.size(); ++index)
+    {
+        EXPECT_NEAR(output.value().rgb[index],
+                    (static_cast<double>(input.rgb[index]) - params.black) * scale, 1.0e-6)
+            << index;
+    }
+    EXPECT_EQ(output.value().width, input.width);
+    EXPECT_EQ(output.value().height, input.height);
+    EXPECT_EQ(output.value().color_profile, profile);
+    EXPECT_NE(output.value().rgb.data(), input.rgb.data());
+    ASSERT_FALSE(output.value().color_profile.icc_bytes.empty());
+    EXPECT_NE(output.value().color_profile.icc_bytes.data(), input.color_profile.icc_bytes.data());
+    output.value().rgb[0] = 42.0F;
+    output.value().color_profile.icc_bytes[0] = 99U;
+    EXPECT_EQ(input.width, original.width);
+    EXPECT_EQ(input.height, original.height);
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+}
+
+TEST(ExposureTest, BoundaryFailuresNeverPublishOrMutatePixels)
+{
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}};
+    input.color_profile.kind = ColorProfileKind::kBuiltin;
+    input.color_profile.model = ColorModel::kRgb;
+    input.color_profile.identifier = "linear-rec709";
+    const auto original = input;
+
+    WorkingImage zero = input;
+    zero.width = 0;
+    auto zero_result = apply_exposure(zero, ExposureParams{}, CancellationToken{});
+    ASSERT_FALSE(zero_result);
+    EXPECT_EQ(zero_result.error().code, ErrorCode::kValidation);
+
+    WorkingImage wrong_size = input;
+    wrong_size.width = 2;
+    auto size_result = apply_exposure(wrong_size, ExposureParams{}, CancellationToken{});
+    ASSERT_FALSE(size_result);
+    EXPECT_EQ(size_result.error().code, ErrorCode::kValidation);
+
+    WorkingImage overflow_dimensions;
+    overflow_dimensions.width = std::numeric_limits<std::uint32_t>::max();
+    overflow_dimensions.height = std::numeric_limits<std::uint32_t>::max();
+    auto dimensions_result =
+        apply_exposure(overflow_dimensions, ExposureParams{}, CancellationToken{});
+    ASSERT_FALSE(dimensions_result);
+    EXPECT_EQ(dimensions_result.error().code, ErrorCode::kValidation);
+
+    WorkingImage lab = input;
+    lab.color_profile.model = ColorModel::kLab;
+    auto model_result = apply_exposure(lab, ExposureParams{}, CancellationToken{});
+    ASSERT_FALSE(model_result);
+    EXPECT_EQ(model_result.error().code, ErrorCode::kUnsupported);
+
+    for (const float invalid_sample :
+         {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+          -std::numeric_limits<float>::infinity()})
+    {
+        WorkingImage invalid = input;
+        invalid.rgb[1] = invalid_sample;
+        auto finite_result = apply_exposure(invalid, ExposureParams{}, CancellationToken{});
+        ASSERT_FALSE(finite_result);
+        EXPECT_EQ(finite_result.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(invalid.rgb[0], input.rgb[0]);
+        EXPECT_EQ(invalid.rgb[2], input.rgb[2]);
+    }
+
+    ExposureParams invalid_black;
+    invalid_black.black = 1.0;
+    auto denominator_result = apply_exposure(input, invalid_black, CancellationToken{});
+    ASSERT_FALSE(denominator_result);
+    EXPECT_EQ(denominator_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(denominator_result.error().context.at("reason"), "invalid_exposure_denominator");
+
+    ExposureParams overflow;
+    overflow.exposure_ev = kExposureEvMax;
+    WorkingImage maximum = input;
+    maximum.rgb[0] = std::numeric_limits<float>::max();
+    auto overflow_result = apply_exposure(maximum, overflow, CancellationToken{});
+    ASSERT_FALSE(overflow_result);
+    EXPECT_EQ(overflow_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(overflow_result.error().context.at("reason"), "unrepresentable_exposure_sample");
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("exposure-pre-cancel"));
+    auto pre_cancelled = apply_exposure(input, ExposureParams{}, cancelled.token());
+    ASSERT_FALSE(pre_cancelled);
+    EXPECT_EQ(pre_cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(input.rgb, original.rgb);
+
+    WorkingImage large;
+    large.width = 1024;
+    large.height = 4096;
+    large.color_profile = input.color_profile;
+    large.rgb.assign(static_cast<std::size_t>(large.width) * large.height * 3U, 0.5F);
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+    auto row_cancelled = apply_exposure(large, ExposureParams{}, deadline.token());
+    ASSERT_FALSE(row_cancelled);
+    EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_FLOAT_EQ(large.rgb.front(), 0.5F);
+    EXPECT_FLOAT_EQ(large.rgb.back(), 0.5F);
+}
+
+TEST(ExposureTest, DeferredModesAndMetadataCompensationFailWithFrozenReasons)
+{
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}};
+    input.color_profile.model = ColorModel::kRgb;
+
+    ExposureParams deflicker;
+    deflicker.mode = std::string(kExposureModeDeflicker);
+    auto automatic = apply_exposure(input, deflicker, CancellationToken{});
+    ASSERT_FALSE(automatic);
+    EXPECT_EQ(automatic.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(automatic.error().context.at("reason"), "exposure_deflicker_requires_raw_histogram");
+
+    ExposureParams bias;
+    bias.compensate_exposure_bias = true;
+    auto bias_result = apply_exposure(input, bias, CancellationToken{});
+    ASSERT_FALSE(bias_result);
+    EXPECT_EQ(bias_result.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(bias_result.error().context.at("reason"),
+              "exposure_bias_compensation_requires_metadata");
+
+    ExposureParams highlight;
+    highlight.compensate_highlight_preservation = true;
+    auto highlight_result = apply_exposure(input, highlight, CancellationToken{});
+    ASSERT_FALSE(highlight_result);
+    EXPECT_EQ(highlight_result.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(highlight_result.error().context.at("reason"),
+              "exposure_highlight_compensation_requires_metadata");
+
+    OperationInstance masked{std::string(kExposureOperationId),
+                             kExposureOperationSchemaVersion,
+                             "exposure-1",
+                             true,
+                             exposure_to_parameters(ExposureParams{}),
+                             "mask-1"};
+    auto masked_result = apply_exposure(input, masked, CancellationToken{});
+    ASSERT_FALSE(masked_result);
+    EXPECT_EQ(masked_result.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(masked_result.error().context.at("reason"), "exposure_mask_graph_unavailable");
 }
 
 TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)

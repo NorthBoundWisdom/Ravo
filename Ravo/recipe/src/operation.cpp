@@ -1,5 +1,7 @@
 #include "ravo/recipe/operation.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -11,6 +13,209 @@
 
 namespace ravo
 {
+
+namespace
+{
+
+[[nodiscard]] Result<double>
+exposure_number(const std::map<std::string, ParameterValue, std::less<>> &parameters,
+                const std::string_view name, const double minimum, const double maximum)
+{
+    const auto found = parameters.find(std::string(name));
+    if (found == parameters.end())
+    {
+        return make_error(ErrorCode::kValidation, "Exposure parameter is required",
+                          {{"parameter", std::string(name)}});
+    }
+    const auto *floating = std::get_if<double>(&found->second.value);
+    const auto *integer = std::get_if<std::int64_t>(&found->second.value);
+    if (floating == nullptr && integer == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure parameter must be numeric",
+                          {{"parameter", std::string(name)}});
+    }
+    const double value = floating != nullptr ? *floating : static_cast<double>(*integer);
+    if (!std::isfinite(value))
+    {
+        return make_error(ErrorCode::kValidation, "Exposure parameter must be finite",
+                          {{"parameter", std::string(name)}});
+    }
+    if (value < minimum || value > maximum)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Exposure parameter is outside the permitted range",
+                          {{"parameter", std::string(name)}});
+    }
+    return value;
+}
+
+[[nodiscard]] Result<bool>
+exposure_boolean(const std::map<std::string, ParameterValue, std::less<>> &parameters,
+                 const std::string_view name)
+{
+    const auto found = parameters.find(std::string(name));
+    if (found == parameters.end())
+    {
+        return make_error(ErrorCode::kValidation, "Exposure parameter is required",
+                          {{"parameter", std::string(name)}});
+    }
+    const auto *value = std::get_if<bool>(&found->second.value);
+    if (value == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure parameter must be boolean",
+                          {{"parameter", std::string(name)}});
+    }
+    return *value;
+}
+
+} // namespace
+
+bool ExposureParams::is_identity() const noexcept
+{
+    return mode == kExposureModeManual && black == 0.0 && exposure_ev == 0.0 &&
+           deflicker_percentile == kExposureDeflickerPercentileDefault &&
+           deflicker_target_ev == kExposureDeflickerTargetEvDefault && !compensate_exposure_bias &&
+           !compensate_highlight_preservation;
+}
+
+Result<ExposureParams>
+exposure_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    constexpr std::array<std::string_view, 7> kNames{"mode",
+                                                     "black",
+                                                     "exposure_ev",
+                                                     "deflicker_percentile",
+                                                     "deflicker_target_ev",
+                                                     "compensate_exposure_bias",
+                                                     "compensate_highlight_preservation"};
+    for (const auto &[name, value] : parameters)
+    {
+        (void)value;
+        if (std::find(kNames.begin(), kNames.end(), name) == kNames.end())
+        {
+            return make_error(ErrorCode::kValidation, "Exposure parameter is unknown",
+                              {{"parameter", name}});
+        }
+    }
+
+    const auto mode_entry = parameters.find("mode");
+    if (mode_entry == parameters.end())
+    {
+        return make_error(ErrorCode::kValidation, "Exposure parameter is required",
+                          {{"parameter", "mode"}});
+    }
+    const auto *mode = std::get_if<std::string>(&mode_entry->second.value);
+    if (mode == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure mode must be a string",
+                          {{"parameter", "mode"}});
+    }
+    if (*mode != kExposureModeManual && *mode != kExposureModeDeflicker)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure mode is unsupported",
+                          {{"parameter", "mode"}, {"mode", *mode}});
+    }
+
+    auto black = exposure_number(parameters, "black", kExposureBlackMin, kExposureBlackMax);
+    auto exposure = exposure_number(parameters, "exposure_ev", kExposureEvMin, kExposureEvMax);
+    auto percentile =
+        exposure_number(parameters, "deflicker_percentile", kExposureDeflickerPercentileMin,
+                        kExposureDeflickerPercentileMax);
+    auto target = exposure_number(parameters, "deflicker_target_ev", kExposureDeflickerTargetEvMin,
+                                  kExposureDeflickerTargetEvMax);
+    auto compensate_bias = exposure_boolean(parameters, "compensate_exposure_bias");
+    auto compensate_highlight = exposure_boolean(parameters, "compensate_highlight_preservation");
+    if (!black || !exposure || !percentile || !target || !compensate_bias || !compensate_highlight)
+    {
+        return !black           ? black.error() :
+               !exposure        ? exposure.error() :
+               !percentile      ? percentile.error() :
+               !target          ? target.error() :
+               !compensate_bias ? compensate_bias.error() :
+                                  compensate_highlight.error();
+    }
+
+    if (*mode == kExposureModeManual && black.value() >= std::exp2(-exposure.value()))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Exposure black level must remain below the derived white level",
+                          {{"parameter", "black"}, {"reason", "invalid_exposure_denominator"}});
+    }
+    return ExposureParams{*mode,
+                          black.value(),
+                          exposure.value(),
+                          percentile.value(),
+                          target.value(),
+                          compensate_bias.value(),
+                          compensate_highlight.value()};
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+exposure_to_parameters(const ExposureParams &params)
+{
+    return {{"black", ParameterValue{params.black}},
+            {"compensate_exposure_bias", ParameterValue{params.compensate_exposure_bias}},
+            {"compensate_highlight_preservation",
+             ParameterValue{params.compensate_highlight_preservation}},
+            {"deflicker_percentile", ParameterValue{params.deflicker_percentile}},
+            {"deflicker_target_ev", ParameterValue{params.deflicker_target_ev}},
+            {"exposure_ev", ParameterValue{params.exposure_ev}},
+            {"mode", ParameterValue{params.mode}}};
+}
+
+Result<void>
+validate_exposure_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    auto parsed = exposure_from_parameters(parameters);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    return {};
+}
+
+Result<void> upgrade_exposure_operation(OperationInstance &operation)
+{
+    if (operation.id != kExposureOperationId)
+    {
+        return make_error(ErrorCode::kValidation, "Operation is not exposure",
+                          {{"operation_id", operation.id}});
+    }
+    if (operation.schema_version == kExposureOperationSchemaVersion)
+    {
+        return {};
+    }
+    if (operation.schema_version != 1)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Exposure operation schema version is unsupported",
+                          {{"operation_id", operation.id},
+                           {"schema_version", std::to_string(operation.schema_version)}});
+    }
+    if (operation.parameters.size() > 1U ||
+        (operation.parameters.size() == 1U && !operation.parameters.contains("exposure_ev")))
+    {
+        return make_error(ErrorCode::kValidation, "Exposure v1 contains an unknown parameter",
+                          {{"operation_id", operation.id}});
+    }
+    double exposure_ev = 0.0;
+    if (operation.parameters.contains("exposure_ev"))
+    {
+        auto exposure = exposure_number(operation.parameters, "exposure_ev", -10.0, 10.0);
+        if (!exposure)
+        {
+            auto error = exposure.error();
+            error.context.emplace("operation_id", operation.id);
+            return error;
+        }
+        exposure_ev = exposure.value();
+    }
+    ExposureParams params;
+    params.exposure_ev = exposure_ev;
+    operation.schema_version = kExposureOperationSchemaVersion;
+    operation.parameters = exposure_to_parameters(params);
+    return {};
+}
 
 OperationRegistry::OperationRegistry(std::vector<OperationDescriptor> descriptors)
     : descriptors_(std::move(descriptors))
@@ -145,10 +350,22 @@ Result<OperationRegistry> make_phase1_registry()
            kPrimariesPrimaryPurityMax}},
          false,
          true},
-        {"ravo.core.exposure",
+        {std::string(kExposureOperationId),
          "Exposure",
-         1,
-         {{"exposure_ev", ParameterType::kNumber, false, ParameterValue{0.0}, -10.0, 10.0}},
+         kExposureOperationSchemaVersion,
+         {{"mode", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"black", ParameterType::kNumber, true, std::nullopt, kExposureBlackMin,
+           kExposureBlackMax},
+          {"exposure_ev", ParameterType::kNumber, true, std::nullopt, kExposureEvMin,
+           kExposureEvMax},
+          {"deflicker_percentile", ParameterType::kNumber, true, std::nullopt,
+           kExposureDeflickerPercentileMin, kExposureDeflickerPercentileMax},
+          {"deflicker_target_ev", ParameterType::kNumber, true, std::nullopt,
+           kExposureDeflickerTargetEvMin, kExposureDeflickerTargetEvMax},
+          {"compensate_exposure_bias", ParameterType::kBoolean, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"compensate_highlight_preservation", ParameterType::kBoolean, true, std::nullopt,
+           std::nullopt, std::nullopt}},
          false,
          true},
         {"ravo.color.temperature",

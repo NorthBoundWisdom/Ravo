@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 #include <QtCore/QByteArray>
@@ -16,6 +18,8 @@
 #include <QtCore/QXmlStreamReader>
 
 #include <zlib.h>
+
+#include "ravo/recipe/operation.h"
 
 namespace ravo
 {
@@ -256,119 +260,158 @@ decode_legacy_parameter_blob(const std::string_view encoded, const std::size_t e
     return text.toUtf8().toStdString();
 }
 
-[[nodiscard]] Result<std::array<std::uint8_t, 20>>
-decode_exposure_v5_parameters(const std::string_view encoded)
+struct LegacyExposureParams
 {
-    if (encoded.size() != 40U)
+    ExposureParams params;
+};
+
+struct LegacyExposureCandidate
+{
+    QXmlStreamAttributes attributes;
+    std::uint64_t history_position = 0;
+};
+
+[[nodiscard]] Result<std::uint64_t> nonnegative_decimal(const std::string_view value,
+                                                        const std::string_view attribute)
+{
+    std::uint64_t parsed = 0;
+    const auto [position, error] =
+        std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (value.empty() || error != std::errc{} || position != value.data() + value.size())
+    {
+        return make_error(ErrorCode::kValidation, "Legacy exposure revision state is invalid",
+                          {{"attribute", std::string(attribute)},
+                           {"legacy_operation", "exposure"},
+                           {"reason", "invalid_legacy_exposure_revision"}});
+    }
+    return parsed;
+}
+
+[[nodiscard]] Result<LegacyExposureCandidate>
+capture_exposure_candidate(const QXmlStreamAttributes &attributes)
+{
+    const auto position = required_attribute(attributes, u"num", "exposure");
+    const auto priority = required_attribute(attributes, u"multi_priority", "exposure");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!position || !priority || !name)
+    {
+        return !position ? position.error() :
+               !priority ? priority.error() :
+                           make_error(ErrorCode::kUnsupported,
+                                      "Legacy exposure singleton name is missing",
+                                      {{"attribute", "multi_name"},
+                                       {"legacy_operation", "exposure"},
+                                       {"reason", "unsupported_legacy_exposure_multi_state"}});
+    }
+    auto parsed_position = nonnegative_decimal(position.value(), "num");
+    if (!parsed_position)
+    {
+        return parsed_position.error();
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
     {
         return make_error(ErrorCode::kUnsupported,
-                          "Legacy exposure v5 parameters have an unexpected length",
-                          {{"expected_hex_bytes", "40"},
-                           {"legacy_operation", "exposure"},
-                           {"reason", "unsupported_legacy_exposure_parameters"}});
+                          "Legacy exposure instance state is not the frozen singleton priority",
+                          {{"legacy_operation", "exposure"},
+                           {"reason", "unsupported_legacy_exposure_multi_state"}});
     }
-
-    std::array<std::uint8_t, 20> decoded{};
-    for (std::size_t index = 0; index < decoded.size(); ++index)
-    {
-        const auto high = hex_value(encoded[index * 2U]);
-        const auto low = hex_value(encoded[index * 2U + 1U]);
-        if (high < 0 || low < 0)
-        {
-            return make_error(
-                ErrorCode::kValidation, "Legacy exposure parameters are not hexadecimal",
-                {{"legacy_operation", "exposure"}, {"reason", "invalid_legacy_parameters"}});
-        }
-        decoded[index] = static_cast<std::uint8_t>((high << 4) | low);
-    }
-    return decoded;
+    return LegacyExposureCandidate{attributes, parsed_position.value()};
 }
 
-[[nodiscard]] std::uint32_t read_little_endian_word(const std::array<std::uint8_t, 20> &data,
-                                                    const std::size_t word_index) noexcept
+[[nodiscard]] Result<LegacyExposureParams>
+decode_legacy_exposure_parameters(const std::string &version, const std::string_view encoded)
 {
-    const auto offset = word_index * 4U;
-    return static_cast<std::uint32_t>(data[offset]) |
-           (static_cast<std::uint32_t>(data[offset + 1U]) << 8U) |
-           (static_cast<std::uint32_t>(data[offset + 2U]) << 16U) |
-           (static_cast<std::uint32_t>(data[offset + 3U]) << 24U);
-}
-
-[[nodiscard]] Result<OperationInstance> map_exposure_v5(const QXmlStreamAttributes &attributes,
-                                                        const std::size_t history_index)
-{
-    const auto version = required_attribute(attributes, u"modversion", "exposure");
-    if (!version)
+    std::size_t expected_size = 0;
+    if (version == "5")
     {
-        return version.error();
+        expected_size = 20U;
     }
-    if (version.value() != "5")
+    else if (version == "6")
+    {
+        expected_size = 24U;
+    }
+    else if (version == "7")
+    {
+        expected_size = 28U;
+    }
+    else
     {
         return make_error(ErrorCode::kUnsupported,
                           "Legacy exposure module version is not supported",
                           {{"legacy_operation", "exposure"},
-                           {"legacy_version", version.value()},
+                           {"legacy_version", version},
                            {"reason", "unsupported_legacy_exposure_version"}});
     }
 
-    const auto enabled = required_attribute(attributes, u"enabled", "exposure");
-    if (!enabled)
-    {
-        return enabled.error();
-    }
-    if (enabled.value() != "0" && enabled.value() != "1")
-    {
-        return make_error(
-            ErrorCode::kValidation, "Legacy exposure enabled flag is invalid",
-            {{"legacy_operation", "exposure"}, {"reason", "invalid_legacy_parameters"}});
-    }
-    if (has_attribute(attributes, u"blendop_params"))
-    {
-        return make_error(
-            ErrorCode::kUnsupported, "Legacy exposure blend data has no canonical mask mapping",
-            {{"legacy_operation", "exposure"}, {"reason", "unsupported_legacy_blend"}});
-    }
-
-    const auto encoded = required_attribute(attributes, u"params", "exposure");
-    if (!encoded)
-    {
-        return encoded.error();
-    }
-    const auto decoded = decode_exposure_v5_parameters(encoded.value());
+    auto decoded = decode_legacy_parameter_blob(encoded, expected_size, "exposure");
     if (!decoded)
     {
-        return decoded.error();
+        auto error = decoded.error();
+        error.context.emplace("legacy_version", version);
+        error.context.emplace("reason", "invalid_legacy_exposure_parameters");
+        return error;
+    }
+    const auto mode = read_i32(decoded.value(), 0U);
+    const double black = read_f32(decoded.value(), 4U);
+    const double exposure = read_f32(decoded.value(), 8U);
+    const double percentile = read_f32(decoded.value(), 12U);
+    const double target = read_f32(decoded.value(), 16U);
+    const auto exposure_bias = version == "5" ? 0 : read_i32(decoded.value(), 20U);
+    const auto highlight = version == "7" ? read_i32(decoded.value(), 24U) : 0;
+    if ((mode != 0 && mode != 1) || (exposure_bias != 0 && exposure_bias != 1) ||
+        (highlight != 0 && highlight != 1))
+    {
+        return make_error(ErrorCode::kValidation, "Legacy exposure enum or flag is invalid",
+                          {{"legacy_operation", "exposure"},
+                           {"legacy_version", version},
+                           {"reason", "invalid_legacy_exposure_parameters"}});
+    }
+    struct BoundedField
+    {
+        double value;
+        double minimum;
+        double maximum;
+        std::string_view parameter;
+    };
+    const std::array bounded{BoundedField{black, kExposureBlackMin, kExposureBlackMax, "black"},
+                             BoundedField{exposure, kExposureEvMin, kExposureEvMax, "exposure_ev"},
+                             BoundedField{percentile, kExposureDeflickerPercentileMin,
+                                          kExposureDeflickerPercentileMax, "deflicker_percentile"},
+                             BoundedField{target, kExposureDeflickerTargetEvMin,
+                                          kExposureDeflickerTargetEvMax, "deflicker_target_ev"}};
+    for (const auto &[value, minimum, maximum, parameter] : bounded)
+    {
+        if (!std::isfinite(value) || value < minimum || value > maximum)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Legacy exposure parameter is outside its frozen range",
+                              {{"legacy_operation", "exposure"},
+                               {"legacy_version", version},
+                               {"parameter", std::string(parameter)},
+                               {"reason", "invalid_legacy_exposure_parameters"}});
+        }
     }
 
-    const auto mode = read_little_endian_word(decoded.value(), 0U);
-    const auto black_bits = read_little_endian_word(decoded.value(), 1U);
-    const auto exposure = std::bit_cast<float>(read_little_endian_word(decoded.value(), 2U));
-    if (mode != 0U)
+    LegacyExposureParams result;
+    result.params.mode =
+        mode == 0 ? std::string(kExposureModeManual) : std::string(kExposureModeDeflicker);
+    result.params.black = black;
+    result.params.exposure_ev = exposure;
+    result.params.deflicker_percentile = percentile;
+    result.params.deflicker_target_ev = target;
+    result.params.compensate_exposure_bias = exposure_bias != 0;
+    result.params.compensate_highlight_preservation = highlight != 0;
+    auto valid = validate_exposure_parameters(exposure_to_parameters(result.params));
+    if (!valid)
     {
-        return make_error(
-            ErrorCode::kUnsupported, "Legacy automatic exposure mode requires a histogram contract",
-            {{"legacy_operation", "exposure"}, {"reason", "unsupported_legacy_exposure_mode"}});
+        auto error = valid.error();
+        error.context.emplace("legacy_operation", "exposure");
+        error.context.emplace("legacy_version", version);
+        error.context.emplace("reason", "invalid_legacy_exposure_parameters");
+        return error;
     }
-    if (black_bits != 0U)
-    {
-        return make_error(
-            ErrorCode::kUnsupported,
-            "Legacy exposure black-level correction has no canonical mapping",
-            {{"legacy_operation", "exposure"}, {"reason", "unsupported_legacy_exposure_black"}});
-    }
-    if (!std::isfinite(exposure) || exposure < -10.0F || exposure > 10.0F)
-    {
-        return make_error(
-            ErrorCode::kUnsupported, "Legacy exposure value is outside the Ravo schema range",
-            {{"legacy_operation", "exposure"}, {"reason", "unsupported_legacy_exposure_value"}});
-    }
-
-    return OperationInstance{"ravo.core.exposure",
-                             1,
-                             "legacy-exposure-" + std::to_string(history_index),
-                             enabled.value() == "1",
-                             {{"exposure_ev", ParameterValue{static_cast<double>(exposure)}}},
-                             std::nullopt};
+    return result;
 }
 
 struct BuiltinRawOperation
@@ -433,6 +476,115 @@ constexpr std::array kLegacyGammaBlendTuples{
     LegacyGammaBlendTuple{"13", kGammaBlendGz12GuideFive},
     LegacyGammaBlendTuple{"14", kGammaBlendGz11FeatherV1},
 };
+
+constexpr std::string_view kExposureBlendV11UncompressedScene =
+    "000000000300000018000000000000000000c84200000000000000000000000000000000050000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000";
+
+constexpr std::array kLegacyExposureBlendTuples{
+    LegacyGammaBlendTuple{"9", kDefaultBlendParameters},
+    LegacyGammaBlendTuple{"10", "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="},
+    LegacyGammaBlendTuple{"11", kExposureBlendV11UncompressedScene},
+    LegacyGammaBlendTuple{"11", "gz10eJxjYGBgYAFiCQYYOOHEgAZY0QVwggZ7CB6pfOygYtaVAyCMi08IAAB/xiOk"},
+    LegacyGammaBlendTuple{"11", "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="},
+    LegacyGammaBlendTuple{"11", "gz13eJxjYGBgYAZiCQYYOOHEgAZY0QVwggZ7CB6pfNoAAFQAGQs="},
+    LegacyGammaBlendTuple{"12", kPrimariesDefaultBlendParameters},
+    LegacyGammaBlendTuple{"12", "gz10eJxjYGBgYAFiCQYYOOHEgAZY0QVwggZ7CB6pfOygYtaVAyCMi08IAAB/xiOk"},
+    LegacyGammaBlendTuple{
+        "13", "gz08eJxjYGBgYAFiCQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dlAx68oBEMbFxwX+AwGIBgCbGCeh"},
+    LegacyGammaBlendTuple{"13", kPrimariesDefaultBlendParameters},
+    LegacyGammaBlendTuple{
+        "14", "gz08eJxjYGBgYAFiCQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dlAx68oBEMbFxwX+AwGIBgCbGCeh"},
+};
+
+[[nodiscard]] bool is_allowed_exposure_attribute(const QStringView name) noexcept
+{
+    return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
+           name == u"params" || name == u"multi_name" || name == u"multi_priority" ||
+           name == u"multi_name_hand_edited" || name == u"blendop_version" ||
+           name == u"blendop_params";
+}
+
+[[nodiscard]] Result<OperationInstance>
+map_exposure_candidate(const LegacyExposureCandidate &candidate)
+{
+    for (const auto &attribute : candidate.attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy exposure mask state has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "exposure"},
+                               {"reason", "unsupported_legacy_exposure_mask"}});
+        }
+        if (!is_allowed_exposure_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy exposure contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "exposure"},
+                               {"reason", "unsupported_legacy_exposure_attribute"}});
+        }
+    }
+
+    const auto version = required_attribute(candidate.attributes, u"modversion", "exposure");
+    const auto enabled = required_attribute(candidate.attributes, u"enabled", "exposure");
+    const auto encoded = required_attribute(candidate.attributes, u"params", "exposure");
+    const auto blend_version =
+        required_attribute(candidate.attributes, u"blendop_version", "exposure");
+    const auto blend_parameters =
+        required_attribute(candidate.attributes, u"blendop_params", "exposure");
+    if (!version || !enabled || !encoded || !blend_version || !blend_parameters)
+    {
+        return !version       ? version.error() :
+               !enabled       ? enabled.error() :
+               !encoded       ? encoded.error() :
+               !blend_version ? blend_version.error() :
+                                blend_parameters.error();
+    }
+    if (enabled.value() != "0" && enabled.value() != "1")
+    {
+        return make_error(
+            ErrorCode::kValidation, "Legacy exposure enabled flag is invalid",
+            {{"legacy_operation", "exposure"}, {"reason", "invalid_legacy_exposure_parameters"}});
+    }
+    const bool frozen_blend =
+        std::any_of(kLegacyExposureBlendTuples.begin(), kLegacyExposureBlendTuples.end(),
+                    [&](const LegacyGammaBlendTuple &frozen)
+                    {
+                        return frozen.version == blend_version.value() &&
+                               frozen.parameters == blend_parameters.value();
+                    });
+    if (!frozen_blend)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy exposure blend state is not a frozen unmasked default",
+                          {{"legacy_blend_version", blend_version.value()},
+                           {"legacy_operation", "exposure"},
+                           {"reason", "unsupported_legacy_exposure_blend"}});
+    }
+    auto decoded = decode_legacy_exposure_parameters(version.value(), encoded.value());
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return OperationInstance{std::string(kExposureOperationId),
+                             kExposureOperationSchemaVersion,
+                             "legacy-exposure-" + std::to_string(candidate.history_position),
+                             enabled.value() == "1",
+                             exposure_to_parameters(decoded.value().params),
+                             std::nullopt};
+}
 
 [[nodiscard]] bool is_allowed_gamma_attribute(const QStringView name) noexcept
 {
@@ -751,6 +903,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     bool in_history = false;
     bool has_supported_schema = false;
     std::vector<OperationInstance> operations;
+    std::vector<LegacyExposureCandidate> exposure_candidates;
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
     std::optional<OperationInstance> primaries;
@@ -1010,19 +1163,23 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                                   {{"legacy_operation", operation.value()},
                                    {"reason", "unsupported_legacy_operation"}});
             }
-            if (!operations.empty())
+            auto captured = capture_exposure_candidate(reader.attributes());
+            if (!captured)
             {
-                return make_error(
-                    ErrorCode::kUnsupported,
-                    "Multiple legacy history entries have no canonical singleton mapping",
-                    {{"legacy_operation", "exposure"}, {"reason", "unsupported_legacy_history"}});
+                return captured.error();
             }
-            auto mapped = map_exposure_v5(reader.attributes(), history_index++);
-            if (!mapped)
+            if (std::any_of(
+                    exposure_candidates.begin(), exposure_candidates.end(),
+                    [&](const LegacyExposureCandidate &existing)
+                    { return existing.history_position == captured.value().history_position; }))
             {
-                return mapped.error();
+                return make_error(ErrorCode::kConflict,
+                                  "Legacy exposure revisions reuse one history position",
+                                  {{"legacy_operation", "exposure"},
+                                   {"reason", "duplicate_legacy_exposure_revision"}});
             }
-            operations.push_back(std::move(mapped).value());
+            exposure_candidates.push_back(std::move(captured).value());
+            ++history_index;
         }
         else if (reader.isEndElement() && reader.name() == u"history")
         {
@@ -1039,6 +1196,19 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     if (!found_description)
     {
         return make_error(ErrorCode::kValidation, "Legacy XMP does not contain an RDF description");
+    }
+    if (!exposure_candidates.empty())
+    {
+        const auto final_revision = std::max_element(
+            exposure_candidates.begin(), exposure_candidates.end(),
+            [](const LegacyExposureCandidate &left, const LegacyExposureCandidate &right)
+            { return left.history_position < right.history_position; });
+        auto mapped = map_exposure_candidate(*final_revision);
+        if (!mapped)
+        {
+            return mapped.error();
+        }
+        operations.push_back(std::move(mapped).value());
     }
     operations.insert(operations.begin(),
                       input_color.value_or(OperationInstance{

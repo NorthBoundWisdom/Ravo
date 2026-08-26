@@ -8,6 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <mutex>
+#include <new>
 #include <numbers>
 #include <string>
 #include <thread>
@@ -801,13 +802,128 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     return 0.2225045F * r + 0.7168786F * g + 0.0606169F * b;
 }
 
-void apply_exposure(WorkingImage &image, const double ev)
+[[nodiscard]] Result<void> validate_exposure_input(const WorkingImage &input,
+                                                   const CancellationToken &cancellation)
 {
-    const float scale = static_cast<float>(std::exp2(ev));
-    for (float &sample : image.rgb)
+    const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
+    if (input.width == 0 || input.height == 0 ||
+        pixels > std::numeric_limits<std::size_t>::max() / 3U ||
+        input.rgb.size() != static_cast<std::size_t>(pixels * 3U))
     {
-        sample *= scale;
+        return make_error(ErrorCode::kValidation,
+                          "Exposure input buffer does not match its dimensions",
+                          {{"reason", "invalid_exposure_dimensions"}});
     }
+    if (input.color_profile.model != ColorModel::kRgb)
+    {
+        return make_error(ErrorCode::kUnsupported, "Exposure requires an RGB working buffer",
+                          {{"reason", "unsupported_exposure_color_model"}});
+    }
+    for (std::uint32_t row = 0; row < input.height; ++row)
+    {
+        auto active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const std::size_t begin = static_cast<std::size_t>(row) * input.width * 3U;
+        const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
+        for (std::size_t index = begin; index < end; ++index)
+        {
+            if (!std::isfinite(input.rgb[index]))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Exposure input contains a non-finite sample",
+                                  {{"reason", "non_finite_exposure_input"},
+                                   {"sample_index", std::to_string(index)}});
+            }
+        }
+    }
+    return {};
+}
+
+[[nodiscard]] Result<WorkingImage> apply_exposure_impl(const WorkingImage &input,
+                                                       const ExposureParams &params,
+                                                       const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    auto valid_parameters = validate_exposure_parameters(exposure_to_parameters(params));
+    if (!valid_parameters)
+    {
+        return valid_parameters.error();
+    }
+    if (params.mode == kExposureModeDeflicker)
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Exposure deflicker requires the original single-channel uint16 RAW histogram",
+            {{"operation_id", std::string(kExposureOperationId)},
+             {"reason", "exposure_deflicker_requires_raw_histogram"}});
+    }
+    if (params.compensate_exposure_bias)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Exposure-bias compensation requires bounded source metadata",
+                          {{"operation_id", std::string(kExposureOperationId)},
+                           {"reason", "exposure_bias_compensation_requires_metadata"}});
+    }
+    if (params.compensate_highlight_preservation)
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Highlight-preservation compensation requires bounded camera RAW metadata",
+            {{"operation_id", std::string(kExposureOperationId)},
+             {"reason", "exposure_highlight_compensation_requires_metadata"}});
+    }
+    auto valid_input = validate_exposure_input(input, cancellation);
+    if (!valid_input)
+    {
+        return valid_input.error();
+    }
+
+    const double white = std::exp2(-params.exposure_ev);
+    const double denominator = white - params.black;
+    const double scale = 1.0 / denominator;
+    if (!std::isfinite(white) || !std::isfinite(denominator) || denominator <= 0.0 ||
+        !std::isfinite(scale))
+    {
+        return make_error(ErrorCode::kValidation, "Exposure scale is not representable",
+                          {{"reason", "invalid_exposure_denominator"}});
+    }
+
+    WorkingImage output;
+    output.width = input.width;
+    output.height = input.height;
+    output.color_profile = input.color_profile;
+    output.rgb.resize(input.rgb.size());
+    for (std::uint32_t row = 0; row < input.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const std::size_t begin = static_cast<std::size_t>(row) * input.width * 3U;
+        const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
+        for (std::size_t index = begin; index < end; ++index)
+        {
+            const double adjusted = (static_cast<double>(input.rgb[index]) - params.black) * scale;
+            if (!std::isfinite(adjusted) ||
+                std::abs(adjusted) > static_cast<double>(std::numeric_limits<float>::max()))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Exposure produced an unrepresentable sample",
+                                  {{"reason", "unrepresentable_exposure_sample"},
+                                   {"sample_index", std::to_string(index)}});
+            }
+            output.rgb[index] = static_cast<float>(adjusted);
+        }
+    }
+    return output;
 }
 
 void apply_contrast(WorkingImage &image, const double amount)
@@ -1886,6 +2002,61 @@ void apply_dehaze(WorkingImage &image, const double amount)
 
 } // namespace
 
+Result<WorkingImage> apply_exposure(const WorkingImage &input, const ExposureParams &params,
+                                    const CancellationToken &cancellation)
+try
+{
+    return apply_exposure_impl(input, params, cancellation);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Exposure output allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
+Result<WorkingImage> apply_exposure(const WorkingImage &input, const OperationInstance &operation,
+                                    const CancellationToken &cancellation)
+try
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    if (operation.id != kExposureOperationId)
+    {
+        return make_error(ErrorCode::kValidation, "Operation is not exposure",
+                          {{"operation_id", operation.id}});
+    }
+    if (operation.mask_id.has_value())
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Exposure mask evaluation is unavailable",
+            {{"operation_id", operation.id}, {"reason", "exposure_mask_graph_unavailable"}});
+    }
+    if (!operation.enabled)
+    {
+        return input;
+    }
+    OperationInstance canonical = operation;
+    auto upgraded = upgrade_exposure_operation(canonical);
+    if (!upgraded)
+    {
+        return upgraded.error();
+    }
+    auto params = exposure_from_parameters(canonical.parameters);
+    if (!params)
+    {
+        return params.error();
+    }
+    return apply_exposure_impl(input, params.value(), cancellation);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Exposure operation allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
 Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t width,
                                       const std::uint32_t height,
                                       const std::array<float, 4> &white_balance,
@@ -2055,9 +2226,14 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             }
             continue;
         }
-        if (operation.id == "ravo.core.exposure")
+        if (operation.id == kExposureOperationId)
         {
-            apply_exposure(image, parameter(operation, "exposure_ev", 0.0));
+            auto exposed = apply_exposure(image, operation, cancellation);
+            if (!exposed)
+            {
+                return exposed.error();
+            }
+            image = std::move(exposed).value();
             continue;
         }
         if (operation.id == "ravo.core.contrast")
