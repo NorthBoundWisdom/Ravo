@@ -93,7 +93,9 @@ if(APPLE)
 endif()
 
 ravo_configure_target(ravo_studio)
-ravo_deploy_qt_core(ravo_studio)
+ravo_copy_windows_runtime_dlls(ravo_studio)
+ravo_deploy_windows_qt_runtime(ravo_studio
+  QML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/qml")
 if(APPLE)
   add_custom_command(
     TARGET ravo_studio

@@ -6,6 +6,7 @@
 #include <ctime>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -29,20 +30,45 @@ quill::Logger *g_logger = nullptr;
     return {reinterpret_cast<const char *>(value.data()), value.size()};
 }
 
+[[nodiscard]] std::optional<std::string> environment_variable(const char *name)
+{
+#ifdef _WIN32
+    char *value = nullptr;
+    size_t size = 0;
+    if (_dupenv_s(&value, &size, name) != 0 || value == nullptr)
+    {
+        return std::nullopt;
+    }
+    std::string result(value);
+    std::free(value);
+    if (result.empty())
+    {
+        return std::nullopt;
+    }
+    return result;
+#else
+    if (const char *value = std::getenv(name); value != nullptr && value[0] != '\0')
+    {
+        return std::string(value);
+    }
+    return std::nullopt;
+#endif
+}
+
 [[nodiscard]] std::filesystem::path default_log_directory(const std::string_view app_name)
 {
 #ifdef _WIN32
-    if (const char *appdata = std::getenv("APPDATA"); appdata != nullptr && appdata[0] != '\0')
+    if (const auto appdata = environment_variable("APPDATA"))
     {
-        return std::filesystem::path(appdata) / std::string(app_name) / "logs";
+        return std::filesystem::path(*appdata) / std::string(app_name) / "logs";
     }
 #else
-    if (const char *home = std::getenv("HOME"); home != nullptr && home[0] != '\0')
+    if (const auto home = environment_variable("HOME"))
     {
 #ifdef __APPLE__
-        return std::filesystem::path(home) / "Library" / "Logs" / std::string(app_name);
+        return std::filesystem::path(*home) / "Library" / "Logs" / std::string(app_name);
 #else
-        return std::filesystem::path(home) / ".local" / "share" / std::string(app_name) / "logs";
+        return std::filesystem::path(*home) / ".local" / "share" / std::string(app_name) / "logs";
 #endif
     }
 #endif

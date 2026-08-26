@@ -107,6 +107,11 @@ set(LCMS2_BUILD_TOOLS OFF CACHE BOOL "LittleCMS command-line tools stay out of R
 set(LCMS2_BUILD_TESTS OFF CACHE BOOL "Ravo owns its ICC contract tests" FORCE)
 set(LCMS2_WITH_FASTFLOAT OFF CACHE BOOL "LittleCMS GPL plugin is not part of Ravo" FORCE)
 set(LCMS2_WITH_THREADED_PLUGIN OFF CACHE BOOL "Ravo owns render scheduling" FORCE)
+if(WIN32)
+  # LittleCMS does find_library(m). After setenv loads Intel oneAPI, that search
+  # resolves to oneAPI libm.lib and LNK2005-conflicts with the MSVC CRT.
+  set(LCMS2_MATH_LIB "" CACHE FILEPATH "Windows CRT already provides libm" FORCE)
+endif()
 add_subdirectory("${_ravo_littlecms_root}" "${CMAKE_BINARY_DIR}/_deps/littlecms" EXCLUDE_FROM_ALL)
 if(NOT TARGET lcms2)
   message(FATAL_ERROR "LittleCMS source root did not provide the lcms2 target")
@@ -127,17 +132,7 @@ function(ravo_configure_target target)
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wshadow>)
 endfunction()
 
-function(ravo_deploy_qt_core target)
-  if(WIN32)
-    add_custom_command(
-      TARGET ${target}
-      POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:Qt6::Core>
-        $<TARGET_FILE_DIR:${target}>
-      VERBATIM)
-  endif()
-endfunction()
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RavoWindowsRuntime.cmake")
 
 add_subdirectory(foundation)
 add_subdirectory(recipe)

@@ -17,6 +17,7 @@ add_executable(ravo_unit_tests
 target_link_libraries(ravo_unit_tests PRIVATE GTest::gtest_main ravo_domain ravo_recipe)
 target_include_directories(ravo_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 ravo_configure_target(ravo_unit_tests)
+ravo_copy_windows_runtime_dlls(ravo_unit_tests)
 gtest_discover_tests(ravo_unit_tests PROPERTIES LABELS "ravo-unit")
 
 add_executable(ravo_contract_tests
@@ -34,7 +35,7 @@ target_compile_definitions(ravo_contract_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"
   RAVO_TEST_VERSION="${PROJECT_VERSION}")
 ravo_configure_target(ravo_contract_tests)
-ravo_deploy_qt_core(ravo_contract_tests)
+ravo_copy_windows_runtime_dlls(ravo_contract_tests)
 gtest_discover_tests(ravo_contract_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-contract")
@@ -54,7 +55,7 @@ target_include_directories(ravo_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR
 target_compile_definitions(ravo_catalog_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_catalog_tests)
-ravo_deploy_qt_core(ravo_catalog_tests)
+ravo_copy_windows_runtime_dlls(ravo_catalog_tests)
 gtest_discover_tests(ravo_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-catalog")
@@ -67,7 +68,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n")
 add_dependencies(ravo_desktop_command_tests ravo_studio_translations)
 ravo_configure_target(ravo_desktop_command_tests)
-ravo_deploy_qt_core(ravo_desktop_command_tests)
+ravo_copy_windows_runtime_dlls(ravo_desktop_command_tests)
 gtest_discover_tests(ravo_desktop_command_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-desktop-smoke")
