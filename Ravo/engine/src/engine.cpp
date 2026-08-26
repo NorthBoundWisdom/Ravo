@@ -1,6 +1,5 @@
 #include "ravo/engine/engine.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -21,30 +20,54 @@
 
 namespace ravo
 {
-namespace
-{
 
-[[nodiscard]] Result<RenderedImage>
-encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
-                            const CancellationToken &cancellation)
+Result<RenderedImage> encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
+                                                  const CancellationToken &cancellation)
+try
 {
-    const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
-    if (input.width == 0 || input.height == 0 ||
-        pixels > std::numeric_limits<std::size_t>::max() / 3U ||
-        input.channels.size() != static_cast<std::size_t>(pixels * 3U) ||
-        input.color_profile.model != ColorModel::kRgb)
+    auto cancelled = cancellation.check();
+    if (!cancelled)
     {
-        return make_error(ErrorCode::kUnsupported,
-                          "Rendered output is not an encodable RGB buffer");
+        return cancelled.error();
     }
+    if (input.width == 0 || input.height == 0)
+    {
+        return make_error(ErrorCode::kValidation, "Profiled output dimensions must be non-zero",
+                          {{"reason", "invalid_dimensions"},
+                           {"width", std::to_string(input.width)},
+                           {"height", std::to_string(input.height)}});
+    }
+    const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
+    if (pixels > std::numeric_limits<std::size_t>::max() / 3U)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Profiled output dimensions exceed the RGB8 buffer limit",
+                          {{"reason", "dimensions_overflow"}});
+    }
+    const std::size_t expected_channels = static_cast<std::size_t>(pixels) * 3U;
+    if (input.channels.size() != expected_channels)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Profiled output channel count does not match its dimensions",
+                          {{"reason", "channel_count_mismatch"},
+                           {"expected_channels", std::to_string(expected_channels)},
+                           {"actual_channels", std::to_string(input.channels.size())}});
+    }
+    if (input.color_profile.model != ColorModel::kRgb)
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Profiled output must use an RGB colour model",
+            {{"reason", "unsupported_color_model"}, {"profile", input.color_profile.identifier}});
+    }
+
     RenderedImage result;
     result.width = input.width;
     result.height = input.height;
     result.color_profile = input.color_profile;
-    result.rgb.resize(input.channels.size());
+    result.rgb.resize(expected_channels);
     for (std::uint32_t row = 0; row < input.height; ++row)
     {
-        auto cancelled = cancellation.check();
+        cancelled = cancellation.check();
         if (!cancelled)
         {
             return cancelled.error();
@@ -53,19 +76,27 @@ encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
         const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
         for (std::size_t index = begin; index < end; ++index)
         {
-            if (!std::isfinite(input.channels[index]))
+            const float sample = input.channels[index];
+            if (!std::isfinite(sample))
             {
-                return make_error(ErrorCode::kValidation,
-                                  "Output colour buffer contains NaN or infinity");
+                return make_error(
+                    ErrorCode::kValidation, "Profiled output contains NaN or infinity",
+                    {{"reason", "non_finite_sample"}, {"sample_index", std::to_string(index)}});
             }
-            result.rgb[index] = static_cast<std::uint8_t>(
-                std::lround(std::clamp(input.channels[index], 0.0F, 1.0F) * 255.0F));
+            // Output colour already owns transfer encoding. Preserve the frozen
+            // _copy_output arithmetic here while keeping Ravo's RGB byte order.
+            const float nonnegative = std::fmax(sample, 0.0F);
+            const float rounded = std::round(255.0F * nonnegative);
+            result.rgb[index] = static_cast<std::uint8_t>(std::fmin(rounded, 255.0F));
         }
     }
     return result;
 }
-
-} // namespace
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Final RGB8 output allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
 
 EngineFacade::EngineFacade(OperationRegistry registry)
     : registry_(std::move(registry))

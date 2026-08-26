@@ -26,5 +26,10 @@ struct ProfiledOutputBuffer
 [[nodiscard]] Result<ProfiledOutputBuffer>
 apply_output_color(const LinearWorkingBuffer &input, const OutputColorParams &params,
                    const CancellationToken &cancellation);
+// Synchronous final display boundary. The input and token are borrowed only for
+// this call; a successful result owns both its RGB8 samples and exact profile state.
+[[nodiscard]] Result<RenderedImage>
+encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
+                            const CancellationToken &cancellation);
 
 } // namespace ravo

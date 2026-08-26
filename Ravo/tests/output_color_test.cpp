@@ -8,6 +8,7 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <QFile>
@@ -297,6 +298,133 @@ cmsInt32Number sample_input_lut(const cmsUInt16Number input[], cmsUInt16Number o
     stream.write(reinterpret_cast<const char *>(bytes.data()),
                  static_cast<std::streamsize>(bytes.size()));
     return static_cast<bool>(stream);
+}
+
+[[nodiscard]] ProfiledOutputBuffer
+profiled_output(const std::uint32_t width, const std::uint32_t height, std::vector<float> channels)
+{
+    ProfiledOutputBuffer output;
+    output.width = width;
+    output.height = height;
+    output.channels = std::move(channels);
+    output.color_profile.kind = ColorProfileKind::kIcc;
+    output.color_profile.model = ColorModel::kRgb;
+    output.color_profile.identifier = "fixture-output.icc";
+    static const auto fixture_icc = gamma_rgb_profile(2.2);
+    output.color_profile.icc_bytes = fixture_icc;
+    output.color_profile.matrix_to_xyz_d50 = kLinearSrgbToXyzD50;
+    output.color_profile.has_matrix = true;
+    return output;
+}
+
+TEST(OutputColorTest, FinalRgb8PackerMatchesFrozenCopyOutputAndKeepsRgbOrder)
+{
+    auto input = profiled_output(2, 1, {-0.25F, 0.0F, 0.5F, 1.0F, 1.5F, 0.25F});
+    const auto original_channels = input.channels;
+    const auto original_profile = input.color_profile;
+    ASSERT_FALSE(original_profile.icc_bytes.empty());
+
+    auto packed = encode_profiled_output_rgb8(input, CancellationToken{});
+    ASSERT_TRUE(packed) << packed.error().message;
+    EXPECT_EQ(packed.value().width, 2U);
+    EXPECT_EQ(packed.value().height, 1U);
+    EXPECT_EQ(packed.value().rgb, (std::vector<std::uint8_t>{0U, 0U, 128U, 255U, 255U, 64U}));
+    EXPECT_EQ(packed.value().color_profile, original_profile);
+    EXPECT_EQ(input.channels, original_channels);
+    EXPECT_EQ(input.color_profile, original_profile);
+
+    const auto owned_rgb = packed.value().rgb;
+    const auto owned_profile = packed.value().color_profile;
+    input.channels.assign(input.channels.size(), 0.0F);
+    input.color_profile.identifier = "mutated";
+    input.color_profile.icc_bytes.clear();
+    EXPECT_EQ(packed.value().rgb, owned_rgb);
+    EXPECT_EQ(packed.value().color_profile, owned_profile);
+}
+
+TEST(OutputColorTest, FinalRgb8PackerRejectsInvalidDimensionsSizeAndModel)
+{
+    for (auto input : {profiled_output(0, 1, {}), profiled_output(1, 0, {})})
+    {
+        auto rejected = encode_profiled_output_rgb8(input, CancellationToken{});
+        ASSERT_FALSE(rejected);
+        EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(rejected.error().context.at("reason"), "invalid_dimensions");
+    }
+
+    auto overflow = profiled_output(std::numeric_limits<std::uint32_t>::max(),
+                                    std::numeric_limits<std::uint32_t>::max(), {});
+    auto overflow_rejected = encode_profiled_output_rgb8(overflow, CancellationToken{});
+    ASSERT_FALSE(overflow_rejected);
+    EXPECT_EQ(overflow_rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(overflow_rejected.error().context.at("reason"), "dimensions_overflow");
+
+    auto wrong_size = profiled_output(1, 1, {0.0F, 0.0F});
+    const auto original_channels = wrong_size.channels;
+    auto size_rejected = encode_profiled_output_rgb8(wrong_size, CancellationToken{});
+    ASSERT_FALSE(size_rejected);
+    EXPECT_EQ(size_rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(size_rejected.error().context.at("reason"), "channel_count_mismatch");
+    EXPECT_EQ(wrong_size.channels, original_channels);
+
+    auto lab = profiled_output(1, 1, {0.0F, 0.0F, 0.0F});
+    lab.color_profile.model = ColorModel::kLab;
+    const auto original_profile = lab.color_profile;
+    auto model_rejected = encode_profiled_output_rgb8(lab, CancellationToken{});
+    ASSERT_FALSE(model_rejected);
+    EXPECT_EQ(model_rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(model_rejected.error().context.at("reason"), "unsupported_color_model");
+    EXPECT_EQ(lab.color_profile, original_profile);
+}
+
+TEST(OutputColorTest, FinalRgb8PackerRejectsEveryNonFiniteSampleWithoutMutatingSource)
+{
+    const std::array<float, 3> nonfinite{std::numeric_limits<float>::quiet_NaN(),
+                                         std::numeric_limits<float>::infinity(),
+                                         -std::numeric_limits<float>::infinity()};
+    for (const float sample : nonfinite)
+    {
+        auto input = profiled_output(1, 1, {0.25F, sample, 0.75F});
+        const auto original_profile = input.color_profile;
+        auto rejected = encode_profiled_output_rgb8(input, CancellationToken{});
+        ASSERT_FALSE(rejected);
+        EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(rejected.error().context.at("reason"), "non_finite_sample");
+        EXPECT_EQ(rejected.error().context.at("sample_index"), "1");
+        EXPECT_EQ(input.channels[0], 0.25F);
+        if (std::isnan(sample))
+        {
+            EXPECT_TRUE(std::isnan(input.channels[1]));
+        }
+        else
+        {
+            EXPECT_EQ(input.channels[1], sample);
+        }
+        EXPECT_EQ(input.channels[2], 0.75F);
+        EXPECT_EQ(input.color_profile, original_profile);
+    }
+}
+
+TEST(OutputColorTest, FinalRgb8PackerChecksCancellationBeforeAllocationAndBetweenRows)
+{
+    auto input = profiled_output(1, 1, {0.25F, 0.5F, 0.75F});
+    const auto original_channels = input.channels;
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("before_output_pack"));
+    auto pre_cancelled = encode_profiled_output_rgb8(input, cancelled.token());
+    ASSERT_FALSE(pre_cancelled);
+    EXPECT_EQ(pre_cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(input.channels, original_channels);
+
+    auto large = profiled_output(1024, 4096, {});
+    large.channels.assign(static_cast<std::size_t>(large.width) * large.height * 3U, 0.5F);
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+    auto row_cancelled = encode_profiled_output_rgb8(large, deadline.token());
+    ASSERT_FALSE(row_cancelled);
+    EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(large.channels.front(), 0.5F);
+    EXPECT_EQ(large.channels.back(), 0.5F);
 }
 
 TEST(OutputColorTest, EveryFrozenSchemaFivePayloadMapsToSrgbPerceptual)
