@@ -24,7 +24,8 @@ add_executable(ravo_contract_tests
   engine_test.cpp)
 target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli)
 target_include_directories(ravo_contract_tests PRIVATE
-  $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>)
+  $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>
+  ${CMAKE_SOURCE_DIR}/Ravo/engine/src)
 target_include_directories(ravo_contract_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_contract_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"

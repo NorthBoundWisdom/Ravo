@@ -55,6 +55,18 @@ inline constexpr std::string_view kToneCurvePreserveColorsSum = "sum";
 inline constexpr std::string_view kToneCurvePreserveColorsNorm = "norm";
 inline constexpr std::string_view kToneCurvePreserveColorsPower = "power";
 inline constexpr std::size_t kColorEqualizerBandCount = 8;
+inline constexpr std::size_t kChannelMixerChannelCount = 3;
+inline constexpr std::string_view kChannelMixerWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
+inline constexpr std::string_view kChannelMixerAlgorithmV3 = "v3";
+inline constexpr std::string_view kChannelMixerAdaptationRgb = "rgb";
+inline constexpr std::string_view kChannelMixerAdaptationCat16 = "cat16";
+inline constexpr std::string_view kChannelMixerAdaptationLinearBradford = "linear_bradford";
+inline constexpr std::string_view kChannelMixerAdaptationFullBradford = "full_bradford";
+inline constexpr std::string_view kChannelMixerAdaptationXyz = "xyz";
+inline constexpr std::string_view kColorBalanceRgbWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
+inline constexpr std::string_view kColorBalanceRgbAlgorithmFilmlightYchV5 = "filmlight_ych_v5";
+inline constexpr std::string_view kColorBalanceRgbFormulaDtUcs2022 = "dt_ucs_2022";
+inline constexpr std::string_view kColorBalanceRgbFormulaJzAzBz2021 = "jzazbz_2021";
 inline constexpr std::string_view kRawHighlightsModeClip = "clip";
 inline constexpr std::string_view kRawHighlightsModeInpaint = "inpaint";
 inline constexpr std::string_view kRawHighlightsModeOpposed = "opposed";
@@ -80,10 +92,75 @@ enum class ToneCurveWorkingSpace
     kLabIndependent,
 };
 
+struct ChannelMixerParams
+{
+    std::array<double, kChannelMixerChannelCount> red{1.0, 0.0, 0.0};
+    std::array<double, kChannelMixerChannelCount> green{0.0, 1.0, 0.0};
+    std::array<double, kChannelMixerChannelCount> blue{0.0, 0.0, 1.0};
+    std::array<double, kChannelMixerChannelCount> saturation{};
+    std::array<double, kChannelMixerChannelCount> lightness{};
+    std::array<double, kChannelMixerChannelCount> grey{};
+    bool normalize_red = false;
+    bool normalize_green = false;
+    bool normalize_blue = false;
+    bool normalize_saturation = false;
+    bool normalize_lightness = false;
+    bool normalize_grey = true;
+    std::string adaptation{std::string(kChannelMixerAdaptationRgb)};
+    double illuminant_x = 0.34567;
+    double illuminant_y = 0.35850;
+    double gamut = 0.0;
+    bool clip = false;
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const ChannelMixerParams &) const noexcept = default;
+};
+
+struct ColorBalanceRgbParams
+{
+    double shadows_y = 0.0;
+    double shadows_chroma = 0.0;
+    double shadows_hue = 0.0;
+    double midtones_y = 0.0;
+    double midtones_chroma = 0.0;
+    double midtones_hue = 0.0;
+    double highlights_y = 0.0;
+    double highlights_chroma = 0.0;
+    double highlights_hue = 0.0;
+    double global_y = 0.0;
+    double global_chroma = 0.0;
+    double global_hue = 0.0;
+    double shadows_falloff = 1.0;
+    double white_fulcrum_ev = 0.0;
+    double highlights_falloff = 1.0;
+    double chroma_shadows = 0.0;
+    double chroma_highlights = 0.0;
+    double chroma_global = 0.0;
+    double chroma_midtones = 0.0;
+    double saturation_global = 0.0;
+    double saturation_highlights = 0.0;
+    double saturation_midtones = 0.0;
+    double saturation_shadows = 0.0;
+    double hue_rotation = 0.0;
+    double brilliance_global = 0.0;
+    double brilliance_highlights = 0.0;
+    double brilliance_midtones = 0.0;
+    double brilliance_shadows = 0.0;
+    double mask_grey_fulcrum = 0.1845;
+    double vibrance = 0.0;
+    double grey_fulcrum = 0.1845;
+    double contrast = 0.0;
+    std::string saturation_formula{std::string(kColorBalanceRgbFormulaDtUcs2022)};
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const ColorBalanceRgbParams &) const noexcept = default;
+};
+
 struct DevelopParams
 {
     double temperature = kDevelopTemperatureDefault;
     double tint = 0.0;
+    ChannelMixerParams channel_mixer;
     double exposure_ev = 0.0;
     double contrast = 0.0;
     double highlights = 0.0;
@@ -109,9 +186,7 @@ struct DevelopParams
     double soften = 0.0;
     double dehaze = 0.0;
     double velvia = 0.0;
-    double lift = 0.0;
-    double color_gamma = 0.0;
-    double gain = 0.0;
+    ColorBalanceRgbParams color_balance_rgb;
     double color_contrast = 0.0;
     double monochrome = 0.0;
     double split_shadows_hue = 0.55;
@@ -130,6 +205,11 @@ struct DevelopParams
     double raw_highlights = 0.0;
     double raw_highlights_clip = 0.987;
     std::string raw_highlights_mode{std::string(kRawHighlightsModeOpposed)};
+    double hot_pixels_strength = 0.0;
+    double hot_pixels_threshold = 0.05;
+    bool hot_pixels_permissive = false;
+    std::int64_t raw_ca_iterations = 0;
+    bool raw_ca_avoid_shift = false;
     double denoise = 0.0;
     double denoise_chroma = 1.0;
     double denoise_radius = 1.0;
@@ -175,6 +255,18 @@ tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] Result<void>
 validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<void> validate_channel_mixer_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<ChannelMixerParams>
+channel_mixer_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+channel_mixer_to_parameters(const ChannelMixerParams &params);
+[[nodiscard]] Result<void> validate_color_balance_rgb_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<ColorBalanceRgbParams> color_balance_rgb_from_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+color_balance_rgb_to_parameters(const ColorBalanceRgbParams &params);
 
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);

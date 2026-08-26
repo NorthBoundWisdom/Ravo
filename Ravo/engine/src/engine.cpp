@@ -5,6 +5,7 @@
 
 #include "capability_ops.h"
 #include "image_ops.h"
+#include "raw_ca.h"
 #include "raw_pipeline.h"
 
 namespace ravo
@@ -178,21 +179,29 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
         return cancelled.error();
     }
     const DecodedRaw *source = &raw;
-    DecodedRaw highlighted;
+    DecodedRaw prepared;
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled || operation.id != "ravo.raw.highlights")
+        if (!operation.enabled ||
+            (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
+             operation.id != "ravo.raw.cacorrect"))
         {
             continue;
         }
-        highlighted = raw;
-        auto reconstructed = apply_raw_highlights(highlighted, operation, cancellation);
-        if (!reconstructed)
+        if (source == &raw)
         {
-            return reconstructed.error();
+            prepared = raw;
+            source = &prepared;
         }
-        source = &highlighted;
-        break;
+        Result<void> applied = operation.id == "ravo.raw.hotpixels" ?
+                                   apply_raw_hotpixels(prepared, operation, cancellation) :
+                               operation.id == "ravo.raw.highlights" ?
+                                   apply_raw_highlights(prepared, operation, cancellation) :
+                                   apply_raw_cacorrect(prepared, operation, cancellation);
+        if (!applied)
+        {
+            return applied.error();
+        }
     }
     return working_from_raw(*source, width, height, cancellation);
 }
@@ -258,10 +267,8 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     apply_display_rotation_to_size(default_width, default_height, decoded.value().rotate_quarters);
     const std::uint32_t width = request.output_width.value_or(default_width);
     const std::uint32_t height = request.output_height.value_or(default_height);
-    const std::uint64_t output_bytes = static_cast<std::uint64_t>(width) * height * 3U;
     const std::uint64_t working_bytes =
-        output_bytes +
-        static_cast<std::uint64_t>(decoded.value().pixels.size()) * sizeof(std::uint16_t);
+        estimate_raw_render_memory(decoded.value(), request.recipe, width, height);
     if (request.memory_budget_bytes != 0 && working_bytes > request.memory_budget_bytes)
     {
         return make_error(ErrorCode::kValidation, "Render memory budget is too small",
@@ -276,7 +283,8 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     Recipe rgb_recipe = request.recipe;
     for (auto &operation : rgb_recipe.operations)
     {
-        if (operation.id == "ravo.raw.highlights")
+        if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
+            operation.id == "ravo.raw.cacorrect")
         {
             operation.enabled = false;
         }

@@ -989,6 +989,78 @@ Result<void> SqliteCatalogRepository::clear_recipe(const std::string_view asset_
     return {};
 }
 
+Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
+    const std::string_view asset_id, const std::int64_t recipe_schema_version,
+    const std::optional<std::string_view> recipe_json, const std::string_view history_json)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start recipe transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+
+    const auto written = recipe_json ?
+                             save_recipe_json(asset_id, recipe_schema_version, *recipe_json) :
+                             clear_recipe(asset_id);
+    if (!written)
+    {
+        impl_->database.rollback();
+        return written.error();
+    }
+
+    QSqlQuery latest(impl_->database);
+    latest.prepare(
+        QStringLiteral("SELECT kind, recipe_json FROM asset_recipe_history WHERE asset_id = ? "
+                       "ORDER BY seq DESC, id DESC LIMIT 1"));
+    latest.addBindValue(qstring_from_utf8(asset_id));
+    if (!latest.exec())
+    {
+        impl_->database.rollback();
+        return map_sql_error(latest, "latest_recipe_history");
+    }
+    const bool duplicate =
+        latest.next() &&
+        utf8_from_qstring(latest.value(0).toString()) == kRecipeHistoryKindHistory &&
+        utf8_from_qstring(latest.value(1).toString()) == history_json;
+    if (!duplicate)
+    {
+        auto recorded =
+            append_recipe_history(asset_id, kRecipeHistoryKindHistory, std::nullopt, history_json);
+        if (!recorded)
+        {
+            impl_->database.rollback();
+            return recorded.error();
+        }
+    }
+
+    QSqlQuery revision_query(impl_->database);
+    if (!revision_query.exec(
+            QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+    {
+        impl_->database.rollback();
+        return map_sql_error(revision_query, "bump_recipe_revision");
+    }
+    if (!revision_query.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision_query.next())
+    {
+        impl_->database.rollback();
+        return map_sql_error(revision_query, "read_recipe_revision");
+    }
+    const auto revision = revision_query.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        impl_->database.rollback();
+        return make_error(ErrorCode::kIo, "Unable to commit recipe transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    impl_->snapshot.revision = revision;
+    return revision;
+}
+
 Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view asset_id,
                                                          const std::vector<std::string> &tags)
 {

@@ -19,8 +19,19 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 - Basic Develop：catalog schema v4 每张图一份 canonical recipe，外加标签/可写 metadata 与
   持久 history/snapshot；CPU 含 RAW 高光重建（默认 opposed）、wavelets+Y0U0V0 降噪、
   lensfun poly3/vignette、dt UCS `colorequal`、渐变滤镜和 9 带 toneequal。Studio 有
-  Edit 面板、before/after 与会话内 undo/redo。这些能力尚未完成交互预览缓存与
-  Studio 保存/重开收口。macOS Debug 已跑通无 UI create/import/preview/recipe/reopen。
+  Edit 面板、before/after 与会话内 undo/redo。RAW 交互预览复用 scene-linear 工作图，
+  superseded request 会取消且晚到结果按 revision 丢弃；recipe/history/revision 原子保存，
+  L2–L9 参数与像素 reopen 合同由 catalog UT 覆盖。
+- RAW Repair：`ravo.raw.hotpixels` v1 在 owned Bayer CFA 副本上按冻结四同色邻居路径修复坏点，
+  `ravo.raw.cacorrect` v1 保留 RawTherapee 两遍 tile/多项式拟合与 avoid-color-shift；二者的取消、
+  sensor reject、memory budget、cache immutability、catalog reopen 与真实 RAW reference 均由 UT 覆盖。
+- Color Calibration：`ravo.color.channelmixerrgb` v1 复刻冻结 V3 CPU 的矩阵归一化、
+  CAT16/Bradford/XYZ/RGB、XYZ gamut、饱和度/明度与灰度路径；Studio 暴露显式 3×3 矩阵，
+  CLI、preview 与 export 复用同一 engine operation。
+- Color Balance RGB：`ravo.color.colorbalancergb` v1 在显式 `linear_srgb_d50` 工作空间执行
+  Filmlight Yrg 三段 luminance mask、grading RGB offset/slope/power、fulcrumed luminance，并以
+  DT UCS 2022 为默认 saturation/brilliance gamut 路径；JzAzBz 2021 是显式可选公式。Studio 暴露完整
+  canonical 参数，原 Lift/Color gamma/Gain 近似 operation 已移除。
 - RAW preview/export 以 `ravo.display.sigmoid` v1 作为唯一 Standard SDR 显示变换；
   recipe 可调 contrast/skew/hue preservation，默认基线不标记为用户编辑。
   Gallery 内嵌 JPEG 缩略图与 inspect 尺寸按相机方向转正。

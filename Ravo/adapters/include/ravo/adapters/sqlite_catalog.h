@@ -36,6 +36,10 @@ public:
                                                 std::int64_t recipe_schema_version,
                                                 std::string_view recipe_json) override;
     [[nodiscard]] Result<void> clear_recipe(std::string_view asset_id) override;
+    [[nodiscard]] Result<std::int64_t> commit_recipe(std::string_view asset_id,
+                                                     std::int64_t recipe_schema_version,
+                                                     std::optional<std::string_view> recipe_json,
+                                                     std::string_view history_json) override;
     [[nodiscard]] Result<void> replace_asset_tags(std::string_view asset_id,
                                                   const std::vector<std::string> &tags) override;
     [[nodiscard]] Result<void>

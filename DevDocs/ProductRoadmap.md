@@ -14,41 +14,39 @@ A capability belongs here only when:
 - failure behavior and deterministic completion evidence still need a design
   decision.
 
-Once those facts are explicit, create or extend a root `TODO_<TOPIC>.md` with
-the execution sequence, dependencies, validation commands and completion gate.
-Remove the promoted item from this document in the same change. Completed work
-belongs in its owning architecture/contract/code/test truth source, not here.
-
-Do not promote another RAW/color IOP or a lensfun source-root until
-[`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md) finishes C1 closeout
-and L1 `channelmixerrgb`. Promoted algorithm work must replicate the frozen C
-default CPU path and then retire the old owner; it must not land a simplified
-substitute and treat that as migration complete. The next algorithm batch, if
-promoted, is either `hotpixels` plus one CA method, or `colorbalancergb`—not
-both, and not a generic denoise stack.
+The complete legacy module inventory, execution order and retirement gates now
+live only in [`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md). This
+document records cross-layer decisions that those rows depend on; it must not
+carry a second module queue or completion status. Completed conclusions belong
+in their owning architecture/ADR/code/test truth source.
 
 ## Mask and local adjustment graph
 
-- General mask/blend ownership: `mask_manager`, drawn masks and parametric masks.
+- Define general drawn/parametric mask and blend ownership.
 - Define coordinate spaces, composition order, immutable publication,
   cancellation, ROI/tile behavior and recipe versioning before adding UI.
 - `ravo.effect.graduatednd` is the first local adjustment and uses the gradient
   itself as the mask. A generic mask/blend graph still needs this decision
   before drawn or parametric masks.
 
-## Additional RAW and optical repair
+## RAW and optical contracts
 
-- `cacorrect`, `cacorrectrgb`, `hotpixels`, `rawdenoise`.
-- Each needs a selected default, RAW-stage placement, unsupported sensor policy,
+- Each queued RAW row needs explicit stage placement, unsupported sensor policy,
   real fixture and memory/time budget.
 
-## Color and creative look
+## Color, profile and creative-look contracts
 
-- `lut3d`, `colorbalancergb`, `borders`.
-- Admit only capabilities that do not duplicate the accepted Sigmoid,
-  tone-curve, 8-band `colorequal`, or the queued channel-mixer.
+- Define explicit workspace/profile/gamut ownership and overlap with accepted
+  defaults before each queued color operation freezes its schema.
 - LUT support requires an explicit format/profile adapter and deterministic
   missing/invalid-file behavior.
+
+## Geometry, ROI and resource contracts
+
+- Define coordinate spaces, resampling, canvas growth, tiling and mask
+  transforms before the queued geometry/deformation rows execute.
+- External image/LUT/SVG/font resources require versioned lookup, immutable
+  task ownership and deterministic missing/corrupt behavior.
 
 ## Export workflow expansion
 
@@ -71,6 +69,7 @@ both, and not a generic denoise stack.
 
 ## Explicit non-candidates
 
-Capabilities listed as leftover in [`Ravo/MIGRATION.md`](../Ravo/MIGRATION.md)
-do not belong here. Reopening one requires a dated product decision that first
-changes the migration boundary.
+Only the non-algorithm UI/ABI/OpenCL/data leftovers listed in
+[`Ravo/MIGRATION.md`](../Ravo/MIGRATION.md) are non-candidates. ADR-0015 puts
+every remaining image algorithm in migration scope; execution status remains
+exclusively in the root TODO.

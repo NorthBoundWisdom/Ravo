@@ -3,8 +3,12 @@ add_library(ravo_engine STATIC)
 target_sources(ravo_engine
   PRIVATE
     src/capability_ops.cpp
+    src/color_balance_rgb.cpp
+    src/color_balance_rgb.h
     src/engine.cpp
     src/image_ops.cpp
+    src/raw_ca.cpp
+    src/raw_ca.h
     src/raw_pipeline.cpp
     src/scopes.cpp)
 

@@ -2,6 +2,7 @@
 
 #include "capability_ops.h"
 #include "image_ops.h"
+#include "raw_ca.h"
 
 #include <algorithm>
 #include <cmath>
@@ -377,6 +378,48 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     return result;
 }
 
+std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe,
+                                         const std::uint32_t width,
+                                         const std::uint32_t height) noexcept
+{
+    const std::uint64_t output_pixels = static_cast<std::uint64_t>(width) * height;
+    const std::uint64_t output_bytes = output_pixels * 3U;
+    const std::uint64_t raw_pixels = raw.pixels.size();
+    const std::uint64_t raw_bytes = raw_pixels * sizeof(std::uint16_t);
+    std::uint64_t working_bytes = output_bytes + output_pixels * 3U * sizeof(float) + raw_bytes;
+    bool owns_raw_copy = false;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled)
+        {
+            continue;
+        }
+        if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
+            operation.id == "ravo.raw.cacorrect")
+        {
+            owns_raw_copy = true;
+        }
+        if (operation.id == "ravo.raw.hotpixels")
+        {
+            working_bytes += raw_bytes;
+        }
+        if (operation.id == "ravo.raw.cacorrect")
+        {
+            working_bytes += raw_pixels * (3U * sizeof(float) + sizeof(std::uint16_t));
+            const auto avoid = operation.parameters.find("avoid_color_shift");
+            if (avoid != operation.parameters.end())
+            {
+                if (const auto *flag = std::get_if<bool>(&avoid->second.value);
+                    flag != nullptr && *flag)
+                {
+                    working_bytes += raw_pixels * sizeof(float);
+                }
+            }
+        }
+    }
+    return owns_raw_copy ? working_bytes + raw_bytes : working_bytes;
+}
+
 Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &request)
 {
     std::uint32_t default_width = raw.width;
@@ -384,9 +427,8 @@ Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &req
     apply_display_rotation_to_size(default_width, default_height, raw.rotate_quarters);
     const std::uint32_t width = request.output_width.value_or(default_width);
     const std::uint32_t height = request.output_height.value_or(default_height);
-    const std::uint64_t output_bytes = static_cast<std::uint64_t>(width) * height * 3U;
     const std::uint64_t working_bytes =
-        output_bytes + static_cast<std::uint64_t>(raw.pixels.size()) * sizeof(std::uint16_t);
+        estimate_raw_render_memory(raw, request.recipe, width, height);
     if (request.memory_budget_bytes != 0 && working_bytes > request.memory_budget_bytes)
     {
         return make_error(ErrorCode::kValidation, "Render memory budget is too small",
@@ -396,14 +438,20 @@ Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &req
     Recipe rgb_recipe = request.recipe;
     for (auto &operation : rgb_recipe.operations)
     {
-        if (!operation.enabled || operation.id != "ravo.raw.highlights")
+        if (!operation.enabled ||
+            (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
+             operation.id != "ravo.raw.cacorrect"))
         {
             continue;
         }
-        auto reconstructed = apply_raw_highlights(prepared, operation, request.cancellation);
-        if (!reconstructed)
+        Result<void> applied = operation.id == "ravo.raw.hotpixels" ?
+                                   apply_raw_hotpixels(prepared, operation, request.cancellation) :
+                               operation.id == "ravo.raw.highlights" ?
+                                   apply_raw_highlights(prepared, operation, request.cancellation) :
+                                   apply_raw_cacorrect(prepared, operation, request.cancellation);
+        if (!applied)
         {
-            return reconstructed.error();
+            return applied.error();
         }
         operation.enabled = false;
     }

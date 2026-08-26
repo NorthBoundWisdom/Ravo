@@ -38,6 +38,10 @@ recipe 与 review 独立性。它们不替代本机 Studio 手工 Fit/100%/Devel
 QML 组件失败会使该 target 的构建失败。手动检查：`$<TARGET_FILE:ravo_studio> --smoke`。
 `ravo_desktop_command_tests` 验证内建 command/action 覆盖、稳定 ID、运行时状态重校验、无效 dispatch、
 快捷键冲突、三平台主修饰键和 Unicode 模糊搜索；标签为 `ravo-desktop-smoke`。
+Develop 自动合同还覆盖 recipe/history/revision 故障注入回滚、RAW interactive 与完整 CPU render
+逐像素一致、L2–L9 + channel mixer + Color Balance RGB 参数/像素 reopen，以及 preview owner 取消
+superseded token 和拒绝旧 revision/asset。desktop QML smoke 验证 Color Calibration 与完整 Color Balance
+RGB 绑定可加载；这些自动检查不依赖 Computer Use。
 
 ## Test framework 与 target 边界
 
@@ -109,6 +113,8 @@ SQLite adapter 至少测试：
   parade 用 8/9 映射和 160 档 tone。Gallery 网格用 browse 缩略图计算示波器，避免选中时
   完整 RAW decode；loupe/develop 仍用 processed preview，不得把 embedded JPEG 当可编辑数据；
 - 快速切换资产时，旧 request revision 的晚到结果被丢弃；
+- superseded Develop request 的独立 token 必须在新 revision 发布时取消；即使取消与完成竞态，旧
+  revision/asset 仍不得更新 preview；
 - 窗口关闭/关闭 catalog 后没有 detached task、晚到 UI 更新、未提交事务或临时 preview；
 - viewer 手工验收至少覆盖 loading/ready/missing/unsupported/failed、fit、100% 与平移；
 - Gallery 网格滚动只走 browse 缩略图，不得为网格选中项排队 1600px processed preview；
@@ -124,6 +130,19 @@ SQLite adapter 至少测试：
 - Ravo CPU 与冻结资产比较像素、NaN/Inf、尺寸/ROI、alpha、颜色、metadata 和错误状态；
 - 已删除产品能力只有在兼容性决定记录后才能排除，并测试可读的结构化拒绝；
 - 一张 8-bit PNG 不能单独满足 operation 或颜色验收。
+- `channelmixerrgb` 使用静态解码的 `0085-channelmixerrgb` 两个 schema-v3 参数实例、identity/单通道/
+  交叉通道/奇异矩阵合成输入和 `mire1.cr2` channel-sum reference；不得用裸 3×3 替代 CAT/gamut/V3
+  saturation-lightness 路径。
+- `colorbalancergb` 使用静态解码的 `0083-colorbalancergb` schema-v4 与
+  `0093-colorbalancergb-ucs` schema-v5 参数、Filmlight Yrg/grading RGB 与三段 opacity synthetic、DT UCS
+  gamut/soft clip、JzAzBz 92³ LUT/负 LMS clip、取消/非有限不发布和 `mire1.cr2` channel-sum reference；
+  catalog reopen 与 Studio QML smoke 必须覆盖完整 32 参数 + formula，不接受 lift/gamma/gain 替代。
+- `hotpixels` 覆盖严格四邻居单点、permissive 三邻居相邻点、两圈边界不动、取消、raster/X-Trans reject、
+  decoded-frame immutability、cache-key/reopen 与 `mire1.cr2` reference；不得在 demosaic 后补救或原地修改
+  service 缓存。
+- `cacorrect` 覆盖默认两遍 `mire1.cr2`、`0084-cacorrect` 五遍 + avoid-color-shift、Bayer/raster/X-Trans
+  边界、取消、内存预算、decoded-frame immutability、cache-key 与 catalog reopen；固定 R/B shift 不能满足
+  tile/median/polynomial/interpolation 门槛。
 
 ## 确定性模式
 

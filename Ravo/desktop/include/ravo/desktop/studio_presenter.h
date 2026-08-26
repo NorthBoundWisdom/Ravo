@@ -22,6 +22,7 @@
 
 #include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/folder_list_model.h"
+#include "ravo/desktop/preview_request_owner.h"
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
@@ -77,6 +78,15 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
     Q_PROPERTY(double editTemperature READ editTemperature NOTIFY editChanged)
     Q_PROPERTY(double editTint READ editTint NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerRR READ editChannelMixerRR NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerRG READ editChannelMixerRG NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerRB READ editChannelMixerRB NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerGR READ editChannelMixerGR NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerGG READ editChannelMixerGG NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerGB READ editChannelMixerGB NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerBR READ editChannelMixerBR NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerBG READ editChannelMixerBG NOTIFY editChanged)
+    Q_PROPERTY(double editChannelMixerBB READ editChannelMixerBB NOTIFY editChanged)
     Q_PROPERTY(double editExposure READ editExposure NOTIFY editChanged)
     Q_PROPERTY(double editContrast READ editContrast NOTIFY editChanged)
     Q_PROPERTY(double editHighlights READ editHighlights NOTIFY editChanged)
@@ -109,9 +119,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSoften READ editSoften NOTIFY editChanged)
     Q_PROPERTY(double editDehaze READ editDehaze NOTIFY editChanged)
     Q_PROPERTY(double editVelvia READ editVelvia NOTIFY editChanged)
-    Q_PROPERTY(double editLift READ editLift NOTIFY editChanged)
-    Q_PROPERTY(double editColorGamma READ editColorGamma NOTIFY editChanged)
-    Q_PROPERTY(double editGain READ editGain NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorBalanceRgb READ editColorBalanceRgb NOTIFY editChanged)
     Q_PROPERTY(double editColorContrast READ editColorContrast NOTIFY editChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
     Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
@@ -126,6 +134,11 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
     Q_PROPERTY(double editRawHighlights READ editRawHighlights NOTIFY editChanged)
+    Q_PROPERTY(double editHotPixelsStrength READ editHotPixelsStrength NOTIFY editChanged)
+    Q_PROPERTY(double editHotPixelsThreshold READ editHotPixelsThreshold NOTIFY editChanged)
+    Q_PROPERTY(bool editHotPixelsPermissive READ editHotPixelsPermissive NOTIFY editChanged)
+    Q_PROPERTY(int editRawCaIterations READ editRawCaIterations NOTIFY editChanged)
+    Q_PROPERTY(bool editRawCaAvoidShift READ editRawCaAvoidShift NOTIFY editChanged)
     Q_PROPERTY(double editDenoise READ editDenoise NOTIFY editChanged)
     Q_PROPERTY(double editDenoiseChroma READ editDenoiseChroma NOTIFY editChanged)
     Q_PROPERTY(double editDenoiseRadius READ editDenoiseRadius NOTIFY editChanged)
@@ -232,6 +245,15 @@ public:
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] double editTemperature() const noexcept;
     [[nodiscard]] double editTint() const noexcept;
+    [[nodiscard]] double editChannelMixerRR() const noexcept;
+    [[nodiscard]] double editChannelMixerRG() const noexcept;
+    [[nodiscard]] double editChannelMixerRB() const noexcept;
+    [[nodiscard]] double editChannelMixerGR() const noexcept;
+    [[nodiscard]] double editChannelMixerGG() const noexcept;
+    [[nodiscard]] double editChannelMixerGB() const noexcept;
+    [[nodiscard]] double editChannelMixerBR() const noexcept;
+    [[nodiscard]] double editChannelMixerBG() const noexcept;
+    [[nodiscard]] double editChannelMixerBB() const noexcept;
     [[nodiscard]] double editExposure() const noexcept;
     [[nodiscard]] double editContrast() const noexcept;
     [[nodiscard]] double editHighlights() const noexcept;
@@ -263,9 +285,7 @@ public:
     [[nodiscard]] double editSoften() const noexcept;
     [[nodiscard]] double editDehaze() const noexcept;
     [[nodiscard]] double editVelvia() const noexcept;
-    [[nodiscard]] double editLift() const noexcept;
-    [[nodiscard]] double editColorGamma() const noexcept;
-    [[nodiscard]] double editGain() const noexcept;
+    [[nodiscard]] QVariantMap editColorBalanceRgb() const;
     [[nodiscard]] double editColorContrast() const noexcept;
     [[nodiscard]] double editMonochrome() const noexcept;
     [[nodiscard]] double editSplitShadowsHue() const noexcept;
@@ -280,6 +300,11 @@ public:
     [[nodiscard]] double editSigmoidSkew() const noexcept;
     [[nodiscard]] double editSigmoidHuePreservation() const noexcept;
     [[nodiscard]] double editRawHighlights() const noexcept;
+    [[nodiscard]] double editHotPixelsStrength() const noexcept;
+    [[nodiscard]] double editHotPixelsThreshold() const noexcept;
+    [[nodiscard]] bool editHotPixelsPermissive() const noexcept;
+    [[nodiscard]] int editRawCaIterations() const noexcept;
+    [[nodiscard]] bool editRawCaAvoidShift() const noexcept;
     [[nodiscard]] double editDenoise() const noexcept;
     [[nodiscard]] double editDenoiseChroma() const noexcept;
     [[nodiscard]] double editDenoiseRadius() const noexcept;
@@ -424,8 +449,8 @@ private:
     void refresh_scopes(const QImage &image);
     void refresh_scopes_from_thumbnail(const QString &asset_id);
     void clear_scopes();
-    [[nodiscard]] static QVariantList histogram_channel_list(
-        const std::array<std::uint32_t, kRgbHistogramBins> &channel);
+    [[nodiscard]] static QVariantList
+    histogram_channel_list(const std::array<std::uint32_t, kRgbHistogramBins> &channel);
     struct PendingDevelopWork
     {
         bool save = false;
@@ -486,7 +511,7 @@ private:
     int thumbnail_size_ = 180;
     bool busy_ = false;
     bool preview_loading_ = false;
-    std::uint64_t preview_revision_ = 0;
+    PreviewRequestOwner develop_preview_owner_;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
     DevelopParams develop_{};

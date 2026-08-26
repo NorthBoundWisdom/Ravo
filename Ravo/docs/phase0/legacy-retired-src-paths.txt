@@ -17,3 +17,10 @@ libs/metadata_view.c
 libs/history.c
 libs/snapshots.c
 libs/copy_history.c
+iop/channelmixerrgb.c
+chart/common.c
+chart/common.h
+chart/colorchart.h
+iop/hotpixels.c
+iop/cacorrect.c
+iop/colorbalancergb.c

@@ -386,15 +386,10 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
     {
         return params.error();
     }
-    std::string history_json;
+    std::optional<std::string> recipe_json;
     if (matches_develop_baseline(*asset.value(), params.value()))
     {
-        const auto cleared = repository_->clear_recipe(asset_id);
-        if (!cleared)
-        {
-            return cleared.error();
-        }
-        asset.value()->has_edits = false;
+        recipe_json.reset();
     }
     else
     {
@@ -403,38 +398,20 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
         {
             return json.error();
         }
-        history_json = json.value();
-        const auto saved =
-            repository_->save_recipe_json(asset_id, stored.schema_version, json.value());
-        if (!saved)
-        {
-            return saved.error();
-        }
-        asset.value()->has_edits = true;
+        recipe_json = std::move(json).value();
     }
-    auto existing_history = repository_->list_recipe_history(asset_id);
-    if (!existing_history)
+    const std::optional<std::string_view> recipe_json_view =
+        recipe_json ? std::optional<std::string_view>{*recipe_json} : std::nullopt;
+    // Keep an owned, non-null empty string for the explicit baseline history entry. A default
+    // string_view has a null data pointer, which Qt Sql correctly binds as SQL NULL.
+    const std::string history_json = recipe_json.value_or(std::string{});
+    const auto committed =
+        repository_->commit_recipe(asset_id, stored.schema_version, recipe_json_view, history_json);
+    if (!committed)
     {
-        return existing_history.error();
+        return committed.error();
     }
-    const bool duplicate =
-        !existing_history.value().empty() &&
-        existing_history.value().front().kind == kRecipeHistoryKindHistory &&
-        existing_history.value().front().recipe_json == history_json;
-    if (!duplicate)
-    {
-        auto recorded = repository_->append_recipe_history(
-            asset_id, kRecipeHistoryKindHistory, std::nullopt, history_json);
-        if (!recorded)
-        {
-            return recorded.error();
-        }
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
+    asset.value()->has_edits = recipe_json.has_value();
     return *asset.value();
 }
 

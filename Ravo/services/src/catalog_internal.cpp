@@ -196,35 +196,63 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     {
         return std::to_string(*integer);
     }
+    if (const auto *flag = std::get_if<bool>(&value.value))
+    {
+        return *flag ? "true" : "false";
+    }
     return "?";
 }
 
 [[nodiscard]] std::string raw_preprocess_key(const Recipe &recipe)
 {
+    std::string key = "raw";
+    bool found_preprocess = false;
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled || operation.id != "ravo.raw.highlights")
+        if (!operation.enabled ||
+            (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
+             operation.id != "ravo.raw.cacorrect"))
         {
             continue;
         }
-        std::string key = "hl";
-        static constexpr std::array<std::string_view, 3> names{"mode", "amount", "clip"};
+        found_preprocess = true;
+        key += operation.id == "ravo.raw.hotpixels"  ? ":hot" :
+               operation.id == "ravo.raw.highlights" ? ":hl" :
+                                                       ":ca";
+        static constexpr std::array<std::string_view, 3> highlight_names{"mode", "amount", "clip"};
+        static constexpr std::array<std::string_view, 3> hot_pixel_names{"strength", "threshold",
+                                                                         "permissive"};
+        static constexpr std::array<std::string_view, 2> ca_names{"iterations",
+                                                                  "avoid_color_shift"};
+        if (operation.id == "ravo.raw.cacorrect")
+        {
+            for (const auto name : ca_names)
+            {
+                key.push_back(':');
+                const auto found = operation.parameters.find(std::string(name));
+                key +=
+                    found == operation.parameters.end() ? "-" : parameter_key_part(found->second);
+            }
+            continue;
+        }
+        const auto &names =
+            operation.id == "ravo.raw.hotpixels" ? hot_pixel_names : highlight_names;
         for (const auto name : names)
         {
             key.push_back(':');
             const auto found = operation.parameters.find(std::string(name));
             key += found == operation.parameters.end() ? "-" : parameter_key_part(found->second);
         }
-        return key;
     }
-    return "raw-linear";
+    return found_preprocess ? key : "raw-linear";
 }
 
-void disable_raw_highlights(Recipe &recipe)
+void disable_raw_preprocess(Recipe &recipe)
 {
     for (auto &operation : recipe.operations)
     {
-        if (operation.id == "ravo.raw.highlights")
+        if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
+            operation.id == "ravo.raw.cacorrect")
         {
             operation.enabled = false;
         }

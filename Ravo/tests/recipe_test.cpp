@@ -10,6 +10,7 @@
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/recipe.h"
 
+#include "color_balance_fixture.h"
 #include "test_support.h"
 
 namespace ravo
@@ -85,7 +86,12 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto valid = validate_recipe(recipe.value(), registry.value());
     ASSERT_TRUE(valid) << valid.error().message;
-    auto restored = develop_from_recipe(recipe.value());
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
+    auto restored = develop_from_recipe(parsed.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_NEAR(restored.value().temperature, 4800.0, 1e-6);
     EXPECT_NEAR(restored.value().tint, 12.0, 1e-6);
@@ -109,27 +115,57 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     params.gamma = 1.2;
     params.split_amount = 0.4;
     params.raw_highlights = 0.7;
+    params.hot_pixels_strength = 0.25;
+    params.hot_pixels_threshold = 0.04;
+    params.hot_pixels_permissive = true;
+    params.raw_ca_iterations = 5;
+    params.raw_ca_avoid_shift = true;
     params.denoise = 0.4;
     params.lens_k1 = -0.12;
     params.tone_eq_shadows = 0.35;
     params.graduated_density = 0.8;
     params.color_eq_sat[2] = 0.4;
+    params.channel_mixer.red = {0.9, 0.1, 0.0};
+    params.channel_mixer.green = {0.05, 0.9, 0.05};
+    params.channel_mixer.blue = {0.0, 0.15, 0.85};
+    params.channel_mixer.normalize_red = true;
+    params.channel_mixer.adaptation = std::string(kChannelMixerAdaptationCat16);
+    params.channel_mixer.illuminant_x = 0.3819674253463745;
+    params.channel_mixer.illuminant_y = 0.36998802423477173;
+    params.channel_mixer.gamut = 1.0;
+    params.channel_mixer.clip = true;
+    params.color_balance_rgb.global_y = 0.12;
+    params.color_balance_rgb.shadows_chroma = 0.08;
+    params.color_balance_rgb.shadows_hue = 215.0;
+    params.color_balance_rgb.saturation_formula = std::string(kColorBalanceRgbFormulaJzAzBz2021);
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto valid = validate_recipe(recipe.value(), registry.value());
     ASSERT_TRUE(valid) << valid.error().message;
-    auto restored = develop_from_recipe(recipe.value());
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
+    auto restored = develop_from_recipe(parsed.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_NEAR(restored.value().sharpen, 0.4, 1e-6);
     EXPECT_NEAR(restored.value().vignette, 0.5, 1e-6);
     EXPECT_EQ(restored.value().flip_horizontal, 1);
     EXPECT_NEAR(restored.value().raw_highlights, 0.7, 1e-6);
+    EXPECT_NEAR(restored.value().hot_pixels_strength, 0.25, 1e-6);
+    EXPECT_NEAR(restored.value().hot_pixels_threshold, 0.04, 1e-6);
+    EXPECT_TRUE(restored.value().hot_pixels_permissive);
+    EXPECT_EQ(restored.value().raw_ca_iterations, 5);
+    EXPECT_TRUE(restored.value().raw_ca_avoid_shift);
     EXPECT_NEAR(restored.value().denoise, 0.4, 1e-6);
     EXPECT_NEAR(restored.value().lens_k1, -0.12, 1e-6);
     EXPECT_NEAR(restored.value().tone_eq_shadows, 0.35, 1e-6);
     EXPECT_NEAR(restored.value().graduated_density, 0.8, 1e-6);
     EXPECT_NEAR(restored.value().color_eq_sat[2], 0.4, 1e-6);
     EXPECT_NEAR(restored.value().gamma, 1.2, 1e-6);
+    EXPECT_EQ(restored.value().channel_mixer, params.channel_mixer);
+    EXPECT_EQ(restored.value().color_balance_rgb, params.color_balance_rgb);
 
     DevelopParams crop;
     ASSERT_TRUE(apply_crop_aspect(crop, "3:2"));
@@ -150,6 +186,18 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_TRUE(reset_develop_section(bands, "graduated"));
     EXPECT_NEAR(bands.graduated_density, 0.0, 1e-6);
     EXPECT_EQ(bands.color_eq_band, 0);
+    EXPECT_TRUE(apply_develop_field(bands, "channelMixerRG", 0.25));
+    EXPECT_NEAR(bands.channel_mixer.red[1], 0.25, 1e-6);
+    EXPECT_TRUE(reset_develop_section(bands, "calibration"));
+    EXPECT_TRUE(bands.channel_mixer.is_identity());
+    EXPECT_TRUE(apply_develop_field(bands, "colorBalanceGlobalY", 0.25));
+    EXPECT_NEAR(bands.color_balance_rgb.global_y, 0.25, 1e-6);
+    EXPECT_TRUE(apply_develop_field(bands, "colorBalanceFormula", 1.0));
+    EXPECT_EQ(bands.color_balance_rgb.saturation_formula, kColorBalanceRgbFormulaJzAzBz2021);
+    EXPECT_TRUE(reset_develop_field(bands, "colorBalanceGlobalY"));
+    EXPECT_NEAR(bands.color_balance_rgb.global_y, 0.0, 1e-6);
+    EXPECT_TRUE(reset_develop_section(bands, "color"));
+    EXPECT_TRUE(bands.color_balance_rgb.is_identity());
 
     DevelopParams angled;
     angled.straighten_degrees = 12.5;
@@ -191,6 +239,160 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     const double previous_width = inscribed.crop_width;
     constrain_crop_to_straighten(inscribed, 1.5);
     EXPECT_NEAR(inscribed.crop_width, previous_width, 1e-6);
+}
+
+TEST(RecipeTest, ChannelMixerSchemaRejectsInvalidEnumsArraysAndNormalization)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto validate = [&](std::map<std::string, ParameterValue, std::less<>> parameters)
+    {
+        Recipe recipe;
+        recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+        recipe.operations.push_back({"ravo.color.channelmixerrgb", 1, "calibration-1", true,
+                                     std::move(parameters), std::nullopt});
+        return validate_recipe(recipe, registry.value());
+    };
+
+    auto valid = channel_mixer_to_parameters(ChannelMixerParams{});
+    ASSERT_TRUE(validate(valid));
+
+    auto bad_adaptation = valid;
+    bad_adaptation["adaptation"] = ParameterValue{"von_kries_guess"};
+    auto adaptation_result = validate(std::move(bad_adaptation));
+    ASSERT_FALSE(adaptation_result);
+    EXPECT_EQ(adaptation_result.error().code, ErrorCode::kValidation);
+
+    auto bad_matrix = valid;
+    auto &red = std::get<ParameterValue::Array>(bad_matrix["red"].value);
+    red[0] = ParameterValue{2.01};
+    auto matrix_result = validate(std::move(bad_matrix));
+    ASSERT_FALSE(matrix_result);
+    EXPECT_EQ(matrix_result.error().code, ErrorCode::kValidation);
+
+    auto non_finite = valid;
+    auto &green = std::get<ParameterValue::Array>(non_finite["green"].value);
+    green[1] = ParameterValue{std::numeric_limits<double>::infinity()};
+    auto finite_result = validate(std::move(non_finite));
+    ASSERT_FALSE(finite_result);
+    EXPECT_EQ(finite_result.error().code, ErrorCode::kValidation);
+
+    auto zero_normalized = valid;
+    zero_normalized["red"] = ParameterValue{
+        ParameterValue::Array{ParameterValue{1.0}, ParameterValue{-1.0}, ParameterValue{0.0}}};
+    zero_normalized["normalize_red"] = ParameterValue{true};
+    auto normalized_result = validate(std::move(zero_normalized));
+    ASSERT_FALSE(normalized_result);
+    EXPECT_EQ(normalized_result.error().code, ErrorCode::kValidation);
+
+    auto invalid_xy = valid;
+    invalid_xy["illuminant_x"] = ParameterValue{0.7};
+    invalid_xy["illuminant_y"] = ParameterValue{0.4};
+    auto xy_result = validate(std::move(invalid_xy));
+    ASSERT_FALSE(xy_result);
+    EXPECT_EQ(xy_result.error().code, ErrorCode::kValidation);
+}
+
+TEST(RecipeTest, ColorBalanceRgbFullSchemaRoundTripsTheFrozen0083Parameters)
+{
+    const ColorBalanceRgbParams fixture = test::color_balance_0083_params();
+
+    auto parameters = color_balance_rgb_to_parameters(fixture);
+    auto decoded = color_balance_rgb_from_parameters(parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), fixture);
+
+    DevelopParams develop;
+    develop.color_balance_rgb = fixture;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_EQ(recipe.value().operations.size(), 1U);
+    EXPECT_EQ(recipe.value().operations.front().id, "ravo.color.colorbalancergb");
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+    auto json = serialize_recipe(recipe.value());
+    ASSERT_TRUE(json) << json.error().message;
+    auto parsed = parse_recipe_json(json.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().color_balance_rgb, fixture);
+}
+
+TEST(RecipeTest, ColorBalanceRgbSchemaFailsFastOnEveryInvalidPolicyClass)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto validate = [&](std::map<std::string, ParameterValue, std::less<>> parameters)
+    {
+        Recipe recipe;
+        recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+        recipe.operations.push_back({"ravo.color.colorbalancergb", 1, "colorbalancergb-1", true,
+                                     std::move(parameters), std::nullopt});
+        return validate_recipe(recipe, registry.value());
+    };
+    const auto valid = color_balance_rgb_to_parameters(ColorBalanceRgbParams{});
+    ASSERT_TRUE(validate(valid));
+
+    auto jzazbz = valid;
+    jzazbz["saturation_formula"] = ParameterValue{std::string(kColorBalanceRgbFormulaJzAzBz2021)};
+    ASSERT_TRUE(validate(jzazbz));
+
+    auto unknown = valid;
+    unknown["legacy_picker"] = ParameterValue{0.0};
+    auto unknown_result = validate(std::move(unknown));
+    ASSERT_FALSE(unknown_result);
+    EXPECT_EQ(unknown_result.error().context.at("parameter"), "legacy_picker");
+
+    auto missing = valid;
+    missing.erase("global_y");
+    auto missing_result = validate(std::move(missing));
+    ASSERT_FALSE(missing_result);
+    EXPECT_EQ(missing_result.error().context.at("parameter"), "global_y");
+
+    auto non_finite = valid;
+    non_finite["contrast"] = ParameterValue{std::numeric_limits<double>::quiet_NaN()};
+    auto finite_result = validate(std::move(non_finite));
+    ASSERT_FALSE(finite_result);
+    EXPECT_EQ(finite_result.error().context.at("parameter"), "contrast");
+
+    auto out_of_range = valid;
+    out_of_range["global_hue"] = ParameterValue{360.1};
+    auto range_result = validate(std::move(out_of_range));
+    ASSERT_FALSE(range_result);
+    EXPECT_EQ(range_result.error().context.at("parameter"), "global_hue");
+
+    auto formula = valid;
+    formula["saturation_formula"] = ParameterValue{"hsl"};
+    auto formula_result = validate(std::move(formula));
+    ASSERT_FALSE(formula_result);
+    EXPECT_EQ(formula_result.error().code, ErrorCode::kValidation);
+
+    auto workspace = valid;
+    workspace["working_space"] = ParameterValue{"linear_srgb_d65"};
+    auto workspace_result = validate(std::move(workspace));
+    ASSERT_FALSE(workspace_result);
+    EXPECT_EQ(workspace_result.error().code, ErrorCode::kValidation);
+
+    auto mask_fulcrum = valid;
+    mask_fulcrum["mask_grey_fulcrum"] = ParameterValue{0.0};
+    auto mask_result = validate(std::move(mask_fulcrum));
+    ASSERT_FALSE(mask_result);
+    EXPECT_EQ(mask_result.error().context.at("parameter"), "mask_grey_fulcrum");
+
+    auto grey_fulcrum = valid;
+    grey_fulcrum["grey_fulcrum"] = ParameterValue{0.0};
+    auto grey_result = validate(std::move(grey_fulcrum));
+    ASSERT_FALSE(grey_result);
+    EXPECT_EQ(grey_result.error().context.at("parameter"), "grey_fulcrum");
+
+    auto singular_power = valid;
+    singular_power["midtones_y"] = ParameterValue{-1.0};
+    auto power_result = validate(std::move(singular_power));
+    ASSERT_FALSE(power_result);
+    EXPECT_EQ(power_result.error().context.at("parameter"), "midtones_y");
 }
 
 [[nodiscard]] double point_segment_distance(const double px, const double py, const double ax,

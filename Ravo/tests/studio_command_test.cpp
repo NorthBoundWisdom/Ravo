@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <QKeySequence>
 #include <QCoreApplication>
+#include <QKeySequence>
 
+#include "ravo/desktop/preview_request_owner.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 
@@ -10,6 +11,25 @@ namespace ravo
 {
 namespace
 {
+
+TEST(PreviewRequestOwnerTest, SupersededWorkIsCancelledAndLateResultsAreRejected)
+{
+    PreviewRequestOwner owner;
+    const auto first_revision = owner.supersede("first_request");
+    const auto first_token = owner.begin();
+    EXPECT_FALSE(first_token.is_cancellation_requested());
+    EXPECT_TRUE(owner.accepts(first_revision, "asset-a", "asset-a"));
+
+    const auto second_revision = owner.supersede("selection_changed");
+    EXPECT_TRUE(first_token.is_cancellation_requested());
+    EXPECT_EQ(first_token.reason(), "selection_changed");
+    EXPECT_FALSE(owner.accepts(first_revision, "asset-a", "asset-a"));
+
+    const auto second_token = owner.begin();
+    EXPECT_FALSE(second_token.is_cancellation_requested());
+    EXPECT_FALSE(owner.accepts(second_revision, "asset-a", "asset-b"));
+    EXPECT_TRUE(owner.accepts(second_revision, "asset-b", "asset-b"));
+}
 
 void ensure_qt_core()
 {
@@ -20,6 +40,34 @@ void ensure_qt_core()
     static char *argv[] = {executable, nullptr};
     static auto *application = new QCoreApplication(argc, argv);
     static_cast<void>(application);
+}
+
+TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerRR(), 1.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerRG(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerRB(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerGR(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerGG(), 1.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerGB(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerBR(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerBG(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editChannelMixerBB(), 1.0);
+    EXPECT_DOUBLE_EQ(presenter.editHotPixelsStrength(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editHotPixelsThreshold(), 0.05);
+    EXPECT_FALSE(presenter.editHotPixelsPermissive());
+    EXPECT_EQ(presenter.editRawCaIterations(), 0);
+    EXPECT_FALSE(presenter.editRawCaAvoidShift());
+    const auto balance = presenter.editColorBalanceRgb();
+    EXPECT_EQ(balance.size(), 33);
+    EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("shadowsFalloff")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("highlightsFalloff")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("maskGreyFulcrum")).toDouble(), 0.1845);
+    EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("greyFulcrum")).toDouble(), 0.1845);
+    EXPECT_EQ(balance.value(QStringLiteral("formulaIndex")).toInt(), 0);
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
@@ -37,11 +85,11 @@ TEST(StudioCommands, CommandPaletteUsesQtPortablePrimaryModifierPolicy)
               QStringLiteral("Ctrl+Shift+P"));
 
 #ifdef Q_OS_MACOS
-    const auto native = QKeySequence::fromString(
-                            StudioCommandController::paletteShortcutForPlatform(
-                                QStringLiteral("macos")),
-                            QKeySequence::PortableText)
-                            .toString(QKeySequence::NativeText);
+    const auto native =
+        QKeySequence::fromString(
+            StudioCommandController::paletteShortcutForPlatform(QStringLiteral("macos")),
+            QKeySequence::PortableText)
+            .toString(QKeySequence::NativeText);
     EXPECT_TRUE(native.contains(QChar(0x2318))) << native.toStdString();
 #endif
 }
@@ -87,23 +135,22 @@ TEST(StudioCommands, ControllerRevalidatesStateAndRejectsInvalidDispatch)
     EXPECT_FALSE(import_action.value(QStringLiteral("enabled")).toBool());
     EXPECT_FALSE(import_action.value(QStringLiteral("disabledReason")).toString().isEmpty());
 
-    const auto invalid_path = controller.executeCommand(
-        ids.value(QStringLiteral("libraryCreatePath")).toString(), QString{},
-        QStringLiteral("control"));
+    const auto invalid_path =
+        controller.executeCommand(ids.value(QStringLiteral("libraryCreatePath")).toString(),
+                                  QString{}, QStringLiteral("control"));
     EXPECT_FALSE(invalid_path.value(QStringLiteral("accepted")).toBool());
     EXPECT_EQ(invalid_path.value(QStringLiteral("code")).toString(),
               QStringLiteral("invalid_argument"));
 
-    const auto unexpected_argument = controller.executeCommand(
-        ids.value(QStringLiteral("windowCommandPalette")).toString(), 1,
-        QStringLiteral("keyboard"));
+    const auto unexpected_argument =
+        controller.executeCommand(ids.value(QStringLiteral("windowCommandPalette")).toString(), 1,
+                                  QStringLiteral("keyboard"));
     EXPECT_FALSE(unexpected_argument.value(QStringLiteral("accepted")).toBool());
     EXPECT_EQ(unexpected_argument.value(QStringLiteral("code")).toString(),
               QStringLiteral("invalid_argument"));
 
     const auto opened = controller.executeAction(
-        ids.value(QStringLiteral("windowCommandPalette")).toString(),
-        QStringLiteral("keyboard"));
+        ids.value(QStringLiteral("windowCommandPalette")).toString(), QStringLiteral("keyboard"));
     EXPECT_TRUE(opened.value(QStringLiteral("accepted")).toBool());
     EXPECT_TRUE(controller.paletteOpen());
 

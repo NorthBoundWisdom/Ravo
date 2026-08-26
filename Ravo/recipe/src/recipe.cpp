@@ -806,6 +806,26 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == "ravo.color.channelmixerrgb")
+        {
+            auto mixer = validate_channel_mixer_parameters(operation.parameters);
+            if (!mixer)
+            {
+                auto error = mixer.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == "ravo.color.colorbalancergb")
+        {
+            auto color_balance = validate_color_balance_rgb_parameters(operation.parameters);
+            if (!color_balance)
+            {
+                auto error = color_balance.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.raw.highlights")
         {
             if (const auto found = operation.parameters.find("mode");

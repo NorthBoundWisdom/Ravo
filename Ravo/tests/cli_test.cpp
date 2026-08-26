@@ -1,6 +1,7 @@
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
-#include <array>
 #include <sstream>
 #include <span>
 #include <string>
@@ -102,6 +103,30 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
     ASSERT_NE(operations, nullptr);
     ASSERT_NE(operations->array_if(), nullptr);
     EXPECT_EQ(operations->array_if()->size(), kPhase1OperationCount);
+    EXPECT_NE(operations->array_if()->end(),
+              std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                           [](const JsonValue &operation)
+                           {
+                               const auto *id = operation.find("id");
+                               return id != nullptr && id->string_if() != nullptr &&
+                                      *id->string_if() == "ravo.color.channelmixerrgb";
+                           }));
+    EXPECT_NE(operations->array_if()->end(),
+              std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                           [](const JsonValue &operation)
+                           {
+                               const auto *id = operation.find("id");
+                               return id != nullptr && id->string_if() != nullptr &&
+                                      *id->string_if() == "ravo.color.colorbalancergb";
+                           }));
+    EXPECT_EQ(operations->array_if()->end(),
+              std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                           [](const JsonValue &operation)
+                           {
+                               const auto *id = operation.find("id");
+                               return id != nullptr && id->string_if() != nullptr &&
+                                      *id->string_if() == "ravo.color.colorbalance";
+                           }));
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 

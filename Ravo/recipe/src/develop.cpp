@@ -171,7 +171,8 @@ struct ToneCurveSpline
     return std::get_if<std::string>(&value.value);
 }
 
-[[nodiscard]] bool bands_near_zero(const std::array<double, kColorEqualizerBandCount> &values) noexcept
+[[nodiscard]] bool
+bands_near_zero(const std::array<double, kColorEqualizerBandCount> &values) noexcept
 {
     for (const double value : values)
     {
@@ -195,6 +196,199 @@ band_array_parameter(const std::array<double, kColorEqualizerBandCount> &values)
     return ParameterValue{std::move(array)};
 }
 
+[[nodiscard]] bool
+channel_triplet_near(const std::array<double, kChannelMixerChannelCount> &left,
+                     const std::array<double, kChannelMixerChannelCount> &right) noexcept
+{
+    for (std::size_t index = 0; index < left.size(); ++index)
+    {
+        if (!near(left[index], right[index]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] ParameterValue
+channel_triplet_parameter(const std::array<double, kChannelMixerChannelCount> &values)
+{
+    ParameterValue::Array array;
+    array.reserve(values.size());
+    for (const double value : values)
+    {
+        array.push_back(ParameterValue{value});
+    }
+    return ParameterValue{std::move(array)};
+}
+
+struct ColorBalanceNumericField
+{
+    std::string_view parameter_name;
+    std::string_view develop_name;
+    double ColorBalanceRgbParams::*member;
+    double minimum;
+    double maximum;
+};
+
+[[nodiscard]] const std::array<ColorBalanceNumericField, 32> &
+color_balance_numeric_fields() noexcept
+{
+    static const std::array<ColorBalanceNumericField, 32> fields{{
+        {"shadows_y", "colorBalanceShadowsY", &ColorBalanceRgbParams::shadows_y, -1.0, 1.0},
+        {"shadows_chroma", "colorBalanceShadowsChroma", &ColorBalanceRgbParams::shadows_chroma, 0.0,
+         1.0},
+        {"shadows_hue", "colorBalanceShadowsHue", &ColorBalanceRgbParams::shadows_hue, 0.0, 360.0},
+        {"midtones_y", "colorBalanceMidtonesY", &ColorBalanceRgbParams::midtones_y, -1.0, 1.0},
+        {"midtones_chroma", "colorBalanceMidtonesChroma", &ColorBalanceRgbParams::midtones_chroma,
+         0.0, 1.0},
+        {"midtones_hue", "colorBalanceMidtonesHue", &ColorBalanceRgbParams::midtones_hue, 0.0,
+         360.0},
+        {"highlights_y", "colorBalanceHighlightsY", &ColorBalanceRgbParams::highlights_y, -1.0,
+         1.0},
+        {"highlights_chroma", "colorBalanceHighlightsChroma",
+         &ColorBalanceRgbParams::highlights_chroma, 0.0, 1.0},
+        {"highlights_hue", "colorBalanceHighlightsHue", &ColorBalanceRgbParams::highlights_hue, 0.0,
+         360.0},
+        {"global_y", "colorBalanceGlobalY", &ColorBalanceRgbParams::global_y, -1.0, 1.0},
+        {"global_chroma", "colorBalanceGlobalChroma", &ColorBalanceRgbParams::global_chroma, 0.0,
+         1.0},
+        {"global_hue", "colorBalanceGlobalHue", &ColorBalanceRgbParams::global_hue, 0.0, 360.0},
+        {"shadows_falloff", "colorBalanceShadowsFalloff", &ColorBalanceRgbParams::shadows_falloff,
+         0.0, 3.0},
+        {"white_fulcrum_ev", "colorBalanceWhiteFulcrumEv", &ColorBalanceRgbParams::white_fulcrum_ev,
+         -16.0, 16.0},
+        {"highlights_falloff", "colorBalanceHighlightsFalloff",
+         &ColorBalanceRgbParams::highlights_falloff, 0.0, 3.0},
+        {"chroma_shadows", "colorBalanceChromaShadows", &ColorBalanceRgbParams::chroma_shadows,
+         -1.0, 1.0},
+        {"chroma_highlights", "colorBalanceChromaHighlights",
+         &ColorBalanceRgbParams::chroma_highlights, -1.0, 1.0},
+        {"chroma_global", "colorBalanceChromaGlobal", &ColorBalanceRgbParams::chroma_global, -1.0,
+         1.0},
+        {"chroma_midtones", "colorBalanceChromaMidtones", &ColorBalanceRgbParams::chroma_midtones,
+         -1.0, 1.0},
+        {"saturation_global", "colorBalanceSaturationGlobal",
+         &ColorBalanceRgbParams::saturation_global, -1.0, 1.0},
+        {"saturation_highlights", "colorBalanceSaturationHighlights",
+         &ColorBalanceRgbParams::saturation_highlights, -1.0, 1.0},
+        {"saturation_midtones", "colorBalanceSaturationMidtones",
+         &ColorBalanceRgbParams::saturation_midtones, -1.0, 1.0},
+        {"saturation_shadows", "colorBalanceSaturationShadows",
+         &ColorBalanceRgbParams::saturation_shadows, -1.0, 1.0},
+        {"hue_rotation", "colorBalanceHueRotation", &ColorBalanceRgbParams::hue_rotation, -180.0,
+         180.0},
+        {"brilliance_global", "colorBalanceBrillianceGlobal",
+         &ColorBalanceRgbParams::brilliance_global, -1.0, 1.0},
+        {"brilliance_highlights", "colorBalanceBrillianceHighlights",
+         &ColorBalanceRgbParams::brilliance_highlights, -1.0, 1.0},
+        {"brilliance_midtones", "colorBalanceBrillianceMidtones",
+         &ColorBalanceRgbParams::brilliance_midtones, -1.0, 1.0},
+        {"brilliance_shadows", "colorBalanceBrillianceShadows",
+         &ColorBalanceRgbParams::brilliance_shadows, -1.0, 1.0},
+        {"mask_grey_fulcrum", "colorBalanceMaskGreyFulcrum",
+         &ColorBalanceRgbParams::mask_grey_fulcrum, 0.0, 1.0},
+        {"vibrance", "colorBalanceVibrance", &ColorBalanceRgbParams::vibrance, -1.0, 1.0},
+        {"grey_fulcrum", "colorBalanceGreyFulcrum", &ColorBalanceRgbParams::grey_fulcrum, 0.0, 1.0},
+        {"contrast", "colorBalanceContrast", &ColorBalanceRgbParams::contrast, -1.0, 1.0},
+    }};
+    return fields;
+}
+
+[[nodiscard]] bool apply_color_balance_field(ColorBalanceRgbParams &params,
+                                             const std::string_view name,
+                                             const double value) noexcept
+{
+    if (name == "colorBalanceFormula")
+    {
+        params.saturation_formula = value >= 0.5 ? std::string(kColorBalanceRgbFormulaJzAzBz2021) :
+                                                   std::string(kColorBalanceRgbFormulaDtUcs2022);
+        return true;
+    }
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.*(field.member) = value;
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_color_balance_field(ColorBalanceRgbParams &params,
+                                             const std::string_view name) noexcept
+{
+    const ColorBalanceRgbParams defaults;
+    if (name == "colorBalance" || name == "colorBalanceFormula")
+    {
+        if (name == "colorBalance")
+        {
+            params = defaults;
+        }
+        else
+        {
+            params.saturation_formula = defaults.saturation_formula;
+        }
+        return true;
+    }
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.*(field.member) = defaults.*(field.member);
+            return true;
+        }
+    }
+    return false;
+}
+
+void clamp_color_balance(ColorBalanceRgbParams &params) noexcept
+{
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        params.*(field.member) = clamp_value(params.*(field.member), field.minimum, field.maximum);
+    }
+    params.midtones_y = std::max(params.midtones_y, -0.999999);
+    params.mask_grey_fulcrum = std::max(params.mask_grey_fulcrum, 0.000001);
+    params.grey_fulcrum = std::max(params.grey_fulcrum, 0.000001);
+    if (params.saturation_formula != kColorBalanceRgbFormulaDtUcs2022 &&
+        params.saturation_formula != kColorBalanceRgbFormulaJzAzBz2021)
+    {
+        params.saturation_formula = std::string(kColorBalanceRgbFormulaDtUcs2022);
+    }
+}
+
+[[nodiscard]] Result<std::array<double, kChannelMixerChannelCount>>
+parse_channel_triplet(const ParameterValue &value, const std::string_view name)
+{
+    const auto *array = std::get_if<ParameterValue::Array>(&value.value);
+    if (array == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Color calibration parameter must be an array",
+                          {{"parameter", std::string(name)}});
+    }
+    if (array->size() != kChannelMixerChannelCount)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Color calibration array must have exactly 3 values",
+            {{"parameter", std::string(name)}, {"count", std::to_string(array->size())}});
+    }
+    std::array<double, kChannelMixerChannelCount> parsed{};
+    for (std::size_t index = 0; index < parsed.size(); ++index)
+    {
+        const double sample = as_number((*array)[index], std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(sample) || sample < -2.0 || sample > 2.0)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Color calibration array value must be finite and within [-2, 2]",
+                              {{"parameter", std::string(name)}, {"index", std::to_string(index)}});
+        }
+        parsed[index] = sample;
+    }
+    return parsed;
+}
+
 [[nodiscard]] Result<std::array<double, kColorEqualizerBandCount>>
 parse_band_array(const ParameterValue &value, const std::string_view name)
 {
@@ -206,9 +400,9 @@ parse_band_array(const ParameterValue &value, const std::string_view name)
     }
     if (array->size() != kColorEqualizerBandCount)
     {
-        return make_error(ErrorCode::kValidation, "Color equalizer array must have 8 values",
-                          {{"parameter", std::string(name)},
-                           {"count", std::to_string(array->size())}});
+        return make_error(
+            ErrorCode::kValidation, "Color equalizer array must have 8 values",
+            {{"parameter", std::string(name)}, {"count", std::to_string(array->size())}});
     }
     std::array<double, kColorEqualizerBandCount> parsed{};
     for (std::size_t index = 0; index < parsed.size(); ++index)
@@ -241,6 +435,420 @@ parse_band_array(const ParameterValue &value, const std::string_view name)
 }
 
 } // namespace
+
+bool ChannelMixerParams::is_identity() const noexcept
+{
+    const ChannelMixerParams identity;
+    return channel_triplet_near(red, identity.red) && channel_triplet_near(green, identity.green) &&
+           channel_triplet_near(blue, identity.blue) &&
+           channel_triplet_near(saturation, identity.saturation) &&
+           channel_triplet_near(lightness, identity.lightness) &&
+           channel_triplet_near(grey, identity.grey) && normalize_red == identity.normalize_red &&
+           normalize_green == identity.normalize_green &&
+           normalize_blue == identity.normalize_blue &&
+           normalize_saturation == identity.normalize_saturation &&
+           normalize_lightness == identity.normalize_lightness &&
+           normalize_grey == identity.normalize_grey && adaptation == identity.adaptation &&
+           near(illuminant_x, identity.illuminant_x) && near(illuminant_y, identity.illuminant_y) &&
+           near(gamut, identity.gamut) && clip == identity.clip;
+}
+
+Result<ChannelMixerParams>
+channel_mixer_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    const auto required = [&](const std::string_view name) -> Result<const ParameterValue *>
+    {
+        const auto found = parameters.find(std::string(name));
+        if (found == parameters.end())
+        {
+            return make_error(ErrorCode::kValidation, "Color calibration parameter is required",
+                              {{"parameter", std::string(name)}});
+        }
+        return &found->second;
+    };
+    const auto text = [&](const std::string_view name) -> Result<std::string>
+    {
+        auto value = required(name);
+        if (!value)
+        {
+            return value.error();
+        }
+        const auto *parsed = std::get_if<std::string>(&value.value()->value);
+        if (parsed == nullptr)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Color calibration parameter must be a string",
+                              {{"parameter", std::string(name)}});
+        }
+        return *parsed;
+    };
+    const auto boolean = [&](const std::string_view name) -> Result<bool>
+    {
+        auto value = required(name);
+        if (!value)
+        {
+            return value.error();
+        }
+        const auto *parsed = std::get_if<bool>(&value.value()->value);
+        if (parsed == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "Color calibration parameter must be boolean",
+                              {{"parameter", std::string(name)}});
+        }
+        return *parsed;
+    };
+    const auto number = [&](const std::string_view name) -> Result<double>
+    {
+        auto value = required(name);
+        if (!value)
+        {
+            return value.error();
+        }
+        const double parsed = as_number(*value.value(), std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(parsed))
+        {
+            return make_error(ErrorCode::kValidation, "Color calibration parameter must be finite",
+                              {{"parameter", std::string(name)}});
+        }
+        return parsed;
+    };
+    const auto triplet =
+        [&](const std::string_view name) -> Result<std::array<double, kChannelMixerChannelCount>>
+    {
+        auto value = required(name);
+        if (!value)
+        {
+            return value.error();
+        }
+        return parse_channel_triplet(*value.value(), name);
+    };
+
+    auto working_space = text("working_space");
+    auto algorithm = text("algorithm");
+    auto adaptation = text("adaptation");
+    if (!working_space || !algorithm || !adaptation)
+    {
+        return !working_space ? working_space.error() :
+               !algorithm     ? algorithm.error() :
+                                adaptation.error();
+    }
+    if (working_space.value() != kChannelMixerWorkingSpaceLinearSrgbD50)
+    {
+        return make_error(ErrorCode::kValidation, "Color calibration working space is unsupported",
+                          {{"working_space", working_space.value()}});
+    }
+    if (algorithm.value() != kChannelMixerAlgorithmV3)
+    {
+        return make_error(ErrorCode::kValidation, "Color calibration algorithm is unsupported",
+                          {{"algorithm", algorithm.value()}});
+    }
+    if (adaptation.value() != kChannelMixerAdaptationRgb &&
+        adaptation.value() != kChannelMixerAdaptationCat16 &&
+        adaptation.value() != kChannelMixerAdaptationLinearBradford &&
+        adaptation.value() != kChannelMixerAdaptationFullBradford &&
+        adaptation.value() != kChannelMixerAdaptationXyz)
+    {
+        return make_error(ErrorCode::kValidation, "Color calibration adaptation is unsupported",
+                          {{"adaptation", adaptation.value()}});
+    }
+
+    auto red = triplet("red");
+    auto green = triplet("green");
+    auto blue = triplet("blue");
+    auto saturation = triplet("saturation");
+    auto lightness = triplet("lightness");
+    auto grey = triplet("grey");
+    auto normalize_red = boolean("normalize_red");
+    auto normalize_green = boolean("normalize_green");
+    auto normalize_blue = boolean("normalize_blue");
+    auto normalize_saturation = boolean("normalize_saturation");
+    auto normalize_lightness = boolean("normalize_lightness");
+    auto normalize_grey = boolean("normalize_grey");
+    auto illuminant_x = number("illuminant_x");
+    auto illuminant_y = number("illuminant_y");
+    auto gamut = number("gamut");
+    auto clip = boolean("clip");
+    if (!red || !green || !blue || !saturation || !lightness || !grey || !normalize_red ||
+        !normalize_green || !normalize_blue || !normalize_saturation || !normalize_lightness ||
+        !normalize_grey || !illuminant_x || !illuminant_y || !gamut || !clip)
+    {
+        return !red                  ? red.error() :
+               !green                ? green.error() :
+               !blue                 ? blue.error() :
+               !saturation           ? saturation.error() :
+               !lightness            ? lightness.error() :
+               !grey                 ? grey.error() :
+               !normalize_red        ? normalize_red.error() :
+               !normalize_green      ? normalize_green.error() :
+               !normalize_blue       ? normalize_blue.error() :
+               !normalize_saturation ? normalize_saturation.error() :
+               !normalize_lightness  ? normalize_lightness.error() :
+               !normalize_grey       ? normalize_grey.error() :
+               !illuminant_x         ? illuminant_x.error() :
+               !illuminant_y         ? illuminant_y.error() :
+               !gamut                ? gamut.error() :
+                                       clip.error();
+    }
+    if (illuminant_x.value() <= 0.0 || illuminant_y.value() <= 0.0 ||
+        illuminant_x.value() + illuminant_y.value() >= 1.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color calibration illuminant xy is outside the CIE chromaticity domain");
+    }
+    if (gamut.value() < 0.0 || gamut.value() > 12.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color calibration gamut compression is outside [0, 12]");
+    }
+    const auto reject_zero_normalized_row = [](const auto &row, const bool normalize,
+                                               const std::string_view name) -> Result<void>
+    {
+        if (normalize && std::abs(row[0] + row[1] + row[2]) <= kEpsilon)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Color calibration normalized row must have a non-zero sum",
+                              {{"parameter", std::string(name)}});
+        }
+        return {};
+    };
+    auto valid_red = reject_zero_normalized_row(red.value(), normalize_red.value(), "red");
+    auto valid_green = reject_zero_normalized_row(green.value(), normalize_green.value(), "green");
+    auto valid_blue = reject_zero_normalized_row(blue.value(), normalize_blue.value(), "blue");
+    if (!valid_red || !valid_green || !valid_blue)
+    {
+        return !valid_red   ? valid_red.error() :
+               !valid_green ? valid_green.error() :
+                              valid_blue.error();
+    }
+
+    ChannelMixerParams result;
+    result.red = red.value();
+    result.green = green.value();
+    result.blue = blue.value();
+    result.saturation = saturation.value();
+    result.lightness = lightness.value();
+    result.grey = grey.value();
+    result.normalize_red = normalize_red.value();
+    result.normalize_green = normalize_green.value();
+    result.normalize_blue = normalize_blue.value();
+    result.normalize_saturation = normalize_saturation.value();
+    result.normalize_lightness = normalize_lightness.value();
+    result.normalize_grey = normalize_grey.value();
+    result.adaptation = adaptation.value();
+    result.illuminant_x = illuminant_x.value();
+    result.illuminant_y = illuminant_y.value();
+    result.gamut = gamut.value();
+    result.clip = clip.value();
+    return result;
+}
+
+Result<void> validate_channel_mixer_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    auto parsed = channel_mixer_from_parameters(parameters);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    return {};
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+channel_mixer_to_parameters(const ChannelMixerParams &params)
+{
+    return {{"working_space", ParameterValue{std::string(kChannelMixerWorkingSpaceLinearSrgbD50)}},
+            {"algorithm", ParameterValue{std::string(kChannelMixerAlgorithmV3)}},
+            {"adaptation", ParameterValue{params.adaptation}},
+            {"red", channel_triplet_parameter(params.red)},
+            {"green", channel_triplet_parameter(params.green)},
+            {"blue", channel_triplet_parameter(params.blue)},
+            {"saturation", channel_triplet_parameter(params.saturation)},
+            {"lightness", channel_triplet_parameter(params.lightness)},
+            {"grey", channel_triplet_parameter(params.grey)},
+            {"normalize_red", ParameterValue{params.normalize_red}},
+            {"normalize_green", ParameterValue{params.normalize_green}},
+            {"normalize_blue", ParameterValue{params.normalize_blue}},
+            {"normalize_saturation", ParameterValue{params.normalize_saturation}},
+            {"normalize_lightness", ParameterValue{params.normalize_lightness}},
+            {"normalize_grey", ParameterValue{params.normalize_grey}},
+            {"illuminant_x", ParameterValue{params.illuminant_x}},
+            {"illuminant_y", ParameterValue{params.illuminant_y}},
+            {"gamut", ParameterValue{params.gamut}},
+            {"clip", ParameterValue{params.clip}}};
+}
+
+bool ColorBalanceRgbParams::is_identity() const noexcept
+{
+    const ColorBalanceRgbParams defaults;
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        if (!near(this->*(field.member), defaults.*(field.member)))
+        {
+            return false;
+        }
+    }
+    return saturation_formula == defaults.saturation_formula;
+}
+
+Result<ColorBalanceRgbParams> color_balance_rgb_from_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    const auto known_name = [](const std::string_view name)
+    {
+        if (name == "working_space" || name == "algorithm" || name == "saturation_formula")
+        {
+            return true;
+        }
+        return std::any_of(
+            color_balance_numeric_fields().begin(), color_balance_numeric_fields().end(),
+            [name](const ColorBalanceNumericField &field) { return field.parameter_name == name; });
+    };
+    for (const auto &[name, ignored] : parameters)
+    {
+        static_cast<void>(ignored);
+        if (!known_name(name))
+        {
+            return make_error(ErrorCode::kValidation, "Color Balance RGB parameter is unknown",
+                              {{"parameter", name}});
+        }
+    }
+
+    const auto required = [&](const std::string_view name) -> Result<const ParameterValue *>
+    {
+        const auto found = parameters.find(std::string(name));
+        if (found == parameters.end())
+        {
+            return make_error(ErrorCode::kValidation, "Color Balance RGB parameter is required",
+                              {{"parameter", std::string(name)}});
+        }
+        return &found->second;
+    };
+    const auto text = [&](const std::string_view name) -> Result<std::string>
+    {
+        auto value = required(name);
+        if (!value)
+        {
+            return value.error();
+        }
+        const auto *parsed = std::get_if<std::string>(&value.value()->value);
+        if (parsed == nullptr)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Color Balance RGB parameter must be a string",
+                              {{"parameter", std::string(name)}});
+        }
+        return *parsed;
+    };
+    const auto number = [&](const ColorBalanceNumericField &field) -> Result<double>
+    {
+        auto value = required(field.parameter_name);
+        if (!value)
+        {
+            return value.error();
+        }
+        double parsed = std::numeric_limits<double>::quiet_NaN();
+        if (const auto *floating = std::get_if<double>(&value.value()->value); floating != nullptr)
+        {
+            parsed = *floating;
+        }
+        else if (const auto *integer = std::get_if<std::int64_t>(&value.value()->value);
+                 integer != nullptr)
+        {
+            parsed = static_cast<double>(*integer);
+        }
+        if (!std::isfinite(parsed))
+        {
+            return make_error(ErrorCode::kValidation, "Color Balance RGB parameter must be finite",
+                              {{"parameter", std::string(field.parameter_name)}});
+        }
+        if (parsed < field.minimum || parsed > field.maximum)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Color Balance RGB parameter is outside its supported range",
+                              {{"parameter", std::string(field.parameter_name)}});
+        }
+        return parsed;
+    };
+
+    auto working_space = text("working_space");
+    auto algorithm = text("algorithm");
+    auto formula = text("saturation_formula");
+    if (!working_space || !algorithm || !formula)
+    {
+        return !working_space ? working_space.error() :
+               !algorithm     ? algorithm.error() :
+                                formula.error();
+    }
+    if (working_space.value() != kColorBalanceRgbWorkingSpaceLinearSrgbD50)
+    {
+        return make_error(ErrorCode::kValidation, "Color Balance RGB working space is unsupported",
+                          {{"working_space", working_space.value()}});
+    }
+    if (algorithm.value() != kColorBalanceRgbAlgorithmFilmlightYchV5)
+    {
+        return make_error(ErrorCode::kValidation, "Color Balance RGB algorithm is unsupported",
+                          {{"algorithm", algorithm.value()}});
+    }
+    if (formula.value() != kColorBalanceRgbFormulaDtUcs2022 &&
+        formula.value() != kColorBalanceRgbFormulaJzAzBz2021)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Balance RGB saturation formula is unsupported",
+                          {{"saturation_formula", formula.value()}});
+    }
+
+    ColorBalanceRgbParams result;
+    result.saturation_formula = formula.value();
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        auto parsed = number(field);
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        result.*(field.member) = parsed.value();
+    }
+    if (result.midtones_y <= -1.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Balance RGB midtones power would be singular",
+                          {{"parameter", "midtones_y"}});
+    }
+    if (result.mask_grey_fulcrum <= 0.0 || result.grey_fulcrum <= 0.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Balance RGB fulcrums must be greater than zero",
+                          {{"parameter", result.mask_grey_fulcrum <= 0.0 ? "mask_grey_fulcrum" :
+                                                                           "grey_fulcrum"}});
+    }
+    return result;
+}
+
+Result<void> validate_color_balance_rgb_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    auto parsed = color_balance_rgb_from_parameters(parameters);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    return {};
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+color_balance_rgb_to_parameters(const ColorBalanceRgbParams &params)
+{
+    std::map<std::string, ParameterValue, std::less<>> parameters{
+        {"working_space", ParameterValue{std::string(kColorBalanceRgbWorkingSpaceLinearSrgbD50)}},
+        {"algorithm", ParameterValue{std::string(kColorBalanceRgbAlgorithmFilmlightYchV5)}},
+        {"saturation_formula", ParameterValue{params.saturation_formula}},
+    };
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        parameters.emplace(field.parameter_name, ParameterValue{params.*(field.member)});
+    }
+    return parameters;
+}
 
 bool tone_curve_is_identity(const std::vector<ToneCurvePoint> &points) noexcept
 {
@@ -506,8 +1114,9 @@ validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::
 Result<void>
 validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
 {
-    const auto validate_one_of = [&](const std::string_view name,
-                                     const std::initializer_list<std::string_view> allowed) -> Result<void>
+    const auto validate_one_of =
+        [&](const std::string_view name,
+            const std::initializer_list<std::string_view> allowed) -> Result<void>
     {
         const auto found = parameters.find(std::string(name));
         if (found == parameters.end())
@@ -536,8 +1145,7 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
         return working_space.error();
     }
     auto color_processing = validate_one_of(
-        "color_processing",
-        {kSigmoidColorProcessingPerChannel, kSigmoidColorProcessingRgbRatio});
+        "color_processing", {kSigmoidColorProcessingPerChannel, kSigmoidColorProcessingRgbRatio});
     if (!color_processing)
     {
         return color_processing.error();
@@ -550,6 +1158,29 @@ void clamp_develop(DevelopParams &params) noexcept
     params.temperature =
         clamp_value(params.temperature, kDevelopTemperatureMin, kDevelopTemperatureMax);
     params.tint = clamp_value(params.tint, -150.0, 150.0);
+    for (auto *channel : {&params.channel_mixer.red, &params.channel_mixer.green,
+                          &params.channel_mixer.blue, &params.channel_mixer.saturation,
+                          &params.channel_mixer.lightness, &params.channel_mixer.grey})
+    {
+        for (double &value : *channel)
+        {
+            value = clamp_value(value, -2.0, 2.0);
+        }
+    }
+    if (params.channel_mixer.adaptation != kChannelMixerAdaptationRgb &&
+        params.channel_mixer.adaptation != kChannelMixerAdaptationCat16 &&
+        params.channel_mixer.adaptation != kChannelMixerAdaptationLinearBradford &&
+        params.channel_mixer.adaptation != kChannelMixerAdaptationFullBradford &&
+        params.channel_mixer.adaptation != kChannelMixerAdaptationXyz)
+    {
+        params.channel_mixer.adaptation = std::string(kChannelMixerAdaptationRgb);
+    }
+    params.channel_mixer.illuminant_x =
+        clamp_value(params.channel_mixer.illuminant_x, 0.000001, 0.999999);
+    params.channel_mixer.illuminant_y =
+        clamp_value(params.channel_mixer.illuminant_y, 0.000001, 0.999999);
+    params.channel_mixer.gamut = clamp_value(params.channel_mixer.gamut, 0.0, 12.0);
+    clamp_color_balance(params.color_balance_rgb);
     params.exposure_ev = clamp_value(params.exposure_ev, -10.0, 10.0);
     params.contrast = clamp_value(params.contrast, -1.0, 1.0);
     params.highlights = clamp_value(params.highlights, -1.0, 1.0);
@@ -576,9 +1207,6 @@ void clamp_develop(DevelopParams &params) noexcept
     params.soften = clamp_value(params.soften, 0.0, 1.0);
     params.dehaze = clamp_value(params.dehaze, -1.0, 1.0);
     params.velvia = clamp_value(params.velvia, 0.0, 1.0);
-    params.lift = clamp_value(params.lift, -1.0, 1.0);
-    params.color_gamma = clamp_value(params.color_gamma, -1.0, 1.0);
-    params.gain = clamp_value(params.gain, -1.0, 1.0);
     params.color_contrast = clamp_value(params.color_contrast, -1.0, 1.0);
     params.monochrome = clamp_value(params.monochrome, 0.0, 1.0);
     params.split_shadows_hue = clamp_value(params.split_shadows_hue, 0.0, 1.0);
@@ -603,6 +1231,10 @@ void clamp_develop(DevelopParams &params) noexcept
     {
         params.raw_highlights_mode = std::string(kRawHighlightsModeOpposed);
     }
+    params.hot_pixels_strength = clamp_value(params.hot_pixels_strength, 0.0, 1.0);
+    params.hot_pixels_threshold = clamp_value(params.hot_pixels_threshold, 0.0, 1.0);
+    params.raw_ca_iterations =
+        std::clamp(params.raw_ca_iterations, std::int64_t{0}, std::int64_t{5});
     params.denoise = clamp_value(params.denoise, 0.0, 1.0);
     params.denoise_chroma = clamp_value(params.denoise_chroma, 0.0, 1.0);
     params.denoise_radius = clamp_value(params.denoise_radius, 0.5, 8.0);
@@ -654,19 +1286,20 @@ void clamp_develop(DevelopParams &params) noexcept
 bool DevelopParams::is_identity() const noexcept
 {
     return near(temperature, kDevelopTemperatureDefault) && near(tint, 0.0) &&
-           near(exposure_ev, 0.0) && near(contrast, 0.0) && near(highlights, 0.0) &&
-           near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) &&
-           near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
-           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(crop_x, 0.0) &&
-           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
-           near(sharpen, 0.0) && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
-           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
-           near(lift, 0.0) && near(color_gamma, 0.0) && near(gain, 0.0) &&
+           channel_mixer.is_identity() && near(exposure_ev, 0.0) && near(contrast, 0.0) &&
+           near(highlights, 0.0) && near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) &&
+           near(vibrance, 0.0) && near(saturation, 0.0) && rotate_quarters % 4 == 0 &&
+           flip_horizontal == 0 && flip_vertical == 0 && near(straighten_degrees, 0.0) &&
+           near(crop_x, 0.0) && near(crop_y, 0.0) && near(crop_width, 1.0) &&
+           near(crop_height, 1.0) && near(sharpen, 0.0) && near(clarity, 0.0) &&
+           near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) && near(soften, 0.0) &&
+           near(dehaze, 0.0) && near(velvia, 0.0) && color_balance_rgb.is_identity() &&
            near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
            near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
-           !sigmoid_enabled && near(raw_highlights, 0.0) && near(denoise, 0.0) &&
-           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
-           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
+           raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
+           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
+           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -682,6 +1315,42 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     else if (name == "tint")
     {
         params.tint = value;
+    }
+    else if (name == "channelMixerRR")
+    {
+        params.channel_mixer.red[0] = value;
+    }
+    else if (name == "channelMixerRG")
+    {
+        params.channel_mixer.red[1] = value;
+    }
+    else if (name == "channelMixerRB")
+    {
+        params.channel_mixer.red[2] = value;
+    }
+    else if (name == "channelMixerGR")
+    {
+        params.channel_mixer.green[0] = value;
+    }
+    else if (name == "channelMixerGG")
+    {
+        params.channel_mixer.green[1] = value;
+    }
+    else if (name == "channelMixerGB")
+    {
+        params.channel_mixer.green[2] = value;
+    }
+    else if (name == "channelMixerBR")
+    {
+        params.channel_mixer.blue[0] = value;
+    }
+    else if (name == "channelMixerBG")
+    {
+        params.channel_mixer.blue[1] = value;
+    }
+    else if (name == "channelMixerBB")
+    {
+        params.channel_mixer.blue[2] = value;
     }
     else if (name == "exposure")
     {
@@ -771,17 +1440,8 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     {
         params.velvia = value;
     }
-    else if (name == "lift")
+    else if (apply_color_balance_field(params.color_balance_rgb, name, value))
     {
-        params.lift = value;
-    }
-    else if (name == "colorGamma")
-    {
-        params.color_gamma = value;
-    }
-    else if (name == "gain")
-    {
-        params.gain = value;
     }
     else if (name == "colorContrast")
     {
@@ -837,7 +1497,27 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     else if (name == "rawHighlightsMode")
     {
         params.raw_highlights_mode = value >= 0.5 ? std::string(kRawHighlightsModeInpaint) :
-                                                   std::string(kRawHighlightsModeClip);
+                                                    std::string(kRawHighlightsModeClip);
+    }
+    else if (name == "hotPixelsStrength")
+    {
+        params.hot_pixels_strength = value;
+    }
+    else if (name == "hotPixelsThreshold")
+    {
+        params.hot_pixels_threshold = value;
+    }
+    else if (name == "hotPixelsPermissive")
+    {
+        params.hot_pixels_permissive = value >= 0.5;
+    }
+    else if (name == "rawCaIterations")
+    {
+        params.raw_ca_iterations = static_cast<std::int64_t>(std::llround(value));
+    }
+    else if (name == "rawCaAvoidShift")
+    {
+        params.raw_ca_avoid_shift = value >= 0.5;
     }
     else if (name == "denoise")
     {
@@ -873,7 +1553,8 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     }
     else if (name == "lensMode")
     {
-        params.lens_mode = value >= 0.5 ? std::string(kLensModeLookup) : std::string(kLensModeManual);
+        params.lens_mode =
+            value >= 0.5 ? std::string(kLensModeLookup) : std::string(kLensModeManual);
     }
     else if (name == "lensFocal")
     {
@@ -969,6 +1650,12 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.tint = identity.tint;
     }
+    else if (name == "channelMixerRR" || name == "channelMixerRG" || name == "channelMixerRB" ||
+             name == "channelMixerGR" || name == "channelMixerGG" || name == "channelMixerGB" ||
+             name == "channelMixerBR" || name == "channelMixerBG" || name == "channelMixerBB")
+    {
+        params.channel_mixer = identity.channel_mixer;
+    }
     else if (name == "exposure")
     {
         params.exposure_ev = identity.exposure_ev;
@@ -1058,17 +1745,8 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.velvia = identity.velvia;
     }
-    else if (name == "lift")
+    else if (reset_color_balance_field(params.color_balance_rgb, name))
     {
-        params.lift = identity.lift;
-    }
-    else if (name == "colorGamma")
-    {
-        params.color_gamma = identity.color_gamma;
-    }
-    else if (name == "gain")
-    {
-        params.gain = identity.gain;
     }
     else if (name == "colorContrast")
     {
@@ -1120,6 +1798,18 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.raw_highlights = identity.raw_highlights;
         params.raw_highlights_clip = identity.raw_highlights_clip;
         params.raw_highlights_mode = identity.raw_highlights_mode;
+    }
+    else if (name == "hotPixelsStrength" || name == "hotPixelsThreshold" ||
+             name == "hotPixelsPermissive")
+    {
+        params.hot_pixels_strength = identity.hot_pixels_strength;
+        params.hot_pixels_threshold = identity.hot_pixels_threshold;
+        params.hot_pixels_permissive = identity.hot_pixels_permissive;
+    }
+    else if (name == "rawCaIterations" || name == "rawCaAvoidShift")
+    {
+        params.raw_ca_iterations = identity.raw_ca_iterations;
+        params.raw_ca_avoid_shift = identity.raw_ca_avoid_shift;
     }
     else if (name == "denoise" || name == "denoiseChroma" || name == "denoiseRadius")
     {
@@ -1241,6 +1931,10 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.temperature = identity.temperature;
         params.tint = identity.tint;
     }
+    else if (section == "calibration")
+    {
+        params.channel_mixer = identity.channel_mixer;
+    }
     else if (section == "light")
     {
         params.exposure_ev = identity.exposure_ev;
@@ -1268,9 +1962,7 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.vibrance = identity.vibrance;
         params.saturation = identity.saturation;
         params.velvia = identity.velvia;
-        params.lift = identity.lift;
-        params.color_gamma = identity.color_gamma;
-        params.gain = identity.gain;
+        params.color_balance_rgb = identity.color_balance_rgb;
         params.color_contrast = identity.color_contrast;
         params.monochrome = identity.monochrome;
         params.split_shadows_hue = identity.split_shadows_hue;
@@ -1308,6 +2000,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.raw_highlights = identity.raw_highlights;
         params.raw_highlights_clip = identity.raw_highlights_clip;
         params.raw_highlights_mode = identity.raw_highlights_mode;
+        params.hot_pixels_strength = identity.hot_pixels_strength;
+        params.hot_pixels_threshold = identity.hot_pixels_threshold;
+        params.hot_pixels_permissive = identity.hot_pixels_permissive;
+        params.raw_ca_iterations = identity.raw_ca_iterations;
+        params.raw_ca_avoid_shift = identity.raw_ca_avoid_shift;
         params.denoise = identity.denoise;
         params.denoise_chroma = identity.denoise_chroma;
         params.denoise_radius = identity.denoise_radius;
@@ -1577,12 +2274,30 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       {{"temperature", ParameterValue{clamped.temperature}},
                        {"tint", ParameterValue{clamped.tint}}});
     }
+    if (!clamped.channel_mixer.is_identity())
+    {
+        add_operation(recipe, "ravo.color.channelmixerrgb", "channelmixerrgb-1",
+                      channel_mixer_to_parameters(clamped.channel_mixer));
+    }
+    if (!near(clamped.hot_pixels_strength, 0.0))
+    {
+        add_operation(recipe, "ravo.raw.hotpixels", "hotpixels-1",
+                      {{"strength", ParameterValue{clamped.hot_pixels_strength}},
+                       {"threshold", ParameterValue{clamped.hot_pixels_threshold}},
+                       {"permissive", ParameterValue{clamped.hot_pixels_permissive}}});
+    }
     if (!near(clamped.raw_highlights, 0.0))
     {
         add_operation(recipe, "ravo.raw.highlights", "raw-highlights-1",
                       {{"mode", ParameterValue{clamped.raw_highlights_mode}},
                        {"amount", ParameterValue{clamped.raw_highlights}},
                        {"clip", ParameterValue{clamped.raw_highlights_clip}}});
+    }
+    if (clamped.raw_ca_iterations > 0)
+    {
+        add_operation(recipe, "ravo.raw.cacorrect", "cacorrect-1",
+                      {{"iterations", ParameterValue{clamped.raw_ca_iterations}},
+                       {"avoid_color_shift", ParameterValue{clamped.raw_ca_avoid_shift}}});
     }
     if (!near(clamped.denoise, 0.0))
     {
@@ -1671,12 +2386,10 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
              {"points", tone_curve_points_to_parameter(clamped.tone_curve)}});
     }
-    if (!near(clamped.lift, 0.0) || !near(clamped.color_gamma, 0.0) || !near(clamped.gain, 0.0))
+    if (!clamped.color_balance_rgb.is_identity())
     {
-        add_operation(recipe, "ravo.color.colorbalance", "colorbalance-1",
-                      {{"lift", ParameterValue{clamped.lift}},
-                       {"gamma", ParameterValue{clamped.color_gamma}},
-                       {"gain", ParameterValue{clamped.gain}}});
+        add_operation(recipe, "ravo.color.colorbalancergb", "colorbalancergb-1",
+                      color_balance_rgb_to_parameters(clamped.color_balance_rgb));
     }
     if (!near(clamped.color_contrast, 0.0))
     {
@@ -1830,6 +2543,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.temperature = number("temperature", params.temperature);
             params.tint = number("tint", params.tint);
         }
+        else if (operation.id == "ravo.color.channelmixerrgb")
+        {
+            auto mixer = channel_mixer_from_parameters(operation.parameters);
+            if (!mixer)
+            {
+                return mixer.error();
+            }
+            params.channel_mixer = std::move(mixer).value();
+        }
         else if (operation.id == "ravo.core.exposure")
         {
             params.exposure_ev = number("exposure_ev", params.exposure_ev);
@@ -1891,11 +2613,14 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         {
             params.velvia = number("amount", params.velvia);
         }
-        else if (operation.id == "ravo.color.colorbalance")
+        else if (operation.id == "ravo.color.colorbalancergb")
         {
-            params.lift = number("lift", params.lift);
-            params.color_gamma = number("gamma", params.color_gamma);
-            params.gain = number("gain", params.gain);
+            auto color_balance = color_balance_rgb_from_parameters(operation.parameters);
+            if (!color_balance)
+            {
+                return color_balance.error();
+            }
+            params.color_balance_rgb = std::move(color_balance).value();
         }
         else if (operation.id == "ravo.color.colorcontrast")
         {
@@ -1992,6 +2717,31 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 if (const auto *text = as_string_if(found->second); text != nullptr)
                 {
                     params.raw_highlights_mode = *text;
+                }
+            }
+        }
+        else if (operation.id == "ravo.raw.hotpixels")
+        {
+            params.hot_pixels_strength = number("strength", 0.25);
+            params.hot_pixels_threshold = number("threshold", 0.05);
+            if (const auto found = operation.parameters.find("permissive");
+                found != operation.parameters.end())
+            {
+                if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
+                {
+                    params.hot_pixels_permissive = *flag;
+                }
+            }
+        }
+        else if (operation.id == "ravo.raw.cacorrect")
+        {
+            params.raw_ca_iterations = integer("iterations", 2);
+            if (const auto found = operation.parameters.find("avoid_color_shift");
+                found != operation.parameters.end())
+            {
+                if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
+                {
+                    params.raw_ca_avoid_shift = *flag;
                 }
             }
         }

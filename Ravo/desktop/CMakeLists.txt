@@ -7,12 +7,14 @@ target_sources(ravo_desktop
   PRIVATE
     src/asset_list_model.cpp
     src/folder_list_model.cpp
+    src/preview_request_owner.cpp
     src/studio_command_controller.cpp
     src/studio_presenter.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
     include/ravo/desktop/asset_list_model.h
     include/ravo/desktop/folder_list_model.h
+    include/ravo/desktop/preview_request_owner.h
     include/ravo/desktop/studio_command_controller.h
     include/ravo/desktop/studio_presenter.h)
 

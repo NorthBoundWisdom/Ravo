@@ -12,9 +12,9 @@ ADR-0007 supersedes the old sequencing constraint: a new private SQLite
 catalog and minimal desktop viewer are authorized in M1. That decision does not
 authorize legacy catalog migration or any operation marked deferred below.
 
-The source inventory was collected from the leftover `add_iop(...)`
-registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt)
-(68 after retiring `tonecurve`, `sigmoid`, `highlights`, `denoiseprofile`, `lens`, `colorequal`, `graduatednd`, and `toneequal`).
+The source inventory is collected from the leftover `add_iop(...)`
+registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt);
+Ravo-accepted owners are removed from both lists when retired.
 The generated fixture manifest records the 68 operation names currently
 represented by XMP regression assets.  A `yes` in the fixture column means
 only that one or more legacy XMP files name that operation; it is not a
@@ -35,6 +35,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.color.input` | `colorin` | first colour-chain planning |
 | `ravo.core.exposure` | `exposure` | P1 CPU develop control |
 | `ravo.color.white_balance` | `temperature` / `colorin` | P1 temperature/tint multipliers on linear RGB |
+| `ravo.color.channelmixerrgb` | `channelmixerrgb` | frozen V3 matrix normalization, explicit adaptation, XYZ gamut and LMS/RGB saturation-lightness calibration |
 | `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 raster-input contrast and old-recipe compatibility; RAW Studio uses Sigmoid contrast |
 | `ravo.core.highlights` | `filmicrgb` | P1 highlight compression |
 | `ravo.core.shadows` | `shadows` / `filmicrgb` | P1 shadow lift |
@@ -50,12 +51,14 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.core.tonecurve` | `tonecurve` | frozen C default RGB-linked ProPhoto curve; `lab`/`xyz`/`lab_independent` are explicit modes |
 | `ravo.display.sigmoid` | `sigmoid` | RAW Standard SDR baseline; per-channel default and C `rgb_ratio` color processing |
 | `ravo.raw.highlights` | `highlights` | Bayer CFA opposed/clip/inpaint/LCh before demosaic |
+| `ravo.raw.hotpixels` | `hotpixels` | frozen Bayer four-neighbour threshold repair before highlights/demosaic |
+| `ravo.raw.cacorrect` | `cacorrect` | frozen RawTherapee Bayer tile statistics, polynomial shift fit and optional color-shift avoidance |
 | `ravo.detail.denoiseprofile` | `denoiseprofile` | default wavelets + Y0U0V0 profile denoise on linear RGB |
 | `ravo.geometry.lens` | `lens` | lensfun poly3/poly5 + linear TCA + manual vignette spline; lookup uses a versioned calibration table |
 | `ravo.color.colorequal` | `colorequal` | selected 8-node dt UCS 22 RBF equalizer |
 | `ravo.effect.graduatednd` | `graduatednd` | `_compute_density` graduated exposure as the first local adjustment |
 | `ravo.core.toneequal` | `toneequal` | 9-band [-8,0] EV RBF equalizer under Sigmoid |
-| `ravo.color.colorbalance` | `colorbalance` | lift/gamma/gain factor |
+| `ravo.color.colorbalancergb` | `colorbalancergb` | full Filmlight Yrg grading, DT UCS default and explicit JzAzBz; the old lift/gamma/gain approximation was removed |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
 | `ravo.color.monochrome` | `monochrome` | luma mix |
@@ -79,74 +82,70 @@ struct bytes or call the old dynamic module ABI.
 
 | Legacy IOP | Fixture | Phase 0 Ravo disposition |
 | --- | --- | --- |
-| `agx` | yes | explicit leftover; Sigmoid is the selected default display transform |
+| `agx` | yes | queued by ADR-0015 as an explicit optional transform; Sigmoid remains default |
 | `ashift` | yes | defer until geometry/ROI contract exists |
 | `atrous` | yes | defer until shared denoise facilities exist |
-| `basecurve` | yes | product decision pending; no Phase 1 implementation |
+| `basecurve` | yes | queued by ADR-0015; requires display-transform overlap contract |
 | `bilat` | yes | defer until shared denoise facilities exist |
 | `bilateral` | yes | defer until shared denoise facilities exist |
-| `bloom` | yes | product decision pending; no Phase 1 implementation |
+| `bloom` | yes | queued by ADR-0015; existing simplified Ravo bloom is not frozen-owner acceptance |
 | `blurs` | yes | defer until shared blur facilities exist |
-| `borders` | yes | product decision pending; no Phase 1 implementation |
-| `cacorrect` | yes | defer with RAW geometry capability |
+| `borders` | yes | queued by ADR-0015; requires canvas/export geometry contract |
 | `cacorrectrgb` | no | defer with RAW geometry capability |
-| `censorize` | yes | product decision pending; no Phase 1 implementation |
-| `channelmixerrgb` | yes | defer until colour operation policy exists |
+| `censorize` | yes | queued by ADR-0015; requires mask/ROI graph |
 | `colorbalance` | yes | defer until colour operation policy exists |
-| `colorbalancergb` | yes | defer until colour operation policy exists |
 | `colorchecker` | yes | defer until colour operation policy exists |
 | `colorcontrast` | yes | defer until colour operation policy exists |
 | `colorcorrection` | yes | defer until colour operation policy exists |
-| `colorharmonizer` | yes | product decision pending; no Phase 1 implementation |
+| `colorharmonizer` | yes | queued by ADR-0015; requires explicit color-space and overlap contract |
 | `colorin` | yes | reserved `ravo.color.input`; the exact frozen nop baseline is absorbed by the first RAW slice, but general profile mapping remains deferred |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
 | `colorout` | yes | reserved `ravo.color.output`; the first RAW slice has a fixed sRGB target, while general profile mapping remains deferred |
 | `colorreconstruct` | yes | defer with RAW reconstruction capability |
-| `colorzones` | yes | leftover; 2026-08-25 dated decision selected `colorequal` for HSL zoning |
+| `colorzones` | yes | queued by ADR-0015 as optional HSL zoning; `colorequal` remains default |
 | `crop` | yes | defer until geometry/ROI contract exists |
 | `demosaic` | yes | reserved `ravo.raw.demosaic`; the exact frozen nop baseline currently selects the first 3×3 Bayer implementation only |
 | `diffuse` | yes | defer until shared denoise facilities exist |
 | `dither` | yes | defer until output quantisation contract exists |
 | `enlargecanvas` | yes | defer until geometry/ROI contract exists |
 | `exposure` | yes | reserved `ravo.core.exposure`; schema-6/v5 manual, zero-black, unblended, mask-free singleton history maps to `exp2(exposure_ev)` CPU execution; full fixture history and golden comparison remain incomplete |
-| `filmicrgb` | yes | explicit leftover; Sigmoid is the selected default display transform |
+| `filmicrgb` | yes | queued by ADR-0015 as an explicit optional transform; Sigmoid remains default |
 | `finalscale` | no | reserved `ravo.output.scale`; render width/height currently drive the first bounded nearest-sample output path, not a complete scaling operation |
 | `flip` | yes | defer until geometry/ROI contract exists |
 | `gamma` | yes | defer until colour operation policy exists |
-| `grain` | yes | product decision pending; no Phase 1 implementation |
+| `grain` | yes | queued by ADR-0015; existing simplified Ravo grain is not frozen-owner acceptance |
 | `hazeremoval` | yes | defer until shared dehaze facilities exist |
 | `highpass` | yes | defer until shared blur facilities exist |
-| `hotpixels` | yes | defer with RAW decode capability |
-| `liquify` | yes | product decision pending; no Phase 1 implementation |
+| `liquify` | yes | queued by ADR-0015; requires deformation/ROI and mask contracts |
 | `lowlight` | yes | defer until colour operation policy exists |
 | `lowpass` | yes | defer until shared blur facilities exist |
 | `lut3d` | yes | defer until LUT adapter and colour policy exist |
 | `mask_manager` | yes | defer until canonical mask graph exists |
 | `monochrome` | yes | defer until colour operation policy exists |
-| `negadoctor` | yes | product decision pending; no Phase 1 implementation |
+| `negadoctor` | yes | queued by ADR-0015; requires negative-input color contract |
 | `nlmeans` | yes | defer until shared denoise facilities exist |
-| `overexposed` | no | diagnostics-only legacy behaviour; no Phase 1 implementation |
-| `overlay` | yes | product decision pending; no Phase 1 implementation |
+| `overexposed` | no | diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |
+| `overlay` | yes | queued by ADR-0015; requires asset/ROI/mask composition contract |
 | `primaries` | yes | defer until colour operation policy exists |
 | `profile_gamma` | no | defer until colour operation policy exists |
 | `rasterfile` | no | defer until raster adapter and mask contract exist |
 | `rawdenoise` | yes | defer with RAW decode capability |
-| `rawoverexposed` | no | diagnostics-only legacy behaviour; no Phase 1 implementation |
+| `rawoverexposed` | no | RAW diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |
 | `rawprepare` | yes | reserved `ravo.raw.prepare`; the exact frozen nop baseline is absorbed into crop and black/white normalization in the first RAW slice |
-| `retouch` | yes | product decision pending; no Phase 1 implementation |
+| `retouch` | yes | queued by ADR-0015; requires canonical mask graph and patch-source ownership |
 | `rgbcurve` | yes | defer until curve schema and colour policy exist |
 | `rgblevels` | yes | defer until colour operation policy exists |
 | `rotatepixels` | no | defer until geometry/ROI contract exists |
 | `scalepixels` | no | defer until geometry/ROI contract exists |
 | `shadhi` | yes | defer until shared denoise facilities exist |
 | `sharpen` | yes | defer until shared convolution facilities exist |
-| `soften` | yes | product decision pending; no Phase 1 implementation |
-| `splittoning` | yes | product decision pending; no Phase 1 implementation |
+| `soften` | yes | queued by ADR-0015; existing simplified Ravo soften is not frozen-owner acceptance |
+| `splittoning` | yes | queued by ADR-0015; existing simplified Ravo split toning is not frozen-owner acceptance |
 | `temperature` | yes | defer with RAW colour capability |
-| `velvia` | yes | product decision pending; no Phase 1 implementation |
-| `vignette` | yes | product decision pending; no Phase 1 implementation |
-| `watermark` | yes | product decision pending; no Phase 1 implementation |
+| `velvia` | yes | queued by ADR-0015; existing simplified Ravo velvia is not frozen-owner acceptance |
+| `vignette` | yes | queued by ADR-0015; existing simplified Ravo vignette is not frozen-owner acceptance |
+| `watermark` | yes | queued by ADR-0015; requires deterministic resource/font and export contract |
 
 ## Data and export inventory
 

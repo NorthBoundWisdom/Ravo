@@ -33,7 +33,8 @@ namespace
 }
 
 template <typename Fn>
-Result<void> for_each_row(const std::uint32_t height, const CancellationToken &cancellation, Fn &&fn)
+Result<void> for_each_row(const std::uint32_t height, const CancellationToken &cancellation,
+                          Fn &&fn)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -201,9 +202,7 @@ void lab_to_xyz_d50(const float lab[3], float xyz[3]) noexcept
     const float fx = fy + lab[1] / 500.0F;
     const float fz = fy - lab[2] / 200.0F;
     const auto inv = [](const float x)
-    {
-        return x > kEpsilon ? x * x * x : (116.0F * x - 16.0F) / kKappa;
-    };
+    { return x > kEpsilon ? x * x * x : (116.0F * x - 16.0F) / kKappa; };
     xyz[0] = kD50[0] * inv(fx);
     xyz[1] = kD50[1] * inv(fy);
     xyz[2] = kD50[2] * inv(fz);
@@ -311,8 +310,8 @@ void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float
     lut.assign(static_cast<std::size_t>(kToneCurveLut), 0.0F);
     for (int k = 0; k < kToneCurveLut; ++k)
     {
-        lut[static_cast<std::size_t>(k)] = static_cast<float>(
-            evaluate_tone_curve(points, static_cast<double>(k) / static_cast<double>(kToneCurveLut)));
+        lut[static_cast<std::size_t>(k)] = static_cast<float>(evaluate_tone_curve(
+            points, static_cast<double>(k) / static_cast<double>(kToneCurveLut)));
     }
 }
 
@@ -339,8 +338,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         return make_error(ErrorCode::kValidation, "Tone curve channel_mode is unsupported",
                           {{"channel_mode", channel_mode}});
     }
-    const auto preserve =
-        parameter_string(operation, "preserve_colors", std::string(kToneCurvePreserveColorsAverage));
+    const auto preserve = parameter_string(operation, "preserve_colors",
+                                           std::string(kToneCurvePreserveColorsAverage));
     std::vector<ToneCurvePoint> points;
     if (const auto found = operation.parameters.find("points"); found != operation.parameters.end())
     {
@@ -353,7 +352,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     }
     std::vector<ToneCurvePoint> points_a;
     std::vector<ToneCurvePoint> points_b;
-    if (const auto found = operation.parameters.find("points_a"); found != operation.parameters.end())
+    if (const auto found = operation.parameters.find("points_a");
+        found != operation.parameters.end())
     {
         auto parsed = parse_tone_curve_points(found->second);
         if (!parsed)
@@ -362,7 +362,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         }
         points_a = std::move(parsed).value();
     }
-    if (const auto found = operation.parameters.find("points_b"); found != operation.parameters.end())
+    if (const auto found = operation.parameters.find("points_b");
+        found != operation.parameters.end())
     {
         auto parsed = parse_tone_curve_points(found->second);
         if (!parsed)
@@ -371,9 +372,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         }
         points_b = std::move(parsed).value();
     }
-    const bool independent =
-        channel_mode == kToneCurveChannelModeIndependent ||
-        space.value() == ToneCurveWorkingSpace::kLabIndependent;
+    const bool independent = channel_mode == kToneCurveChannelModeIndependent ||
+                             space.value() == ToneCurveWorkingSpace::kLabIndependent;
     if (tone_curve_is_identity(points) &&
         (!independent || (tone_curve_is_identity(points_a) && tone_curve_is_identity(points_b))))
     {
@@ -389,8 +389,10 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     for (int k = 0; k < kToneCurveLut; ++k)
     {
         table_l[static_cast<std::size_t>(k)] *= 100.0F;
-        table_a[static_cast<std::size_t>(k)] = table_a[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
-        table_b[static_cast<std::size_t>(k)] = table_b[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
+        table_a[static_cast<std::size_t>(k)] =
+            table_a[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
+        table_b[static_cast<std::size_t>(k)] =
+            table_b[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
     }
 
     const bool rgb_linked = !independent && space.value() != ToneCurveWorkingSpace::kLab &&
@@ -406,8 +408,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
             float xyz[3]{t, t, t};
             float lab[3]{};
             xyz_d50_to_lab(xyz, lab);
-            const int index = std::clamp(static_cast<int>(lab[0] / 100.0F * kToneCurveLut), 0,
-                                         kToneCurveLut - 1);
+            const int index =
+                std::clamp(static_cast<int>(lab[0] / 100.0F * kToneCurveLut), 0, kToneCurveLut - 1);
             lab[0] = table_l[static_cast<std::size_t>(index)];
             lab_to_xyz_d50(lab, xyz);
             table_l[static_cast<std::size_t>(k)] = xyz[1];
@@ -421,8 +423,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
             float rgb[3]{t, t, t};
             float lab[3]{};
             prophoto_to_lab(rgb, lab);
-            const int index = std::clamp(static_cast<int>(lab[0] / 100.0F * kToneCurveLut), 0,
-                                         kToneCurveLut - 1);
+            const int index =
+                std::clamp(static_cast<int>(lab[0] / 100.0F * kToneCurveLut), 0, kToneCurveLut - 1);
             lab[0] = table_l[static_cast<std::size_t>(index)];
             lab_to_prophoto(lab, rgb);
             table_l[static_cast<std::size_t>(k)] = rgb[1];
@@ -434,7 +436,8 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     float y_l[4]{};
     for (int i = 0; i < 4; ++i)
     {
-        const int index = std::clamp(static_cast<int>(x_l[i] * kToneCurveLut), 0, kToneCurveLut - 1);
+        const int index =
+            std::clamp(static_cast<int>(x_l[i] * kToneCurveLut), 0, kToneCurveLut - 1);
         y_l[i] = table_l[static_cast<std::size_t>(index)];
     }
     float unbounded_l[3]{};
@@ -753,8 +756,7 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
                         2.0 * chroma_vs_border /
                         (1.0 - chroma_vs_border * chroma_vs_border + kEpsilon) * adjustment;
                     const double hyperbolic_z = std::sqrt(hyperbolic * hyperbolic + 1.0);
-                    const double chroma_factor =
-                        hyperbolic / (1.0 + hyperbolic_z) * display_border;
+                    const double chroma_factor = hyperbolic / (1.0 + hyperbolic_z) * display_border;
                     output = {mapped_luma + chroma_factor * (pre_out[0] - mapped_luma),
                               mapped_luma + chroma_factor * (pre_out[1] - mapped_luma),
                               mapped_luma + chroma_factor * (pre_out[2] - mapped_luma)};
@@ -790,12 +792,12 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     }
     if (invalid.load(std::memory_order_acquire))
     {
-        return make_error(ErrorCode::kValidation,
-                          invalid_output.load(std::memory_order_relaxed) ?
-                              "Sigmoid produced a non-finite sample" :
-                              "Sigmoid input contains a non-finite sample",
-                          {{"sample_index",
-                            std::to_string(invalid_index.load(std::memory_order_relaxed))}});
+        return make_error(
+            ErrorCode::kValidation,
+            invalid_output.load(std::memory_order_relaxed) ?
+                "Sigmoid produced a non-finite sample" :
+                "Sigmoid input contains a non-finite sample",
+            {{"sample_index", std::to_string(invalid_index.load(std::memory_order_relaxed))}});
     }
     return {};
 }
@@ -1730,27 +1732,6 @@ void apply_gamma(WorkingImage &image, const double gamma)
     }
 }
 
-void apply_colorbalance(WorkingImage &image, const double lift, const double gamma,
-                        const double gain)
-{
-    if (lift == 0.0 && gamma == 0.0 && gain == 0.0)
-    {
-        return;
-    }
-    const float lift_v = 1.0F - static_cast<float>(lift);
-    const float gain_v = 1.0F + static_cast<float>(gain);
-    const float gamma_v = std::max(0.2F, 1.0F + static_cast<float>(gamma) * 0.5F);
-    const float gamma_inv = 2.2F / gamma_v;
-    constexpr float kDisplay = 1.0F / 2.2F;
-    for (float &sample : image.rgb)
-    {
-        float value = sample <= 0.0F ? 0.0F : std::pow(sample, kDisplay);
-        value = ((value - 1.0F) * lift_v + 1.0F) * gain_v;
-        value = value <= 0.0F ? 0.0F : std::pow(value, gamma_inv);
-        sample = value;
-    }
-}
-
 void apply_color_contrast(WorkingImage &image, const double amount)
 {
     if (amount == 0.0)
@@ -1987,23 +1968,21 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
         demosaic_height, cancellation,
         [&](const std::uint32_t output_y)
         {
-            const std::uint32_t source_y =
-                std::min(raw.height - 1, static_cast<std::uint32_t>(
-                                             static_cast<std::uint64_t>(output_y) * raw.height /
-                                             demosaic_height));
+            const std::uint32_t source_y = std::min(
+                raw.height - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_y) *
+                                                           raw.height / demosaic_height));
             for (std::uint32_t output_x = 0; output_x < demosaic_width; ++output_x)
             {
                 const std::uint32_t source_x = std::min(
-                    raw.width - 1,
-                    static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) * raw.width /
-                                               demosaic_width));
+                    raw.width - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) *
+                                                              raw.width / demosaic_width));
                 std::array<float, 3> sum{};
                 std::array<std::uint32_t, 3> count{};
                 for (int offset_y = -1; offset_y <= 1; ++offset_y)
                 {
-                    const std::uint32_t y = static_cast<std::uint32_t>(
-                        std::clamp(static_cast<int>(source_y) + offset_y, 0,
-                                   static_cast<int>(raw.height) - 1));
+                    const std::uint32_t y =
+                        static_cast<std::uint32_t>(std::clamp(static_cast<int>(source_y) + offset_y,
+                                                              0, static_cast<int>(raw.height) - 1));
                     for (int offset_x = -1; offset_x <= 1; ++offset_x)
                     {
                         const std::uint32_t x = static_cast<std::uint32_t>(
@@ -2024,9 +2003,10 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                     const float sample = count[channel] == 0 ?
                                              0.0F :
                                              sum[channel] / static_cast<float>(count[channel]);
-                    camera_rgb[channel] = std::max(0.0F, (sample - static_cast<float>(raw.black_level)) /
-                                                             denominator) *
-                                          raw.white_balance[channel];
+                    camera_rgb[channel] =
+                        std::max(0.0F,
+                                 (sample - static_cast<float>(raw.black_level)) / denominator) *
+                        raw.white_balance[channel];
                 }
                 const std::size_t output_index =
                     (static_cast<std::size_t>(output_y) * demosaic_width + output_x) * 3U;
@@ -2089,6 +2069,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             apply_white_balance(image, parameter(operation, "temperature", 6500.0),
                                 parameter(operation, "tint", 0.0));
+            continue;
+        }
+        if (operation.id == "ravo.color.channelmixerrgb")
+        {
+            auto mixed = apply_channel_mixer_rgb(image, operation, cancellation);
+            if (!mixed)
+            {
+                return mixed.error();
+            }
             continue;
         }
         if (operation.id == "ravo.core.exposure")
@@ -2191,11 +2180,13 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             }
             continue;
         }
-        if (operation.id == "ravo.color.colorbalance")
+        if (operation.id == "ravo.color.colorbalancergb")
         {
-            apply_colorbalance(image, parameter(operation, "lift", 0.0),
-                               parameter(operation, "gamma", 0.0),
-                               parameter(operation, "gain", 0.0));
+            auto balanced = apply_color_balance_rgb(image, operation, cancellation);
+            if (!balanced)
+            {
+                return balanced.error();
+            }
             continue;
         }
         if (operation.id == "ravo.color.colorcontrast")
@@ -2270,12 +2261,24 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             }
             continue;
         }
-        if (operation.id == "ravo.raw.highlights")
+        if (operation.id == "ravo.raw.hotpixels")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Hot pixel correction requires a Bayer CFA working buffer",
+                              {{"operation_id", operation.id}});
+        }
+        if (operation.id == "ravo.raw.cacorrect")
         {
             return make_error(
                 ErrorCode::kUnsupported,
-                "RAW highlight reconstruction requires a Bayer CFA working buffer",
+                "RAW chromatic aberration correction requires a Bayer CFA working buffer",
                 {{"operation_id", operation.id}});
+        }
+        if (operation.id == "ravo.raw.highlights")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "RAW highlight reconstruction requires a Bayer CFA working buffer",
+                              {{"operation_id", operation.id}});
         }
         if (operation.id == "ravo.detail.denoiseprofile")
         {

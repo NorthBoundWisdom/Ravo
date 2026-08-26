@@ -32,7 +32,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 [[nodiscard]] bool matches_develop_baseline(const AssetRecord &asset, DevelopParams params);
 [[nodiscard]] std::string parameter_key_part(const ParameterValue &value);
 [[nodiscard]] std::string raw_preprocess_key(const Recipe &recipe);
-void disable_raw_highlights(Recipe &recipe);
+void disable_raw_preprocess(Recipe &recipe);
 [[nodiscard]] std::filesystem::path utf8_path(std::string_view text);
 [[nodiscard]] bool is_disk_full(const std::error_code &error) noexcept;
 [[nodiscard]] TaskError export_io_error(std::string message, std::string_view path,

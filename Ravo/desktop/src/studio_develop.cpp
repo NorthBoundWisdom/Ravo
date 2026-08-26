@@ -39,6 +39,51 @@ double StudioPresenter::editTint() const noexcept
     return develop_.tint;
 }
 
+double StudioPresenter::editChannelMixerRR() const noexcept
+{
+    return develop_.channel_mixer.red[0];
+}
+
+double StudioPresenter::editChannelMixerRG() const noexcept
+{
+    return develop_.channel_mixer.red[1];
+}
+
+double StudioPresenter::editChannelMixerRB() const noexcept
+{
+    return develop_.channel_mixer.red[2];
+}
+
+double StudioPresenter::editChannelMixerGR() const noexcept
+{
+    return develop_.channel_mixer.green[0];
+}
+
+double StudioPresenter::editChannelMixerGG() const noexcept
+{
+    return develop_.channel_mixer.green[1];
+}
+
+double StudioPresenter::editChannelMixerGB() const noexcept
+{
+    return develop_.channel_mixer.green[2];
+}
+
+double StudioPresenter::editChannelMixerBR() const noexcept
+{
+    return develop_.channel_mixer.blue[0];
+}
+
+double StudioPresenter::editChannelMixerBG() const noexcept
+{
+    return develop_.channel_mixer.blue[1];
+}
+
+double StudioPresenter::editChannelMixerBB() const noexcept
+{
+    return develop_.channel_mixer.blue[2];
+}
+
 double StudioPresenter::editExposure() const noexcept
 {
     return develop_.exposure_ev;
@@ -244,19 +289,43 @@ double StudioPresenter::editVelvia() const noexcept
     return develop_.velvia;
 }
 
-double StudioPresenter::editLift() const noexcept
+QVariantMap StudioPresenter::editColorBalanceRgb() const
 {
-    return develop_.lift;
-}
-
-double StudioPresenter::editColorGamma() const noexcept
-{
-    return develop_.color_gamma;
-}
-
-double StudioPresenter::editGain() const noexcept
-{
-    return develop_.gain;
+    const auto &params = develop_.color_balance_rgb;
+    return {{QStringLiteral("shadowsY"), params.shadows_y},
+            {QStringLiteral("shadowsChroma"), params.shadows_chroma},
+            {QStringLiteral("shadowsHue"), params.shadows_hue},
+            {QStringLiteral("midtonesY"), params.midtones_y},
+            {QStringLiteral("midtonesChroma"), params.midtones_chroma},
+            {QStringLiteral("midtonesHue"), params.midtones_hue},
+            {QStringLiteral("highlightsY"), params.highlights_y},
+            {QStringLiteral("highlightsChroma"), params.highlights_chroma},
+            {QStringLiteral("highlightsHue"), params.highlights_hue},
+            {QStringLiteral("globalY"), params.global_y},
+            {QStringLiteral("globalChroma"), params.global_chroma},
+            {QStringLiteral("globalHue"), params.global_hue},
+            {QStringLiteral("shadowsFalloff"), params.shadows_falloff},
+            {QStringLiteral("whiteFulcrumEv"), params.white_fulcrum_ev},
+            {QStringLiteral("highlightsFalloff"), params.highlights_falloff},
+            {QStringLiteral("chromaShadows"), params.chroma_shadows},
+            {QStringLiteral("chromaHighlights"), params.chroma_highlights},
+            {QStringLiteral("chromaGlobal"), params.chroma_global},
+            {QStringLiteral("chromaMidtones"), params.chroma_midtones},
+            {QStringLiteral("saturationGlobal"), params.saturation_global},
+            {QStringLiteral("saturationHighlights"), params.saturation_highlights},
+            {QStringLiteral("saturationMidtones"), params.saturation_midtones},
+            {QStringLiteral("saturationShadows"), params.saturation_shadows},
+            {QStringLiteral("hueRotation"), params.hue_rotation},
+            {QStringLiteral("brillianceGlobal"), params.brilliance_global},
+            {QStringLiteral("brillianceHighlights"), params.brilliance_highlights},
+            {QStringLiteral("brillianceMidtones"), params.brilliance_midtones},
+            {QStringLiteral("brillianceShadows"), params.brilliance_shadows},
+            {QStringLiteral("maskGreyFulcrum"), params.mask_grey_fulcrum},
+            {QStringLiteral("vibrance"), params.vibrance},
+            {QStringLiteral("greyFulcrum"), params.grey_fulcrum},
+            {QStringLiteral("contrast"), params.contrast},
+            {QStringLiteral("formulaIndex"),
+             params.saturation_formula == kColorBalanceRgbFormulaJzAzBz2021 ? 1 : 0}};
 }
 
 double StudioPresenter::editColorContrast() const noexcept
@@ -327,6 +396,31 @@ double StudioPresenter::editSigmoidHuePreservation() const noexcept
 double StudioPresenter::editRawHighlights() const noexcept
 {
     return develop_.raw_highlights;
+}
+
+double StudioPresenter::editHotPixelsStrength() const noexcept
+{
+    return develop_.hot_pixels_strength;
+}
+
+double StudioPresenter::editHotPixelsThreshold() const noexcept
+{
+    return develop_.hot_pixels_threshold;
+}
+
+bool StudioPresenter::editHotPixelsPermissive() const noexcept
+{
+    return develop_.hot_pixels_permissive;
+}
+
+int StudioPresenter::editRawCaIterations() const noexcept
+{
+    return static_cast<int>(develop_.raw_ca_iterations);
+}
+
+bool StudioPresenter::editRawCaAvoidShift() const noexcept
+{
+    return develop_.raw_ca_avoid_shift;
 }
 
 double StudioPresenter::editDenoise() const noexcept
@@ -468,8 +562,7 @@ void StudioPresenter::load_develop_for_selection()
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, loaded = std::move(loaded),
-                 history = std::move(history)]() mutable
+                [this, asset_id, loaded = std::move(loaded), history = std::move(history)]() mutable
                 {
                     if (utf8_from_qstring(selected_asset_id_) != asset_id)
                     {
@@ -537,7 +630,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     const bool crop_guides = crop_tool_active_ && !before_after_;
     preview_loading_ = refresh_preview;
     emit previewChanged();
-    ++preview_revision_;
+    static_cast<void>(develop_preview_owner_.supersede("develop_save_superseded"));
     pending_save_ = PendingDevelopWork{
         .save = true,
         .params = params,
@@ -567,7 +660,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
     develop_ = params;
     emit editChanged();
     const bool crop_guides = crop_tool_active_ && !before_after_;
-    ++preview_revision_;
+    static_cast<void>(develop_preview_owner_.supersede("interactive_preview_superseded"));
     pending_preview_ = PendingDevelopWork{
         .interactive = true,
         .params = params,
@@ -589,7 +682,7 @@ void StudioPresenter::enqueue_preview()
     }
     preview_loading_ = true;
     emit previewChanged();
-    ++preview_revision_;
+    static_cast<void>(develop_preview_owner_.supersede("preview_superseded"));
     const bool crop_guides = crop_tool_active_ && !before_after_;
     pending_preview_ = PendingDevelopWork{
         .params = develop_,
@@ -623,9 +716,10 @@ void StudioPresenter::kick_develop_work()
         return;
     }
     develop_job_in_flight_ = true;
-    const auto revision = preview_revision_;
+    const auto revision = develop_preview_owner_.revision();
+    const auto cancellation = develop_preview_owner_.begin();
     executor_.post(
-        [this, job, revision]()
+        [this, job, revision, cancellation]()
         {
             Result<AssetRecord> saved = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -648,7 +742,7 @@ void StudioPresenter::kick_develop_work()
                     request.ignore_crop = job.ignore_crop;
                     request.ignore_straighten = job.ignore_straighten;
                     request.persist_preview_record = !job.interactive;
-                    request.cancellation = shutdown_.token();
+                    request.cancellation = cancellation;
                     preview = service_->request_preview(
                         request, job.interactive ? std::optional<DevelopParams>{job.params} :
                                                    std::optional<DevelopParams>{});
@@ -691,7 +785,8 @@ void StudioPresenter::kick_develop_work()
                             emit editChanged();
                         }
                     }
-                    if (revision != preview_revision_ || !selected_matches)
+                    if (!develop_preview_owner_.accepts(revision, job.asset_id,
+                                                        utf8_from_qstring(selected_asset_id_)))
                     {
                         kick_develop_work();
                         return;

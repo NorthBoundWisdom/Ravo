@@ -36,6 +36,210 @@ constexpr float kUcsLStarUpper = 2.09885F;
 constexpr float kAngleShiftDeg = 20.0F;
 constexpr float kGenericNoiseA = 5.0e-5F;
 constexpr float kGenericNoiseB = 1.0e-6F;
+constexpr float kChannelMixerNormMin = 1.52587890625e-05F;
+constexpr float kChannelMixerInverseSqrt3 = 0.5773502691896258F;
+
+using ChannelVector = std::array<float, 3>;
+using ChannelMatrix = std::array<ChannelVector, 3>;
+
+constexpr ChannelMatrix kLinearSrgbToXyzD65 = {ChannelVector{0.4124564F, 0.3575761F, 0.1804375F},
+                                               ChannelVector{0.2126729F, 0.7151522F, 0.0721750F},
+                                               ChannelVector{0.0193339F, 0.1191920F, 0.9503041F}};
+constexpr ChannelMatrix kXyzD65ToD50Cat16 = {
+    ChannelVector{1.01085433F, 0.0407086103F, -0.0341425825F},
+    ChannelVector{0.00542814201F, 0.993581926F, 0.00115592039F},
+    ChannelVector{0.000250722468F, -0.0114918759F, 0.767964947F}};
+constexpr ChannelMatrix kXyzToCat16 = {ChannelVector{0.401288F, 0.650173F, -0.051461F},
+                                       ChannelVector{-0.250268F, 1.204414F, 0.045854F},
+                                       ChannelVector{-0.002079F, 0.048952F, 0.953127F}};
+constexpr ChannelMatrix kCat16ToXyz = {ChannelVector{1.862068F, -1.011255F, 0.149187F},
+                                       ChannelVector{0.38752F, 0.621447F, -0.008974F},
+                                       ChannelVector{-0.015841F, -0.034123F, 1.049964F}};
+constexpr ChannelMatrix kXyzToBradford = {ChannelVector{0.8951F, 0.2664F, -0.1614F},
+                                          ChannelVector{-0.7502F, 1.7135F, 0.0367F},
+                                          ChannelVector{0.0389F, -0.0685F, 1.0296F}};
+constexpr ChannelMatrix kBradfordToXyz = {ChannelVector{0.9870F, -0.1471F, 0.1600F},
+                                          ChannelVector{0.4323F, 0.5184F, 0.0493F},
+                                          ChannelVector{-0.0085F, 0.0400F, 0.9685F}};
+constexpr ChannelMatrix kIdentityMatrix = {ChannelVector{1.0F, 0.0F, 0.0F},
+                                           ChannelVector{0.0F, 1.0F, 0.0F},
+                                           ChannelVector{0.0F, 0.0F, 1.0F}};
+
+enum class ChannelAdaptation
+{
+    kRgb,
+    kCat16,
+    kLinearBradford,
+    kFullBradford,
+    kXyz,
+};
+
+[[nodiscard]] ChannelVector channel_matrix_apply(const ChannelMatrix &matrix,
+                                                 const ChannelVector &input) noexcept
+{
+    ChannelVector output{};
+    for (std::size_t row = 0; row < output.size(); ++row)
+    {
+        output[row] = std::fma(matrix[row][0], input[0],
+                               std::fma(matrix[row][1], input[1], matrix[row][2] * input[2]));
+    }
+    return output;
+}
+
+[[nodiscard]] ChannelMatrix channel_matrix_multiply(const ChannelMatrix &left,
+                                                    const ChannelMatrix &right) noexcept
+{
+    ChannelMatrix output{};
+    for (std::size_t row = 0; row < output.size(); ++row)
+    {
+        for (std::size_t column = 0; column < output[row].size(); ++column)
+        {
+            output[row][column] =
+                std::fma(left[row][0], right[0][column],
+                         std::fma(left[row][1], right[1][column], left[row][2] * right[2][column]));
+        }
+    }
+    return output;
+}
+
+[[nodiscard]] bool channel_matrix_inverse(const ChannelMatrix &input,
+                                          ChannelMatrix &output) noexcept
+{
+    const float determinant =
+        input[0][0] * (input[1][1] * input[2][2] - input[1][2] * input[2][1]) -
+        input[0][1] * (input[1][0] * input[2][2] - input[1][2] * input[2][0]) +
+        input[0][2] * (input[1][0] * input[2][1] - input[1][1] * input[2][0]);
+    if (!std::isfinite(determinant) || std::abs(determinant) <= 1.0e-8F)
+    {
+        return false;
+    }
+    const float inverse = 1.0F / determinant;
+    output = {{{(input[1][1] * input[2][2] - input[1][2] * input[2][1]) * inverse,
+                (input[0][2] * input[2][1] - input[0][1] * input[2][2]) * inverse,
+                (input[0][1] * input[1][2] - input[0][2] * input[1][1]) * inverse},
+               {(input[1][2] * input[2][0] - input[1][0] * input[2][2]) * inverse,
+                (input[0][0] * input[2][2] - input[0][2] * input[2][0]) * inverse,
+                (input[0][2] * input[1][0] - input[0][0] * input[1][2]) * inverse},
+               {(input[1][0] * input[2][1] - input[1][1] * input[2][0]) * inverse,
+                (input[0][1] * input[2][0] - input[0][0] * input[2][1]) * inverse,
+                (input[0][0] * input[1][1] - input[0][1] * input[1][0]) * inverse}}};
+    return true;
+}
+
+[[nodiscard]] bool channel_vector_is_finite(const ChannelVector &value) noexcept
+{
+    return std::isfinite(value[0]) && std::isfinite(value[1]) && std::isfinite(value[2]);
+}
+
+void channel_clip_negative(ChannelVector &value) noexcept
+{
+    for (float &sample : value)
+    {
+        sample = std::max(sample, 0.0F);
+    }
+}
+
+void channel_downscale(ChannelVector &value, const float scale) noexcept
+{
+    const float divisor =
+        scale > kChannelMixerNormMin ? scale + kChannelMixerNormMin : kChannelMixerNormMin;
+    for (float &sample : value)
+    {
+        sample /= divisor;
+    }
+}
+
+void channel_upscale(ChannelVector &value, const float scale) noexcept
+{
+    const float factor =
+        scale > kChannelMixerNormMin ? scale + kChannelMixerNormMin : kChannelMixerNormMin;
+    for (float &sample : value)
+    {
+        sample *= factor;
+    }
+}
+
+[[nodiscard]] bool channel_gamut_map(const ChannelVector &input, const float gamut, const bool clip,
+                                     ChannelVector &output) noexcept
+{
+    constexpr float d50_u = 0.20915914598542354F;
+    constexpr float d50_v = 0.488075320769787F;
+    const float sum = input[0] + input[1] + input[2];
+    float x = sum > 0.0F ? input[0] / sum : 0.34567F;
+    float y = sum > 0.0F ? input[1] / sum : 0.35850F;
+    const float luminance = input[1];
+    const float uv_denominator = -2.0F * x + 12.0F * y + 3.0F;
+    if (!std::isfinite(uv_denominator) || std::abs(uv_denominator) <= kChannelMixerNormMin)
+    {
+        return false;
+    }
+    float u = 4.0F * x / uv_denominator;
+    float v = 9.0F * y / uv_denominator;
+    const float du = d50_u - u;
+    const float dv = d50_v - v;
+    const float delta = luminance * (du * du + dv * dv);
+    const float correction = gamut == 0.0F ? 0.0F : std::pow(delta, 1.0F / gamut);
+    if (!std::isfinite(correction))
+    {
+        return false;
+    }
+    const float adjusted_u = std::fma(correction, du, u);
+    const float adjusted_v = std::fma(correction, dv, v);
+    u = u > d50_u ? std::max(adjusted_u, d50_u) : std::min(adjusted_u, d50_u);
+    v = v > d50_v ? std::max(adjusted_v, d50_v) : std::min(adjusted_v, d50_v);
+    const float xy_denominator = 6.0F * u - 16.0F * v + 12.0F;
+    if (!std::isfinite(xy_denominator) || std::abs(xy_denominator) <= kChannelMixerNormMin)
+    {
+        return false;
+    }
+    x = 9.0F * u / xy_denominator;
+    y = 4.0F * v / xy_denominator;
+    if (clip)
+    {
+        x = std::max(x, 0.0F);
+        y = std::max(y, 0.0F);
+    }
+    y = std::max(y, kChannelMixerNormMin);
+    const float chroma_sum = x + y;
+    if (chroma_sum >= 1.0F)
+    {
+        x /= chroma_sum;
+        y /= chroma_sum;
+    }
+    output = {luminance * x / y, luminance, luminance * (1.0F - x - y) / y};
+    return channel_vector_is_finite(output);
+}
+
+[[nodiscard]] ChannelVector channel_luma_chroma(const ChannelVector &input,
+                                                const ChannelVector &saturation,
+                                                const ChannelVector &lightness) noexcept
+{
+    float norm =
+        std::max(std::sqrt(input[0] * input[0] + input[1] * input[1] + input[2] * input[2]),
+                 kChannelMixerNormMin);
+    const float average = std::max((input[0] + input[1] + input[2]) / 3.0F, kChannelMixerNormMin);
+    const float light_mix =
+        std::fma(input[0], lightness[0], std::fma(input[1], lightness[1], input[2] * lightness[2]));
+    norm *= kChannelMixerInverseSqrt3;
+    ChannelVector output{input[0] / norm, input[1] / norm, input[2] / norm};
+    const float coefficient =
+        (output[0] * saturation[0] + output[1] * saturation[1] + output[2] * saturation[2]) / 3.0F;
+    for (float &ratio : output)
+    {
+        const float minimum = ratio < 0.0F ? ratio : 0.0F;
+        ratio = std::max(std::fma(1.0F - ratio, coefficient, ratio), minimum);
+    }
+    const float adjusted_norm =
+        std::max(std::sqrt(output[0] * output[0] + output[1] * output[1] + output[2] * output[2]),
+                 kChannelMixerNormMin);
+    norm /= adjusted_norm * kChannelMixerInverseSqrt3;
+    norm *= std::max(1.0F + light_mix / average, 0.0F);
+    for (float &ratio : output)
+    {
+        ratio *= norm;
+    }
+    return output;
+}
 
 [[nodiscard]] double as_number(const ParameterValue &value, const double fallback)
 {
@@ -72,6 +276,21 @@ constexpr float kGenericNoiseB = 1.0e-6F;
     if (const auto *text = std::get_if<std::string>(&found->second.value); text != nullptr)
     {
         return *text;
+    }
+    return fallback;
+}
+
+[[nodiscard]] bool parameter_bool(const OperationInstance &operation, const std::string_view name,
+                                  const bool fallback)
+{
+    const auto found = operation.parameters.find(std::string(name));
+    if (found == operation.parameters.end())
+    {
+        return fallback;
+    }
+    if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
+    {
+        return *flag;
     }
     return fallback;
 }
@@ -1260,6 +1479,109 @@ void apply_matrix(const float matrix[3][3], const float in[3], float out[3]) noe
 
 } // namespace
 
+Result<void> apply_raw_hotpixels(DecodedRaw &raw, const OperationInstance &operation,
+                                 const CancellationToken &cancellation)
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const double strength = parameter(operation, "strength", 0.25);
+    const double threshold = parameter(operation, "threshold", 0.05);
+    const bool permissive = parameter_bool(operation, "permissive", false);
+    if (!std::isfinite(strength) || !std::isfinite(threshold) || strength < 0.0 || strength > 1.0 ||
+        threshold < 0.0 || threshold > 1.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Hot pixel parameters must be finite and within [0, 1]");
+    }
+    if (strength == 0.0)
+    {
+        return {};
+    }
+    if (raw.cfa_width != 2U || raw.cfa_height != 2U || raw.cfa_channels.size() != 4U)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Hot pixel correction currently requires a Bayer 2x2 CFA");
+    }
+    const bool has_red =
+        std::find(raw.cfa_channels.begin(), raw.cfa_channels.end(), 0U) != raw.cfa_channels.end();
+    const bool has_green =
+        std::find(raw.cfa_channels.begin(), raw.cfa_channels.end(), 1U) != raw.cfa_channels.end();
+    const bool has_blue =
+        std::find(raw.cfa_channels.begin(), raw.cfa_channels.end(), 2U) != raw.cfa_channels.end();
+    if (!has_red || !has_green || !has_blue)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Hot pixel correction does not support monochrome CFA data");
+    }
+    if (raw.width < 5U || raw.height < 5U ||
+        raw.pixels.size() != static_cast<std::size_t>(raw.width) * raw.height)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Hot pixel correction requires a complete CFA frame of at least 5x5");
+    }
+    const std::int64_t black = raw.black_level;
+    const std::int64_t white = raw.white_level;
+    if (white <= black)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Hot pixel correction requires white level above black level");
+    }
+    const float range = static_cast<float>(white - black);
+    const auto normalized = [black, range](const std::uint16_t sample)
+    {
+        return std::max(static_cast<float>(static_cast<std::int64_t>(sample) - black), 0.0F) /
+               range;
+    };
+    const std::vector<std::uint16_t> input = raw.pixels;
+    const float multiplier = static_cast<float>(strength * 0.5);
+    const float threshold_value = static_cast<float>(threshold);
+    const int minimum_neighbours = permissive ? 3 : 4;
+    const std::ptrdiff_t width = static_cast<std::ptrdiff_t>(raw.width);
+    const std::array<std::ptrdiff_t, 4> offsets{-2, -2 * width, 2, 2 * width};
+    for (std::uint32_t row = 2; row + 2U < raw.height; ++row)
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        for (std::uint32_t column = 2; column + 2U < raw.width; ++column)
+        {
+            const std::size_t index = static_cast<std::size_t>(row) * raw.width + column;
+            const float value = normalized(input[index]);
+            if (value <= threshold_value)
+            {
+                continue;
+            }
+            const float midpoint = value * multiplier;
+            int count = 0;
+            float maximum = 0.0F;
+            for (const std::ptrdiff_t offset : offsets)
+            {
+                const auto neighbour_index =
+                    static_cast<std::size_t>(static_cast<std::ptrdiff_t>(index) + offset);
+                const float neighbour = normalized(input[neighbour_index]);
+                if (midpoint > neighbour)
+                {
+                    ++count;
+                    maximum = std::max(maximum, neighbour);
+                }
+            }
+            if (count >= minimum_neighbours)
+            {
+                const auto replacement = static_cast<std::int64_t>(
+                    std::lround(static_cast<double>(black) + static_cast<double>(maximum * range)));
+                raw.pixels[index] = static_cast<std::uint16_t>(std::clamp<std::int64_t>(
+                    replacement, 0, std::numeric_limits<std::uint16_t>::max()));
+            }
+        }
+    }
+    return {};
+}
+
 Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &operation,
                                   const CancellationToken &cancellation)
 {
@@ -1603,6 +1925,251 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
                 const float sy = cy + dy * scale;
                 image.rgb[index + channel] = sample_channel(source, sx, sy, channel) * (1.0F + vig);
             }
+        }
+    }
+    return {};
+}
+
+Result<void> apply_channel_mixer_rgb(WorkingImage &image, const OperationInstance &operation,
+                                     const CancellationToken &cancellation)
+{
+    auto parsed = channel_mixer_from_parameters(operation.parameters);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    const ChannelMixerParams &params = parsed.value();
+    if (params.is_identity())
+    {
+        return {};
+    }
+    if (image.width == 0 || image.height == 0 ||
+        image.rgb.size() != static_cast<std::size_t>(image.width) * image.height * 3U)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color calibration input buffer is empty or undersized");
+    }
+
+    const auto normalize_row =
+        [](const std::array<double, kChannelMixerChannelCount> &source, const bool normalize)
+    {
+        ChannelVector row{static_cast<float>(source[0]), static_cast<float>(source[1]),
+                          static_cast<float>(source[2])};
+        if (normalize)
+        {
+            const float sum = row[0] + row[1] + row[2];
+            for (float &value : row)
+            {
+                value /= sum;
+            }
+        }
+        return row;
+    };
+    ChannelMatrix mix{normalize_row(params.red, params.normalize_red),
+                      normalize_row(params.green, params.normalize_green),
+                      normalize_row(params.blue, params.normalize_blue)};
+    ChannelVector saturation{};
+    ChannelVector lightness{};
+    ChannelVector grey{};
+    const float saturation_norm =
+        params.normalize_saturation ?
+            static_cast<float>(
+                (params.saturation[0] + params.saturation[1] + params.saturation[2]) / 3.0) :
+            0.0F;
+    const float lightness_norm =
+        params.normalize_lightness ?
+            static_cast<float>((params.lightness[0] + params.lightness[1] + params.lightness[2]) /
+                               3.0) :
+            0.0F;
+    double grey_norm = params.grey[0] + params.grey[1] + params.grey[2];
+    const bool apply_grey = params.grey[0] != 0.0 || params.grey[1] != 0.0 || params.grey[2] != 0.0;
+    if (!params.normalize_grey || std::abs(grey_norm) <= 1.0e-12)
+    {
+        grey_norm = 1.0;
+    }
+    for (std::size_t channel = 0; channel < kChannelMixerChannelCount; ++channel)
+    {
+        saturation[channel] = -static_cast<float>(params.saturation[channel]) + saturation_norm;
+        lightness[channel] = static_cast<float>(params.lightness[channel]) - lightness_norm;
+        grey[channel] = static_cast<float>(params.grey[channel] / grey_norm);
+    }
+
+    ChannelAdaptation adaptation = ChannelAdaptation::kRgb;
+    if (params.adaptation == kChannelMixerAdaptationCat16)
+    {
+        adaptation = ChannelAdaptation::kCat16;
+    }
+    else if (params.adaptation == kChannelMixerAdaptationLinearBradford)
+    {
+        adaptation = ChannelAdaptation::kLinearBradford;
+    }
+    else if (params.adaptation == kChannelMixerAdaptationFullBradford)
+    {
+        adaptation = ChannelAdaptation::kFullBradford;
+    }
+    else if (params.adaptation == kChannelMixerAdaptationXyz)
+    {
+        adaptation = ChannelAdaptation::kXyz;
+    }
+
+    const ChannelMatrix rgb_to_xyz =
+        channel_matrix_multiply(kXyzD65ToD50Cat16, kLinearSrgbToXyzD65);
+    ChannelMatrix xyz_to_rgb{};
+    if (!channel_matrix_inverse(rgb_to_xyz, xyz_to_rgb))
+    {
+        return make_error(ErrorCode::kInternal,
+                          "Color calibration working profile matrix is not invertible");
+    }
+    const ChannelMatrix xyz_to_adaptation = adaptation == ChannelAdaptation::kCat16 ?
+                                                kXyzToCat16 :
+                                            (adaptation == ChannelAdaptation::kLinearBradford ||
+                                             adaptation == ChannelAdaptation::kFullBradford) ?
+                                                kXyzToBradford :
+                                                kIdentityMatrix;
+    const ChannelMatrix adaptation_to_xyz = adaptation == ChannelAdaptation::kCat16 ?
+                                                kCat16ToXyz :
+                                            (adaptation == ChannelAdaptation::kLinearBradford ||
+                                             adaptation == ChannelAdaptation::kFullBradford) ?
+                                                kBradfordToXyz :
+                                                kIdentityMatrix;
+    const ChannelMatrix rgb_to_adaptation = channel_matrix_multiply(xyz_to_adaptation, rgb_to_xyz);
+    const ChannelMatrix mix_to_xyz = adaptation == ChannelAdaptation::kRgb ?
+                                         channel_matrix_multiply(rgb_to_xyz, mix) :
+                                         channel_matrix_multiply(adaptation_to_xyz, mix);
+
+    const ChannelVector illuminant_xyz{
+        static_cast<float>(params.illuminant_x / params.illuminant_y), 1.0F,
+        static_cast<float>((1.0 - params.illuminant_x - params.illuminant_y) /
+                           params.illuminant_y)};
+    const ChannelVector illuminant = channel_matrix_apply(xyz_to_adaptation, illuminant_xyz);
+    if (adaptation != ChannelAdaptation::kRgb &&
+        (illuminant[0] <= kChannelMixerNormMin || illuminant[1] <= kChannelMixerNormMin ||
+         illuminant[2] <= kChannelMixerNormMin))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color calibration illuminant is invalid in the adaptation space");
+    }
+    const float bradford_power =
+        std::pow(0.818155F / std::max(illuminant[2], kChannelMixerNormMin), 0.0834F);
+    const float gamut = static_cast<float>(params.gamut);
+
+    for (std::uint32_t row = 0; row < image.height; ++row)
+    {
+        auto cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        for (std::uint32_t column = 0; column < image.width; ++column)
+        {
+            const std::size_t index = (static_cast<std::size_t>(row) * image.width + column) * 3U;
+            ChannelVector input{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
+            if (!channel_vector_is_finite(input))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Color calibration input contains a non-finite sample",
+                                  {{"sample_index", std::to_string(index)}});
+            }
+            if (params.clip)
+            {
+                channel_clip_negative(input);
+            }
+
+            ChannelVector adapted{};
+            if (adaptation == ChannelAdaptation::kFullBradford)
+            {
+                const ChannelVector xyz = channel_matrix_apply(rgb_to_xyz, input);
+                const float luminance = xyz[1];
+                adapted = channel_matrix_apply(kXyzToBradford, xyz);
+                channel_downscale(adapted, luminance);
+                adapted[0] *= 0.996078F / illuminant[0];
+                adapted[1] *= 1.020646F / illuminant[1];
+                const float blue = adapted[2] / illuminant[2];
+                adapted[2] = 0.818155F * (blue > 0.0F ? std::pow(blue, bradford_power) : blue);
+                channel_upscale(adapted, luminance);
+            }
+            else if (adaptation == ChannelAdaptation::kLinearBradford)
+            {
+                adapted = channel_matrix_apply(rgb_to_adaptation, input);
+                adapted[0] *= 0.996078F / illuminant[0];
+                adapted[1] *= 1.020646F / illuminant[1];
+                adapted[2] *= 0.818155F / illuminant[2];
+            }
+            else if (adaptation == ChannelAdaptation::kCat16)
+            {
+                adapted = channel_matrix_apply(rgb_to_adaptation, input);
+                adapted[0] *= 0.994535F / illuminant[0];
+                adapted[1] *= 1.000997F / illuminant[1];
+                adapted[2] *= 0.833036F / illuminant[2];
+            }
+            else if (adaptation == ChannelAdaptation::kXyz)
+            {
+                adapted = channel_matrix_apply(rgb_to_xyz, input);
+                adapted[0] *= 0.9642119944211994F / illuminant[0];
+                adapted[1] /= illuminant[1];
+                adapted[2] *= 0.8251882845188288F / illuminant[2];
+            }
+            else
+            {
+                adapted = input;
+            }
+
+            ChannelVector xyz = channel_matrix_apply(mix_to_xyz, adapted);
+            if (params.clip)
+            {
+                channel_clip_negative(xyz);
+            }
+            ChannelVector gamut_mapped{};
+            if (!channel_gamut_map(xyz, gamut, params.clip, gamut_mapped))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Color calibration gamut mapping produced a non-finite sample",
+                                  {{"sample_index", std::to_string(index)}});
+            }
+            ChannelVector working = adaptation == ChannelAdaptation::kRgb ?
+                                        channel_matrix_apply(xyz_to_rgb, gamut_mapped) :
+                                        channel_matrix_apply(xyz_to_adaptation, gamut_mapped);
+            if (params.clip)
+            {
+                channel_clip_negative(working);
+            }
+            ChannelVector adjusted = channel_luma_chroma(working, saturation, lightness);
+            if (params.clip)
+            {
+                channel_clip_negative(adjusted);
+            }
+
+            ChannelVector output{};
+            if (apply_grey)
+            {
+                const float value = std::max(
+                    adjusted[0] * grey[0] + adjusted[1] * grey[1] + adjusted[2] * grey[2], 0.0F);
+                output = {value, value, value};
+            }
+            else
+            {
+                xyz = adaptation == ChannelAdaptation::kRgb ?
+                          channel_matrix_apply(rgb_to_xyz, adjusted) :
+                          channel_matrix_apply(adaptation_to_xyz, adjusted);
+                if (params.clip)
+                {
+                    channel_clip_negative(xyz);
+                }
+                output = channel_matrix_apply(xyz_to_rgb, xyz);
+                if (params.clip)
+                {
+                    channel_clip_negative(output);
+                }
+            }
+            if (!channel_vector_is_finite(output))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Color calibration produced a non-finite sample",
+                                  {{"sample_index", std::to_string(index)}});
+            }
+            image.rgb[index] = output[0];
+            image.rgb[index + 1U] = output[1];
+            image.rgb[index + 2U] = output[2];
         }
     }
     return {};

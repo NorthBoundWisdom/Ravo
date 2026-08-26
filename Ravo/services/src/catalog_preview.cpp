@@ -369,7 +369,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             return linear.error();
         }
         Recipe rgb_recipe = edit_recipe;
-        disable_raw_highlights(rgb_recipe);
+        disable_raw_preprocess(rgb_recipe);
         auto applied =
             engine_->render_linear_working(*linear.value(), rgb_recipe, request.cancellation);
         if (!applied)

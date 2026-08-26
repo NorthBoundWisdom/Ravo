@@ -61,7 +61,8 @@ preview 构建进度。选完系统文件夹/文件对话框后，扫描和导�
 项滚出视口才 `positionViewAtIndex`。`--catalog <library.sqlite>` 由 C++ 交给 presenter，QML
 在启动会话时打开该路径而不是默认库。
 Develop 预览由 presenter 做有界合并：同一时刻最多一个 in-flight 渲染，另加最多一份待保存
-recipe 和一份待预览请求；过期结果丢弃，失败时保留上次已验证 preview。拖动时 presenter 只转发
+recipe 和一份待预览请求；新 revision 立即取消旧 token，过期结果按 revision + asset 双重丢弃，
+失败时保留上次已验证 preview。拖动时 presenter 只转发
 内存中的 develop 参数，不写 recipe；服务层按 `kInteractivePreviewMaxEdge` 在已缓存的
 scene-linear 工作图上套用效果，只返回内存像素、不写 PNG/cache。RAW unpack 与 demosaic 缓存在
 CatalogService，highlight reconstruction 变化时失效；不得回退到 embedded JPEG。松手后再保存
@@ -91,6 +92,8 @@ catalog 是单个用户选择的 SQLite 文件。schema v1 至少保存：
 `asset_recipe_history`（history/snapshot）。SQLite adapter 打开时启用 WAL、`synchronous=NORMAL`
 和 `busy_timeout`，导入批次不会被每条 autocommit 的 FULL 同步写放大。新库和每次 migration 使用事务；未知更高
 schema 版本 fail-fast。
+当前 recipe 行（或 baseline 清除）、自动 history 与 catalog revision 由 repository adapter 在一个事务中
+发布；任一步失败全部回滚，service 不做补偿写或暴露半提交 recipe。
 
 首版不读取或迁移冻结 0.9 catalog。未来兼容工作必须有独立产品决定、备份/回滚和 fixture。
 
@@ -140,6 +143,21 @@ black/white target 与 hue preservation。它是 RAW 基线与 scene-referred op
 继续服务 display-referred raster 输入和旧 recipe。highlights/shadows/whites/blacks 仍是
 transform 之前的 scene controls。RAW 路径可在 demosaic 前运行 `ravo.raw.highlights`；
 默认降噪、镜头校正、dt UCS `colorequal`、渐变滤镜和 9 带 toneequal 走同一 recipe/engine。
+`ravo.raw.hotpixels` 在 highlights 之前处理 owned `DecodedRaw` 副本；两者都在 demosaic 前完成并在
+进入 RGB recipe 前禁用。scene-linear cache preprocess key 包含全部 CFA operation 的参数与顺序；原始 decoded cache
+不被 recipe mutation 污染。当前 hot-pixel sensor contract 只接受完整 Bayer 2×2 CFA。
+`ravo.raw.cacorrect` 随后在同一副本上执行 Bayer tile 统计、全图 polynomial shift fit 和可选
+avoid-color-shift，再进入 demosaic。RAW memory estimator 必须计入 owned CFA、float scratch、拟合与
+avoid-shift factor；预算不足在分配/像素发布前失败。
+`ravo.color.channelmixerrgb` v1 固定声明 `linear_srgb_d50` 工作空间与 V3 算法，完整保存三行 mixing、
+saturation/lightness/grey、normalization、adaptation、illuminant xy、gamut 与 clip。Studio 默认只编辑
+`adaptation=rgb` 的 3×3 矩阵；CAT16/Bradford/XYZ 只能由显式 canonical 参数选择，不读取隐藏 camera/ICC
+状态，避免与 RAW camera WB 重复。
+`ravo.color.colorbalancergb` v1 同样显式声明 `linear_srgb_d50`，保存四段 Y/C/H、三段 falloff/fulcrum、
+chroma/saturation/brilliance、hue/vibrance/contrast 和 formula。engine 同步派生 render-lifetime gamut LUT，
+执行 CAT16 D65、CIE 2006 LMS、Filmlight Yrg/Ych 与 DT UCS（默认）或显式 JzAzBz；逐像素结果先写 owned
+输出缓冲，全部行成功后发布。Studio 的只读参数 map 只投影 canonical 值，QML 不拥有 mask、LUT 或色彩数学。
+原 `ravo.color.colorbalance` 三参数近似已硬删除；冻结 `colorbalance.c` 仍是独立后续 capability。
 
 所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
 或无标记 buffer 不得隐式选择色彩策略。完整约束见

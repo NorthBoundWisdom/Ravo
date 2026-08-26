@@ -27,6 +27,8 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
+#include "color_balance_fixture.h"
+
 namespace ravo
 {
 namespace
@@ -776,6 +778,71 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     EXPECT_NEAR(develop.value().graduated_density, 0.6, 1e-6);
 }
 
+TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevision)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "recipe-transaction.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.fill(QColor(90, 45, 20));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams accepted;
+    accepted.exposure_ev = 0.25;
+    ASSERT_TRUE(service->save_develop(asset_id, accepted));
+    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
+    auto history_before = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history_before) << history_before.error().message;
+
+    {
+        const auto connection = QStringLiteral("ravo_recipe_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER fail_recipe_history BEFORE INSERT ON asset_recipe_history "
+            "BEGIN SELECT RAISE(ABORT, 'forced recipe history failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    DevelopParams rejected = accepted;
+    rejected.exposure_ev = -0.75;
+    auto failed = service->save_develop(asset_id, rejected);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+
+    auto current = service->load_recipe(asset_id);
+    ASSERT_TRUE(current) << current.error().message;
+    auto current_params = develop_from_recipe(current.value());
+    ASSERT_TRUE(current_params) << current_params.error().message;
+    EXPECT_NEAR(current_params.value().exposure_ev, accepted.exposure_ev, 1e-9);
+    auto snapshot_after = service->snapshot();
+    ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
+    EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
+    auto history_after = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history_after) << history_after.error().message;
+    EXPECT_EQ(history_after.value().size(), history_before.value().size());
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_params = develop_from_recipe(restored.value());
+    ASSERT_TRUE(restored_params) << restored_params.error().message;
+    EXPECT_NEAR(restored_params.value().exposure_ev, accepted.exposure_ev, 1e-9);
+}
+
 TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 {
     auto created = open_service(true);
@@ -887,11 +954,24 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     request.asset_id = asset_id;
     request.max_edge = kInteractivePreviewMaxEdge;
     request.persist_preview_record = false;
+    request.prefer_embedded_preview = true;
     auto first = service->request_preview(request, live);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_TRUE(first.value().cache_path.empty());
     EXPECT_FALSE(first.value().srgb.empty());
     EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
+
+    auto direct_recipe = recipe_from_develop(
+        {asset_id, raw_fixture_path(), imported.value().asset->content_fingerprint}, live);
+    ASSERT_TRUE(direct_recipe) << direct_recipe.error().message;
+    RenderRequest direct_request;
+    direct_request.asset = direct_recipe.value().asset;
+    direct_request.recipe = direct_recipe.value();
+    direct_request.output_width = first.value().width;
+    direct_request.output_height = first.value().height;
+    auto direct = engine.render_to_image(direct_request);
+    ASSERT_TRUE(direct) << direct.error().message;
+    EXPECT_EQ(first.value().srgb, direct.value().rgb);
 
     auto stored = service->load_recipe(asset_id);
     ASSERT_TRUE(stored) << stored.error().message;
@@ -916,6 +996,83 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     ASSERT_TRUE(highlighted) << highlighted.error().message;
     EXPECT_EQ(highlighted.value().width, first.value().width);
     EXPECT_EQ(highlighted.value().height, first.value().height);
+}
+
+TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfterReopen)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto edited = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(edited) << edited.error().message;
+    edited.value().raw_highlights = 0.35;
+    edited.value().hot_pixels_strength = 0.25;
+    edited.value().hot_pixels_threshold = 0.05;
+    edited.value().hot_pixels_permissive = true;
+    edited.value().raw_ca_iterations = 1;
+    edited.value().raw_ca_avoid_shift = false;
+    edited.value().raw_highlights_mode = std::string(kRawHighlightsModeOpposed);
+    edited.value().denoise = 0.2;
+    edited.value().denoise_chroma = 0.7;
+    edited.value().denoise_radius = 1.5;
+    edited.value().lens_mode = std::string(kLensModeManual);
+    edited.value().lens_k1 = -0.04;
+    edited.value().lens_vignetting = 0.15;
+    // The selected Inspector band is transient presentation state; all eight algorithm bands
+    // are canonical recipe data.
+    edited.value().color_eq_band = 0;
+    edited.value().color_eq_hue[2] = 0.1;
+    edited.value().color_eq_sat[2] = 0.25;
+    edited.value().color_eq_light[2] = -0.15;
+    edited.value().graduated_density = 0.4;
+    edited.value().graduated_hardness = 0.65;
+    edited.value().graduated_rotation = 15.0;
+    edited.value().graduated_offset = -0.1;
+    edited.value().tone_eq_blacks = -0.2;
+    edited.value().tone_eq_shadows = 0.15;
+    edited.value().tone_eq_midtones = 0.25;
+    edited.value().tone_eq_highlights = -0.1;
+    edited.value().tone_eq_whites = -0.3;
+    edited.value().channel_mixer.red = {0.95, 0.05, 0.0};
+    edited.value().channel_mixer.green = {0.02, 0.96, 0.02};
+    edited.value().channel_mixer.blue = {0.0, 0.08, 0.92};
+    edited.value().color_balance_rgb = test::color_balance_0093_params();
+    clamp_develop(edited.value());
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 96;
+    preview.persist_preview_record = false;
+    auto baseline = service->request_preview(preview);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    ASSERT_FALSE(baseline.value().srgb.empty());
+
+    auto saved = service->save_develop(asset_id, edited.value());
+    ASSERT_TRUE(saved) << saved.error().message;
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    ASSERT_FALSE(before_reopen.value().srgb.empty());
+    EXPECT_NE(before_reopen.value().srgb, baseline.value().srgb);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value(), edited.value());
+
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().srgb, before_reopen.value().srgb);
 }
 
 TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)

@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <numeric>
+#include <numbers>
 #include <optional>
 #include <string>
 #include <vector>
@@ -15,6 +18,8 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 
+#include "color_balance_fixture.h"
+#include "color_balance_rgb.h"
 #include "test_support.h"
 
 namespace ravo
@@ -386,6 +391,391 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
     return engine.render_to_image(request, &raster);
 }
 
+[[nodiscard]] OperationInstance channel_mixer_operation(const ChannelMixerParams &params,
+                                                        std::string instance_id = "calibration-1")
+{
+    return {"ravo.color.channelmixerrgb",        1,           std::move(instance_id), true,
+            channel_mixer_to_parameters(params), std::nullopt};
+}
+
+[[nodiscard]] OperationInstance
+color_balance_rgb_operation(const ColorBalanceRgbParams &params,
+                            std::string instance_id = "colorbalancergb-1")
+{
+    return {"ravo.color.colorbalancergb",
+            1,
+            std::move(instance_id),
+            true,
+            color_balance_rgb_to_parameters(params),
+            std::nullopt};
+}
+
+[[nodiscard]] OperationInstance hot_pixels_operation(const bool permissive = false)
+{
+    return {"ravo.raw.hotpixels",
+            1,
+            "hotpixels-1",
+            true,
+            {{"strength", ParameterValue{0.25}},
+             {"threshold", ParameterValue{0.05}},
+             {"permissive", ParameterValue{permissive}}},
+            std::nullopt};
+}
+
+[[nodiscard]] OperationInstance raw_ca_operation(const std::int64_t iterations = 2,
+                                                 const bool avoid_color_shift = false)
+{
+    return {"ravo.raw.cacorrect",
+            1,
+            "cacorrect-1",
+            true,
+            {{"iterations", ParameterValue{iterations}},
+             {"avoid_color_shift", ParameterValue{avoid_color_shift}}},
+            std::nullopt};
+}
+
+[[nodiscard]] DecodedRaw synthetic_bayer_raw()
+{
+    DecodedRaw raw;
+    raw.width = 9;
+    raw.height = 9;
+    raw.cfa_width = 2;
+    raw.cfa_height = 2;
+    raw.black_level = 0;
+    raw.white_level = 1000;
+    raw.cfa_channels = {0, 1, 1, 2};
+    raw.pixels.assign(static_cast<std::size_t>(raw.width) * raw.height, 100);
+    return raw;
+}
+
+TEST(EngineFacadeTest, HotPixelsMatchesFrozenBayerNeighbourContract)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe identity;
+    identity.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
+    Recipe strict = identity;
+    strict.operations.push_back(hot_pixels_operation(false));
+    Recipe permissive = identity;
+    permissive.operations.push_back(hot_pixels_operation(true));
+
+    const auto clean = synthetic_bayer_raw();
+    auto clean_working =
+        engine.value().linear_working_from_raw(clean, identity, 9, 9, CancellationToken{});
+    ASSERT_TRUE(clean_working) << clean_working.error().message;
+
+    auto single = synthetic_bayer_raw();
+    const std::size_t center = 4U * single.width + 4U;
+    single.pixels[center] = 1000;
+    const auto original_single = single.pixels;
+    auto uncorrected =
+        engine.value().linear_working_from_raw(single, identity, 9, 9, CancellationToken{});
+    auto corrected =
+        engine.value().linear_working_from_raw(single, strict, 9, 9, CancellationToken{});
+    ASSERT_TRUE(uncorrected) << uncorrected.error().message;
+    ASSERT_TRUE(corrected) << corrected.error().message;
+    EXPECT_NE(uncorrected.value().rgb, corrected.value().rgb);
+    EXPECT_EQ(corrected.value().rgb, clean_working.value().rgb);
+    EXPECT_EQ(single.pixels, original_single);
+
+    auto pair = synthetic_bayer_raw();
+    pair.pixels[center] = 1000;
+    pair.pixels[4U * pair.width + 2U] = 1000;
+    auto pair_uncorrected =
+        engine.value().linear_working_from_raw(pair, identity, 9, 9, CancellationToken{});
+    auto pair_strict =
+        engine.value().linear_working_from_raw(pair, strict, 9, 9, CancellationToken{});
+    auto pair_permissive =
+        engine.value().linear_working_from_raw(pair, permissive, 9, 9, CancellationToken{});
+    ASSERT_TRUE(pair_uncorrected) << pair_uncorrected.error().message;
+    ASSERT_TRUE(pair_strict) << pair_strict.error().message;
+    ASSERT_TRUE(pair_permissive) << pair_permissive.error().message;
+    EXPECT_EQ(pair_strict.value().rgb, pair_uncorrected.value().rgb);
+    EXPECT_EQ(pair_permissive.value().rgb, clean_working.value().rgb);
+
+    auto edge = synthetic_bayer_raw();
+    edge.pixels[1U * edge.width + 1U] = 1000;
+    auto edge_uncorrected =
+        engine.value().linear_working_from_raw(edge, identity, 9, 9, CancellationToken{});
+    auto edge_corrected =
+        engine.value().linear_working_from_raw(edge, strict, 9, 9, CancellationToken{});
+    ASSERT_TRUE(edge_uncorrected) << edge_uncorrected.error().message;
+    ASSERT_TRUE(edge_corrected) << edge_corrected.error().message;
+    EXPECT_EQ(edge_corrected.value().rgb, edge_uncorrected.value().rgb);
+
+    auto xtrans = synthetic_bayer_raw();
+    xtrans.cfa_width = 6;
+    xtrans.cfa_height = 6;
+    xtrans.cfa_channels.assign(36, 1);
+    auto unsupported =
+        engine.value().linear_working_from_raw(xtrans, strict, 9, 9, CancellationToken{});
+    ASSERT_FALSE(unsupported);
+    EXPECT_EQ(unsupported.error().code, ErrorCode::kUnsupported);
+
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("hotpixels"));
+    auto cancelled =
+        engine.value().linear_working_from_raw(single, strict, 9, 9, cancellation.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+
+    auto raster_rejected =
+        render_op(engine.value(), solid_raster(8, 8, 120, 120, 120), hot_pixels_operation());
+    ASSERT_FALSE(raster_rejected);
+    EXPECT_EQ(raster_rejected.error().code, ErrorCode::kUnsupported);
+}
+
+TEST(EngineFacadeTest, RawCaCorrectRejectsUnsupportedBuffersAndHonorsCancellation)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
+    recipe.operations.push_back(raw_ca_operation());
+
+    auto small = synthetic_bayer_raw();
+    auto too_small =
+        engine.value().linear_working_from_raw(small, recipe, 9, 9, CancellationToken{});
+    ASSERT_FALSE(too_small);
+    EXPECT_EQ(too_small.error().code, ErrorCode::kUnsupported);
+
+    auto xtrans = synthetic_bayer_raw();
+    xtrans.width = 32;
+    xtrans.height = 32;
+    xtrans.pixels.assign(32U * 32U, 100);
+    xtrans.cfa_width = 6;
+    xtrans.cfa_height = 6;
+    xtrans.cfa_channels.assign(36, 1);
+    auto unsupported =
+        engine.value().linear_working_from_raw(xtrans, recipe, 32, 32, CancellationToken{});
+    ASSERT_FALSE(unsupported);
+    EXPECT_EQ(unsupported.error().code, ErrorCode::kUnsupported);
+
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("cacorrect"));
+    auto cancelled =
+        engine.value().linear_working_from_raw(xtrans, recipe, 32, 32, cancellation.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+
+    auto raster_rejected =
+        render_op(engine.value(), solid_raster(8, 8, 120, 120, 120), raw_ca_operation());
+    ASSERT_FALSE(raster_rejected);
+    EXPECT_EQ(raster_rejected.error().code, ErrorCode::kUnsupported);
+
+    auto invalid_iterations =
+        render_op(engine.value(), solid_raster(8, 8, 120, 120, 120), raw_ca_operation(6));
+    ASSERT_FALSE(invalid_iterations);
+    EXPECT_EQ(invalid_iterations.error().code, ErrorCode::kValidation);
+}
+
+TEST(EngineFacadeTest, ChannelMixerMatchesFrozenRgbMatrixAndV3AdjustmentPaths)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto source = solid_raster(4, 4, 180, 80, 30);
+
+    auto identity =
+        render_op(engine.value(), source, channel_mixer_operation(ChannelMixerParams{}));
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_EQ(identity.value().rgb, source.srgb);
+
+    ChannelMixerParams red_only;
+    red_only.green = {1.0, 0.0, 0.0};
+    red_only.blue = {1.0, 0.0, 0.0};
+    auto singular = render_op(engine.value(), source, channel_mixer_operation(red_only));
+    ASSERT_TRUE(singular) << singular.error().message;
+    EXPECT_NEAR(singular.value().rgb[0], 180, 1);
+    EXPECT_NEAR(singular.value().rgb[1], 180, 1);
+    EXPECT_NEAR(singular.value().rgb[2], 180, 1);
+
+    ChannelMixerParams swap;
+    swap.red = {0.0, 0.0, 1.0};
+    swap.blue = {1.0, 0.0, 0.0};
+    auto crossed = render_op(engine.value(), source, channel_mixer_operation(swap));
+    ASSERT_TRUE(crossed) << crossed.error().message;
+    EXPECT_NEAR(crossed.value().rgb[0], 30, 1);
+    EXPECT_NEAR(crossed.value().rgb[1], 80, 1);
+    EXPECT_NEAR(crossed.value().rgb[2], 180, 1);
+
+    ChannelMixerParams normalized;
+    normalized.red = {2.0, 0.0, 0.0};
+    normalized.normalize_red = true;
+    auto normalized_result = render_op(engine.value(), source, channel_mixer_operation(normalized));
+    ASSERT_TRUE(normalized_result) << normalized_result.error().message;
+    EXPECT_NEAR(normalized_result.value().rgb[0], 180, 1);
+    EXPECT_NEAR(normalized_result.value().rgb[1], 80, 1);
+    EXPECT_NEAR(normalized_result.value().rgb[2], 30, 1);
+
+    // Static decode of the two schema-v3 channelmixerrgb instances in fixture 0085.
+    ChannelMixerParams fixture_default;
+    fixture_default.adaptation = std::string(kChannelMixerAdaptationCat16);
+    fixture_default.illuminant_x = 0.3819674253463745;
+    fixture_default.illuminant_y = 0.36998802423477173;
+    fixture_default.gamut = 1.0;
+    fixture_default.clip = true;
+    auto adapted = render_op(engine.value(), source, channel_mixer_operation(fixture_default));
+    ASSERT_TRUE(adapted) << adapted.error().message;
+    EXPECT_NE(adapted.value().rgb, identity.value().rgb);
+    EXPECT_NEAR(adapted.value().rgb[0], 171, 1);
+    EXPECT_NEAR(adapted.value().rgb[1], 86, 1);
+    EXPECT_NEAR(adapted.value().rgb[2], 40, 1);
+
+    ChannelMixerParams fixture_adjusted;
+    fixture_adjusted.red = {-0.968999981880188, 0.4760000705718994, 0.0};
+    fixture_adjusted.green = {0.0, -0.4789999723434448, 0.0};
+    fixture_adjusted.blue = {0.0, 0.0, 1.0};
+    fixture_adjusted.saturation = {0.21500003337860107, -0.953000009059906, -0.5440000295639038};
+    fixture_adjusted.lightness = {0.18400001525878906, -0.3050000071525574, 0.1380000114440918};
+    fixture_adjusted.normalize_red = true;
+    fixture_adjusted.normalize_green = true;
+    fixture_adjusted.normalize_blue = true;
+    fixture_adjusted.adaptation = std::string(kChannelMixerAdaptationCat16);
+    fixture_adjusted.illuminant_x = 0.3098124563694;
+    fixture_adjusted.illuminant_y = 0.3276206851005554;
+    fixture_adjusted.gamut = 1.0;
+    fixture_adjusted.clip = true;
+    auto adjusted = render_op(engine.value(), source, channel_mixer_operation(fixture_adjusted));
+    ASSERT_TRUE(adjusted) << adjusted.error().message;
+    EXPECT_NE(adjusted.value().rgb, adapted.value().rgb);
+    EXPECT_NEAR(adjusted.value().rgb[0], 231, 1);
+    EXPECT_NEAR(adjusted.value().rgb[1], 52, 1);
+    EXPECT_NEAR(adjusted.value().rgb[2], 58, 1);
+}
+
+TEST(ColorBalanceRgbTest, FilmlightTransformsAndOpacityMasksMatchTheFrozenMath)
+{
+    const auto white_ych = color_balance_rgb_working_to_ych(std::array<float, 3>{1.0F, 1.0F, 1.0F});
+    EXPECT_NEAR(white_ych[0], 1.0578599F, 2.0e-5F);
+    EXPECT_LT(white_ych[1], 5.0e-5F);
+    EXPECT_NEAR(std::hypot(white_ych[2], white_ych[3]), 1.0F, 2.0e-5F);
+    const auto grading = color_balance_rgb_ych_to_grading_rgb(white_ych);
+    for (const float sample : grading)
+    {
+        EXPECT_TRUE(std::isfinite(sample));
+        EXPECT_GT(sample, 0.0F);
+    }
+
+    const ColorBalanceRgbParams params;
+    const auto center =
+        color_balance_rgb_opacity_masks(static_cast<float>(params.mask_grey_fulcrum), params);
+    EXPECT_NEAR(center.opacity[0], 0.5F, 1.0e-6F);
+    EXPECT_NEAR(center.opacity[1], 0.5F, 1.0e-6F);
+    EXPECT_NEAR(center.opacity[2], 0.5F, 1.0e-6F);
+    for (std::size_t index = 0; index < center.opacity.size(); ++index)
+    {
+        EXPECT_NEAR(center.opacity[index] + center.complement[index], 1.0F, 1.0e-6F);
+    }
+    const auto dark = color_balance_rgb_opacity_masks(0.001F, params);
+    const auto bright = color_balance_rgb_opacity_masks(1.0F, params);
+    EXPECT_GT(dark.opacity[0], dark.opacity[2]);
+    EXPECT_GT(bright.opacity[2], bright.opacity[0]);
+    EXPECT_GT(center.opacity[1], dark.opacity[1]);
+    EXPECT_GT(center.opacity[1], bright.opacity[1]);
+
+    bool exercised_negative_lms_clip = false;
+    for (int degrees = -180; degrees < 180; degrees += 15)
+    {
+        auto clipped = color_balance_rgb_jzazbz_negative_lms_clip(
+            0.2F, 2.0F, static_cast<float>(degrees) * std::numbers::pi_v<float> / 180.0F);
+        ASSERT_TRUE(clipped) << clipped.error().message;
+        if (clipped.value().clipped)
+        {
+            exercised_negative_lms_clip = true;
+            EXPECT_LT(clipped.value().chroma, 2.0F);
+        }
+    }
+    EXPECT_TRUE(exercised_negative_lms_clip);
+}
+
+TEST(ColorBalanceRgbTest, EveryGradingStageChangesSyntheticPixels)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const RasterBuffer source = gradient_raster();
+    Recipe identity_recipe;
+    identity_recipe.asset = {"raster", "memory:raster", std::nullopt};
+    RenderRequest identity_request;
+    identity_request.asset = identity_recipe.asset;
+    identity_request.recipe = identity_recipe;
+    auto identity = engine.value().render_to_image(identity_request, &source);
+    ASSERT_TRUE(identity) << identity.error().message;
+
+    const auto exercise = [&](ColorBalanceRgbParams params)
+    { return render_op(engine.value(), source, color_balance_rgb_operation(params)); };
+
+    ColorBalanceRgbParams offset;
+    offset.global_y = 0.15;
+    offset.global_chroma = 0.08;
+    offset.global_hue = 35.0;
+    auto offset_result = exercise(offset);
+    ASSERT_TRUE(offset_result) << offset_result.error().message;
+    EXPECT_NE(offset_result.value().rgb, identity.value().rgb);
+
+    ColorBalanceRgbParams shadows;
+    shadows.shadows_y = 0.35;
+    shadows.shadows_chroma = 0.1;
+    shadows.shadows_hue = 220.0;
+    auto shadows_result = exercise(shadows);
+    ASSERT_TRUE(shadows_result) << shadows_result.error().message;
+    EXPECT_NE(shadows_result.value().rgb, identity.value().rgb);
+
+    ColorBalanceRgbParams midtones;
+    midtones.midtones_y = 0.25;
+    midtones.midtones_chroma = 0.08;
+    midtones.midtones_hue = 300.0;
+    auto midtones_result = exercise(midtones);
+    ASSERT_TRUE(midtones_result) << midtones_result.error().message;
+    EXPECT_NE(midtones_result.value().rgb, identity.value().rgb);
+
+    ColorBalanceRgbParams highlights;
+    highlights.highlights_y = -0.3;
+    highlights.highlights_chroma = 0.08;
+    highlights.highlights_hue = 70.0;
+    auto highlights_result = exercise(highlights);
+    ASSERT_TRUE(highlights_result) << highlights_result.error().message;
+    EXPECT_NE(highlights_result.value().rgb, identity.value().rgb);
+
+    ColorBalanceRgbParams perceptual;
+    perceptual.chroma_global = 0.2;
+    perceptual.saturation_global = 0.25;
+    perceptual.brilliance_global = 0.15;
+    perceptual.vibrance = 0.2;
+    perceptual.hue_rotation = 20.0;
+    perceptual.contrast = 0.15;
+    auto dt_ucs = exercise(perceptual);
+    ASSERT_TRUE(dt_ucs) << dt_ucs.error().message;
+    EXPECT_NE(dt_ucs.value().rgb, identity.value().rgb);
+
+    perceptual.saturation_formula = std::string(kColorBalanceRgbFormulaJzAzBz2021);
+    auto jzazbz = exercise(perceptual);
+    ASSERT_TRUE(jzazbz) << jzazbz.error().message;
+    EXPECT_NE(jzazbz.value().rgb, identity.value().rgb);
+    EXPECT_NE(jzazbz.value().rgb, dt_ucs.value().rgb);
+}
+
+TEST(ColorBalanceRgbTest, CancellationAndNonFiniteInputNeverPublishPartialPixels)
+{
+    ColorBalanceRgbParams params;
+    params.global_y = 0.2;
+    const auto operation = color_balance_rgb_operation(params);
+    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}};
+    const auto original = image.rgb;
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("color_balance_cancel"));
+    auto cancelled = apply_color_balance_rgb(image, operation, cancellation.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(image.rgb, original);
+
+    image.rgb[4] = std::numeric_limits<float>::infinity();
+    const auto invalid_original = image.rgb;
+    auto invalid = apply_color_balance_rgb(image, operation, CancellationToken{});
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(image.rgb, invalid_original);
+}
+
 TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -489,14 +879,7 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     ASSERT_TRUE(velvia) << velvia.error().message;
 
     auto balance = render_op(engine.value(), base_raster,
-                             {"ravo.color.colorbalance",
-                              1,
-                              "cb-1",
-                              true,
-                              {{"lift", ParameterValue{0.2}},
-                               {"gamma", ParameterValue{-0.1}},
-                               {"gain", ParameterValue{0.3}}},
-                              std::nullopt});
+                             color_balance_rgb_operation(test::color_balance_0093_params()));
     ASSERT_TRUE(balance) << balance.error().message;
 
     auto contrast_color = render_op(engine.value(), base_raster,
@@ -689,15 +1072,16 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
 
     ParameterValue::Array sat_bands(8, ParameterValue{0.0});
     sat_bands[0] = ParameterValue{0.8};
-    auto coloreq = render_op(engine.value(), solid_raster(8, 8, 220, 30, 30),
-                             {"ravo.color.colorequal",
-                              1,
-                              "ceq-1",
-                              true,
-                              {{"hue_shift", ParameterValue{ParameterValue::Array(8, ParameterValue{0.0})}},
-                               {"saturation", ParameterValue{sat_bands}},
-                               {"lightness", ParameterValue{ParameterValue::Array(8, ParameterValue{0.0})}}},
-                              std::nullopt});
+    auto coloreq =
+        render_op(engine.value(), solid_raster(8, 8, 220, 30, 30),
+                  {"ravo.color.colorequal",
+                   1,
+                   "ceq-1",
+                   true,
+                   {{"hue_shift", ParameterValue{ParameterValue::Array(8, ParameterValue{0.0})}},
+                    {"saturation", ParameterValue{sat_bands}},
+                    {"lightness", ParameterValue{ParameterValue::Array(8, ParameterValue{0.0})}}},
+                   std::nullopt});
     ASSERT_TRUE(coloreq) << coloreq.error().message;
 
     auto lens = render_op(engine.value(), solid_raster(24, 24, 200, 80, 40),
@@ -904,6 +1288,191 @@ TEST(EngineFacadeTest, SigmoidHasARealRawReference)
     EXPECT_LT(clipped_channels, rendered.value().rgb.size() / 100U);
 }
 
+TEST(EngineFacadeTest, ChannelMixerHasARealRawReference)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ChannelMixerParams calibration;
+    calibration.adaptation = std::string(kChannelMixerAdaptationCat16);
+    calibration.illuminant_x = 0.3819674253463745;
+    calibration.illuminant_y = 0.36998802423477173;
+    calibration.gamut = 1.0;
+    calibration.clip = true;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(channel_mixer_operation(calibration));
+    recipe.operations.push_back(sigmoid_operation());
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64;
+    request.output_height = 48;
+    auto rendered = engine.value().render_to_image(request);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().width, 64U);
+    ASSERT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0; index + 2 < rendered.value().rgb.size(); index += 3)
+    {
+        for (std::size_t channel = 0; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    // Ravo-owned reference for the frozen 0085 default CAT16 parameters on mire1.cr2.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 253873.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 290768.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 298343.0, 2000.0);
+}
+
+TEST(EngineFacadeTest, ColorBalanceRgb0083HasARealRawReference)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(color_balance_rgb_operation(test::color_balance_0083_params()));
+    recipe.operations.push_back(sigmoid_operation());
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64;
+    request.output_height = 48;
+    auto rendered = engine.value().render_to_image(request);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().width, 64U);
+    ASSERT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0; index + 2 < rendered.value().rgb.size(); index += 3)
+    {
+        for (std::size_t channel = 0; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    // Ravo-owned macOS reference for the statically decoded 0083 schema-v4 parameters
+    // in explicit linear_srgb_d50 working space. Cross-platform libm tolerance is recorded
+    // without treating the unavailable legacy runner as an oracle.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 270856.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 283113.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 241983.0, 2500.0);
+}
+
+TEST(EngineFacadeTest, HotPixelsHasARealRawReferenceAndKeepsDecodedFrameImmutable)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(hot_pixels_operation());
+    recipe.operations.push_back(sigmoid_operation());
+
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    const auto original_pixels = decoded.value().pixels;
+    auto working = engine.value().linear_working_from_raw(decoded.value(), recipe, 64, 48,
+                                                          CancellationToken{});
+    ASSERT_TRUE(working) << working.error().message;
+    EXPECT_EQ(decoded.value().pixels, original_pixels);
+
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64;
+    request.output_height = 48;
+    auto rendered = engine.value().render_to_image(request);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0; index + 2 < rendered.value().rgb.size(); index += 3)
+    {
+        for (std::size_t channel = 0; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    // Ravo-owned reference for the frozen default Bayer neighbour contract on mire1.cr2.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 304270.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 280908.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 261887.0, 1500.0);
+}
+
+TEST(EngineFacadeTest, RawCaCorrectRunsFrozenDefaultOnMire1)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(raw_ca_operation());
+    recipe.operations.push_back(sigmoid_operation());
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    const auto original = decoded.value().pixels;
+    auto working = engine.value().linear_working_from_raw(decoded.value(), recipe, 64, 48,
+                                                          CancellationToken{});
+    ASSERT_TRUE(working) << working.error().message;
+    EXPECT_EQ(decoded.value().pixels, original);
+
+    RenderRequest budgeted;
+    budgeted.asset = recipe.asset;
+    budgeted.recipe = recipe;
+    budgeted.output_width = 64;
+    budgeted.output_height = 48;
+    budgeted.memory_budget_bytes = 64U * 1024U * 1024U;
+    auto budget_failure = engine.value().render_to_image(budgeted);
+    ASSERT_FALSE(budget_failure);
+    EXPECT_EQ(budget_failure.error().code, ErrorCode::kValidation);
+
+    Recipe rgb_recipe = recipe;
+    rgb_recipe.operations.front().enabled = false;
+    auto rendered =
+        engine.value().render_linear_working(working.value(), rgb_recipe, CancellationToken{});
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    EXPECT_EQ(rendered.value().width, 64U);
+    EXPECT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0; index + 2 < rendered.value().rgb.size(); index += 3)
+    {
+        for (std::size_t channel = 0; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    EXPECT_NEAR(static_cast<double>(sums[0]), 303686.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 280852.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 262220.0, 2000.0);
+}
+
+TEST(EngineFacadeTest, RawCaCorrectCoversFrozen0084AvoidShiftParameters)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    recipe.operations.push_back(raw_ca_operation(5, true));
+    recipe.operations.push_back(sigmoid_operation());
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    auto working = engine.value().linear_working_from_raw(decoded.value(), recipe, 64, 48,
+                                                          CancellationToken{});
+    ASSERT_TRUE(working) << working.error().message;
+    Recipe rgb_recipe = recipe;
+    rgb_recipe.operations.front().enabled = false;
+    auto rendered =
+        engine.value().render_linear_working(working.value(), rgb_recipe, CancellationToken{});
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0; index + 2 < rendered.value().rgb.size(); index += 3)
+    {
+        for (std::size_t channel = 0; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    EXPECT_NEAR(static_cast<double>(sums[0]), 304117.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 280976.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 261636.0, 2000.0);
+}
+
 TEST(EngineFacadeTest, LinearWorkingRenderMatchesDirectRawRender)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -941,13 +1510,12 @@ TEST(EngineFacadeTest, LinearWorkingRenderMatchesDirectRawRender)
     EXPECT_EQ(from_working.value().rgb, direct.value().rgb);
 
     Recipe exposed = rgb_recipe;
-    exposed.operations.insert(exposed.operations.begin(),
-                              {"ravo.core.exposure",
-                               1,
-                               "exposure-1",
-                               true,
-                               {{"exposure_ev", ParameterValue{1.0}}},
-                               std::nullopt});
+    exposed.operations.insert(exposed.operations.begin(), {"ravo.core.exposure",
+                                                           1,
+                                                           "exposure-1",
+                                                           true,
+                                                           {{"exposure_ev", ParameterValue{1.0}}},
+                                                           std::nullopt});
     auto shifted =
         engine.value().render_linear_working(linear.value(), exposed, CancellationToken{});
     ASSERT_TRUE(shifted) << shifted.error().message;
