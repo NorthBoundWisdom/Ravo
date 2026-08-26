@@ -456,7 +456,7 @@ Rectangle {
 
             CustomButton {
                 Layout.fillWidth: true
-                text: qsTr("Import Folder…")
+                text: qsTr("Import…")
                 enabled: root.commands && root.presenter && root.presenter.catalogOpen && !root.presenter.busy && !root.presenter.importWorkActive
                 onClicked: if (root.commands)
                     root.commands.importFolder.trigger()

@@ -645,8 +645,8 @@
         <translation>所有照片</translation>
     </message>
     <message>
-        <source>Import Folder…</source>
-        <translation>导入文件夹…</translation>
+        <source>Import…</source>
+        <translation>导入…</translation>
     </message>
     <message>
         <source>Export…</source>

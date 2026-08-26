@@ -645,8 +645,8 @@
         <translation>All Photographs</translation>
     </message>
     <message>
-        <source>Import Folder…</source>
-        <translation>Import Folder…</translation>
+        <source>Import…</source>
+        <translation>Import…</translation>
     </message>
     <message>
         <source>Export…</source>
