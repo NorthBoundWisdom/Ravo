@@ -28,6 +28,7 @@
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
 #include "color_checker.h"
+#include "color_contrast.h"
 #include "d50_lab.h"
 #include "image_ops.h"
 #include "input_color.h"
@@ -1297,6 +1298,34 @@ using FrozenD50Triplet = std::array<float, 3>;
         xyz[channel] = d50[channel] * inverse;
     }
     return xyz;
+}
+
+// Independent scalar oracle transcribed from frozen colorcontrast.c v2. It
+// intentionally calls neither the production Color Contrast helper nor the
+// production D50 bridge, preserving the source multiply/add and CLAMPS order.
+[[nodiscard]] FrozenD50Triplet frozen_color_contrast_lab(const ColorContrastParams &params,
+                                                         const FrozenD50Triplet &lab) noexcept
+{
+    const float a_steepness = static_cast<float>(params.a_steepness);
+    const float a_offset = static_cast<float>(params.a_offset);
+    const float b_steepness = static_cast<float>(params.b_steepness);
+    const float b_offset = static_cast<float>(params.b_offset);
+    float a = lab[1] * a_steepness + a_offset;
+    float b = lab[2] * b_steepness + b_offset;
+    if (!params.unbound)
+    {
+        a = a > -128.0F ? (a < 128.0F ? a : 128.0F) : -128.0F;
+        b = b > -128.0F ? (b < 128.0F ? b : 128.0F) : -128.0F;
+    }
+    return {lab[0], a, b};
+}
+
+[[nodiscard]] FrozenD50Triplet frozen_color_contrast_rgb(const ColorContrastParams &params,
+                                                         const FrozenD50Triplet &rgb) noexcept
+{
+    const auto lab = frozen_xyz_d50_to_lab(frozen_linear_rec709_to_xyz_d50(rgb));
+    return frozen_xyz_d50_to_linear_rec709(
+        frozen_lab_to_xyz_d50(frozen_color_contrast_lab(params, lab)));
 }
 
 [[nodiscard]] std::array<std::uint32_t, 3>
@@ -2698,6 +2727,215 @@ TEST(D50LabBridgeTest, ExtendedRoundTripsAndNonFiniteValuesPreserveFrozenClassif
     }
 }
 
+TEST(ColorContrastTest, LabAffineBranchesMatchFrozenSourceBitGoldens)
+{
+    struct Case
+    {
+        ColorContrastParams params;
+        FrozenD50Triplet input;
+        std::array<std::uint32_t, 3> golden;
+    };
+    const std::array cases{
+        Case{{2.5999999046325684, 0.0, 2.5, 0.0, true},
+             {50.0F, -60.0F, 70.0F},
+             {0x42480000U, 0xc31c0000U, 0x432f0000U}},
+        Case{{1.25, -12.5, 0.5, 7.25, true},
+             {37.75F, -8.125F, 2.25F},
+             {0x42170000U, 0xc1b54000U, 0x41060000U}},
+        Case{{5.0, 128.0, 0.0, -128.0, false},
+             {-20.0F, 20.0F, -20.0F},
+             {0xc1a00000U, 0x43000000U, 0xc3000000U}},
+    };
+    for (const auto &[params, input, golden] : cases)
+    {
+        const auto oracle = frozen_color_contrast_lab(params, input);
+        EXPECT_EQ(d50_triplet_bits(oracle), golden);
+        const auto actual = apply_color_contrast_lab(params, input, CancellationToken{});
+        ASSERT_TRUE(actual) << actual.error().message;
+        EXPECT_EQ(d50_triplet_bits(actual.value()), golden);
+        EXPECT_EQ(actual.value()[0], input[0]);
+    }
+
+    auto perturbed = cases.front().params;
+    std::swap(perturbed.a_steepness, perturbed.b_steepness);
+    EXPECT_NE(d50_triplet_bits(frozen_color_contrast_lab(perturbed, cases.front().input)),
+              cases.front().golden)
+        << "the independent oracle must detect an a*/b* coefficient swap";
+
+    auto invalid_params = cases.front().params;
+    invalid_params.a_offset = std::numeric_limits<double>::quiet_NaN();
+    const auto invalid =
+        apply_color_contrast_lab(invalid_params, cases.front().input, CancellationToken{});
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_colorcontrast_parameters");
+    const auto nonfinite = apply_color_contrast_lab(
+        cases.front().params, {50.0F, std::numeric_limits<float>::infinity(), 0.0F},
+        CancellationToken{});
+    ASSERT_FALSE(nonfinite);
+    EXPECT_EQ(nonfinite.error().context.at("reason"), "nonfinite_colorcontrast_lab_input");
+}
+
+TEST(ColorContrastTest, ExplicitCanonicalDefaultRetainsTheFrozenD50LabRoundTrip)
+{
+    const WorkingImage input = legacy_color_balance_working_fixture();
+    const WorkingImage original = input;
+    const ColorContrastParams defaults;
+    const auto actual = apply_color_contrast(input, defaults, CancellationToken{});
+    ASSERT_TRUE(actual) << actual.error().message;
+    ASSERT_EQ(actual.value().rgb.size(), input.rgb.size());
+    for (std::size_t index = 0U; index < input.rgb.size(); index += 3U)
+    {
+        const FrozenD50Triplet source{input.rgb[index], input.rgb[index + 1U],
+                                      input.rgb[index + 2U]};
+        const auto expected = frozen_color_contrast_rgb(defaults, source);
+        EXPECT_EQ(d50_triplet_bits({actual.value().rgb[index], actual.value().rgb[index + 1U],
+                                    actual.value().rgb[index + 2U]}),
+                  d50_triplet_bits(expected));
+    }
+    EXPECT_NE(actual.value().rgb, input.rgb)
+        << "only an absent or upgraded v1-zero operation may skip the frozen Lab round-trip";
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ColorContrastTest, WorkingDispatchOwnershipFailuresAndCancellationAreAtomic)
+{
+    const WorkingImage input = legacy_color_balance_working_fixture();
+    const WorkingImage original = input;
+    const ColorContrastParams params{2.5999999046325684, 0.0, 2.5, 0.0, true};
+    auto direct = apply_color_contrast(input, params, CancellationToken{});
+    ASSERT_TRUE(direct) << direct.error().message;
+    ASSERT_EQ(direct.value().rgb.size(), input.rgb.size());
+    for (std::size_t index = 0U; index < input.rgb.size(); index += 3U)
+    {
+        const FrozenD50Triplet source{input.rgb[index], input.rgb[index + 1U],
+                                      input.rgb[index + 2U]};
+        const auto expected = frozen_color_contrast_rgb(params, source);
+        EXPECT_EQ(d50_triplet_bits({direct.value().rgb[index], direct.value().rgb[index + 1U],
+                                    direct.value().rgb[index + 2U]}),
+                  d50_triplet_bits(expected));
+    }
+    EXPECT_EQ(direct.value().color_profile, input.color_profile);
+    EXPECT_EQ(direct.value().exposure_analysis, input.exposure_analysis);
+    EXPECT_NE(direct.value().rgb.data(), input.rgb.data());
+    EXPECT_NE(direct.value().color_profile.icc_bytes.data(), input.color_profile.icc_bytes.data());
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+
+    const auto parameters = color_contrast_to_parameters(params);
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    Recipe canonical;
+    canonical.operations.push_back({std::string(kColorContrastOperationId),
+                                    kColorContrastOperationSchemaVersion, "colorcontrast-v2", true,
+                                    parameters.value(), std::nullopt});
+    const auto dispatched = apply_recipe_ops(input, canonical, CancellationToken{});
+    ASSERT_TRUE(dispatched) << dispatched.error().message;
+    EXPECT_EQ(dispatched.value().rgb, direct.value().rgb);
+    direct.value().rgb.front() = 42.0F;
+    direct.value().color_profile.icc_bytes.front() = 99U;
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+
+    Recipe compatible;
+    compatible.operations.push_back({std::string(kColorContrastOperationId),
+                                     1,
+                                     "colorcontrast-v1",
+                                     true,
+                                     {{"amount", ParameterValue{0.25}}},
+                                     std::nullopt});
+    const auto v1 = apply_recipe_ops(input, compatible, CancellationToken{});
+    const auto v1_direct = apply_color_contrast(
+        input, ColorContrastParams{1.25, 0.0, 1.25, 0.0, true}, CancellationToken{});
+    ASSERT_TRUE(v1) << v1.error().message;
+    ASSERT_TRUE(v1_direct) << v1_direct.error().message;
+    EXPECT_EQ(v1.value().rgb, v1_direct.value().rgb);
+    compatible.operations.front().parameters["amount"] = ParameterValue{0.0};
+    const auto v1_zero = apply_recipe_ops(input, compatible, CancellationToken{});
+    ASSERT_TRUE(v1_zero) << v1_zero.error().message;
+    EXPECT_EQ(v1_zero.value().rgb, input.rgb);
+
+    OperationInstance masked{std::string(kColorContrastOperationId),
+                             kColorContrastOperationSchemaVersion,
+                             "colorcontrast-mask",
+                             true,
+                             parameters.value(),
+                             "mask-1"};
+    auto rejected = apply_color_contrast(input, masked, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected.error().context.at("reason"), "colorcontrast_mask_graph_unavailable");
+    auto future = masked;
+    future.mask_id.reset();
+    future.schema_version = kColorContrastOperationSchemaVersion + 1;
+    rejected = apply_color_contrast(input, future, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    auto wrong_operation = masked;
+    wrong_operation.mask_id.reset();
+    wrong_operation.id = "ravo.color.colorcorrection";
+    rejected = apply_color_contrast(input, wrong_operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+
+    auto invalid_dimensions = input;
+    invalid_dimensions.width = 0U;
+    rejected = apply_color_contrast(invalid_dimensions, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorcontrast_dimensions");
+    auto invalid_buffer = input;
+    invalid_buffer.rgb.pop_back();
+    rejected = apply_color_contrast(invalid_buffer, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorcontrast_buffer");
+    auto invalid_profile = input;
+    invalid_profile.color_profile.identifier = "srgb";
+    rejected = apply_color_contrast(invalid_profile, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_colorcontrast_working_space");
+    auto invalid_model = input;
+    invalid_model.color_profile.model = ColorModel::kLab;
+    rejected = apply_color_contrast(invalid_model, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_colorcontrast_working_space");
+    auto invalid_sample = input;
+    invalid_sample.rgb[2] = std::numeric_limits<float>::quiet_NaN();
+    const auto invalid_source = invalid_sample.rgb;
+    rejected = apply_color_contrast(invalid_sample, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "nonfinite_colorcontrast_input");
+    for (std::size_t index = 0U; index < invalid_source.size(); ++index)
+    {
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(invalid_sample.rgb[index]),
+                  std::bit_cast<std::uint32_t>(invalid_source[index]));
+    }
+    auto overflowing = params;
+    overflowing.a_offset = static_cast<double>(std::numeric_limits<float>::max());
+    rejected = apply_color_contrast(input, overflowing, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "nonfinite_colorcontrast_output");
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("colorcontrast-pre"));
+    rejected = apply_color_contrast(input, params, cancelled.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+
+    WorkingImage rows;
+    rows.width = 1024U;
+    rows.height = 4096U;
+    rows.rgb.assign(static_cast<std::size_t>(rows.width) * rows.height * 3U, 0.25F);
+    rows.color_profile.model = ColorModel::kRgb;
+    rows.color_profile.identifier = std::string(kInputProfileLinearRec709);
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+    rejected = apply_color_contrast(rows, params, deadline.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_FLOAT_EQ(rows.rgb.front(), 0.25F);
+    EXPECT_FLOAT_EQ(rows.rgb.back(), 0.25F);
+}
+
 TEST(ColorCheckerTest, RgbAndD50LabBridgeMatchesTheFrozenScalarReference)
 {
     const auto reference = [](const std::array<float, 3> &rgb)
@@ -3569,7 +3807,12 @@ TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
 
 TEST(EngineFacadeTest, LabDevelopOperationsUseTheD50WorkingConversion)
 {
-    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}, {}};
+    WorkingImage source;
+    source.width = 1U;
+    source.height = 1U;
+    source.rgb = {0.08F, 0.18F, 0.40F};
+    source.color_profile.model = ColorModel::kRgb;
+    source.color_profile.identifier = std::string(kInputProfileLinearRec709);
     Recipe recipe;
     recipe.operations.push_back({"ravo.color.colorcontrast",
                                  1,

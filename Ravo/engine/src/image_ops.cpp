@@ -19,6 +19,7 @@
 #include <zlib.h>
 
 #include "capability_ops.h"
+#include "color_contrast.h"
 #include "color_correction.h"
 #include "color_checker.h"
 #include "d50_lab.h"
@@ -1898,25 +1899,6 @@ void apply_gamma(WorkingImage &image, const double gamma)
     }
 }
 
-void apply_color_contrast(WorkingImage &image, const double amount)
-{
-    if (amount == 0.0)
-    {
-        return;
-    }
-    const float slope = 1.0F + static_cast<float>(amount);
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float L = 0.0F;
-        float a = 0.0F;
-        float b = 0.0F;
-        rgb_to_lab(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], L, a, b);
-        a *= slope;
-        b *= slope;
-        lab_to_rgb(L, a, b, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
-    }
-}
-
 void apply_velvia(WorkingImage &image, const double amount, const double bias)
 {
     if (amount <= 0.0)
@@ -2756,9 +2738,14 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             }
             continue;
         }
-        if (operation.id == "ravo.color.colorcontrast")
+        if (operation.id == kColorContrastOperationId)
         {
-            apply_color_contrast(image, parameter(operation, "amount", 0.0));
+            auto contrasted = apply_color_contrast(image, operation, cancellation);
+            if (!contrasted)
+            {
+                return contrasted.error();
+            }
+            image = std::move(contrasted).value();
             continue;
         }
         if (operation.id == "ravo.color.velvia")

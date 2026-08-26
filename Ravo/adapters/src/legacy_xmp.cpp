@@ -20,6 +20,7 @@
 #include <zlib.h>
 
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
@@ -292,6 +293,12 @@ struct LegacyColorCorrectionCandidate
     std::uint64_t history_position = 0;
 };
 
+struct LegacyColorContrastCandidate
+{
+    QXmlStreamAttributes attributes;
+    std::uint64_t history_position = 0;
+};
+
 // Repository-history evidence used only for the synthetic legacy v1 upgrade.
 constexpr std::array<std::array<float, 3>, kColorCheckerDefaultPatchCount>
     kLegacyColorCheckerV1Sources{{
@@ -471,6 +478,39 @@ capture_color_correction_candidate(const QXmlStreamAttributes &attributes)
     return LegacyColorCorrectionCandidate{attributes, parsed_position.value()};
 }
 
+[[nodiscard]] Result<LegacyColorContrastCandidate>
+capture_color_contrast_candidate(const QXmlStreamAttributes &attributes)
+{
+    const auto position = required_attribute(attributes, u"num", "colorcontrast");
+    const auto priority = required_attribute(attributes, u"multi_priority", "colorcontrast");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!position || !priority || !name)
+    {
+        return !position ? position.error() :
+               !priority ? priority.error() :
+                           make_error(ErrorCode::kUnsupported,
+                                      "Legacy Color Contrast singleton name is missing",
+                                      {{"attribute", "multi_name"},
+                                       {"legacy_operation", "colorcontrast"},
+                                       {"reason", "unsupported_legacy_colorcontrast_multi_state"}});
+    }
+    auto parsed_position = legacy_history_position(position.value(), "num", "colorcontrast",
+                                                   "invalid_legacy_history_position");
+    if (!parsed_position)
+    {
+        return parsed_position.error();
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Contrast instance is not the frozen singleton priority",
+                          {{"legacy_operation", "colorcontrast"},
+                           {"reason", "unsupported_legacy_colorcontrast_multi_state"}});
+    }
+    return LegacyColorContrastCandidate{attributes, parsed_position.value()};
+}
+
 [[nodiscard]] Result<ColorCheckerParams>
 decode_legacy_color_checker_parameters(const std::string &version, const std::string_view encoded)
 {
@@ -617,6 +657,65 @@ decode_legacy_color_correction_parameters(const std::string &version,
         error.context.emplace("legacy_operation", "colorcorrection");
         error.context.emplace("legacy_version", version);
         error.context.insert_or_assign("reason", "invalid_legacy_colorcorrection_parameters");
+        return error;
+    }
+    return params;
+}
+
+[[nodiscard]] Result<ColorContrastParams>
+decode_legacy_color_contrast_parameters(const std::string &version, const std::string_view encoded)
+{
+    std::size_t expected_size = 0U;
+    if (version == "1")
+    {
+        expected_size = 4U * sizeof(float);
+    }
+    else if (version == "2")
+    {
+        expected_size = 4U * sizeof(float) + sizeof(std::int32_t);
+    }
+    else
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Contrast module version is not supported",
+                          {{"legacy_operation", "colorcontrast"},
+                           {"legacy_version", version},
+                           {"reason", "unsupported_legacy_colorcontrast_version"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded, expected_size, "colorcontrast");
+    if (!decoded)
+    {
+        auto error = decoded.error();
+        error.context.emplace("legacy_version", version);
+        error.context.emplace("reason", "invalid_legacy_colorcontrast_parameters");
+        return error;
+    }
+    ColorContrastParams params;
+    params.a_steepness = read_f32(decoded.value(), 0U * sizeof(float));
+    params.a_offset = read_f32(decoded.value(), 1U * sizeof(float));
+    params.b_steepness = read_f32(decoded.value(), 2U * sizeof(float));
+    params.b_offset = read_f32(decoded.value(), 3U * sizeof(float));
+    params.unbound = false;
+    if (version == "2")
+    {
+        const std::int32_t unbound = read_i32(decoded.value(), 4U * sizeof(float));
+        if (unbound != 0 && unbound != 1)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Legacy Color Contrast unbound flag is invalid",
+                              {{"legacy_operation", "colorcontrast"},
+                               {"legacy_version", version},
+                               {"reason", "invalid_legacy_colorcontrast_parameters"}});
+        }
+        params.unbound = unbound == 1;
+    }
+    auto canonical = color_contrast_to_parameters(params);
+    if (!canonical)
+    {
+        auto error = canonical.error();
+        error.context.emplace("legacy_operation", "colorcontrast");
+        error.context.emplace("legacy_version", version);
+        error.context.insert_or_assign("reason", "invalid_legacy_colorcontrast_parameters");
         return error;
     }
     return params;
@@ -881,6 +980,9 @@ constexpr std::array kFrozenColorCorrectionBlendTuples{
     LegacyGammaBlendTuple{"11", "gz13eJxjYGBgYAJiCQYYOOHEgAZY0QVwggZ7CB6pfNoAAFJgGQo="},
 };
 
+constexpr std::string_view kFrozenColorContrastBlendV10 =
+    "gz13eJxjYGBgYAJiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAExgGQY=";
+
 [[nodiscard]] bool is_allowed_color_checker_attribute(const QStringView name) noexcept
 {
     return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
@@ -1053,6 +1155,95 @@ map_color_correction_candidate(const LegacyColorCorrectionCandidate &candidate)
     return OperationInstance{std::string(kColorCorrectionOperationId),
                              kColorCorrectionOperationSchemaVersion,
                              "legacy-colorcorrection-" + std::to_string(candidate.history_position),
+                             true,
+                             std::move(parameters).value(),
+                             std::nullopt};
+}
+
+[[nodiscard]] bool is_allowed_color_contrast_attribute(const QStringView name) noexcept
+{
+    return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
+           name == u"params" || name == u"multi_name" || name == u"multi_priority" ||
+           name == u"multi_name_hand_edited" || name == u"blendop_version" ||
+           name == u"blendop_params";
+}
+
+[[nodiscard]] Result<OperationInstance>
+map_color_contrast_candidate(const LegacyColorContrastCandidate &candidate)
+{
+    for (const auto &attribute : candidate.attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy Color Contrast mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "colorcontrast"},
+                               {"reason", "unsupported_legacy_colorcontrast_mask"}});
+        }
+        if (!is_allowed_color_contrast_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy Color Contrast contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "colorcontrast"},
+                               {"reason", "unsupported_legacy_colorcontrast_attribute"}});
+        }
+    }
+    const auto version = required_attribute(candidate.attributes, u"modversion", "colorcontrast");
+    const auto enabled = required_attribute(candidate.attributes, u"enabled", "colorcontrast");
+    const auto encoded = required_attribute(candidate.attributes, u"params", "colorcontrast");
+    const auto blend_version =
+        required_attribute(candidate.attributes, u"blendop_version", "colorcontrast");
+    const auto blend_parameters =
+        required_attribute(candidate.attributes, u"blendop_params", "colorcontrast");
+    if (!version || !enabled || !encoded || !blend_version || !blend_parameters)
+    {
+        return !version       ? version.error() :
+               !enabled       ? enabled.error() :
+               !encoded       ? encoded.error() :
+               !blend_version ? blend_version.error() :
+                                blend_parameters.error();
+    }
+    if (version.value() != "1" && version.value() != "2")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Contrast version is outside the frozen evidence",
+                          {{"legacy_operation", "colorcontrast"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_colorcontrast_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy Color Contrast enabled state is outside the frozen fixture evidence",
+            {{"legacy_operation", "colorcontrast"},
+             {"reason", "unsupported_legacy_colorcontrast_enabled_state"}});
+    }
+    if (blend_version.value() != "10" || blend_parameters.value() != kFrozenColorContrastBlendV10)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Contrast blend is not the frozen unmasked default",
+                          {{"legacy_blend_version", blend_version.value()},
+                           {"legacy_operation", "colorcontrast"},
+                           {"reason", "unsupported_legacy_colorcontrast_blend"}});
+    }
+    auto decoded = decode_legacy_color_contrast_parameters(version.value(), encoded.value());
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    auto parameters = color_contrast_to_parameters(decoded.value());
+    if (!parameters)
+    {
+        return parameters.error();
+    }
+    return OperationInstance{std::string(kColorContrastOperationId),
+                             kColorContrastOperationSchemaVersion,
+                             "legacy-colorcontrast-" + std::to_string(candidate.history_position),
                              true,
                              std::move(parameters).value(),
                              std::nullopt};
@@ -1544,6 +1735,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::vector<LegacyColorBalanceCandidate> color_balance_candidates;
     std::vector<LegacyColorCheckerCandidate> color_checker_candidates;
     std::vector<LegacyColorCorrectionCandidate> color_correction_candidates;
+    std::vector<LegacyColorContrastCandidate> color_contrast_candidates;
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
     std::optional<OperationInstance> primaries;
@@ -1843,6 +2035,25 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "colorcontrast")
+            {
+                auto captured = capture_color_contrast_candidate(reader.attributes());
+                if (!captured)
+                {
+                    return captured.error();
+                }
+                if (!color_contrast_candidates.empty())
+                {
+                    return make_error(
+                        ErrorCode::kConflict,
+                        "Multiple legacy Color Contrast singleton entries have no canonical mapping",
+                        {{"legacy_operation", "colorcontrast"},
+                         {"reason", "duplicate_legacy_colorcontrast"}});
+                }
+                color_contrast_candidates.push_back(std::move(captured).value());
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -1931,6 +2142,15 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     if (!color_correction_candidates.empty())
     {
         auto mapped = map_color_correction_candidate(color_correction_candidates.front());
+        if (!mapped)
+        {
+            return mapped.error();
+        }
+        operations.push_back(std::move(mapped).value());
+    }
+    if (!color_contrast_candidates.empty())
+    {
+        auto mapped = map_color_contrast_candidate(color_contrast_candidates.front());
         if (!mapped)
         {
             return mapped.error();

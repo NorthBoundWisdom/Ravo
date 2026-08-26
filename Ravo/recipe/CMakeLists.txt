@@ -3,6 +3,7 @@ add_library(ravo_recipe STATIC)
 target_sources(ravo_recipe
   PRIVATE
     src/color_checker.cpp
+    src/color_contrast.cpp
     src/color_correction.cpp
     src/color_input.cpp
     src/color_output.cpp

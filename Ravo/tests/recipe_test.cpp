@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
@@ -169,6 +170,113 @@ TEST(RecipeTest, ExposureSchemaV2IsExplicitAndRejectsAmbiguousParameters)
     ASSERT_FALSE(finite_result);
     EXPECT_EQ(finite_result.error().code, ErrorCode::kValidation);
     EXPECT_EQ(finite_result.error().context.at("parameter"), "exposure_ev");
+}
+
+TEST(RecipeTest, ColorContrastSchemaV2AndExistingV1RecipesNormalizeDeterministically)
+{
+    ColorContrastParams params;
+    params.a_steepness = 2.6;
+    params.a_offset = -12.5;
+    params.b_steepness = 2.5;
+    params.b_offset = 7.25;
+    params.unbound = false;
+    const auto encoded = color_contrast_to_parameters(params);
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    EXPECT_EQ(encoded.value().size(), 7U);
+    EXPECT_EQ(std::get<std::string>(encoded.value().at("working_space").value),
+              kColorContrastWorkingSpaceLabD50);
+    EXPECT_EQ(std::get<std::string>(encoded.value().at("algorithm").value),
+              kColorContrastAlgorithmAxisAffineV2);
+    const auto decoded = color_contrast_from_parameters(encoded.value());
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), params);
+
+    const auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    EXPECT_EQ(registry.value().descriptors().size(), kPhase1OperationCount);
+    const auto *descriptor = registry.value().find(kColorContrastOperationId);
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_EQ(descriptor->parameter_schema_version, kColorContrastOperationSchemaVersion);
+    EXPECT_EQ(descriptor->parameters.size(), 7U);
+    EXPECT_TRUE(std::all_of(descriptor->parameters.begin(), descriptor->parameters.end(),
+                            [](const ParameterRule &rule) { return rule.required; }));
+    EXPECT_FALSE(descriptor->supports_mask);
+    EXPECT_TRUE(descriptor->cpu_reference_available);
+
+    Recipe existing;
+    existing.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    existing.operations.push_back({std::string(kColorContrastOperationId),
+                                   1,
+                                   "colorcontrast-v1",
+                                   true,
+                                   {{"amount", ParameterValue{0.25}}},
+                                   std::nullopt});
+    EXPECT_TRUE(validate_recipe(existing, registry.value()));
+    const auto upgraded = upgrade_recipe(existing);
+    ASSERT_TRUE(upgraded) << upgraded.error().message;
+    ASSERT_EQ(upgraded.value().operations.size(), 1U);
+    const auto &normalized = upgraded.value().operations.front();
+    EXPECT_EQ(normalized.schema_version, kColorContrastOperationSchemaVersion);
+    EXPECT_TRUE(normalized.enabled);
+    const auto compatible = color_contrast_from_parameters(normalized.parameters);
+    ASSERT_TRUE(compatible) << compatible.error().message;
+    EXPECT_EQ(compatible.value(), (ColorContrastParams{1.25, 0.0, 1.25, 0.0, true}));
+
+    auto zero = existing.operations.front();
+    zero.parameters["amount"] = ParameterValue{0.0};
+    ASSERT_TRUE(upgrade_color_contrast_operation(zero));
+    EXPECT_EQ(zero.schema_version, kColorContrastOperationSchemaVersion);
+    EXPECT_FALSE(zero.enabled) << "the existing v1 zero control must retain its skip semantics";
+    const auto zero_params = color_contrast_from_parameters(zero.parameters);
+    ASSERT_TRUE(zero_params) << zero_params.error().message;
+    EXPECT_EQ(zero_params.value(), ColorContrastParams{});
+
+    auto invalid_v1 = existing.operations.front();
+    invalid_v1.parameters.emplace("unknown", ParameterValue{0.0});
+    const auto rejected_upgrade = upgrade_color_contrast_operation(invalid_v1);
+    ASSERT_FALSE(rejected_upgrade);
+    EXPECT_EQ(rejected_upgrade.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_v1.schema_version, 1);
+    ASSERT_EQ(invalid_v1.parameters.size(), 2U);
+    ASSERT_NE(invalid_v1.parameters.find("amount"), invalid_v1.parameters.end());
+    ASSERT_NE(invalid_v1.parameters.find("unknown"), invalid_v1.parameters.end());
+    EXPECT_DOUBLE_EQ(std::get<double>(invalid_v1.parameters.at("amount").value), 0.25);
+    EXPECT_DOUBLE_EQ(std::get<double>(invalid_v1.parameters.at("unknown").value), 0.0);
+
+    const auto expect_invalid = [](auto parameters)
+    {
+        const auto result = color_contrast_from_parameters(parameters);
+        EXPECT_FALSE(result);
+        if (!result)
+        {
+            EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+            EXPECT_EQ(result.error().context.at("reason"), "invalid_colorcontrast_parameters");
+        }
+    };
+    auto invalid = encoded.value();
+    invalid.emplace("unknown", ParameterValue{0.0});
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid.erase("a_offset");
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid["working_space"] = ParameterValue{"linear_rec709"};
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid["algorithm"] = ParameterValue{"symmetric_saturation"};
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid["a_steepness"] = ParameterValue{kColorContrastSteepnessMin - 0.01};
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid["b_steepness"] = ParameterValue{kColorContrastSteepnessMax + 0.01};
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid["a_offset"] = ParameterValue{std::numeric_limits<double>::infinity()};
+    expect_invalid(invalid);
+    invalid = encoded.value();
+    invalid["unbound"] = ParameterValue{std::int64_t{1}};
+    expect_invalid(invalid);
 }
 
 TEST(RecipeTest, RejectsUnknownFieldsRatherThanGuessingCompatibility)

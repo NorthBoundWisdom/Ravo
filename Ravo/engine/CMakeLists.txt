@@ -7,6 +7,8 @@ target_sources(ravo_engine
     src/color_balance_rgb.h
     src/color_checker.cpp
     src/color_checker.h
+    src/color_contrast.cpp
+    src/color_contrast.h
     src/color_correction.cpp
     src/color_correction.h
     src/d50_lab.h

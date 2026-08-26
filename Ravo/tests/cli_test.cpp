@@ -29,6 +29,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
@@ -324,6 +325,72 @@ legacy_color_checker_xmp(const std::vector<LegacyColorCheckerXmpOptions> &entrie
 [[nodiscard]] std::string legacy_color_checker_xmp(const LegacyColorCheckerXmpOptions &options = {})
 {
     return legacy_color_checker_xmp(std::vector<LegacyColorCheckerXmpOptions>{options});
+}
+
+inline constexpr std::string_view kLegacyColorContrastV2Parameters =
+    "6666264000000000000020400000000001000000";
+inline constexpr std::string_view kLegacyColorContrastV1Parameters =
+    "66662640000000000000204000000000";
+inline constexpr std::string_view kLegacyColorContrastDefaultBlend =
+    "gz13eJxjYGBgYAJiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAExgGQY=";
+
+struct LegacyColorContrastXmpOptions
+{
+    std::optional<std::string_view> history_position = "9";
+    std::optional<std::string_view> version = "2";
+    std::optional<std::string_view> enabled = "1";
+    std::optional<std::string_view> parameters = kLegacyColorContrastV2Parameters;
+    std::optional<std::string_view> multi_name = "";
+    std::optional<std::string_view> multi_priority = "0";
+    std::optional<std::string_view> multi_name_hand_edited;
+    std::optional<std::string_view> blend_version = "10";
+    std::optional<std::string_view> blend_parameters = kLegacyColorContrastDefaultBlend;
+    std::string_view extra_attributes;
+};
+
+[[nodiscard]] std::string
+legacy_color_contrast_xmp(const std::vector<LegacyColorContrastXmpOptions> &entries)
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>)";
+    const auto append_attribute =
+        [&](const std::string_view name, const std::optional<std::string_view> value)
+    {
+        if (value)
+        {
+            document += " darktable:";
+            document += name;
+            document += "=\"";
+            document += *value;
+            document += '"';
+        }
+    };
+    for (const auto &entry : entries)
+    {
+        document += R"(<rdf:li darktable:operation="colorcontrast")";
+        append_attribute("num", entry.history_position);
+        append_attribute("modversion", entry.version);
+        append_attribute("enabled", entry.enabled);
+        append_attribute("params", entry.parameters);
+        append_attribute("multi_name", entry.multi_name);
+        append_attribute("multi_priority", entry.multi_priority);
+        append_attribute("multi_name_hand_edited", entry.multi_name_hand_edited);
+        append_attribute("blendop_version", entry.blend_version);
+        append_attribute("blendop_params", entry.blend_parameters);
+        document += entry.extra_attributes;
+        document += "/>";
+    }
+    document += R"(</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+[[nodiscard]] std::string
+legacy_color_contrast_xmp(const LegacyColorContrastXmpOptions &options = {})
+{
+    return legacy_color_contrast_xmp(std::vector<LegacyColorContrastXmpOptions>{options});
 }
 
 void append_u32_le_hex(std::string &output, const std::uint32_t word)
@@ -700,6 +767,19 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
                                return id != nullptr && id->string_if() != nullptr &&
                                       *id->string_if() == kColorCorrectionOperationId;
                            }));
+    const auto color_contrast =
+        std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                     [](const JsonValue &operation)
+                     {
+                         const auto *id = operation.find("id");
+                         return id != nullptr && id->string_if() != nullptr &&
+                                *id->string_if() == kColorContrastOperationId;
+                     });
+    ASSERT_NE(color_contrast, operations->array_if()->end());
+    const auto *schema = color_contrast->find("parameter_schema_version");
+    ASSERT_NE(schema, nullptr);
+    ASSERT_NE(schema->number_if(), nullptr);
+    EXPECT_EQ(schema->number_if()->text, std::to_string(kColorContrastOperationSchemaVersion));
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
@@ -1988,6 +2068,167 @@ TEST_F(CliTest, LegacyXmpColorBalanceRealFixtureCensusIsNegativeAndSeparateFromS
               std::string::npos);
     EXPECT_NE(color_balance_files[1].generic_string().find("0034-blending-modes-parametric"),
               std::string::npos);
+}
+
+TEST_F(CliTest, LegacyXmpMapsTheVerbatimColorContrastV2RecordAndSyntheticV1Upgrade)
+{
+    auto imported = import_legacy_xmp(
+        {legacy_color_contrast_xmp(), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().operations.size(), 3U);
+    EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
+    const auto &operation = imported.value().operations[1];
+    EXPECT_EQ(operation.id, kColorContrastOperationId);
+    EXPECT_EQ(operation.schema_version, kColorContrastOperationSchemaVersion);
+    EXPECT_EQ(operation.instance_id, "legacy-colorcontrast-9");
+    EXPECT_TRUE(operation.enabled);
+    EXPECT_FALSE(operation.mask_id.has_value());
+    auto params = color_contrast_from_parameters(operation.parameters);
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_EQ(params.value(), (ColorContrastParams{2.5999999046325684, 0.0, 2.5, 0.0, true}));
+
+    LegacyColorContrastXmpOptions v1_options;
+    v1_options.history_position = "42";
+    v1_options.version = "1";
+    v1_options.parameters = kLegacyColorContrastV1Parameters;
+    imported = import_legacy_xmp(
+        {legacy_color_contrast_xmp(v1_options), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().operations.size(), 3U);
+    EXPECT_EQ(imported.value().operations[1].instance_id, "legacy-colorcontrast-42");
+    params = color_contrast_from_parameters(imported.value().operations[1].parameters);
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_EQ(params.value(), (ColorContrastParams{2.5999999046325684, 0.0, 2.5, 0.0, false}));
+}
+
+TEST_F(CliTest, LegacyXmpColorContrastRejectsUnfrozenPresentationAndMalformedData)
+{
+    const auto expect_rejected = [&](const LegacyColorContrastXmpOptions &options,
+                                     const ErrorCode code, const std::string_view reason)
+    {
+        auto imported = import_legacy_xmp(
+            {legacy_color_contrast_xmp(options), {"asset-1", "file:///fixture.raw", std::nullopt}});
+        ASSERT_FALSE(imported);
+        EXPECT_EQ(imported.error().code, code);
+        EXPECT_EQ(imported.error().context.at("reason"), reason);
+    };
+
+    LegacyColorContrastXmpOptions unsupported_version;
+    unsupported_version.version = "3";
+    expect_rejected(unsupported_version, ErrorCode::kUnsupported,
+                    "unsupported_legacy_colorcontrast_version");
+    for (const std::string_view enabled_value : {"0", "2"})
+    {
+        LegacyColorContrastXmpOptions disabled;
+        disabled.enabled = enabled_value;
+        expect_rejected(disabled, ErrorCode::kUnsupported,
+                        "unsupported_legacy_colorcontrast_enabled_state");
+    }
+    for (const std::string_view priority : {"1", "00"})
+    {
+        LegacyColorContrastXmpOptions multi;
+        multi.multi_priority = priority;
+        expect_rejected(multi, ErrorCode::kUnsupported,
+                        "unsupported_legacy_colorcontrast_multi_state");
+    }
+    LegacyColorContrastXmpOptions named;
+    named.multi_name = "second";
+    expect_rejected(named, ErrorCode::kUnsupported, "unsupported_legacy_colorcontrast_multi_state");
+    LegacyColorContrastXmpOptions hand_edited;
+    hand_edited.multi_name_hand_edited = "1";
+    expect_rejected(hand_edited, ErrorCode::kUnsupported,
+                    "unsupported_legacy_colorcontrast_multi_state");
+    LegacyColorContrastXmpOptions custom_blend;
+    custom_blend.blend_parameters = kLegacyGammaBlendV9;
+    expect_rejected(custom_blend, ErrorCode::kUnsupported,
+                    "unsupported_legacy_colorcontrast_blend");
+    LegacyColorContrastXmpOptions explicit_mask;
+    explicit_mask.extra_attributes = R"( darktable:mask_id="42")";
+    expect_rejected(explicit_mask, ErrorCode::kUnsupported,
+                    "unsupported_legacy_colorcontrast_mask");
+    LegacyColorContrastXmpOptions unknown;
+    unknown.extra_attributes = R"( darktable:unproven="1")";
+    expect_rejected(unknown, ErrorCode::kUnsupported, "unsupported_legacy_colorcontrast_attribute");
+
+    LegacyColorContrastXmpOptions wrong_length;
+    wrong_length.parameters = "00000000";
+    expect_rejected(wrong_length, ErrorCode::kValidation,
+                    "invalid_legacy_colorcontrast_parameters");
+    LegacyColorContrastXmpOptions nonfinite;
+    nonfinite.parameters = "0000807f00000000000020400000000001000000";
+    expect_rejected(nonfinite, ErrorCode::kValidation, "invalid_legacy_colorcontrast_parameters");
+    LegacyColorContrastXmpOptions invalid_unbound;
+    invalid_unbound.parameters = "6666264000000000000020400000000002000000";
+    expect_rejected(invalid_unbound, ErrorCode::kValidation,
+                    "invalid_legacy_colorcontrast_parameters");
+
+    LegacyColorContrastXmpOptions duplicate;
+    auto duplicate_result = import_legacy_xmp({legacy_color_contrast_xmp({duplicate, duplicate}),
+                                               {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(duplicate_result);
+    EXPECT_EQ(duplicate_result.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(duplicate_result.error().context.at("reason"), "duplicate_legacy_colorcontrast");
+}
+
+TEST_F(CliTest, LegacyXmpColorContrastCensusPinsTheRealRecordAndFullDocumentNegative)
+{
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    std::vector<std::filesystem::path> xmp_paths;
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".xmp")
+        {
+            xmp_paths.push_back(entry.path());
+        }
+    }
+    std::sort(xmp_paths.begin(), xmp_paths.end());
+    ASSERT_EQ(xmp_paths.size(), 158U);
+
+    std::size_t records = 0U;
+    std::optional<std::filesystem::path> record_path;
+    std::optional<std::string> record_document;
+    for (const auto &path : xmp_paths)
+    {
+        const auto content = read_utf8_text_file(path.generic_string());
+        ASSERT_TRUE(content) << content.error().message;
+        QXmlStreamReader reader(
+            QByteArray(content.value().data(), static_cast<qsizetype>(content.value().size())));
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+            if (!reader.isStartElement() || reader.name() != u"li" ||
+                xml_attribute_value(reader.attributes(), u"operation") != "colorcontrast")
+            {
+                continue;
+            }
+            ++records;
+            record_path = path;
+            record_document = content.value();
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"num"), "9");
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"modversion"), "2");
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"enabled"), "1");
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"params"),
+                      kLegacyColorContrastV2Parameters);
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"multi_priority"), "0");
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"multi_name"), "");
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"multi_name_hand_edited"),
+                      std::nullopt);
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"blendop_version"), "10");
+            EXPECT_EQ(xml_attribute_value(reader.attributes(), u"blendop_params"),
+                      kLegacyColorContrastDefaultBlend);
+        }
+        ASSERT_FALSE(reader.hasError()) << path << ": " << reader.errorString().toStdString();
+    }
+    ASSERT_EQ(records, 1U);
+    ASSERT_TRUE(record_path.has_value());
+    ASSERT_TRUE(record_document.has_value());
+    EXPECT_NE(record_path->generic_string().find("0038-colorcontrast"), std::string::npos);
+    auto imported =
+        import_legacy_xmp({*record_document, {"fixture", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_mask");
 }
 
 TEST_F(CliTest, LegacyXmpMapsTheVerbatimColorCheckerV2RecordAndSyntheticV1Upgrade)

@@ -13,6 +13,7 @@
 #include <system_error>
 #include <utility>
 
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
@@ -627,14 +628,21 @@ Result<Recipe> upgrade_recipe(Recipe recipe)
 {
     for (auto &operation : recipe.operations)
     {
-        if (operation.id != kExposureOperationId)
+        if (operation.id == kExposureOperationId)
         {
-            continue;
+            auto upgraded = upgrade_exposure_operation(operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
         }
-        auto upgraded = upgrade_exposure_operation(operation);
-        if (!upgraded)
+        else if (operation.id == kColorContrastOperationId)
         {
-            return upgraded.error();
+            auto upgraded = upgrade_color_contrast_operation(operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
         }
     }
     if (recipe.schema_version == 1)
@@ -813,6 +821,17 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
         {
             upgraded_operation = stored_operation;
             auto upgraded = upgrade_exposure_operation(upgraded_operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            operation_pointer = &upgraded_operation;
+        }
+        else if (stored_operation.id == kColorContrastOperationId &&
+                 stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_color_contrast_operation(upgraded_operation);
             if (!upgraded)
             {
                 return upgraded.error();
@@ -1005,6 +1024,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             if (!color_correction)
             {
                 auto error = color_correction.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kColorContrastOperationId)
+        {
+            auto color_contrast = validate_color_contrast_parameters(operation.parameters);
+            if (!color_contrast)
+            {
+                auto error = color_contrast.error();
                 error.context.emplace("operation_id", operation.id);
                 return error;
             }

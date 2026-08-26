@@ -5,6 +5,7 @@
 #include <cmath>
 #include <utility>
 
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
@@ -595,10 +596,18 @@ Result<OperationRegistry> make_phase1_registry()
            std::nullopt}},
          false,
          true},
-        {"ravo.color.colorcontrast",
-         "Color contrast",
-         1,
-         {{"amount", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0}},
+        {std::string(kColorContrastOperationId),
+         "Color Contrast",
+         kColorContrastOperationSchemaVersion,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"algorithm", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"a_steepness", ParameterType::kNumber, true, std::nullopt, kColorContrastSteepnessMin,
+           kColorContrastSteepnessMax},
+          {"a_offset", ParameterType::kNumber, true, std::nullopt, std::nullopt, std::nullopt},
+          {"b_steepness", ParameterType::kNumber, true, std::nullopt, kColorContrastSteepnessMin,
+           kColorContrastSteepnessMax},
+          {"b_offset", ParameterType::kNumber, true, std::nullopt, std::nullopt, std::nullopt},
+          {"unbound", ParameterType::kBoolean, true, std::nullopt, std::nullopt, std::nullopt}},
          false,
          true},
         {"ravo.color.velvia",
