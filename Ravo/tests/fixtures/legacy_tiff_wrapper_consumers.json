@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "wrapper": {
+    "todo_owner": "I7",
+    "source": "legacy/src/imageio/imageio_tiff.c",
+    "header": "legacy/src/imageio/imageio_tiff.h",
+    "cmake_registration": {
+      "path": "legacy/src/CMakeLists.txt",
+      "needle": "\"imageio/imageio_tiff.c\""
+    }
+  },
+  "public_symbols": [
+    "dt_imageio_open_tiff",
+    "dt_imageio_tiff_read_profile"
+  ],
+  "known_consumers": [
+    {
+      "path": "legacy/src/imageio/imageio.c",
+      "todo_owner": "I1",
+      "symbols": [
+        "dt_imageio_open_tiff"
+      ],
+      "why_reachable": "The shared magic-number dispatcher registers classic and BigTIFF input and its RAW-like TIFF fallback calls the I7 wrapper before RawSpeed routing."
+    }
+  ],
+  "known_include_only": [],
+  "separate_owners": [
+    {
+      "path": "legacy/src/imageio/format/tiff.c",
+      "todo_owner": "I13",
+      "classification": "tiff_output_plugin",
+      "local_identifier_collisions": [
+        "dt_imageio_tiff_t",
+        "dt_imageio_tiff_gui_t"
+      ],
+      "why_not_a_consumer": "The TIFF output plugin owns an independent libtiff writer and local types. It does not include or call the I7 input wrapper."
+    },
+    {
+      "path": "legacy/src/imageio/imageio_dng.c",
+      "todo_owner": "I4",
+      "classification": "dng_output_writer",
+      "local_identifier_collisions": [],
+      "why_not_a_consumer": "The DNG writer owns a separate libtiff output path and does not include or call the I7 input wrapper."
+    }
+  ]
+}

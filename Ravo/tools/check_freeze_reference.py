@@ -27,6 +27,9 @@ JPEG_WRAPPER_CONSUMERS = Path(
 PNG_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_png_wrapper_consumers.json"
 )
+TIFF_WRAPPER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_tiff_wrapper_consumers.json"
+)
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {
@@ -53,6 +56,11 @@ JPEG_WRAPPER_INCLUDE = re.compile(
 PNG_WRAPPER_INCLUDE = re.compile(
     r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_png\.h>'
     r'|"(?:[^"\r\n/]+/)*imageio_png\.h")',
+    re.MULTILINE,
+)
+TIFF_WRAPPER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_tiff\.h>'
+    r'|"(?:[^"\r\n/]+/)*imageio_tiff\.h")',
     re.MULTILINE,
 )
 
@@ -163,6 +171,10 @@ def load_jpeg_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
 
 def load_png_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
     return load_wrapper_manifest(repository_root, PNG_WRAPPER_CONSUMERS, "PNG")
+
+
+def load_tiff_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, TIFF_WRAPPER_CONSUMERS, "TIFF")
 
 
 def _files(repository_root: Path, *, cmake: bool) -> list[Path]:
@@ -331,6 +343,15 @@ def verify_png_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
     )
 
 
+def verify_tiff_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_tiff_wrapper_manifest(repository_root),
+        TIFF_WRAPPER_INCLUDE,
+        "TIFF",
+    )
+
+
 def run_git(repository_root: Path, *arguments: str) -> str:
     completed = subprocess.run(
         ("git", *arguments),
@@ -453,7 +474,7 @@ def verify_worktree(
 
 def verify(
     repository_root: Path, freeze_commit: str
-) -> tuple[dict[str, str], dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, str], dict[str, Any], dict[str, Any], dict[str, Any]]:
     freeze = run_git(repository_root, "rev-parse", f"{freeze_commit}^{{commit}}")
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, "HEAD^{commit}")
     retired = load_retired_src_paths(repository_root)
@@ -473,7 +494,8 @@ def verify(
     verify_worktree(repository_root, current_paths, retired)
     jpeg_wrapper = verify_jpeg_wrapper_consumers(repository_root)
     png_wrapper = verify_png_wrapper_consumers(repository_root)
-    return trees, jpeg_wrapper, png_wrapper
+    tiff_wrapper = verify_tiff_wrapper_consumers(repository_root)
+    return trees, jpeg_wrapper, png_wrapper, tiff_wrapper
 
 
 def main() -> int:
@@ -492,11 +514,11 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="emit the verified freeze and current JPEG/PNG wrapper censuses as JSON",
+        help="emit the verified freeze and current JPEG/PNG/TIFF wrapper censuses as JSON",
     )
     arguments = parser.parse_args()
     try:
-        trees, jpeg_wrapper, png_wrapper = verify(
+        trees, jpeg_wrapper, png_wrapper, tiff_wrapper = verify(
             arguments.repository_root.resolve(), arguments.freeze_commit
         )
     except FreezeCheckError as error:
@@ -510,6 +532,7 @@ def main() -> int:
                     "protected_trees": trees,
                     "legacy_jpeg_wrapper": jpeg_wrapper,
                     "legacy_png_wrapper": png_wrapper,
+                    "legacy_tiff_wrapper": tiff_wrapper,
                 },
                 indent=2,
                 sort_keys=True,
@@ -523,7 +546,9 @@ def main() -> int:
         f"jpeg_wrapper={jpeg_wrapper['state']} "
         f"jpeg_blockers={len(jpeg_wrapper['blocking_consumers'])} "
         f"png_wrapper={png_wrapper['state']} "
-        f"png_blockers={len(png_wrapper['blocking_consumers'])}"
+        f"png_blockers={len(png_wrapper['blocking_consumers'])} "
+        f"tiff_wrapper={tiff_wrapper['state']} "
+        f"tiff_blockers={len(tiff_wrapper['blocking_consumers'])}"
     )
     return 0
 
