@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <QCoreApplication>
+#include <QProcess>
 #include <gtest/gtest.h>
 #include <png.h>
 
@@ -176,6 +177,26 @@ TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
         "\n";
     EXPECT_EQ(stdout_stream.str(), expected);
     EXPECT_TRUE(stderr_stream.str().empty());
+}
+
+TEST_F(CliTest, RealCliJsonStdoutContainsOnlyTheProtocolEnvelope)
+{
+    QProcess process;
+    process.start(QStringLiteral(RAVO_CLI_EXECUTABLE),
+                  {QStringLiteral("--version"), QStringLiteral("--json")});
+    ASSERT_TRUE(process.waitForStarted());
+    ASSERT_TRUE(process.waitForFinished());
+    EXPECT_EQ(process.exitStatus(), QProcess::NormalExit);
+    EXPECT_EQ(process.exitCode(), 0);
+    const QByteArray stdout_bytes = process.readAllStandardOutput();
+    const QByteArray stderr_bytes = process.readAllStandardError();
+    const auto parsed = parse_json(stdout_bytes.toStdString());
+    ASSERT_TRUE(parsed) << parsed.error().message << " stdout=" << stdout_bytes.constData();
+    const auto *ok = parsed.value().find("ok");
+    ASSERT_NE(ok, nullptr);
+    ASSERT_NE(ok->boolean_if(), nullptr);
+    EXPECT_TRUE(*ok->boolean_if());
+    EXPECT_TRUE(stderr_bytes.isEmpty()) << stderr_bytes.constData();
 }
 
 TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
@@ -949,6 +970,164 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_NE(code, nullptr);
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "conflict");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatistics)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-probe-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                      "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const std::string png_path(png.begin(), png.end());
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_EQ(items->array_if()->size(), 1U);
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const auto id = *asset_id->string_if();
+
+    const auto run_probe = [&](const std::optional<std::string_view> override,
+                               const bool baseline) -> Result<JsonValue>
+    {
+        stdout_stream.str({});
+        stdout_stream.clear();
+        std::vector<std::string_view> arguments{"catalog",    "probe", "--catalog",  catalog,
+                                                "--asset-id", id,      "--max-edge", "64"};
+        if (baseline)
+        {
+            arguments.push_back("--baseline");
+        }
+        if (override)
+        {
+            arguments.push_back("--set");
+            arguments.push_back(*override);
+        }
+        arguments.push_back("--json");
+        if (application.run(arguments) != 0)
+        {
+            return make_error(ErrorCode::kIo, "Develop probe command failed",
+                              {{"stdout", stdout_stream.str()}});
+        }
+        return parse_json(stdout_stream.str());
+    };
+    const auto luma_mean = [](const JsonValue &response) -> std::optional<double>
+    {
+        const auto *data = response.find("data");
+        const auto *statistics = data == nullptr ? nullptr : data->find("statistics");
+        const auto *luma = statistics == nullptr ? nullptr : statistics->find("display_luma_mean");
+        if (luma == nullptr || luma->number_if() == nullptr)
+        {
+            return std::nullopt;
+        }
+        return std::stod(luma->number_if()->text);
+    };
+
+    auto baseline = run_probe(std::nullopt, true);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    auto minus_one = run_probe("exposure=-1", true);
+    ASSERT_TRUE(minus_one) << minus_one.error().message;
+    auto plus_one = run_probe("exposure=1", true);
+    ASSERT_TRUE(plus_one) << plus_one.error().message;
+    const auto baseline_luma = luma_mean(baseline.value());
+    const auto minus_one_luma = luma_mean(minus_one.value());
+    const auto plus_one_luma = luma_mean(plus_one.value());
+    ASSERT_TRUE(baseline_luma);
+    ASSERT_TRUE(minus_one_luma);
+    ASSERT_TRUE(plus_one_luma);
+    EXPECT_GT(*minus_one_luma, 8.0);
+    EXPECT_LT(*minus_one_luma, *baseline_luma);
+    EXPECT_GT(*plus_one_luma, *baseline_luma);
+    const auto *minus_data = minus_one.value().find("data");
+    ASSERT_NE(minus_data, nullptr);
+    const auto *unchanged = minus_data->find("recipe_unchanged");
+    ASSERT_NE(unchanged, nullptr);
+    ASSERT_NE(unchanged->boolean_if(), nullptr);
+    EXPECT_TRUE(*unchanged->boolean_if());
+    const auto *preview_records_unchanged = minus_data->find("preview_records_unchanged");
+    ASSERT_NE(preview_records_unchanged, nullptr);
+    ASSERT_NE(preview_records_unchanged->boolean_if(), nullptr);
+    EXPECT_TRUE(*preview_records_unchanged->boolean_if());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "develop", "--catalog",
+                                                            catalog, "--asset-id", id, "--set",
+                                                            "exposure=1", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto current = run_probe(std::nullopt, false);
+    ASSERT_TRUE(current) << current.error().message;
+    auto baseline_after_save = run_probe(std::nullopt, true);
+    ASSERT_TRUE(baseline_after_save) << baseline_after_save.error().message;
+    ASSERT_TRUE(luma_mean(current.value()));
+    ASSERT_TRUE(luma_mean(baseline_after_save.value()));
+    EXPECT_DOUBLE_EQ(*luma_mean(baseline_after_save.value()), *baseline_luma);
+    EXPECT_GT(*luma_mean(current.value()), *baseline_luma);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "probe", "--catalog",
+                                                            catalog, "--asset-id", id, "--baseline",
+                                                            "--set", "exposure=11", "--json"}),
+              2);
+    auto rejected = parse_json(stdout_stream.str());
+    ASSERT_TRUE(rejected) << rejected.error().message;
+    const auto *error = rejected.value().find("error");
+    ASSERT_NE(error, nullptr);
+    const auto *code = error->find("code");
+    ASSERT_NE(code, nullptr);
+    ASSERT_NE(code->string_if(), nullptr);
+    EXPECT_EQ(*code->string_if(), "invalid_argument");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "develop", "--catalog",
+                                                            catalog, "--asset-id", id, "--set",
+                                                            "exposure=11", "--json"}),
+              2);
+    auto rejected_save = parse_json(stdout_stream.str());
+    ASSERT_TRUE(rejected_save) << rejected_save.error().message;
+    error = rejected_save.value().find("error");
+    ASSERT_NE(error, nullptr);
+    code = error->find("code");
+    ASSERT_NE(code, nullptr);
+    ASSERT_NE(code->string_if(), nullptr);
+    EXPECT_EQ(*code->string_if(), "invalid_argument");
+
+    auto current_after_reject = run_probe(std::nullopt, false);
+    ASSERT_TRUE(current_after_reject) << current_after_reject.error().message;
+    ASSERT_TRUE(luma_mean(current_after_reject.value()));
+    EXPECT_DOUBLE_EQ(*luma_mean(current_after_reject.value()), *luma_mean(current.value()));
+    EXPECT_TRUE(stderr_stream.str().empty());
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

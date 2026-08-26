@@ -71,7 +71,7 @@ Current implementation status:
   four rendering intents, soft proof, gamut warning, proof intent, and black-
   point compensation. Matrix/shaper output uses the frozen 65,536-sample LUT
   and unbounded extrapolation; general RGB/XYZ/Lab and proof transforms use
-  render-local LittleCMS. Preview contract v6 and `RenderedImage` carry owned
+  render-local LittleCMS. Preview contract v7 and `RenderedImage` carry owned
   ICC state. CLI PNG emits standard sRGB metadata or `iCCP`, Catalog PNG/JPEG/
   TIFF embeds the same declared profile, and missing/corrupt profiles fail
   before atomic publish. Studio presents the engine-owned result through Output
@@ -245,6 +245,7 @@ ravo catalog create --path <library.sqlite> --json
 ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--max-edge N] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
@@ -254,6 +255,16 @@ ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> -
 An existing output path returns structured `conflict`; it is never overwritten
 implicitly. Catalog commands call the same services as Studio and serve as the
 headless acceptance client.
+
+`catalog probe` is a read-only Develop diagnostic. It renders the current recipe,
+or the synthesized product baseline with `--baseline`, through the same
+non-persistent interactive-preview path as Studio. Repeated `--set name=value`
+overrides accept every numeric Develop field, reject unknown, duplicate,
+non-finite, or out-of-range values, and return dimensions, output-profile ID,
+RGB sums/means/extrema/clipping counts, and display-luma mean. The command
+reloads the stored recipe and preview-record set after rendering and fails if
+either changed; it writes neither a recipe nor a preview record. CLI logging
+remains file-only so machine JSON is the only stdout content.
 
 ## Names and directories
 

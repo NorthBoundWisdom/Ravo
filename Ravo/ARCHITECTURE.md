@@ -172,13 +172,13 @@ Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
 Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v6: full CPU
+`prefer_embedded_preview=false` use preview contract v7: full CPU
 decode/render followed by the `ravo.display.sigmoid` baseline at the end of
 the scene-linear buffer and the recipe-owned output profile. The cache types
 must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.
 Cached built-in sRGB PNGs contain one standard `sRGB` chunk; other RGB outputs
-contain one `iCCP` and no conflicting `sRGB`. Preview v6 rebuilds prior cache
+contain one `iCCP` and no conflicting `sRGB`. Preview v7 rebuilds prior cache
 output.
 The baseline creates no `asset_recipe` row and does not set `has_edits`;
 persistence begins only after a user override. Existing JPEG/PNG/TIFF are
@@ -200,6 +200,17 @@ versioned schema only and owns neither a second algorithm nor history format.
 Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
 `interpolation=monotone_hermite`. `working_space=lab|xyz|lab_independent`
 is an explicit C mode; Inspector forwards points and recipe/engine evaluates.
+
+The lightweight P1 global controls do not stand in for the later full-module
+migration queue. Within their exposed subset, Exposure uses `2^EV`; Contrast,
+Saturation, and Vibrance use the darktable basic-adjustments CPU response;
+Lab-backed controls share the engine's D50 working conversion; and hidden
+Sharpen, Grain, Vignette, Bloom, and Soften defaults use the corresponding
+source parameters. Studio presents darktable-equivalent soft ranges while
+recipe validation retains the explicit hard bounds. Full `exposure`,
+`shadhi`, `gamma`, `sharpen`, `grain`, `vignette`, `bloom`, `soften`, and
+`hazeremoval` capability acceptance remains governed by the root migration
+queue rather than inferred from these global controls.
 
 `ravo.display.sigmoid` v1 is the sole default display transform:
 `working_space=linear_srgb`, `color_processing=per_channel`, middle-grey
@@ -269,7 +280,9 @@ the working white point to its primary triangle. The engine derives xy from
 on the adjusted pixels. It runs immediately after input colour and before the
 linear-Rec709 bridge used by existing RGB operations. Studio converts hue to
 degrees only for presentation and intent forwarding; it owns no chromaticity
-or display-profile calculation.
+or display-profile calculation. Its drag ranges mirror the source soft ranges:
+primary hue ±20°, primary purity 0.5–1.5, and achromatic purity 0–0.2; the
+canonical recipe retains the full validated hard bounds.
 
 `ravo.color.channelmixerrgb` v1 fixes the `linear_srgb_d50` workspace and
 V3 algorithm, persisting three mixing rows, saturation/lightness/grey,
@@ -364,6 +377,10 @@ dynamic IOP lifecycle.
 CLI owns arguments, stdin/stdout, versioned JSON, stable exit codes, and
 headless composition. Existing catalog create/import/list/preview/develop/export
 commands validate the same services; human logs must not pollute JSON stdout.
+The read-only catalog Develop probe applies strict numeric field overrides to a
+current or synthesized baseline recipe, calls the non-persistent interactive
+preview contract, reports display-referred pixel statistics, and verifies that
+the stored recipe and preview records are unchanged before returning.
 
 ## Current non-goals
 

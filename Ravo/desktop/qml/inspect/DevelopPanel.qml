@@ -512,13 +512,13 @@ ColumnLayout {
                         Repeater {
                             model: [
                                 { "title": qsTr("Achromatic tint hue"), "key": "achromaticTintHueDegrees", "field": "primariesAchromaticHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
-                                { "title": qsTr("Achromatic tint purity"), "key": "achromaticTintPurity", "field": "primariesAchromaticPurity", "minimum": 0, "maximum": 0.99, "reset": 0, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Red hue"), "key": "redHueDegrees", "field": "primariesRedHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
-                                { "title": qsTr("Red purity"), "key": "redPurity", "field": "primariesRedPurity", "minimum": 0.01, "maximum": 5, "reset": 1, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Green hue"), "key": "greenHueDegrees", "field": "primariesGreenHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
-                                { "title": qsTr("Green purity"), "key": "greenPurity", "field": "primariesGreenPurity", "minimum": 0.01, "maximum": 5, "reset": 1, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Blue hue"), "key": "blueHueDegrees", "field": "primariesBlueHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
-                                { "title": qsTr("Blue purity"), "key": "bluePurity", "field": "primariesBluePurity", "minimum": 0.01, "maximum": 5, "reset": 1, "step": 0.01, "decimals": 2 }
+                                { "title": qsTr("Achromatic tint purity"), "key": "achromaticTintPurity", "field": "primariesAchromaticPurity", "minimum": 0, "maximum": 0.2, "reset": 0, "step": 0.002, "decimals": 3 },
+                                { "title": qsTr("Red hue"), "key": "redHueDegrees", "field": "primariesRedHueDegrees", "minimum": -20, "maximum": 20, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Red purity"), "key": "redPurity", "field": "primariesRedPurity", "minimum": 0.5, "maximum": 1.5, "reset": 1, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Green hue"), "key": "greenHueDegrees", "field": "primariesGreenHueDegrees", "minimum": -20, "maximum": 20, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Green purity"), "key": "greenPurity", "field": "primariesGreenPurity", "minimum": 0.5, "maximum": 1.5, "reset": 1, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Blue hue"), "key": "blueHueDegrees", "field": "primariesBlueHueDegrees", "minimum": -20, "maximum": 20, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Blue purity"), "key": "bluePurity", "field": "primariesBluePurity", "minimum": 0.5, "maximum": 1.5, "reset": 1, "step": 0.01, "decimals": 2 }
                             ]
                             delegate: PrimariesSlider {}
                         }
@@ -534,9 +534,10 @@ ColumnLayout {
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Exposure")
-                            from: -5
-                            to: 5
-                            stepSize: 0.05
+                            from: -3
+                            to: 4
+                            stepSize: 0.01
+                            validatorDecimals: 2
                             showReset: true
                             resetValue: 0
                             delayedCommit: true
@@ -560,9 +561,9 @@ ColumnLayout {
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Contrast")
-                            from: 0.1
-                            to: 10
-                            stepSize: 0.05
+                            from: 0.7
+                            to: 3
+                            stepSize: 0.01
                             validatorDecimals: 2
                             showReset: true
                             resetValue: 1.5
@@ -703,8 +704,10 @@ ColumnLayout {
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Blacks")
-                            from: -1
-                            to: 1
+                            from: -0.1
+                            to: 0.1
+                            stepSize: 0.001
+                            validatorDecimals: 3
                             showReset: true
                             resetValue: 0
                             delayedCommit: true
@@ -860,24 +863,24 @@ ColumnLayout {
                         }
                         Repeater {
                             model: [
-                                { "title": qsTr("Global · Luminance"), "key": "globalY", "field": "colorBalanceGlobalY", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Global · Chroma"), "key": "globalChroma", "field": "colorBalanceGlobalChroma", "minimum": 0, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Global · Luminance"), "key": "globalY", "field": "colorBalanceGlobalY", "minimum": -0.05, "maximum": 0.05, "reset": 0, "step": 0.001, "decimals": 3 },
+                                { "title": qsTr("Global · Chroma"), "key": "globalChroma", "field": "colorBalanceGlobalChroma", "minimum": 0, "maximum": 0.01, "reset": 0, "step": 0.0001, "decimals": 4 },
                                 { "title": qsTr("Global · Hue"), "key": "globalHue", "field": "colorBalanceGlobalHue", "minimum": 0, "maximum": 360, "reset": 0, "step": 1, "decimals": 1 },
                                 { "title": qsTr("Shadows · Luminance"), "key": "shadowsY", "field": "colorBalanceShadowsY", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Shadows · Chroma"), "key": "shadowsChroma", "field": "colorBalanceShadowsChroma", "minimum": 0, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Shadows · Chroma"), "key": "shadowsChroma", "field": "colorBalanceShadowsChroma", "minimum": 0, "maximum": 0.5, "reset": 0, "step": 0.005, "decimals": 3 },
                                 { "title": qsTr("Shadows · Hue"), "key": "shadowsHue", "field": "colorBalanceShadowsHue", "minimum": 0, "maximum": 360, "reset": 0, "step": 1, "decimals": 1 },
-                                { "title": qsTr("Midtones · Luminance"), "key": "midtonesY", "field": "colorBalanceMidtonesY", "minimum": -0.999999, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Midtones · Chroma"), "key": "midtonesChroma", "field": "colorBalanceMidtonesChroma", "minimum": 0, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Midtones · Luminance"), "key": "midtonesY", "field": "colorBalanceMidtonesY", "minimum": -0.25, "maximum": 0.25, "reset": 0, "step": 0.005, "decimals": 3 },
+                                { "title": qsTr("Midtones · Chroma"), "key": "midtonesChroma", "field": "colorBalanceMidtonesChroma", "minimum": 0, "maximum": 0.1, "reset": 0, "step": 0.001, "decimals": 3 },
                                 { "title": qsTr("Midtones · Hue"), "key": "midtonesHue", "field": "colorBalanceMidtonesHue", "minimum": 0, "maximum": 360, "reset": 0, "step": 1, "decimals": 1 },
-                                { "title": qsTr("Highlights · Luminance"), "key": "highlightsY", "field": "colorBalanceHighlightsY", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Highlights · Chroma"), "key": "highlightsChroma", "field": "colorBalanceHighlightsChroma", "minimum": 0, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Highlights · Luminance"), "key": "highlightsY", "field": "colorBalanceHighlightsY", "minimum": -0.5, "maximum": 0.5, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Highlights · Chroma"), "key": "highlightsChroma", "field": "colorBalanceHighlightsChroma", "minimum": 0, "maximum": 0.2, "reset": 0, "step": 0.002, "decimals": 3 },
                                 { "title": qsTr("Highlights · Hue"), "key": "highlightsHue", "field": "colorBalanceHighlightsHue", "minimum": 0, "maximum": 360, "reset": 0, "step": 1, "decimals": 1 },
                                 { "title": qsTr("Shadows fall-off"), "key": "shadowsFalloff", "field": "colorBalanceShadowsFalloff", "minimum": 0, "maximum": 3, "reset": 1, "step": 0.05, "decimals": 2 },
                                 { "title": qsTr("Highlights fall-off"), "key": "highlightsFalloff", "field": "colorBalanceHighlightsFalloff", "minimum": 0, "maximum": 3, "reset": 1, "step": 0.05, "decimals": 2 },
                                 { "title": qsTr("Mask grey fulcrum"), "key": "maskGreyFulcrum", "field": "colorBalanceMaskGreyFulcrum", "minimum": 0.000001, "maximum": 1, "reset": 0.1845, "step": 0.001, "decimals": 4 },
-                                { "title": qsTr("White fulcrum · EV"), "key": "whiteFulcrumEv", "field": "colorBalanceWhiteFulcrumEv", "minimum": -16, "maximum": 16, "reset": 0, "step": 0.1, "decimals": 2 },
-                                { "title": qsTr("Grey fulcrum"), "key": "greyFulcrum", "field": "colorBalanceGreyFulcrum", "minimum": 0.000001, "maximum": 1, "reset": 0.1845, "step": 0.001, "decimals": 4 },
-                                { "title": qsTr("Chroma · Global"), "key": "chromaGlobal", "field": "colorBalanceChromaGlobal", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("White fulcrum · EV"), "key": "whiteFulcrumEv", "field": "colorBalanceWhiteFulcrumEv", "minimum": -2, "maximum": 2, "reset": 0, "step": 0.05, "decimals": 2 },
+                                { "title": qsTr("Grey fulcrum"), "key": "greyFulcrum", "field": "colorBalanceGreyFulcrum", "minimum": 0.1, "maximum": 0.5, "reset": 0.1845, "step": 0.001, "decimals": 4 },
+                                { "title": qsTr("Chroma · Global"), "key": "chromaGlobal", "field": "colorBalanceChromaGlobal", "minimum": -0.5, "maximum": 0.5, "reset": 0, "step": 0.01, "decimals": 2 },
                                 { "title": qsTr("Chroma · Shadows"), "key": "chromaShadows", "field": "colorBalanceChromaShadows", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
                                 { "title": qsTr("Chroma · Midtones"), "key": "chromaMidtones", "field": "colorBalanceChromaMidtones", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
                                 { "title": qsTr("Chroma · Highlights"), "key": "chromaHighlights", "field": "colorBalanceChromaHighlights", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
@@ -889,9 +892,9 @@ ColumnLayout {
                                 { "title": qsTr("Brilliance · Shadows"), "key": "brillianceShadows", "field": "colorBalanceBrillianceShadows", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
                                 { "title": qsTr("Brilliance · Midtones"), "key": "brillianceMidtones", "field": "colorBalanceBrillianceMidtones", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
                                 { "title": qsTr("Brilliance · Highlights"), "key": "brillianceHighlights", "field": "colorBalanceBrillianceHighlights", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
-                                { "title": qsTr("Vibrance"), "key": "vibrance", "field": "colorBalanceVibrance", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Vibrance"), "key": "vibrance", "field": "colorBalanceVibrance", "minimum": -0.5, "maximum": 0.5, "reset": 0, "step": 0.01, "decimals": 2 },
                                 { "title": qsTr("Hue rotation"), "key": "hueRotation", "field": "colorBalanceHueRotation", "minimum": -180, "maximum": 180, "reset": 0, "step": 1, "decimals": 1 },
-                                { "title": qsTr("Contrast"), "key": "contrast", "field": "colorBalanceContrast", "minimum": -1, "maximum": 1, "reset": 0, "step": 0.01, "decimals": 2 }
+                                { "title": qsTr("Contrast"), "key": "contrast", "field": "colorBalanceContrast", "minimum": -0.5, "maximum": 0.5, "reset": 0, "step": 0.01, "decimals": 2 }
                             ]
                             delegate: CustomSlider {
                                 required property var modelData
@@ -977,10 +980,10 @@ ColumnLayout {
                             Layout.fillWidth: true
                             title: qsTr("Shadow hue")
                             showReset: true
-                            resetValue: 0.55
+                            resetValue: 0
                             delayedCommit: true
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editSplitShadowsHue : 0.55
+                            value: root.hasPresenter ? root.presenter.editSplitShadowsHue : 0
                             onValueChanged: if (root.liveReady && root.commands)
                                     root.commands.previewDevelopNumber("splitShadowsHue", value)
                             onValueCommitted: function (value) {
@@ -994,10 +997,10 @@ ColumnLayout {
                             Layout.fillWidth: true
                             title: qsTr("Highlight hue")
                             showReset: true
-                            resetValue: 0.08
+                            resetValue: 0.2
                             delayedCommit: true
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editSplitHighlightsHue : 0.08
+                            value: root.hasPresenter ? root.presenter.editSplitHighlightsHue : 0.2
                             onValueChanged: if (root.liveReady && root.commands)
                                     root.commands.previewDevelopNumber("splitHighlightsHue", value)
                             onValueCommitted: function (value) {
@@ -1058,12 +1061,14 @@ ColumnLayout {
                             Layout.fillWidth: true
                             title: qsTr("Radius")
                             from: 0
-                            to: 12
+                            to: 4.8
+                            stepSize: 0.1
+                            validatorDecimals: 1
                             showReset: true
-                            resetValue: 1
+                            resetValue: 2
                             delayedCommit: true
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editSharpenRadius : 1
+                            value: root.hasPresenter ? root.presenter.editSharpenRadius : 2
                             onValueChanged: if (root.liveReady && root.commands)
                                     root.commands.previewDevelopNumber("sharpenRadius", value)
                             onValueCommitted: function (value) {
@@ -1492,8 +1497,8 @@ ColumnLayout {
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Graduated density")
-                            from: -2
-                            to: 2
+                            from: -4
+                            to: 4
                             stepSize: 0.05
                             validatorDecimals: 2
                             showReset: true
@@ -1563,10 +1568,10 @@ ColumnLayout {
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Band hue")
-                            from: -0.25
-                            to: 0.25
-                            stepSize: 0.01
-                            validatorDecimals: 2
+                            from: -0.5
+                            to: 0.5
+                            stepSize: 0.005
+                            validatorDecimals: 3
                             showReset: true
                             resetValue: 0
                             delayedCommit: true

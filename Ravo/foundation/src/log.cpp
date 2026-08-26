@@ -92,7 +92,7 @@ quill::Logger *g_logger = nullptr;
 
 } // namespace
 
-void init_logging(const std::string_view app_name)
+void init_logging(const std::string_view app_name, const bool console_enabled)
 {
     if (g_logger != nullptr)
     {
@@ -106,7 +106,6 @@ void init_logging(const std::string_view app_name)
 
     quill::Backend::start();
 
-    auto console_sink = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("ravo_console");
     quill::FileSinkConfig file_config;
     file_config.set_open_mode('a');
     const auto file_path = directory / (name + "_" + timestamp_for_filename() + ".log");
@@ -115,10 +114,13 @@ void init_logging(const std::string_view app_name)
 
     const quill::PatternFormatterOptions pattern{
         "%(time) [%(log_level)] %(message)", "%Y-%m-%dT%H:%M:%S.%QmsZ", quill::Timezone::GmtTime};
-    g_logger = quill::Frontend::create_or_get_logger(
-        "ravo",
-        std::vector<std::shared_ptr<quill::Sink>>{std::move(console_sink), std::move(file_sink)},
-        pattern);
+    std::vector<std::shared_ptr<quill::Sink>> sinks;
+    if (console_enabled)
+    {
+        sinks.push_back(quill::Frontend::create_or_get_sink<quill::ConsoleSink>("ravo_console"));
+    }
+    sinks.push_back(std::move(file_sink));
+    g_logger = quill::Frontend::create_or_get_logger("ravo", std::move(sinks), pattern);
     g_logger->set_log_level(quill::LogLevel::Debug);
     LOG_INFO(g_logger, "logging initialized directory={}", from_u8(directory.generic_u8string()));
 }

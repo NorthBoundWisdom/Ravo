@@ -65,6 +65,21 @@ White Balance, RGB Primaries, Color Calibration, and full Color Balance RGB
 bindings load;
 these automated checks do not rely on Computer Use.
 
+The real `ravo` process is also a protocol contract: `--json` stdout contains
+exactly one parseable envelope and logging remains file-only. `catalog probe`
+drives the same non-persistent Develop preview used by Studio, supports strict
+repeatable numeric overrides, reports deterministic display-RGB statistics, and
+proves the stored recipe serialization and preview-record set are unchanged. It
+is the preferred local entry point for parameter-response sweeps; external image
+decoders and manual UI observations are not pixel or persistence oracles.
+
+Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
+the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,
+and the non-jumping hidden defaults for Bloom and negative Dehaze. Parameter
+response sweeps use a committed RAW or raster input and compare exact channel
+sums plus display-luma movement; a qualitative “looks less strong” result is
+not an acceptance value.
+
 Localization is a desktop build contract. Ravo/tools/check_i18n.py requires
 well-formed TS XML, no active unfinished/empty translations, matching
 placeholders/newlines, and English source identity. The
@@ -153,7 +168,7 @@ directories, corrupt files, and more RAW files.
   missing cache can be rebuilt.
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v6 validates complete decode, explicit input/output
+- RAW preview contract v7 validates complete decode, explicit input/output
   profiles, and default Sigmoid; the raster baseline must not receive a second
   display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`

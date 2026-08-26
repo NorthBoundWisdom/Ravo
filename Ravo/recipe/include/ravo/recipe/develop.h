@@ -198,7 +198,7 @@ struct DevelopParams
     double crop_width = 1.0;
     double crop_height = 1.0;
     double sharpen = 0.0;
-    double sharpen_radius = 1.0;
+    double sharpen_radius = 2.0;
     double clarity = 0.0;
     double vignette = 0.0;
     double grain = 0.0;
@@ -209,8 +209,8 @@ struct DevelopParams
     ColorBalanceRgbParams color_balance_rgb;
     double color_contrast = 0.0;
     double monochrome = 0.0;
-    double split_shadows_hue = 0.55;
-    double split_highlights_hue = 0.08;
+    double split_shadows_hue = 0.0;
+    double split_highlights_hue = 0.2;
     double split_balance = 0.5;
     double split_amount = 0.0;
     double gamma = kDevelopGammaDefault;
@@ -296,6 +296,8 @@ color_balance_rgb_to_parameters(const ColorBalanceRgbParams &params);
 
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);
+[[nodiscard]] Result<void> apply_develop_field_strict(DevelopParams &params, std::string_view name,
+                                                      double value);
 [[nodiscard]] bool reset_develop_field(DevelopParams &params, std::string_view name);
 [[nodiscard]] bool reset_develop_section(DevelopParams &params, std::string_view section);
 [[nodiscard]] bool apply_crop_aspect(DevelopParams &params, std::string_view aspect);

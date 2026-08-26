@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <numbers>
@@ -793,9 +794,9 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     return {};
 }
 
-[[nodiscard]] float luma(const float r, const float g, const float b)
+[[nodiscard]] float working_luminance(const float r, const float g, const float b)
 {
-    return 0.2126F * r + 0.7152F * g + 0.0722F * b;
+    return 0.2225045F * r + 0.7168786F * g + 0.0606169F * b;
 }
 
 void apply_exposure(WorkingImage &image, const double ev)
@@ -809,62 +810,47 @@ void apply_exposure(WorkingImage &image, const double ev)
 
 void apply_contrast(WorkingImage &image, const double amount)
 {
-    const float pivot = 0.18F;
-    const float gain = 1.0F + static_cast<float>(amount);
-    for (float &sample : image.rgb)
+    if (amount == 0.0)
     {
-        sample = pivot + (sample - pivot) * gain;
+        return;
     }
-}
-
-void linear_to_xyz(const float r, const float g, const float b, float &x, float &y, float &z)
-{
-    x = 0.4124564F * r + 0.3575761F * g + 0.1804375F * b;
-    y = 0.2126729F * r + 0.7151522F * g + 0.0721750F * b;
-    z = 0.0193339F * r + 0.1191920F * g + 0.9503041F * b;
-}
-
-void xyz_to_linear(const float x, const float y, const float z, float &r, float &g, float &b)
-{
-    r = 3.2404542F * x - 1.5371385F * y - 0.4985314F * z;
-    g = -0.9692660F * x + 1.8760108F * y + 0.0415560F * z;
-    b = 0.0556434F * x - 0.2040259F * y + 1.0572252F * z;
-}
-
-[[nodiscard]] float lab_f(const float t)
-{
-    return t > 0.008856F ? std::cbrt(t) : (7.787F * t + 16.0F / 116.0F);
-}
-
-[[nodiscard]] float lab_f_inv(const float t)
-{
-    const float t3 = t * t * t;
-    return t3 > 0.008856F ? t3 : (t - 16.0F / 116.0F) / 7.787F;
+    // darktable basic adjustments preserves the working-profile luminance by default and
+    // applies contrast as an exponent around middle grey.
+    constexpr float kMiddleGrey = 0.1842F;
+    const float contrast = 1.0F + static_cast<float>(amount);
+    for (std::size_t index = 0; index + 2U < image.rgb.size(); index += 3U)
+    {
+        const float luminance =
+            working_luminance(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
+        if (luminance <= 0.0F)
+        {
+            continue;
+        }
+        const float adjusted = std::pow(luminance / kMiddleGrey, contrast) * kMiddleGrey;
+        const float scale = adjusted / luminance;
+        image.rgb[index] *= scale;
+        image.rgb[index + 1U] *= scale;
+        image.rgb[index + 2U] *= scale;
+    }
 }
 
 void rgb_to_lab(const float r, const float g, const float b, float &L, float &a, float &b_ch)
 {
-    float x = 0.0F;
-    float y = 0.0F;
-    float z = 0.0F;
-    linear_to_xyz(r, g, b, x, y, z);
-    const float fx = lab_f(x / 0.95047F);
-    const float fy = lab_f(y);
-    const float fz = lab_f(z / 1.08883F);
-    L = 116.0F * fy - 16.0F;
-    a = 500.0F * (fx - fy);
-    b_ch = 200.0F * (fy - fz);
+    float xyz[3]{};
+    float lab[3]{};
+    linear_rgb_to_xyz_d50(r, g, b, xyz);
+    xyz_d50_to_lab(xyz, lab);
+    L = lab[0];
+    a = lab[1];
+    b_ch = lab[2];
 }
 
 void lab_to_rgb(const float L, const float a, const float b_ch, float &r, float &g, float &b)
 {
-    const float fy = (L + 16.0F) / 116.0F;
-    const float fx = fy + a / 500.0F;
-    const float fz = fy - b_ch / 200.0F;
-    const float x = 0.95047F * lab_f_inv(fx);
-    const float y = lab_f_inv(fy);
-    const float z = 1.08883F * lab_f_inv(fz);
-    xyz_to_linear(x, y, z, r, g, b);
+    const float lab[3]{L, a, b_ch};
+    float xyz[3]{};
+    lab_to_xyz_d50(lab, xyz);
+    xyz_d50_to_linear_rgb(xyz, r, g, b);
 }
 
 void rgb_to_hsl(float r, float g, float b, float &h, float &s, float &l);
@@ -917,16 +903,18 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
         float &r = image.rgb[index];
         float &g = image.rgb[index + 1U];
         float &b = image.rgb[index + 2U];
-        const float y = luma(r, g, b);
-        const float maxc = std::max(r, std::max(g, b));
-        const float minc = std::min(r, std::min(g, b));
-        const float sat = maxc <= 1.0e-6F ? 0.0F : 1.0F - minc / maxc;
-        const float vibrance_gain = 1.0F + static_cast<float>(vibrance) * (1.0F - sat);
-        const float sat_gain = 1.0F + static_cast<float>(saturation);
-        const float gain = vibrance_gain * sat_gain;
-        r = y + (r - y) * gain;
-        g = y + (g - y) * gain;
-        b = y + (b - y) * gain;
+        const float average = (r + g + b) / 3.0F;
+        const float dr = average - r;
+        const float dg = average - g;
+        const float db = average - b;
+        const float delta = std::sqrt(dr * dr + dg * dg + db * db);
+        const float vibrance_amount = static_cast<float>(vibrance) / 1.4F;
+        const float vibrance_gain =
+            vibrance_amount * (1.0F - std::pow(delta, std::abs(vibrance_amount)));
+        const float gain = 1.0F + static_cast<float>(saturation) + vibrance_gain;
+        r = average + gain * (r - average);
+        g = average + gain * (g - average);
+        b = average + gain * (b - average);
     }
 }
 
@@ -1268,7 +1256,7 @@ void apply_unsharp(WorkingImage &image, const double amount, const double radius
     {
         return;
     }
-    const int rad = static_cast<int>(std::lround(2.5 * std::clamp(radius, 0.0, 12.0)));
+    const int rad = static_cast<int>(std::ceil(2.5 * std::clamp(radius, 0.0, 12.0)));
     if (rad <= 0 || image.width < static_cast<std::uint32_t>(2 * rad + 1) ||
         image.height < static_cast<std::uint32_t>(2 * rad + 1))
     {
@@ -1286,7 +1274,7 @@ void apply_unsharp(WorkingImage &image, const double amount, const double radius
     std::vector<float> blurred = L;
     blur_luma_gaussian(blurred, image.width, image.height, rad);
     const float gain = static_cast<float>(amount);
-    const float limit = static_cast<float>(threshold) * 10.0F;
+    const float limit = static_cast<float>(threshold);
     for (std::size_t index = 0; index < pixels; ++index)
     {
         const float diff = L[index] - blurred[index];
@@ -1348,7 +1336,7 @@ void apply_soften(WorkingImage &image, const double amount)
     }
     WorkingImage orton = image;
     const float brightness = 1.0F / std::exp2(-0.33F);
-    const float saturation = 0.5F;
+    constexpr float saturation = 1.0F;
     for (std::size_t index = 0; index + 2 < orton.rgb.size(); index += 3)
     {
         float h = 0.0F;
@@ -1362,9 +1350,9 @@ void apply_soften(WorkingImage &image, const double amount)
     }
     const float hypot =
         std::hypot(static_cast<float>(image.width), static_cast<float>(image.height));
-    const int radius =
-        std::max(1, static_cast<int>(std::lround(hypot * 0.01F * std::clamp(amount, 0.0, 1.0))));
-    box_blur(orton, radius, 2);
+    // darktable's hidden defaults are size=50%, saturation=100%, brightness=0.33 EV.
+    const int radius = std::max(1, static_cast<int>(std::ceil(hypot * 0.0051F)));
+    box_blur(orton, radius, 8);
     const float mix = static_cast<float>(std::clamp(amount, 0.0, 1.0));
     for (std::size_t index = 0; index < image.rgb.size(); ++index)
     {
@@ -1387,21 +1375,30 @@ void apply_bloom(WorkingImage &image, const double amount)
         rgb_to_lab(image.rgb[index * 3U], image.rgb[index * 3U + 1U], image.rgb[index * 3U + 2U],
                    L[index], a[index], b[index]);
     }
-    const float threshold = 50.0F;
-    const float scale = 1.0F / std::exp2(-static_cast<float>(amount));
+    constexpr float threshold = 90.0F;
+    const float strength = static_cast<float>(std::clamp(amount, 0.0, 1.0));
+    const float scale = std::exp2(std::min(1.0F, strength + 0.01F));
     WorkingImage lights;
     lights.width = image.width;
     lights.height = image.height;
     lights.rgb.resize(pixels * 3U, 0.0F);
+    bool has_highlight = false;
     for (std::size_t index = 0; index < pixels; ++index)
     {
         const float sample = L[index] * scale;
         const float keep = sample > threshold ? sample : 0.0F;
+        has_highlight = has_highlight || keep > 0.0F;
         lights.rgb[index * 3U] = keep / 100.0F;
         lights.rgb[index * 3U + 1U] = keep / 100.0F;
         lights.rgb[index * 3U + 2U] = keep / 100.0F;
     }
-    box_blur(lights, std::max(1, static_cast<int>(std::lround(8.0 * amount))), 2);
+    if (!has_highlight)
+    {
+        return;
+    }
+    const float max_edge = static_cast<float>(std::max(image.width, image.height));
+    const int radius = std::max(1, static_cast<int>(std::ceil(max_edge * 0.0135F)));
+    box_blur(lights, radius, 8);
     for (std::size_t index = 0; index < pixels; ++index)
     {
         const float glow = lights.rgb[index * 3U] * 100.0F;
@@ -1418,7 +1415,7 @@ void apply_vignette(WorkingImage &image, const double amount, const double midpo
     {
         return;
     }
-    const float brightness = -static_cast<float>(amount);
+    const float brightness = -0.5F * static_cast<float>(amount);
     const float saturation = -static_cast<float>(amount) * 0.5F;
     const float dscale = static_cast<float>(std::clamp(midpoint, 0.0, 1.0));
     const float fscale = std::max(0.05F, static_cast<float>(falloff));
@@ -1638,7 +1635,8 @@ void apply_grain(WorkingImage &image, const double amount)
     }
     const float strength = static_cast<float>(amount);
     const double wd = std::min(image.width, image.height);
-    const double zoom = (1.0 + 8.0 * 0.25) / 800.0;
+    constexpr double kDefaultScale = 1600.0 / 213.2;
+    const double zoom = (1.0 + 8.0 * kDefaultScale) / 800.0;
     constexpr float kLightnessScale = 0.15F;
     for (std::uint32_t y = 0; y < image.height; ++y)
     {
@@ -1876,9 +1874,10 @@ void apply_dehaze(WorkingImage &image, const double amount)
         else
         {
             const float haze = -strength;
-            r = r * (1.0F - haze) + kAirlight * haze;
-            g = g * (1.0F - haze) + kAirlight * haze;
-            b = b * (1.0F - haze) + kAirlight * haze;
+            const float transmission = std::max(0.1F, 1.0F - haze * dark / kAirlight);
+            r = r * transmission + kAirlight * (1.0F - transmission);
+            g = g * transmission + kAirlight * (1.0F - transmission);
+            b = b * transmission + kAirlight * (1.0F - transmission);
         }
     }
 }
@@ -2013,8 +2012,10 @@ Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
 Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                                       const CancellationToken &cancellation)
 {
-    for (const auto &operation : recipe.operations)
+    for (auto iterator = recipe.operations.cbegin(); iterator != recipe.operations.cend();
+         ++iterator)
     {
+        const auto &operation = *iterator;
         auto cancelled = cancellation.check();
         if (!cancelled)
         {
@@ -2084,12 +2085,28 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.color.vibrance")
         {
-            apply_vibrance_saturation(image, parameter(operation, "amount", 0.0), 0.0);
+            double saturation = 0.0;
+            const auto next = std::next(iterator);
+            if (next != recipe.operations.cend() && next->enabled &&
+                next->id == "ravo.color.saturation")
+            {
+                saturation = parameter(*next, "amount", 0.0);
+                iterator = next;
+            }
+            apply_vibrance_saturation(image, parameter(operation, "amount", 0.0), saturation);
             continue;
         }
         if (operation.id == "ravo.color.saturation")
         {
-            apply_vibrance_saturation(image, 0.0, parameter(operation, "amount", 0.0));
+            double vibrance = 0.0;
+            const auto next = std::next(iterator);
+            if (next != recipe.operations.cend() && next->enabled &&
+                next->id == "ravo.color.vibrance")
+            {
+                vibrance = parameter(*next, "amount", 0.0);
+                iterator = next;
+            }
+            apply_vibrance_saturation(image, vibrance, parameter(operation, "amount", 0.0));
             continue;
         }
         if (operation.id == "ravo.geometry.rotate")
@@ -2179,8 +2196,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.color.splittoning")
         {
-            apply_split_toning(image, parameter(operation, "shadows_hue", 0.55),
-                               parameter(operation, "highlights_hue", 0.08),
+            apply_split_toning(image, parameter(operation, "shadows_hue", 0.0),
+                               parameter(operation, "highlights_hue", 0.2),
                                parameter(operation, "balance", 0.5),
                                parameter(operation, "amount", 0.0));
             continue;
@@ -2188,8 +2205,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == "ravo.detail.sharpen")
         {
             apply_unsharp(image, parameter(operation, "amount", 0.0),
-                          parameter(operation, "radius", 1.0),
-                          parameter(operation, "threshold", 0.0));
+                          parameter(operation, "radius", 2.0),
+                          parameter(operation, "threshold", 0.5));
             continue;
         }
         if (operation.id == "ravo.detail.clarity")
@@ -2200,7 +2217,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == "ravo.effect.vignette")
         {
             apply_vignette(image, parameter(operation, "amount", 0.0),
-                           parameter(operation, "midpoint", 0.5),
+                           parameter(operation, "midpoint", 0.8),
                            parameter(operation, "falloff", 0.5));
             continue;
         }

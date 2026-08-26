@@ -21,6 +21,7 @@
 
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
+#include "image_ops.h"
 #include "raw_temperature.h"
 #include "temperature_fixture.h"
 #include "test_support.h"
@@ -1387,6 +1388,154 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                                     std::nullopt});
     ASSERT_FALSE(raw_on_raster);
     EXPECT_EQ(raw_on_raster.error().code, ErrorCode::kUnsupported);
+}
+
+TEST(EngineFacadeTest, BasicAdjustmentParametersFollowDarktableCpuResponse)
+{
+    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}};
+    const auto apply = [&](OperationInstance operation)
+    {
+        Recipe recipe;
+        recipe.operations.push_back(std::move(operation));
+        return apply_recipe_ops(source, recipe, CancellationToken{});
+    };
+
+    auto exposure = apply({"ravo.core.exposure",
+                           1,
+                           "exposure-1",
+                           true,
+                           {{"exposure_ev", ParameterValue{-1.0}}},
+                           std::nullopt});
+    ASSERT_TRUE(exposure) << exposure.error().message;
+    EXPECT_NEAR(exposure.value().rgb[0], source.rgb[0] * 0.5F, 1.0e-7F);
+    EXPECT_NEAR(exposure.value().rgb[1], source.rgb[1] * 0.5F, 1.0e-7F);
+    EXPECT_NEAR(exposure.value().rgb[2], source.rgb[2] * 0.5F, 1.0e-7F);
+
+    auto contrast = apply({"ravo.core.contrast",
+                           1,
+                           "contrast-1",
+                           true,
+                           {{"amount", ParameterValue{0.25}}},
+                           std::nullopt});
+    ASSERT_TRUE(contrast) << contrast.error().message;
+    constexpr float middle_grey = 0.1842F;
+    const float luminance =
+        0.2225045F * source.rgb[0] + 0.7168786F * source.rgb[1] + 0.0606169F * source.rgb[2];
+    const float contrast_luminance = std::pow(luminance / middle_grey, 1.25F) * middle_grey;
+    const float contrast_scale = contrast_luminance / luminance;
+    EXPECT_NEAR(contrast.value().rgb[0], source.rgb[0] * contrast_scale, 1.0e-6F);
+    EXPECT_NEAR(contrast.value().rgb[1], source.rgb[1] * contrast_scale, 1.0e-6F);
+    EXPECT_NEAR(contrast.value().rgb[2], source.rgb[2] * contrast_scale, 1.0e-6F);
+
+    auto saturation = apply({"ravo.color.saturation",
+                             1,
+                             "saturation-1",
+                             true,
+                             {{"amount", ParameterValue{0.25}}},
+                             std::nullopt});
+    ASSERT_TRUE(saturation) << saturation.error().message;
+    const float average = (source.rgb[0] + source.rgb[1] + source.rgb[2]) / 3.0F;
+    for (std::size_t channel = 0; channel < 3U; ++channel)
+    {
+        const float expected = average + 1.25F * (source.rgb[channel] - average);
+        EXPECT_NEAR(saturation.value().rgb[channel], expected, 1.0e-6F);
+    }
+
+    auto vibrance = apply({"ravo.color.vibrance",
+                           1,
+                           "vibrance-1",
+                           true,
+                           {{"amount", ParameterValue{0.7}}},
+                           std::nullopt});
+    ASSERT_TRUE(vibrance) << vibrance.error().message;
+    const float dr = average - source.rgb[0];
+    const float dg = average - source.rgb[1];
+    const float db = average - source.rgb[2];
+    const float delta = std::sqrt(dr * dr + dg * dg + db * db);
+    const float vibrance_gain = 0.5F * (1.0F - std::sqrt(delta));
+    for (std::size_t channel = 0; channel < 3U; ++channel)
+    {
+        const float expected = average + (1.0F + vibrance_gain) * (source.rgb[channel] - average);
+        EXPECT_NEAR(vibrance.value().rgb[channel], expected, 1.0e-6F);
+    }
+
+    Recipe combined_recipe;
+    combined_recipe.operations.push_back({"ravo.color.vibrance",
+                                          1,
+                                          "vibrance-1",
+                                          true,
+                                          {{"amount", ParameterValue{0.7}}},
+                                          std::nullopt});
+    combined_recipe.operations.push_back({"ravo.color.saturation",
+                                          1,
+                                          "saturation-1",
+                                          true,
+                                          {{"amount", ParameterValue{0.25}}},
+                                          std::nullopt});
+    auto combined = apply_recipe_ops(source, combined_recipe, CancellationToken{});
+    ASSERT_TRUE(combined) << combined.error().message;
+    for (std::size_t channel = 0; channel < 3U; ++channel)
+    {
+        const float expected = average + (1.25F + vibrance_gain) * (source.rgb[channel] - average);
+        EXPECT_NEAR(combined.value().rgb[channel], expected, 1.0e-6F);
+    }
+}
+
+TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
+{
+    WorkingImage midtone;
+    midtone.width = 8;
+    midtone.height = 8;
+    midtone.rgb.resize(8U * 8U * 3U);
+    for (std::size_t index = 0; index < midtone.rgb.size(); index += 3U)
+    {
+        midtone.rgb[index] = 0.30F;
+        midtone.rgb[index + 1U] = 0.20F;
+        midtone.rgb[index + 2U] = 0.10F;
+    }
+    Recipe bloom_recipe;
+    bloom_recipe.operations.push_back(
+        {"ravo.effect.bloom", 1, "bloom-1", true, {{"amount", ParameterValue{0.1}}}, std::nullopt});
+    auto bloom = apply_recipe_ops(midtone, bloom_recipe, CancellationToken{});
+    ASSERT_TRUE(bloom) << bloom.error().message;
+    EXPECT_EQ(bloom.value().rgb, midtone.rgb);
+
+    const WorkingImage haze_source{1, 1, {0.20F, 0.30F, 0.40F}, {}};
+    Recipe haze_recipe;
+    haze_recipe.operations.push_back({"ravo.effect.dehaze",
+                                      1,
+                                      "dehaze-1",
+                                      true,
+                                      {{"amount", ParameterValue{-0.1}}},
+                                      std::nullopt});
+    auto haze = apply_recipe_ops(haze_source, haze_recipe, CancellationToken{});
+    ASSERT_TRUE(haze) << haze.error().message;
+    constexpr float airlight = 0.92F;
+    const float transmission = 1.0F - 0.1F * 0.20F / airlight;
+    for (std::size_t channel = 0; channel < 3U; ++channel)
+    {
+        const float expected =
+            haze_source.rgb[channel] * transmission + airlight * (1.0F - transmission);
+        EXPECT_NEAR(haze.value().rgb[channel], expected, 1.0e-6F);
+    }
+}
+
+TEST(EngineFacadeTest, LabDevelopOperationsUseTheD50WorkingConversion)
+{
+    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}};
+    Recipe recipe;
+    recipe.operations.push_back({"ravo.color.colorcontrast",
+                                 1,
+                                 "colorcontrast-1",
+                                 true,
+                                 {{"amount", ParameterValue{0.1}}},
+                                 std::nullopt});
+    auto adjusted = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_TRUE(adjusted) << adjusted.error().message;
+    ASSERT_EQ(adjusted.value().rgb.size(), 3U);
+    EXPECT_NEAR(adjusted.value().rgb[0], 0.06855496F, 2.0e-6F);
+    EXPECT_NEAR(adjusted.value().rgb[1], 0.18104838F, 2.0e-6F);
+    EXPECT_NEAR(adjusted.value().rgb[2], 0.42961232F, 2.0e-6F);
 }
 
 TEST(EngineFacadeTest, RawHighlightReconstructionChangesMire1)

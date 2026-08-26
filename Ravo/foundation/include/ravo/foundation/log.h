@@ -8,7 +8,7 @@
 namespace ravo
 {
 
-void init_logging(std::string_view app_name);
+void init_logging(std::string_view app_name, bool console_enabled = true);
 void shutdown_logging();
 [[nodiscard]] quill::Logger *logger();
 

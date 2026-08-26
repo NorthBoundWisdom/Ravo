@@ -19,7 +19,7 @@ inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
 inline constexpr std::size_t kTagMaxLength = 128;
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
-inline constexpr std::int64_t kPreviewContractVersion = 6;
+inline constexpr std::int64_t kPreviewContractVersion = 7;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
@@ -208,6 +208,8 @@ struct PreviewRecord
     std::string state{kPreviewStateNone};
     std::optional<std::string> cache_relpath;
     std::optional<std::int64_t> last_success_unix_ms;
+
+    [[nodiscard]] bool operator==(const PreviewRecord &) const noexcept = default;
 };
 
 struct ImportItemResult

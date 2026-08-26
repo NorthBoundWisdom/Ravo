@@ -33,8 +33,10 @@ target_include_directories(ravo_contract_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Ravo/engine/src)
 target_include_directories(ravo_contract_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_contract_tests PRIVATE
+  RAVO_CLI_EXECUTABLE="$<TARGET_FILE:ravo>"
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"
   RAVO_TEST_VERSION="${PROJECT_VERSION}")
+add_dependencies(ravo_contract_tests ravo)
 ravo_configure_target(ravo_contract_tests)
 ravo_copy_windows_runtime_dlls(ravo_contract_tests)
 gtest_discover_tests(ravo_contract_tests

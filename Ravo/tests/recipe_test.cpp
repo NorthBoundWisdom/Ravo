@@ -113,6 +113,23 @@ TEST(RecipeTest, EnforcesExposureParameterRange)
     EXPECT_EQ(valid.error().context.at("parameter"), "exposure_ev");
 }
 
+TEST(RecipeTest, StrictDevelopFieldAssignmentRejectsInsteadOfClamping)
+{
+    DevelopParams params;
+    auto rejected = apply_develop_field_strict(params, "exposure", 11.0);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_DOUBLE_EQ(params.exposure_ev, 0.0);
+
+    auto unknown = apply_develop_field_strict(params, "notADevelopField", 1.0);
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().code, ErrorCode::kInvalidArgument);
+
+    auto accepted = apply_develop_field_strict(params, "exposure", -1.0);
+    ASSERT_TRUE(accepted) << accepted.error().message;
+    EXPECT_DOUBLE_EQ(params.exposure_ev, -1.0);
+}
+
 TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
 {
     auto registry = make_phase1_registry();
@@ -300,6 +317,14 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     params.color_balance_rgb.saturation_formula = std::string(kColorBalanceRgbFormulaJzAzBz2021);
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
     ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto *sharpen = operation_by_id(recipe.value(), "ravo.detail.sharpen");
+    ASSERT_NE(sharpen, nullptr);
+    ASSERT_TRUE(sharpen->parameters.contains("threshold"));
+    EXPECT_DOUBLE_EQ(std::get<double>(sharpen->parameters.at("threshold").value), 0.5);
+    const auto *vignette = operation_by_id(recipe.value(), "ravo.effect.vignette");
+    ASSERT_NE(vignette, nullptr);
+    ASSERT_TRUE(vignette->parameters.contains("midpoint"));
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("midpoint").value), 0.8);
     const auto valid = validate_recipe(recipe.value(), registry.value());
     ASSERT_TRUE(valid) << valid.error().message;
     auto serialized = serialize_recipe(recipe.value());

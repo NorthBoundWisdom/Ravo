@@ -1,6 +1,7 @@
 #include "ravo/cli/application.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -8,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -197,6 +199,7 @@ parse_render_arguments(const std::span<const std::string_view> positional)
 
 struct CatalogCliArguments
 {
+    bool baseline = false;
     std::string_view catalog;
     std::vector<std::string_view> inputs;
     std::string_view asset_id;
@@ -253,6 +256,16 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
+        if (option == "--baseline")
+        {
+            if (result.baseline)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--baseline can only be specified once");
+            }
+            result.baseline = true;
+            continue;
+        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",
@@ -415,6 +428,72 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     return result;
 }
 
+struct AppliedDevelopOverride
+{
+    std::string name;
+    double value = 0.0;
+};
+
+[[nodiscard]] Result<std::vector<AppliedDevelopOverride>>
+apply_develop_overrides(DevelopParams &params, const CatalogCliArguments &flags)
+{
+    std::vector<AppliedDevelopOverride> applied;
+    std::set<std::string, std::less<>> names;
+    const auto apply_one = [&](const std::string_view name, const double value) -> Result<void>
+    {
+        if (!names.emplace(name).second)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Develop field was specified more than once",
+                              {{"name", std::string(name)}});
+        }
+        DevelopParams candidate = params;
+        auto assigned = apply_develop_field_strict(candidate, name, value);
+        if (!assigned)
+        {
+            return assigned.error();
+        }
+        params = std::move(candidate);
+        applied.push_back({std::string(name), value});
+        return {};
+    };
+
+    if (flags.exposure_ev)
+    {
+        auto result = apply_one("exposure", *flags.exposure_ev);
+        if (!result)
+        {
+            return result.error();
+        }
+    }
+    if (flags.saturation)
+    {
+        auto result = apply_one("saturation", *flags.saturation);
+        if (!result)
+        {
+            return result.error();
+        }
+    }
+    if (flags.contrast)
+    {
+        auto result = apply_one("contrast", *flags.contrast);
+        if (!result)
+        {
+            return result.error();
+        }
+    }
+    for (const auto &[name, value] : flags.develop_sets)
+    {
+        auto result = apply_one(name, value);
+        if (!result)
+        {
+            return result.error();
+        }
+    }
+    clamp_develop(params);
+    return applied;
+}
+
 [[nodiscard]] Result<std::unique_ptr<CatalogService>>
 open_catalog_session(const EngineFacade &engine, const std::string_view path, const bool create)
 {
@@ -486,14 +565,94 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     };
 }
 
+[[nodiscard]] Result<JsonValue> probe_statistics_json(const PreviewResult &preview)
+{
+    RasterBuffer raster;
+    raster.width = preview.width;
+    raster.height = preview.height;
+    raster.srgb = preview.rgb;
+    raster.color_profile = preview.color_profile;
+    auto histogram = collect_rgb_histogram(raster);
+    if (!histogram)
+    {
+        return histogram.error();
+    }
+
+    const std::uint64_t pixels = static_cast<std::uint64_t>(preview.width) * preview.height;
+    const std::array<const std::array<std::uint32_t, kRgbHistogramBins> *, 3> channels{
+        &histogram.value().red,
+        &histogram.value().green,
+        &histogram.value().blue,
+    };
+    std::array<std::uint64_t, 3> sums{};
+    std::array<std::uint32_t, 3> minima{};
+    std::array<std::uint32_t, 3> maxima{};
+    std::array<std::uint32_t, 3> zeros{};
+    std::array<std::uint32_t, 3> full{};
+    for (std::size_t channel = 0; channel < channels.size(); ++channel)
+    {
+        bool found = false;
+        for (std::uint32_t bin = 0; bin < kRgbHistogramBins; ++bin)
+        {
+            const auto count = (*channels[channel])[bin];
+            sums[channel] += static_cast<std::uint64_t>(bin) * count;
+            if (count != 0)
+            {
+                if (!found)
+                {
+                    minima[channel] = bin;
+                    found = true;
+                }
+                maxima[channel] = bin;
+            }
+        }
+        zeros[channel] = (*channels[channel])[0];
+        full[channel] = (*channels[channel])[kRgbHistogramBins - 1U];
+    }
+
+    const auto integer_array = [](const auto &values)
+    {
+        JsonValue::Array result;
+        result.reserve(values.size());
+        for (const auto value : values)
+        {
+            result.push_back(JsonValue::number(std::to_string(value)));
+        }
+        return result;
+    };
+    JsonValue::Array means;
+    means.reserve(sums.size());
+    for (const auto sum : sums)
+    {
+        means.push_back(JsonValue::number(
+            std::to_string(static_cast<double>(sum) / static_cast<double>(pixels))));
+    }
+    const double luma_mean =
+        (0.2126 * static_cast<double>(sums[0]) + 0.7152 * static_cast<double>(sums[1]) +
+         0.0722 * static_cast<double>(sums[2])) /
+        static_cast<double>(pixels);
+    return JsonValue{JsonValue::Object{
+        {"channel_full_counts", integer_array(full)},
+        {"channel_maxima", integer_array(maxima)},
+        {"channel_means", std::move(means)},
+        {"channel_minima", integer_array(minima)},
+        {"channel_sums", integer_array(sums)},
+        {"channel_zero_counts", integer_array(zeros)},
+        {"display_luma_mean", JsonValue::number(std::to_string(luma_mean))},
+        {"histogram_peak", JsonValue::number(std::to_string(histogram.value().max_count))},
+        {"pixels", JsonValue::number(std::to_string(pixels))},
+    }};
+}
+
 [[nodiscard]] Result<JsonValue>
 run_catalog_command(const EngineFacade &engine, const std::span<const std::string_view> positional)
 {
     if (positional.size() < 2)
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Usage: ravo catalog <create|import|list|preview|recipe|develop|rate|"
-                          "export|tag|metadata|history|snapshot|restore> --catalog <path>");
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|rate|"
+            "export|tag|metadata|history|snapshot|restore> --catalog <path>");
     }
     const auto subcommand = positional[1];
     auto flags = parse_catalog_flags(positional);
@@ -505,6 +664,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "Catalog commands require --catalog or --path");
+    }
+    if (flags.value().baseline && subcommand != "probe")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--baseline is only valid for catalog probe");
     }
 
     if (subcommand == "create")
@@ -631,6 +795,107 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"width", JsonValue::number(std::to_string(previewed.value().width))},
         }};
     }
+    if (subcommand == "probe")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument, "catalog probe requires --asset-id");
+        }
+        auto stored_before = service.load_recipe(flags.value().asset_id);
+        if (!stored_before)
+        {
+            return stored_before.error();
+        }
+        auto serialized_before = serialize_recipe(stored_before.value());
+        if (!serialized_before)
+        {
+            return serialized_before.error();
+        }
+        auto previews_before = service.list_previews();
+        if (!previews_before)
+        {
+            return previews_before.error();
+        }
+        auto source = flags.value().baseline ?
+                          service.load_baseline_recipe(flags.value().asset_id) :
+                          stored_before;
+        if (!source)
+        {
+            return source.error();
+        }
+        auto params = develop_from_recipe(source.value());
+        if (!params)
+        {
+            return params.error();
+        }
+        auto applied = apply_develop_overrides(params.value(), flags.value());
+        if (!applied)
+        {
+            return applied.error();
+        }
+
+        PreviewRequest request;
+        request.asset_id = std::string(flags.value().asset_id);
+        request.max_edge = flags.value().max_edge.value_or(512U);
+        request.prefer_embedded_preview = false;
+        request.persist_preview_record = false;
+        auto previewed = service.request_preview(request, params.value());
+        if (!previewed)
+        {
+            return previewed.error();
+        }
+        if (!previewed.value().cache_path.empty() || previewed.value().rgb.empty())
+        {
+            return make_error(ErrorCode::kIo,
+                              "Develop probe did not return a non-persistent memory preview");
+        }
+        auto statistics = probe_statistics_json(previewed.value());
+        if (!statistics)
+        {
+            return statistics.error();
+        }
+        auto stored_after = service.load_recipe(flags.value().asset_id);
+        if (!stored_after)
+        {
+            return stored_after.error();
+        }
+        auto serialized_after = serialize_recipe(stored_after.value());
+        if (!serialized_after)
+        {
+            return serialized_after.error();
+        }
+        if (serialized_before.value() != serialized_after.value())
+        {
+            return make_error(ErrorCode::kIo, "Develop probe unexpectedly changed the recipe");
+        }
+        auto previews_after = service.list_previews();
+        if (!previews_after)
+        {
+            return previews_after.error();
+        }
+        if (previews_before.value() != previews_after.value())
+        {
+            return make_error(ErrorCode::kIo, "Develop probe unexpectedly changed preview records");
+        }
+
+        JsonValue::Object overrides;
+        for (const auto &item : applied.value())
+        {
+            overrides.emplace(item.name, JsonValue::number(std::to_string(item.value)));
+        }
+        return JsonValue{JsonValue::Object{
+            {"asset_id", previewed.value().asset_id},
+            {"baseline", flags.value().baseline},
+            {"color_profile", previewed.value().color_profile.identifier},
+            {"height", JsonValue::number(std::to_string(previewed.value().height))},
+            {"original_missing", previewed.value().original_missing},
+            {"overrides", std::move(overrides)},
+            {"preview_records_unchanged", true},
+            {"recipe_unchanged", true},
+            {"statistics", std::move(statistics).value()},
+            {"width", JsonValue::number(std::to_string(previewed.value().width))},
+        }};
+    }
     if (subcommand == "recipe")
     {
         if (flags.value().asset_id.empty())
@@ -679,27 +944,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return params.error();
         }
-        if (flags.value().exposure_ev)
+        auto applied = apply_develop_overrides(params.value(), flags.value());
+        if (!applied)
         {
-            params.value().exposure_ev = *flags.value().exposure_ev;
+            return applied.error();
         }
-        if (flags.value().saturation)
-        {
-            params.value().saturation = *flags.value().saturation;
-        }
-        if (flags.value().contrast)
-        {
-            params.value().contrast = *flags.value().contrast;
-        }
-        for (const auto &[name, value] : flags.value().develop_sets)
-        {
-            if (!apply_develop_field(params.value(), name, value))
-            {
-                return make_error(ErrorCode::kInvalidArgument, "Unknown develop field",
-                                  {{"name", name}});
-            }
-        }
-        clamp_develop(params.value());
         auto saved = service.save_develop(flags.value().asset_id, params.value());
         if (!saved)
         {

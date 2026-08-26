@@ -11,7 +11,9 @@
 int main(int argc, char *argv[])
 {
     QCoreApplication qt(argc, argv);
-    ravo::init_logging("ravo");
+    // Machine JSON and human command output own stdout/stderr. CLI diagnostics remain in the
+    // per-user log file so service logging can never corrupt the protocol stream.
+    ravo::init_logging("ravo", false);
     auto engine = ravo::EngineFacade::create_phase1();
     if (!engine)
     {

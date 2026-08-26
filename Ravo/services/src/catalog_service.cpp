@@ -307,7 +307,7 @@ Result<bool> CatalogService::asset_has_edits(const std::string_view asset_id) co
     return asset.value()->has_edits;
 }
 
-Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
+Result<Recipe> CatalogService::load_baseline_recipe(const std::string_view asset_id) const
 {
     if (repository_ == nullptr || engine_ == nullptr)
     {
@@ -328,6 +328,20 @@ Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) cons
     {
         return location.error();
     }
+    return baseline_recipe_for(*asset.value(), location.value().path);
+}
+
+Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) const
+{
+    if (repository_ == nullptr || engine_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto baseline = load_baseline_recipe(asset_id);
+    if (!baseline)
+    {
+        return baseline.error();
+    }
     auto stored = repository_->load_recipe_json(asset_id);
     if (!stored)
     {
@@ -335,15 +349,14 @@ Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) cons
     }
     if (!stored.value())
     {
-        return baseline_recipe_for(*asset.value(), location.value().path);
+        return baseline;
     }
     auto parsed = parse_recipe_json(*stored.value());
     if (!parsed)
     {
         return parsed.error();
     }
-    parsed.value().asset = {asset.value()->id, location.value().path,
-                            asset.value()->content_fingerprint};
+    parsed.value().asset = baseline.value().asset;
     auto valid = engine_->validate(parsed.value());
     if (!valid)
     {

@@ -37,7 +37,7 @@ gamut warnings, or profile-consistent PNG/JPEG/TIFF publication.
   output can be quantized into the current `RenderedImage`; direct XYZ/Lab
   transforms remain available to the private colour adapter and fail
   structurally at an RGB publication boundary.
-- Preview contract v6 returns profile-labelled RGB memory pixels or a profiled
+- The profile-labelled preview contract returns RGB memory pixels or a profiled
   cache file. Studio attaches the ICC to its `QImage` and exposes one Output &
   Soft Proof Inspector; QML owns no colour transform.
 

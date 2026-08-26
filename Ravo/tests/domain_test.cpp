@@ -25,6 +25,13 @@ TEST(DomainTypesTest, FitsTheLongEdgeAndKeepsSmallImagesUnchanged)
     EXPECT_EQ(height, 500U);
 }
 
+TEST(DomainTypesTest, PreviewContractInvalidatesPreSliderCorrectionCaches)
+{
+    EXPECT_EQ(kPreviewContractVersion, 7);
+    EXPECT_TRUE(make_preview_cache_key("asset", 640, 480, "fingerprint", "recipe")
+                    .starts_with("v7_asset_640x480_fingerprint_recipe"));
+}
+
 TEST(DomainUriTest, NormalizesAbsoluteAndRelativePathsToTheSameFileUri)
 {
     const auto directory = std::filesystem::temp_directory_path() / "ravo-uri-test";

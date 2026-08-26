@@ -1600,7 +1600,10 @@ bool DevelopParams::is_identity() const noexcept
            near(tone_eq_highlights, 0.0) && near(tone_eq_whites, 0.0);
 }
 
-bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
+namespace
+{
+
+bool assign_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
     const auto selected = [value](const auto &options) -> std::optional<std::string>
     {
@@ -2094,8 +2097,40 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
             return false;
         }
     }
+    return true;
+}
+
+} // namespace
+
+bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
+{
+    if (!assign_develop_field(params, name, value))
+    {
+        return false;
+    }
     clamp_develop(params);
     return true;
+}
+
+Result<void> apply_develop_field_strict(DevelopParams &params, const std::string_view name,
+                                        const double value)
+{
+    DevelopParams candidate = params;
+    if (!assign_develop_field(candidate, name, value))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Develop field or value is unsupported",
+                          {{"name", std::string(name)}, {"value", std::to_string(value)}});
+    }
+    DevelopParams clamped = candidate;
+    clamp_develop(clamped);
+    if (clamped != candidate)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Develop field value is outside the supported range",
+                          {{"name", std::string(name)}, {"value", std::to_string(value)}});
+    }
+    params = std::move(candidate);
+    return {};
 }
 
 bool reset_develop_field(DevelopParams &params, const std::string_view name)
@@ -2951,7 +2986,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.detail.sharpen", "sharpen-1",
                       {{"amount", ParameterValue{clamped.sharpen}},
                        {"radius", ParameterValue{clamped.sharpen_radius}},
-                       {"threshold", ParameterValue{0.0}}});
+                       {"threshold", ParameterValue{0.5}}});
     }
     if (!near(clamped.clarity, 0.0))
     {
@@ -2977,7 +3012,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     {
         add_operation(recipe, "ravo.effect.vignette", "vignette-1",
                       {{"amount", ParameterValue{clamped.vignette}},
-                       {"midpoint", ParameterValue{0.5}},
+                       {"midpoint", ParameterValue{0.8}},
                        {"falloff", ParameterValue{0.5}}});
     }
     if (!near(clamped.grain, 0.0))
