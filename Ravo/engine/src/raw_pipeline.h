@@ -19,7 +19,6 @@ inspect_raw_with_embedded_preview(std::string_view input_uri, std::uint32_t max_
 [[nodiscard]] std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe,
                                                        std::uint32_t width,
                                                        std::uint32_t height) noexcept;
-[[nodiscard]] Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &request);
 [[nodiscard]] Result<void> write_png_atomically(std::string_view output_uri,
                                                 const RenderedImage &image);
 

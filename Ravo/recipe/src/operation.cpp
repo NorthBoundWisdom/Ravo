@@ -3,6 +3,7 @@
 #include <cmath>
 #include <utility>
 
+#include "ravo/recipe/color_input.h"
 #include "ravo/recipe/develop.h"
 
 namespace ravo
@@ -85,7 +86,23 @@ Result<OperationRegistry> make_phase1_registry()
         {"ravo.core.identity", "Identity", 1, {}, false, false},
         {"ravo.raw.prepare", "RAW prepare", 1, {}, false, false},
         {"ravo.raw.demosaic", "RAW demosaic", 1, {}, false, false},
-        {"ravo.color.input", "Input colour", 1, {}, false, false},
+        {"ravo.color.input",
+         "Input colour",
+         1,
+         {{"input_profile", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"input_profile_filename", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"rendering_intent", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"gamut_normalize", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"blue_mapping", ParameterType::kBoolean, true, std::nullopt, std::nullopt, std::nullopt},
+          {"working_profile", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"working_profile_filename", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt}},
+         false,
+         true},
         {"ravo.core.exposure",
          "Exposure",
          1,

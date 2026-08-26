@@ -30,7 +30,7 @@ check to admit a new dependency.
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
 integration. Review contracts include schema v2→v4 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
-canonical recipe per image, CPU Develop operations, edited previews, and
+canonical recipe per image, schema-v1 → v2 explicit-input upgrade, CPU Develop operations, edited previews, and
 `ravo catalog` JSON commands going through the same CatalogService. Schema v4
 covers Unicode tag filtering, writable metadata, and history/snapshot save and
 restore. FreeCM Test and `ctest --test-dir build/<preset>` run the same suite
@@ -56,10 +56,10 @@ stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,
 three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
-interactive and full CPU render, L2–L9 + temperature + channel mixer + Color
-Balance RGB parameter/pixel reopen, and preview-owner cancellation of a
+interactive and full CPU render, L2–L9 + temperature + input profile + channel
+mixer + Color Balance RGB parameter/pixel reopen, and preview-owner cancellation of a
 superseded token with old revision/asset rejection. Desktop QML smoke verifies
-that White Balance, Color Calibration, and full Color Balance RGB bindings load;
+that Input Profile, White Balance, Color Calibration, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
 ## Test framework and target boundaries
@@ -141,7 +141,8 @@ directories, corrupt files, and more RAW files.
   missing cache can be rebuilt.
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v4 validates complete decode + default Sigmoid; the
+- RAW preview contract v5 validates complete decode + explicit input profile +
+  default Sigmoid; the
   raster baseline must not receive a second display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`
   channel-sum reference, and catalog reset/reopen.
@@ -203,6 +204,15 @@ directories, corrupt files, and more RAW files.
   and a `mire1.cr2` channel-sum reference. Catalog reopen and Studio QML smoke
   must cover all 32 parameters + formula; lift/gamma/gain is not accepted as a
   substitute.
+- `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
+  and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
+  `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic
+  coverage includes identity/matrix, 65,536-sample shaper LUT, frozen
+  unbounded extrapolation, all five normalization modes, RAW blue mapping,
+  complex LittleCMS Lab/ICC input, file/embedded ICC, missing/corrupt/singular/
+  non-finite rejection, row cancellation, source immutability, and external
+  ICC cache invalidation. Untagged raster must fail unless the recipe declares
+  a concrete profile; sRGB fallback is not accepted.
 - `hotpixels` covers strict four-neighbor single points, permissive
   three-neighbor adjacent points, an unchanged two-pixel boundary, cancellation,
   raster/X-Trans rejection, decoded-frame immutability, cache-key/reopen, and

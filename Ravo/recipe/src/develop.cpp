@@ -1563,14 +1563,14 @@ void clamp_develop(DevelopParams &params) noexcept
 
 bool DevelopParams::is_identity() const noexcept
 {
-    return temperature.is_identity() && channel_mixer.is_identity() && near(exposure_ev, 0.0) &&
-           near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
-           near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
-           rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
-           near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
-           near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
-           near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
-           near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
+    return temperature.is_identity() && input_color.is_identity() && channel_mixer.is_identity() &&
+           near(exposure_ev, 0.0) && near(contrast, 0.0) && near(highlights, 0.0) &&
+           near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) &&
+           near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
+           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(crop_x, 0.0) &&
+           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
+           near(sharpen, 0.0) && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
+           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
            color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
            near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
            tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
@@ -1585,8 +1585,63 @@ bool DevelopParams::is_identity() const noexcept
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
+    const auto selected = [value](const auto &options) -> std::optional<std::string>
+    {
+        if (!std::isfinite(value))
+        {
+            return std::nullopt;
+        }
+        const auto index = static_cast<std::int64_t>(std::llround(value));
+        if (index < 0 || index >= static_cast<std::int64_t>(options.size()))
+        {
+            return std::nullopt;
+        }
+        return std::string(options[static_cast<std::size_t>(index)]);
+    };
     if (apply_temperature_field(params.temperature, name, value))
     {
+    }
+    else if (name == "inputProfile")
+    {
+        auto profile = selected(kSelectableInputProfiles);
+        if (!profile)
+        {
+            return false;
+        }
+        params.input_color.input_profile = std::move(*profile);
+        params.input_color.input_profile_filename.clear();
+    }
+    else if (name == "workingProfile")
+    {
+        auto profile = selected(kSelectableWorkingProfiles);
+        if (!profile)
+        {
+            return false;
+        }
+        params.input_color.working_profile = std::move(*profile);
+        params.input_color.working_profile_filename.clear();
+    }
+    else if (name == "renderingIntent")
+    {
+        auto intent = selected(kSelectableColorIntents);
+        if (!intent)
+        {
+            return false;
+        }
+        params.input_color.rendering_intent = std::move(*intent);
+    }
+    else if (name == "gamutNormalize")
+    {
+        auto normalize = selected(kSelectableColorNormalizations);
+        if (!normalize)
+        {
+            return false;
+        }
+        params.input_color.gamut_normalize = std::move(*normalize);
+    }
+    else if (name == "blueMapping")
+    {
+        params.input_color.blue_mapping = value >= 0.5;
     }
     else if (name == "channelMixerRR")
     {
@@ -1917,6 +1972,11 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     if (reset_temperature_field(params.temperature, name))
     {
     }
+    else if (name == "inputProfile" || name == "workingProfile" || name == "renderingIntent" ||
+             name == "gamutNormalize" || name == "blueMapping")
+    {
+        params.input_color = identity.input_color;
+    }
     else if (name == "channelMixerRR" || name == "channelMixerRG" || name == "channelMixerRB" ||
              name == "channelMixerGR" || name == "channelMixerGG" || name == "channelMixerGB" ||
              name == "channelMixerBR" || name == "channelMixerBG" || name == "channelMixerBB")
@@ -2196,6 +2256,10 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     else if (section == "whiteBalance")
     {
         params.temperature = identity.temperature;
+    }
+    else if (section == "inputProfile")
+    {
+        params.input_color = identity.input_color;
     }
     else if (section == "calibration")
     {
@@ -2539,6 +2603,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.color.temperature", "temperature-1",
                       temperature_to_parameters(clamped.temperature));
     }
+    add_operation(recipe, "ravo.color.input", "color-input-1",
+                  input_color_to_parameters(clamped.input_color));
     if (!clamped.channel_mixer.is_identity())
     {
         add_operation(recipe, "ravo.color.channelmixerrgb", "channelmixerrgb-1",
@@ -2811,6 +2877,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return temperature.error();
             }
             params.temperature = std::move(temperature).value();
+        }
+        else if (operation.id == "ravo.color.input")
+        {
+            auto input_color = input_color_from_parameters(operation.parameters);
+            if (!input_color)
+            {
+                return input_color.error();
+            }
+            params.input_color = std::move(input_color).value();
         }
         else if (operation.id == "ravo.color.channelmixerrgb")
         {

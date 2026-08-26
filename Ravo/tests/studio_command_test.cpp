@@ -76,6 +76,17 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("green")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("blue")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("fourth")).toDouble(), 1.0);
+    const auto input_color = presenter.editInputColor();
+    EXPECT_EQ(input_color.size(), 7);
+    EXPECT_EQ(input_color.value(QStringLiteral("inputProfileIndex")).toInt(), 0);
+    EXPECT_EQ(input_color.value(QStringLiteral("workingProfileIndex")).toInt(), 0);
+    EXPECT_EQ(input_color.value(QStringLiteral("intentIndex")).toInt(), 0);
+    EXPECT_EQ(input_color.value(QStringLiteral("normalizeIndex")).toInt(), 0);
+    EXPECT_FALSE(input_color.value(QStringLiteral("blueMapping")).toBool());
+    EXPECT_EQ(input_color.value(QStringLiteral("inputProfile")).toString(),
+              QStringLiteral("source"));
+    EXPECT_EQ(input_color.value(QStringLiteral("workingProfile")).toString(),
+              QStringLiteral("linear_rec709"));
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)

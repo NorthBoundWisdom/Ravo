@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/color.h"
 #include "ravo/foundation/executor.h"
 #include "ravo/foundation/json.h"
 
@@ -44,6 +45,27 @@ TEST(CancellationTest, FirstCancellationWinsAndTokensKeepTheReason)
     ASSERT_FALSE(checked);
     EXPECT_EQ(checked.error().code, ErrorCode::kCancelled);
     EXPECT_EQ(checked.error().context.at("reason"), "user_requested");
+}
+
+TEST(ColorProfileStateTest, FingerprintIncludesOwnedIccAndMatrixState)
+{
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kIcc;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = "embedded_icc";
+    profile.icc_bytes = {1, 2, 3, 4};
+    const auto first = color_profile_fingerprint(profile);
+    EXPECT_EQ(first.size(), 16U);
+    EXPECT_EQ(first, color_profile_fingerprint(profile));
+
+    profile.icc_bytes.back() = 5;
+    EXPECT_NE(first, color_profile_fingerprint(profile));
+    profile.kind = ColorProfileKind::kMatrix;
+    profile.icc_bytes.clear();
+    profile.has_matrix = true;
+    const auto matrix = color_profile_fingerprint(profile);
+    profile.matrix_to_xyz_d50[0] = 0.5F;
+    EXPECT_NE(matrix, color_profile_fingerprint(profile));
 }
 
 TEST(CancellationTest, ExpiredDeadlineCancelsWithAStructuredReason)

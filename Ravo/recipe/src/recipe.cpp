@@ -1,5 +1,6 @@
 #include "ravo/recipe/recipe.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <ios>
@@ -12,6 +13,7 @@
 #include <system_error>
 #include <utility>
 
+#include "ravo/recipe/color_input.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 
@@ -621,9 +623,43 @@ Result<Recipe> upgrade_recipe(Recipe recipe)
 {
     if (recipe.schema_version == 1)
     {
+        for (auto &operation : recipe.operations)
+        {
+            if (operation.id == "ravo.color.input" && operation.parameters.empty())
+            {
+                operation.parameters = input_color_to_parameters(InputColorParams{});
+            }
+        }
+        auto input =
+            std::find_if(recipe.operations.begin(), recipe.operations.end(),
+                         [](const OperationInstance &operation)
+                         { return operation.enabled && operation.id == "ravo.color.input"; });
+        if (input == recipe.operations.end())
+        {
+            std::size_t suffix = 1;
+            std::string instance_id;
+            do
+            {
+                instance_id = "color-input-" + std::to_string(suffix++);
+            } while (std::any_of(recipe.operations.begin(), recipe.operations.end(),
+                                 [&instance_id](const OperationInstance &operation)
+                                 { return operation.instance_id == instance_id; }));
+            const auto insertion =
+                std::find_if(recipe.operations.begin(), recipe.operations.end(),
+                             [](const OperationInstance &operation)
+                             { return operation.id != "ravo.color.temperature"; });
+            recipe.operations.insert(insertion,
+                                     {"ravo.color.input", 1, std::move(instance_id), true,
+                                      input_color_to_parameters(InputColorParams{}), std::nullopt});
+        }
+        recipe.schema_version = 2;
         return recipe;
     }
-    if (recipe.schema_version > 1)
+    if (recipe.schema_version == 2)
+    {
+        return recipe;
+    }
+    if (recipe.schema_version > 2)
     {
         return make_error(ErrorCode::kUnsupported, "Recipe schema version is newer than Ravo",
                           {{"schema_version", std::to_string(recipe.schema_version)}});
@@ -698,7 +734,7 @@ Result<std::string> serialize_recipe(const Recipe &recipe)
 
 Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &registry)
 {
-    if (recipe.schema_version != 1)
+    if (recipe.schema_version != 2)
     {
         return make_error(ErrorCode::kUnsupported, "Unsupported recipe schema version",
                           {{"schema_version", std::to_string(recipe.schema_version)}});
@@ -796,6 +832,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == "ravo.color.input")
+        {
+            auto input_color = validate_input_color_parameters(operation.parameters);
+            if (!input_color)
+            {
+                auto error = input_color.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.display.sigmoid")
         {
             auto sigmoid = validate_sigmoid_parameters(operation.parameters);
@@ -865,6 +911,23 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 }
             }
         }
+    }
+
+    std::optional<std::size_t> input_color_index;
+    for (std::size_t index = 0; index < recipe.operations.size(); ++index)
+    {
+        const auto &operation = recipe.operations[index];
+        if (!operation.enabled || operation.id != "ravo.color.input")
+        {
+            continue;
+        }
+        if (input_color_index)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Recipe contains more than one enabled input colour operation",
+                              {{"operation_id", operation.id}});
+        }
+        input_color_index = index;
     }
 
     std::optional<std::size_t> temperature_index;

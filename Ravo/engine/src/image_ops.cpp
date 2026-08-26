@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <png.h>
+#include <zlib.h>
 
 #include "capability_ops.h"
 #include "raw_temperature.h"
@@ -154,12 +155,6 @@ Result<void> for_each_row(const std::uint32_t height, const CancellationToken &c
     const float clamped = std::clamp(value, 0.0F, 1.0F);
     return clamped <= 0.0031308F ? 12.92F * clamped :
                                    1.055F * std::pow(clamped, 1.0F / 2.4F) - 0.055F;
-}
-
-[[nodiscard]] float srgb_decode(const float value)
-{
-    const float clamped = std::clamp(value, 0.0F, 1.0F);
-    return clamped <= 0.04045F ? clamped / 12.92F : std::pow((clamped + 0.055F) / 1.055F, 2.4F);
 }
 
 constexpr int kToneCurveLut = 0x10000;
@@ -948,6 +943,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
         return image;
     }
     WorkingImage output;
+    output.color_profile = image.color_profile;
     if (turns == 2)
     {
         output.width = image.width;
@@ -1021,6 +1017,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
         return make_error(ErrorCode::kValidation, "Crop rectangle is empty");
     }
     WorkingImage output;
+    output.color_profile = image.color_profile;
     output.width = crop_w;
     output.height = crop_h;
     output.rgb.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
@@ -1042,6 +1039,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
         return image;
     }
     WorkingImage output;
+    output.color_profile = image.color_profile;
     output.width = image.width;
     output.height = image.height;
     output.rgb.resize(image.rgb.size());
@@ -1110,6 +1108,7 @@ void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb
     const double cx = (width - 1.0) * 0.5;
     const double cy = (height - 1.0) * 0.5;
     WorkingImage output;
+    output.color_profile = image.color_profile;
     output.width = image.width;
     output.height = image.height;
     output.rgb.assign(image.rgb.size(), 0.0F);
@@ -1926,6 +1925,7 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     image.width = demosaic_width;
     image.height = demosaic_height;
     image.rgb.resize(static_cast<std::size_t>(demosaic_width) * demosaic_height * 3U);
+    image.color_profile = raw.color_profile;
     const float denominator = static_cast<float>(
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
 
@@ -1981,16 +1981,8 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                 }
                 const std::size_t output_index =
                     (static_cast<std::size_t>(output_y) * demosaic_width + output_x) * 3U;
-                for (std::size_t output_channel = 0; output_channel < 3; ++output_channel)
-                {
-                    float linear = 0.0F;
-                    for (std::size_t input_channel = 0; input_channel < 3; ++input_channel)
-                    {
-                        linear += raw.camera_to_srgb[output_channel * 3U + input_channel] *
-                                  camera_rgb[input_channel];
-                    }
-                    image.rgb[output_index + output_channel] = linear;
-                }
+                std::copy(camera_rgb.begin(), camera_rgb.end(),
+                          image.rgb.begin() + static_cast<std::ptrdiff_t>(output_index));
             }
         });
     if (!rows)
@@ -2004,10 +1996,10 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     return rotate_working(std::move(image), turns);
 }
 
-Result<WorkingImage> working_from_srgb8(const RasterBuffer &raster)
+Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
 {
     if (raster.width == 0 || raster.height == 0 ||
-        raster.srgb.size() < static_cast<std::size_t>(raster.width) * raster.height * 3U)
+        raster.srgb.size() != static_cast<std::size_t>(raster.width) * raster.height * 3U)
     {
         return make_error(ErrorCode::kValidation, "Raster buffer is empty or undersized");
     }
@@ -2015,9 +2007,10 @@ Result<WorkingImage> working_from_srgb8(const RasterBuffer &raster)
     image.width = raster.width;
     image.height = raster.height;
     image.rgb.resize(static_cast<std::size_t>(raster.width) * raster.height * 3U);
+    image.color_profile = raster.color_profile;
     for (std::size_t index = 0; index < image.rgb.size(); ++index)
     {
-        image.rgb[index] = srgb_decode(static_cast<float>(raster.srgb[index]) / 255.0F);
+        image.rgb[index] = static_cast<float>(raster.srgb[index]) / 255.0F;
     }
     return image;
 }
@@ -2310,6 +2303,9 @@ RenderedImage encode_working_srgb(const WorkingImage &image)
     RenderedImage result;
     result.width = image.width;
     result.height = image.height;
+    result.color_profile.kind = ColorProfileKind::kBuiltin;
+    result.color_profile.model = ColorModel::kRgb;
+    result.color_profile.identifier = "srgb";
     result.rgb.resize(image.rgb.size());
     static_cast<void>(for_each_row(
         image.height, CancellationToken{},
@@ -2329,6 +2325,13 @@ RenderedImage encode_working_srgb(const WorkingImage &image)
 
 Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
 {
+    if (image.color_profile.kind != ColorProfileKind::kBuiltin ||
+        image.color_profile.identifier != "srgb")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "PNG encoder requires the declared sRGB output profile",
+                          {{"profile", image.color_profile.identifier}});
+    }
     png_image png{};
     png.version = PNG_IMAGE_VERSION;
     png.width = image.width;
@@ -2349,31 +2352,22 @@ Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
                           {{"png_error", png.message}});
     }
     encoded.resize(encoded_size);
+    constexpr std::size_t kAfterIhdr = 8U + 4U + 4U + 13U + 4U;
+    if (encoded.size() < kAfterIhdr || encoded[12] != 'I' || encoded[13] != 'H' ||
+        encoded[14] != 'D' || encoded[15] != 'R')
+    {
+        return make_error(ErrorCode::kValidation, "PNG encoder produced an invalid IHDR layout");
+    }
+    std::array<std::uint8_t, 13> srgb_chunk{0U, 0U, 0U, 1U, 's', 'R', 'G', 'B', 0U, 0U, 0U, 0U, 0U};
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, srgb_chunk.data() + 4U, 5U);
+    srgb_chunk[9] = static_cast<std::uint8_t>((crc >> 24U) & 0xffU);
+    srgb_chunk[10] = static_cast<std::uint8_t>((crc >> 16U) & 0xffU);
+    srgb_chunk[11] = static_cast<std::uint8_t>((crc >> 8U) & 0xffU);
+    srgb_chunk[12] = static_cast<std::uint8_t>(crc & 0xffU);
+    encoded.insert(encoded.begin() + static_cast<std::ptrdiff_t>(kAfterIhdr), srgb_chunk.begin(),
+                   srgb_chunk.end());
     return encoded;
-}
-
-Result<RasterBuffer> decode_png_bytes(const std::vector<std::uint8_t> &bytes)
-{
-    png_image png{};
-    png.version = PNG_IMAGE_VERSION;
-    if (png_image_begin_read_from_memory(&png, bytes.data(), bytes.size()) == 0)
-    {
-        return make_error(ErrorCode::kValidation, "Unable to read PNG buffer",
-                          {{"png_error", png.message}});
-    }
-    png.format = PNG_FORMAT_RGB;
-    RasterBuffer raster;
-    raster.width = png.width;
-    raster.height = png.height;
-    raster.srgb.resize(static_cast<std::size_t>(PNG_IMAGE_SIZE(png)));
-    if (png_image_finish_read(&png, nullptr, raster.srgb.data(), 0, nullptr) == 0)
-    {
-        png_image_free(&png);
-        return make_error(ErrorCode::kValidation, "Unable to decode PNG buffer",
-                          {{"png_error", png.message}});
-    }
-    png_image_free(&png);
-    return raster;
 }
 
 } // namespace ravo

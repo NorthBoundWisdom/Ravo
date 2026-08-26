@@ -5,6 +5,7 @@
 
 #include "capability_ops.h"
 #include "image_ops.h"
+#include "input_color.h"
 #include "raw_ca.h"
 #include "raw_pipeline.h"
 #include "raw_temperature.h"
@@ -92,6 +93,16 @@ Result<Recipe> EngineFacade::upgrade(Recipe recipe) const
 Result<void> EngineFacade::validate(const Recipe &recipe) const
 {
     return validate_recipe(recipe, registry_);
+}
+
+Result<std::string> EngineFacade::input_color_cache_fingerprint(const Recipe &recipe) const
+{
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    return ravo::input_color_cache_fingerprint(recipe);
 }
 
 Result<RenderResult> EngineFacade::render(const RenderRequest &request,
@@ -216,13 +227,55 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
             return applied.error();
         }
     }
-    return working_from_raw(*source, width, height, temperature.value().coefficients, cancellation);
+    auto demosaiced =
+        working_from_raw(*source, width, height, temperature.value().coefficients, cancellation);
+    if (!demosaiced)
+    {
+        return demosaiced.error();
+    }
+    auto input_color = resolve_input_color(recipe);
+    if (!input_color)
+    {
+        return input_color.error();
+    }
+    ProfiledColorBuffer profiled;
+    profiled.width = demosaiced.value().width;
+    profiled.height = demosaiced.value().height;
+    profiled.channels = std::move(demosaiced.value().rgb);
+    profiled.color_profile = std::move(demosaiced.value().color_profile);
+    return apply_input_color(profiled, input_color.value(), cancellation);
 }
 
 Result<LinearWorkingBuffer>
-EngineFacade::linear_working_from_raster(const RasterBuffer &raster) const
+EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recipe &recipe,
+                                         const CancellationToken &cancellation) const
 {
-    return working_from_srgb8(raster);
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    auto encoded = working_from_encoded_rgb8(raster);
+    if (!encoded)
+    {
+        return encoded.error();
+    }
+    auto input_color = resolve_input_color(recipe);
+    if (!input_color)
+    {
+        return input_color.error();
+    }
+    ProfiledColorBuffer profiled;
+    profiled.width = encoded.value().width;
+    profiled.height = encoded.value().height;
+    profiled.channels = std::move(encoded.value().rgb);
+    profiled.color_profile = std::move(encoded.value().color_profile);
+    return apply_input_color(profiled, input_color.value(), cancellation);
 }
 
 Result<RenderedImage>
@@ -240,12 +293,28 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
         return valid.error();
     }
     WorkingImage image = working;
+    if (working.color_profile.identifier != kInputProfileLinearRec709)
+    {
+        auto operation_working =
+            convert_working_profile(working, kInputProfileLinearRec709, cancellation);
+        if (!operation_working)
+        {
+            return operation_working.error();
+        }
+        image = std::move(operation_working).value();
+    }
     auto adjusted = apply_recipe_ops(std::move(image), recipe, cancellation);
     if (!adjusted)
     {
         return adjusted.error();
     }
-    return encode_working_srgb(adjusted.value());
+    auto output_working =
+        convert_working_profile(adjusted.value(), kInputProfileLinearRec709, cancellation);
+    if (!output_working)
+    {
+        return output_working.error();
+    }
+    return encode_working_srgb(output_working.value());
 }
 
 Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request,
@@ -263,7 +332,7 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     }
     if (raster != nullptr)
     {
-        auto working = linear_working_from_raster(*raster);
+        auto working = linear_working_from_raster(*raster, request.recipe, request.cancellation);
         if (!working)
         {
             return working.error();
@@ -308,11 +377,6 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
 Result<std::vector<std::uint8_t>> EngineFacade::encode_png(const RenderedImage &image) const
 {
     return encode_png_bytes(image);
-}
-
-Result<RasterBuffer> EngineFacade::decode_png(const std::vector<std::uint8_t> &bytes) const
-{
-    return decode_png_bytes(bytes);
 }
 
 } // namespace ravo

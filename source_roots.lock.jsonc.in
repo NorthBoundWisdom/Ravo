@@ -45,7 +45,8 @@
   "depsMode": "pinned",
   "depsManualPath": {
     "LibRaw": "",
-    "GeoControls": ""
+    "GeoControls": "",
+    "LittleCMS": ""
   },
   "dependencies": {
     "LibRaw": {
@@ -57,6 +58,11 @@
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
       "commit": "932f268e1454ca701cc2438ad495d84be360e002",
       "repoName": "GeoControls"
+    },
+    "LittleCMS": {
+      "remote": "https://github.com/mm2/Little-CMS.git",
+      "commit": "21c582a594fe5279f90c0b93437c398f93bf62b0",
+      "repoName": "Little-CMS"
     }
   }
 }

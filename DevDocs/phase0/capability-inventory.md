@@ -98,7 +98,6 @@ struct bytes or call the old dynamic module ABI.
 | `colorcontrast` | yes | defer until colour operation policy exists |
 | `colorcorrection` | yes | defer until colour operation policy exists |
 | `colorharmonizer` | yes | queued by ADR-0015; requires explicit color-space and overlap contract |
-| `colorin` | yes | reserved `ravo.color.input`; the exact frozen nop baseline is absorbed by the first RAW slice, but general profile mapping remains deferred |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
 | `colorout` | yes | reserved `ravo.color.output`; the first RAW slice has a fixed sRGB target, while general profile mapping remains deferred |

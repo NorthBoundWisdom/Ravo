@@ -14,10 +14,12 @@ Current implementation status:
 - `ravo inspect` reads the first LibRaw-supported 16-bit Bayer RAW slice and
   reports width and height in camera-oriented display dimensions.
 - `ravo render` executes nop and `ravo.core.exposure`, including crop,
-  black/white normalization, camera WB, LibRaw camera-to-sRGB, basic 3×3 Bayer
-  interpolation, sRGB encoding, and atomic PNG output.
-- Legacy XMP supports only empty history, a strict nop baseline, and the
-  demonstrated schema-6/v5 manual singleton-exposure subset.
+  black/white normalization, camera WB, profile-aware camera-to-working
+  conversion, basic 3×3 Bayer interpolation, declared sRGB encoding, and
+  atomic PNG output.
+- Legacy XMP supports empty history, a strict nop baseline with explicit
+  `colorin` mapping, and the demonstrated schema-6/v5 manual singleton-
+  exposure subset.
 - The catalog vertical slice is implemented: reference-only JPEG/PNG/RAW
   import, preview cache outside the library, and the `ravo_studio` Qt Quick
   window using controls from the `GeoControls` source root.
@@ -50,6 +52,16 @@ Current implementation status:
   as-shot and camera-reference defaults; manual stores explicit coefficients,
   while late-reference permits only a following explicit channel-mixer CAT. The
   old Kelvin/tint RGB approximation and generic fallback are removed.
+- Input Color provides `ravo.color.input` v1 with explicit input/working
+  profile identifiers, intent, gamut-normalization target, and RAW blue
+  mapping. RAW publishes a camera-to-XYZ D50 matrix; raster decode preserves
+  embedded ICC state. Matrix/shaper profiles use the frozen LUT and unbounded
+  path, while general RGB/XYZ/Lab ICC input uses private pinned LittleCMS.
+  Missing, corrupt, singular, or unsupported profiles fail structurally; no
+  generic matrix or sRGB fallback is used. Canonical recipe schema v2 upgrades
+  prior Ravo recipes by inserting the explicit source → linear Rec709 contract.
+  Profile state and external ICC content participate in preview contract v5
+  cache keys, and Studio exposes the canonical Input Profile controls.
 - Color Calibration provides `ravo.color.channelmixerrgb` v1 with frozen V3
   CPU matrix normalization, CAT16/Bradford/XYZ/RGB, XYZ gamut, saturation,
   lightness, and grey paths. Studio exposes an explicit 3×3 matrix, while CLI,

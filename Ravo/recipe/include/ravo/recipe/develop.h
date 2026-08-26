@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "ravo/recipe/color_input.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo
@@ -174,6 +175,7 @@ struct ColorBalanceRgbParams
 struct DevelopParams
 {
     TemperatureParams temperature;
+    InputColorParams input_color;
     ChannelMixerParams channel_mixer;
     double exposure_ev = 0.0;
     double contrast = 0.0;

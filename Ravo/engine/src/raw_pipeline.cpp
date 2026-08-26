@@ -1,9 +1,6 @@
 #include "raw_pipeline.h"
 
-#include "capability_ops.h"
 #include "image_ops.h"
-#include "raw_ca.h"
-#include "raw_temperature.h"
 
 #include <algorithm>
 #include <cmath>
@@ -220,6 +217,9 @@ Result<EmbeddedPreview> copy_unpacked_jpeg_thumb(LibRaw &decoder, const std::str
     }
     EmbeddedPreview preview;
     preview.mime_type = "image/jpeg";
+    preview.color_profile.kind = ColorProfileKind::kBuiltin;
+    preview.color_profile.model = ColorModel::kRgb;
+    preview.color_profile.identifier = "srgb";
     preview.width = static_cast<std::uint32_t>(thumb.twidth);
     preview.height = static_cast<std::uint32_t>(thumb.theight);
     const int quarters = clockwise_quarters_from_libraw_flip(decoder.imgdata.sizes.flip);
@@ -368,12 +368,30 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     }
     result.has_camera_reference_white_balance = normalize_white_balance(
         raw.color.pre_mul, raw.idata.colors, result.camera_reference_white_balance);
-    for (std::size_t output_channel = 0; output_channel < 3; ++output_channel)
+    constexpr std::array<float, 9> linear_srgb_to_xyz_d50{0.4360747F, 0.3850649F, 0.1430804F,
+                                                          0.2225045F, 0.7168786F, 0.0606169F,
+                                                          0.0139322F, 0.0971045F, 0.7141733F};
+    result.color_profile.kind = ColorProfileKind::kMatrix;
+    result.color_profile.model = ColorModel::kRgb;
+    result.color_profile.identifier = "enhanced_matrix";
+    result.color_profile.has_matrix = true;
+    result.color_profile.camera_input = true;
+    for (std::size_t xyz_channel = 0; xyz_channel < 3; ++xyz_channel)
     {
-        for (std::size_t input_channel = 0; input_channel < 3; ++input_channel)
+        for (std::size_t camera_channel = 0; camera_channel < 3; ++camera_channel)
         {
-            result.camera_to_srgb[output_channel * 3U + input_channel] =
-                raw.color.rgb_cam[output_channel][input_channel];
+            float value = 0.0F;
+            for (std::size_t srgb_channel = 0; srgb_channel < 3; ++srgb_channel)
+            {
+                value += linear_srgb_to_xyz_d50[xyz_channel * 3U + srgb_channel] *
+                         raw.color.rgb_cam[srgb_channel][camera_channel];
+            }
+            if (!std::isfinite(value))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "LibRaw camera colour matrix contains a non-finite value");
+            }
+            result.color_profile.matrix_to_xyz_d50[xyz_channel * 3U + camera_channel] = value;
         }
     }
 
@@ -416,7 +434,9 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
     const std::uint64_t output_bytes = output_pixels * 3U;
     const std::uint64_t raw_pixels = raw.pixels.size();
     const std::uint64_t raw_bytes = raw_pixels * sizeof(std::uint16_t);
-    std::uint64_t working_bytes = output_bytes + output_pixels * 3U * sizeof(float) + raw_bytes;
+    constexpr std::uint64_t color_lut_bytes = 3U * 0x10000U * sizeof(float);
+    const std::uint64_t float_rgb_bytes = output_pixels * 3U * sizeof(float);
+    std::uint64_t working_bytes = output_bytes + 2U * float_rgb_bytes + color_lut_bytes + raw_bytes;
     bool owns_raw_copy = false;
     for (const auto &operation : recipe.operations)
     {
@@ -448,67 +468,6 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         }
     }
     return owns_raw_copy ? working_bytes + raw_bytes : working_bytes;
-}
-
-Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &request)
-{
-    auto temperature = resolve_raw_temperature(raw, request.recipe);
-    if (!temperature)
-    {
-        return temperature.error();
-    }
-    std::uint32_t default_width = raw.width;
-    std::uint32_t default_height = raw.height;
-    apply_display_rotation_to_size(default_width, default_height, raw.rotate_quarters);
-    const std::uint32_t width = request.output_width.value_or(default_width);
-    const std::uint32_t height = request.output_height.value_or(default_height);
-    const std::uint64_t working_bytes =
-        estimate_raw_render_memory(raw, request.recipe, width, height);
-    if (request.memory_budget_bytes != 0 && working_bytes > request.memory_budget_bytes)
-    {
-        return make_error(ErrorCode::kValidation, "Render memory budget is too small",
-                          {{"required_bytes", std::to_string(working_bytes)}});
-    }
-    DecodedRaw prepared = raw;
-    Recipe rgb_recipe = request.recipe;
-    for (auto &operation : rgb_recipe.operations)
-    {
-        if (operation.id == "ravo.color.temperature")
-        {
-            operation.enabled = false;
-            continue;
-        }
-        if (!operation.enabled ||
-            (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
-             operation.id != "ravo.raw.cacorrect"))
-        {
-            continue;
-        }
-        Result<void> applied =
-            operation.id == "ravo.raw.hotpixels" ?
-                apply_raw_hotpixels(prepared, operation, request.cancellation) :
-            operation.id == "ravo.raw.highlights" ?
-                apply_raw_highlights(prepared, operation, request.cancellation) :
-                apply_raw_cacorrect(prepared, operation, temperature.value().coefficients,
-                                    request.cancellation);
-        if (!applied)
-        {
-            return applied.error();
-        }
-        operation.enabled = false;
-    }
-    auto working = working_from_raw(prepared, width, height, temperature.value().coefficients,
-                                    request.cancellation);
-    if (!working)
-    {
-        return working.error();
-    }
-    auto adjusted = apply_recipe_ops(std::move(working).value(), rgb_recipe, request.cancellation);
-    if (!adjusted)
-    {
-        return adjusted.error();
-    }
-    return encode_working_srgb(adjusted.value());
 }
 
 Result<void> write_png_atomically(const std::string_view output_uri, const RenderedImage &image)

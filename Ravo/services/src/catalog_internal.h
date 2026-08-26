@@ -31,6 +31,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 [[nodiscard]] Result<Recipe> baseline_recipe_for(const AssetRecord &asset, const std::string &path);
 [[nodiscard]] bool matches_develop_baseline(const AssetRecord &asset, DevelopParams params);
 [[nodiscard]] std::string parameter_key_part(const ParameterValue &value);
+[[nodiscard]] std::string input_color_preprocess_key(const Recipe &recipe);
 [[nodiscard]] std::string raw_preprocess_key(const Recipe &recipe);
 void disable_raw_preprocess(Recipe &recipe);
 [[nodiscard]] std::filesystem::path utf8_path(std::string_view text);

@@ -1,10 +1,13 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <limits>
 
 #include <QtCore/QBuffer>
 #include <QtCore/QByteArray>
 #include <QtCore/QIODevice>
+#include <QtGui/QColorSpace>
 #include <QtGui/QImage>
 #include <QtGui/QImageIOHandler>
 #include <QtGui/QImageReader>
@@ -131,9 +134,61 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
     }
 }
 
-[[nodiscard]] Result<EncodedPng> encode_preview(QImage image, const std::uint32_t max_edge,
-                                                const CancellationToken &cancellation,
-                                                const std::string_view context)
+[[nodiscard]] ColorProfileState color_profile_for_image(const QImage &image)
+{
+    ColorProfileState result;
+    const QColorSpace color_space = image.colorSpace();
+    if (!color_space.isValid())
+    {
+        return result;
+    }
+    const QByteArray icc = color_space.iccProfile();
+    if (!icc.isEmpty())
+    {
+        result.kind = ColorProfileKind::kIcc;
+        result.model = ColorModel::kRgb;
+        result.identifier = "embedded_icc";
+        result.icc_bytes.assign(icc.cbegin(), icc.cend());
+        return result;
+    }
+
+    result.kind = ColorProfileKind::kBuiltin;
+    result.model = ColorModel::kRgb;
+    if (color_space == QColorSpace(QColorSpace::SRgb))
+    {
+        result.identifier = "srgb";
+    }
+    else if (color_space == QColorSpace(QColorSpace::SRgbLinear))
+    {
+        result.identifier = "linear_rec709";
+    }
+    else if (color_space == QColorSpace(QColorSpace::AdobeRgb))
+    {
+        result.identifier = "adobe_rgb";
+    }
+    else if (color_space == QColorSpace(QColorSpace::DisplayP3))
+    {
+        result.identifier = "display_p3";
+    }
+    else if (color_space == QColorSpace(QColorSpace::Bt2100Pq))
+    {
+        result.identifier = "pq_rec2020";
+    }
+    else if (color_space == QColorSpace(QColorSpace::Bt2100Hlg))
+    {
+        result.identifier = "hlg_rec2020";
+    }
+    else
+    {
+        result.kind = ColorProfileKind::kMissing;
+        result.identifier.clear();
+    }
+    return result;
+}
+
+[[nodiscard]] Result<DecodedRaster> decode_raster(QImage image, const std::uint32_t max_edge,
+                                                  const CancellationToken &cancellation,
+                                                  const std::string_view context)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -158,27 +213,50 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
     }
     image = image.convertToFormat(QImage::Format_RGB888);
 
-    QByteArray encoded;
-    QBuffer buffer(&encoded);
-    if (!buffer.open(QIODevice::WriteOnly))
-    {
-        return make_error(ErrorCode::kIo, "Unable to encode PNG preview",
-                          {{"path", std::string(context)}});
-    }
-    QImageWriter writer(&buffer, "png");
-    writer.setCompression(1);
-    if (!writer.write(image))
-    {
-        return make_error(ErrorCode::kIo, "Unable to encode PNG preview",
-                          {{"path", std::string(context)},
-                           {"qt_error", writer.errorString().toUtf8().toStdString()}});
-    }
-
-    EncodedPng result;
+    DecodedRaster result;
     result.width = static_cast<std::uint32_t>(image.width());
     result.height = static_cast<std::uint32_t>(image.height());
-    result.bytes.assign(encoded.cbegin(), encoded.cend());
+    result.color_profile = color_profile_for_image(image);
+    const std::size_t row_bytes = static_cast<std::size_t>(result.width) * 3U;
+    result.rgb.resize(row_bytes * result.height);
+    for (std::uint32_t row = 0; row < result.height; ++row)
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        const auto *source = image.constScanLine(static_cast<int>(row));
+        std::copy_n(source, row_bytes,
+                    result.rgb.begin() + static_cast<std::ptrdiff_t>(row * row_bytes));
+    }
     return result;
+}
+
+[[nodiscard]] Result<QColorSpace> qt_output_color_space(const ColorProfileState &profile)
+{
+    if (profile.kind == ColorProfileKind::kIcc && !profile.icc_bytes.empty())
+    {
+        if (profile.icc_bytes.size() >
+            static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
+        {
+            return make_error(ErrorCode::kValidation, "Output ICC profile is too large");
+        }
+        const QByteArray bytes(reinterpret_cast<const char *>(profile.icc_bytes.data()),
+                               static_cast<qsizetype>(profile.icc_bytes.size()));
+        const QColorSpace result = QColorSpace::fromIccProfile(bytes);
+        if (result.isValid())
+        {
+            return result;
+        }
+        return make_error(ErrorCode::kValidation, "Output ICC profile is corrupt");
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "srgb")
+    {
+        return QColorSpace(QColorSpace::SRgb);
+    }
+    return make_error(ErrorCode::kUnsupported, "Raster encoder output profile is unsupported",
+                      {{"profile", profile.identifier}});
 }
 
 } // namespace
@@ -212,9 +290,9 @@ Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
     return info;
 }
 
-Result<EncodedPng> QtRasterDecoder::decode(const std::string_view path,
-                                           const std::uint32_t max_edge,
-                                           const CancellationToken &cancellation) const
+Result<DecodedRaster> QtRasterDecoder::decode(const std::string_view path,
+                                              const std::uint32_t max_edge,
+                                              const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -228,13 +306,13 @@ Result<EncodedPng> QtRasterDecoder::decode(const std::string_view path,
         return prepared.error();
     }
     apply_scaled_decode_size(reader, max_edge);
-    return encode_preview(reader.read(), max_edge, cancellation, path);
+    return decode_raster(reader.read(), max_edge, cancellation, path);
 }
 
-Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t> &encoded,
-                                                  const std::uint32_t max_edge,
-                                                  const CancellationToken &cancellation,
-                                                  const int rotate_quarters) const
+Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t> &encoded,
+                                                     const std::uint32_t max_edge,
+                                                     const CancellationToken &cancellation,
+                                                     const int rotate_quarters) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -256,13 +334,14 @@ Result<EncodedPng> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t
     QImageReader reader(&buffer);
     reader.setAutoTransform(true);
     apply_scaled_decode_size(reader, max_edge);
-    return encode_preview(apply_display_rotation(reader.read(), rotate_quarters), max_edge,
-                          cancellation, "memory");
+    return decode_raster(apply_display_rotation(reader.read(), rotate_quarters), max_edge,
+                         cancellation, "memory");
 }
 
 Result<std::vector<std::uint8_t>>
 QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
-                        const std::vector<std::uint8_t> &rgb, const ExportFormat format,
+                        const std::vector<std::uint8_t> &rgb,
+                        const ColorProfileState &color_profile, const ExportFormat format,
                         const int jpeg_quality, const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
@@ -315,6 +394,13 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
         return make_error(ErrorCode::kIo, "Unable to wrap export pixels");
     }
     const QImage owned = image.copy();
+    auto output_color_space = qt_output_color_space(color_profile);
+    if (!output_color_space)
+    {
+        return output_color_space.error();
+    }
+    QImage profiled = owned;
+    profiled.setColorSpace(output_color_space.value());
     QByteArray encoded;
     QBuffer buffer(&encoded);
     if (!buffer.open(QIODevice::WriteOnly))
@@ -330,7 +416,7 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
     {
         writer.setCompression(1);
     }
-    if (!writer.write(owned))
+    if (!writer.write(profiled))
     {
         return make_error(ErrorCode::kIo, "Unable to encode export image",
                           {{"format", std::string(export_format_name(format))},

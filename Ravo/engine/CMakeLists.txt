@@ -7,6 +7,8 @@ target_sources(ravo_engine
     src/color_balance_rgb.h
     src/engine.cpp
     src/image_ops.cpp
+    src/input_color.cpp
+    src/input_color.h
     src/raw_ca.cpp
     src/raw_ca.h
     src/raw_pipeline.cpp
@@ -21,6 +23,6 @@ target_include_directories(ravo_engine
 
 target_link_libraries(ravo_engine
   PUBLIC ravo_recipe
-  PRIVATE Qt6::Core PNG::PNG ravo_libraw)
+  PRIVATE Qt6::Core PNG::PNG ZLIB::ZLIB lcms2 ravo_libraw)
 
 ravo_configure_target(ravo_engine)

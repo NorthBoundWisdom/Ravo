@@ -15,6 +15,8 @@
 #include <QtCore/QString>
 #include <QtCore/QXmlStreamReader>
 
+#include <zlib.h>
+
 namespace ravo
 {
 
@@ -93,6 +95,119 @@ namespace
         return value - 'A' + 10;
     }
     return -1;
+}
+
+[[nodiscard]] std::int32_t read_i32(const std::vector<std::uint8_t> &data,
+                                    const std::size_t offset) noexcept
+{
+    const std::uint32_t value = static_cast<std::uint32_t>(data[offset]) |
+                                (static_cast<std::uint32_t>(data[offset + 1U]) << 8U) |
+                                (static_cast<std::uint32_t>(data[offset + 2U]) << 16U) |
+                                (static_cast<std::uint32_t>(data[offset + 3U]) << 24U);
+    return std::bit_cast<std::int32_t>(value);
+}
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+decode_compressed_parameters(const std::string_view encoded, const std::size_t expected_size,
+                             const std::string_view operation)
+{
+    if (encoded.size() < 5U || !encoded.starts_with("gz"))
+    {
+        return make_error(ErrorCode::kValidation, "Legacy parameters are not compressed",
+                          {{"legacy_operation", std::string(operation)}});
+    }
+    const QByteArray base64(encoded.data() + 4, static_cast<qsizetype>(encoded.size() - 4U));
+    const QByteArray compressed =
+        QByteArray::fromBase64(base64, QByteArray::AbortOnBase64DecodingErrors);
+    if (compressed.isEmpty())
+    {
+        return make_error(ErrorCode::kValidation, "Legacy parameters contain invalid base64",
+                          {{"legacy_operation", std::string(operation)}});
+    }
+    std::vector<std::uint8_t> decoded(expected_size);
+    uLongf decoded_size = static_cast<uLongf>(decoded.size());
+    const int status = uncompress(decoded.data(), &decoded_size,
+                                  reinterpret_cast<const Bytef *>(compressed.constData()),
+                                  static_cast<uLong>(compressed.size()));
+    if (status != Z_OK || decoded_size != decoded.size())
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy compressed parameters have an unexpected payload",
+                          {{"legacy_operation", std::string(operation)}});
+    }
+    return decoded;
+}
+
+[[nodiscard]] Result<std::string> color_profile_name(const std::int32_t type)
+{
+    switch (type)
+    {
+    case 0:
+        return std::string(kInputProfileFileIcc);
+    case 1:
+        return std::string(kInputProfileSrgb);
+    case 2:
+        return std::string(kInputProfileAdobeRgb);
+    case 3:
+        return std::string(kInputProfileLinearRec709);
+    case 4:
+        return std::string(kInputProfileLinearRec2020);
+    case 5:
+        return std::string(kInputProfileXyz);
+    case 6:
+        return std::string(kInputProfileLab);
+    case 9:
+        return std::string(kInputProfileEmbeddedIcc);
+    case 10:
+        return std::string(kInputProfileEmbeddedMatrix);
+    case 11:
+        return std::string(kInputProfileStandardMatrix);
+    case 12:
+        return std::string(kInputProfileEnhancedMatrix);
+    case 13:
+        return std::string(kInputProfileVendorMatrix);
+    case 14:
+        return std::string(kInputProfileAlternateMatrix);
+    case 20:
+        return std::string(kInputProfileRec709);
+    case 21:
+        return std::string(kInputProfileProPhotoRgb);
+    case 22:
+        return std::string(kInputProfilePqRec2020);
+    case 23:
+        return std::string(kInputProfileHlgRec2020);
+    case 24:
+        return std::string(kInputProfilePqP3);
+    case 25:
+        return std::string(kInputProfileHlgP3);
+    case 26:
+        return std::string(kInputProfileDisplayP3);
+    default:
+        return make_error(ErrorCode::kUnsupported, "Legacy colour profile type is unsupported",
+                          {{"legacy_profile_type", std::to_string(type)}});
+    }
+}
+
+[[nodiscard]] Result<std::string> fixed_string(const std::vector<std::uint8_t> &data,
+                                               const std::size_t offset, const std::size_t capacity)
+{
+    const auto begin = data.begin() + static_cast<std::ptrdiff_t>(offset);
+    const auto end = begin + static_cast<std::ptrdiff_t>(capacity);
+    const auto terminator = std::find(begin, end, std::uint8_t{0});
+    if (terminator == end)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy colour profile filename is not terminated");
+    }
+    const QByteArray bytes(reinterpret_cast<const char *>(&*begin),
+                           static_cast<qsizetype>(std::distance(begin, terminator)));
+    const QString text = QString::fromUtf8(bytes);
+    if (text.toUtf8() != bytes)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy colour profile filename is not valid UTF-8");
+    }
+    return text.toUtf8().toStdString();
 }
 
 [[nodiscard]] Result<std::array<std::uint8_t, 20>>
@@ -223,7 +338,6 @@ constexpr std::array kBuiltinRawOperations{
     BuiltinRawOperation{"temperature", "3", "006007400000803f0000b33f0000c07f"},
     BuiltinRawOperation{"highlights", "2", "000000000000803f00000000000000000000803f"},
     BuiltinRawOperation{"demosaic", "3", "0000000000000000000000000000000000000000"},
-    BuiltinRawOperation{"colorin", "6", "gz48eJzjYRgFowABWAbaAaNgwAEAPRQAEQ=="},
     BuiltinRawOperation{"colorout", "5", "gz35eJxjZBgFo4CBAQAEEAAC"},
     BuiltinRawOperation{"gamma", "1", "0000000000000000"},
     BuiltinRawOperation{"flip", "2", "ffffffff"},
@@ -291,6 +405,83 @@ constexpr std::string_view kDefaultBlendParameters =
 
 } // namespace
 
+Result<InputColorParams> decode_legacy_colorin_parameters(const std::string_view encoded_parameters)
+{
+    auto decoded = decode_compressed_parameters(encoded_parameters, 1044U, "colorin");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    auto input_profile = color_profile_name(read_i32(decoded.value(), 0U));
+    auto input_filename = fixed_string(decoded.value(), 4U, 512U);
+    auto working_profile = color_profile_name(read_i32(decoded.value(), 528U));
+    auto working_filename = fixed_string(decoded.value(), 532U, 512U);
+    if (!input_profile || !input_filename || !working_profile || !working_filename)
+    {
+        return !input_profile   ? input_profile.error() :
+               !input_filename  ? input_filename.error() :
+               !working_profile ? working_profile.error() :
+                                  working_filename.error();
+    }
+
+    InputColorParams result;
+    result.input_profile = std::move(input_profile).value();
+    result.input_profile_filename = std::move(input_filename).value();
+    result.working_profile = std::move(working_profile).value();
+    result.working_profile_filename = std::move(working_filename).value();
+    switch (read_i32(decoded.value(), 516U))
+    {
+    case 0:
+        result.rendering_intent = std::string(kColorIntentPerceptual);
+        break;
+    case 1:
+        result.rendering_intent = std::string(kColorIntentRelative);
+        break;
+    case 2:
+        result.rendering_intent = std::string(kColorIntentSaturation);
+        break;
+    case 3:
+        result.rendering_intent = std::string(kColorIntentAbsolute);
+        break;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy colorin rendering intent is unsupported");
+    }
+    switch (read_i32(decoded.value(), 520U))
+    {
+    case 0:
+        result.gamut_normalize = std::string(kColorNormalizeOff);
+        break;
+    case 1:
+        result.gamut_normalize = std::string(kColorNormalizeSrgb);
+        break;
+    case 2:
+        result.gamut_normalize = std::string(kColorNormalizeAdobeRgb);
+        break;
+    case 3:
+        result.gamut_normalize = std::string(kColorNormalizeLinearRec709);
+        break;
+    case 4:
+        result.gamut_normalize = std::string(kColorNormalizeLinearRec2020);
+        break;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy colorin gamut normalization is unsupported");
+    }
+    const auto blue_mapping = read_i32(decoded.value(), 524U);
+    if (blue_mapping != 0 && blue_mapping != 1)
+    {
+        return make_error(ErrorCode::kValidation, "Legacy colorin blue-mapping flag is invalid");
+    }
+    result.blue_mapping = blue_mapping == 1;
+    auto valid = validate_input_color_parameters(input_color_to_parameters(result));
+    if (!valid)
+    {
+        return valid.error();
+    }
+    return result;
+}
+
 Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
 {
     auto valid_asset = validate_asset(request.asset);
@@ -310,6 +501,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     bool in_history = false;
     bool has_supported_schema = false;
     std::vector<OperationInstance> operations;
+    std::optional<OperationInstance> input_color;
     std::size_t history_index = 0;
     while (!reader.atEnd())
     {
@@ -350,6 +542,54 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                                   "Legacy XMP schema has no proven canonical recipe mapping",
                                   {{"legacy_operation", operation.value()},
                                    {"reason", "unsupported_legacy_xmp_schema"}});
+            }
+            if (operation.value() == "colorin")
+            {
+                const auto version =
+                    required_attribute(reader.attributes(), u"modversion", "colorin");
+                const auto enabled = required_attribute(reader.attributes(), u"enabled", "colorin");
+                const auto parameters =
+                    required_attribute(reader.attributes(), u"params", "colorin");
+                const auto blend =
+                    required_attribute(reader.attributes(), u"blendop_params", "colorin");
+                if (!version || !enabled || !parameters || !blend)
+                {
+                    return !version    ? version.error() :
+                           !enabled    ? enabled.error() :
+                           !parameters ? parameters.error() :
+                                         blend.error();
+                }
+                if ((version.value() != "6" && version.value() != "7") ||
+                    (enabled.value() != "0" && enabled.value() != "1"))
+                {
+                    return make_error(ErrorCode::kUnsupported,
+                                      "Legacy colorin version or enabled state is unsupported",
+                                      {{"legacy_version", version.value()}});
+                }
+                if (blend.value() != kDefaultBlendParameters &&
+                    blend.value() != "gz14eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfNoAAEkgGQQ=")
+                {
+                    return make_error(ErrorCode::kUnsupported,
+                                      "Legacy colorin blend data is unsupported",
+                                      {{"reason", "unsupported_legacy_blend"}});
+                }
+                if (enabled.value() == "1")
+                {
+                    auto decoded = decode_legacy_colorin_parameters(parameters.value());
+                    if (!decoded)
+                    {
+                        return decoded.error();
+                    }
+                    input_color =
+                        OperationInstance{"ravo.color.input",
+                                          1,
+                                          "legacy-colorin-" + std::to_string(history_index),
+                                          true,
+                                          input_color_to_parameters(decoded.value()),
+                                          std::nullopt};
+                }
+                ++history_index;
+                continue;
             }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
@@ -398,7 +638,11 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     {
         return make_error(ErrorCode::kValidation, "Legacy XMP does not contain an RDF description");
     }
-    return Recipe{1, request.asset, std::move(operations), {}};
+    operations.insert(operations.begin(),
+                      input_color.value_or(OperationInstance{
+                          "ravo.color.input", 1, "legacy-colorin-default", true,
+                          input_color_to_parameters(InputColorParams{}), std::nullopt}));
+    return Recipe{2, request.asset, std::move(operations), {}};
 }
 
 } // namespace ravo

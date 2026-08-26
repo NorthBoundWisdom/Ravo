@@ -16,11 +16,10 @@ using WorkingImage = LinearWorkingBuffer;
                                                     std::uint32_t height,
                                                     const std::array<float, 4> &white_balance,
                                                     const CancellationToken &cancellation);
-[[nodiscard]] Result<WorkingImage> working_from_srgb8(const RasterBuffer &raster);
+[[nodiscard]] Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster);
 [[nodiscard]] Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                                                     const CancellationToken &cancellation);
 [[nodiscard]] RenderedImage encode_working_srgb(const WorkingImage &image);
 [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image);
-[[nodiscard]] Result<RasterBuffer> decode_png_bytes(const std::vector<std::uint8_t> &bytes);
 
 } // namespace ravo

@@ -1,5 +1,8 @@
 #include "ravo/desktop/studio_presenter.h"
 
+#include <algorithm>
+#include <iterator>
+#include <string_view>
 #include <utility>
 
 #include <QMetaObject>
@@ -44,6 +47,27 @@ QVariantMap StudioPresenter::editWhiteBalance() const
             {QStringLiteral("green"), coefficients[1]},
             {QStringLiteral("blue"), coefficients[2]},
             {QStringLiteral("fourth"), coefficients[3]}};
+}
+
+QVariantMap StudioPresenter::editInputColor() const
+{
+    const auto index_of = [](const auto &values, const std::string_view selected)
+    {
+        const auto found = std::find(values.begin(), values.end(), selected);
+        return found == values.end() ? -1 : static_cast<int>(std::distance(values.begin(), found));
+    };
+    const auto &params = develop_.input_color;
+    return {
+        {QStringLiteral("inputProfileIndex"),
+         index_of(kSelectableInputProfiles, params.input_profile)},
+        {QStringLiteral("workingProfileIndex"),
+         index_of(kSelectableWorkingProfiles, params.working_profile)},
+        {QStringLiteral("intentIndex"), index_of(kSelectableColorIntents, params.rendering_intent)},
+        {QStringLiteral("normalizeIndex"),
+         index_of(kSelectableColorNormalizations, params.gamut_normalize)},
+        {QStringLiteral("blueMapping"), params.blue_mapping},
+        {QStringLiteral("inputProfile"), QString::fromStdString(params.input_profile)},
+        {QStringLiteral("workingProfile"), QString::fromStdString(params.working_profile)}};
 }
 
 double StudioPresenter::editChannelMixerRR() const noexcept

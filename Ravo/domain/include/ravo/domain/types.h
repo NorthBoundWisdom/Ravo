@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/color.h"
 #include "ravo/foundation/error.h"
 
 namespace ravo
@@ -18,7 +19,7 @@ inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
 inline constexpr std::size_t kTagMaxLength = 128;
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
-inline constexpr std::int64_t kPreviewContractVersion = 4;
+inline constexpr std::int64_t kPreviewContractVersion = 5;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
@@ -275,11 +276,12 @@ struct RasterInfo
     std::uint32_t height = 0;
 };
 
-struct EncodedPng
+struct DecodedRaster
 {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
-    std::vector<std::uint8_t> bytes;
+    std::vector<std::uint8_t> rgb;
+    ColorProfileState color_profile;
 };
 
 struct FileIdentity

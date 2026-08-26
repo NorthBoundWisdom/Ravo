@@ -175,6 +175,69 @@ ColumnLayout {
                 }
 
                 DevelopSection {
+                    title: qsTr("Input Profile")
+                    sectionId: "inputProfile"
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Source metadata"), qsTr("sRGB"), qsTr("Adobe RGB"),
+                                qsTr("Linear Rec709"), qsTr("Linear Rec2020"), qsTr("Rec709"),
+                                qsTr("Linear ProPhoto RGB"), qsTr("Display P3"), qsTr("HLG P3")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editInputColor.inputProfileIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("inputProfile", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Linear Rec709"), qsTr("Linear Rec2020"),
+                                qsTr("Linear ProPhoto RGB"), qsTr("Display P3"), qsTr("Adobe RGB")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editInputColor.workingProfileIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("workingProfile", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Perceptual"), qsTr("Relative colorimetric"),
+                                qsTr("Saturation"), qsTr("Absolute colorimetric")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editInputColor.intentIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("renderingIntent", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("No gamut clipping"), qsTr("Clip to sRGB"),
+                                qsTr("Clip to Adobe RGB"), qsTr("Clip to linear Rec709"),
+                                qsTr("Clip to linear Rec2020")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editInputColor.normalizeIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("gamutNormalize", currentIndex)
+                        }
+                        CustomCheckBox {
+                            text: qsTr("RAW blue mapping")
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter && root.presenter.editInputColor.blueMapping
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("blueMapping", checked ? 1 : 0)
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: root.hasPresenter
+                                ? qsTr("%1 → %2").arg(root.presenter.editInputColor.inputProfile)
+                                    .arg(root.presenter.editInputColor.workingProfile)
+                                : ""
+                            wrapMode: Text.WordWrap
+                            opacity: 0.75
+                        }
+                    }
+                }
+
+                DevelopSection {
                     title: qsTr("White Balance")
                     sectionId: "whiteBalance"
                     ColumnLayout {

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/color.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/recipe.h"
@@ -48,13 +49,16 @@ struct RenderedImage
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::vector<std::uint8_t> rgb;
+    ColorProfileState color_profile;
 };
 
 struct RasterBuffer
 {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    // Encoded RGB8 samples in color_profile, not necessarily sRGB.
     std::vector<std::uint8_t> srgb;
+    ColorProfileState color_profile;
 };
 
 struct LinearWorkingBuffer
@@ -62,6 +66,7 @@ struct LinearWorkingBuffer
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::vector<float> rgb;
+    ColorProfileState color_profile;
 };
 
 inline constexpr std::uint32_t kRgbHistogramBins = 256;
@@ -117,7 +122,7 @@ struct DecodedRaw
     std::array<float, 4> camera_reference_white_balance{1.0F, 1.0F, 1.0F, 1.0F};
     bool has_as_shot_white_balance = false;
     bool has_camera_reference_white_balance = false;
-    std::array<float, 9> camera_to_srgb{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
+    ColorProfileState color_profile;
     std::vector<std::uint8_t> cfa_channels;
     std::vector<std::uint16_t> pixels;
 };
@@ -145,6 +150,7 @@ struct EmbeddedPreview
     std::uint32_t height = 0;
     int rotate_quarters = 0;
     std::vector<std::uint8_t> bytes;
+    ColorProfileState color_profile;
 };
 
 struct RawInspectPreview
@@ -187,6 +193,7 @@ public:
     [[nodiscard]] const std::vector<OperationDescriptor> &operations() const noexcept;
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;
+    [[nodiscard]] Result<std::string> input_color_cache_fingerprint(const Recipe &recipe) const;
 
     // The sink is borrowed only for the duration of this synchronous call.
     [[nodiscard]] Result<RenderResult> render(const RenderRequest &request,
@@ -199,14 +206,14 @@ public:
     linear_working_from_raw(const DecodedRaw &raw, const Recipe &recipe, std::uint32_t width,
                             std::uint32_t height, const CancellationToken &cancellation) const;
     [[nodiscard]] Result<LinearWorkingBuffer>
-    linear_working_from_raster(const RasterBuffer &raster) const;
+    linear_working_from_raster(const RasterBuffer &raster, const Recipe &recipe,
+                               const CancellationToken &cancellation) const;
     // Applies RGB recipe ops onto a copy of `working`. Callers that already baked
     // `ravo.raw.highlights` into the buffer must disable that operation before calling.
     [[nodiscard]] Result<RenderedImage>
     render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
                           const CancellationToken &cancellation) const;
     [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
-    [[nodiscard]] Result<RasterBuffer> decode_png(const std::vector<std::uint8_t> &bytes) const;
 
 private:
     explicit EngineFacade(OperationRegistry registry);

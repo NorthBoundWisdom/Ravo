@@ -45,7 +45,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     const AssetRecord &asset, const EmbeddedPreview &embedded, const std::uint32_t max_edge,
     const CancellationToken &cancellation)
 {
-    if (raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
+    if (engine_ == nullptr || raster_ == nullptr || cache_ == nullptr || repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
@@ -95,20 +95,52 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
         return result;
     }
 
-    auto encoded =
+    auto decoded =
         raster_->decode_memory(embedded.bytes, max_edge, cancellation, embedded.rotate_quarters);
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    RasterBuffer source;
+    source.width = decoded.value().width;
+    source.height = decoded.value().height;
+    source.srgb = std::move(decoded.value().rgb);
+    source.color_profile = std::move(decoded.value().color_profile);
+    if (source.color_profile.kind == ColorProfileKind::kMissing)
+    {
+        source.color_profile = embedded.color_profile;
+    }
+    DevelopParams develop;
+    auto recipe = recipe_from_develop(
+        {catalog_asset.id, catalog_asset.normalized_uri, catalog_asset.content_fingerprint},
+        develop);
+    if (!recipe)
+    {
+        return recipe.error();
+    }
+    RenderRequest render;
+    render.asset = recipe.value().asset;
+    render.recipe = recipe.value();
+    render.cancellation = cancellation;
+    render.correlation_id = catalog_asset.id;
+    auto rendered = engine_->render_to_image(render, &source);
+    if (!rendered)
+    {
+        return rendered.error();
+    }
+    auto encoded = engine_->encode_png(rendered.value());
     if (!encoded)
     {
         return encoded.error();
     }
-    auto committed = cache_->commit_png_bytes(cache_key, encoded.value().bytes);
+    auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
     if (!committed)
     {
         return committed.error();
     }
     result.cache_path = committed.value();
-    result.width = encoded.value().width;
-    result.height = encoded.value().height;
+    result.width = rendered.value().width;
+    result.height = rendered.value().height;
     PreviewRecord record;
     record.asset_id = catalog_asset.id;
     record.cache_key = cache_key;
@@ -241,15 +273,29 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         return baseline_recipe.error();
     }
     Recipe edit_recipe = std::move(baseline_recipe).value();
-    std::string edit_digest = "identity";
-    if (!edit_recipe.operations.empty())
+    const auto recipe_digest = [&](const Recipe &recipe) -> Result<std::string>
     {
-        auto serialized = serialize_recipe(edit_recipe);
+        auto serialized = serialize_recipe(recipe);
         if (!serialized)
         {
             return serialized.error();
         }
-        edit_digest = fnv1a64_hex(serialized.value());
+        auto color_fingerprint = engine_->input_color_cache_fingerprint(recipe);
+        if (!color_fingerprint)
+        {
+            return color_fingerprint.error();
+        }
+        return fnv1a64_hex(serialized.value() + "|" + color_fingerprint.value());
+    };
+    std::string edit_digest = "identity";
+    if (!edit_recipe.operations.empty())
+    {
+        auto digest = recipe_digest(edit_recipe);
+        if (!digest)
+        {
+            return digest.error();
+        }
+        edit_digest = std::move(digest).value();
     }
     const std::string baseline_digest = edit_digest;
     if (!request.ignore_edits)
@@ -267,14 +313,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                 return valid.error();
             }
             edit_recipe = std::move(built).value();
-            auto serialized = serialize_recipe(edit_recipe);
-            if (!serialized)
+            auto digest = recipe_digest(edit_recipe);
+            if (!digest)
             {
-                return serialized.error();
+                return digest.error();
             }
             edit_digest = matches_develop_baseline(working, *live_develop) ?
                               baseline_digest :
-                              fnv1a64_hex(serialized.value());
+                              std::move(digest).value();
         }
         else
         {
@@ -297,7 +343,12 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
                     return valid.error();
                 }
                 edit_recipe = std::move(parsed).value();
-                edit_digest = fnv1a64_hex(*stored.value());
+                auto digest = recipe_digest(edit_recipe);
+                if (!digest)
+                {
+                    return digest.error();
+                }
+                edit_digest = std::move(digest).value();
             }
         }
         if (request.ignore_crop)
@@ -380,34 +431,19 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
     else
     {
-        auto source = decode_preview_source(working, location.value().path, request.max_edge,
-                                            request.cancellation);
-        if (!source)
+        auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
+                                            height, request.max_edge, request.cancellation);
+        if (!linear)
         {
-            return source.error();
+            return linear.error();
         }
-        if (edit_recipe.operations.empty())
+        auto applied =
+            engine_->render_linear_working(*linear.value(), edit_recipe, request.cancellation);
+        if (!applied)
         {
-            rendered.width = source.value().width;
-            rendered.height = source.value().height;
-            rendered.rgb = source.value().srgb;
+            return applied.error();
         }
-        else
-        {
-            auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
-                                                height, request.max_edge, request.cancellation);
-            if (!linear)
-            {
-                return linear.error();
-            }
-            auto applied =
-                engine_->render_linear_working(*linear.value(), edit_recipe, request.cancellation);
-            if (!applied)
-            {
-                return applied.error();
-            }
-            rendered = std::move(applied).value();
-        }
+        rendered = std::move(applied).value();
     }
     const auto render_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::steady_clock::now() - render_started)
@@ -524,8 +560,15 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
     const auto fingerprint = asset.content_fingerprint.value_or("none");
+    auto color_fingerprint = engine_->input_color_cache_fingerprint(recipe);
+    if (!color_fingerprint)
+    {
+        return color_fingerprint.error();
+    }
     const std::string preprocess_key =
-        is_raw_media_type(asset.media_type) ? raw_preprocess_key(recipe) : "raster";
+        (is_raw_media_type(asset.media_type) ? raw_preprocess_key(recipe) :
+                                               input_color_preprocess_key(recipe)) +
+        ":" + color_fingerprint.value();
     if (linear_working_.has_value() && linear_working_->asset_id == asset.id &&
         linear_working_->fingerprint == fingerprint && linear_working_->max_edge == max_edge &&
         linear_working_->preprocess_key == preprocess_key &&
@@ -557,7 +600,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         {
             return source.error();
         }
-        auto working = engine_->linear_working_from_raster(source.value());
+        auto working = engine_->linear_working_from_raster(source.value(), recipe, cancellation);
         if (!working)
         {
             return working.error();
@@ -591,12 +634,10 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
         {
             return decoded.error();
         }
-        auto pixels = engine_->decode_png(decoded.value().bytes);
-        if (!pixels)
-        {
-            return pixels.error();
-        }
-        raster = std::move(pixels).value();
+        raster.width = decoded.value().width;
+        raster.height = decoded.value().height;
+        raster.srgb = std::move(decoded.value().rgb);
+        raster.color_profile = std::move(decoded.value().color_profile);
     }
     else if (is_raw_media_type(asset.media_type))
     {
@@ -609,12 +650,14 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
             {
                 return decoded.error();
             }
-            auto pixels = engine_->decode_png(decoded.value().bytes);
-            if (!pixels)
+            raster.width = decoded.value().width;
+            raster.height = decoded.value().height;
+            raster.srgb = std::move(decoded.value().rgb);
+            raster.color_profile = std::move(decoded.value().color_profile);
+            if (raster.color_profile.kind == ColorProfileKind::kMissing)
             {
-                return pixels.error();
+                raster.color_profile = embedded.value().color_profile;
             }
-            raster = std::move(pixels).value();
         }
         else
         {
@@ -637,6 +680,7 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
             raster.width = rendered.value().width;
             raster.height = rendered.value().height;
             raster.srgb = std::move(rendered.value().rgb);
+            raster.color_profile = std::move(rendered.value().color_profile);
         }
     }
     else

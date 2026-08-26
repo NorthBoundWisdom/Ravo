@@ -634,9 +634,8 @@ Result<AssetRecord> CatalogService::create_recipe_snapshot(const std::string_vie
         return json.error();
     }
     const std::string recipe_json = json.value().value_or(std::string{});
-    auto recorded = repository_->append_recipe_history(asset_id, kRecipeHistoryKindSnapshot,
-                                                       std::string_view{trimmed.value()},
-                                                       recipe_json);
+    auto recorded = repository_->append_recipe_history(
+        asset_id, kRecipeHistoryKindSnapshot, std::string_view{trimmed.value()}, recipe_json);
     if (!recorded)
     {
         return recorded.error();
@@ -807,8 +806,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         }
         else if (raster.error().code == ErrorCode::kUnsupported)
         {
-            auto probed = engine_->inspect_with_embedded_preview(
-                location.value().path, kThumbnailMaxEdge, cancellation);
+            auto probed = engine_->inspect_with_embedded_preview(location.value().path,
+                                                                 kThumbnailMaxEdge, cancellation);
             if (!probed)
             {
                 return map_raw_probe_error(probed.error());
@@ -890,8 +889,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     return result;
 }
 
-Result<std::vector<ImportItemResult>>
-CatalogService::import_inputs(
+Result<std::vector<ImportItemResult>> CatalogService::import_inputs(
     const std::vector<std::string> &paths, const CancellationToken &cancellation,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress)
 {
@@ -1081,9 +1079,9 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return rendered.error();
     }
-    auto encoded =
-        raster_->encode(rendered.value().width, rendered.value().height, rendered.value().rgb,
-                        request.format, request.jpeg_quality, request.cancellation);
+    auto encoded = raster_->encode(rendered.value().width, rendered.value().height,
+                                   rendered.value().rgb, rendered.value().color_profile,
+                                   request.format, request.jpeg_quality, request.cancellation);
     if (!encoded)
     {
         return encoded.error();

@@ -96,6 +96,21 @@ elseif(UNIX)
   target_link_libraries(ravo_libraw PRIVATE m)
 endif()
 
+if(NOT DEFINED ENV{LITTLECMS_SOURCE_ROOT})
+  message(FATAL_ERROR "LITTLECMS_SOURCE_ROOT is required; run the FreeCM source-root update")
+endif()
+file(TO_CMAKE_PATH "$ENV{LITTLECMS_SOURCE_ROOT}" _ravo_littlecms_root)
+set(LCMS2_BUILD_SHARED OFF CACHE BOOL "Ravo links LittleCMS privately and statically" FORCE)
+set(LCMS2_BUILD_STATIC ON CACHE BOOL "Ravo requires the LittleCMS static library" FORCE)
+set(LCMS2_BUILD_TOOLS OFF CACHE BOOL "LittleCMS command-line tools stay out of Ravo" FORCE)
+set(LCMS2_BUILD_TESTS OFF CACHE BOOL "Ravo owns its ICC contract tests" FORCE)
+set(LCMS2_WITH_FASTFLOAT OFF CACHE BOOL "LittleCMS GPL plugin is not part of Ravo" FORCE)
+set(LCMS2_WITH_THREADED_PLUGIN OFF CACHE BOOL "Ravo owns render scheduling" FORCE)
+add_subdirectory("${_ravo_littlecms_root}" "${CMAKE_BINARY_DIR}/_deps/littlecms" EXCLUDE_FROM_ALL)
+if(NOT TARGET lcms2)
+  message(FATAL_ERROR "LittleCMS source root did not provide the lcms2 target")
+endif()
+
 function(ravo_configure_target target)
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_compile_options(${target} PRIVATE
@@ -153,6 +168,10 @@ install(
     services/include/
     desktop/include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+install(
+  FILES "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/Ravo")
 
 if(WIN32)
   install(

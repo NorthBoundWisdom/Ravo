@@ -15,6 +15,6 @@ target_include_directories(ravo_adapters
 
 target_link_libraries(ravo_adapters
   PUBLIC ravo_foundation ravo_recipe ravo_domain
-  PRIVATE Qt6::Core Qt6::Gui Qt6::Sql)
+  PRIVATE Qt6::Core Qt6::Gui Qt6::Sql ZLIB::ZLIB)
 
 ravo_configure_target(ravo_adapters)

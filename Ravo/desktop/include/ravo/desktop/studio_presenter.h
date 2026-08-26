@@ -77,6 +77,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY editChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editInputColor READ editInputColor NOTIFY editChanged)
     Q_PROPERTY(double editChannelMixerRR READ editChannelMixerRR NOTIFY editChanged)
     Q_PROPERTY(double editChannelMixerRG READ editChannelMixerRG NOTIFY editChanged)
     Q_PROPERTY(double editChannelMixerRB READ editChannelMixerRB NOTIFY editChanged)
@@ -243,6 +244,7 @@ public:
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] QVariantMap editWhiteBalance() const;
+    [[nodiscard]] QVariantMap editInputColor() const;
     [[nodiscard]] double editChannelMixerRR() const noexcept;
     [[nodiscard]] double editChannelMixerRG() const noexcept;
     [[nodiscard]] double editChannelMixerRB() const noexcept;

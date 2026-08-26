@@ -62,6 +62,12 @@ DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
         env_key="GEOCONTROLS_SOURCE_ROOT",
         required_relative_paths=("CMakeLists.txt", "Controls/CMakeLists.txt"),
     ),
+    DependencyRootSpec(
+        dependency_name="LittleCMS",
+        repo_name="Little-CMS",
+        env_key="LITTLECMS_SOURCE_ROOT",
+        required_relative_paths=("include/lcms2.h", "src/lcms2_internal.h"),
+    ),
 )
 
 

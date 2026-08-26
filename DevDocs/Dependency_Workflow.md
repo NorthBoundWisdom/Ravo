@@ -24,7 +24,9 @@ The root lock declares Ravo direct dependencies only. If a dependency lock
 template declares a sibling, FreeCM resolves the transitive closure recursively
 from local seeds. Do not repeat every transitive dependency in the root lock.
 
-Current direct dependencies are LibRaw and GeoControls. Quill resolves through
+Current direct dependencies are LibRaw, GeoControls, and LittleCMS. LittleCMS
+is linked privately by the engine for ICC input transforms; its public handles
+do not cross Ravo target boundaries. Quill resolves through
 find_package(quill CONFIG REQUIRED) from the host CMAKE_PREFIX_PATH, such as
 vcpkg, Homebrew, or Qt prefixes, and does not enter the source-root lock. Use
 these logical dependency names as depsManualPath keys, not guessed directories.
@@ -217,7 +219,8 @@ assets, and local CMake configuration:
   "depsMode": "manual",
   "depsManualPath": {
     "LibRaw": "D:/work/LibRaw",
-    "GeoControls": ""
+    "GeoControls": "",
+    "LittleCMS": ""
   }
 }
 ~~~

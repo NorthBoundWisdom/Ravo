@@ -3,6 +3,7 @@
 #include <string_view>
 
 #include "ravo/foundation/error.h"
+#include "ravo/recipe/color_input.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo
@@ -16,5 +17,7 @@ struct LegacyXmpImportRequest
 
 // Parses a bounded legacy XMP document without loading the frozen module ABI.
 [[nodiscard]] Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request);
+[[nodiscard]] Result<InputColorParams>
+decode_legacy_colorin_parameters(std::string_view encoded_parameters);
 
 } // namespace ravo

@@ -55,6 +55,31 @@ struct DecodedPng
     std::vector<png_byte> pixels;
 };
 
+void declare_srgb(RasterBuffer &raster)
+{
+    raster.color_profile.kind = ColorProfileKind::kBuiltin;
+    raster.color_profile.model = ColorModel::kRgb;
+    raster.color_profile.identifier = "srgb";
+}
+
+void declare_linear_srgb_matrix(DecodedRaw &raw)
+{
+    raw.color_profile.kind = ColorProfileKind::kMatrix;
+    raw.color_profile.model = ColorModel::kRgb;
+    raw.color_profile.identifier = "enhanced_matrix";
+    raw.color_profile.matrix_to_xyz_d50 = {0.4360747F, 0.3850649F, 0.1430804F,
+                                           0.2225045F, 0.7168786F, 0.0606169F,
+                                           0.0139322F, 0.0971045F, 0.7141733F};
+    raw.color_profile.has_matrix = true;
+    raw.color_profile.camera_input = true;
+}
+
+void declare_input(Recipe &recipe)
+{
+    recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
+                                 input_color_to_parameters(InputColorParams{}), std::nullopt});
+}
+
 [[nodiscard]] std::optional<DecodedPng> read_rgb_png(const std::filesystem::path &path)
 {
     png_image image{};
@@ -167,6 +192,12 @@ TEST(EngineFacadeTest, DecodeExposesAsShotAndCameraReferenceWhiteBalance)
     EXPECT_NEAR(decoded.value().camera_reference_white_balance[1], 1.0F, 1.0e-6F);
     EXPECT_NEAR(decoded.value().camera_reference_white_balance[2], 1.25087583F, 1.0e-6F);
     EXPECT_NEAR(decoded.value().camera_reference_white_balance[3], 1.0F, 1.0e-6F);
+    EXPECT_EQ(decoded.value().color_profile.kind, ColorProfileKind::kMatrix);
+    EXPECT_EQ(decoded.value().color_profile.identifier, kInputProfileEnhancedMatrix);
+    EXPECT_TRUE(decoded.value().color_profile.has_matrix);
+    EXPECT_TRUE(std::all_of(decoded.value().color_profile.matrix_to_xyz_d50.begin(),
+                            decoded.value().color_profile.matrix_to_xyz_d50.end(),
+                            [](const float value) { return std::isfinite(value); }));
 }
 
 TEST(EngineFacadeTest, ExtractsBoundedEmbeddedJpegPreview)
@@ -210,6 +241,7 @@ TEST(EngineFacadeTest, RenderWritesBoundedPngAndRejectsOutputConflict)
 
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     RenderRequest request;
     request.asset = recipe.asset;
     request.recipe = recipe;
@@ -230,6 +262,13 @@ TEST(EngineFacadeTest, RenderWritesBoundedPngAndRejectsOutputConflict)
     std::array<char, 8> signature{};
     output.read(signature.data(), static_cast<std::streamsize>(signature.size()));
     EXPECT_EQ(std::string(signature.data(), signature.size()), std::string("\x89PNG\r\n\x1a\n", 8));
+    output.seekg(0, std::ios::end);
+    const auto file_size = output.tellg();
+    ASSERT_GT(file_size, 0);
+    output.seekg(0, std::ios::beg);
+    std::string png_bytes(static_cast<std::size_t>(file_size), '\0');
+    output.read(png_bytes.data(), static_cast<std::streamsize>(png_bytes.size()));
+    EXPECT_NE(png_bytes.find("sRGB"), std::string::npos);
     output.close();
     const auto decoded = read_rgb_png(request.output_uri);
     ASSERT_TRUE(decoded.has_value());
@@ -251,6 +290,7 @@ TEST(EngineFacadeTest, ExposureOperationRaisesRenderedFixtureBrightness)
 
     Recipe base_recipe;
     base_recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(base_recipe);
     Recipe exposed_recipe = base_recipe;
     exposed_recipe.operations.push_back({"ravo.core.exposure",
                                          1,
@@ -321,6 +361,7 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
     RasterBuffer raster;
     raster.width = 8;
     raster.height = 4;
+    declare_srgb(raster);
     raster.srgb.resize(8U * 4U * 3U, 0);
     for (std::uint32_t y = 0; y < raster.height; ++y)
     {
@@ -335,6 +376,7 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
 
     Recipe recipe;
     recipe.asset = {"raster", "memory:raster", std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back({"ravo.color.saturation",
                                  1,
                                  "saturation-1",
@@ -366,6 +408,7 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
     RasterBuffer raster;
     raster.width = width;
     raster.height = height;
+    declare_srgb(raster);
     raster.srgb.resize(static_cast<std::size_t>(width) * height * 3U);
     for (std::size_t index = 0; index < raster.srgb.size(); index += 3)
     {
@@ -381,6 +424,7 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
     RasterBuffer raster;
     raster.width = 16;
     raster.height = 16;
+    declare_srgb(raster);
     raster.srgb.resize(16U * 16U * 3U);
     for (std::uint32_t y = 0; y < 16; ++y)
     {
@@ -410,8 +454,13 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
 [[nodiscard]] Result<RenderedImage> render_op(const EngineFacade &engine, RasterBuffer raster,
                                               OperationInstance operation)
 {
+    if (raster.color_profile.kind == ColorProfileKind::kMissing)
+    {
+        declare_srgb(raster);
+    }
     Recipe recipe;
     recipe.asset = {"raster", "memory:raster", std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(std::move(operation));
     RenderRequest request;
     request.asset = recipe.asset;
@@ -480,6 +529,7 @@ color_balance_rgb_operation(const ColorBalanceRgbParams &params,
     raw.white_level = 1000;
     raw.has_as_shot_white_balance = true;
     raw.has_camera_reference_white_balance = true;
+    declare_linear_srgb_matrix(raw);
     raw.cfa_channels = {0, 1, 1, 2};
     raw.pixels.assign(static_cast<std::size_t>(raw.width) * raw.height, 100);
     return raw;
@@ -491,6 +541,7 @@ TEST(EngineFacadeTest, HotPixelsMatchesFrozenBayerNeighbourContract)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe identity;
     identity.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
+    declare_input(identity);
     Recipe strict = identity;
     strict.operations.push_back(hot_pixels_operation(false));
     Recipe permissive = identity;
@@ -568,6 +619,7 @@ TEST(EngineFacadeTest, RawCaCorrectRejectsUnsupportedBuffersAndHonorsCancellatio
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(raw_ca_operation());
 
     auto small = synthetic_bayer_raw();
@@ -658,6 +710,7 @@ TEST(TemperatureTest, ResolvesMetadataModesAndManualRgbFailsFast)
     raw.camera_reference_white_balance = {1.2F, 1.0F, 1.1F, 1.0F};
     Recipe recipe;
     recipe.asset = {"raw", "memory:raw", std::nullopt};
+    declare_input(recipe);
 
     auto as_shot = resolve_raw_temperature(raw, recipe);
     ASSERT_TRUE(as_shot) << as_shot.error().message;
@@ -692,7 +745,7 @@ TEST(TemperatureTest, ResolvesMetadataModesAndManualRgbFailsFast)
     ASSERT_FALSE(missing_as_shot);
     EXPECT_EQ(missing_as_shot.error().code, ErrorCode::kValidation);
 
-    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}};
+    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}, {}};
     const auto original = rgb.rgb;
     auto automatic_on_rgb =
         apply_temperature_rgb(rgb, temperature_operation(reference), CancellationToken{});
@@ -842,6 +895,7 @@ TEST(ColorBalanceRgbTest, EveryGradingStageChangesSyntheticPixels)
     const RasterBuffer source = gradient_raster();
     Recipe identity_recipe;
     identity_recipe.asset = {"raster", "memory:raster", std::nullopt};
+    declare_input(identity_recipe);
     RenderRequest identity_request;
     identity_request.asset = identity_recipe.asset;
     identity_request.recipe = identity_recipe;
@@ -906,7 +960,7 @@ TEST(ColorBalanceRgbTest, CancellationAndNonFiniteInputNeverPublishPartialPixels
     ColorBalanceRgbParams params;
     params.global_y = 0.2;
     const auto operation = color_balance_rgb_operation(params);
-    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}};
+    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}, {}};
     const auto original = image.rgb;
     CancellationSource cancellation;
     ASSERT_TRUE(cancellation.cancel("color_balance_cancel"));
@@ -930,6 +984,7 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     const auto base_raster = gradient_raster();
     Recipe identity;
     identity.asset = {"raster", "memory:raster", std::nullopt};
+    declare_input(identity);
     RenderRequest identity_request;
     identity_request.asset = identity.asset;
     identity_request.recipe = identity;
@@ -1306,6 +1361,7 @@ TEST(EngineFacadeTest, RawHighlightReconstructionChangesMire1)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe identity;
     identity.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(identity);
     RenderRequest base_request;
     base_request.asset = identity.asset;
     base_request.recipe = identity;
@@ -1403,6 +1459,7 @@ TEST(EngineFacadeTest, SigmoidHasARealRawReference)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(sigmoid_operation());
     RenderRequest request;
     request.asset = recipe.asset;
@@ -1441,6 +1498,7 @@ TEST(EngineFacadeTest, TemperatureManualAndCameraReferenceHaveRealRawReferences)
     const auto original_pixels = decoded.value().pixels;
     Recipe manual_recipe;
     manual_recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(manual_recipe);
     manual_recipe.operations.push_back(temperature_operation(test::temperature_0000_params()));
     auto linear = engine.value().linear_working_from_raw(decoded.value(), manual_recipe, 64, 48,
                                                          CancellationToken{});
@@ -1451,6 +1509,7 @@ TEST(EngineFacadeTest, TemperatureManualAndCameraReferenceHaveRealRawReferences)
     {
         Recipe recipe;
         recipe.asset = {"mire1", mire1_path(), std::nullopt};
+        declare_input(recipe);
         recipe.operations.push_back(temperature_operation(params));
         recipe.operations.push_back(sigmoid_operation());
         RenderRequest request;
@@ -1505,6 +1564,7 @@ TEST(EngineFacadeTest, TemperatureLateReferenceUsesOnlyExplicitChannelMixerCat)
     {
         Recipe recipe;
         recipe.asset = {"mire1", mire1_path(), std::nullopt};
+        declare_input(recipe);
         recipe.operations.push_back(temperature_operation(params));
         recipe.operations.push_back(channel_mixer_operation(calibration));
         recipe.operations.push_back(sigmoid_operation());
@@ -1536,6 +1596,7 @@ TEST(EngineFacadeTest, ChannelMixerHasARealRawReference)
     calibration.clip = true;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(channel_mixer_operation(calibration));
     recipe.operations.push_back(sigmoid_operation());
     RenderRequest request;
@@ -1567,6 +1628,7 @@ TEST(EngineFacadeTest, ColorBalanceRgb0083HasARealRawReference)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(color_balance_rgb_operation(test::color_balance_0083_params()));
     recipe.operations.push_back(sigmoid_operation());
     RenderRequest request;
@@ -1600,6 +1662,7 @@ TEST(EngineFacadeTest, HotPixelsHasARealRawReferenceAndKeepsDecodedFrameImmutabl
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(hot_pixels_operation());
     recipe.operations.push_back(sigmoid_operation());
 
@@ -1638,6 +1701,7 @@ TEST(EngineFacadeTest, RawCaCorrectRunsFrozenDefaultOnMire1)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(raw_ca_operation());
     recipe.operations.push_back(sigmoid_operation());
     auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
@@ -1659,7 +1723,13 @@ TEST(EngineFacadeTest, RawCaCorrectRunsFrozenDefaultOnMire1)
     EXPECT_EQ(budget_failure.error().code, ErrorCode::kValidation);
 
     Recipe rgb_recipe = recipe;
-    rgb_recipe.operations.front().enabled = false;
+    for (auto &operation : rgb_recipe.operations)
+    {
+        if (operation.id == "ravo.raw.cacorrect")
+        {
+            operation.enabled = false;
+        }
+    }
     auto rendered =
         engine.value().render_linear_working(working.value(), rgb_recipe, CancellationToken{});
     ASSERT_TRUE(rendered) << rendered.error().message;
@@ -1684,6 +1754,7 @@ TEST(EngineFacadeTest, RawCaCorrectCoversFrozen0084AvoidShiftParameters)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(raw_ca_operation(5, true));
     recipe.operations.push_back(sigmoid_operation());
     auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
@@ -1692,7 +1763,13 @@ TEST(EngineFacadeTest, RawCaCorrectCoversFrozen0084AvoidShiftParameters)
                                                           CancellationToken{});
     ASSERT_TRUE(working) << working.error().message;
     Recipe rgb_recipe = recipe;
-    rgb_recipe.operations.front().enabled = false;
+    for (auto &operation : rgb_recipe.operations)
+    {
+        if (operation.id == "ravo.raw.cacorrect")
+        {
+            operation.enabled = false;
+        }
+    }
     auto rendered =
         engine.value().render_linear_working(working.value(), rgb_recipe, CancellationToken{});
     ASSERT_TRUE(rendered) << rendered.error().message;
@@ -1715,6 +1792,7 @@ TEST(EngineFacadeTest, LinearWorkingRenderMatchesDirectRawRender)
     ASSERT_TRUE(engine) << engine.error().message;
     Recipe recipe;
     recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
     recipe.operations.push_back(sigmoid_operation());
     RenderRequest request;
     request.asset = recipe.asset;

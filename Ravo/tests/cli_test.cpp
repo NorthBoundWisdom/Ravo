@@ -177,6 +177,8 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
 
     Recipe recipe;
     recipe.asset = {"mire1", "file:///recipe-placeholder.raw", std::nullopt};
+    recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
+                                 input_color_to_parameters(InputColorParams{}), std::nullopt});
     const auto serialized = serialize_recipe(recipe);
     ASSERT_TRUE(serialized) << serialized.error().message;
     {
@@ -264,7 +266,7 @@ TEST_F(CliTest, Utf8FilePathsAreResolvedInsideTheQtAdapter)
     EXPECT_EQ(content.value(), "unicode-path-contract");
 }
 
-TEST_F(CliTest, LegacyXmpImportCreatesAnEmptyCanonicalRecipeAtomically)
+TEST_F(CliTest, LegacyXmpImportCreatesAnExplicitInputRecipeAtomically)
 {
     const auto directory = std::filesystem::temp_directory_path();
     const auto xmp_path = directory / "ravo-empty-history.xmp";
@@ -300,11 +302,12 @@ TEST_F(CliTest, LegacyXmpImportCreatesAnEmptyCanonicalRecipeAtomically)
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto parsed = parse_recipe_json(recipe.value());
     ASSERT_TRUE(parsed) << parsed.error().message;
-    EXPECT_TRUE(parsed.value().operations.empty());
+    ASSERT_EQ(parsed.value().operations.size(), 1U);
+    EXPECT_EQ(parsed.value().operations.front().id, "ravo.color.input");
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
-TEST_F(CliTest, FrozenNopXmpIsAbsorbedByTheBuiltinRawPipeline)
+TEST_F(CliTest, FrozenNopXmpMapsItsInputProfileExplicitly)
 {
     const auto path =
         std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "0000-nop" / "nop.xmp";
@@ -317,7 +320,12 @@ TEST_F(CliTest, FrozenNopXmpIsAbsorbedByTheBuiltinRawPipeline)
     const auto imported = import_legacy_xmp(request);
 
     ASSERT_TRUE(imported) << imported.error().message;
-    EXPECT_TRUE(imported.value().operations.empty());
+    ASSERT_EQ(imported.value().operations.size(), 1U);
+    EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
+    auto input = input_color_from_parameters(imported.value().operations.front().parameters);
+    ASSERT_TRUE(input) << input.error().message;
+    EXPECT_EQ(input.value().input_profile, kInputProfileEnhancedMatrix);
+    EXPECT_EQ(input.value().working_profile, kInputProfileLinearRec2020);
     EXPECT_TRUE(imported.value().masks.empty());
 }
 
@@ -352,8 +360,9 @@ TEST_F(CliTest, LegacyXmpMapsTheProvenManualExposureV5Subset)
     const auto imported = import_legacy_xmp(request);
 
     ASSERT_TRUE(imported) << imported.error().message;
-    ASSERT_EQ(imported.value().operations.size(), 1U);
-    const auto &operation = imported.value().operations.front();
+    ASSERT_EQ(imported.value().operations.size(), 2U);
+    EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
+    const auto &operation = imported.value().operations.back();
     EXPECT_EQ(operation.id, "ravo.core.exposure");
     EXPECT_EQ(operation.schema_version, 1);
     EXPECT_EQ(operation.instance_id, "legacy-exposure-0");
@@ -403,8 +412,9 @@ TEST_F(CliTest, LegacyXmpImportCommandWritesTheProvenManualExposureRecipe)
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto parsed = parse_recipe_json(recipe.value());
     ASSERT_TRUE(parsed) << parsed.error().message;
-    ASSERT_EQ(parsed.value().operations.size(), 1U);
-    EXPECT_EQ(parsed.value().operations.front().id, "ravo.core.exposure");
+    ASSERT_EQ(parsed.value().operations.size(), 2U);
+    EXPECT_EQ(parsed.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(parsed.value().operations.back().id, "ravo.core.exposure");
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 

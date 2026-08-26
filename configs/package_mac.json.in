@@ -19,6 +19,10 @@
       {
         "source": "@CMAKE_SOURCE_DIR@/LICENSE",
         "destinationDir": "."
+      },
+      {
+        "source": "@CMAKE_SOURCE_DIR@/THIRD_PARTY_NOTICES.md",
+        "destinationDir": "."
       }
     ]
   },

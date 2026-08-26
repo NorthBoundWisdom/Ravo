@@ -8,6 +8,7 @@
 #include <QBuffer>
 #include <QByteArray>
 #include <QColor>
+#include <QColorSpace>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QFile>
@@ -225,6 +226,7 @@ TEST(QtRasterDecoderTest, DecodeMemoryAppliesClockwiseQuarterTurnsWithoutExif)
 {
     QImage source(32, 16, QImage::Format_RGB888);
     source.fill(QColor(12, 80, 200));
+    source.setColorSpace(QColorSpace(QColorSpace::SRgb));
     QByteArray encoded;
     QBuffer buffer(&encoded);
     ASSERT_TRUE(buffer.open(QIODevice::WriteOnly));
@@ -237,11 +239,33 @@ TEST(QtRasterDecoderTest, DecodeMemoryAppliesClockwiseQuarterTurnsWithoutExif)
     ASSERT_TRUE(identity) << identity.error().message;
     EXPECT_EQ(identity.value().width, 32U);
     EXPECT_EQ(identity.value().height, 16U);
+    EXPECT_NE(identity.value().color_profile.kind, ColorProfileKind::kMissing);
 
     auto rotated = decoder.decode_memory(bytes, 64, CancellationToken{}, 3);
     ASSERT_TRUE(rotated) << rotated.error().message;
     EXPECT_EQ(rotated.value().width, 16U);
     EXPECT_EQ(rotated.value().height, 32U);
+}
+
+TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
+{
+    QtRasterDecoder decoder;
+    const std::vector<std::uint8_t> pixels(8U * 4U * 3U, 128U);
+    ColorProfileState srgb;
+    srgb.kind = ColorProfileKind::kBuiltin;
+    srgb.model = ColorModel::kRgb;
+    srgb.identifier = "srgb";
+    auto encoded = decoder.encode(8, 4, pixels, srgb, ExportFormat::kPng, 90, CancellationToken{});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    auto decoded = decoder.decode_memory(encoded.value(), 32, CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_NE(decoded.value().color_profile.kind, ColorProfileKind::kMissing);
+
+    ColorProfileState missing;
+    auto rejected =
+        decoder.encode(8, 4, pixels, missing, ExportFormat::kPng, 90, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
 }
 
 TEST_F(CatalogServiceTest, RawImportCachesEmbeddedThumbnailSeparatelyFromProcessedPreview)
@@ -291,6 +315,7 @@ TEST_F(CatalogServiceTest, ImportJpegAndDirectorySkipsSidecars)
 
     const auto jpeg_path = (root / "probe.jpg").string();
     QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(12, 80, 200));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     const auto jpeg_hash = file_sha256(jpeg_path);
@@ -335,6 +360,7 @@ TEST_F(CatalogServiceTest, ImportProgressReportsEachImportedItemWithThumbnail)
     ASSERT_TRUE(created) << created.error().message;
 
     QImage image(24, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(20, 40, 80));
     const auto folder = root / "batch";
     std::filesystem::create_directories(folder);
@@ -390,6 +416,7 @@ TEST_F(CatalogServiceTest, MissingOriginalIsAssetStateNotPreviewFailureWhenCache
 
     const auto jpeg_path = (root / "gone.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(40, 80, 20));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -420,6 +447,7 @@ TEST_F(CatalogServiceTest, ListsImportedFoldersAndFiltersByFolderUri)
     std::filesystem::create_directories(trip);
     std::filesystem::create_directories(home);
     QImage image(8, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(12, 24, 48));
     ASSERT_TRUE(image.save(QString::fromStdString((trip / "a.jpg").string()), "JPEG", 90));
     ASSERT_TRUE(image.save(QString::fromStdString((home / "b.jpg").string()), "JPEG", 90));
@@ -455,6 +483,7 @@ TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     QImage image(400, 400, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(32, 64, 96));
     const auto photo = root / "keep-original.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
@@ -498,6 +527,7 @@ TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogDeletesTheFile)
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     QImage image(32, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(12, 34, 56));
     const auto photo = root / "delete-original.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
@@ -520,6 +550,7 @@ TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogFailsWhenFileIsMissing)
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(90, 12, 12));
     const auto photo = root / "already-gone.jpg";
     ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
@@ -548,6 +579,7 @@ TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
 
     const auto jpeg_path = (root / "keep.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(20, 40, 80));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -633,6 +665,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "edit.jpg").string();
     QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(180, 40, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -708,6 +741,7 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "meta.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(12, 34, 56));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -779,12 +813,55 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     EXPECT_NEAR(develop.value().graduated_density, 0.6, 1e-6);
 }
 
+TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitInputProfile)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "recipe-v1.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 60, 90));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    auto repository = SqliteCatalogRepository::open(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    Recipe recipe_v1;
+    recipe_v1.schema_version = 1;
+    recipe_v1.asset = {asset_id, imported.value().asset->normalized_uri,
+                       imported.value().asset->content_fingerprint};
+    recipe_v1.operations.push_back({"ravo.core.exposure",
+                                    1,
+                                    "exposure-1",
+                                    true,
+                                    {{"exposure_ev", ParameterValue{0.5}}},
+                                    std::nullopt});
+    auto serialized_v1 = serialize_recipe(recipe_v1);
+    ASSERT_TRUE(serialized_v1) << serialized_v1.error().message;
+    ASSERT_TRUE(repository.value()->save_recipe_json(asset_id, 1, serialized_v1.value()));
+    ASSERT_TRUE(repository.value()->close());
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    ASSERT_TRUE(open_service(false));
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().schema_version, 2);
+    ASSERT_EQ(restored.value().operations.size(), 2U);
+    EXPECT_EQ(restored.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(restored.value().operations.back().id, "ravo.core.exposure");
+}
+
 TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevision)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "recipe-transaction.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(90, 45, 20));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -856,8 +933,15 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 1U);
-    EXPECT_EQ(baseline.value().operations.front().id, "ravo.display.sigmoid");
+    ASSERT_EQ(baseline.value().operations.size(), 2U);
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.color.input"; }),
+              baseline.value().operations.end());
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.display.sigmoid"; }),
+              baseline.value().operations.end());
     auto baseline_params = develop_from_recipe(baseline.value());
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
     EXPECT_TRUE(baseline_params.value().sigmoid_enabled);
@@ -899,6 +983,7 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "live.jpg").string();
     QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(200, 80, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -939,6 +1024,64 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().cache_path.empty());
     EXPECT_NE(second.value().srgb, first_pixels);
+}
+
+TEST_F(CatalogServiceTest, FileIccContentInvalidatesPreviewAndSurvivesRecipeReopen)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "profiled.jpg").string();
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(180, 70, 30));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    const auto profile_path = root / "input.icc";
+    const auto write_profile = [&profile_path](const QColorSpace::NamedColorSpace named)
+    {
+        const QByteArray bytes = QColorSpace(named).iccProfile();
+        QFile file(QString::fromStdString(profile_path.string()));
+        return !bytes.isEmpty() && file.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+               file.write(bytes) == bytes.size();
+    };
+    ASSERT_TRUE(write_profile(QColorSpace::SRgb));
+
+    auto baseline = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    auto develop = develop_from_recipe(baseline.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    develop.value().input_color.input_profile = std::string(kInputProfileFileIcc);
+    develop.value().input_color.input_profile_filename = profile_path.string();
+    auto saved = service->save_develop(asset_id, develop.value());
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = 64;
+    auto first = service->request_preview(request);
+    ASSERT_TRUE(first) << first.error().message;
+    EXPECT_TRUE(std::filesystem::exists(first.value().cache_path));
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_develop = develop_from_recipe(restored.value());
+    ASSERT_TRUE(restored_develop) << restored_develop.error().message;
+    EXPECT_EQ(restored_develop.value().input_color, develop.value().input_color);
+
+    ASSERT_TRUE(write_profile(QColorSpace::DisplayP3));
+    auto second = service->request_preview(request);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_NE(second.value().cache_key, first.value().cache_key);
+    EXPECT_NE(second.value().cache_path, first.value().cache_path);
+    EXPECT_TRUE(std::filesystem::exists(first.value().cache_path));
+    EXPECT_TRUE(std::filesystem::exists(second.value().cache_path));
 }
 
 TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
@@ -1058,6 +1201,11 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     edited.value().channel_mixer.green = {0.02, 0.96, 0.02};
     edited.value().channel_mixer.blue = {0.0, 0.08, 0.92};
     edited.value().temperature = test::temperature_0000_params();
+    edited.value().input_color.input_profile = std::string(kInputProfileEnhancedMatrix);
+    edited.value().input_color.rendering_intent = std::string(kColorIntentRelative);
+    edited.value().input_color.gamut_normalize = std::string(kColorNormalizeSrgb);
+    edited.value().input_color.blue_mapping = true;
+    edited.value().input_color.working_profile = std::string(kInputProfileLinearRec2020);
     edited.value().color_balance_rgb = test::color_balance_0093_params();
     clamp_develop(edited.value());
 
@@ -1097,6 +1245,7 @@ TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "tilt.jpg").string();
     QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(200, 80, 40));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -1131,6 +1280,7 @@ TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingRevi
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "bad-recipe.jpg").string();
     QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(10, 80, 10));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
@@ -1159,6 +1309,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     ASSERT_TRUE(created) << created.error().message;
     const auto jpeg_path = (root / "source.jpg").string();
     QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(40, 120, 200));
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     const auto original_hash = file_sha256(jpeg_path);
@@ -1184,6 +1335,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     ASSERT_FALSE(read_png.isNull());
     EXPECT_EQ(read_png.width(), static_cast<int>(exported_png.value().width));
     EXPECT_EQ(read_png.height(), static_cast<int>(exported_png.value().height));
+    EXPECT_TRUE(read_png.colorSpace().isValid());
     EXPECT_EQ(file_sha256(jpeg_path), original_hash);
 
     auto conflict = service->export_asset(png);
@@ -1201,7 +1353,9 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     auto exported_jpeg = service->export_asset(jpeg);
     ASSERT_TRUE(exported_jpeg) << exported_jpeg.error().message;
     EXPECT_TRUE(std::filesystem::exists(jpeg_out));
-    EXPECT_FALSE(QImage(QString::fromStdString(jpeg_out)).isNull());
+    const QImage read_jpeg(QString::fromStdString(jpeg_out));
+    EXPECT_FALSE(read_jpeg.isNull());
+    EXPECT_TRUE(read_jpeg.colorSpace().isValid());
 
     const auto tiff_out = (root / "out.tif").string();
     ExportRequest tiff;
@@ -1212,7 +1366,9 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     if (exported_tiff)
     {
         EXPECT_TRUE(std::filesystem::exists(tiff_out));
-        EXPECT_FALSE(QImage(QString::fromStdString(tiff_out)).isNull());
+        const QImage read_tiff(QString::fromStdString(tiff_out));
+        EXPECT_FALSE(read_tiff.isNull());
+        EXPECT_TRUE(read_tiff.colorSpace().isValid());
     }
     else
     {

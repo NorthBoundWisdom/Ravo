@@ -44,10 +44,11 @@ restoring the old GTK, dynamic IOP ABI, or global state.
 | `ravo_desktop` | C++ composition/presenters, Qt Quick/QML window, Gallery, viewer, file selection; presenters split by catalog/preview/develop and QML by `theme/`, `gallery/`, `inspect/`, and `chrome/` | services, read-only preview resources, Qt Core/Gui/Qml/Quick, GeoControls | Qt Widgets, SQL, codecs, algorithm-private state |
 
 Private Qt Sql/QSQLITE and `QImageReader` adapters contain SQLite and the
-first raster path. LibRaw and platform APIs likewise do not cross a port. Qt
-value types may be used inside a target with a clear benefit, but recipes, CLI
-JSON, catalog schema, and public persisted contracts must not serialize Qt/C++
-object memory layout.
+first raster path. LibRaw, LittleCMS, and platform APIs likewise do not cross a
+port. LittleCMS is linked only by `ravo_engine`; public colour state owns ICC
+bytes or matrices instead of third-party handles. Qt value types may be used
+inside a target with a clear benefit, but recipes, CLI JSON, catalog schema,
+and public persisted contracts must not serialize Qt/C++ object memory layout.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
 services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
@@ -160,7 +161,7 @@ Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
 Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v4: full CPU
+`prefer_embedded_preview=false` use preview contract v5: full CPU
 decode/render followed by the `ravo.display.sigmoid` baseline at the end of
 the scene-linear buffer. The cache types must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.
@@ -215,6 +216,22 @@ Temperature is in the scene-linear preprocess cache key; source `DecodedRaw`
 is immutable. Late reference shares no global chroma state and must be followed
 by explicit non-RGB `channelmixerrgb` adaptation; raster accepts explicit
 coefficients only.
+
+Canonical recipe schema v2 upgrades schema-v1 recipes by inserting one
+explicit source → linear Rec709 `ravo.color.input` operation. That operation
+follows RAW preprocessing and owns input-profile to working-profile conversion.
+Decode publishes immutable `ColorProfileState`:
+RAW supplies an enhanced camera-to-XYZ D50 matrix and raster supplies a valid
+embedded ICC/built-in profile or an explicit missing state. The engine-private
+adapter retains the frozen matrix-only, 65,536-sample shaper plus unbounded
+extrapolation, target-gamut clipping, RAW blue mapping, and general LittleCMS
+RGB/XYZ/Lab paths. File ICC content and canonical profile parameters enter the
+scene-linear/preview cache key. Missing/corrupt profiles, unavailable matrix
+kinds, singular/non-finite transforms, and untagged raster inputs fail before
+publication; there is no sRGB or generic-camera fallback. `LinearWorkingBuffer`
+carries its working-profile matrix. Existing operations are explicitly bridged
+to their declared linear Rec709/sRGB workspaces. Output remains declared sRGB
+until `ravo.color.output` adds selectable export profiles.
 
 `ravo.color.channelmixerrgb` v1 fixes the `linear_srgb_d50` workspace and
 V3 algorithm, persisting three mixing rows, saturation/lightness/grey,
@@ -312,8 +329,9 @@ commands validate the same services; human logs must not pollute JSON stdout.
 
 ## Current non-goals
 
-- CatalogService owns local JPEG/PNG/TIFF/original-copy export; complete
-  metadata/ICC, batch jobs, and old export presets remain out of scope.
+- CatalogService owns local JPEG/PNG/TIFF/original-copy export; encoded pixel
+  exports declare sRGB. Selectable output profiles, complete metadata, batch
+  jobs, and old export presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

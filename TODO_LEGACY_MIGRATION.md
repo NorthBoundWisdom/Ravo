@@ -4,8 +4,8 @@
 >
 > **Updated: 2026-08-26**
 >
-> **Current execution focus: C4 input colour profile colorin.** Do not migrate
-> colorout, primaries, cacorrectrgb, or the general mask graph in parallel.
+> **Current execution focus: C5 output colour profile colorout.** Do not migrate
+> primaries, profile_gamma, cacorrectrgb, or the general mask graph in parallel.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -38,56 +38,61 @@ ready for execution.
 
 ## 2. Migration queue
 
-### C4. Input colour profile: colorin (current)
+### C5. Output colour profile: colorout (current)
 
-Goal: move frozen colorin.c input-profile → working-profile CPU conversion into
-an engine-private colour adapter, replacing the current fixed camera-to-sRGB
-matrix in RAW decode and raster decode's implicit no-profile path.
+Goal: replace the fixed final sRGB encoding with a versioned working-profile →
+output-profile CPU transform shared by preview, CLI render, and CatalogService
+export. C5 consumes the immutable working-profile state established by the
+engine colour adapter; it must not recreate decoder or widget-owned profile
+state.
 
 Scope:
 
-- Versioned schema covers input profile type/name, rendering intent, gamut
-  normalization (off/sRGB/Adobe RGB/linear Rec709/linear Rec2020), blue mapping,
-  and working profile type/name.
-- Freeze matrix-only, matrix + 1D shaper LUT, LCMS/ICC transform, unbounded
-  extrapolation, gamut clipping, and RAW blue-mapping default CPU mathematics
-  separately; do not reduce every profile to a fixed sRGB 3×3.
-- Define the support set for built-in/enhanced/vendor matrix, embedded/file ICC,
-  Lab/RGB input, and working RGB. Missing, corrupt, or unsupported profile
-  structures return structured failure instead of silently using sRGB or a
-  generic camera matrix.
-- C4 selects the sole profile-state owner for current
-  DecodedRaw::camera_to_srgb, raster decoder ICC, and later C5 colorout.
-  Public recipes/ports expose no raw LCMS/Qt/legacy profile pointer.
-- Do not port GTK profile combobox, OpenCL, dynamic IOP ABI, old profile search
-  paths, or binary preset/XMP ABI.
+- First inventory every frozen schema-v5 `colorout` payload and pipeline mode,
+  then define canonical output profile type/name, rendering intent, proof
+  profile/intent, black-point compensation, gamut-check policy, and declared
+  encoded result state.
+- Preserve matrix + output shaper LUT, frozen unbounded extrapolation, general
+  LittleCMS output transform, soft-proof round trip, and gamut-check branches.
+  Do not equate fixed sRGB transfer encoding with general `colorout` acceptance.
+- Define built-in/file ICC and RGB/XYZ/Lab output support. PNG/JPEG/TIFF must
+  embed the selected profile or fail before atomic publication; original-copy
+  export remains byte-preserving.
+- Preview/display and export choose profiles only through explicit request or
+  recipe state. Do not infer a monitor profile, desktop preference, filename,
+  or old global pipeline mode. Gamut warning calculation belongs to engine;
+  presentation belongs to Studio.
+- GTK profile/intent controls, OpenCL, dynamic IOP ABI, monitor polling, and old
+  global colour-profile configuration are not migrated.
 
 Owner, lifecycle, and failure:
 
-- Profile identifier/schema belongs to recipe/domain. Parsed matrix/TRC/ICC
-  transform belongs to an engine-private adapter. Services orchestrate only;
-  Studio shows stable profile ID and intent only.
-- Profile state is an immutable value owned by one decode/render and enters the
-  cache key. LCMS handle/file mapping is released when the task ends and is not
-  bare-shared across threads.
-- Nonfinite matrix/LUT, singular transform, missing/corrupt profile, unsupported
-  intent/colourspace, allocation failure, and cancellation return structured
-  error before output publication; they publish no partial pixels.
+- Canonical identifiers belong to recipe/domain; parsed output/proof transforms
+  and LUTs are render-local engine values. Encoders receive immutable declared
+  output state, never a LittleCMS/Qt/legacy handle.
+- Output/proof ICC bytes and content hashes participate in export/preview cache
+  identity. Handles and file mappings are released at task completion and are
+  not bare-shared across threads.
+- Missing/corrupt profiles, unsupported colour model/intent, singular or
+  nonfinite matrix/LUT, allocation/encoder failure, cancellation, and output
+  conflict fail before replacing a trusted file or publishing partial pixels.
+  There is no fallback to sRGB or the display profile.
 
 Validation and acceptance gates:
 
-- [ ] Full schema round-trip; unknown field/type/intent/normalize, corrupt/missing
-  profile, and nonfinite matrix/LUT fail fast.
-- [ ] Synthetic identity/matrix/shaper/unbounded/five-normalize/blue-mapping/ICC
-  paths plus row-by-row cancellation.
-- [ ] Static decode 0107-colorin-gamma, 0108-colorin-clip, and
-  0109-colorin-gamma-and-clip; establish 0000-nop/mire1.cr2 RAW references.
-- [ ] Contract coverage for raster embedded/file ICC, RAW camera matrix, cache
-  key, input immutability, and CLI/export consistency.
-- [ ] Studio Input Profile Inspector save/reopen through presenter/QML smoke and
-  catalog integration automation.
-- [ ] Delete legacy/src/iop/colorin.c and registration; retire shared
-  colorspaces/LCMS owner only after consumers reach zero.
+- [ ] Static census and decode of all distinct frozen schema-v5 `colorout`
+  payloads; canonical schema round-trip and unknown/missing/corrupt rejection.
+- [ ] Synthetic matrix/shaper/unbounded/general ICC, RGB/XYZ/Lab, four intents,
+  proofing, gamut check, black-point compensation, and row cancellation UT.
+- [ ] `0000-nop`/`mire1.cr2` sRGB reference plus at least one wide-gamut and one
+  file-ICC output reference; working input remains immutable.
+- [ ] CLI render and CatalogService PNG/JPEG/TIFF export embed the declared
+  profile consistently; cache key, conflict, cancellation, and disk failure are
+  covered without partial output.
+- [ ] Studio Output/Soft-proof Inspector save/reopen and gamut-warning intent
+  have presenter/QML smoke plus catalog integration coverage.
+- [ ] Delete `legacy/src/iop/colorout.c` and registration; shared colour owner is
+  retired only when its remaining consumers reach zero.
 - [ ] Full Ravo unit/contract/catalog tests and freeze/inventory/boundary checks.
 - [ ] Explicitly report Windows/Linux as untested when they are not run.
 
@@ -112,7 +117,7 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt still registers 64 IOPs; every IOP has a row in
+- legacy/src/iop/CMakeLists.txt still registers 60 IOPs; every IOP has a row in
   section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
@@ -123,7 +128,7 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C4 only. **Queued** waits for dependencies and
+Status terms: **current** means C5 only. **Queued** waits for dependencies and
 all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
 move it before migration completes. When a module meets its gate, first update
 stable truth, then remove its row. Do not leave historical checked marks here.
@@ -153,7 +158,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (64 registered modules)
+### 3.2 IOP algorithm queue (60 registered modules)
 
 The group order below is dependency order; rows in a group are serial by
 default. fixture means static evidence exists, not that it is covered.
@@ -162,14 +167,13 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C4 | colorin — iop/colorin.c | yes | **Current / ALG**; depends on S1; ICC/input profile, matrix/LUT, unsupported-profile contract; see section 2 |
-| C5 | colorout — iop/colorout.c | yes | Queued / ALG; depends on C4/O1; output profile, intent, soft proof, export consistency |
-| C6 | primaries — iop/primaries.c | yes | Queued / ALG; depends on C4; custom primaries/white point/gamut mapping |
-| C7 | profile_gamma — iop/profile_gamma.c | no | Queued / ALG; depends on C4; create Ravo-owned synthetic + RAW reference first |
+| C5 | colorout — iop/colorout.c | yes | **Current / ALG**; consumes explicit working-profile state; output profile, intent, soft proof, gamut check, and export consistency; see section 2 |
+| C6 | primaries — iop/primaries.c | yes | Queued / ALG; depends on explicit input-profile state; custom primaries/white point/gamut mapping |
+| C7 | profile_gamma — iop/profile_gamma.c | no | Queued / ALG; depends on explicit input-profile state; create Ravo-owned synthetic + RAW reference first |
 | C8 | gamma — iop/gamma.c | yes | Queued / ALG; existing simplified ravo.core.gamma is not acceptance; reproduce frozen lookup/boundaries |
 | C9 | exposure — iop/exposure.c | yes | Queued / ALG; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
 | C10 | colorbalance — iop/colorbalance.c | yes | Queued / ALG; define overlap with ravo.color.colorbalancergb; do not substitute three parameters for full old path |
-| C11 | colorchecker — iop/colorchecker.c | yes | Queued / ALG; depends on C4/S1; move algorithm/calibration tables and delete GTK chart/picker |
+| C11 | colorchecker — iop/colorchecker.c | yes | Queued / ALG; depends on explicit input-profile state/S1; move algorithm/calibration tables and delete GTK chart/picker |
 | C12 | colorcorrection — iop/colorcorrection.c | yes | Queued / ALG; depends on S1/M1; Lab/chroma and blend contract |
 | C13 | colorcontrast — iop/colorcontrast.c | yes | Queued / ALG; simplified control is not acceptance; reproduce frozen colour-space mathematics |
 | C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / ALG; depends on S1/M1; colour harmony and mask/ROI |
@@ -185,12 +189,12 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| T1 | basecurve — iop/basecurve.c | yes | Queued / ALG; depends on C4; camera presets, exposure fusion, curve interpolation |
+| T1 | basecurve — iop/basecurve.c | yes | Queued / ALG; depends on explicit input-profile state; camera presets, exposure fusion, curve interpolation |
 | T2 | rgbcurve — iop/rgbcurve.c | yes | Queued / ALG; distinct from migrated tonecurve; reproduce linked/independent/preserve-colour modes |
 | T3 | rgblevels — iop/rgblevels.c | yes | Queued / ALG; auto/manual, linked channels, picker UI deleted |
 | T4 | filmicrgb — iop/filmicrgb.c | yes | Queued / ALG; Sigmoid remains default; complete scene/display, chroma/gamut/reconstruction modes |
 | T5 | agx — iop/agx.c | yes | Queued / ALG; Sigmoid remains default; AgX curve, primaries, gamut path |
-| T6 | lut3d — iop/lut3d.c | yes | Queued / ALG; depends on C4/I/O; LUT format adapter, missing/invalid file, interpolation |
+| T6 | lut3d — iop/lut3d.c | yes | Queued / ALG; depends on explicit input/output profile state; LUT format adapter, missing/invalid file, interpolation |
 | T7 | negadoctor — iop/negadoctor.c | yes | Queued / ALG; negative input, film base, scanner/profile, picker UI separated |
 
 #### C. RAW preprocess and demosaic
@@ -201,7 +205,7 @@ default. fixture means static evidence exists, not that it is covered.
 | R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; Bayer/X-Trans modes, dual/green matching, memory/ROI; basic 3×3 is only a subset |
 | R3 | rawdenoise — iop/rawdenoise.c | yes | Queued / ALG; pre-demosaic wavelet/threshold and sensor rejection |
 | R4 | cacorrectrgb — iop/cacorrectrgb.c | no | Queued / ALG; separate from migrated pre-demosaic cacorrect; create synthetic/RAW fixture first |
-| R5 | colorreconstruct — iop/colorreconstruction.c | yes | Queued / ALG; depends on R2/C4; complete highlight colour propagation/ROI |
+| R5 | colorreconstruct — iop/colorreconstruction.c | yes | Queued / ALG; depends on R2 and explicit input-profile state; complete highlight colour propagation/ROI |
 | R6 | rasterfile — iop/rasterfile.c | no | Queued / ALG; depends on I1/M1; raster-source/mask ownership and no-fixture baseline |
 
 #### D. Geometry, canvas, and scale
@@ -259,7 +263,7 @@ default. fixture means static evidence exists, not that it is covered.
 | S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept per F/G/M/diagnostic consumer; do not port OpenCL twins |
 | S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: create canonical mask/blend graph | Shape/group/coordinate/parametric blend/ROI/schema/cancellation tests; prerequisite for M1 |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; do not copy dynamic pixelpipe/global state |
-| S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all 64 IOPs retire; built-in versioned operation registry remains |
+| S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all remaining IOPs retire; built-in versioned operation registry remains |
 | S6 | common/database*, database_schema*, sqliteicu* | CORE/DELETE | Compare against Ravo schema/FTS/ICU; move needed data contracts into SQLite adapter and delete remaining old catalog ABI |
 | S7 | common/image*, film*, import_session*, grouping* | CORE/DELETE | Delete global image/film owner after Asset/import/folder/group contracts cover it |
 | S8 | common/collection*, selection*, ratings*, colorlabels*, act_on* | CORE/DELETE | Ravo LibraryQuery/selection/review coverage; map each missing collection query or mark unsupported |
@@ -383,13 +387,13 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later rows in parallel before C4 completes.
+later rows in parallel before C5 completes.
 
 ## 4. Completion gate for this TODO
 
 Delete this document only when all are true:
 
-- [ ] C4 and every later raised algorithm are accepted and removed from this
+- [ ] C5 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

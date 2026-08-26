@@ -25,3 +25,4 @@ supersession relationship when direction changes.
 | [0015](0015-migrate-all-non-ui-algorithms.md) | Accepted | Migrate every remaining non-UI algorithm to C++ individually; GTK/Lua/dynamic ABI/OpenCL are ultimately removed rather than ported. |
 | [0016](0016-filmlight-colorbalancergb.md) | Accepted | `colorbalancergb` retains Filmlight Yrg three-zone grading, the DT UCS default, and an explicit JzAzBz gamut contract. |
 | [0017](0017-explicit-raw-temperature.md) | Accepted | `temperature` owns pre-demosaic as-shot/daylight/manual four-channel scaling; late reference uses explicit CAT only. |
+| [0018](0018-explicit-input-color-profiles.md) | Accepted | Input profiles use explicit decode state, matrix/shaper or private ICC transforms, and profile-aware cache keys without sRGB fallback. |

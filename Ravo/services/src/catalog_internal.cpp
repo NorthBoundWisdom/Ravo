@@ -160,6 +160,8 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 {
     Recipe recipe;
     recipe.asset = {asset.id, path, asset.content_fingerprint};
+    recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
+                                 input_color_to_parameters(InputColorParams{}), std::nullopt});
     return recipe;
 }
 
@@ -217,9 +219,30 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     return "?";
 }
 
+[[nodiscard]] std::string input_color_preprocess_key(const Recipe &recipe)
+{
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != "ravo.color.input")
+        {
+            continue;
+        }
+        std::string key = "color";
+        for (const auto &[name, value] : operation.parameters)
+        {
+            key.push_back(':');
+            key += name;
+            key.push_back('=');
+            key += parameter_key_part(value);
+        }
+        return key;
+    }
+    return "color:source:linear_rec709";
+}
+
 [[nodiscard]] std::string raw_preprocess_key(const Recipe &recipe)
 {
-    std::string key = "raw";
+    std::string key = "raw:" + input_color_preprocess_key(recipe);
     bool found_preprocess = false;
     for (const auto &operation : recipe.operations)
     {
@@ -270,7 +293,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
             key += found == operation.parameters.end() ? "-" : parameter_key_part(found->second);
         }
     }
-    return found_preprocess ? key : "raw-linear";
+    return found_preprocess ? key : key + ":linear";
 }
 
 void disable_raw_preprocess(Recipe &recipe)

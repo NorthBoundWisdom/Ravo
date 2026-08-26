@@ -25,3 +25,4 @@ iop/hotpixels.c
 iop/cacorrect.c
 iop/colorbalancergb.c
 iop/temperature.c
+iop/colorin.c

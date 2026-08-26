@@ -2,6 +2,7 @@ add_library(ravo_recipe STATIC)
 
 target_sources(ravo_recipe
   PRIVATE
+    src/color_input.cpp
     src/operation.cpp
     src/recipe.cpp
     src/develop.cpp)
