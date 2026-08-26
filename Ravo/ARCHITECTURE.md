@@ -555,12 +555,23 @@ copies exact media bytes only: it neither mutates the source nor creates XMP or
 inherits source mode, timestamps, or xattrs. Stable cancellation and I/O errors
 identify both paths; I14 retains path-template, batch, and storage policy.
 
+Encoded pixel output uses the same private destination primitives without
+entering the original-copy source stream. A complete immutable byte vector is
+written in 64 KiB chunks to an exclusively created adjacent temporary,
+synchronized, closed, and atomically moved with no replacement; an empty vector
+publishes an exact empty file. Existing, symlink, non-regular, or racing targets
+win, and stable cancellation or I/O failures identify the output and stage.
+The legacy-compatible `path` context remains alongside the explicit `output`.
+This boundary does not synchronize the parent directory or own codec metadata,
+path templates, batch scheduling, storage collision policy, or sidecars. See
+[ADR-0032](docs/adr/0032-encoded-byte-publication-contract.md).
+
 ## Current non-goals
 
 - CatalogService owns local JPEG/PNG/TIFF/original-copy export. Pixel exports
   embed the recipe-declared RGB profile. JPEG requests own typed quality
   5–100/default 95 plus automatic or explicit 4:4:4/4:4:0/4:2:2/4:2:0 sampling;
-  complete metadata, encoded-file publication, batch jobs, and old export
+  complete metadata, path-template and batch/storage policy, and old export
   presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.

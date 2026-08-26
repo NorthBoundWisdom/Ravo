@@ -45,6 +45,30 @@ struct OriginalCopyCheckpointHook
     void *context = nullptr;
 };
 
+enum class EncodedPublicationCheckpoint : std::uint8_t
+{
+    kBeforeTemporaryOpen,
+    kTemporaryCreated,
+    kBeforeTemporaryWrite,
+    kTemporaryChunkWritten,
+    kBeforeTemporarySync,
+    kBeforeTemporaryClose,
+    kBeforePublish,
+};
+
+struct EncodedPublicationCheckpointHook
+{
+    using Callback = std::error_code (*)(void *context, EncodedPublicationCheckpoint checkpoint,
+                                         std::string_view path,
+                                         std::uint64_t bytes_processed) noexcept;
+
+    Callback callback = nullptr;
+    // Internal synchronous test seam. The caller keeps this non-owning context
+    // alive for the complete publication call. Paths are borrowed only for the
+    // callback. A nonzero return injects an operation error at that stage.
+    void *context = nullptr;
+};
+
 [[nodiscard]] std::int64_t now_unix_ms();
 [[nodiscard]] ImportItemResult failed_item(std::string path, TaskError error);
 [[nodiscard]] ImportItemResult unsupported_item(std::string path, TaskError error);
@@ -65,11 +89,13 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 void disable_raw_preprocess(Recipe &recipe);
 [[nodiscard]] std::filesystem::path utf8_path(std::string_view text);
 [[nodiscard]] bool is_disk_full(const std::error_code &error) noexcept;
-[[nodiscard]] TaskError export_io_error(std::string message, std::string_view path,
-                                        const std::error_code &error);
 [[nodiscard]] Result<void> write_bytes_atomically(std::string_view dest_utf8,
                                                   const std::vector<std::uint8_t> &bytes,
                                                   const CancellationToken &cancellation);
+[[nodiscard]] Result<void> write_bytes_atomically(std::string_view dest_utf8,
+                                                  const std::vector<std::uint8_t> &bytes,
+                                                  const CancellationToken &cancellation,
+                                                  EncodedPublicationCheckpointHook checkpoint_hook);
 [[nodiscard]] Result<std::uint64_t> copy_file_atomically(std::string_view source_utf8,
                                                          std::string_view dest_utf8,
                                                          const CancellationToken &cancellation);

@@ -163,6 +163,17 @@ gtest_discover_tests(ravo_original_copy_service_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-original-copy-service")
 
+add_executable(ravo_encoded_publication_tests encoded_publication_test.cpp)
+target_link_libraries(ravo_encoded_publication_tests PRIVATE GTest::gtest_main ravo_services)
+target_include_directories(ravo_encoded_publication_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/Ravo/services/src
+  ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_encoded_publication_tests)
+ravo_copy_windows_runtime_dlls(ravo_encoded_publication_tests)
+gtest_discover_tests(ravo_encoded_publication_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-encoded-publication")
+
 add_executable(ravo_original_copy_cli_tests original_copy_cli_test.cpp)
 target_link_libraries(ravo_original_copy_cli_tests
   PRIVATE GTest::gtest ravo_cli Qt6::Core Qt6::Gui Qt6::Sql)

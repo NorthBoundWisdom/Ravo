@@ -191,6 +191,20 @@ cancellation is not injectable in this tranche and must not be reported as
 covered. These contracts do not retire `legacy/src/imageio/format/copy.c` or
 claim I14 batch/storage policy.
 
+Encoded-publication tests freeze exact multi-chunk and empty output, immutable
+input bytes, preservation of the old fixed temporary sentinel, and cleanup of
+only a uniquely opened adjacent temporary. Regular, directory, symlink,
+dangling-symlink, FIFO, and concurrent late targets remain untouched. A private
+synchronous hook deterministically covers
+entry/mid-write/pre-sync/pre-close/pre-publish cancellation, partial-write
+state, temporary open/write/sync/close/publish
+failures, stage-preserving disk-full context, a cleanup failure that cannot
+replace the primary error, and two parallel writers with exactly one exact
+winner. Every result retains `path` and adds explicit `output` context.
+Original-copy tests rerun against the extracted destination primitives. The
+macOS evidence does not claim parent-directory synchronization,
+Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
+
 ## Preview and viewer
 
 - Write preview cache to a temporary file and publish atomically; a failed
@@ -403,7 +417,8 @@ claim I14 batch/storage policy.
   and explicit propagation, unrelated-format isolation, no partial output on
   validation failure, and source immutability. Existing ICC APP2, 300 dpi,
   65,500-dimension, resource, and entry/scanline cancellation gates remain.
-  EXIF/XMP and final encoded-file publication/disk-full are later contracts.
+  Final bytes use the shared encoded-publication contract; EXIF/XMP construction
+  remains a later JPEG contract.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

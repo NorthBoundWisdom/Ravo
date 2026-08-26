@@ -3,10 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cerrno>
 #include <chrono>
 #include <cstdint>
-#include <fstream>
 #include <map>
 #include <set>
 #include <system_error>
@@ -344,104 +342,6 @@ void disable_raw_preprocess(Recipe &recipe)
 [[nodiscard]] bool is_disk_full(const std::error_code &error) noexcept
 {
     return error == std::errc::no_space_on_device;
-}
-
-[[nodiscard]] TaskError export_io_error(std::string message, const std::string_view path,
-                                        const std::error_code &error)
-{
-    std::map<std::string, std::string, std::less<>> context{{"path", std::string(path)}};
-    if (error)
-    {
-        context.emplace("detail", error.message());
-    }
-    if (is_disk_full(error))
-    {
-        context.emplace("reason", "disk_full");
-    }
-    return make_error(ErrorCode::kIo, std::move(message), std::move(context));
-}
-
-[[nodiscard]] Result<void> write_bytes_atomically(const std::string_view dest_utf8,
-                                                  const std::vector<std::uint8_t> &bytes,
-                                                  const CancellationToken &cancellation)
-{
-    auto cancelled = cancellation.check();
-    if (!cancelled)
-    {
-        return cancelled.error();
-    }
-    const auto dest = utf8_path(dest_utf8);
-    std::error_code error;
-    if (std::filesystem::exists(dest, error))
-    {
-        return make_error(ErrorCode::kConflict, "Export output already exists",
-                          {{"path", std::string(dest_utf8)}});
-    }
-    if (error)
-    {
-        return export_io_error("Unable to inspect export output path", dest_utf8, error);
-    }
-    const auto parent = dest.parent_path();
-    if (!parent.empty() && !std::filesystem::is_directory(parent, error))
-    {
-        return make_error(ErrorCode::kIo, "Export directory does not exist",
-                          {{"path", std::string(dest_utf8)}});
-    }
-    auto temporary = dest;
-    temporary += ".ravo-export-tmp";
-    std::filesystem::remove(temporary, error);
-    {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output)
-        {
-            std::filesystem::remove(temporary, error);
-            return export_io_error("Unable to open temporary export file", dest_utf8,
-                                   std::error_code(errno, std::generic_category()));
-        }
-        constexpr std::size_t kChunk = 64U * 1024U;
-        std::size_t offset = 0;
-        while (offset < bytes.size())
-        {
-            cancelled = cancellation.check();
-            if (!cancelled)
-            {
-                output.close();
-                std::filesystem::remove(temporary, error);
-                return cancelled.error();
-            }
-            const auto remaining = bytes.size() - offset;
-            const auto step = remaining < kChunk ? remaining : kChunk;
-            output.write(reinterpret_cast<const char *>(bytes.data() + offset),
-                         static_cast<std::streamsize>(step));
-            if (!output)
-            {
-                output.close();
-                std::filesystem::remove(temporary, error);
-                return export_io_error("Unable to write export file", dest_utf8,
-                                       std::error_code(errno, std::generic_category()));
-            }
-            offset += step;
-        }
-        output.close();
-        if (!output)
-        {
-            std::filesystem::remove(temporary, error);
-            return export_io_error("Unable to finish export file", dest_utf8,
-                                   std::error_code(errno, std::generic_category()));
-        }
-    }
-    std::filesystem::rename(temporary, dest, error);
-    if (error)
-    {
-        std::filesystem::remove(temporary, error);
-        if (std::filesystem::exists(dest))
-        {
-            return make_error(ErrorCode::kConflict, "Export output already exists",
-                              {{"path", std::string(dest_utf8)}});
-        }
-        return export_io_error("Unable to commit export file", dest_utf8, error);
-    }
-    return {};
 }
 
 } // namespace ravo

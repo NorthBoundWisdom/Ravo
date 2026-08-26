@@ -11,6 +11,8 @@
 #include <system_error>
 #include <utility>
 
+#include "atomic_publication_internal.h"
+
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -21,17 +23,9 @@
 #include <fcntl.h>
 #include <io.h>
 #include <share.h>
-#include <sys/stat.h>
-#include <windows.h>
 #else
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#ifdef __APPLE__
-#include <sys/stdio.h>
-#elif defined(__linux__)
-#include <sys/syscall.h>
-#endif
 #endif
 
 namespace ravo
@@ -43,143 +37,14 @@ namespace
 constexpr std::size_t kOriginalCopyChunkBytes = 64U * 1024U;
 constexpr int kOriginalCopyTemporaryAttempts = 32;
 
-class FileDescriptor
-{
-public:
-    FileDescriptor() = default;
-    explicit FileDescriptor(const int descriptor) noexcept
-        : descriptor_(descriptor)
-    {
-    }
-
-    FileDescriptor(const FileDescriptor &) = delete;
-    FileDescriptor &operator=(const FileDescriptor &) = delete;
-    FileDescriptor(FileDescriptor &&other) noexcept
-        : descriptor_(std::exchange(other.descriptor_, -1))
-    {
-    }
-    FileDescriptor &operator=(FileDescriptor &&other) noexcept
-    {
-        if (this != &other)
-        {
-            close_ignoring_error();
-            descriptor_ = std::exchange(other.descriptor_, -1);
-        }
-        return *this;
-    }
-
-    ~FileDescriptor()
-    {
-        close_ignoring_error();
-    }
-
-    [[nodiscard]] int get() const noexcept
-    {
-        return descriptor_;
-    }
-
-    [[nodiscard]] std::error_code finish() noexcept
-    {
-        if (descriptor_ < 0)
-        {
-            return std::make_error_code(std::errc::bad_file_descriptor);
-        }
-#ifdef _WIN32
-        if (::_commit(descriptor_) != 0)
-#else
-        int sync_result = -1;
-        do
-        {
-            sync_result = ::fsync(descriptor_);
-        } while (sync_result != 0 && errno == EINTR);
-        if (sync_result != 0)
-#endif
-        {
-            const std::error_code error(errno, std::generic_category());
-            close_ignoring_error();
-            return error;
-        }
-        return close();
-    }
-
-    [[nodiscard]] std::error_code close() noexcept
-    {
-        if (descriptor_ < 0)
-        {
-            return {};
-        }
-        const int descriptor = std::exchange(descriptor_, -1);
-#ifdef _WIN32
-        if (::_close(descriptor) != 0)
-#else
-        if (::close(descriptor) != 0)
-#endif
-        {
-            return std::error_code(errno, std::generic_category());
-        }
-        return {};
-    }
-
-private:
-    void close_ignoring_error() noexcept
-    {
-        static_cast<void>(close());
-    }
-
-    int descriptor_ = -1;
-};
-
-class OwnedTemporaryPath
-{
-public:
-    OwnedTemporaryPath() = default;
-    OwnedTemporaryPath(const OwnedTemporaryPath &) = delete;
-    OwnedTemporaryPath &operator=(const OwnedTemporaryPath &) = delete;
-
-    ~OwnedTemporaryPath()
-    {
-        remove_ignoring_error();
-    }
-
-    void reset(std::filesystem::path path)
-    {
-        remove_ignoring_error();
-        path_ = std::move(path);
-    }
-
-    [[nodiscard]] const std::filesystem::path &path() const noexcept
-    {
-        return path_;
-    }
-
-    [[nodiscard]] std::error_code remove() noexcept
-    {
-        if (path_.empty())
-        {
-            return {};
-        }
-        std::error_code error;
-        std::filesystem::remove(path_, error);
-        if (!error)
-        {
-            path_.clear();
-        }
-        return error;
-    }
-
-    void release() noexcept
-    {
-        path_.clear();
-    }
-
-private:
-    void remove_ignoring_error() noexcept
-    {
-        static_cast<void>(remove());
-    }
-
-    std::filesystem::path path_;
-};
+using atomic_publication_internal::checkpoint_path_utf8;
+using atomic_publication_internal::FileDescriptor;
+using atomic_publication_internal::has_write_permission;
+using atomic_publication_internal::open_temporary_descriptor;
+using atomic_publication_internal::OwnedTemporaryPath;
+using atomic_publication_internal::publish_no_replace;
+using atomic_publication_internal::temporary_candidate;
+using atomic_publication_internal::write_descriptor;
 
 [[nodiscard]] int open_source_descriptor(const std::filesystem::path &path) noexcept
 {
@@ -198,24 +63,6 @@ private:
 #endif
 }
 
-[[nodiscard]] int open_temporary_descriptor(const std::filesystem::path &path) noexcept
-{
-#ifdef _WIN32
-    int descriptor = -1;
-    const errno_t result = ::_wsopen_s(&descriptor, path.c_str(),
-                                       _O_BINARY | _O_WRONLY | _O_CREAT | _O_EXCL | _O_NOINHERIT,
-                                       _SH_DENYRW, _S_IREAD | _S_IWRITE);
-    if (result != 0)
-    {
-        errno = result;
-        return -1;
-    }
-    return descriptor;
-#else
-    return ::open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
-#endif
-}
-
 [[nodiscard]] std::int64_t read_descriptor(const int descriptor, void *const bytes,
                                            const std::size_t size) noexcept
 {
@@ -229,34 +76,6 @@ private:
     } while (result < 0 && errno == EINTR);
     return result;
 #endif
-}
-
-[[nodiscard]] std::int64_t write_descriptor(const int descriptor, const void *const bytes,
-                                            const std::size_t size) noexcept
-{
-#ifdef _WIN32
-    return ::_write(descriptor, bytes, static_cast<unsigned int>(size));
-#else
-    std::int64_t result = -1;
-    do
-    {
-        result = ::write(descriptor, bytes, size);
-    } while (result < 0 && errno == EINTR);
-    return result;
-#endif
-}
-
-[[nodiscard]] std::string path_utf8(const std::filesystem::path &path)
-{
-    const auto encoded = path.generic_u8string();
-    return {reinterpret_cast<const char *>(encoded.data()), encoded.size()};
-}
-
-[[nodiscard]] std::string checkpoint_path_utf8(const std::filesystem::path &path)
-{
-    std::error_code error;
-    const auto canonical = std::filesystem::weakly_canonical(path, error);
-    return path_utf8(error ? path : canonical);
 }
 
 [[nodiscard]] TaskError original_copy_error(const ErrorCode code, std::string message,
@@ -306,16 +125,6 @@ invoke_original_copy_hook(const OriginalCopyCheckpointHook &hook,
                hook.callback(hook.context, checkpoint, path, bytes_processed);
 }
 
-#ifndef _WIN32
-[[nodiscard]] bool has_write_permission(const std::filesystem::perms permissions) noexcept
-{
-    constexpr auto write_permissions = std::filesystem::perms::owner_write |
-                                       std::filesystem::perms::group_write |
-                                       std::filesystem::perms::others_write;
-    return (permissions & write_permissions) != std::filesystem::perms::none;
-}
-#endif
-
 [[nodiscard]] bool paths_are_same(const std::filesystem::path &source,
                                   const std::filesystem::path &output) noexcept
 {
@@ -326,45 +135,6 @@ invoke_original_copy_hook(const OriginalCopyCheckpointHook &hook,
     std::error_code error;
     return std::filesystem::exists(output, error) && !error &&
            std::filesystem::equivalent(source, output, error) && !error;
-}
-
-[[nodiscard]] std::filesystem::path temporary_candidate(const std::filesystem::path &output)
-{
-    const auto parent =
-        output.parent_path().empty() ? std::filesystem::path(".") : output.parent_path();
-    auto filename = output.filename();
-    filename += utf8_path(".ravo-original-copy-" + generate_catalog_id() + ".tmp");
-    return parent / filename;
-}
-
-[[nodiscard]] std::error_code publish_no_replace(const std::filesystem::path &temporary,
-                                                 const std::filesystem::path &output) noexcept
-{
-#ifdef _WIN32
-    if (::MoveFileExW(temporary.c_str(), output.c_str(), MOVEFILE_WRITE_THROUGH) != 0)
-    {
-        return {};
-    }
-    return {static_cast<int>(::GetLastError()), std::system_category()};
-#elif defined(__APPLE__)
-    if (::renamex_np(temporary.c_str(), output.c_str(), RENAME_EXCL) == 0)
-    {
-        return {};
-    }
-    return {errno, std::generic_category()};
-#elif defined(__linux__) && defined(SYS_renameat2)
-    constexpr unsigned int kRenameNoReplace = 1U;
-    if (::syscall(SYS_renameat2, AT_FDCWD, temporary.c_str(), AT_FDCWD, output.c_str(),
-                  kRenameNoReplace) == 0)
-    {
-        return {};
-    }
-    return {errno, std::generic_category()};
-#else
-    static_cast<void>(temporary);
-    static_cast<void>(output);
-    return std::make_error_code(std::errc::operation_not_supported);
-#endif
 }
 
 [[nodiscard]] TaskError hook_stage_error(const OriginalCopyCheckpoint checkpoint,
@@ -539,7 +309,7 @@ copy_file_atomically(const std::string_view source_utf8, const std::string_view 
     std::string temporary_utf8;
     for (int attempt = 0; attempt < kOriginalCopyTemporaryAttempts; ++attempt)
     {
-        const auto candidate = temporary_candidate(output);
+        const auto candidate = temporary_candidate(output, "original-copy");
         temporary_utf8 = checkpoint_path_utf8(candidate);
         hook_error = invoke_original_copy_hook(
             checkpoint_hook, OriginalCopyCheckpoint::kBeforeTemporaryOpen, temporary_utf8, 0U);
