@@ -729,6 +729,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {
                 row.emplace("asset", asset_to_json(*item.asset));
             }
+            if (item.error)
+            {
+                row.emplace("error", error_object(*item.error));
+            }
             if (item.status == ImportItemStatus::kImported)
             {
                 ++imported_count;

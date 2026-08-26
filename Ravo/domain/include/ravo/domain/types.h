@@ -107,6 +107,16 @@ enum class ExportFormat
     kOriginalCopy,
 };
 
+enum class RasterPixelFormat : std::uint8_t
+{
+    kRgb8 = 0,
+};
+
+enum class RasterAlphaMode : std::uint8_t
+{
+    kOpaque = 0,
+};
+
 struct ReviewState
 {
     int rating = 0;
@@ -285,6 +295,8 @@ struct DecodedRaster
     std::uint32_t height = 0;
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
+    RasterPixelFormat pixel_format = RasterPixelFormat::kRgb8;
+    RasterAlphaMode alpha_mode = RasterAlphaMode::kOpaque;
 };
 
 struct FileIdentity

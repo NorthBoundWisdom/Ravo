@@ -759,6 +759,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     const std::filesystem::path file_path(
         std::u8string(location.value().path.begin(), location.value().path.end()));
     std::optional<EmbeddedPreview> embedded_preview;
+    std::optional<DecodedRaster> validated_raster;
     const auto apply_inspection = [&](const InspectionResult &inspected) -> Result<void>
     {
         if (!inspected.is_raw)
@@ -816,9 +817,28 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
             asset.media_type = raster.value().media_type;
             asset.width = raster.value().width;
             asset.height = raster.value().height;
+            if (asset.media_type == kMediaTypeJpeg)
+            {
+                auto decoded =
+                    raster_->decode(location.value().path, kThumbnailMaxEdge, cancellation);
+                if (!decoded)
+                {
+                    if (decoded.error().code == ErrorCode::kUnsupported)
+                    {
+                        return unsupported_item(location.value().path, decoded.error());
+                    }
+                    return failed_item(location.value().path, decoded.error());
+                }
+                validated_raster = std::move(decoded).value();
+            }
         }
         else if (raster.error().code == ErrorCode::kUnsupported)
         {
+            const auto format = raster.error().context.find("format");
+            if (format != raster.error().context.end() && format->second == "jpeg")
+            {
+                return unsupported_item(location.value().path, raster.error());
+            }
             auto probed = engine_->inspect_with_embedded_preview(location.value().path,
                                                                  kThumbnailMaxEdge, cancellation);
             if (!probed)
@@ -857,6 +877,18 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     if (!revision)
     {
         return failed_item(location.value().path, revision.error());
+    }
+
+    if (validated_raster)
+    {
+        RasterBuffer raster;
+        raster.width = validated_raster->width;
+        raster.height = validated_raster->height;
+        raster.srgb = std::move(validated_raster->rgb);
+        raster.color_profile = std::move(validated_raster->color_profile);
+        decoded_preview_source_ =
+            DecodedPreviewSource{asset.id, asset.content_fingerprint.value_or("none"),
+                                 kThumbnailMaxEdge, std::move(raster)};
     }
 
     PreviewRequest imported_preview;

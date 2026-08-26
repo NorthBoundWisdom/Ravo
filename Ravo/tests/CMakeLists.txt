@@ -24,6 +24,7 @@ add_executable(ravo_contract_tests
   cli_test.cpp
   engine_test.cpp
   input_color_test.cpp
+  jpeg_cli_test.cpp
   output_color_test.cpp
   profile_gamma_test.cpp
   primaries_test.cpp)
@@ -46,6 +47,7 @@ gtest_discover_tests(ravo_contract_tests
 
 add_executable(ravo_catalog_tests
   catalog_test.cpp
+  jpeg_adapter_test.cpp
   runtime_dependency_test.cpp)
 target_link_libraries(ravo_catalog_tests
   PRIVATE
