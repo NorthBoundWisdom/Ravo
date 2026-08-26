@@ -1,3 +1,4 @@
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -128,10 +129,71 @@ TEST(ExportFormatTest, ParsesNamesAndRejectsUnknownValues)
     EXPECT_EQ(jpeg.value(), ExportFormat::kJpeg);
     EXPECT_EQ(export_format_name(ExportFormat::kOriginalCopy), "original");
     EXPECT_EQ(export_format_extension(ExportFormat::kPng), ".png");
-    EXPECT_TRUE(validate_jpeg_quality(90));
-    EXPECT_FALSE(validate_jpeg_quality(0));
-    EXPECT_FALSE(validate_jpeg_quality(101));
     EXPECT_FALSE(parse_export_format("heif"));
+}
+
+TEST(ExportFormatTest, OwnsTypedJpegOptionsAndRejectsInvalidValues)
+{
+    const JpegExportOptions defaults;
+    EXPECT_EQ(defaults.quality, 95);
+    EXPECT_EQ(defaults.subsampling, JpegSubsampling::kAuto);
+    EXPECT_TRUE(validate_jpeg_export_options(defaults));
+
+    struct SubsamplingExpectation
+    {
+        JpegSubsampling value = JpegSubsampling::kAuto;
+        std::string_view name;
+        std::uint8_t wire_value = 0U;
+    };
+    constexpr std::array<SubsamplingExpectation, 5U> kExpectations{{
+        {JpegSubsampling::kAuto, "auto", 0U},
+        {JpegSubsampling::k444, "444", 1U},
+        {JpegSubsampling::k440, "440", 2U},
+        {JpegSubsampling::k422, "422", 3U},
+        {JpegSubsampling::k420, "420", 4U},
+    }};
+    for (const SubsamplingExpectation &expectation : kExpectations)
+    {
+        EXPECT_EQ(static_cast<std::uint8_t>(expectation.value), expectation.wire_value);
+        EXPECT_EQ(jpeg_subsampling_name(expectation.value), expectation.name);
+        const auto parsed = parse_jpeg_subsampling(expectation.name);
+        ASSERT_TRUE(parsed) << parsed.error().message;
+        EXPECT_EQ(parsed.value(), expectation.value);
+    }
+
+    JpegExportOptions minimum{5, JpegSubsampling::k420};
+    JpegExportOptions maximum{100, JpegSubsampling::k444};
+    EXPECT_TRUE(validate_jpeg_export_options(minimum));
+    EXPECT_TRUE(validate_jpeg_export_options(maximum));
+    EXPECT_EQ(minimum, JpegExportOptions(5, JpegSubsampling::k420));
+
+    JpegExportOptions below_minimum{4, JpegSubsampling::kAuto};
+    const auto invalid_quality = validate_jpeg_export_options(below_minimum);
+    ASSERT_FALSE(invalid_quality);
+    EXPECT_EQ(invalid_quality.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_quality.error().context.at("format"), "jpeg");
+    EXPECT_EQ(invalid_quality.error().context.at("reason"), "invalid_jpeg_quality");
+    EXPECT_EQ(invalid_quality.error().context.at("quality"), "4");
+    EXPECT_EQ(invalid_quality.error().context.at("minimum"), "5");
+    EXPECT_EQ(invalid_quality.error().context.at("maximum"), "100");
+    JpegExportOptions above_maximum{101, JpegSubsampling::kAuto};
+    EXPECT_FALSE(validate_jpeg_export_options(above_maximum));
+
+    JpegExportOptions invalid_subsampling{
+        95, static_cast<JpegSubsampling>(static_cast<std::uint8_t>(5U))};
+    const auto invalid_mode = validate_jpeg_export_options(invalid_subsampling);
+    ASSERT_FALSE(invalid_mode);
+    EXPECT_EQ(invalid_mode.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_mode.error().context.at("format"), "jpeg");
+    EXPECT_EQ(invalid_mode.error().context.at("reason"), "invalid_jpeg_subsampling");
+    EXPECT_EQ(invalid_mode.error().context.at("subsampling"), "5");
+    EXPECT_EQ(jpeg_subsampling_name(invalid_subsampling.subsampling), "unknown");
+    const auto noncanonical = parse_jpeg_subsampling("4:2:2");
+    ASSERT_FALSE(noncanonical);
+    EXPECT_EQ(noncanonical.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(noncanonical.error().context.at("format"), "jpeg");
+    EXPECT_EQ(noncanonical.error().context.at("reason"), "invalid_jpeg_subsampling");
+    EXPECT_EQ(noncanonical.error().context.at("subsampling"), "4:2:2");
 }
 
 TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)

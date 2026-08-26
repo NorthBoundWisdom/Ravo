@@ -3358,11 +3358,10 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
                          cancellation, "memory");
 }
 
-Result<std::vector<std::uint8_t>>
-QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
-                        const std::vector<std::uint8_t> &rgb,
-                        const ColorProfileState &color_profile, const ExportFormat format,
-                        const int jpeg_quality, const CancellationToken &cancellation) const
+Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
+    const std::uint32_t width, const std::uint32_t height, const std::vector<std::uint8_t> &rgb,
+    const ColorProfileState &color_profile, const ExportFormat format,
+    const JpegExportOptions &jpeg_options, const CancellationToken &cancellation) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -3405,7 +3404,7 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
                                {"format", "jpeg"},
                                {"reason", "jpeg_source_size_mismatch"}});
         }
-        auto configuration = detail::jpeg_encode_configuration(jpeg_quality);
+        auto configuration = detail::jpeg_encode_configuration(jpeg_options);
         if (!configuration)
         {
             return configuration.error();
@@ -3430,7 +3429,7 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
         return detail::encode_jpeg_rgb8(width, height, rgb,
                                         {reinterpret_cast<const std::uint8_t *>(icc.constData()),
                                          static_cast<std::size_t>(icc.size())},
-                                        jpeg_quality, cancellation);
+                                        jpeg_options, cancellation);
     }
     const auto expected =
         static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;

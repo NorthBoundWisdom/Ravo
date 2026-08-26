@@ -18,7 +18,8 @@ public:
                                                       int rotate_quarters = 0) const override;
     [[nodiscard]] Result<std::vector<std::uint8_t>>
     encode(std::uint32_t width, std::uint32_t height, const std::vector<std::uint8_t> &rgb,
-           const ColorProfileState &color_profile, ExportFormat format, int jpeg_quality,
+           const ColorProfileState &color_profile, ExportFormat format,
+           const JpegExportOptions &jpeg_options,
            const CancellationToken &cancellation) const override;
 };
 

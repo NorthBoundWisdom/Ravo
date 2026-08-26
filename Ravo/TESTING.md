@@ -393,6 +393,17 @@ claim I14 batch/storage policy.
   and model, every non-finite sample, row cancellation, source immutability,
   owned output, and exact sRGB/Display P3/file-ICC state through CLI and Catalog
   publication without a second transfer curve.
+- JPEG export freezes one typed options value from `ExportRequest` through
+  CatalogService and the raster port to the pinned private encoder. Domain tests
+  cover default quality 95, the 5–100 range, stable enum values and canonical
+  names, and fail-closed quality/subsampling errors. Adapter tests parse JPEG
+  headers to verify automatic 90/91/92/93 thresholds and explicit
+  4:4:4/4:4:0/4:2:2/4:2:0 factors without changing quality-owned quantization,
+  DCT, smoothing, or optimized Huffman behavior. Catalog tests prove default
+  and explicit propagation, unrelated-format isolation, no partial output on
+  validation failure, and source immutability. Existing ICC APP2, 300 dpi,
+  65,500-dimension, resource, and entry/scanline cancellation gates remain.
+  EXIF/XMP and final encoded-file publication/disk-full are later contracts.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

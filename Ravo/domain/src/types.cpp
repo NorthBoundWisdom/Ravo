@@ -203,14 +203,77 @@ Result<ExportFormat> parse_export_format(const std::string_view name)
                       {{"format", std::string(name)}});
 }
 
-Result<void> validate_jpeg_quality(const int quality)
+std::string_view jpeg_subsampling_name(const JpegSubsampling subsampling) noexcept
 {
-    if (quality < kJpegQualityMin || quality > kJpegQualityMax)
+    switch (subsampling)
     {
-        return make_error(ErrorCode::kValidation, "JPEG quality must be between 1 and 100",
-                          {{"quality", std::to_string(quality)}});
+    case JpegSubsampling::kAuto:
+        return "auto";
+    case JpegSubsampling::k444:
+        return "444";
+    case JpegSubsampling::k440:
+        return "440";
+    case JpegSubsampling::k422:
+        return "422";
+    case JpegSubsampling::k420:
+        return "420";
     }
-    return {};
+    return "unknown";
+}
+
+Result<JpegSubsampling> parse_jpeg_subsampling(const std::string_view name)
+{
+    if (name == "auto")
+    {
+        return JpegSubsampling::kAuto;
+    }
+    if (name == "444")
+    {
+        return JpegSubsampling::k444;
+    }
+    if (name == "440")
+    {
+        return JpegSubsampling::k440;
+    }
+    if (name == "422")
+    {
+        return JpegSubsampling::k422;
+    }
+    if (name == "420")
+    {
+        return JpegSubsampling::k420;
+    }
+    return make_error(ErrorCode::kValidation, "Unknown JPEG subsampling mode",
+                      {{"format", "jpeg"},
+                       {"reason", "invalid_jpeg_subsampling"},
+                       {"subsampling", std::string(name)}});
+}
+
+Result<void> validate_jpeg_export_options(const JpegExportOptions &options)
+{
+    if (options.quality < kJpegQualityMin || options.quality > kJpegQualityMax)
+    {
+        return make_error(ErrorCode::kValidation, "JPEG quality must be between 5 and 100",
+                          {{"format", "jpeg"},
+                           {"maximum", std::to_string(kJpegQualityMax)},
+                           {"minimum", std::to_string(kJpegQualityMin)},
+                           {"quality", std::to_string(options.quality)},
+                           {"reason", "invalid_jpeg_quality"}});
+    }
+    switch (options.subsampling)
+    {
+    case JpegSubsampling::kAuto:
+    case JpegSubsampling::k444:
+    case JpegSubsampling::k440:
+    case JpegSubsampling::k422:
+    case JpegSubsampling::k420:
+        return {};
+    }
+    return make_error(
+        ErrorCode::kValidation, "JPEG subsampling mode is invalid",
+        {{"format", "jpeg"},
+         {"reason", "invalid_jpeg_subsampling"},
+         {"subsampling", std::to_string(static_cast<std::uint8_t>(options.subsampling))}});
 }
 
 std::string asset_display_name(const AssetRecord &asset)

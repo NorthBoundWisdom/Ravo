@@ -358,6 +358,11 @@ jpeg_first_luminance_quantizer(const std::vector<std::uint8_t> &bytes)
             reinterpret_cast<const std::uint8_t *>(profile.constData()) + profile.size()};
 }
 
+[[nodiscard]] constexpr JpegExportOptions jpeg_options(const int quality)
+{
+    return {quality, JpegSubsampling::kAuto};
+}
+
 template <typename T>
 void expect_jpeg_encode_error(const Result<T> &result, const ErrorCode code,
                               const std::string_view reason)
@@ -418,7 +423,7 @@ TEST(JpegExportContractTest, AutoSubsamplingMatchesFrozenLegacyQualityThresholds
     {
         SCOPED_TRACE(expectation.quality);
         const auto encoded = decoder.encode(32U, 24U, pixels, srgb, ExportFormat::kJpeg,
-                                            expectation.quality, CancellationToken{});
+                                            jpeg_options(expectation.quality), CancellationToken{});
         ASSERT_TRUE(encoded) << encoded.error().message;
         const auto sampling = jpeg_sampling_factors(encoded.value());
         ASSERT_TRUE(sampling);
@@ -430,6 +435,67 @@ TEST(JpegExportContractTest, AutoSubsamplingMatchesFrozenLegacyQualityThresholds
         EXPECT_EQ(sampling->cr_vertical, 1U);
     }
     EXPECT_EQ(pixels, source);
+}
+
+TEST(JpegExportContractTest, ExplicitSubsamplingOverridesOnlyTheFrozenSamplingFactors)
+{
+    struct Expectation
+    {
+        JpegSubsampling subsampling = JpegSubsampling::kAuto;
+        std::uint8_t y_horizontal = 0U;
+        std::uint8_t y_vertical = 0U;
+    };
+    constexpr std::array<Expectation, 5U> kExpectations{{
+        {JpegSubsampling::kAuto, 2U, 2U},
+        {JpegSubsampling::k444, 1U, 1U},
+        {JpegSubsampling::k440, 1U, 2U},
+        {JpegSubsampling::k422, 2U, 1U},
+        {JpegSubsampling::k420, 2U, 2U},
+    }};
+    const auto pixels = jpeg_test_pixels(32U, 24U);
+    ColorProfileState srgb;
+    srgb.kind = ColorProfileKind::kBuiltin;
+    srgb.model = ColorModel::kRgb;
+    srgb.identifier = "srgb";
+    QtRasterDecoder decoder;
+    std::optional<std::uint16_t> automatic_quantizer;
+
+    for (const Expectation &expectation : kExpectations)
+    {
+        SCOPED_TRACE(jpeg_subsampling_name(expectation.subsampling));
+        const JpegExportOptions options{85, expectation.subsampling};
+        const auto configuration = detail::jpeg_encode_configuration(options);
+        ASSERT_TRUE(configuration) << configuration.error().message;
+        EXPECT_EQ(configuration.value().quality, 85);
+        EXPECT_EQ(configuration.value().smoothing_factor, 0);
+        EXPECT_EQ(configuration.value().dct_method, detail::JpegDctMethod::kIntegerSlow);
+        EXPECT_TRUE(configuration.value().optimize_coding);
+        EXPECT_EQ(configuration.value().y_horizontal, expectation.y_horizontal);
+        EXPECT_EQ(configuration.value().y_vertical, expectation.y_vertical);
+
+        const auto encoded = decoder.encode(32U, 24U, pixels, srgb, ExportFormat::kJpeg, options,
+                                            CancellationToken{});
+        ASSERT_TRUE(encoded) << encoded.error().message;
+        const auto sampling = jpeg_sampling_factors(encoded.value());
+        ASSERT_TRUE(sampling);
+        EXPECT_EQ(sampling->y_horizontal, expectation.y_horizontal);
+        EXPECT_EQ(sampling->y_vertical, expectation.y_vertical);
+        EXPECT_EQ(sampling->cb_horizontal, 1U);
+        EXPECT_EQ(sampling->cb_vertical, 1U);
+        EXPECT_EQ(sampling->cr_horizontal, 1U);
+        EXPECT_EQ(sampling->cr_vertical, 1U);
+        const auto quantizer = jpeg_first_luminance_quantizer(encoded.value());
+        ASSERT_TRUE(quantizer);
+        if (expectation.subsampling == JpegSubsampling::kAuto)
+        {
+            automatic_quantizer = *quantizer;
+        }
+        else
+        {
+            ASSERT_TRUE(automatic_quantizer);
+            EXPECT_EQ(*quantizer, *automatic_quantizer);
+        }
+    }
 }
 
 TEST(JpegExportContractTest, QualityConfigurationMatchesFrozenLegacySource)
@@ -460,7 +526,8 @@ TEST(JpegExportContractTest, QualityConfigurationMatchesFrozenLegacySource)
     for (const Expectation &expectation : kExpectations)
     {
         SCOPED_TRACE(expectation.quality);
-        const auto configuration = detail::jpeg_encode_configuration(expectation.quality);
+        const auto configuration =
+            detail::jpeg_encode_configuration(jpeg_options(expectation.quality));
         ASSERT_TRUE(configuration) << configuration.error().message;
         EXPECT_EQ(configuration.value().quality, expectation.quality);
         EXPECT_EQ(configuration.value().smoothing_factor, expectation.smoothing);
@@ -473,10 +540,10 @@ TEST(JpegExportContractTest, QualityConfigurationMatchesFrozenLegacySource)
         EXPECT_EQ(configuration.value().cr_horizontal, 1U);
         EXPECT_EQ(configuration.value().cr_vertical, 1U);
     }
-    expect_jpeg_encode_error(detail::jpeg_encode_configuration(0), ErrorCode::kValidation,
-                             "invalid_jpeg_quality");
-    expect_jpeg_encode_error(detail::jpeg_encode_configuration(101), ErrorCode::kValidation,
-                             "invalid_jpeg_quality");
+    expect_jpeg_encode_error(detail::jpeg_encode_configuration(jpeg_options(0)),
+                             ErrorCode::kValidation, "invalid_jpeg_quality");
+    expect_jpeg_encode_error(detail::jpeg_encode_configuration(jpeg_options(101)),
+                             ErrorCode::kValidation, "invalid_jpeg_quality");
 }
 
 TEST(JpegExportContractTest, QualityControlsBaselineQuantization)
@@ -498,7 +565,7 @@ TEST(JpegExportContractTest, QualityControlsBaselineQuantization)
     {
         SCOPED_TRACE(expectation.quality);
         const auto encoded = decoder.encode(32U, 24U, pixels, srgb, ExportFormat::kJpeg,
-                                            expectation.quality, CancellationToken{});
+                                            jpeg_options(expectation.quality), CancellationToken{});
         ASSERT_TRUE(encoded) << encoded.error().message;
         const auto quantizer = jpeg_first_luminance_quantizer(encoded.value());
         ASSERT_TRUE(quantizer);
@@ -518,8 +585,8 @@ TEST(JpegExportContractTest, EmbedsResolvedRgbIccExactlyAndUsesFrozenJfifDensity
     display_p3.identifier = "display-p3-test";
     display_p3.icc_bytes = profile;
     QtRasterDecoder decoder;
-    const auto encoded =
-        decoder.encode(37U, 19U, pixels, display_p3, ExportFormat::kJpeg, 95, CancellationToken{});
+    const auto encoded = decoder.encode(37U, 19U, pixels, display_p3, ExportFormat::kJpeg,
+                                        jpeg_options(95), CancellationToken{});
     ASSERT_TRUE(encoded) << encoded.error().message;
     const auto frame = jpeg_frame_contract(encoded.value());
     ASSERT_TRUE(frame);
@@ -550,7 +617,8 @@ TEST(JpegExportContractTest, SplitsResolvedIccAtTheFrozenAppTwoPayloadBoundary)
         profile[index] = static_cast<std::uint8_t>((index * 17U + 3U) & 0xFFU);
     }
     const auto profile_before = profile;
-    const auto encoded = detail::encode_jpeg_rgb8(8U, 8U, pixels, profile, 90, CancellationToken{});
+    const auto encoded =
+        detail::encode_jpeg_rgb8(8U, 8U, pixels, profile, jpeg_options(90), CancellationToken{});
     ASSERT_TRUE(encoded) << encoded.error().message;
     const auto segments = jpeg_icc_segments(encoded.value());
     ASSERT_TRUE(segments);
@@ -572,33 +640,35 @@ TEST(JpegExportContractTest, RejectsInvalidAndOversizedInputsWithoutPublishingBy
     const auto pixels = jpeg_test_pixels(16U, 8U);
     const auto profile = display_p3_icc();
     expect_jpeg_encode_error(
-        detail::encode_jpeg_rgb8(0U, 8U, pixels, profile, 90, CancellationToken{}),
+        detail::encode_jpeg_rgb8(0U, 8U, pixels, profile, jpeg_options(90), CancellationToken{}),
         ErrorCode::kValidation, "invalid_jpeg_dimensions");
     expect_jpeg_encode_error(detail::encode_jpeg_rgb8(detail::kJpegMaxDimension + 1U, 1U, pixels,
-                                                      profile, 90, CancellationToken{}),
+                                                      profile, jpeg_options(90),
+                                                      CancellationToken{}),
+                             ErrorCode::kValidation, "invalid_jpeg_dimensions");
+    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(65535U, 1U, pixels, profile, jpeg_options(90),
+                                                      CancellationToken{}),
                              ErrorCode::kValidation, "invalid_jpeg_dimensions");
     expect_jpeg_encode_error(
-        detail::encode_jpeg_rgb8(65535U, 1U, pixels, profile, 90, CancellationToken{}),
-        ErrorCode::kValidation, "invalid_jpeg_dimensions");
-    expect_jpeg_encode_error(
         detail::encode_jpeg_rgb8(16U, 8U, std::span<const std::uint8_t>(pixels).first(10U), profile,
-                                 90, CancellationToken{}),
+                                 jpeg_options(90), CancellationToken{}),
         ErrorCode::kValidation, "jpeg_source_size_mismatch");
+    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(14000U, 14000U, {}, profile, jpeg_options(90),
+                                                      CancellationToken{}),
+                             ErrorCode::kValidation, "jpeg_source_too_large");
     expect_jpeg_encode_error(
-        detail::encode_jpeg_rgb8(14000U, 14000U, {}, profile, 90, CancellationToken{}),
-        ErrorCode::kValidation, "jpeg_source_too_large");
-    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(16U, 8U, pixels, {}, 90, CancellationToken{}),
-                             ErrorCode::kValidation, "missing_jpeg_output_icc");
+        detail::encode_jpeg_rgb8(16U, 8U, pixels, {}, jpeg_options(90), CancellationToken{}),
+        ErrorCode::kValidation, "missing_jpeg_output_icc");
     std::vector<std::uint8_t> oversized_profile(detail::kJpegMaxIccBytes + 1U);
-    expect_jpeg_encode_error(
-        detail::encode_jpeg_rgb8(16U, 8U, pixels, oversized_profile, 90, CancellationToken{}),
-        ErrorCode::kValidation, "oversized_jpeg_output_icc");
+    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(16U, 8U, pixels, oversized_profile,
+                                                      jpeg_options(90), CancellationToken{}),
+                             ErrorCode::kValidation, "oversized_jpeg_output_icc");
 
     detail::JpegEncodeControl tiny_output;
     tiny_output.max_output_bytes = 32U;
-    expect_jpeg_encode_error(
-        detail::encode_jpeg_rgb8(16U, 8U, pixels, profile, 90, CancellationToken{}, tiny_output),
-        ErrorCode::kValidation, "jpeg_output_too_large");
+    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(16U, 8U, pixels, profile, jpeg_options(90),
+                                                      CancellationToken{}, tiny_output),
+                             ErrorCode::kValidation, "jpeg_output_too_large");
 
     // legacy dimension() advertised 65535, but its jpeg_start_compress()
     // owner enforced JPEG_MAX_DIMENSION=65500.
@@ -607,8 +677,8 @@ TEST(JpegExportContractTest, RejectsInvalidAndOversizedInputsWithoutPublishingBy
     {
         SCOPED_TRACE(std::to_string(width) + "x" + std::to_string(height));
         const auto boundary_pixels = jpeg_test_pixels(width, height);
-        const auto encoded = detail::encode_jpeg_rgb8(width, height, boundary_pixels, profile, 90,
-                                                      CancellationToken{});
+        const auto encoded = detail::encode_jpeg_rgb8(width, height, boundary_pixels, profile,
+                                                      jpeg_options(90), CancellationToken{});
         ASSERT_TRUE(encoded) << encoded.error().message;
         const auto frame = jpeg_frame_contract(encoded.value());
         ASSERT_TRUE(frame);
@@ -626,15 +696,15 @@ TEST(JpegExportContractTest, HonorsEntryAndScanlineCancellationWithoutMutatingIn
     CancellationSource entry;
     ASSERT_TRUE(entry.cancel("jpeg-entry-test"));
     const auto entry_result =
-        detail::encode_jpeg_rgb8(128U, 64U, pixels, profile, 95, entry.token());
+        detail::encode_jpeg_rgb8(128U, 64U, pixels, profile, jpeg_options(95), entry.token());
     ASSERT_FALSE(entry_result);
     EXPECT_EQ(entry_result.error().code, ErrorCode::kCancelled);
 
     JpegScanlineCancellation scanline;
     detail::JpegEncodeControl control;
     control.checkpoint_observer = {&scanline, cancel_jpeg_at_scanline};
-    const auto scanline_result =
-        detail::encode_jpeg_rgb8(128U, 64U, pixels, profile, 95, scanline.source.token(), control);
+    const auto scanline_result = detail::encode_jpeg_rgb8(
+        128U, 64U, pixels, profile, jpeg_options(95), scanline.source.token(), control);
     ASSERT_FALSE(scanline_result);
     EXPECT_EQ(scanline_result.error().code, ErrorCode::kCancelled);
     EXPECT_TRUE(scanline.reached);
@@ -1017,6 +1087,102 @@ TEST(JpegAdapterTest, CancellationLeavesMemoryAndFileSourcesUnchanged)
     EXPECT_EQ(file.error().code, ErrorCode::kCancelled);
     EXPECT_EQ(source_bytes, original_bytes);
     EXPECT_EQ(QCryptographicHash::hash(read_file(path), QCryptographicHash::Sha256), original_hash);
+}
+
+TEST(JpegCatalogTest, ForwardsTypedOptionsAndIgnoresThemForOtherFormats)
+{
+    JpegTempDirectory temporary;
+    const auto input_path = temporary.path() / "source.jpg";
+    QImage source(32, 24, QImage::Format_RGB888);
+    source.fill(QColor(40, 120, 200));
+    source.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    ASSERT_TRUE(source.save(QString::fromStdString(input_path.string()), "JPEG", 100));
+    const QByteArray original_hash =
+        QCryptographicHash::hash(read_file(input_path), QCryptographicHash::Sha256);
+    const auto database_path = (temporary.path() / "library.sqlite").string();
+
+    auto engine_result = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine_result) << engine_result.error().message;
+    auto engine = std::move(engine_result).value();
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    auto cache = FilesystemPreviewCache::create(database_path + ".preview");
+    ASSERT_TRUE(cache) << cache.error().message;
+    CatalogService service(engine, std::move(repository).value(),
+                           std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+
+    const auto imported = service.import_one(input_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+
+    ExportRequest default_request;
+    default_request.asset_id = imported.value().asset->id;
+    default_request.output_path = (temporary.path() / "default.jpg").string();
+    default_request.format = ExportFormat::kJpeg;
+    const auto default_export = service.export_asset(default_request);
+    ASSERT_TRUE(default_export) << default_export.error().message;
+    const auto default_bytes = vector_bytes(read_file(default_request.output_path));
+    const auto default_sampling = jpeg_sampling_factors(default_bytes);
+    ASSERT_TRUE(default_sampling);
+    EXPECT_EQ(default_sampling->y_horizontal, 1U);
+    EXPECT_EQ(default_sampling->y_vertical, 1U);
+    const auto default_quantizer = jpeg_first_luminance_quantizer(default_bytes);
+    ASSERT_TRUE(default_quantizer);
+    EXPECT_EQ(*default_quantizer, 2U);
+
+    struct Expectation
+    {
+        JpegSubsampling subsampling = JpegSubsampling::kAuto;
+        std::uint8_t y_horizontal = 0U;
+        std::uint8_t y_vertical = 0U;
+    };
+    constexpr std::array<Expectation, 5U> kExpectations{{
+        {JpegSubsampling::kAuto, 2U, 2U},
+        {JpegSubsampling::k444, 1U, 1U},
+        {JpegSubsampling::k440, 1U, 2U},
+        {JpegSubsampling::k422, 2U, 1U},
+        {JpegSubsampling::k420, 2U, 2U},
+    }};
+    std::size_t index = 0U;
+    for (const Expectation &expectation : kExpectations)
+    {
+        SCOPED_TRACE(jpeg_subsampling_name(expectation.subsampling));
+        ExportRequest request;
+        request.asset_id = imported.value().asset->id;
+        request.output_path =
+            (temporary.path() / ("output-" + std::to_string(index++) + ".jpg")).string();
+        request.format = ExportFormat::kJpeg;
+        request.jpeg_options = {85, expectation.subsampling};
+        const auto exported = service.export_asset(request);
+        ASSERT_TRUE(exported) << exported.error().message;
+        const auto sampling = jpeg_sampling_factors(vector_bytes(read_file(request.output_path)));
+        ASSERT_TRUE(sampling);
+        EXPECT_EQ(sampling->y_horizontal, expectation.y_horizontal);
+        EXPECT_EQ(sampling->y_vertical, expectation.y_vertical);
+    }
+
+    ExportRequest invalid_jpeg;
+    invalid_jpeg.asset_id = imported.value().asset->id;
+    invalid_jpeg.output_path = (temporary.path() / "invalid.jpg").string();
+    invalid_jpeg.format = ExportFormat::kJpeg;
+    invalid_jpeg.jpeg_options.quality = 4;
+    const auto invalid = service.export_asset(invalid_jpeg);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_jpeg_quality");
+    EXPECT_FALSE(std::filesystem::exists(invalid_jpeg.output_path));
+
+    ExportRequest png;
+    png.asset_id = imported.value().asset->id;
+    png.output_path = (temporary.path() / "unrelated.png").string();
+    png.format = ExportFormat::kPng;
+    png.jpeg_options = {4, static_cast<JpegSubsampling>(255U)};
+    const auto exported_png = service.export_asset(png);
+    ASSERT_TRUE(exported_png) << exported_png.error().message;
+    EXPECT_TRUE(std::filesystem::exists(png.output_path));
+    EXPECT_EQ(QCryptographicHash::hash(read_file(input_path), QCryptographicHash::Sha256),
+              original_hash);
+    EXPECT_TRUE(service.close());
 }
 
 TEST(JpegCatalogTest, CorruptJpegNeverPublishesAnAssetOrPreview)

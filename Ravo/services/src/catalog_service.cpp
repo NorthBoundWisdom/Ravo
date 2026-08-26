@@ -1048,10 +1048,10 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     }
     if (request.format == ExportFormat::kJpeg)
     {
-        auto quality = validate_jpeg_quality(request.jpeg_quality);
-        if (!quality)
+        auto options = validate_jpeg_export_options(request.jpeg_options);
+        if (!options)
         {
-            return quality.error();
+            return options.error();
         }
     }
     auto output = normalize_local_input(request.output_path);
@@ -1139,7 +1139,7 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     }
     auto encoded = raster_->encode(rendered.value().width, rendered.value().height,
                                    rendered.value().rgb, rendered.value().color_profile,
-                                   request.format, request.jpeg_quality, request.cancellation);
+                                   request.format, request.jpeg_options, request.cancellation);
     if (!encoded)
     {
         return encoded.error();

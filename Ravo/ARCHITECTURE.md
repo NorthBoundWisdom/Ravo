@@ -57,9 +57,10 @@ RAW metadata adapter is the only Exiv2 consumer; other roots do not link a
 product target until their corresponding lens-database or codec adapter is
 accepted. Future public contracts continue to carry owned metadata,
 calibration, or encoded bytes rather than third-party handles. Existing
-QSQLITE, zlib/libpng, and Qt JPEG/TIFF imageformat runtime ownership is
-unchanged; the direct codec roots replace that path only when the adapter owns
-explicit JPEG subsampling or TIFF Deflate/predictor/level and multi-page
+QSQLITE, zlib/libpng, and Qt JPEG/TIFF input runtime ownership is unchanged.
+The adapter-private pinned libjpeg-turbo encoder owns JPEG output quality,
+explicit chroma subsampling, ICC APP2, bounds, and cancellation; Qt TIFF output
+remains until an adapter owns its Deflate/predictor/level and multi-page
 contracts.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
@@ -197,9 +198,11 @@ persistence begins only after a user override. Existing JPEG/PNG/TIFF are
 display-referred input and do not receive Sigmoid twice. Import persists
 thumbnail dimensions only; loupe creates 1600px on demand.
 
-The Qt raster adapter accepts PNG/JPEG/BMP/GIF/WebP/TIFF and exports
-PNG/JPEG/TIFF. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE are configure-time
-requirements. TGA/WBMP/ICO and other SQL drivers have no product consumers.
+The raster adapter accepts PNG/JPEG/BMP/GIF/WebP/TIFF and exports
+PNG/JPEG/TIFF. PNG/TIFF output uses Qt; the JPEG branch delegates to the
+adapter-private pinned libjpeg-turbo encoder. JPEG/GIF/WebP/TIFF plugin targets
+and QSQLITE remain configure-time requirements for their current input/runtime
+consumers. TGA/WBMP/ICO and other SQL drivers have no product consumers.
 
 Radiance RGBE tranche 1 remains outside that RGB8 path. A dedicated synchronous
 `HdrDecoder` port returns owned linear RGB float32 pixels plus handle-free
@@ -555,8 +558,10 @@ identify both paths; I14 retains path-template, batch, and storage policy.
 ## Current non-goals
 
 - CatalogService owns local JPEG/PNG/TIFF/original-copy export. Pixel exports
-  embed the recipe-declared RGB profile; complete metadata, batch jobs, and old
-  export presets remain out of scope.
+  embed the recipe-declared RGB profile. JPEG requests own typed quality
+  5–100/default 95 plus automatic or explicit 4:4:4/4:4:0/4:2:2/4:2:0 sampling;
+  complete metadata, encoded-file publication, batch jobs, and old export
+  presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

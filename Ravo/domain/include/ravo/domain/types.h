@@ -24,8 +24,8 @@ inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
 inline constexpr std::string_view kEmbeddedBrowsePreviewDigest = "embedded-jpeg-orient";
-inline constexpr int kDefaultJpegQuality = 90;
-inline constexpr int kJpegQualityMin = 1;
+inline constexpr int kDefaultJpegQuality = 95;
+inline constexpr int kJpegQualityMin = 5;
 inline constexpr int kJpegQualityMax = 100;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
@@ -105,6 +105,23 @@ enum class ExportFormat
     kJpeg,
     kTiff,
     kOriginalCopy,
+};
+
+enum class JpegSubsampling : std::uint8_t
+{
+    kAuto = 0,
+    k444 = 1,
+    k440 = 2,
+    k422 = 3,
+    k420 = 4,
+};
+
+struct JpegExportOptions
+{
+    int quality = kDefaultJpegQuality;
+    JpegSubsampling subsampling = JpegSubsampling::kAuto;
+
+    [[nodiscard]] bool operator==(const JpegExportOptions &) const = default;
 };
 
 enum class RasterPixelFormat : std::uint8_t
@@ -266,7 +283,7 @@ struct ExportRequest
     std::string asset_id;
     std::string output_path;
     ExportFormat format = ExportFormat::kPng;
-    int jpeg_quality = kDefaultJpegQuality;
+    JpegExportOptions jpeg_options;
     std::uint32_t max_edge = 0;
     CancellationToken cancellation{};
     std::string correlation_id;
@@ -320,7 +337,9 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] std::string_view export_format_name(ExportFormat format) noexcept;
 [[nodiscard]] std::string_view export_format_extension(ExportFormat format) noexcept;
 [[nodiscard]] Result<ExportFormat> parse_export_format(std::string_view name);
-[[nodiscard]] Result<void> validate_jpeg_quality(int quality);
+[[nodiscard]] std::string_view jpeg_subsampling_name(JpegSubsampling subsampling) noexcept;
+[[nodiscard]] Result<JpegSubsampling> parse_jpeg_subsampling(std::string_view name);
+[[nodiscard]] Result<void> validate_jpeg_export_options(const JpegExportOptions &options);
 [[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);

@@ -5,6 +5,7 @@
 #include <span>
 #include <vector>
 
+#include "ravo/domain/types.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/error.h"
 
@@ -63,11 +64,12 @@ struct JpegEncodeControl
     JpegEncodeCheckpointObserver checkpoint_observer;
 };
 
-[[nodiscard]] Result<JpegEncodeConfiguration> jpeg_encode_configuration(int quality);
+[[nodiscard]] Result<JpegEncodeConfiguration>
+jpeg_encode_configuration(const JpegExportOptions &options);
 
 [[nodiscard]] Result<std::vector<std::uint8_t>>
 encode_jpeg_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgb,
-                 std::span<const std::uint8_t> resolved_rgb_icc, int quality,
+                 std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
                  const CancellationToken &cancellation, JpegEncodeControl control = {});
 
 } // namespace ravo::detail

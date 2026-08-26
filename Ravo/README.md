@@ -97,6 +97,12 @@ Current implementation status:
   before atomic publish. Studio presents the engine-owned result through Output
   & Soft Proof controls; it never infers a monitor profile or performs a QML
   colour transform.
+- JPEG export uses the pinned private libjpeg-turbo encoder and one typed
+  quality/subsampling request. Quality defaults to 95 within the frozen 5–100
+  range; automatic sampling follows the frozen quality thresholds, while
+  service callers may select 4:4:4, 4:4:0, 4:2:2, or 4:2:0 explicitly. The CLI
+  currently exposes quality only. EXIF/XMP policy and final encoded-file
+  publication remain separate migration work.
 - Final display packing is an engine-private boundary after Output Color. It
   converts finite profiled float RGB to owned RGB8 by clamping negative values,
   multiplying by 255, rounding, and clamping super-white while retaining the
@@ -310,7 +316,7 @@ ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--se
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|original [--quality 90] --json
+ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|original [--quality 95] --json
 ```
 
 An existing output path returns structured `conflict`; it is never overwritten

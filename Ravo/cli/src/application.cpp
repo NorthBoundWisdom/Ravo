@@ -995,7 +995,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         if (flags.value().quality)
         {
-            request.jpeg_quality = *flags.value().quality;
+            request.jpeg_options.quality = *flags.value().quality;
         }
         if (flags.value().max_edge)
         {

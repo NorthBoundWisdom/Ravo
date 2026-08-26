@@ -37,3 +37,4 @@ supersession relationship when direction changes.
 | [0027](0027-radiance-rgbe-decoder-contract.md) | Accepted | Radiance RGBE uses a dedicated owned float decode contract while Qt raster and Catalog remain explicitly unsupported. |
 | [0028](0028-original-copy-publication-contract.md) | Accepted | Original copy uses bounded exact-byte streaming, exclusively owned temporary state, atomic no-replace publication, and complete structured failures without retiring the legacy plugin. |
 | [0029](0029-colorcorrection-contract.md) | Accepted | Color Correction preserves explicit five-field affine D50 Lab behavior, strict 0029/0092 unmasked import, and one Develop/CLI/Catalog/Studio contract. |
+| [0030](0030-typed-jpeg-export-options.md) | Accepted | JPEG export owns typed quality 5–100/default 95 and five frozen sampling modes through one service-to-adapter value contract without completing metadata or storage publication. |

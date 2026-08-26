@@ -259,7 +259,7 @@ TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
     srgb.kind = ColorProfileKind::kBuiltin;
     srgb.model = ColorModel::kRgb;
     srgb.identifier = "srgb";
-    auto encoded = decoder.encode(8, 4, pixels, srgb, ExportFormat::kPng, 90, CancellationToken{});
+    auto encoded = decoder.encode(8, 4, pixels, srgb, ExportFormat::kPng, {}, CancellationToken{});
     ASSERT_TRUE(encoded) << encoded.error().message;
     auto decoded = decoder.decode_memory(encoded.value(), 32, CancellationToken{});
     ASSERT_TRUE(decoded) << decoded.error().message;
@@ -268,7 +268,7 @@ TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
     ColorProfileState display_p3 = srgb;
     display_p3.identifier = "display_p3";
     auto wide_encoded =
-        decoder.encode(8, 4, pixels, display_p3, ExportFormat::kPng, 90, CancellationToken{});
+        decoder.encode(8, 4, pixels, display_p3, ExportFormat::kPng, {}, CancellationToken{});
     ASSERT_TRUE(wide_encoded) << wide_encoded.error().message;
     auto wide_decoded = decoder.decode_memory(wide_encoded.value(), 32, CancellationToken{});
     ASSERT_TRUE(wide_decoded) << wide_decoded.error().message;
@@ -276,7 +276,7 @@ TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
 
     ColorProfileState missing;
     auto rejected =
-        decoder.encode(8, 4, pixels, missing, ExportFormat::kPng, 90, CancellationToken{});
+        decoder.encode(8, 4, pixels, missing, ExportFormat::kPng, {}, CancellationToken{});
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
 }
@@ -2069,7 +2069,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     jpeg.asset_id = asset_id;
     jpeg.output_path = jpeg_out;
     jpeg.format = ExportFormat::kJpeg;
-    jpeg.jpeg_quality = 85;
+    jpeg.jpeg_options.quality = 85;
     auto exported_jpeg = service->export_asset(jpeg);
     ASSERT_TRUE(exported_jpeg) << exported_jpeg.error().message;
     EXPECT_TRUE(std::filesystem::exists(jpeg_out));
@@ -2125,7 +2125,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
 
     ExportRequest bad_quality = jpeg;
     bad_quality.output_path = (root / "bad-quality.jpg").string();
-    bad_quality.jpeg_quality = 0;
+    bad_quality.jpeg_options.quality = 0;
     auto invalid_quality = service->export_asset(bad_quality);
     ASSERT_FALSE(invalid_quality);
     EXPECT_EQ(invalid_quality.error().code, ErrorCode::kValidation);

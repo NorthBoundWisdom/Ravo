@@ -205,16 +205,16 @@ void notify_checkpoint(const JpegEncodeControl &control, const JpegEncodeCheckpo
 
 } // namespace
 
-Result<JpegEncodeConfiguration> jpeg_encode_configuration(const int quality)
+Result<JpegEncodeConfiguration> jpeg_encode_configuration(const JpegExportOptions &options)
 {
-    if (quality < 1 || quality > 100)
+    auto valid = validate_jpeg_export_options(options);
+    if (!valid)
     {
-        return jpeg_encode_error(ErrorCode::kValidation, "JPEG quality must be between 1 and 100",
-                                 "invalid_jpeg_quality", {{"quality", std::to_string(quality)}});
+        return valid.error();
     }
 
     JpegEncodeConfiguration result;
-    result.quality = quality;
+    result.quality = options.quality;
     result.optimize_coding = true;
     result.y_horizontal = 2U;
     result.y_vertical = 2U;
@@ -222,42 +222,62 @@ Result<JpegEncodeConfiguration> jpeg_encode_configuration(const int quality)
     result.cb_vertical = 1U;
     result.cr_horizontal = 1U;
     result.cr_vertical = 1U;
-    if (quality > 90)
+    if (options.quality > 90)
     {
         result.y_vertical = 1U;
     }
-    if (quality > 92)
+    if (options.quality > 92)
     {
         result.y_horizontal = 1U;
     }
-    if (quality > 95)
+    if (options.quality > 95)
     {
         result.dct_method = JpegDctMethod::kFloat;
     }
-    if (quality < 50)
+    if (options.quality < 50)
     {
         result.dct_method = JpegDctMethod::kIntegerFast;
     }
-    if (quality < 80)
+    if (options.quality < 80)
     {
         result.smoothing_factor = 20;
     }
-    if (quality < 60)
+    if (options.quality < 60)
     {
         result.smoothing_factor = 40;
     }
-    if (quality < 40)
+    if (options.quality < 40)
     {
         result.smoothing_factor = 60;
+    }
+    switch (options.subsampling)
+    {
+    case JpegSubsampling::kAuto:
+        break;
+    case JpegSubsampling::k444:
+        result.y_horizontal = 1U;
+        result.y_vertical = 1U;
+        break;
+    case JpegSubsampling::k440:
+        result.y_horizontal = 1U;
+        result.y_vertical = 2U;
+        break;
+    case JpegSubsampling::k422:
+        result.y_horizontal = 2U;
+        result.y_vertical = 1U;
+        break;
+    case JpegSubsampling::k420:
+        result.y_horizontal = 2U;
+        result.y_vertical = 2U;
+        break;
     }
     return result;
 }
 
-Result<std::vector<std::uint8_t>>
-encode_jpeg_rgb8(const std::uint32_t width, const std::uint32_t height,
-                 const std::span<const std::uint8_t> rgb,
-                 const std::span<const std::uint8_t> resolved_rgb_icc, const int quality,
-                 const CancellationToken &cancellation, const JpegEncodeControl control)
+Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
+    const CancellationToken &cancellation, const JpegEncodeControl control)
 {
     auto active = cancellation.check();
     if (!active)
@@ -307,7 +327,7 @@ encode_jpeg_rgb8(const std::uint32_t width, const std::uint32_t height,
         return jpeg_encode_error(ErrorCode::kValidation, "JPEG output bound is invalid",
                                  "invalid_jpeg_output_bound");
     }
-    auto configuration = jpeg_encode_configuration(quality);
+    auto configuration = jpeg_encode_configuration(options);
     if (!configuration)
     {
         return configuration.error();
