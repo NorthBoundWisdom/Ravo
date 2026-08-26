@@ -51,6 +51,18 @@ def dev_mode_from_lock_data(lock_data: object, *, path_label: object) -> bool:
 
 DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
     DependencyRootSpec(
+        dependency_name="Exiv2",
+        repo_name="exiv2",
+        env_key="EXIV2_SOURCE_ROOT",
+        required_relative_paths=("CMakeLists.txt", "include/exiv2/exiv2.hpp"),
+    ),
+    DependencyRootSpec(
+        dependency_name="LibJpegTurbo",
+        repo_name="libjpeg-turbo",
+        env_key="LIBJPEG_TURBO_SOURCE_ROOT",
+        required_relative_paths=("CMakeLists.txt", "src/jpeglib.h", "src/turbojpeg.h"),
+    ),
+    DependencyRootSpec(
         dependency_name="LibRaw",
         repo_name="LibRaw",
         env_key="LIBRAW_SOURCE_ROOT",
@@ -61,6 +73,18 @@ DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
         repo_name="GeoControls",
         env_key="GEOCONTROLS_SOURCE_ROOT",
         required_relative_paths=("CMakeLists.txt", "Controls/CMakeLists.txt"),
+    ),
+    DependencyRootSpec(
+        dependency_name="LensFun",
+        repo_name="lensfun",
+        env_key="LENSFUN_SOURCE_ROOT",
+        required_relative_paths=("CMakeLists.txt", "data/db/timestamp.txt"),
+    ),
+    DependencyRootSpec(
+        dependency_name="LibTIFF",
+        repo_name="libtiff",
+        env_key="LIBTIFF_SOURCE_ROOT",
+        required_relative_paths=("CMakeLists.txt", "libtiff/tiffio.h"),
     ),
     DependencyRootSpec(
         dependency_name="LittleCMS",

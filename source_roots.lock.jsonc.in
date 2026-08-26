@@ -44,11 +44,25 @@
   },
   "depsMode": "pinned",
   "depsManualPath": {
+    "Exiv2": "",
+    "LibJpegTurbo": "",
     "LibRaw": "",
     "GeoControls": "",
+    "LensFun": "",
+    "LibTIFF": "",
     "LittleCMS": ""
   },
   "dependencies": {
+    "Exiv2": {
+      "remote": "https://github.com/Exiv2/exiv2.git",
+      "commit": "2cd987a731236037b6b78cbff897d08685a8ef49",
+      "repoName": "exiv2"
+    },
+    "LibJpegTurbo": {
+      "remote": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
+      "commit": "c85e6b905bf237038faa936dab160ebfc5da0344",
+      "repoName": "libjpeg-turbo"
+    },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
       "commit": "df226ea4178ccd74245f4f13c23adddfa01411c9",
@@ -58,6 +72,16 @@
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
       "commit": "c8aa80b7bba5298b725f47ce22e4ad358d129824",
       "repoName": "GeoControls"
+    },
+    "LensFun": {
+      "remote": "https://github.com/lensfun/lensfun.git",
+      "commit": "101c745e847a5de4a1e569a94368ce2027198598",
+      "repoName": "lensfun"
+    },
+    "LibTIFF": {
+      "remote": "https://gitlab.com/libtiff/libtiff.git",
+      "commit": "d01a94be176f5f6a87f7ee1c0b32e65416aa2b4d",
+      "repoName": "libtiff"
     },
     "LittleCMS": {
       "remote": "https://github.com/mm2/Little-CMS.git",

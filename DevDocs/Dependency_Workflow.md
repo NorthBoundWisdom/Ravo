@@ -24,12 +24,24 @@ The root lock declares Ravo direct dependencies only. If a dependency lock
 template declares a sibling, FreeCM resolves the transitive closure recursively
 from local seeds. Do not repeat every transitive dependency in the root lock.
 
-Current direct dependencies are LibRaw, GeoControls, and LittleCMS. LittleCMS
-is linked privately by the engine for ICC input transforms; its public handles
-do not cross Ravo target boundaries. Quill resolves through
-find_package(quill CONFIG REQUIRED) from the host CMAKE_PREFIX_PATH, such as
-vcpkg, Homebrew, or Qt prefixes, and does not enter the source-root lock. Use
-these logical dependency names as depsManualPath keys, not guessed directories.
+Current direct dependencies are LibRaw, GeoControls, LittleCMS, Exiv2, LensFun,
+LibJpegTurbo, and LibTIFF. LibRaw, GeoControls, and LittleCMS are linked by
+current product targets. The other four are approved migration inputs:
+configure verifies their exact materialized roots, while product code does not
+link them until the owning metadata, lens-database, or codec adapter reaches
+its migration gate. This prevents host-selected source from becoming an
+interim fallback without claiming an unfinished capability.
+
+SQLite/QSQLITE, zlib/libpng, and the current Qt JPEG/TIFF imageformat plugins
+remain real host/Qt-kit dependencies; duplicating them in the root lock would
+not control the code used by QSQLITE or an already-built Qt plugin. The pinned
+LibJpegTurbo and LibTIFF roots instead reserve the low-level APIs required for
+explicit JPEG chroma subsampling and TIFF Deflate/predictor/level and multi-page
+contracts; they replace the Qt codec path only when those private adapters are
+accepted. Quill likewise resolves through `find_package(quill CONFIG REQUIRED)`
+from `CMAKE_PREFIX_PATH`. Use the logical source-root dependency names above as
+`depsManualPath` keys, not guessed directory names. Transitive packages belong
+to the owning dependency template, not the Ravo root lock.
 
 ## FreeCM submodule tracking
 

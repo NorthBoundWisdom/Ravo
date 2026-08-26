@@ -50,6 +50,16 @@ bytes or matrices instead of third-party handles. Qt value types may be used
 inside a target with a clear benefit, but recipes, CLI JSON, catalog schema,
 and public persisted contracts must not serialize Qt/C++ object memory layout.
 
+Exiv2, LensFun, LibJpegTurbo, and LibTIFF are pinned migration source roots.
+Configure validates the exact materialized sources, but no product target links
+them until the corresponding private metadata, lens-database, or codec adapter
+is accepted. Future public contracts continue to carry owned metadata,
+calibration, or encoded bytes rather than third-party handles. Existing
+QSQLITE, zlib/libpng, and Qt JPEG/TIFF imageformat runtime ownership is
+unchanged; the direct codec roots replace that path only when the adapter owns
+explicit JPEG subsampling or TIFF Deflate/predictor/level and multi-page
+contracts.
+
 Ravo Studio has one presentation architecture. Its C++ composition root owns
 services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
 presenters/models map immutable service snapshots and commands to QML.

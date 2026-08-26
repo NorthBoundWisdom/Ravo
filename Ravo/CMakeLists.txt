@@ -47,6 +47,32 @@ find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(quill CONFIG REQUIRED)
 
+function(ravo_require_migration_source_root output_variable environment_variable required_path)
+  if(NOT DEFINED ENV{${environment_variable}})
+    message(FATAL_ERROR
+      "${environment_variable} is required; run the FreeCM source-root update")
+  endif()
+  file(TO_CMAKE_PATH "$ENV{${environment_variable}}" _source_root)
+  if(NOT EXISTS "${_source_root}/${required_path}")
+    message(FATAL_ERROR
+      "${environment_variable} does not contain ${required_path}: ${_source_root}")
+  endif()
+  set(${output_variable} "${_source_root}" PARENT_SCOPE)
+endfunction()
+
+# These approved migration inputs are materialized and validated now so later
+# metadata, lens-database, and codec adapters cannot fall back to host-selected
+# source. They are not linked until the owning migration item accepts its
+# private adapter contract.
+ravo_require_migration_source_root(
+  RAVO_EXIV2_SOURCE_ROOT EXIV2_SOURCE_ROOT include/exiv2/exiv2.hpp)
+ravo_require_migration_source_root(
+  RAVO_LIBJPEG_TURBO_SOURCE_ROOT LIBJPEG_TURBO_SOURCE_ROOT src/turbojpeg.h)
+ravo_require_migration_source_root(
+  RAVO_LENSFUN_SOURCE_ROOT LENSFUN_SOURCE_ROOT data/db/timestamp.txt)
+ravo_require_migration_source_root(
+  RAVO_LIBTIFF_SOURCE_ROOT LIBTIFF_SOURCE_ROOT libtiff/tiffio.h)
+
 if(NOT DEFINED ENV{GEOCONTROLS_SOURCE_ROOT})
   message(FATAL_ERROR "GEOCONTROLS_SOURCE_ROOT is required; run the FreeCM source-root update")
 endif()
