@@ -66,6 +66,18 @@ gtest_discover_tests(ravo_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-catalog")
 
+add_executable(ravo_png_adapter_tests png_adapter_test.cpp)
+target_link_libraries(ravo_png_adapter_tests
+  PRIVATE GTest::gtest ravo_adapters Qt6::Core Qt6::Gui ZLIB::ZLIB)
+target_include_directories(ravo_png_adapter_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(ravo_png_adapter_tests PRIVATE
+  RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
+ravo_configure_target(ravo_png_adapter_tests)
+ravo_copy_windows_runtime_dlls(ravo_png_adapter_tests)
+gtest_discover_tests(ravo_png_adapter_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-png-adapter")
+
 add_executable(ravo_desktop_command_tests studio_command_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)

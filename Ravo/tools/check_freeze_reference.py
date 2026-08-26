@@ -24,6 +24,9 @@ RETIRED_SRC_LIST = Path("DevDocs/phase0/legacy-retired-src-paths.txt")
 JPEG_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_jpeg_wrapper_consumers.json"
 )
+PNG_WRAPPER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_png_wrapper_consumers.json"
+)
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {
@@ -47,6 +50,11 @@ JPEG_WRAPPER_INCLUDE = re.compile(
     r'|"(?:[^"\r\n/]+/)*imageio_jpeg\.h")',
     re.MULTILINE,
 )
+PNG_WRAPPER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_png\.h>'
+    r'|"(?:[^"\r\n/]+/)*imageio_png\.h")',
+    re.MULTILINE,
+)
 
 
 class FreezeCheckError(Exception):
@@ -60,13 +68,13 @@ def _read_text(path: Path) -> str:
         raise FreezeCheckError(f"cannot read {path}: {error}") from error
 
 
-def _strings(value: Any, field: str) -> list[str]:
+def _strings(value: Any, field: str, label: str) -> list[str]:
     if not isinstance(value, list) or any(
         not isinstance(item, str) or not item for item in value
     ):
-        raise FreezeCheckError(f"JPEG manifest {field} must be a string list")
+        raise FreezeCheckError(f"{label} manifest {field} must be a string list")
     if len(value) != len(set(value)):
-        raise FreezeCheckError(f"JPEG manifest {field} contains duplicates")
+        raise FreezeCheckError(f"{label} manifest {field} contains duplicates")
     return value
 
 
@@ -75,70 +83,86 @@ def _entries(
     key: str,
     strings: tuple[str, ...],
     lists: tuple[str, ...] = (),
+    label: str = "wrapper",
 ) -> list[dict[str, Any]]:
     value = document.get(key)
     if not isinstance(value, list):
-        raise FreezeCheckError(f"JPEG manifest {key} must be a list")
+        raise FreezeCheckError(f"{label} manifest {key} must be a list")
     for index, entry in enumerate(value):
         if not isinstance(entry, dict) or any(
             not isinstance(entry.get(field), str) or not entry[field]
             for field in strings
         ):
-            raise FreezeCheckError(f"JPEG manifest {key}[{index}] is malformed")
+            raise FreezeCheckError(f"{label} manifest {key}[{index}] is malformed")
         for field in lists:
-            _strings(entry.get(field), f"{key}[{index}].{field}")
+            _strings(entry.get(field), f"{key}[{index}].{field}", label)
     paths = [entry["path"] for entry in value]
     if len(paths) != len(set(paths)):
-        raise FreezeCheckError(f"JPEG manifest {key} repeats a path")
+        raise FreezeCheckError(f"{label} manifest {key} repeats a path")
     return value
 
 
-def load_jpeg_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
-    path = repository_root / JPEG_WRAPPER_CONSUMERS
+def load_wrapper_manifest(
+    repository_root: Path, manifest_path: Path, label: str
+) -> dict[str, Any]:
+    path = repository_root / manifest_path
     try:
         document = json.loads(_read_text(path))
     except json.JSONDecodeError as error:
         raise FreezeCheckError(f"cannot parse {path}: {error}") from error
     if not isinstance(document, dict) or document.get("schema_version") != 1:
-        raise FreezeCheckError("JPEG wrapper manifest must use schema version 1")
+        raise FreezeCheckError(f"{label} wrapper manifest must use schema version 1")
     wrapper = document.get("wrapper")
     registration = wrapper.get("cmake_registration") if isinstance(wrapper, dict) else None
     if not isinstance(wrapper, dict) or not isinstance(registration, dict):
-        raise FreezeCheckError("JPEG wrapper manifest wrapper is malformed")
+        raise FreezeCheckError(f"{label} wrapper manifest wrapper is malformed")
     for field in ("todo_owner", "source", "header"):
         if not isinstance(wrapper.get(field), str) or not wrapper[field]:
-            raise FreezeCheckError(f"JPEG manifest wrapper.{field} is malformed")
+            raise FreezeCheckError(f"{label} manifest wrapper.{field} is malformed")
     for field in ("path", "needle"):
         if not isinstance(registration.get(field), str) or not registration[field]:
             raise FreezeCheckError(
-                f"JPEG manifest wrapper.cmake_registration.{field} is malformed"
+                f"{label} manifest wrapper.cmake_registration.{field} is malformed"
             )
-    public = set(_strings(document.get("public_symbols"), "public_symbols"))
+    public = set(_strings(document.get("public_symbols"), "public_symbols", label))
     consumers = _entries(
         document,
         "known_consumers",
         ("path", "todo_owner", "why_reachable"),
         ("symbols",),
+        label,
     )
     includes = _entries(
-        document, "known_include_only", ("path", "todo_owner", "why_reachable")
+        document,
+        "known_include_only",
+        ("path", "todo_owner", "why_reachable"),
+        label=label,
     )
     separate = _entries(
         document,
         "separate_owners",
         ("path", "todo_owner", "classification", "why_not_a_consumer"),
         ("local_identifier_collisions",),
+        label,
     )
     if not public or not consumers:
-        raise FreezeCheckError("JPEG manifest must name public symbols and consumers")
+        raise FreezeCheckError(f"{label} manifest must name public symbols and consumers")
     if any(not set(entry["symbols"]) <= public for entry in consumers):
-        raise FreezeCheckError("JPEG manifest consumer contains a non-public symbol")
+        raise FreezeCheckError(f"{label} manifest consumer contains a non-public symbol")
     classified = [entry["path"] for entry in consumers + includes + separate]
     if len(classified) != len(set(classified)):
-        raise FreezeCheckError("JPEG manifest classifies a path more than once")
+        raise FreezeCheckError(f"{label} manifest classifies a path more than once")
     if any(set(entry["local_identifier_collisions"]) & public for entry in separate):
-        raise FreezeCheckError("JPEG manifest confuses a public symbol with a local name")
+        raise FreezeCheckError(f"{label} manifest confuses a public symbol with a local name")
     return document
+
+
+def load_jpeg_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, JPEG_WRAPPER_CONSUMERS, "JPEG")
+
+
+def load_png_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, PNG_WRAPPER_CONSUMERS, "PNG")
 
 
 def _files(repository_root: Path, *, cmake: bool) -> list[Path]:
@@ -159,8 +183,12 @@ def _files(repository_root: Path, *, cmake: bool) -> list[Path]:
     return sorted(result)
 
 
-def verify_jpeg_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
-    manifest = load_jpeg_wrapper_manifest(repository_root)
+def verify_wrapper_consumers(
+    repository_root: Path,
+    manifest: dict[str, Any],
+    include_pattern: re.Pattern[str],
+    label: str,
+) -> dict[str, Any]:
     wrapper = manifest["wrapper"]
     source, header = wrapper["source"], wrapper["header"]
     registration = wrapper["cmake_registration"]
@@ -177,7 +205,7 @@ def verify_jpeg_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
         found = {match.group() for match in pattern.finditer(text)}
         if found:
             symbols[relative] = found
-        if JPEG_WRAPPER_INCLUDE.search(text):
+        if include_pattern.search(text):
             includes.add(relative)
 
     known = {entry["path"]: entry for entry in manifest["known_consumers"]}
@@ -190,17 +218,19 @@ def verify_jpeg_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
     )
     if unknown:
         raise FreezeCheckError(
-            "unclassified JPEG wrapper symbol consumers exist: " + ", ".join(unknown)
+            f"unclassified {label} wrapper symbol consumers exist: "
+            + ", ".join(unknown)
         )
     unknown = sorted(includes - set(known) - set(include_only))
     if unknown:
         raise FreezeCheckError(
-            "unclassified JPEG wrapper header includes exist: " + ", ".join(unknown)
+            f"unclassified {label} wrapper header includes exist: "
+            + ", ".join(unknown)
         )
     missing_includes = sorted(set(symbols) - includes)
     if missing_includes:
         raise FreezeCheckError(
-            "JPEG wrapper callers omit its header: " + ", ".join(missing_includes)
+            f"{label} wrapper callers omit its header: " + ", ".join(missing_includes)
         )
 
     hits: dict[str, int] = {}
@@ -216,35 +246,35 @@ def verify_jpeg_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
     unknown = sorted(set(hits) - {registration["path"]})
     if unknown:
         raise FreezeCheckError(
-            "unclassified JPEG wrapper CMake registrations exist: "
+            f"unclassified {label} wrapper CMake registrations exist: "
             + ", ".join(unknown)
         )
     if hits.get(registration["path"], 0) != exact_registration_count:
-        raise FreezeCheckError("JPEG wrapper has a noncanonical CMake registration")
+        raise FreezeCheckError(f"{label} wrapper has a noncanonical CMake registration")
     registration_count = exact_registration_count
     if registration_count > 1:
-        raise FreezeCheckError("JPEG wrapper CMake registration is duplicated")
+        raise FreezeCheckError(f"{label} wrapper CMake registration is duplicated")
 
     source_exists = (repository_root / source).is_file()
     header_exists = (repository_root / header).is_file()
     if source_exists != header_exists:
-        raise FreezeCheckError("JPEG wrapper source/header retirement is partial")
+        raise FreezeCheckError(f"{label} wrapper source/header retirement is partial")
 
     blockers = sorted(symbols)
     if blockers:
         if not source_exists or registration_count != 1:
             raise FreezeCheckError(
-                "JPEG wrapper or registration was retired while consumers remain"
+                f"{label} wrapper or registration was retired while consumers remain"
             )
         state = "blocked"
     else:
         if includes:
             raise FreezeCheckError(
-                "JPEG wrapper has no callers; retire its stale includes and owner together"
+                f"{label} wrapper has no callers; retire its stale includes and owner together"
             )
         if source_exists or registration_count:
             raise FreezeCheckError(
-                "JPEG wrapper has no callers and must be retired with its registration"
+                f"{label} wrapper has no callers and must be retired with its registration"
             )
         state = "retired"
 
@@ -281,6 +311,24 @@ def verify_jpeg_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
             for entry in manifest["separate_owners"]
         ],
     }
+
+
+def verify_jpeg_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_jpeg_wrapper_manifest(repository_root),
+        JPEG_WRAPPER_INCLUDE,
+        "JPEG",
+    )
+
+
+def verify_png_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_png_wrapper_manifest(repository_root),
+        PNG_WRAPPER_INCLUDE,
+        "PNG",
+    )
 
 
 def run_git(repository_root: Path, *arguments: str) -> str:
@@ -405,7 +453,7 @@ def verify_worktree(
 
 def verify(
     repository_root: Path, freeze_commit: str
-) -> tuple[dict[str, str], dict[str, Any]]:
+) -> tuple[dict[str, str], dict[str, Any], dict[str, Any]]:
     freeze = run_git(repository_root, "rev-parse", f"{freeze_commit}^{{commit}}")
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, "HEAD^{commit}")
     retired = load_retired_src_paths(repository_root)
@@ -424,7 +472,8 @@ def verify(
         current_paths.append(current_path)
     verify_worktree(repository_root, current_paths, retired)
     jpeg_wrapper = verify_jpeg_wrapper_consumers(repository_root)
-    return trees, jpeg_wrapper
+    png_wrapper = verify_png_wrapper_consumers(repository_root)
+    return trees, jpeg_wrapper, png_wrapper
 
 
 def main() -> int:
@@ -443,11 +492,11 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="emit the verified freeze and current JPEG-wrapper consumer census as JSON",
+        help="emit the verified freeze and current JPEG/PNG wrapper censuses as JSON",
     )
     arguments = parser.parse_args()
     try:
-        trees, jpeg_wrapper = verify(
+        trees, jpeg_wrapper, png_wrapper = verify(
             arguments.repository_root.resolve(), arguments.freeze_commit
         )
     except FreezeCheckError as error:
@@ -460,6 +509,7 @@ def main() -> int:
                     "freeze_commit": arguments.freeze_commit,
                     "protected_trees": trees,
                     "legacy_jpeg_wrapper": jpeg_wrapper,
+                    "legacy_png_wrapper": png_wrapper,
                 },
                 indent=2,
                 sort_keys=True,
@@ -471,7 +521,9 @@ def main() -> int:
         f"legacy/src={trees['legacy/src']} legacy/tests={trees['legacy/tests']} "
         f"protected_paths={len(PROTECTED_PATHS)} "
         f"jpeg_wrapper={jpeg_wrapper['state']} "
-        f"jpeg_blockers={len(jpeg_wrapper['blocking_consumers'])}"
+        f"jpeg_blockers={len(jpeg_wrapper['blocking_consumers'])} "
+        f"png_wrapper={png_wrapper['state']} "
+        f"png_blockers={len(png_wrapper['blocking_consumers'])}"
     )
     return 0
 
