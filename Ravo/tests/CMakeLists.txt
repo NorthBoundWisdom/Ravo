@@ -22,7 +22,8 @@ gtest_discover_tests(ravo_unit_tests PROPERTIES LABELS "ravo-unit")
 add_executable(ravo_contract_tests
   cli_test.cpp
   engine_test.cpp
-  input_color_test.cpp)
+  input_color_test.cpp
+  output_color_test.cpp)
 target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli)
 target_include_directories(ravo_contract_tests PRIVATE
   $<TARGET_PROPERTY:lcms2,INTERFACE_INCLUDE_DIRECTORIES>

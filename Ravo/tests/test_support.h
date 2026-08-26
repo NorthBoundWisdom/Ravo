@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ravo/recipe/color_input.h"
+#include "ravo/recipe/color_output.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo::test
@@ -18,6 +19,8 @@ inline Recipe valid_recipe()
                                  true,
                                  {{"exposure_ev", ParameterValue{1.25}}},
                                  std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
     return recipe;
 }
 

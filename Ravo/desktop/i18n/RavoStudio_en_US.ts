@@ -300,6 +300,42 @@
         <translation>%1 → %2</translation>
     </message>
     <message>
+        <source>Output &amp; Soft Proof</source>
+        <translation>Output &amp; Soft Proof</translation>
+    </message>
+    <message>
+        <source>PQ Rec2020</source>
+        <translation>PQ Rec2020</translation>
+    </message>
+    <message>
+        <source>HLG Rec2020</source>
+        <translation>HLG Rec2020</translation>
+    </message>
+    <message>
+        <source>PQ P3</source>
+        <translation>PQ P3</translation>
+    </message>
+    <message>
+        <source>Proof off</source>
+        <translation>Proof off</translation>
+    </message>
+    <message>
+        <source>Soft proof</source>
+        <translation>Soft proof</translation>
+    </message>
+    <message>
+        <source>Gamut warning</source>
+        <translation>Gamut warning</translation>
+    </message>
+    <message>
+        <source>Black-point compensation</source>
+        <translation>Black-point compensation</translation>
+    </message>
+    <message>
+        <source>%1 · %2 · proof %3</source>
+        <translation>%1 · %2 · proof %3</translation>
+    </message>
+    <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
     </message>

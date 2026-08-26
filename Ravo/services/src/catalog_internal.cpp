@@ -162,6 +162,8 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     recipe.asset = {asset.id, path, asset.content_fingerprint};
     recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
                                  input_color_to_parameters(InputColorParams{}), std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
     return recipe;
 }
 

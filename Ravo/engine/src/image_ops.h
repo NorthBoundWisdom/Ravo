@@ -19,7 +19,6 @@ using WorkingImage = LinearWorkingBuffer;
 [[nodiscard]] Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster);
 [[nodiscard]] Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                                                     const CancellationToken &cancellation);
-[[nodiscard]] RenderedImage encode_working_srgb(const WorkingImage &image);
 [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image);
 
 } // namespace ravo

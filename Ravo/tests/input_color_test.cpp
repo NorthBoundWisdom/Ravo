@@ -337,6 +337,13 @@ TEST(InputColorTest, LittleCmsLutAndLabPathsRejectCorruptionAndMissingFiles)
     ASSERT_TRUE(rgb_transformed) << rgb_transformed.error().message;
     EXPECT_TRUE(std::all_of(rgb_transformed.value().rgb.begin(), rgb_transformed.value().rgb.end(),
                             [](const float value) { return std::isfinite(value); }));
+    params.gamut_normalize = std::string(kColorNormalizeSrgb);
+    auto normalized = apply_input_color(rgb, params, CancellationToken{});
+    ASSERT_TRUE(normalized) << normalized.error().message;
+    EXPECT_NEAR(normalized.value().rgb[0], 0.01924475F, 2.0e-5F);
+    EXPECT_NEAR(normalized.value().rgb[1], 0.13105936F, 2.0e-5F);
+    EXPECT_NEAR(normalized.value().rgb[2], 0.18442157F, 2.0e-5F);
+    params.gamut_normalize = std::string(kColorNormalizeOff);
 
     const auto bytes = lab_lut_profile();
     ASSERT_FALSE(bytes.empty());

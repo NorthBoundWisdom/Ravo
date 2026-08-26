@@ -245,7 +245,8 @@ struct PreviewResult
     std::uint32_t height = 0;
     std::string cache_key;
     bool original_missing = false;
-    std::vector<std::uint8_t> srgb;
+    std::vector<std::uint8_t> rgb;
+    ColorProfileState color_profile;
 };
 
 struct ExportRequest

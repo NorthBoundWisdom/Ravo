@@ -108,12 +108,35 @@ namespace
 }
 
 [[nodiscard]] Result<std::vector<std::uint8_t>>
-decode_compressed_parameters(const std::string_view encoded, const std::size_t expected_size,
+decode_legacy_parameter_blob(const std::string_view encoded, const std::size_t expected_size,
                              const std::string_view operation)
 {
-    if (encoded.size() < 5U || !encoded.starts_with("gz"))
+    if (!encoded.starts_with("gz"))
     {
-        return make_error(ErrorCode::kValidation, "Legacy parameters are not compressed",
+        if (encoded.size() != expected_size * 2U)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Legacy parameters have an unexpected hexadecimal length",
+                              {{"legacy_operation", std::string(operation)}});
+        }
+        std::vector<std::uint8_t> decoded(expected_size);
+        for (std::size_t index = 0; index < decoded.size(); ++index)
+        {
+            const int high = hex_value(encoded[index * 2U]);
+            const int low = hex_value(encoded[index * 2U + 1U]);
+            if (high < 0 || low < 0)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Legacy parameters contain invalid hexadecimal data",
+                                  {{"legacy_operation", std::string(operation)}});
+            }
+            decoded[index] = static_cast<std::uint8_t>((high << 4) | low);
+        }
+        return decoded;
+    }
+    if (encoded.size() < 5U)
+    {
+        return make_error(ErrorCode::kValidation, "Legacy compressed parameters are truncated",
                           {{"legacy_operation", std::string(operation)}});
     }
     const QByteArray base64(encoded.data() + 4, static_cast<qsizetype>(encoded.size() - 4U));
@@ -338,7 +361,6 @@ constexpr std::array kBuiltinRawOperations{
     BuiltinRawOperation{"temperature", "3", "006007400000803f0000b33f0000c07f"},
     BuiltinRawOperation{"highlights", "2", "000000000000803f00000000000000000000803f"},
     BuiltinRawOperation{"demosaic", "3", "0000000000000000000000000000000000000000"},
-    BuiltinRawOperation{"colorout", "5", "gz35eJxjZBgFo4CBAQAEEAAC"},
     BuiltinRawOperation{"gamma", "1", "0000000000000000"},
     BuiltinRawOperation{"flip", "2", "ffffffff"},
 };
@@ -407,7 +429,7 @@ constexpr std::string_view kDefaultBlendParameters =
 
 Result<InputColorParams> decode_legacy_colorin_parameters(const std::string_view encoded_parameters)
 {
-    auto decoded = decode_compressed_parameters(encoded_parameters, 1044U, "colorin");
+    auto decoded = decode_legacy_parameter_blob(encoded_parameters, 1044U, "colorin");
     if (!decoded)
     {
         return decoded.error();
@@ -482,6 +504,49 @@ Result<InputColorParams> decode_legacy_colorin_parameters(const std::string_view
     return result;
 }
 
+Result<OutputColorParams>
+decode_legacy_colorout_parameters(const std::string_view encoded_parameters)
+{
+    auto decoded = decode_legacy_parameter_blob(encoded_parameters, 520U, "colorout");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    auto output_profile = color_profile_name(read_i32(decoded.value(), 0U));
+    auto output_filename = fixed_string(decoded.value(), 4U, 512U);
+    if (!output_profile || !output_filename)
+    {
+        return !output_profile ? output_profile.error() : output_filename.error();
+    }
+    OutputColorParams result;
+    result.output_profile = std::move(output_profile).value();
+    result.output_profile_filename = std::move(output_filename).value();
+    switch (read_i32(decoded.value(), 516U))
+    {
+    case 0:
+        result.rendering_intent = std::string(kColorIntentPerceptual);
+        break;
+    case 1:
+        result.rendering_intent = std::string(kColorIntentRelative);
+        break;
+    case 2:
+        result.rendering_intent = std::string(kColorIntentSaturation);
+        break;
+    case 3:
+        result.rendering_intent = std::string(kColorIntentAbsolute);
+        break;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy colorout rendering intent is unsupported");
+    }
+    auto valid = validate_output_color_parameters(output_color_to_parameters(result));
+    if (!valid)
+    {
+        return valid.error();
+    }
+    return result;
+}
+
 Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
 {
     auto valid_asset = validate_asset(request.asset);
@@ -502,6 +567,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     bool has_supported_schema = false;
     std::vector<OperationInstance> operations;
     std::optional<OperationInstance> input_color;
+    std::optional<OperationInstance> output_color;
     std::size_t history_index = 0;
     while (!reader.atEnd())
     {
@@ -591,6 +657,54 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "colorout")
+            {
+                const auto version =
+                    required_attribute(reader.attributes(), u"modversion", "colorout");
+                const auto enabled =
+                    required_attribute(reader.attributes(), u"enabled", "colorout");
+                const auto parameters =
+                    required_attribute(reader.attributes(), u"params", "colorout");
+                const auto blend =
+                    required_attribute(reader.attributes(), u"blendop_params", "colorout");
+                if (!version || !enabled || !parameters || !blend)
+                {
+                    return !version    ? version.error() :
+                           !enabled    ? enabled.error() :
+                           !parameters ? parameters.error() :
+                                         blend.error();
+                }
+                if (version.value() != "5" || (enabled.value() != "0" && enabled.value() != "1"))
+                {
+                    return make_error(ErrorCode::kUnsupported,
+                                      "Legacy colorout version or enabled state is unsupported",
+                                      {{"legacy_version", version.value()}});
+                }
+                if (blend.value() != kDefaultBlendParameters &&
+                    blend.value() != "gz14eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfNoAAEkgGQQ=")
+                {
+                    return make_error(ErrorCode::kUnsupported,
+                                      "Legacy colorout blend data is unsupported",
+                                      {{"reason", "unsupported_legacy_blend"}});
+                }
+                if (enabled.value() == "1")
+                {
+                    auto decoded = decode_legacy_colorout_parameters(parameters.value());
+                    if (!decoded)
+                    {
+                        return decoded.error();
+                    }
+                    output_color =
+                        OperationInstance{"ravo.color.output",
+                                          1,
+                                          "legacy-colorout-" + std::to_string(history_index),
+                                          true,
+                                          output_color_to_parameters(decoded.value()),
+                                          std::nullopt};
+                }
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -642,7 +756,10 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                       input_color.value_or(OperationInstance{
                           "ravo.color.input", 1, "legacy-colorin-default", true,
                           input_color_to_parameters(InputColorParams{}), std::nullopt}));
-    return Recipe{2, request.asset, std::move(operations), {}};
+    operations.push_back(output_color.value_or(
+        OperationInstance{"ravo.color.output", 1, "legacy-colorout-default", true,
+                          output_color_to_parameters(OutputColorParams{}), std::nullopt}));
+    return Recipe{3, request.asset, std::move(operations), {}};
 }
 
 } // namespace ravo

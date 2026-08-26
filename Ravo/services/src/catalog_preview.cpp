@@ -285,7 +285,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             return color_fingerprint.error();
         }
-        return fnv1a64_hex(serialized.value() + "|" + color_fingerprint.value());
+        auto output_fingerprint = engine_->output_color_cache_fingerprint(recipe);
+        if (!output_fingerprint)
+        {
+            return output_fingerprint.error();
+        }
+        return fnv1a64_hex(serialized.value() + "|" + color_fingerprint.value() + "|" +
+                           output_fingerprint.value());
     };
     std::string edit_digest = "identity";
     if (!edit_recipe.operations.empty())
@@ -455,7 +461,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     result.height = rendered.height;
     if (interactive)
     {
-        result.srgb = std::move(rendered.rgb);
+        result.rgb = std::move(rendered.rgb);
+        result.color_profile = std::move(rendered.color_profile);
         return result;
     }
 

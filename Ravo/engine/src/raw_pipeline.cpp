@@ -434,7 +434,9 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
     const std::uint64_t output_bytes = output_pixels * 3U;
     const std::uint64_t raw_pixels = raw.pixels.size();
     const std::uint64_t raw_bytes = raw_pixels * sizeof(std::uint16_t);
-    constexpr std::uint64_t color_lut_bytes = 3U * 0x10000U * sizeof(float);
+    // Worst case: source, working, normalization, output, and proof profiles
+    // each own three input and three output shaper curves.
+    constexpr std::uint64_t color_lut_bytes = 30U * 0x10000U * sizeof(float);
     const std::uint64_t float_rgb_bytes = output_pixels * 3U * sizeof(float);
     std::uint64_t working_bytes = output_bytes + 2U * float_rgb_bytes + color_lut_bytes + raw_bytes;
     bool owns_raw_copy = false;

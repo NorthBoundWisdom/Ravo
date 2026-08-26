@@ -4,8 +4,8 @@
 >
 > **Updated: 2026-08-26**
 >
-> **Current execution focus: C5 output colour profile colorout.** Do not migrate
-> primaries, profile_gamma, cacorrectrgb, or the general mask graph in parallel.
+> **Current execution focus: C6 RGB primaries.** Do not migrate profile_gamma,
+> gamma, cacorrectrgb, or the general mask graph in parallel.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -38,61 +38,59 @@ ready for execution.
 
 ## 2. Migration queue
 
-### C5. Output colour profile: colorout (current)
+### C6. RGB primaries: primaries (current)
 
-Goal: replace the fixed final sRGB encoding with a versioned working-profile →
-output-profile CPU transform shared by preview, CLI render, and CatalogService
-export. C5 consumes the immutable working-profile state established by the
-engine colour adapter; it must not recreate decoder or widget-owned profile
-state.
+Goal: migrate the frozen linear working-RGB primary rotation/purity and
+achromatic-tint transform as one versioned CPU operation. C6 consumes the
+immutable working-profile matrix established by `ravo.color.input`; it does not
+own profile selection, output encoding, or display state.
 
 Scope:
 
-- First inventory every frozen schema-v5 `colorout` payload and pipeline mode,
-  then define canonical output profile type/name, rendering intent, proof
-  profile/intent, black-point compensation, gamut-check policy, and declared
-  encoded result state.
-- Preserve matrix + output shaper LUT, frozen unbounded extrapolation, general
-  LittleCMS output transform, soft-proof round trip, and gamut-check branches.
-  Do not equate fixed sRGB transfer encoding with general `colorout` acceptance.
-- Define built-in/file ICC and RGB/XYZ/Lab output support. PNG/JPEG/TIFF must
-  embed the selected profile or fail before atomic publication; original-copy
-  export remains byte-preserving.
-- Preview/display and export choose profiles only through explicit request or
-  recipe state. Do not infer a monitor profile, desktop preference, filename,
-  or old global pipeline mode. Gamut warning calculation belongs to engine;
-  presentation belongs to Studio.
-- GTK profile/intent controls, OpenCL, dynamic IOP ABI, monitor polling, and old
-  global colour-profile configuration are not migrated.
+- Frozen census: `0152-rgb-primaries` is the only fixture with `primaries`; it
+  contains one enabled schema-v1, unmasked instance. Its 32-byte payload is
+  eight little-endian floats: achromatic hue/purity, then red, green, and blue
+  hue/purity. Decode the exact payload and reject every other size/version.
+- Preserve `_find_distance_to_edge`, rotation about the working white point,
+  purity scaling to the working-primary triangle, custom-primary/white-point
+  RGB→XYZ construction, and the final custom-RGB→working-RGB 3×3 multiply.
+  Default parameters must be an identity matrix.
+- Derive base primary xy and white point from the declared finite working
+  profile state. Do not read a display profile, monitor preference, global
+  pixelpipe profile, or duplicate profile registry.
+- GTK slider painting, display-gamut preview colors, dynamic IOP lifecycle,
+  OpenCL, and blend UI are not migrated. The general mask graph remains queued.
 
 Owner, lifecycle, and failure:
 
-- Canonical identifiers belong to recipe/domain; parsed output/proof transforms
-  and LUTs are render-local engine values. Encoders receive immutable declared
-  output state, never a LittleCMS/Qt/legacy handle.
-- Output/proof ICC bytes and content hashes participate in export/preview cache
-  identity. Handles and file mappings are released at task completion and are
-  not bare-shared across threads.
-- Missing/corrupt profiles, unsupported colour model/intent, singular or
-  nonfinite matrix/LUT, allocation/encoder failure, cancellation, and output
-  conflict fail before replacing a trusted file or publishing partial pixels.
-  There is no fallback to sRGB or the display profile.
+- Recipe owns eight bounded scalar parameters in radians/purity units. Engine
+  derives one render-local matrix and applies it row-wise to an owned output;
+  the result remains labelled with the unchanged working profile.
+- Degenerate working primaries/white point, parallel or backwards edge
+  intersections, invalid xy/Y division, singular/nonfinite matrices, invalid
+  parameter bounds, allocation failure, and cancellation return structured
+  failure without publishing partial pixels or mutating the input.
+- `common/custom_primaries.c/.h` remains frozen evidence because `agx` still
+  consumes it. C6 retires only `iop/primaries.c` and its registration.
 
 Validation and acceptance gates:
 
-- [ ] Static census and decode of all distinct frozen schema-v5 `colorout`
-  payloads; canonical schema round-trip and unknown/missing/corrupt rejection.
-- [ ] Synthetic matrix/shaper/unbounded/general ICC, RGB/XYZ/Lab, four intents,
-  proofing, gamut check, black-point compensation, and row cancellation UT.
-- [ ] `0000-nop`/`mire1.cr2` sRGB reference plus at least one wide-gamut and one
-  file-ICC output reference; working input remains immutable.
-- [ ] CLI render and CatalogService PNG/JPEG/TIFF export embed the declared
-  profile consistently; cache key, conflict, cancellation, and disk failure are
-  covered without partial output.
-- [ ] Studio Output/Soft-proof Inspector save/reopen and gamut-warning intent
-  have presenter/QML smoke plus catalog integration coverage.
-- [ ] Delete `legacy/src/iop/colorout.c` and registration; shared colour owner is
-  retired only when its remaining consumers reach zero.
+- [ ] Static schema-v1 payload decode and exact canonical round-trip; unknown,
+  missing, short, nonfinite, and out-of-range parameters reject.
+- [ ] Synthetic identity, each hue/purity control, achromatic tint, edge
+  intersection, custom RGB→XYZ matrix, multiple working profiles, singular/
+  nonfinite state, row cancellation, and input immutability UT.
+- [ ] `0152-rgb-primaries` + `mire1.cr2` Ravo-owned channel-sum reference and
+  at least one non-default synthetic working-profile reference.
+- [ ] Legacy XMP import maps the proven unmasked singleton only; duplicate,
+  disabled/unsupported schema, and non-default blend/mask state fail explicitly.
+- [ ] CLI render and CatalogService preview/export reproduce the same pixels;
+  recipe/cache identity, cancellation, save/reopen, and late-result behavior are
+  covered.
+- [ ] Studio RGB Primaries Inspector exposes all eight canonical values and has
+  presenter/QML smoke plus catalog save/reopen coverage.
+- [ ] Delete `legacy/src/iop/primaries.c` and registration. Keep shared custom-
+  primary evidence until its remaining consumer (`agx`) is accepted.
 - [ ] Full Ravo unit/contract/catalog tests and freeze/inventory/boundary checks.
 - [ ] Explicitly report Windows/Linux as untested when they are not run.
 
@@ -117,7 +115,7 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt still registers 60 IOPs; every IOP has a row in
+- legacy/src/iop/CMakeLists.txt still registers 59 IOPs; every IOP has a row in
   section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
@@ -128,7 +126,7 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C5 only. **Queued** waits for dependencies and
+Status terms: **current** means C6 only. **Queued** waits for dependencies and
 all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
 move it before migration completes. When a module meets its gate, first update
 stable truth, then remove its row. Do not leave historical checked marks here.
@@ -158,7 +156,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (60 registered modules)
+### 3.2 IOP algorithm queue (59 registered modules)
 
 The group order below is dependency order; rows in a group are serial by
 default. fixture means static evidence exists, not that it is covered.
@@ -167,8 +165,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C5 | colorout — iop/colorout.c | yes | **Current / ALG**; consumes explicit working-profile state; output profile, intent, soft proof, gamut check, and export consistency; see section 2 |
-| C6 | primaries — iop/primaries.c | yes | Queued / ALG; depends on explicit input-profile state; custom primaries/white point/gamut mapping |
+| C6 | primaries — iop/primaries.c | yes | **Current / ALG**; consumes explicit working-profile state; primary rotation/purity, achromatic tint, and custom matrix; see section 2 |
 | C7 | profile_gamma — iop/profile_gamma.c | no | Queued / ALG; depends on explicit input-profile state; create Ravo-owned synthetic + RAW reference first |
 | C8 | gamma — iop/gamma.c | yes | Queued / ALG; existing simplified ravo.core.gamma is not acceptance; reproduce frozen lookup/boundaries |
 | C9 | exposure — iop/exposure.c | yes | Queued / ALG; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
@@ -387,13 +384,13 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later rows in parallel before C5 completes.
+later rows in parallel before C6 completes.
 
 ## 4. Completion gate for this TODO
 
 Delete this document only when all are true:
 
-- [ ] C5 and every later raised algorithm are accepted and removed from this
+- [ ] C6 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

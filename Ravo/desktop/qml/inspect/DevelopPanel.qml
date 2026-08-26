@@ -273,6 +273,87 @@ ColumnLayout {
                 }
 
                 DevelopSection {
+                    title: qsTr("Output & Soft Proof")
+                    sectionId: "outputProfile"
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("sRGB"), qsTr("Adobe RGB"), qsTr("Linear Rec709"),
+                                qsTr("Linear Rec2020"), qsTr("Rec709"),
+                                qsTr("Linear ProPhoto RGB"), qsTr("PQ Rec2020"),
+                                qsTr("HLG Rec2020"), qsTr("PQ P3"), qsTr("HLG P3"),
+                                qsTr("Display P3")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editOutputColor.outputProfileIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("outputProfile", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Perceptual"), qsTr("Relative colorimetric"),
+                                qsTr("Saturation"), qsTr("Absolute colorimetric")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editOutputColor.intentIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("outputRenderingIntent", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Proof off"), qsTr("Soft proof"), qsTr("Gamut warning")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editOutputColor.proofModeIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("proofMode", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("sRGB"), qsTr("Adobe RGB"), qsTr("Linear Rec709"),
+                                qsTr("Linear Rec2020"), qsTr("Rec709"),
+                                qsTr("Linear ProPhoto RGB"), qsTr("PQ Rec2020"),
+                                qsTr("HLG Rec2020"), qsTr("PQ P3"), qsTr("HLG P3"),
+                                qsTr("Display P3")]
+                            enabled: root.hasSelection && root.hasPresenter
+                                && root.presenter.editOutputColor.proofModeIndex !== 0
+                            currentIndex: root.hasPresenter ? root.presenter.editOutputColor.proofProfileIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("proofProfile", currentIndex)
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Perceptual"), qsTr("Relative colorimetric"),
+                                qsTr("Saturation"), qsTr("Absolute colorimetric")]
+                            enabled: root.hasSelection && root.hasPresenter
+                                && root.presenter.editOutputColor.proofModeIndex !== 0
+                            currentIndex: root.hasPresenter ? root.presenter.editOutputColor.proofIntentIndex : 1
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("proofIntent", currentIndex)
+                        }
+                        CustomCheckBox {
+                            text: qsTr("Black-point compensation")
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter
+                                && root.presenter.editOutputColor.blackPointCompensation
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("outputBlackPointCompensation",
+                                    checked ? 1 : 0)
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: root.hasPresenter
+                                ? qsTr("%1 · %2 · proof %3").arg(
+                                    root.presenter.editOutputColor.outputProfile).arg(
+                                    root.presenter.editOutputColor.proofMode).arg(
+                                    root.presenter.editOutputColor.proofProfile)
+                                : ""
+                            wrapMode: Text.WordWrap
+                            opacity: 0.75
+                        }
+                    }
+                }
+
+                DevelopSection {
                     title: qsTr("White Balance")
                     sectionId: "whiteBalance"
                     ColumnLayout {

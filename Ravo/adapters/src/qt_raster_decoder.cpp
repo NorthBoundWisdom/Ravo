@@ -235,7 +235,7 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
 
 [[nodiscard]] Result<QColorSpace> qt_output_color_space(const ColorProfileState &profile)
 {
-    if (profile.kind == ColorProfileKind::kIcc && !profile.icc_bytes.empty())
+    if (!profile.icc_bytes.empty())
     {
         if (profile.icc_bytes.size() >
             static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
@@ -254,6 +254,47 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
     if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "srgb")
     {
         return QColorSpace(QColorSpace::SRgb);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "linear_rec709")
+    {
+        return QColorSpace(QColorSpace::SRgbLinear);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "adobe_rgb")
+    {
+        return QColorSpace(QColorSpace::AdobeRgb);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "display_p3")
+    {
+        return QColorSpace(QColorSpace::DisplayP3);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "linear_rec2020")
+    {
+        return QColorSpace(QColorSpace::Primaries::Bt2020, QColorSpace::TransferFunction::Linear);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "rec709")
+    {
+        return QColorSpace(QColorSpace::Primaries::SRgb, QColorSpace::TransferFunction::Bt2020);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "prophoto_rgb")
+    {
+        return QColorSpace(QColorSpace::Primaries::ProPhotoRgb,
+                           QColorSpace::TransferFunction::Linear);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "pq_rec2020")
+    {
+        return QColorSpace(QColorSpace::Bt2100Pq);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "hlg_rec2020")
+    {
+        return QColorSpace(QColorSpace::Bt2100Hlg);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "pq_p3")
+    {
+        return QColorSpace(QColorSpace::Primaries::DciP3D65, QColorSpace::TransferFunction::St2084);
+    }
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "hlg_p3")
+    {
+        return QColorSpace(QColorSpace::Primaries::DciP3D65, QColorSpace::TransferFunction::Hlg);
     }
     return make_error(ErrorCode::kUnsupported, "Raster encoder output profile is unsupported",
                       {{"profile", profile.identifier}});

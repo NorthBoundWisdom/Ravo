@@ -79,6 +79,8 @@ void declare_input(Recipe &recipe)
 {
     recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
                                  input_color_to_parameters(InputColorParams{}), std::nullopt});
+    recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
 }
 
 [[nodiscard]] std::optional<DecodedPng> read_rgb_png(const std::filesystem::path &path)

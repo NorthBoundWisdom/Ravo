@@ -36,7 +36,7 @@ TEST(RecipeTest, CanonicalRoundTripValidatesAgainstThePhaseOneRegistry)
     ASSERT_TRUE(serialized) << serialized.error().message;
     EXPECT_EQ(
         serialized.value(),
-        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.color.input","instance_id":"color-input-1","parameters":{"blue_mapping":false,"gamut_normalize":"off","input_profile":"source","input_profile_filename":"","rendering_intent":"perceptual","working_profile":"linear_rec709","working_profile_filename":""},"schema_version":1},{"enabled":true,"id":"ravo.core.exposure","instance_id":"exposure-1","parameters":{"exposure_ev":1.25},"schema_version":1}],"schema_version":2})");
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.color.input","instance_id":"color-input-1","parameters":{"blue_mapping":false,"gamut_normalize":"off","input_profile":"source","input_profile_filename":"","rendering_intent":"perceptual","working_profile":"linear_rec709","working_profile_filename":""},"schema_version":1},{"enabled":true,"id":"ravo.core.exposure","instance_id":"exposure-1","parameters":{"exposure_ev":1.25},"schema_version":1},{"enabled":true,"id":"ravo.color.output","instance_id":"color-output-1","parameters":{"black_point_compensation":true,"output_profile":"srgb","output_profile_filename":"","proof_intent":"relative_colorimetric","proof_mode":"off","proof_profile":"srgb","proof_profile_filename":"","rendering_intent":"perceptual"},"schema_version":1}],"schema_version":3})");
 
     const auto parsed = parse_recipe_json(serialized.value());
     ASSERT_TRUE(parsed) << parsed.error().message;
@@ -44,27 +44,29 @@ TEST(RecipeTest, CanonicalRoundTripValidatesAgainstThePhaseOneRegistry)
     EXPECT_TRUE(valid) << valid.error().message;
 }
 
-TEST(RecipeTest, SchemaOneUpgradesToAnExplicitInputProfile)
+TEST(RecipeTest, OlderSchemasUpgradeToExplicitColorBoundaries)
 {
     auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
     auto upgraded = parse_recipe_json(
         R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.core.exposure","instance_id":"exposure-1","parameters":{"exposure_ev":0.5},"schema_version":1}],"schema_version":1})");
     ASSERT_TRUE(upgraded) << upgraded.error().message;
-    EXPECT_EQ(upgraded.value().schema_version, 2);
-    ASSERT_EQ(upgraded.value().operations.size(), 2U);
+    EXPECT_EQ(upgraded.value().schema_version, 3);
+    ASSERT_EQ(upgraded.value().operations.size(), 3U);
     EXPECT_EQ(upgraded.value().operations.front().id, "ravo.color.input");
-    EXPECT_EQ(upgraded.value().operations.back().id, "ravo.core.exposure");
+    EXPECT_EQ(upgraded.value().operations[1].id, "ravo.core.exposure");
+    EXPECT_EQ(upgraded.value().operations.back().id, "ravo.color.output");
     ASSERT_TRUE(validate_recipe(upgraded.value(), registry.value()));
 
     auto reserved = parse_recipe_json(
         R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[{"enabled":true,"id":"ravo.color.input","instance_id":"old-input","parameters":{},"schema_version":1}],"schema_version":1})");
     ASSERT_TRUE(reserved) << reserved.error().message;
-    ASSERT_EQ(reserved.value().operations.size(), 1U);
+    ASSERT_EQ(reserved.value().operations.size(), 2U);
     auto reserved_input =
         input_color_from_parameters(reserved.value().operations.front().parameters);
     ASSERT_TRUE(reserved_input) << reserved_input.error().message;
     EXPECT_EQ(reserved_input.value(), InputColorParams{});
+    EXPECT_EQ(reserved.value().operations.back().id, "ravo.color.output");
     ASSERT_TRUE(validate_recipe(reserved.value(), registry.value()));
 }
 
@@ -83,7 +85,9 @@ TEST(RecipeTest, ReportsUnknownOperationsAsUnsupported)
     auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
     auto recipe = test::valid_recipe();
-    recipe.operations.back().id = "ravo.creative.unknown";
+    auto *exposure = operation_by_id(recipe, "ravo.core.exposure");
+    ASSERT_NE(exposure, nullptr);
+    exposure->id = "ravo.creative.unknown";
 
     const auto valid = validate_recipe(recipe, registry.value());
     ASSERT_FALSE(valid);
@@ -96,7 +100,9 @@ TEST(RecipeTest, EnforcesExposureParameterRange)
     auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
     auto recipe = test::valid_recipe();
-    recipe.operations.back().parameters["exposure_ev"] = ParameterValue{11.0};
+    auto *exposure = operation_by_id(recipe, "ravo.core.exposure");
+    ASSERT_NE(exposure, nullptr);
+    exposure->parameters["exposure_ev"] = ParameterValue{11.0};
 
     const auto valid = validate_recipe(recipe, registry.value());
     ASSERT_FALSE(valid);
@@ -348,6 +354,83 @@ TEST(RecipeTest, InputColorSchemaRoundTripsAndRejectsEveryUnknownPolicy)
     EXPECT_FALSE(selected.is_identity());
 }
 
+TEST(RecipeTest, OutputColorSchemaRoundTripsAndRejectsEveryUnknownPolicy)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+
+    DevelopParams develop;
+    develop.output_color.output_profile = std::string(kInputProfileDisplayP3);
+    develop.output_color.rendering_intent = std::string(kColorIntentRelative);
+    develop.output_color.proof_mode = std::string(kProofModeGamutCheck);
+    develop.output_color.proof_profile = std::string(kInputProfileAdobeRgb);
+    develop.output_color.proof_intent = std::string(kColorIntentAbsolute);
+    develop.output_color.black_point_compensation = false;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().output_color, develop.output_color);
+    EXPECT_FALSE(restored.value().is_identity());
+
+    const auto reject = [&](const std::string_view parameter, ParameterValue value)
+    {
+        auto invalid = recipe.value();
+        auto *output = operation_by_id(invalid, "ravo.color.output");
+        EXPECT_NE(output, nullptr);
+        if (output == nullptr)
+        {
+            return Result<void>{make_error(ErrorCode::kInternal, "missing test operation")};
+        }
+        output->parameters[std::string(parameter)] = std::move(value);
+        return validate_recipe(invalid, registry.value());
+    };
+    EXPECT_FALSE(reject("output_profile", ParameterValue{"unknown"}));
+    EXPECT_FALSE(reject("rendering_intent", ParameterValue{"unknown"}));
+    EXPECT_FALSE(reject("proof_mode", ParameterValue{"unknown"}));
+    EXPECT_FALSE(reject("proof_profile", ParameterValue{"lab"}));
+    EXPECT_FALSE(reject("output_profile_filename", ParameterValue{"unexpected.icc"}));
+    auto gamut_lab = develop.output_color;
+    gamut_lab.output_profile = std::string(kInputProfileLab);
+    EXPECT_FALSE(validate_output_color_parameters(output_color_to_parameters(gamut_lab)));
+
+    auto file_params = develop.output_color;
+    file_params.output_profile = std::string(kInputProfileFileIcc);
+    file_params.output_profile_filename.clear();
+    EXPECT_FALSE(validate_output_color_parameters(output_color_to_parameters(file_params)));
+
+    auto duplicate = recipe.value();
+    auto *output = operation_by_id(duplicate, "ravo.color.output");
+    ASSERT_NE(output, nullptr);
+    auto copy = *output;
+    copy.instance_id = "color-output-2";
+    duplicate.operations.push_back(std::move(copy));
+    auto duplicate_result = validate_recipe(duplicate, registry.value());
+    ASSERT_FALSE(duplicate_result);
+    EXPECT_EQ(duplicate_result.error().code, ErrorCode::kConflict);
+
+    DevelopParams selected;
+    EXPECT_TRUE(apply_develop_field(selected, "outputProfile", 10.0));
+    EXPECT_TRUE(apply_develop_field(selected, "outputRenderingIntent", 1.0));
+    EXPECT_TRUE(apply_develop_field(selected, "proofMode", 2.0));
+    EXPECT_TRUE(apply_develop_field(selected, "proofProfile", 1.0));
+    EXPECT_TRUE(apply_develop_field(selected, "proofIntent", 3.0));
+    EXPECT_TRUE(apply_develop_field(selected, "outputBlackPointCompensation", 0.0));
+    EXPECT_EQ(selected.output_color.output_profile, kInputProfileDisplayP3);
+    EXPECT_EQ(selected.output_color.rendering_intent, kColorIntentRelative);
+    EXPECT_EQ(selected.output_color.proof_mode, kProofModeGamutCheck);
+    EXPECT_EQ(selected.output_color.proof_profile, kInputProfileAdobeRgb);
+    EXPECT_EQ(selected.output_color.proof_intent, kColorIntentAbsolute);
+    EXPECT_FALSE(selected.output_color.black_point_compensation);
+    EXPECT_TRUE(reset_develop_section(selected, "outputProfile"));
+    EXPECT_TRUE(selected.output_color.is_identity());
+}
+
 TEST(RecipeTest, ChannelMixerSchemaRejectsInvalidEnumsArraysAndNormalization)
 {
     auto registry = make_phase1_registry();
@@ -526,9 +609,10 @@ TEST(RecipeTest, ColorBalanceRgbFullSchemaRoundTripsTheFrozen0083Parameters)
     develop.color_balance_rgb = fixture;
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
-    ASSERT_EQ(recipe.value().operations.size(), 2U);
+    ASSERT_EQ(recipe.value().operations.size(), 3U);
     EXPECT_NE(operation_by_id(recipe.value(), "ravo.color.input"), nullptr);
     EXPECT_NE(operation_by_id(recipe.value(), "ravo.color.colorbalancergb"), nullptr);
+    EXPECT_NE(operation_by_id(recipe.value(), "ravo.color.output"), nullptr);
     auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
     ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
@@ -782,9 +866,10 @@ TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
     params.sigmoid_hue_preservation = 0.75;
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
     ASSERT_TRUE(recipe) << recipe.error().message;
-    ASSERT_EQ(recipe.value().operations.size(), 2U);
+    ASSERT_EQ(recipe.value().operations.size(), 3U);
     EXPECT_NE(operation_by_id(recipe.value(), "ravo.color.input"), nullptr);
     EXPECT_NE(operation_by_id(recipe.value(), "ravo.display.sigmoid"), nullptr);
+    EXPECT_NE(operation_by_id(recipe.value(), "ravo.color.output"), nullptr);
     ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
 
     auto serialized = serialize_recipe(recipe.value());
@@ -834,7 +919,7 @@ TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
 TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)
 {
     const auto recipe = parse_recipe_json(
-        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[],"schema_version":3})");
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[],"operations":[],"schema_version":4})");
 
     ASSERT_FALSE(recipe);
     EXPECT_EQ(recipe.error().code, ErrorCode::kUnsupported);

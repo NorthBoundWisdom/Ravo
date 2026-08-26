@@ -1563,20 +1563,21 @@ void clamp_develop(DevelopParams &params) noexcept
 
 bool DevelopParams::is_identity() const noexcept
 {
-    return temperature.is_identity() && input_color.is_identity() && channel_mixer.is_identity() &&
-           near(exposure_ev, 0.0) && near(contrast, 0.0) && near(highlights, 0.0) &&
-           near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) &&
-           near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
-           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(crop_x, 0.0) &&
-           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
-           near(sharpen, 0.0) && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
-           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
-           color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
-           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
-           tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
-           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
-           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
-           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+    return temperature.is_identity() && input_color.is_identity() && output_color.is_identity() &&
+           channel_mixer.is_identity() && near(exposure_ev, 0.0) && near(contrast, 0.0) &&
+           near(highlights, 0.0) && near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) &&
+           near(vibrance, 0.0) && near(saturation, 0.0) && rotate_quarters % 4 == 0 &&
+           flip_horizontal == 0 && flip_vertical == 0 && near(straighten_degrees, 0.0) &&
+           near(crop_x, 0.0) && near(crop_y, 0.0) && near(crop_width, 1.0) &&
+           near(crop_height, 1.0) && near(sharpen, 0.0) && near(clarity, 0.0) &&
+           near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) && near(soften, 0.0) &&
+           near(dehaze, 0.0) && near(velvia, 0.0) && color_balance_rgb.is_identity() &&
+           near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
+           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
+           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
+           raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
+           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
+           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -1642,6 +1643,57 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     else if (name == "blueMapping")
     {
         params.input_color.blue_mapping = value >= 0.5;
+    }
+    else if (name == "outputProfile")
+    {
+        auto profile = selected(kSelectableOutputProfiles);
+        if (!profile)
+        {
+            return false;
+        }
+        params.output_color.output_profile = std::move(*profile);
+        params.output_color.output_profile_filename.clear();
+    }
+    else if (name == "outputRenderingIntent")
+    {
+        auto intent = selected(kSelectableColorIntents);
+        if (!intent)
+        {
+            return false;
+        }
+        params.output_color.rendering_intent = std::move(*intent);
+    }
+    else if (name == "proofMode")
+    {
+        auto mode = selected(kSelectableProofModes);
+        if (!mode)
+        {
+            return false;
+        }
+        params.output_color.proof_mode = std::move(*mode);
+    }
+    else if (name == "proofProfile")
+    {
+        auto profile = selected(kSelectableProofProfiles);
+        if (!profile)
+        {
+            return false;
+        }
+        params.output_color.proof_profile = std::move(*profile);
+        params.output_color.proof_profile_filename.clear();
+    }
+    else if (name == "proofIntent")
+    {
+        auto intent = selected(kSelectableColorIntents);
+        if (!intent)
+        {
+            return false;
+        }
+        params.output_color.proof_intent = std::move(*intent);
+    }
+    else if (name == "outputBlackPointCompensation")
+    {
+        params.output_color.black_point_compensation = value >= 0.5;
     }
     else if (name == "channelMixerRR")
     {
@@ -1977,6 +2029,12 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.input_color = identity.input_color;
     }
+    else if (name == "outputProfile" || name == "outputRenderingIntent" || name == "proofMode" ||
+             name == "proofProfile" || name == "proofIntent" ||
+             name == "outputBlackPointCompensation")
+    {
+        params.output_color = identity.output_color;
+    }
     else if (name == "channelMixerRR" || name == "channelMixerRG" || name == "channelMixerRB" ||
              name == "channelMixerGR" || name == "channelMixerGG" || name == "channelMixerGB" ||
              name == "channelMixerBR" || name == "channelMixerBG" || name == "channelMixerBB")
@@ -2260,6 +2318,10 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     else if (section == "inputProfile")
     {
         params.input_color = identity.input_color;
+    }
+    else if (section == "outputProfile")
+    {
+        params.output_color = identity.output_color;
     }
     else if (section == "calibration")
     {
@@ -2839,6 +2901,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"display_black_target", ParameterValue{clamped.sigmoid_display_black}},
              {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}});
     }
+    add_operation(recipe, "ravo.color.output", "color-output-1",
+                  output_color_to_parameters(clamped.output_color));
     return recipe;
 }
 
@@ -2886,6 +2950,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return input_color.error();
             }
             params.input_color = std::move(input_color).value();
+        }
+        else if (operation.id == "ravo.color.output")
+        {
+            auto output_color = output_color_from_parameters(operation.parameters);
+            if (!output_color)
+            {
+                return output_color.error();
+            }
+            params.output_color = std::move(output_color).value();
         }
         else if (operation.id == "ravo.color.channelmixerrgb")
         {

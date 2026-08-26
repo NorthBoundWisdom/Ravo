@@ -100,7 +100,6 @@ struct bytes or call the old dynamic module ABI.
 | `colorharmonizer` | yes | queued by ADR-0015; requires explicit color-space and overlap contract |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
-| `colorout` | yes | reserved `ravo.color.output`; the first RAW slice has a fixed sRGB target, while general profile mapping remains deferred |
 | `colorreconstruct` | yes | defer with RAW reconstruction capability |
 | `colorzones` | yes | queued by ADR-0015 as optional HSL zoning; `colorequal` remains default |
 | `crop` | yes | defer until geometry/ROI contract exists |

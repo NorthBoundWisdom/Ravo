@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "ravo/recipe/color_input.h"
+#include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
 
 namespace ravo
@@ -456,7 +457,24 @@ Result<OperationRegistry> make_phase1_registry()
           {"whites", ParameterType::kNumber, false, ParameterValue{0.0}, -4.0, 4.0}},
          false,
          true},
-        {"ravo.color.output", "Output colour", 1, {}, false, false},
+        {"ravo.color.output",
+         "Output colour",
+         1,
+         {{"output_profile", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"output_profile_filename", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"rendering_intent", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"proof_mode", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"proof_profile", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"proof_profile_filename", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"proof_intent", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"black_point_compensation", ParameterType::kBoolean, true, std::nullopt, std::nullopt,
+           std::nullopt}},
+         false,
+         true},
         {"ravo.output.scale",
          "Output scale",
          1,

@@ -1,17 +1,68 @@
 #include "ravo/engine/engine.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <limits>
 #include <string>
 #include <utility>
 
 #include "capability_ops.h"
 #include "image_ops.h"
 #include "input_color.h"
+#include "output_color.h"
 #include "raw_ca.h"
 #include "raw_pipeline.h"
 #include "raw_temperature.h"
+#include "ravo/recipe/color_output.h"
 
 namespace ravo
 {
+namespace
+{
+
+[[nodiscard]] Result<RenderedImage>
+encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
+                            const CancellationToken &cancellation)
+{
+    const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
+    if (input.width == 0 || input.height == 0 ||
+        pixels > std::numeric_limits<std::size_t>::max() / 3U ||
+        input.channels.size() != static_cast<std::size_t>(pixels * 3U) ||
+        input.color_profile.model != ColorModel::kRgb)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Rendered output is not an encodable RGB buffer");
+    }
+    RenderedImage result;
+    result.width = input.width;
+    result.height = input.height;
+    result.color_profile = input.color_profile;
+    result.rgb.resize(input.channels.size());
+    for (std::uint32_t row = 0; row < input.height; ++row)
+    {
+        auto cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        const std::size_t begin = static_cast<std::size_t>(row) * input.width * 3U;
+        const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
+        for (std::size_t index = begin; index < end; ++index)
+        {
+            if (!std::isfinite(input.channels[index]))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Output colour buffer contains NaN or infinity");
+            }
+            result.rgb[index] = static_cast<std::uint8_t>(
+                std::lround(std::clamp(input.channels[index], 0.0F, 1.0F) * 255.0F));
+        }
+    }
+    return result;
+}
+
+} // namespace
 
 EngineFacade::EngineFacade(OperationRegistry registry)
     : registry_(std::move(registry))
@@ -103,6 +154,16 @@ Result<std::string> EngineFacade::input_color_cache_fingerprint(const Recipe &re
         return valid.error();
     }
     return ravo::input_color_cache_fingerprint(recipe);
+}
+
+Result<std::string> EngineFacade::output_color_cache_fingerprint(const Recipe &recipe) const
+{
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    return ravo::output_color_cache_fingerprint(recipe);
 }
 
 Result<RenderResult> EngineFacade::render(const RenderRequest &request,
@@ -292,6 +353,11 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
     {
         return valid.error();
     }
+    auto output_color = resolve_output_color(recipe);
+    if (!output_color)
+    {
+        return output_color.error();
+    }
     WorkingImage image = working;
     if (working.color_profile.identifier != kInputProfileLinearRec709)
     {
@@ -308,13 +374,12 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
     {
         return adjusted.error();
     }
-    auto output_working =
-        convert_working_profile(adjusted.value(), kInputProfileLinearRec709, cancellation);
-    if (!output_working)
+    auto output = apply_output_color(adjusted.value(), output_color.value(), cancellation);
+    if (!output)
     {
-        return output_working.error();
+        return output.error();
     }
-    return encode_working_srgb(output_working.value());
+    return encode_profiled_output_rgb8(output.value(), cancellation);
 }
 
 Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request,

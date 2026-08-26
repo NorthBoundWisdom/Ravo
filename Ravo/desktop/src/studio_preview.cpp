@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstddef>
 
+#include <QByteArray>
+#include <QColorSpace>
 #include <QImage>
 #include <QMetaObject>
 #include <QMutexLocker>
@@ -36,8 +38,8 @@ void StudioPresenter::clear_displayed_preview()
     clear_scopes();
 }
 
-QVariantList StudioPresenter::histogram_channel_list(
-    const std::array<std::uint32_t, kRgbHistogramBins> &channel)
+QVariantList
+StudioPresenter::histogram_channel_list(const std::array<std::uint32_t, kRgbHistogramBins> &channel)
 {
     QVariantList list;
     list.reserve(static_cast<qsizetype>(kRgbHistogramBins));
@@ -70,8 +72,7 @@ void StudioPresenter::refresh_scopes_from_thumbnail(const QString &asset_id)
         clear_scopes();
         return;
     }
-    const QUrl url =
-        assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
+    const QUrl url = assets_.data(assets_.index(row, 0), AssetListModel::ThumbnailUrlRole).toUrl();
     if (!url.isLocalFile())
     {
         clear_scopes();
@@ -100,8 +101,8 @@ void StudioPresenter::refresh_scopes(const QImage &image)
     {
         const auto *row = rgb.constScanLine(static_cast<int>(y));
         std::copy_n(row, static_cast<std::size_t>(raster.width) * 3U,
-                    raster.srgb.begin() +
-                        static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * raster.width * 3U));
+                    raster.srgb.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) *
+                                                                      raster.width * 3U));
     }
     auto histogram = collect_rgb_histogram(raster);
     auto parade = collect_rgb_parade(raster);
@@ -134,18 +135,36 @@ void StudioPresenter::refresh_scopes(const QImage &image)
 void StudioPresenter::show_preview_result(const PreviewResult &preview,
                                           const std::uint64_t revision)
 {
-    if (!preview.srgb.empty())
+    if (!preview.rgb.empty())
     {
         const auto expected = static_cast<std::size_t>(preview.width) * preview.height * 3U;
-        if (preview.width == 0 || preview.height == 0 || preview.srgb.size() != expected)
+        if (preview.width == 0 || preview.height == 0 || preview.rgb.size() != expected)
         {
             setError(QStringLiteral("Interactive preview pixels are invalid"));
             return;
         }
-        const QImage view(preview.srgb.data(), static_cast<int>(preview.width),
+        const QImage view(preview.rgb.data(), static_cast<int>(preview.width),
                           static_cast<int>(preview.height), static_cast<int>(preview.width * 3U),
                           QImage::Format_RGB888);
-        const QImage owned = view.copy();
+        QImage owned = view.copy();
+        if (!preview.color_profile.icc_bytes.empty())
+        {
+            const QByteArray bytes(
+                reinterpret_cast<const char *>(preview.color_profile.icc_bytes.data()),
+                static_cast<qsizetype>(preview.color_profile.icc_bytes.size()));
+            const QColorSpace color_space = QColorSpace::fromIccProfile(bytes);
+            if (!color_space.isValid())
+            {
+                setError(QStringLiteral("Interactive preview ICC profile is invalid"));
+                return;
+            }
+            owned.setColorSpace(color_space);
+        }
+        else
+        {
+            setError(QStringLiteral("Interactive preview has no declared ICC profile"));
+            return;
+        }
         {
             const QMutexLocker lock(&preview_image_mutex_);
             preview_image_ = owned;
@@ -175,8 +194,8 @@ QString StudioPresenter::scopeMode() const
 
 void StudioPresenter::setScopeMode(const QString &mode)
 {
-    const QString next = mode == QLatin1String("parade") ? QStringLiteral("parade") :
-                                                           QStringLiteral("histogram");
+    const QString next =
+        mode == QLatin1String("parade") ? QStringLiteral("parade") : QStringLiteral("histogram");
     if (scope_mode_ == next)
     {
         return;

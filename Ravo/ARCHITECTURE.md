@@ -158,8 +158,9 @@ committed results remain valid.
 
 `PreviewRequest` explicitly carries asset ID, target pixel dimensions,
 orientation/colour policy, backend, memory/thread budget, cancellation token,
-and request revision. `PreviewResult` returns a trusted read-only preview
-resource or structured failure.
+and request revision. `PreviewResult` returns either trusted profile-labelled
+RGB memory pixels or a read-only profiled cache resource, otherwise a
+structured failure.
 
 RAW uses the Ravo CPU engine, while JPEG/PNG/TIFF use the raster adapter. Both
 share orientation, colour, alpha, scaling, finite-value, and error contracts.
@@ -173,9 +174,12 @@ embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 Develop, scopes, export, and `request_preview` with
 `prefer_embedded_preview=false` use preview contract v6: full CPU
 decode/render followed by the `ravo.display.sigmoid` baseline at the end of
-the scene-linear buffer. The cache types must not share a digest. Without
+the scene-linear buffer and the recipe-owned output profile. The cache types
+must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.
-Cached PNGs contain one standard `sRGB` chunk; v6 rebuilds prior cache output.
+Cached built-in sRGB PNGs contain one standard `sRGB` chunk; other RGB outputs
+contain one `iCCP` and no conflicting `sRGB`. Preview v6 rebuilds prior cache
+output.
 The baseline creates no `asset_recipe` row and does not set `has_edits`;
 persistence begins only after a user override. Existing JPEG/PNG/TIFF are
 display-referred input and do not receive Sigmoid twice. Import persists
@@ -200,7 +204,8 @@ is an explicit C mode; Inspector forwards points and recipe/engine evaluates.
 `ravo.display.sigmoid` v1 is the sole default display transform:
 `working_space=linear_srgb`, `color_processing=per_channel`, middle-grey
 contrast, skew, Standard SDR black/white target, and hue preservation. It is
-the RAW baseline and final scene-referred operation before sRGB encoding. RAW
+the RAW baseline and final scene-referred operation before output-profile
+encoding. RAW
 Studio Contrast belongs to Sigmoid; `ravo.core.contrast` serves
 display-referred raster input and old recipes. Highlights/shadows/whites/blacks
 are scene controls before the transform.
@@ -228,9 +233,10 @@ is immutable. Late reference shares no global chroma state and must be followed
 by explicit non-RGB `channelmixerrgb` adaptation; raster accepts explicit
 coefficients only.
 
-Canonical recipe schema v2 upgrades schema-v1 recipes by inserting one
-explicit source → linear Rec709 `ravo.color.input` operation. That operation
-follows RAW preprocessing and owns input-profile to working-profile conversion.
+Canonical recipe schema v3 upgrades schema-v1/v2 recipes by inserting explicit
+source → linear Rec709 `ravo.color.input` and working → output
+`ravo.color.output` operations. Input colour follows RAW preprocessing and owns
+input-profile to working-profile conversion.
 Decode publishes immutable `ColorProfileState`:
 RAW supplies an enhanced camera-to-XYZ D50 matrix and raster supplies a valid
 embedded ICC/built-in profile or an explicit missing state. The engine-private
@@ -241,8 +247,19 @@ scene-linear/preview cache key. Missing/corrupt profiles, unavailable matrix
 kinds, singular/non-finite transforms, and untagged raster inputs fail before
 publication; there is no sRGB or generic-camera fallback. `LinearWorkingBuffer`
 carries its working-profile matrix. Existing operations are explicitly bridged
-to their declared linear Rec709/sRGB workspaces. Output remains declared sRGB
-until `ravo.color.output` adds selectable export profiles.
+to their declared linear Rec709/sRGB workspaces.
+
+`ravo.color.output` consumes that immutable working state after RGB operations.
+Built-in and file profiles, four rendering intents, soft proof, gamut warning,
+proof intent, and black-point compensation are canonical recipe state. Matrix/
+shaper RGB output uses the frozen inverse LUT and unbounded extrapolation;
+matrix-free ICC plus XYZ/Lab/proof branches use render-local LittleCMS objects.
+Only `ColorProfileState` crosses the engine boundary: it owns deterministic
+ICC bytes and the declared model but no transform handle. Preview and file ICC
+content enter the final cache identity, while the reusable scene-linear cache
+depends only on input/working state. The engine PNG writer and Qt raster adapter
+embed the same state or fail before publication. Studio attaches it to QImage
+and only presents engine-computed soft-proof/gamut pixels.
 
 `ravo.color.channelmixerrgb` v1 fixes the `linear_srgb_d50` workspace and
 V3 algorithm, persisting three mixing rows, saturation/lightness/grey,
@@ -340,9 +357,9 @@ commands validate the same services; human logs must not pollute JSON stdout.
 
 ## Current non-goals
 
-- CatalogService owns local JPEG/PNG/TIFF/original-copy export; encoded pixel
-  exports declare sRGB. Selectable output profiles, complete metadata, batch
-  jobs, and old export presets remain out of scope.
+- CatalogService owns local JPEG/PNG/TIFF/original-copy export. Pixel exports
+  embed the recipe-declared RGB profile; complete metadata, batch jobs, and old
+  export presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

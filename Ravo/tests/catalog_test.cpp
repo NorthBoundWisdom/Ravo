@@ -261,6 +261,15 @@ TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
     ASSERT_TRUE(decoded) << decoded.error().message;
     EXPECT_NE(decoded.value().color_profile.kind, ColorProfileKind::kMissing);
 
+    ColorProfileState display_p3 = srgb;
+    display_p3.identifier = "display_p3";
+    auto wide_encoded =
+        decoder.encode(8, 4, pixels, display_p3, ExportFormat::kPng, 90, CancellationToken{});
+    ASSERT_TRUE(wide_encoded) << wide_encoded.error().message;
+    auto wide_decoded = decoder.decode_memory(wide_encoded.value(), 32, CancellationToken{});
+    ASSERT_TRUE(wide_decoded) << wide_decoded.error().message;
+    EXPECT_NE(wide_decoded.value().color_profile.kind, ColorProfileKind::kMissing);
+
     ColorProfileState missing;
     auto rejected =
         decoder.encode(8, 4, pixels, missing, ExportFormat::kPng, 90, CancellationToken{});
@@ -813,7 +822,7 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     EXPECT_NEAR(develop.value().graduated_density, 0.6, 1e-6);
 }
 
-TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitInputProfile)
+TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitColorBoundaries)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
@@ -849,10 +858,11 @@ TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitInputProfile)
     ASSERT_TRUE(open_service(false));
     auto restored = service->load_recipe(asset_id);
     ASSERT_TRUE(restored) << restored.error().message;
-    EXPECT_EQ(restored.value().schema_version, 2);
-    ASSERT_EQ(restored.value().operations.size(), 2U);
+    EXPECT_EQ(restored.value().schema_version, 3);
+    ASSERT_EQ(restored.value().operations.size(), 3U);
     EXPECT_EQ(restored.value().operations.front().id, "ravo.color.input");
-    EXPECT_EQ(restored.value().operations.back().id, "ravo.core.exposure");
+    EXPECT_EQ(restored.value().operations[1].id, "ravo.core.exposure");
+    EXPECT_EQ(restored.value().operations.back().id, "ravo.color.output");
 }
 
 TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevision)
@@ -933,7 +943,7 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 
     auto baseline = service->load_recipe(asset_id);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_EQ(baseline.value().operations.size(), 2U);
+    ASSERT_EQ(baseline.value().operations.size(), 3U);
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.color.input"; }),
@@ -941,6 +951,10 @@ TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
     EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
                            [](const OperationInstance &operation)
                            { return operation.id == "ravo.display.sigmoid"; }),
+              baseline.value().operations.end());
+    EXPECT_NE(std::find_if(baseline.value().operations.begin(), baseline.value().operations.end(),
+                           [](const OperationInstance &operation)
+                           { return operation.id == "ravo.color.output"; }),
               baseline.value().operations.end());
     auto baseline_params = develop_from_recipe(baseline.value());
     ASSERT_TRUE(baseline_params) << baseline_params.error().message;
@@ -1003,8 +1017,8 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     auto first = service->request_preview(request, live);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_TRUE(first.value().cache_path.empty());
-    EXPECT_FALSE(first.value().srgb.empty());
-    EXPECT_EQ(first.value().srgb.size(),
+    EXPECT_FALSE(first.value().rgb.empty());
+    EXPECT_EQ(first.value().rgb.size(),
               static_cast<std::size_t>(first.value().width) * first.value().height * 3U);
     EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
 
@@ -1018,12 +1032,12 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_FALSE(listed.value().front().has_edits);
 
-    const auto first_pixels = first.value().srgb;
+    const auto first_pixels = first.value().rgb;
     live.exposure_ev = -0.75;
     auto second = service->request_preview(request, live);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().cache_path.empty());
-    EXPECT_NE(second.value().srgb, first_pixels);
+    EXPECT_NE(second.value().rgb, first_pixels);
 }
 
 TEST_F(CatalogServiceTest, FileIccContentInvalidatesPreviewAndSurvivesRecipeReopen)
@@ -1084,6 +1098,79 @@ TEST_F(CatalogServiceTest, FileIccContentInvalidatesPreviewAndSurvivesRecipeReop
     EXPECT_TRUE(std::filesystem::exists(second.value().cache_path));
 }
 
+TEST_F(CatalogServiceTest, OutputIccContentInvalidatesPreviewBeforeCachePublication)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "output-profiled.jpg").string();
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(170, 90, 35));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    const auto profile_path = root / "output.icc";
+    const auto write_profile = [&profile_path](const QColorSpace::NamedColorSpace named)
+    {
+        const QByteArray bytes = QColorSpace(named).iccProfile();
+        QFile file(QString::fromStdString(profile_path.string()));
+        return !bytes.isEmpty() && file.open(QIODevice::WriteOnly | QIODevice::Truncate) &&
+               file.write(bytes) == bytes.size();
+    };
+    ASSERT_TRUE(write_profile(QColorSpace::SRgb));
+
+    auto baseline = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    auto develop = develop_from_recipe(baseline.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    develop.value().output_color.output_profile = std::string(kInputProfileFileIcc);
+    develop.value().output_color.output_profile_filename = profile_path.string();
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = 64;
+    auto first = service->request_preview(request);
+    ASSERT_TRUE(first) << first.error().message;
+    const QImage first_image(QString::fromStdString(first.value().cache_path));
+    ASSERT_FALSE(first_image.isNull());
+    ASSERT_TRUE(first_image.colorSpace().isValid());
+    EXPECT_EQ(first_image.colorSpace().iccProfile(), QColorSpace(QColorSpace::SRgb).iccProfile());
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_develop = develop_from_recipe(restored.value());
+    ASSERT_TRUE(restored_develop) << restored_develop.error().message;
+    EXPECT_EQ(restored_develop.value().output_color, develop.value().output_color);
+
+    ASSERT_TRUE(write_profile(QColorSpace::DisplayP3));
+    auto second = service->request_preview(request);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_NE(second.value().cache_key, first.value().cache_key);
+    EXPECT_NE(second.value().cache_path, first.value().cache_path);
+    const QImage second_image(QString::fromStdString(second.value().cache_path));
+    ASSERT_FALSE(second_image.isNull());
+    ASSERT_TRUE(second_image.colorSpace().isValid());
+    EXPECT_EQ(second_image.colorSpace().iccProfile(),
+              QColorSpace(QColorSpace::DisplayP3).iccProfile());
+
+    QFile corrupt(QString::fromStdString(profile_path.string()));
+    ASSERT_TRUE(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(corrupt.write("bad", 3), 3);
+    corrupt.close();
+    auto rejected = service->request_preview(request);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_TRUE(std::filesystem::exists(first.value().cache_path));
+    EXPECT_TRUE(std::filesystem::exists(second.value().cache_path));
+}
+
 TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
 {
     auto created = open_service(true);
@@ -1104,7 +1191,7 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     auto first = service->request_preview(request, live);
     ASSERT_TRUE(first) << first.error().message;
     EXPECT_TRUE(first.value().cache_path.empty());
-    EXPECT_FALSE(first.value().srgb.empty());
+    EXPECT_FALSE(first.value().rgb.empty());
     EXPECT_LE(std::max(first.value().width, first.value().height), kInteractivePreviewMaxEdge);
 
     auto direct_recipe = recipe_from_develop(
@@ -1117,7 +1204,7 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     direct_request.output_height = first.value().height;
     auto direct = engine.render_to_image(direct_request);
     ASSERT_TRUE(direct) << direct.error().message;
-    EXPECT_EQ(first.value().srgb, direct.value().rgb);
+    EXPECT_EQ(first.value().rgb, direct.value().rgb);
 
     auto stored = service->load_recipe(asset_id);
     ASSERT_TRUE(stored) << stored.error().message;
@@ -1130,24 +1217,24 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     auto second = service->request_preview(request, live);
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().cache_path.empty());
-    EXPECT_NE(second.value().srgb, first.value().srgb);
+    EXPECT_NE(second.value().rgb, first.value().rgb);
 
     live.exposure_ev = 0.75;
     auto third = service->request_preview(request, live);
     ASSERT_TRUE(third) << third.error().message;
-    EXPECT_EQ(third.value().srgb, first.value().srgb);
+    EXPECT_EQ(third.value().rgb, first.value().rgb);
 
     live.temperature.mode = std::string(kTemperatureModeManual);
     live.temperature.coefficients =
         std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
     auto balanced = service->request_preview(request, live);
     ASSERT_TRUE(balanced) << balanced.error().message;
-    EXPECT_NE(balanced.value().srgb, first.value().srgb);
+    EXPECT_NE(balanced.value().rgb, first.value().rgb);
     ASSERT_TRUE(live.temperature.coefficients);
     (*live.temperature.coefficients)[0] += 0.25;
     auto rebalanced = service->request_preview(request, live);
     ASSERT_TRUE(rebalanced) << rebalanced.error().message;
-    EXPECT_NE(rebalanced.value().srgb, balanced.value().srgb);
+    EXPECT_NE(rebalanced.value().rgb, balanced.value().rgb);
 
     live.raw_highlights = 1.0;
     auto highlighted = service->request_preview(request, live);
@@ -1206,6 +1293,8 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     edited.value().input_color.gamut_normalize = std::string(kColorNormalizeSrgb);
     edited.value().input_color.blue_mapping = true;
     edited.value().input_color.working_profile = std::string(kInputProfileLinearRec2020);
+    edited.value().output_color.output_profile = std::string(kInputProfileDisplayP3);
+    edited.value().output_color.rendering_intent = std::string(kColorIntentRelative);
     edited.value().color_balance_rgb = test::color_balance_0093_params();
     clamp_develop(edited.value());
 
@@ -1215,14 +1304,16 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     preview.persist_preview_record = false;
     auto baseline = service->request_preview(preview);
     ASSERT_TRUE(baseline) << baseline.error().message;
-    ASSERT_FALSE(baseline.value().srgb.empty());
+    ASSERT_FALSE(baseline.value().rgb.empty());
 
     auto saved = service->save_develop(asset_id, edited.value());
     ASSERT_TRUE(saved) << saved.error().message;
     auto before_reopen = service->request_preview(preview);
     ASSERT_TRUE(before_reopen) << before_reopen.error().message;
-    ASSERT_FALSE(before_reopen.value().srgb.empty());
-    EXPECT_NE(before_reopen.value().srgb, baseline.value().srgb);
+    ASSERT_FALSE(before_reopen.value().rgb.empty());
+    EXPECT_EQ(before_reopen.value().color_profile.identifier, kInputProfileDisplayP3);
+    EXPECT_FALSE(before_reopen.value().color_profile.icc_bytes.empty());
+    EXPECT_NE(before_reopen.value().rgb, baseline.value().rgb);
 
     ASSERT_TRUE(service->close());
     service.reset();
@@ -1236,7 +1327,8 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
 
     auto after_reopen = service->request_preview(preview);
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
-    EXPECT_EQ(after_reopen.value().srgb, before_reopen.value().srgb);
+    EXPECT_EQ(after_reopen.value().rgb, before_reopen.value().rgb);
+    EXPECT_EQ(after_reopen.value().color_profile, before_reopen.value().color_profile);
 }
 
 TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
@@ -1261,17 +1353,17 @@ TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
     baked.persist_preview_record = false;
     auto straightened = service->request_preview(baked, tilted);
     ASSERT_TRUE(straightened) << straightened.error().message;
-    ASSERT_FALSE(straightened.value().srgb.empty());
+    ASSERT_FALSE(straightened.value().rgb.empty());
     PreviewRequest guide = baked;
     guide.ignore_straighten = true;
     auto unstraightened = service->request_preview(guide, tilted);
     ASSERT_TRUE(unstraightened) << unstraightened.error().message;
-    ASSERT_FALSE(unstraightened.value().srgb.empty());
-    ASSERT_EQ(unstraightened.value().srgb.size(), straightened.value().srgb.size());
-    EXPECT_LT(straightened.value().srgb[0] + straightened.value().srgb[1] +
-                  straightened.value().srgb[2],
-              unstraightened.value().srgb[0] + unstraightened.value().srgb[1] +
-                  unstraightened.value().srgb[2]);
+    ASSERT_FALSE(unstraightened.value().rgb.empty());
+    ASSERT_EQ(unstraightened.value().rgb.size(), straightened.value().rgb.size());
+    EXPECT_LT(straightened.value().rgb[0] + straightened.value().rgb[1] +
+                  straightened.value().rgb[2],
+              unstraightened.value().rgb[0] + unstraightened.value().rgb[1] +
+                  unstraightened.value().rgb[2]);
 }
 
 TEST_F(CatalogServiceTest, InvalidStoredRecipeFailsStructuredWithoutTouchingReview)
@@ -1317,8 +1409,17 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
     const auto asset_id = imported.value().asset->id;
+    const auto export_profile_path = root / "export-display-p3.icc";
+    const QByteArray export_profile = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    ASSERT_FALSE(export_profile.isEmpty());
+    QFile profile_file(QString::fromStdString(export_profile_path.string()));
+    ASSERT_TRUE(profile_file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(profile_file.write(export_profile), export_profile.size());
+    profile_file.close();
     DevelopParams params;
     params.exposure_ev = 0.5;
+    params.output_color.output_profile = std::string(kInputProfileFileIcc);
+    params.output_color.output_profile_filename = export_profile_path.string();
     ASSERT_TRUE(service->save_develop(asset_id, params));
 
     const auto png_out = (root / "out.png").string();
@@ -1336,6 +1437,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     EXPECT_EQ(read_png.width(), static_cast<int>(exported_png.value().width));
     EXPECT_EQ(read_png.height(), static_cast<int>(exported_png.value().height));
     EXPECT_TRUE(read_png.colorSpace().isValid());
+    EXPECT_EQ(read_png.colorSpace(), QColorSpace(QColorSpace::DisplayP3));
     EXPECT_EQ(file_sha256(jpeg_path), original_hash);
 
     auto conflict = service->export_asset(png);
@@ -1356,6 +1458,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     const QImage read_jpeg(QString::fromStdString(jpeg_out));
     EXPECT_FALSE(read_jpeg.isNull());
     EXPECT_TRUE(read_jpeg.colorSpace().isValid());
+    EXPECT_EQ(read_jpeg.colorSpace(), QColorSpace(QColorSpace::DisplayP3));
 
     const auto tiff_out = (root / "out.tif").string();
     ExportRequest tiff;
@@ -1369,6 +1472,7 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
         const QImage read_tiff(QString::fromStdString(tiff_out));
         EXPECT_FALSE(read_tiff.isNull());
         EXPECT_TRUE(read_tiff.colorSpace().isValid());
+        EXPECT_EQ(read_tiff.colorSpace(), QColorSpace(QColorSpace::DisplayP3));
     }
     else
     {
@@ -1408,6 +1512,13 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     ASSERT_FALSE(invalid_quality);
     EXPECT_EQ(invalid_quality.error().code, ErrorCode::kValidation);
     EXPECT_FALSE(std::filesystem::exists(bad_quality.output_path));
+
+    ExportRequest missing_directory = png;
+    missing_directory.output_path = (root / "missing" / "out.png").string();
+    auto missing_result = service->export_asset(missing_directory);
+    ASSERT_FALSE(missing_result);
+    EXPECT_EQ(missing_result.error().code, ErrorCode::kIo);
+    EXPECT_FALSE(std::filesystem::exists(missing_directory.output_path));
 }
 
 } // namespace

@@ -30,7 +30,8 @@ check to admit a new dependency.
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
 integration. Review contracts include schema v2→v4 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
-canonical recipe per image, schema-v1 → v2 explicit-input upgrade, CPU Develop operations, edited previews, and
+canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
+CPU Develop operations, edited previews, and
 `ravo catalog` JSON commands going through the same CatalogService. Schema v4
 covers Unicode tag filtering, writable metadata, and history/snapshot save and
 restore. FreeCM Test and `ctest --test-dir build/<preset>` run the same suite
@@ -56,10 +57,11 @@ stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,
 three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
-interactive and full CPU render, L2–L9 + temperature + input profile + channel
-mixer + Color Balance RGB parameter/pixel reopen, and preview-owner cancellation of a
-superseded token with old revision/asset rejection. Desktop QML smoke verifies
-that Input Profile, White Balance, Color Calibration, and full Color Balance RGB bindings load;
+interactive and full CPU render, L2–L9 + temperature + input/output profile +
+channel mixer + Color Balance RGB parameter/pixel reopen, and preview-owner
+cancellation of a superseded token with old revision/asset rejection. Desktop QML smoke verifies
+that Input Profile, Output & Soft Proof, White Balance, Color Calibration, and
+full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
 Localization is a desktop build contract. Ravo/tools/check_i18n.py requires
@@ -150,12 +152,13 @@ directories, corrupt files, and more RAW files.
   missing cache can be rebuilt.
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v6 validates complete decode + explicit input profile +
-  default Sigmoid; the
-  raster baseline must not receive a second display transform. Sigmoid requires
+- RAW preview contract v6 validates complete decode, explicit input/output
+  profiles, and default Sigmoid; the raster baseline must not receive a second
+  display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`
   channel-sum reference, and catalog reset/reopen.
-- Cached PNG validation requires exactly one standard `sRGB` chunk.
+- Cached PNG validation requires exactly one standard `sRGB` chunk for built-in
+  sRGB output, or one `iCCP` and no `sRGB` chunk for every other RGB profile.
 - RAW import and Gallery thumbnails may persist embedded-JPEG browse cache. Its
   key must use the `embedded-jpeg` digest and be a separate file from the
   1600px processed preview; `prefer_embedded_preview` must not affect
@@ -164,11 +167,11 @@ directories, corrupt files, and more RAW files.
   RAW unpack/demosaic and a drag applies a recipe only to the cached linear
   buffer. Embedded JPEG must not become editable data. CLI/Studio share the
   `request_preview` contract; late results are dropped by request revision.
-- Scopes collect from the current display-referred sRGB preview: RGB histogram
-  skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone bins. The
-  Gallery grid computes scopes from browse thumbnails to avoid full RAW decode
-  on selection; loupe/develop still use processed preview and never treat
-  embedded JPEG as editable data.
+- Scopes collect from the current declared display-referred RGB preview: RGB
+  histogram skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone
+  bins. The Gallery grid computes scopes from browse thumbnails to avoid full
+  RAW decode on selection; loupe/develop still use processed preview and never
+  treat embedded JPEG as editable data.
 - Quickly switching assets drops late results from old request revisions.
 - A superseded Develop request's independent token cancels when a new revision
   publishes; even if cancellation races with completion, an old revision/asset
@@ -223,6 +226,17 @@ directories, corrupt files, and more RAW files.
   non-finite rejection, row cancellation, source immutability, and external
   ICC cache invalidation. Untagged raster must fail unless the recipe declares
   a concrete profile; sRGB fallback is not accepted.
+- `colorout` statically decodes every distinct schema-v5 payload from all 158
+  frozen XMPs. Synthetic coverage includes matrix/shaper and frozen unbounded
+  output, matrix-free ICC LUT profiles, RGB/XYZ/Lab, four rendering intents,
+  black-point compensation, built-in/file soft proof, cyan gamut warning,
+  corrupt/missing/singular/non-finite rejection, row cancellation, and working-
+  buffer immutability. `0000-nop` plus `mire1.cr2` has sRGB, Display P3, and
+  file-ICC channel-sum references. CLI PNG and Catalog PNG/JPEG/TIFF verify
+  embedded profile state; output/proof ICC content invalidates final preview
+  cache without invalidating the scene-linear cache. Studio presenter/QML and
+  catalog reopen cover Output & Soft Proof intent forwarding. Relabelling or
+  falling back to sRGB is not accepted.
 - `hotpixels` covers strict four-neighbor single points, permissive
   three-neighbor adjacent points, an unchanged two-pixel boundary, cancellation,
   raster/X-Trans rejection, decoded-frame immutability, cache-key/reopen, and

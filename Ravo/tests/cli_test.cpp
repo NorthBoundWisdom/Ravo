@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <span>
 #include <string>
@@ -69,6 +71,36 @@ protected:
         std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
+}
+
+[[nodiscard]] bool png_has_chunk(const std::filesystem::path &path, const std::array<char, 4> &type)
+{
+    std::ifstream stream(path, std::ios::binary);
+    const std::vector<std::uint8_t> bytes{std::istreambuf_iterator<char>(stream),
+                                          std::istreambuf_iterator<char>()};
+    if (bytes.size() < 8U)
+    {
+        return false;
+    }
+    std::size_t offset = 8U;
+    while (offset + 12U <= bytes.size())
+    {
+        const std::uint32_t size = (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
+                                   (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U) |
+                                   (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U) |
+                                   static_cast<std::uint32_t>(bytes[offset + 3U]);
+        if (size > bytes.size() - offset - 12U)
+        {
+            return false;
+        }
+        if (std::equal(type.begin(), type.end(),
+                       bytes.begin() + static_cast<std::ptrdiff_t>(offset + 4U)))
+        {
+            return true;
+        }
+        offset += static_cast<std::size_t>(size) + 12U;
+    }
+    return false;
 }
 
 TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
@@ -179,6 +211,10 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     recipe.asset = {"mire1", "file:///recipe-placeholder.raw", std::nullopt};
     recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
                                  input_color_to_parameters(InputColorParams{}), std::nullopt});
+    OutputColorParams output_color;
+    output_color.output_profile = std::string(kInputProfileDisplayP3);
+    recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
+                                 output_color_to_parameters(output_color), std::nullopt});
     const auto serialized = serialize_recipe(recipe);
     ASSERT_TRUE(serialized) << serialized.error().message;
     {
@@ -207,6 +243,8 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     std::array<char, 8> signature{};
     output.read(signature.data(), static_cast<std::streamsize>(signature.size()));
     EXPECT_EQ(std::string(signature.data(), signature.size()), std::string("\x89PNG\r\n\x1a\n", 8));
+    EXPECT_TRUE(png_has_chunk(output_path, {'i', 'C', 'C', 'P'}));
+    EXPECT_FALSE(png_has_chunk(output_path, {'s', 'R', 'G', 'B'}));
     EXPECT_TRUE(stderr_stream.str().empty());
 
     std::filesystem::remove(recipe_path, ignored);
@@ -302,8 +340,9 @@ TEST_F(CliTest, LegacyXmpImportCreatesAnExplicitInputRecipeAtomically)
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto parsed = parse_recipe_json(recipe.value());
     ASSERT_TRUE(parsed) << parsed.error().message;
-    ASSERT_EQ(parsed.value().operations.size(), 1U);
+    ASSERT_EQ(parsed.value().operations.size(), 2U);
     EXPECT_EQ(parsed.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(parsed.value().operations.back().id, "ravo.color.output");
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
@@ -320,12 +359,13 @@ TEST_F(CliTest, FrozenNopXmpMapsItsInputProfileExplicitly)
     const auto imported = import_legacy_xmp(request);
 
     ASSERT_TRUE(imported) << imported.error().message;
-    ASSERT_EQ(imported.value().operations.size(), 1U);
+    ASSERT_EQ(imported.value().operations.size(), 2U);
     EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
     auto input = input_color_from_parameters(imported.value().operations.front().parameters);
     ASSERT_TRUE(input) << input.error().message;
     EXPECT_EQ(input.value().input_profile, kInputProfileEnhancedMatrix);
     EXPECT_EQ(input.value().working_profile, kInputProfileLinearRec2020);
+    EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
     EXPECT_TRUE(imported.value().masks.empty());
 }
 
@@ -360,9 +400,9 @@ TEST_F(CliTest, LegacyXmpMapsTheProvenManualExposureV5Subset)
     const auto imported = import_legacy_xmp(request);
 
     ASSERT_TRUE(imported) << imported.error().message;
-    ASSERT_EQ(imported.value().operations.size(), 2U);
+    ASSERT_EQ(imported.value().operations.size(), 3U);
     EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
-    const auto &operation = imported.value().operations.back();
+    const auto &operation = imported.value().operations[1];
     EXPECT_EQ(operation.id, "ravo.core.exposure");
     EXPECT_EQ(operation.schema_version, 1);
     EXPECT_EQ(operation.instance_id, "legacy-exposure-0");
@@ -412,9 +452,10 @@ TEST_F(CliTest, LegacyXmpImportCommandWritesTheProvenManualExposureRecipe)
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto parsed = parse_recipe_json(recipe.value());
     ASSERT_TRUE(parsed) << parsed.error().message;
-    ASSERT_EQ(parsed.value().operations.size(), 2U);
+    ASSERT_EQ(parsed.value().operations.size(), 3U);
     EXPECT_EQ(parsed.value().operations.front().id, "ravo.color.input");
-    EXPECT_EQ(parsed.value().operations.back().id, "ravo.core.exposure");
+    EXPECT_EQ(parsed.value().operations[1].id, "ravo.core.exposure");
+    EXPECT_EQ(parsed.value().operations.back().id, "ravo.color.output");
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 

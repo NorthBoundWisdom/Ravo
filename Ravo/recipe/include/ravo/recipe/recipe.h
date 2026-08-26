@@ -66,7 +66,7 @@ struct OperationInstance
 
 struct Recipe
 {
-    std::int64_t schema_version = 2;
+    std::int64_t schema_version = 3;
     AssetDescriptor asset;
     std::vector<OperationInstance> operations;
     std::vector<Mask> masks;

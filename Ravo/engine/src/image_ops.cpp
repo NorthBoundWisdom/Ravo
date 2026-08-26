@@ -13,8 +13,10 @@
 #include <vector>
 
 #include <png.h>
+#include <zlib.h>
 
 #include "capability_ops.h"
+#include "output_color.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
 
@@ -147,13 +149,6 @@ Result<void> for_each_row(const std::uint32_t height, const CancellationToken &c
         return *text;
     }
     return fallback;
-}
-
-[[nodiscard]] float srgb_encode(const float value)
-{
-    const float clamped = std::clamp(value, 0.0F, 1.0F);
-    return clamped <= 0.0031308F ? 12.92F * clamped :
-                                   1.055F * std::pow(clamped, 1.0F / 2.4F) - 0.055F;
 }
 
 constexpr int kToneCurveLut = 0x10000;
@@ -2297,45 +2292,34 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
     return image;
 }
 
-RenderedImage encode_working_srgb(const WorkingImage &image)
-{
-    RenderedImage result;
-    result.width = image.width;
-    result.height = image.height;
-    result.color_profile.kind = ColorProfileKind::kBuiltin;
-    result.color_profile.model = ColorModel::kRgb;
-    result.color_profile.identifier = "srgb";
-    result.rgb.resize(image.rgb.size());
-    static_cast<void>(for_each_row(
-        image.height, CancellationToken{},
-        [&](const std::uint32_t row)
-        {
-            const std::size_t begin =
-                static_cast<std::size_t>(row) * static_cast<std::size_t>(image.width) * 3U;
-            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
-            for (std::size_t index = begin; index < end; ++index)
-            {
-                result.rgb[index] =
-                    static_cast<std::uint8_t>(std::lround(srgb_encode(image.rgb[index]) * 255.0F));
-            }
-        }));
-    return result;
-}
-
 Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
 {
-    if (image.color_profile.kind != ColorProfileKind::kBuiltin ||
-        image.color_profile.identifier != "srgb")
+    const std::uint64_t pixels =
+        static_cast<std::uint64_t>(image.width) * static_cast<std::uint64_t>(image.height);
+    if (image.width == 0 || image.height == 0 ||
+        pixels > std::numeric_limits<std::size_t>::max() / 3U ||
+        image.rgb.size() != static_cast<std::size_t>(pixels * 3U))
     {
-        return make_error(ErrorCode::kUnsupported,
-                          "PNG encoder requires the declared sRGB output profile",
-                          {{"profile", image.color_profile.identifier}});
+        return make_error(ErrorCode::kValidation, "PNG image buffer does not match its dimensions");
+    }
+    auto valid_profile = validate_output_profile_state(image.color_profile);
+    if (!valid_profile)
+    {
+        return valid_profile.error();
+    }
+    const bool standard_srgb = image.color_profile.kind == ColorProfileKind::kBuiltin &&
+                               image.color_profile.identifier == kInputProfileSrgb;
+    if (image.color_profile.icc_bytes.size() >
+        static_cast<std::size_t>(std::numeric_limits<uLong>::max()))
+    {
+        return make_error(ErrorCode::kValidation, "PNG output ICC profile is too large");
     }
     png_image png{};
     png.version = PNG_IMAGE_VERSION;
     png.width = image.width;
     png.height = image.height;
     png.format = PNG_FORMAT_RGB;
+    png.flags = standard_srgb ? 0U : PNG_IMAGE_FLAG_COLORSPACE_NOT_sRGB;
     png_alloc_size_t encoded_size = 0;
     if (png_image_write_to_memory(&png, nullptr, &encoded_size, 0, image.rgb.data(), 0, nullptr) ==
         0)
@@ -2351,6 +2335,55 @@ Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
                           {{"png_error", png.message}});
     }
     encoded.resize(encoded_size);
+    if (standard_srgb)
+    {
+        return encoded;
+    }
+    constexpr std::size_t kAfterIhdr = 8U + 4U + 4U + 13U + 4U;
+    if (encoded.size() < kAfterIhdr || encoded[12] != 'I' || encoded[13] != 'H' ||
+        encoded[14] != 'D' || encoded[15] != 'R')
+    {
+        return make_error(ErrorCode::kValidation, "PNG encoder produced an invalid IHDR layout");
+    }
+
+    const auto &icc = image.color_profile.icc_bytes;
+    uLongf compressed_size = compressBound(static_cast<uLong>(icc.size()));
+    std::vector<std::uint8_t> compressed(compressed_size);
+    if (compress2(compressed.data(), &compressed_size, icc.data(), static_cast<uLong>(icc.size()),
+                  Z_BEST_COMPRESSION) != Z_OK)
+    {
+        return make_error(ErrorCode::kIo, "Unable to compress PNG output ICC profile");
+    }
+    compressed.resize(compressed_size);
+    constexpr std::string_view kProfileName = "Ravo output";
+    const std::size_t data_size = kProfileName.size() + 2U + compressed.size();
+    if (data_size > std::numeric_limits<std::uint32_t>::max())
+    {
+        return make_error(ErrorCode::kValidation, "Compressed PNG output ICC profile is too large");
+    }
+    std::vector<std::uint8_t> chunk(4U + 4U + data_size + 4U);
+    const auto write_u32 = [&chunk](const std::size_t offset, const std::uint32_t value)
+    {
+        chunk[offset] = static_cast<std::uint8_t>((value >> 24U) & 0xffU);
+        chunk[offset + 1U] = static_cast<std::uint8_t>((value >> 16U) & 0xffU);
+        chunk[offset + 2U] = static_cast<std::uint8_t>((value >> 8U) & 0xffU);
+        chunk[offset + 3U] = static_cast<std::uint8_t>(value & 0xffU);
+    };
+    write_u32(0U, static_cast<std::uint32_t>(data_size));
+    chunk[4] = 'i';
+    chunk[5] = 'C';
+    chunk[6] = 'C';
+    chunk[7] = 'P';
+    std::copy(kProfileName.begin(), kProfileName.end(), chunk.begin() + 8);
+    const std::size_t compression_method = 8U + kProfileName.size() + 1U;
+    chunk[compression_method] = 0U;
+    std::copy(compressed.begin(), compressed.end(),
+              chunk.begin() + static_cast<std::ptrdiff_t>(compression_method + 1U));
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, chunk.data() + 4U, static_cast<uInt>(4U + data_size));
+    write_u32(chunk.size() - 4U, static_cast<std::uint32_t>(crc));
+    encoded.insert(encoded.begin() + static_cast<std::ptrdiff_t>(kAfterIhdr), chunk.begin(),
+                   chunk.end());
     return encoded;
 }
 

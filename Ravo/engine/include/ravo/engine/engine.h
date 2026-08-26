@@ -194,6 +194,7 @@ public:
     [[nodiscard]] Result<Recipe> upgrade(Recipe recipe) const;
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;
     [[nodiscard]] Result<std::string> input_color_cache_fingerprint(const Recipe &recipe) const;
+    [[nodiscard]] Result<std::string> output_color_cache_fingerprint(const Recipe &recipe) const;
 
     // The sink is borrowed only for the duration of this synchronous call.
     [[nodiscard]] Result<RenderResult> render(const RenderRequest &request,

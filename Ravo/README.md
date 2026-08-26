@@ -15,11 +15,11 @@ Current implementation status:
   reports width and height in camera-oriented display dimensions.
 - `ravo render` executes nop and `ravo.core.exposure`, including crop,
   black/white normalization, camera WB, profile-aware camera-to-working
-  conversion, basic 3×3 Bayer interpolation, declared sRGB encoding, and
-  atomic PNG output.
+  conversion, basic 3×3 Bayer interpolation, declared output-profile
+  conversion, embedded ICC state, and atomic PNG output.
 - Legacy XMP supports empty history, a strict nop baseline with explicit
-  `colorin` mapping, and the demonstrated schema-6/v5 manual singleton-
-  exposure subset.
+  `colorin`/`colorout` mapping, and the demonstrated schema-6/v5 manual
+  singleton-exposure subset.
 - The catalog vertical slice is implemented: reference-only JPEG/PNG/RAW
   import, preview cache outside the library, and the `ravo_studio` Qt Quick
   window using controls from the `GeoControls` source root.
@@ -62,10 +62,21 @@ Current implementation status:
   embedded ICC state. Matrix/shaper profiles use the frozen LUT and unbounded
   path, while general RGB/XYZ/Lab ICC input uses private pinned LittleCMS.
   Missing, corrupt, singular, or unsupported profiles fail structurally; no
-  generic matrix or sRGB fallback is used. Canonical recipe schema v2 upgrades
-  prior Ravo recipes by inserting the explicit source → linear Rec709 contract.
-  Profile state and external ICC content participate in preview contract v6
-  cache keys, and Studio exposes the canonical Input Profile controls.
+  generic matrix or sRGB fallback is used. Canonical recipe schema v3 upgrades
+  prior Ravo recipes by inserting explicit source → linear Rec709 and output
+  colour boundaries. Input profile state and external ICC content participate
+  in the scene-linear and preview cache keys, and Studio exposes the canonical
+  Input Profile controls.
+- Output Color provides `ravo.color.output` v1 with built-in/file ICC output,
+  four rendering intents, soft proof, gamut warning, proof intent, and black-
+  point compensation. Matrix/shaper output uses the frozen 65,536-sample LUT
+  and unbounded extrapolation; general RGB/XYZ/Lab and proof transforms use
+  render-local LittleCMS. Preview contract v6 and `RenderedImage` carry owned
+  ICC state. CLI PNG emits standard sRGB metadata or `iCCP`, Catalog PNG/JPEG/
+  TIFF embeds the same declared profile, and missing/corrupt profiles fail
+  before atomic publish. Studio presents the engine-owned result through Output
+  & Soft Proof controls; it never infers a monitor profile or performs a QML
+  colour transform.
 - Color Calibration provides `ravo.color.channelmixerrgb` v1 with frozen V3
   CPU matrix normalization, CAT16/Bradford/XYZ/RGB, XYZ gamut, saturation,
   lightness, and grey paths. Studio exposes an explicit 3×3 matrix, while CLI,

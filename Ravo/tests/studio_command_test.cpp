@@ -88,6 +88,19 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
               QStringLiteral("source"));
     EXPECT_EQ(input_color.value(QStringLiteral("workingProfile")).toString(),
               QStringLiteral("linear_rec709"));
+    const auto output_color = presenter.editOutputColor();
+    EXPECT_EQ(output_color.size(), 9);
+    EXPECT_EQ(output_color.value(QStringLiteral("outputProfileIndex")).toInt(), 0);
+    EXPECT_EQ(output_color.value(QStringLiteral("intentIndex")).toInt(), 0);
+    EXPECT_EQ(output_color.value(QStringLiteral("proofModeIndex")).toInt(), 0);
+    EXPECT_EQ(output_color.value(QStringLiteral("proofProfileIndex")).toInt(), 0);
+    EXPECT_EQ(output_color.value(QStringLiteral("proofIntentIndex")).toInt(), 1);
+    EXPECT_TRUE(output_color.value(QStringLiteral("blackPointCompensation")).toBool());
+    EXPECT_EQ(output_color.value(QStringLiteral("outputProfile")).toString(),
+              QStringLiteral("srgb"));
+    EXPECT_EQ(output_color.value(QStringLiteral("proofMode")).toString(), QStringLiteral("off"));
+    EXPECT_EQ(output_color.value(QStringLiteral("proofProfile")).toString(),
+              QStringLiteral("srgb"));
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)

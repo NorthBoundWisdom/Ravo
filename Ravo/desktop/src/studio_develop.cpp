@@ -70,6 +70,29 @@ QVariantMap StudioPresenter::editInputColor() const
         {QStringLiteral("workingProfile"), QString::fromStdString(params.working_profile)}};
 }
 
+QVariantMap StudioPresenter::editOutputColor() const
+{
+    const auto index_of = [](const auto &values, const std::string_view selected)
+    {
+        const auto found = std::find(values.begin(), values.end(), selected);
+        return found == values.end() ? -1 : static_cast<int>(std::distance(values.begin(), found));
+    };
+    const auto &params = develop_.output_color;
+    return {
+        {QStringLiteral("outputProfileIndex"),
+         index_of(kSelectableOutputProfiles, params.output_profile)},
+        {QStringLiteral("intentIndex"), index_of(kSelectableColorIntents, params.rendering_intent)},
+        {QStringLiteral("proofModeIndex"), index_of(kSelectableProofModes, params.proof_mode)},
+        {QStringLiteral("proofProfileIndex"),
+         index_of(kSelectableProofProfiles, params.proof_profile)},
+        {QStringLiteral("proofIntentIndex"),
+         index_of(kSelectableColorIntents, params.proof_intent)},
+        {QStringLiteral("blackPointCompensation"), params.black_point_compensation},
+        {QStringLiteral("outputProfile"), QString::fromStdString(params.output_profile)},
+        {QStringLiteral("proofMode"), QString::fromStdString(params.proof_mode)},
+        {QStringLiteral("proofProfile"), QString::fromStdString(params.proof_profile)}};
+}
+
 double StudioPresenter::editChannelMixerRR() const noexcept
 {
     return develop_.channel_mixer.red[0];

@@ -300,6 +300,42 @@
         <translation>%1 → %2</translation>
     </message>
     <message>
+        <source>Output &amp; Soft Proof</source>
+        <translation>输出与软打样</translation>
+    </message>
+    <message>
+        <source>PQ Rec2020</source>
+        <translation>PQ Rec2020</translation>
+    </message>
+    <message>
+        <source>HLG Rec2020</source>
+        <translation>HLG Rec2020</translation>
+    </message>
+    <message>
+        <source>PQ P3</source>
+        <translation>PQ P3</translation>
+    </message>
+    <message>
+        <source>Proof off</source>
+        <translation>关闭软打样</translation>
+    </message>
+    <message>
+        <source>Soft proof</source>
+        <translation>软打样</translation>
+    </message>
+    <message>
+        <source>Gamut warning</source>
+        <translation>色域警告</translation>
+    </message>
+    <message>
+        <source>Black-point compensation</source>
+        <translation>黑点补偿</translation>
+    </message>
+    <message>
+        <source>%1 · %2 · proof %3</source>
+        <translation>%1 · %2 · 软打样 %3</translation>
+    </message>
+    <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
     </message>
