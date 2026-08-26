@@ -36,3 +36,4 @@ supersession relationship when direction changes.
 | [0026](0026-colorchecker-calibration-contract.md) | Accepted | Color Checker owns an explicit ordered D50 Lab polynomial/RBF fit, exact frozen solver and presets, and an enabled default-unmasked legacy boundary. |
 | [0027](0027-radiance-rgbe-decoder-contract.md) | Accepted | Radiance RGBE uses a dedicated owned float decode contract while Qt raster and Catalog remain explicitly unsupported. |
 | [0028](0028-original-copy-publication-contract.md) | Accepted | Original copy uses bounded exact-byte streaming, exclusively owned temporary state, atomic no-replace publication, and complete structured failures without retiring the legacy plugin. |
+| [0029](0029-colorcorrection-contract.md) | Accepted | Color Correction preserves explicit five-field affine D50 Lab behavior, strict 0029/0092 unmasked import, and one Develop/CLI/Catalog/Studio contract. |

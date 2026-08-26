@@ -4,13 +4,10 @@
 >
 > **Updated: 2026-08-27**
 >
-> **Current execution focus: C12 colorcorrection test-first implementation.**
-> Its static owner/dependency audit is complete and the bounded S1.1
-> engine-private D50 Lab bridge prerequisite is satisfied. General mask/M1 work
-> remains outside C12: legacy import accepts the evidenced v1 singleton,
-> priority-zero, unnamed, default-unmasked envelope represented by 0029/0092,
-> and rejects every other presentation state structurally. Do not begin
-> colorcontrast or cacorrectrgb in parallel with C12.
+> **Current execution focus: C13 colorcontrast static owner/dependency audit.**
+> This checkpoint authorizes read-only audit only; it does not authorize C13
+> production implementation. Do not start C14 or cacorrectrgb in parallel, and
+> do not infer a migration boundary before the C13 audit is reviewed.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -43,22 +40,20 @@ ready for execution.
 
 ## 2. Migration queue
 
-C12 colorcorrection is current and may enter test-first implementation. Its
-static owner/dependency audit is complete, and S1.1 now provides the frozen
-engine-private D50 Lab bridge. S1 as a whole and the general mask/M1 graph remain
-unfinished; legacy import therefore accepts the evidenced v1 singleton,
-priority-zero, unnamed, default-unmasked envelope represented by 0029/0092 and
-rejects other mask/blend/presentation states structurally. Do not start a later
-IOP algorithm row in parallel. Independent adapter or reliability work may run
-only when its dependencies are met and its owners and files do not overlap.
+C13 colorcontrast is current for static owner/dependency audit only. Production
+implementation is not authorized by this checkpoint, and no algorithm,
+fixture, presentation, or compatibility conclusion is frozen yet. Do not start
+a later IOP algorithm row in parallel. Independent adapter or reliability work
+may run only when its dependencies are met and its owners and files do not
+overlap.
 
 ## 3. Complete remaining-module inventory and serial order
 
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 53 unconditional IOP registrations plus two
-  conditional owners (`liquify`, `watermark`); all 55 have a row in section 3.2.
+- legacy/src/iop/CMakeLists.txt has 52 unconditional IOP registrations plus two
+  conditional owners (`liquify`, `watermark`); all 54 have a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
@@ -68,11 +63,11 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C12 test-first implementation. **Queued** waits
-for dependencies and all earlier rows. **Delete** means no UI/ABI port. **Keep
-evidence** means do not move it before migration completes. When a module meets
-its gate, first update stable truth, then remove its row. Do not leave historical
-checked marks here.
+Status terms: **current** means the C13 static owner/dependency audit only.
+**Queued** waits for dependencies and all earlier rows. **Delete** means no
+UI/ABI port. **Keep evidence** means do not move it before migration completes.
+When a module meets its gate, first update stable truth, then remove its row. Do
+not leave historical checked marks here.
 
 General completion gates:
 
@@ -99,7 +94,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry, including shared exposure order/module-group/manual names; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (56 owners: 54 unconditional + 2 conditional)
+### 3.2 IOP algorithm queue (54 owners: 52 unconditional + 2 conditional)
 
 The group order below is dependency order; rows in a group are serial by
 default. fixture means static evidence exists, not that it is covered.
@@ -108,8 +103,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C12 | colorcorrection — iop/colorcorrection.c | yes | **Current / test-first ALG**; static audit and S1.1 D50 Lab prerequisite complete; legacy import accepts the evidenced v1 singleton, priority-zero, unnamed, default-unmasked envelope represented by 0029/0092, with general mask/M1 and every other presentation state explicitly unsupported |
-| C13 | colorcontrast — iop/colorcontrast.c | yes | Queued / ALG; simplified control is not acceptance; reproduce frozen colour-space mathematics |
+| C13 | colorcontrast — iop/colorcontrast.c | yes | **Current / static owner/dependency audit only**; production implementation is not authorized and the existing simplified control is not acceptance |
 | C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / ALG; depends on S1/M1; colour harmony and mask/ROI |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
@@ -321,15 +315,15 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later IOP algorithm rows in parallel before C12 completes. Independent adapter
-or reliability work requires satisfied dependencies and explicitly non-
-overlapping owners and files.
+C13 or later IOP algorithm rows while the current audit is under review.
+Independent adapter or reliability work requires satisfied dependencies and
+explicitly non-overlapping owners and files.
 
 ## 4. Completion gate for this TODO
 
 Delete this document only when all are true:
 
-- [ ] C12 and every later raised algorithm are accepted and removed from this
+- [ ] C13 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

@@ -142,6 +142,19 @@ Current implementation status:
   default-unmasked singleton state; the real 0033/0034 histories establish
   structured mask/custom-blend/multi rejection, not positive compatibility.
   CLI, Catalog, and Studio share the same CPU implementation and cache identity.
+- Color Correction provides the independent `ravo.color.colorcorrection` v1
+  contract with explicit operation presence and exactly five bounded numeric
+  controls: highlight/shadow a*/b* endpoints and saturation. The engine reuses
+  the private source-derived linear-Rec709↔D50 Lab bridge, preserves the frozen
+  float affine expression order, and does not short-circuit an explicitly
+  present default operation. Strict XMP import accepts only the enabled-v1,
+  singleton, priority-zero, unnamed, default-unmasked envelope represented by
+  0029/0092; masks, custom blend, multi-instance, disabled, malformed, and
+  unknown state reject structurally. CLI render, Catalog preview/save/reopen/
+  export, and Studio's five generic Develop intents share the same operation
+  and cache identity. The old GTK plane/picker, three presets, and OpenCL path
+  are not product contracts; shared kernel/order/registry/style/pixmap assets
+  remain separately owned cleanup.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

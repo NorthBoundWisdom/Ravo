@@ -335,12 +335,30 @@ claim I14 batch/storage policy.
   covered. The `mire1.cr2` regression also pins output channel sums and source
   hash/size/mtime. CLI render, Catalog preview/save/reopen/export, and Studio
   presenter/QML smoke share the same engine path and cache identity.
-- `colorcorrection` static analysis covers all 158 frozen XMPs. Only 0029 and
-  0092 contain actual records; both are enabled schema-v1 singleton,
-  priority-zero, unnamed, and default-unmasked evidence. Test-first C12 work may
-  use the source-derived S1.1 D50 Lab bit contract. General mask/M1 remains
-  unmigrated, and masks, custom blend, multi-instance, or other non-evidenced
-  presentation states must reject structurally rather than fall back.
+- Color Correction schema tests lock all seven fields, five numeric hard
+  bounds, finite/float narrowing, explicit presence, atomic strict editing,
+  clamp repair, field/section reset, registry metadata, and canonical Color
+  Balance RGB → Color Correction → Color Contrast order. An explicit default
+  survives recipe-to-Develop-to-recipe and remains distinct from absence.
+- Its independent scalar/D50 oracle and fixed bit goldens lock commit-time float
+  narrowing and `saturation * (input + L * scale + base)` evaluation order,
+  including negative/extended values and the observable explicit-default Lab
+  bridge. Engine tests cover canonical dispatch, dimensions/buffer/profile,
+  non-finite input/output/parameters, disabled and mask states, owned profile
+  plus analysis propagation, source immutability, and pre/row cancellation
+  with no partial publication. Allocation failure maps to a structured engine
+  error, while the generic working-buffer budget gate accounts for publication
+  resources.
+- The complete 158-XMP census finds actual Color Correction records only in
+  0029 and 0092. Strict tests accept their enabled-v1 singleton,
+  priority-zero, unnamed, default-unmasked blend-v9/v11 envelopes and reject
+  unsupported version/enabled, duplicate, mask, custom blend, multi/name/
+  priority, unknown, malformed, and non-finite state. CLI rendering matches the
+  direct engine and preserves RAW hash/size/mtime; Catalog locks explicit-
+  default save/preview/export/close/reopen pixels and cache identity; Studio
+  locks its six-key presenter, five hard-bound generic intents, compiled Chinese
+  strings, and offscreen QML smoke. GTK plane/picker, three presets, OpenCL, and
+  the general mask graph are outside this accepted contract.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

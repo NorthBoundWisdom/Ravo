@@ -433,13 +433,35 @@ presentation or graph semantics; unsupported serialized state rejects
 structurally. Shared ordering/proxy/name strings and the `extended.cl` kernels
 remain retirement work for D0.4/S4/S14, not runtime owners.
 
-The C12 `colorcorrection` static owner/dependency audit is complete and may
-proceed test-first against the shared S1.1 D50 Lab boundary. Across all 158
-frozen XMPs, only 0029 and 0092 contain actual operation records; both are
-enabled v1 singleton, priority-zero, unnamed, and default-unmasked evidence.
-The general mask/M1 graph remains unmigrated, so masks, custom blend, multiple
-instances, and every other non-evidenced presentation state are a structured
-unsupported boundary rather than an implicit fallback.
+`ravo.color.colorcorrection` v1 is an independent, explicitly present affine
+D50 Lab operation. Its exact seven-field schema declares `working_space=lab_d50`,
+`algorithm=affine_lab_v1`, four highlight/shadow a*/b* endpoints in [-40, 40],
+and saturation in [-3, 3]. Numeric edits establish presence; field reset retains
+presence, while whole-operation or Color-section reset removes it. Canonical
+Develop order is Color Balance RGB, Color Correction, then Color Contrast.
+Absence alone skips the operation; an explicit default remains serialized and
+executes because its RGB/Lab round trip is observable.
+
+The CPU path accepts only declared linear-Rec709 RGB working pixels and reuses
+the private S1.1 D50 bridge. It derives each float scale as
+`(highlight - shadow) / 100.0F`, retains the shadow base, copies L*, and
+evaluates `saturation * (chromatic + L * scale + base)` in frozen order. It
+adds no clamp, repair, transfer curve, or profile fallback. Dimensions, buffer,
+profile, parameters, samples, allocation, and pre/row/final cancellation fail
+before publication. Success returns separately owned pixels while preserving
+the exact profile and immutable exposure-analysis snapshot; generic working
+buffers remain part of the engine memory budget.
+
+Across all 158 frozen XMPs, only 0029 and 0092 contain actual operation records.
+The strict decoder accepts their enabled-v1 singleton, exact priority-zero,
+unnamed, default-unmasked envelope and exact blend-v9/v11 default payloads;
+history position only names the instance. Every unsupported version, disabled,
+duplicate, mask, custom blend, multi/name/priority, unknown, malformed, or
+non-finite state rejects structurally. Studio exposes the five numeric intents,
+not the old GTK 2D plane/picker, three presets, blend UI, or OpenCL path. Shared
+`basic.cl`, order/modulegroup/usermanual names, example style, and pixmap remain
+D0.3/D0.4 or later cleanup owners. [ADR-0029](docs/adr/0029-colorcorrection-contract.md)
+freezes this boundary.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked
