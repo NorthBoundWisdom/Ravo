@@ -112,7 +112,6 @@ struct bytes or call the old dynamic module ABI.
 | `filmicrgb` | yes | queued by ADR-0015 as an explicit optional transform; Sigmoid remains default |
 | `finalscale` | no | reserved `ravo.output.scale`; render width/height currently drive the first bounded nearest-sample output path, not a complete scaling operation |
 | `flip` | yes | defer until geometry/ROI contract exists |
-| `gamma` | yes | defer until colour operation policy exists |
 | `grain` | yes | queued by ADR-0015; existing simplified Ravo grain is not frozen-owner acceptance |
 | `hazeremoval` | yes | defer until shared dehaze facilities exist |
 | `highpass` | yes | defer until shared blur facilities exist |

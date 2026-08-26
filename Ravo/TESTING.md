@@ -60,7 +60,10 @@ failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
 profile gamma + RGB primaries + channel mixer + Color Balance RGB parameter/
 pixel reopen, and preview-owner cancellation of a superseded token with old
-revision/asset rejection. Desktop QML smoke verifies that Input Profile,
+revision/asset rejection. Separate final-display contracts cover private RGB8
+packing and strict legacy display-boundary absorption; neither is a Develop
+recipe operation or pixel-reopen claim. Desktop QML smoke verifies that Input
+Profile,
 Unbreak Input Profile, Output & Soft Proof, White Balance, RGB Primaries, Color
 Calibration, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
@@ -262,7 +265,18 @@ directories, corrupt files, and more RAW files.
   embedded profile state; output/proof ICC content invalidates final preview
   cache without invalidating the scene-linear cache. Studio presenter/QML and
   catalog reopen cover Output & Soft Proof intent forwarding. Relabelling or
-  falling back to sRGB is not accepted.
+  falling back to sRGB is not accepted. The private final RGB8 packer covers
+  negative, zero, half-rounding, one, super-white, RGB order, invalid dimensions
+  and model, every non-finite sample, row cancellation, source immutability,
+  owned output, and exact sRGB/Display P3/file-ICC state through CLI and Catalog
+  publication without a second transfer curve.
+- Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
+  schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
+  tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero
+  `multi_name_hand_edited`, and no mask attributes. Synthetic contracts absorb
+  each exact tuple without emitting a recipe operation and reject modified or
+  missing version, disabled state, payload mutation, duplicate instance,
+  unknown or cross-paired blend state, non-default multi state, and mask state.
 - `primaries` statically decodes the sole enabled schema-v1 instance in
   `0152-rgb-primaries`. Synthetic coverage includes exact identity, each
   primary hue/purity, achromatic tint, frozen forward ray/edge intersection,

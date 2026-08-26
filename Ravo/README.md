@@ -85,6 +85,13 @@ Current implementation status:
   before atomic publish. Studio presents the engine-owned result through Output
   & Soft Proof controls; it never infers a monitor profile or performs a QML
   colour transform.
+- Final display packing is an engine-private boundary after Output Color. It
+  converts finite profiled float RGB to owned RGB8 by clamping negative values,
+  multiplying by 255, rounding, and clamping super-white while retaining the
+  exact profile and RGB channel order; it applies no second transfer curve.
+  Frozen XMP `gamma` is absorbed only for the exact mandatory singleton state
+  and emits no recipe operation. The old channel/mask display branches are
+  unsupported presentation adapters.
 - RGB Primaries provides `ravo.color.primaries` v1 with working-profile-aware
   red/green/blue hue and purity plus achromatic-axis tint. The engine derives
   the frozen custom-primary matrix from immutable RGB→XYZ D50 state before the

@@ -4,8 +4,8 @@
 >
 > **Updated: 2026-08-26**
 >
-> **Current execution focus: C8 final display encoding / gamma.** Do not migrate
-> exposure, colorbalance, cacorrectrgb, or the general mask graph in parallel.
+> **Current execution focus: C9 exposure.** Do not migrate colorbalance,
+> cacorrectrgb, or the general mask graph in parallel.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -38,81 +38,19 @@ ready for execution.
 
 ## 2. Migration queue
 
-### C8. Final display encoding: gamma (current)
-
-Goal: migrate the mandatory final float-to-display-buffer boundary without
-confusing it with the optional `ravo.core.gamma` edit. The frozen owner is an
-output packer and diagnostic display adapter; its two serialized floats do not
-drive the normal CPU path.
-
-Scope:
-
-- Frozen census: all 158 XMP histories contain one enabled schema-v1 `gamma`
-  instance with the same zeroed eight-byte payload. Verify version, enabled
-  state, payload, singleton, and default blend statically; the canonical import
-  continues to absorb only that exact mandatory boundary.
-- Preserve the normal `_copy_output` path after output colour: clamp negative
-  values to zero, multiply by 255, `roundf`, clamp above 255, and publish one
-  8-bit RGB value per channel. The old BGR byte order is a GTK/pixelpipe memory
-  layout, not a colour transform and not Ravo's `RenderedImage` contract.
-- `colorout` already owns transfer encoding and ICC state. C8 must not apply an
-  sRGB curve again, create a second output-profile transform, or reinterpret
-  the unused legacy `gamma/linear` fields as `ravo.core.gamma`.
-- Channel false-colour, monochrome-channel, and mask-overlay branches depend on
-  old display/mask state. Record a dated migrate-or-unsupported decision for
-  each calculation; do not smuggle them into QML or block the normal packer on
-  the future general mask graph.
-
-Owner, lifecycle, and failure:
-
-- Engine owns a private output-packing boundary from immutable finite profiled
-  float RGB to an owned `RenderedImage`; CLI/Catalog encoders consume that one
-  result and retain its exact `ColorProfileState`.
-- Invalid dimensions/model, nonfinite samples, allocation failure, and row
-  cancellation fail before pixel/cache/file publication. No alternative
-  transfer curve, channel order, or unprofiled fallback is permitted.
-- Recipe owns no new C8 operation. Legacy XMP absorption is an import rule for
-  the mandatory old boundary; the existing simplified gamma edit remains a
-  separately unsupported subset and cannot satisfy C8.
-
-Validation and acceptance gates:
-
-- [ ] Static census of all 158 exact schema-v1 payloads; modified payload,
-  version, disabled state, duplicate, and blend/mask data reject explicitly.
-- [ ] Synthetic negative, zero, half-rounding, one, super-white, RGB-order,
-  dimension/model, nonfinite, row-cancellation, and source-immutability tests.
-- [ ] Built-in sRGB, Display P3, and file-ICC output retain profile state and
-  match CLI/Catalog PNG/JPEG/TIFF publication without double encoding.
-- [ ] Record dated decisions for channel/mask diagnostic branches and cover
-  every supported calculation through an engine contract, not UI state.
-- [ ] Delete `legacy/src/iop/gamma.c` and registration after the output boundary
-  and strict import are accepted; defer shared order/manual names to D0.4.
-- [ ] Full Ravo unit/contract/catalog tests and freeze/inventory/boundary checks.
-- [ ] Explicitly report Windows/Linux as untested when they are not run.
-
-Minimum commands:
-
-~~~text
-cmake --build --preset mac_clang_debug --target   ravo_unit_tests ravo_contract_tests ravo_catalog_tests ravo_desktop_command_tests ravo_studio
-
-./build/mac_clang_debug/Ravo/tests/ravo_unit_tests
-./build/mac_clang_debug/Ravo/tests/ravo_contract_tests
-./build/mac_clang_debug/Ravo/tests/ravo_catalog_tests
-./build/mac_clang_debug/Ravo/tests/ravo_desktop_command_tests
-
-python3 Ravo/tools/freeze_legacy_manifest.py --check
-python3 Ravo/tools/check_capability_inventory.py
-python3 Ravo/tools/check_freeze_reference.py
-python3 Ravo/tools/check_ravo_dependency_boundary.py
-~~~
+C9 exposure is current. Its owner, scope, dependencies, and acceptance gate are
+recorded in section 3.2. Complete its static owner and fixture analysis before
+changing code; do not start a later IOP algorithm row in parallel. Independent
+adapter or reliability work may run only when its dependencies are met and its
+owners and files do not overlap.
 
 ## 3. Complete remaining-module inventory and serial order
 
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 57 unconditional IOP registrations plus two
-  conditional owners (`liquify`, `watermark`); all 59 have a row in section 3.2.
+- legacy/src/iop/CMakeLists.txt has 56 unconditional IOP registrations plus two
+  conditional owners (`liquify`, `watermark`); all 58 have a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
@@ -122,7 +60,7 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C8 only. **Queued** waits for dependencies and
+Status terms: **current** means C9 only. **Queued** waits for dependencies and
 all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
 move it before migration completes. When a module meets its gate, first update
 stable truth, then remove its row. Do not leave historical checked marks here.
@@ -152,7 +90,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (59 owners: 57 unconditional + 2 conditional)
+### 3.2 IOP algorithm queue (58 owners: 56 unconditional + 2 conditional)
 
 The group order below is dependency order; rows in a group are serial by
 default. fixture means static evidence exists, not that it is covered.
@@ -161,8 +99,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C8 | gamma — iop/gamma.c | yes | **Current / ALG**; mandatory output packing plus explicit channel/mask diagnostic decisions; existing `ravo.core.gamma` is unrelated; see section 2 |
-| C9 | exposure — iop/exposure.c | yes | Queued / ALG; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
+| C9 | exposure — iop/exposure.c | yes | **Current / ALG**; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
 | C10 | colorbalance — iop/colorbalance.c | yes | Queued / ALG; define overlap with ravo.color.colorbalancergb; do not substitute three parameters for full old path |
 | C11 | colorchecker — iop/colorchecker.c | yes | Queued / ALG; depends on explicit input-profile state/S1; move algorithm/calibration tables and delete GTK chart/picker |
 | C12 | colorcorrection — iop/colorcorrection.c | yes | Queued / ALG; depends on S1/M1; Lab/chroma and blend contract |
@@ -378,13 +315,15 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later rows in parallel before C8 completes.
+later IOP algorithm rows in parallel before C9 completes. Independent adapter
+or reliability work requires satisfied dependencies and explicitly non-
+overlapping owners and files.
 
 ## 4. Completion gate for this TODO
 
 Delete this document only when all are true:
 
-- [ ] C8 and every later raised algorithm are accepted and removed from this
+- [ ] C9 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

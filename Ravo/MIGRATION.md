@@ -134,11 +134,13 @@ accepted:
 - old catalog/styles binaries and unproven complete XMP-history replay;
 - map, tethering, print, slideshow, and remote publishing.
 
-`filmicrgb`, `agx`, `colorzones`, diagnostic calculations, creative/repair
-modules, and all other remaining IOPs remain algorithm-migration candidates;
-they must not become empty shells or be deleted en masse before their active
-TODO acceptance. Sigmoid and `colorequal` remain the default display transform
-and default HSL partition respectively.
+`filmicrgb`, `agx`, `colorzones`, other diagnostic calculations, creative/
+repair modules, and all other remaining IOPs remain algorithm-migration
+candidates; they must not become empty shells or be deleted en masse before
+their active TODO acceptance. The retired final-display channel and mask
+branches are explicitly unsupported presentation adapters. Sigmoid and
+`colorequal` remain the default display transform and default HSL partition
+respectively.
 
 ## Migration ledger
 
@@ -164,6 +166,7 @@ and default HSL partition respectively.
 | Input colour profile | `iop/colorin.c` | `ravo.color.input` + private engine colour adapter | Old implementation removed | explicit decode profile state and working matrix; frozen matrix/shaper/unbounded/normalize/RAW blue paths plus private LittleCMS RGB/XYZ/Lab ICC transforms; raster ICC, external-profile cache invalidation, Studio reopen, and profile-labelled CLI/export; no missing-profile or generic-camera fallback |
 | Unbreak input profile | `iop/profile_gamma.c` | `ravo.color.profilegamma` + private pre-input engine path | Old implementation removed | opt-in v1 log/gamma correction immediately before input colour; frozen float `fastlog2`, dual `2^-16` floors, 65,536-entry piecewise LUT and unbounded extrapolation; exact cache identity, tagged-raster/RAW references, CLI/Catalog/Studio reopen. No legacy payload is invented; JPEG media-dependent order, GTK picker/autotune, presets, blend UI, and OpenCL are not ported |
 | Output colour profile | `iop/colorout.c` | `ravo.color.output` + private engine colour adapter | Old implementation removed | recipe schema v3; built-in/file ICC, matrix/shaper/unbounded and general RGB/XYZ/Lab transforms, four intents, BPC, soft proof, cyan gamut warning, deterministic encoded ICC state, preview v7 cache identity, Studio reopen, and CLI/Catalog profile embedding; no monitor/display/sRGB fallback |
+| Final display packing | `iop/gamma.c` | private engine RGB8 packer + strict XMP importer | Old implementation removed | finite profiled float RGB clamps/rounds to owned RGB8 without another transfer curve and retains exact profile state; all 158 frozen histories prove one exact schema-v1 boundary across 12 versioned blend tuples, which imports without a recipe operation. Modified payload/version/enabled/blend/mask/multi/singleton state rejects; GTK channel/mask presentation is unsupported. Shared old ordering, registry, and pixelpipe names remain for D0.4/S4 cleanup |
 | RGB primaries | `iop/primaries.c` | `ravo.color.primaries` + private engine matrix path | Old implementation removed | eight bounded hue/purity parameters; working-matrix xy/white derivation, frozen forward edge intersection and custom RGB→XYZ adjustment before the linear-Rec709 bridge; exact 0152 decode, synthetic/RAW references, cancellation, CLI/Catalog/Studio reopen; GTK display slider painting, blend UI, OpenCL, and fallback profile state are not ported |
 | Color calibration | `iop/channelmixerrgb.c` | `ravo.color.channelmixerrgb` | Old implementation removed | explicit `linear_srgb_d50`, V3 matrix normalization + CAT16/Bradford/XYZ/RGB + gamut + saturation/lightness/grey; no hidden CAT by default; old chart/OpenCL/XMP ABI is not ported |
 | Scene-referred color grading | `iop/colorbalancergb.c` | `ravo.color.colorbalancergb` | Old implementation removed | explicit `linear_srgb_d50` + Filmlight Yrg three-zone mask/grading RGB; DT UCS 2022 is default and JzAzBz 2021 explicit optional; old lift/gamma/gain approximation is hard-deleted, while `colorbalance.c` remains separately queued |

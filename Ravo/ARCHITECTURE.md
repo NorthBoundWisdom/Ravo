@@ -284,6 +284,17 @@ depends only on input/working state. The engine PNG writer and Qt raster adapter
 embed the same state or fail before publication. Studio attaches it to QImage
 and only presents engine-computed soft-proof/gamut pixels.
 
+Final RGB8 packing is a private engine boundary after output colour. It accepts
+only finite profiled float RGB, clamps negative values, multiplies by 255,
+rounds, clamps super-white, and publishes an owned RGB-order `RenderedImage`
+with the exact `ColorProfileState`; it performs no additional transfer curve.
+The old BGR order was a GTK/pixelpipe destination layout. Legacy XMP `gamma`
+is strictly absorbed as this mandatory singleton boundary and creates no recipe
+operation. Its channel/mask display branches are unsupported presentation
+adapters because they depend on mutable, non-self-describing old display state.
+Remaining frozen order, registry, and pixelpipe references are cleanup owned by
+D0.4/S4 and are not Ravo production dependencies.
+
 `ravo.color.primaries` v1 is the first working-profile-relative RGB grading
 operation. Recipe hue values are radians and purity values scale the ray from
 the working white point to its primary triangle. The engine derives xy from

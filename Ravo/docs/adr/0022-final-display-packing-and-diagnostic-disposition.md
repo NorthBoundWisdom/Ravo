@@ -6,8 +6,8 @@
 
 ## Context
 
-The frozen [`gamma.c`](../../../legacy/src/iop/gamma.c) is named “display
-encoding,” is hidden, mandatory, and single-instance, but it combines two
+The frozen `legacy/src/iop/gamma.c` is named “display encoding,” is hidden,
+mandatory, and single-instance, but it combines two
 different responsibilities. Its normal `_copy_output` branch quantizes the
 already output-profiled float buffer. Its other branches render old channel and
 mask inspection state for the GTK darkroom.
@@ -63,9 +63,10 @@ legacy histories remain readable without inventing an edit. Modified payload,
 blend/mask, duplicate, disabled, version, or multi-instance state is rejected
 instead of being silently normalized.
 
-After the C8 engine and import contracts pass their acceptance gates,
-`legacy/src/iop/gamma.c` can be deleted with its registration. No diagnostic
-compatibility shell or QML fallback is retained.
+The C8 engine and import contracts passed their acceptance gates, and the
+`legacy/src/iop/gamma.c` owner and its registration are retired. Shared old
+ordering, registry, manual-name, pixelpipe, and imageop references remain for
+D0.4/S4 cleanup. No diagnostic compatibility shell or QML fallback is retained.
 
 ## Rejected alternatives
 
