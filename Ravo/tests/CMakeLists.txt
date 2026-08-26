@@ -144,6 +144,34 @@ gtest_discover_tests(ravo_rgbe_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-rgbe-catalog")
 
+add_executable(ravo_original_copy_service_tests original_copy_service_test.cpp)
+target_link_libraries(ravo_original_copy_service_tests
+  PRIVATE
+    GTest::gtest
+    ravo_services
+    ravo_adapters
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Sql)
+target_include_directories(ravo_original_copy_service_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/Ravo/services/src
+  ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_original_copy_service_tests)
+ravo_copy_windows_runtime_dlls(ravo_original_copy_service_tests)
+gtest_discover_tests(ravo_original_copy_service_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-original-copy-service")
+
+add_executable(ravo_original_copy_cli_tests original_copy_cli_test.cpp)
+target_link_libraries(ravo_original_copy_cli_tests
+  PRIVATE GTest::gtest ravo_cli Qt6::Core Qt6::Gui Qt6::Sql)
+target_include_directories(ravo_original_copy_cli_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_original_copy_cli_tests)
+ravo_copy_windows_runtime_dlls(ravo_original_copy_cli_tests)
+gtest_discover_tests(ravo_original_copy_cli_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-original-copy-cli")
+
 add_executable(ravo_desktop_command_tests studio_command_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)

@@ -522,6 +522,14 @@ current or synthesized baseline recipe, calls the non-persistent interactive
 preview contract, reports display-referred pixel statistics, and verifies that
 the stored recipe and preview records are unchanged before returning.
 
+Original-copy export is separate from pixel encoding. CatalogService passes one
+explicit local source and destination to a bounded 64 KiB streaming owner,
+which creates an exclusive adjacent temporary, synchronizes it, and atomically
+publishes with no replacement. Existing or racing targets win. The service
+copies exact media bytes only: it neither mutates the source nor creates XMP or
+inherits source mode, timestamps, or xattrs. Stable cancellation and I/O errors
+identify both paths; I14 retains path-template, batch, and storage policy.
+
 ## Current non-goals
 
 - CatalogService owns local JPEG/PNG/TIFF/original-copy export. Pixel exports

@@ -177,6 +177,20 @@ or preview publication. A dynamic legacy consumer census remains blocked while
 the frozen image-I/O dispatcher is reachable; these tests do not claim I9
 completion or legacy wrapper retirement.
 
+Original-copy service tests stream across multiple 64 KiB chunks and compare
+exact output bytes/byte count while freezing source hash, size, mtime, mode, and
+xattrs. They prove that destination metadata is newly created and no XMP is
+written; a stale fixed temporary sentinel is preserved. Deterministic internal
+hooks cover entry/mid-read/mid-write/pre-publish cancellation, source mutation,
+exclusive temporary open, write/finish/publish failures, late no-clobber races,
+and write/finish disk-full mapping with owned-temp cleanup. Path taxonomy covers
+missing, non-regular, unreadable, missing/non-directory/unwritable parents, and
+same/pre-existing outputs with complete `reason`/`source`/`output` context. CLI
+tests cover all three aliases plus complete conflict/I/O JSON. CLI end-to-end
+cancellation is not injectable in this tranche and must not be reported as
+covered. These contracts do not retire `legacy/src/imageio/format/copy.c` or
+claim I14 batch/storage policy.
+
 ## Preview and viewer
 
 - Write preview cache to a temporary file and publish atomically; a failed

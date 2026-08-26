@@ -343,7 +343,7 @@ void disable_raw_preprocess(Recipe &recipe)
 
 [[nodiscard]] bool is_disk_full(const std::error_code &error) noexcept
 {
-    return error == std::errc::no_space_on_device || errno == ENOSPC;
+    return error == std::errc::no_space_on_device;
 }
 
 [[nodiscard]] TaskError export_io_error(std::string message, const std::string_view path,
@@ -442,64 +442,6 @@ void disable_raw_preprocess(Recipe &recipe)
         return export_io_error("Unable to commit export file", dest_utf8, error);
     }
     return {};
-}
-
-[[nodiscard]] Result<std::uint64_t> copy_file_atomically(const std::string_view source_utf8,
-                                                         const std::string_view dest_utf8,
-                                                         const CancellationToken &cancellation)
-{
-    auto cancelled = cancellation.check();
-    if (!cancelled)
-    {
-        return cancelled.error();
-    }
-    const auto source = utf8_path(source_utf8);
-    const auto dest = utf8_path(dest_utf8);
-    std::error_code error;
-    if (std::filesystem::exists(dest, error))
-    {
-        return make_error(ErrorCode::kConflict, "Export output already exists",
-                          {{"path", std::string(dest_utf8)}});
-    }
-    if (error)
-    {
-        return export_io_error("Unable to inspect export output path", dest_utf8, error);
-    }
-    std::ifstream input(source, std::ios::binary);
-    if (!input)
-    {
-        return make_error(ErrorCode::kNotFound, "Original file is missing",
-                          {{"path", std::string(source_utf8)}});
-    }
-    std::vector<std::uint8_t> bytes;
-    constexpr std::size_t kChunk = 64U * 1024U;
-    std::vector<char> buffer(kChunk);
-    while (input)
-    {
-        cancelled = cancellation.check();
-        if (!cancelled)
-        {
-            return cancelled.error();
-        }
-        input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        const auto read = input.gcount();
-        if (read > 0)
-        {
-            const auto *data = reinterpret_cast<const std::uint8_t *>(buffer.data());
-            bytes.insert(bytes.end(), data, data + static_cast<std::size_t>(read));
-        }
-    }
-    if (!input.eof())
-    {
-        return export_io_error("Unable to read original file", source_utf8,
-                               std::error_code(errno, std::generic_category()));
-    }
-    auto written = write_bytes_atomically(dest_utf8, bytes, cancellation);
-    if (!written)
-    {
-        return written.error();
-    }
-    return static_cast<std::uint64_t>(bytes.size());
 }
 
 } // namespace ravo

@@ -221,7 +221,7 @@ default. fixture means static evidence exists, not that it is covered.
 | I7 | imageio_tiff* | Adapter audit | 8/16/float, multi-page, ICC/alpha/error Qt contract |
 | I8 | imageio_qoi* + qoi.h | ALG/adapter | If Ravo keeps QOI, add decoder/encoder fixtures; otherwise explicit unsupported then delete |
 | I9 | imageio_rgbe* | ALG/adapter | HDR RGBE decode/colour contract and fixture; do not treat it as ordinary raster |
-| I10 | imageio/format/copy.c | DELETE/reuse original-copy service | Atomic copy, conflict/cancellation tested, then remove dynamic format ABI |
+| I10 | imageio/format/copy.c | DELETE/reuse original-copy service | Ravo exact-byte 64 KiB streaming, exclusive temp, atomic no-replace, conflict/cancellation/source/error/disk-full and CLI context are hardened; still blocked on I1/I14/U10/J2 zero consumers before removing plugin/registration |
 | I11 | imageio/format/jpeg.c | Adapter/export | Quality/ICC/metadata/subsampling/disk-full contract |
 | I12 | imageio/format/png.c | Adapter/export | Bit depth/ICC/metadata/alpha/disk-full contract |
 | I13 | imageio/format/tiff.c | Adapter/export | 8/16/float/compression/ICC/metadata/disk-full contract |

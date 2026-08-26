@@ -1074,15 +1074,6 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return location.error();
     }
-    std::error_code exists_error;
-    const bool original_exists =
-        std::filesystem::is_regular_file(utf8_path(location.value().path), exists_error) &&
-        !exists_error;
-    if (!original_exists)
-    {
-        return make_error(ErrorCode::kNotFound, "Original file is missing",
-                          {{"asset_id", request.asset_id}, {"path", location.value().path}});
-    }
 
     ExportResult result;
     result.asset_id = request.asset_id;
@@ -1102,6 +1093,16 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         LOG_INFO(ravo::logger(), "export original asset={} output={} bytes={}", request.asset_id,
                  output.value().path, result.bytes_written);
         return result;
+    }
+
+    std::error_code exists_error;
+    const bool original_exists =
+        std::filesystem::is_regular_file(utf8_path(location.value().path), exists_error) &&
+        !exists_error;
+    if (!original_exists)
+    {
+        return make_error(ErrorCode::kNotFound, "Original file is missing",
+                          {{"asset_id", request.asset_id}, {"path", location.value().path}});
     }
 
     auto baseline_recipe = baseline_recipe_for(*asset.value(), location.value().path);

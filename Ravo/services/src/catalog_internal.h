@@ -16,6 +16,35 @@
 namespace ravo
 {
 
+enum class OriginalCopyCheckpoint : std::uint8_t
+{
+    kSourceOpened,
+    kBeforeSourceRead,
+    kSourceChunkRead,
+    kBeforeTemporaryOpen,
+    kTemporaryCreated,
+    kBeforeTemporaryWrite,
+    kTemporaryChunkWritten,
+    kBeforeTemporaryFinish,
+    kBeforePublish,
+};
+
+struct OriginalCopyCheckpointHook
+{
+    using Callback = std::error_code (*)(void *context, OriginalCopyCheckpoint checkpoint,
+                                         std::string_view path,
+                                         std::uint64_t bytes_processed) noexcept;
+
+    Callback callback = nullptr;
+    // Internal synchronous test seam. The caller keeps this non-owning context
+    // alive for the complete copy call. The checkpoint path is borrowed only
+    // for the callback: source checkpoints identify the source; temporary and
+    // pre-publish checkpoints identify the candidate or owned temporary file.
+    // kBeforePublish runs only after the temporary file has been finished. A
+    // nonzero return injects that operation error at the observed stage.
+    void *context = nullptr;
+};
+
 [[nodiscard]] std::int64_t now_unix_ms();
 [[nodiscard]] ImportItemResult failed_item(std::string path, TaskError error);
 [[nodiscard]] ImportItemResult unsupported_item(std::string path, TaskError error);
@@ -44,5 +73,9 @@ void disable_raw_preprocess(Recipe &recipe);
 [[nodiscard]] Result<std::uint64_t> copy_file_atomically(std::string_view source_utf8,
                                                          std::string_view dest_utf8,
                                                          const CancellationToken &cancellation);
+[[nodiscard]] Result<std::uint64_t>
+copy_file_atomically(std::string_view source_utf8, std::string_view dest_utf8,
+                     const CancellationToken &cancellation,
+                     OriginalCopyCheckpointHook checkpoint_hook);
 
 } // namespace ravo

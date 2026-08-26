@@ -3,6 +3,7 @@ add_library(ravo_services STATIC)
 target_sources(ravo_services
   PRIVATE
     src/catalog_internal.cpp
+    src/original_copy.cpp
     src/catalog_service.cpp
     src/catalog_preview.cpp)
 
