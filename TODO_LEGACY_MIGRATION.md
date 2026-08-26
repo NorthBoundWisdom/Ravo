@@ -4,10 +4,10 @@
 >
 > **Updated: 2026-08-27**
 >
-> **Current execution focus: C13 colorcontrast static owner/dependency audit.**
-> This checkpoint authorizes read-only audit only; it does not authorize C13
-> production implementation. Do not start C14 or cacorrectrgb in parallel, and
-> do not infer a migration boundary before the C13 audit is reviewed.
+> **Current execution focus: C13 colorcontrast test-first implementation.**
+> The static owner/dependency audit is accepted and C13 implementation is now
+> authorized in the frozen tranche order below. Do not start C14 or cacorrectrgb
+> in parallel, and do not widen C13 into the general mask graph.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -40,11 +40,27 @@ ready for execution.
 
 ## 2. Migration queue
 
-C13 colorcontrast is current for static owner/dependency audit only. Production
-implementation is not authorized by this checkpoint, and no algorithm,
-fixture, presentation, or compatibility conclusion is frozen yet. Do not start
-a later IOP algorithm row in parallel. Independent adapter or reliability work
-may run only when its dependencies are met and its owners and files do not
+C13 colorcontrast is current for test-first implementation. The accepted audit
+freezes `ravo.color.colorcontrast` schema v2 with seven fields:
+`working_space=lab_d50`, `algorithm=axis_affine_v2`, `a_steepness`, `a_offset`,
+`b_steepness`, `b_offset`, and `unbound`. The CPU owner applies the frozen D50
+Lab per-axis affine expression and the bounded/unbounded branch; S1.1 supplies
+the private RGB/XYZ/Lab bridge.
+
+Two independent upgrades remain mandatory. Frozen legacy module v1 copies its
+four floats and adds `unbound=0`; existing Ravo operation v1 `amount[-1,1]`
+must normalize deterministically into the canonical v2 contract across recipe
+upgrade, validation, Develop load, and engine dispatch, preserving its zero
+short-circuit rather than merely becoming registry-invalid. The verbatim 0038
+v2 singleton, priority-zero, unnamed, exact default-unmasked record is the
+minimal positive importer evidence. The full 0038 document remains a
+structured negative because it contains unsupported mask history.
+
+Work proceeds serially: **Tranche A** recipe/schema/upgrades/CPU/importer core,
+then **Tranche B** Develop/CLI/Catalog/Studio consumers, then **Tranche C**
+authority synchronization and atomic source/registration retirement. Do not
+start a later IOP algorithm row in parallel. Independent adapter or reliability
+work may run only when its dependencies are met and its owners and files do not
 overlap.
 
 ## 3. Complete remaining-module inventory and serial order
@@ -63,7 +79,7 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means the C13 static owner/dependency audit only.
+Status terms: **current** means the authorized C13 test-first implementation.
 **Queued** waits for dependencies and all earlier rows. **Delete** means no
 UI/ABI port. **Keep evidence** means do not move it before migration completes.
 When a module meets its gate, first update stable truth, then remove its row. Do
@@ -103,7 +119,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C13 | colorcontrast — iop/colorcontrast.c | yes | **Current / static owner/dependency audit only**; production implementation is not authorized and the existing simplified control is not acceptance |
+| C13 | colorcontrast — iop/colorcontrast.c | yes | **Current / test-first implementation authorized**; schema-v2 D50 Lab affine core, both v1 upgrades, bounded strict 0038 import, Develop consumers, then atomic retirement; the existing simplified control alone is not acceptance |
 | C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / ALG; depends on S1/M1; colour harmony and mask/ROI |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
@@ -315,7 +331,7 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-C13 or later IOP algorithm rows while the current audit is under review.
+C14 or later IOP algorithm rows while C13 is current.
 Independent adapter or reliability work requires satisfied dependencies and
 explicitly non-overlapping owners and files.
 
