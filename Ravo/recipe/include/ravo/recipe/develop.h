@@ -11,6 +11,7 @@
 
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/operation.h"
@@ -249,7 +250,8 @@ struct DevelopParams
     ColorBalanceRgbParams color_balance_rgb;
     bool color_correction_enabled = false;
     ColorCorrectionParams color_correction;
-    double color_contrast = 0.0;
+    bool color_contrast_enabled = false;
+    ColorContrastParams color_contrast;
     double monochrome = 0.0;
     double split_shadows_hue = 0.0;
     double split_highlights_hue = 0.2;

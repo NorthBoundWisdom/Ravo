@@ -103,6 +103,14 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("shadowA")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("shadowB")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("saturation")).toDouble(), 1.0);
+    const auto color_contrast = presenter.editColorContrast();
+    EXPECT_EQ(color_contrast.size(), 6);
+    EXPECT_FALSE(color_contrast.value(QStringLiteral("enabled")).toBool());
+    EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("aSteepness")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("aOffset")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bSteepness")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bOffset")).toDouble(), 0.0);
+    EXPECT_TRUE(color_contrast.value(QStringLiteral("unbound")).toBool());
     const auto primaries = presenter.editPrimaries();
     EXPECT_EQ(primaries.size(), 8);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintHueDegrees")).toDouble(), 0.0);
@@ -264,6 +272,70 @@ TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
     EXPECT_LT(correction, contrast);
 }
 
+TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIntents)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    for (const auto *field : {"colorContrastASteepness", "colorContrastBSteepness"})
+    {
+        const auto expected = QStringLiteral("\"field\": \"%1\", \"minimum\": 0, \"maximum\": 5")
+                                  .arg(QString::fromLatin1(field));
+        EXPECT_TRUE(source.contains(expected)) << field;
+    }
+    for (const auto *field : {"colorContrastAOffset", "colorContrastBOffset"})
+    {
+        EXPECT_TRUE(
+            source.contains(QStringLiteral("\"field\": \"%1\"").arg(QString::fromLatin1(field))))
+            << field;
+    }
+
+    const auto section_begin = source.indexOf(QStringLiteral("colorContrastEnabled"));
+    const auto section_end = source.indexOf(QStringLiteral("monochrome"), section_begin);
+    ASSERT_GE(section_begin, 0);
+    ASSERT_GT(section_end, section_begin);
+    const auto section = source.mid(section_begin, section_end - section_begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorContrast")));
+    EXPECT_TRUE(section.contains(
+        QStringLiteral("setDevelopNumber(\"colorContrastEnabled\", checked ? 1 : 0)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Enable Color contrast\")")));
+    EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(modelData.field, value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(modelData.field, value)")));
+    EXPECT_TRUE(section.contains(
+        QStringLiteral("setDevelopNumber(\"colorContrastUnbound\", checked ? 1 : 0)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Allow extended chroma\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("DoubleValidator.ScientificNotation")));
+    EXPECT_TRUE(source.contains(QStringLiteral("bottom: -3.4028234663852886e38")));
+    EXPECT_TRUE(source.contains(QStringLiteral("top: 3.4028234663852886e38")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(modelData.field)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorContrast\")")));
+    EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Disable and reset Color contrast\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("axis_affine_v2")));
+
+    const auto correction = source.indexOf(QStringLiteral("colorCorrectionEnabled"));
+    const auto contrast = source.indexOf(QStringLiteral("colorContrastEnabled"), correction);
+    const auto a_steepness = source.indexOf(QStringLiteral("colorContrastASteepness"), contrast);
+    const auto b_steepness = source.indexOf(QStringLiteral("colorContrastBSteepness"), contrast);
+    const auto a_offset = source.indexOf(QStringLiteral("colorContrastAOffset"), contrast);
+    const auto b_offset = source.indexOf(QStringLiteral("colorContrastBOffset"), contrast);
+    const auto unbound = source.indexOf(QStringLiteral("colorContrastUnbound"), contrast);
+    ASSERT_GE(correction, 0);
+    ASSERT_GE(contrast, 0);
+    ASSERT_GE(a_steepness, 0);
+    ASSERT_GE(b_steepness, 0);
+    ASSERT_GE(a_offset, 0);
+    ASSERT_GE(b_offset, 0);
+    ASSERT_GE(unbound, 0);
+    EXPECT_LT(correction, contrast);
+    EXPECT_LT(contrast, a_steepness);
+    EXPECT_LT(a_steepness, b_steepness);
+    EXPECT_LT(b_steepness, a_offset);
+    EXPECT_LT(a_offset, b_offset);
+    EXPECT_LT(b_offset, unbound);
+}
+
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
@@ -290,6 +362,8 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("颜色查找表 · D50 Lab"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color Correction · D50 Lab"),
               QStringLiteral("色彩校正 · D50 Lab"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Allow extended chroma"),
+              QStringLiteral("允许扩展色度"));
 
     QCoreApplication::removeTranslator(&translator);
 }

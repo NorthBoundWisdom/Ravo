@@ -147,6 +147,42 @@ ColumnLayout {
         }
     }
 
+    component ColorContrastOffsetField: RowLayout {
+        required property var modelData
+        Layout.fillWidth: true
+        spacing: Fonts.smallSpacing
+
+        CustomLabel {
+            Layout.fillWidth: true
+            text: modelData.title
+        }
+        CustomTextField {
+            Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 12
+            showEmptyIndicator: false
+            showClipIndicator: false
+            enabled: root.hasSelection
+            validator: DoubleValidator {
+                bottom: -3.4028234663852886e38
+                top: 3.4028234663852886e38
+                decimals: 9
+                notation: DoubleValidator.ScientificNotation
+            }
+            text: root.hasPresenter
+                  ? Number(root.presenter.editColorContrast[modelData.key]).toString() : "0"
+            onEditingCommitted: function (committedText) {
+                const parsed = Number(committedText);
+                if (Number.isFinite(parsed) && root.commands)
+                    root.commands.setDevelopNumber(modelData.field, parsed);
+            }
+        }
+        CustomButton {
+            text: qsTr("Reset")
+            enabled: root.hasSelection
+            onClicked: if (root.commands)
+                root.commands.resetControl(modelData.field)
+        }
+    }
+
             CustomLabel {
                 Layout.leftMargin: Fonts.standardMargin
                 Layout.topMargin: Fonts.size8
@@ -1346,23 +1382,78 @@ ColumnLayout {
                             onClicked: if (root.commands)
                                 root.commands.resetControl("colorCorrection")
                         }
-                        CustomSlider {
+                        CustomLabel {
                             Layout.fillWidth: true
-                            title: qsTr("Color contrast")
-                            from: -1
-                            to: 1
-                            showReset: true
-                            resetValue: 0
-                            delayedCommit: true
+                            text: qsTr("Color contrast")
+                            font.bold: true
+                            wrapMode: Text.WordWrap
+                        }
+                        CustomCheckBox {
+                            objectName: "colorContrastEnabled"
+                            text: qsTr("Enable Color contrast")
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editColorContrast : 0
-                            onValueChanged: if (root.liveReady && root.commands)
-                                    root.commands.previewDevelopNumber("colorContrast", value)
-                            onValueCommitted: function (value) {
-                                if (root.commands)
-                                    root.commands.setDevelopNumber("colorContrast", value);
+                            checked: root.hasPresenter && root.presenter.editColorContrast.enabled
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("colorContrastEnabled", checked ? 1 : 0)
+                        }
+                        Repeater {
+                            model: [
+                                { "title": "a* ×", "key": "aSteepness", "field": "colorContrastASteepness", "minimum": 0, "maximum": 5, "reset": 1 },
+                                { "title": "b* ×", "key": "bSteepness", "field": "colorContrastBSteepness", "minimum": 0, "maximum": 5, "reset": 1 }
+                            ]
+                            delegate: CustomSlider {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                title: modelData.title
+                                from: modelData.minimum
+                                to: modelData.maximum
+                                stepSize: 0.01
+                                validatorDecimals: 3
+                                showReset: true
+                                resetValue: modelData.reset
+                                delayedCommit: true
+                                enabled: root.hasSelection
+                                value: root.hasPresenter
+                                       ? root.presenter.editColorContrast[modelData.key]
+                                       : modelData.reset
+                                onValueChanged: if (root.liveReady && root.commands)
+                                        root.commands.previewDevelopNumber(modelData.field, value)
+                                onValueCommitted: function (value) {
+                                    if (root.commands)
+                                        root.commands.setDevelopNumber(modelData.field, value);
+                                }
+                                onResetRequested: if (root.commands)
+                                    root.commands.resetControl(modelData.field)
                             }
-                            onResetRequested: if (root.commands)
+                        }
+                        Repeater {
+                            model: [
+                                { "title": "a* +", "key": "aOffset", "field": "colorContrastAOffset" },
+                                { "title": "b* +", "key": "bOffset", "field": "colorContrastBOffset" }
+                            ]
+                            delegate: ColorContrastOffsetField {}
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            CustomCheckBox {
+                                Layout.fillWidth: true
+                                text: qsTr("Allow extended chroma")
+                                enabled: root.hasSelection
+                                checked: root.hasPresenter && root.presenter.editColorContrast.unbound
+                                onToggled: if (root.liveReady && root.commands)
+                                    root.commands.setDevelopNumber("colorContrastUnbound", checked ? 1 : 0)
+                            }
+                            CustomButton {
+                                text: qsTr("Reset")
+                                enabled: root.hasSelection
+                                onClicked: if (root.commands)
+                                    root.commands.resetControl("colorContrastUnbound")
+                            }
+                        }
+                        CustomButton {
+                            text: qsTr("Disable and reset Color contrast")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
                                 root.commands.resetControl("colorContrast")
                         }
                         CustomSlider {

@@ -764,6 +764,18 @@
         <translation>Color contrast</translation>
     </message>
     <message>
+        <source>Enable Color contrast</source>
+        <translation>Enable Color contrast</translation>
+    </message>
+    <message>
+        <source>Allow extended chroma</source>
+        <translation>Allow extended chroma</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color contrast</source>
+        <translation>Disable and reset Color contrast</translation>
+    </message>
+    <message>
         <source>Monochrome</source>
         <translation>Monochrome</translation>
     </message>

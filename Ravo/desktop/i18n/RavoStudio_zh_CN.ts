@@ -764,6 +764,18 @@
         <translation>色彩对比</translation>
     </message>
     <message>
+        <source>Enable Color contrast</source>
+        <translation>启用色彩对比</translation>
+    </message>
+    <message>
+        <source>Allow extended chroma</source>
+        <translation>允许扩展色度</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color contrast</source>
+        <translation>禁用并重置色彩对比</translation>
+    </message>
+    <message>
         <source>Monochrome</source>
         <translation>单色</translation>
     </message>

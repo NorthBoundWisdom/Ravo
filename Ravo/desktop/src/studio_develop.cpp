@@ -490,9 +490,15 @@ QVariantMap StudioPresenter::editPrimaries() const
             {QStringLiteral("bluePurity"), params.blue_purity}};
 }
 
-double StudioPresenter::editColorContrast() const noexcept
+QVariantMap StudioPresenter::editColorContrast() const
 {
-    return develop_.color_contrast;
+    const auto &params = develop_.color_contrast;
+    return {{QStringLiteral("enabled"), develop_.color_contrast_enabled},
+            {QStringLiteral("aSteepness"), params.a_steepness},
+            {QStringLiteral("aOffset"), params.a_offset},
+            {QStringLiteral("bSteepness"), params.b_steepness},
+            {QStringLiteral("bOffset"), params.b_offset},
+            {QStringLiteral("unbound"), params.unbound}};
 }
 
 double StudioPresenter::editMonochrome() const noexcept

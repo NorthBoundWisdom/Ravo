@@ -1679,7 +1679,8 @@ TEST(RecipeTest, ColorCorrectionDevelopFieldsAreStrictResettableAndCanonicallyOr
     EXPECT_EQ(develop.color_correction, (ColorCorrectionParams{12.5, -8.25, -4.75, 9.5, 1.375}));
 
     develop.color_balance_rgb.global_y = 0.01;
-    develop.color_contrast = 0.25;
+    develop.color_contrast_enabled = true;
+    develop.color_contrast.a_steepness = 1.25;
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto rgb_balance =
@@ -1756,6 +1757,187 @@ TEST(RecipeTest, ExplicitDefaultColorCorrectionPresenceSurvivesDevelopRoundTrip)
     auto absent = recipe_from_develop(recipe.asset, DevelopParams{});
     ASSERT_TRUE(absent) << absent.error().message;
     EXPECT_EQ(operation_by_id(absent.value(), kColorCorrectionOperationId), nullptr);
+}
+
+TEST(RecipeTest, ColorContrastDevelopFieldsAreStrictResettableAndCanonicallyOrdered)
+{
+    DevelopParams develop;
+    EXPECT_FALSE(develop.color_contrast_enabled);
+    EXPECT_EQ(develop.color_contrast, ColorContrastParams{});
+    EXPECT_TRUE(develop.is_identity());
+
+    constexpr std::array slope_fields{"colorContrastASteepness", "colorContrastBSteepness"};
+    for (const auto field : slope_fields)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, field, kColorContrastSteepnessMin))
+            << field;
+        EXPECT_TRUE(develop.color_contrast_enabled) << field;
+        ASSERT_TRUE(apply_develop_field_strict(develop, field, kColorContrastSteepnessMax))
+            << field;
+        const DevelopParams before_low = develop;
+        EXPECT_FALSE(apply_develop_field_strict(develop, field, kColorContrastSteepnessMin - 0.01))
+            << field;
+        EXPECT_EQ(develop, before_low) << field;
+        const DevelopParams before_high = develop;
+        EXPECT_FALSE(apply_develop_field_strict(develop, field, kColorContrastSteepnessMax + 0.01))
+            << field;
+        EXPECT_EQ(develop, before_high) << field;
+    }
+
+    constexpr std::array offset_fields{"colorContrastAOffset", "colorContrastBOffset"};
+    for (const auto field : offset_fields)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(
+            develop, field, static_cast<double>(std::numeric_limits<float>::lowest())))
+            << field;
+        ASSERT_TRUE(apply_develop_field_strict(
+            develop, field, static_cast<double>(std::numeric_limits<float>::max())))
+            << field;
+        const DevelopParams before_overflow = develop;
+        EXPECT_FALSE(apply_develop_field_strict(
+            develop, field, static_cast<double>(std::numeric_limits<float>::max()) * 2.0))
+            << field;
+        EXPECT_EQ(develop, before_overflow) << field;
+    }
+    const DevelopParams before_nonfinite = develop;
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorContrastAOffset",
+                                            std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_EQ(develop, before_nonfinite);
+    for (const auto field : {"colorContrastEnabled", "colorContrastUnbound"})
+    {
+        EXPECT_FALSE(apply_develop_field_strict(develop, field, 0.5)) << field;
+        EXPECT_EQ(develop, before_nonfinite) << field;
+    }
+
+    DevelopParams repaired;
+    repaired.color_contrast_enabled = true;
+    repaired.color_contrast =
+        ColorContrastParams{1.0e300, static_cast<double>(std::numeric_limits<float>::max()) * 2.0,
+                            -1.0, std::numeric_limits<double>::quiet_NaN(), false};
+    clamp_develop(repaired);
+    EXPECT_TRUE(repaired.color_contrast_enabled);
+    EXPECT_EQ(repaired.color_contrast,
+              (ColorContrastParams{kColorContrastSteepnessMax, 0.0, kColorContrastSteepnessMin, 0.0,
+                                   false}));
+    repaired.color_contrast.a_steepness = std::numeric_limits<double>::infinity();
+    clamp_develop(repaired);
+    EXPECT_DOUBLE_EQ(repaired.color_contrast.a_steepness, 1.0);
+
+    const std::array assignments{
+        std::pair{"colorContrastASteepness", 2.5}, std::pair{"colorContrastAOffset", -7.25},
+        std::pair{"colorContrastBSteepness", 3.5}, std::pair{"colorContrastBOffset", 8.75},
+        std::pair{"colorContrastUnbound", 0.0},
+    };
+    develop = DevelopParams{};
+    for (const auto &[field, value] : assignments)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, field, value)) << field;
+        EXPECT_TRUE(develop.color_contrast_enabled) << field;
+    }
+    const ColorContrastParams expected{2.5, -7.25, 3.5, 8.75, false};
+    EXPECT_EQ(develop.color_contrast, expected);
+    EXPECT_FALSE(develop.is_identity());
+
+    develop.color_correction_enabled = true;
+    develop.velvia = 0.25;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto *correction = operation_by_id(recipe.value(), kColorCorrectionOperationId);
+    const auto *contrast = operation_by_id(recipe.value(), kColorContrastOperationId);
+    const auto *velvia = operation_by_id(recipe.value(), "ravo.color.velvia");
+    ASSERT_NE(correction, nullptr);
+    ASSERT_NE(contrast, nullptr);
+    ASSERT_NE(velvia, nullptr);
+    EXPECT_LT(correction, contrast);
+    EXPECT_LT(contrast, velvia);
+    EXPECT_EQ(contrast->schema_version, kColorContrastOperationSchemaVersion);
+    auto canonical = color_contrast_from_parameters(contrast->parameters);
+    ASSERT_TRUE(canonical) << canonical.error().message;
+    EXPECT_EQ(canonical.value(), expected);
+
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_contrast_enabled);
+    EXPECT_EQ(restored.value().color_contrast, expected);
+
+    for (const auto &[field, ignored] : assignments)
+    {
+        static_cast<void>(ignored);
+        ASSERT_TRUE(reset_develop_field(develop, field)) << field;
+        EXPECT_TRUE(develop.color_contrast_enabled) << field;
+    }
+    EXPECT_EQ(develop.color_contrast, ColorContrastParams{});
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorContrastEnabled", 0.0));
+    EXPECT_FALSE(develop.color_contrast_enabled);
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorContrastEnabled", 1.0));
+    EXPECT_TRUE(develop.color_contrast_enabled);
+    ASSERT_TRUE(reset_develop_field(develop, "colorContrast"));
+    EXPECT_FALSE(develop.color_contrast_enabled);
+    EXPECT_EQ(develop.color_contrast, ColorContrastParams{});
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorContrastAOffset", 1.0));
+    ASSERT_TRUE(reset_develop_section(develop, "color"));
+    EXPECT_FALSE(develop.color_contrast_enabled);
+    EXPECT_EQ(develop.color_contrast, ColorContrastParams{});
+}
+
+TEST(RecipeTest, ColorContrastV1AndExplicitDefaultV2PresenceSurviveDevelopRoundTrip)
+{
+    const auto parameters = color_contrast_to_parameters(ColorContrastParams{});
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    Recipe canonical;
+    canonical.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    canonical.operations.push_back({std::string(kColorContrastOperationId),
+                                    kColorContrastOperationSchemaVersion, "colorcontrast-explicit",
+                                    true, parameters.value(), std::nullopt});
+
+    auto develop = develop_from_recipe(canonical);
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_TRUE(develop.value().color_contrast_enabled);
+    EXPECT_EQ(develop.value().color_contrast, ColorContrastParams{});
+    EXPECT_FALSE(develop.value().is_identity());
+
+    auto restored = recipe_from_develop(canonical.asset, develop.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    const auto *operation = operation_by_id(restored.value(), kColorContrastOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_TRUE(operation->enabled);
+    EXPECT_EQ(operation->schema_version, kColorContrastOperationSchemaVersion);
+    auto decoded = color_contrast_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), ColorContrastParams{});
+
+    Recipe disabled = canonical;
+    disabled.operations.front().enabled = false;
+    auto disabled_develop = develop_from_recipe(disabled);
+    ASSERT_TRUE(disabled_develop) << disabled_develop.error().message;
+    EXPECT_FALSE(disabled_develop.value().color_contrast_enabled);
+    EXPECT_TRUE(disabled_develop.value().is_identity());
+
+    Recipe masked = canonical;
+    masked.operations.front().mask_id = "mask-1";
+    auto rejected_mask = develop_from_recipe(masked);
+    ASSERT_FALSE(rejected_mask);
+    EXPECT_EQ(rejected_mask.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected_mask.error().context.at("reason"), "unsupported_colorcontrast_mask");
+
+    Recipe v1 = canonical;
+    v1.operations.front().schema_version = 1;
+    v1.operations.front().parameters = {{"amount", ParameterValue{0.25}}};
+    auto upgraded = develop_from_recipe(v1);
+    ASSERT_TRUE(upgraded) << upgraded.error().message;
+    EXPECT_TRUE(upgraded.value().color_contrast_enabled);
+    EXPECT_EQ(upgraded.value().color_contrast, (ColorContrastParams{1.25, 0.0, 1.25, 0.0, true}));
+
+    v1.operations.front().parameters = {{"amount", ParameterValue{0.0}}};
+    auto skipped = develop_from_recipe(v1);
+    ASSERT_TRUE(skipped) << skipped.error().message;
+    EXPECT_FALSE(skipped.value().color_contrast_enabled);
+    EXPECT_EQ(skipped.value().color_contrast, ColorContrastParams{});
+    EXPECT_TRUE(skipped.value().is_identity());
+
+    auto absent = recipe_from_develop(canonical.asset, DevelopParams{});
+    ASSERT_TRUE(absent) << absent.error().message;
+    EXPECT_EQ(operation_by_id(absent.value(), kColorContrastOperationId), nullptr);
 }
 
 TEST(RecipeTest, ColorBalanceRgbSchemaFailsFastOnEveryInvalidPolicyClass)

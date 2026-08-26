@@ -127,7 +127,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editColorBalanceRgb READ editColorBalanceRgb NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorCorrection READ editColorCorrection NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editPrimaries READ editPrimaries NOTIFY editChanged)
-    Q_PROPERTY(double editColorContrast READ editColorContrast NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorContrast READ editColorContrast NOTIFY editChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
     Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
     Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
@@ -300,7 +300,7 @@ public:
     [[nodiscard]] QVariantMap editColorBalanceRgb() const;
     [[nodiscard]] QVariantMap editColorCorrection() const;
     [[nodiscard]] QVariantMap editPrimaries() const;
-    [[nodiscard]] double editColorContrast() const noexcept;
+    [[nodiscard]] QVariantMap editColorContrast() const;
     [[nodiscard]] double editMonochrome() const noexcept;
     [[nodiscard]] double editSplitShadowsHue() const noexcept;
     [[nodiscard]] double editSplitHighlightsHue() const noexcept;

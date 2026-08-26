@@ -801,6 +801,120 @@ void clamp_color_correction(ColorCorrectionParams &params) noexcept
     }
 }
 
+struct ColorContrastNumericField
+{
+    std::string_view develop_name;
+    double ColorContrastParams::*member;
+    bool is_steepness;
+};
+
+[[nodiscard]] const std::array<ColorContrastNumericField, 4> &
+color_contrast_numeric_fields() noexcept
+{
+    static const std::array<ColorContrastNumericField, 4> fields{{
+        {"colorContrastASteepness", &ColorContrastParams::a_steepness, true},
+        {"colorContrastAOffset", &ColorContrastParams::a_offset, false},
+        {"colorContrastBSteepness", &ColorContrastParams::b_steepness, true},
+        {"colorContrastBOffset", &ColorContrastParams::b_offset, false},
+    }};
+    return fields;
+}
+
+[[nodiscard]] bool apply_color_contrast_field(DevelopParams &params, const std::string_view name,
+                                              const double value) noexcept
+{
+    if (name == "colorContrastEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.color_contrast_enabled = value == 1.0;
+        return true;
+    }
+    if (name == "colorContrastUnbound")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.color_contrast.unbound = value == 1.0;
+        params.color_contrast_enabled = true;
+        return true;
+    }
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+    for (const auto &field : color_contrast_numeric_fields())
+    {
+        if (name != field.develop_name)
+        {
+            continue;
+        }
+        if (!field.is_steepness && !std::isfinite(static_cast<float>(value)))
+        {
+            return false;
+        }
+        params.color_contrast.*(field.member) = value;
+        params.color_contrast_enabled = true;
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_color_contrast_field(DevelopParams &params,
+                                              const std::string_view name) noexcept
+{
+    const ColorContrastParams defaults;
+    if (name == "colorContrast")
+    {
+        params.color_contrast_enabled = false;
+        params.color_contrast = defaults;
+        return true;
+    }
+    if (name == "colorContrastEnabled")
+    {
+        params.color_contrast_enabled = false;
+        return true;
+    }
+    if (name == "colorContrastUnbound")
+    {
+        params.color_contrast.unbound = defaults.unbound;
+        return true;
+    }
+    for (const auto &field : color_contrast_numeric_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.color_contrast.*(field.member) = defaults.*(field.member);
+            return true;
+        }
+    }
+    return false;
+}
+
+void clamp_color_contrast(ColorContrastParams &params) noexcept
+{
+    const ColorContrastParams defaults;
+    for (const auto &field : color_contrast_numeric_fields())
+    {
+        double &value = params.*(field.member);
+        if (!std::isfinite(value))
+        {
+            value = defaults.*(field.member);
+        }
+        else if (field.is_steepness)
+        {
+            value = clamp_value(value, kColorContrastSteepnessMin, kColorContrastSteepnessMax);
+        }
+        else if (!std::isfinite(static_cast<float>(value)))
+        {
+            value = defaults.*(field.member);
+        }
+    }
+}
+
 struct ColorBalanceNumericField
 {
     std::string_view parameter_name;
@@ -2076,6 +2190,7 @@ void clamp_develop(DevelopParams &params) noexcept
                        static_cast<std::int64_t>(params.color_checker.patches.size() - 1U));
     clamp_color_balance(params.color_balance_rgb);
     clamp_color_correction(params.color_correction);
+    clamp_color_contrast(params.color_contrast);
     if (params.exposure_mode != kExposureModeManual &&
         params.exposure_mode != kExposureModeDeflicker)
     {
@@ -2123,7 +2238,6 @@ void clamp_develop(DevelopParams &params) noexcept
     params.soften = clamp_value(params.soften, 0.0, 1.0);
     params.dehaze = clamp_value(params.dehaze, -1.0, 1.0);
     params.velvia = clamp_value(params.velvia, 0.0, 1.0);
-    params.color_contrast = clamp_value(params.color_contrast, -1.0, 1.0);
     params.monochrome = clamp_value(params.monochrome, 0.0, 1.0);
     params.split_shadows_hue = clamp_value(params.split_shadows_hue, 0.0, 1.0);
     params.split_highlights_hue = clamp_value(params.split_highlights_hue, 0.0, 1.0);
@@ -2216,7 +2330,7 @@ bool DevelopParams::is_identity() const noexcept
            near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
            near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) && !color_balance_enabled &&
            !color_checker_enabled && color_balance_rgb.is_identity() && !color_correction_enabled &&
-           near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
+           !color_contrast_enabled && near(monochrome, 0.0) && near(split_amount, 0.0) &&
            near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
            !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
            raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
@@ -2666,9 +2780,8 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (apply_color_correction_field(params, name, value))
     {
     }
-    else if (name == "colorContrast")
+    else if (apply_color_contrast_field(params, name, value))
     {
-        params.color_contrast = value;
     }
     else if (name == "monochrome")
     {
@@ -3111,9 +3224,8 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     else if (reset_color_correction_field(params, name))
     {
     }
-    else if (name == "colorContrast")
+    else if (reset_color_contrast_field(params, name))
     {
-        params.color_contrast = identity.color_contrast;
     }
     else if (name == "monochrome")
     {
@@ -3356,6 +3468,7 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.color_balance_rgb = identity.color_balance_rgb;
         params.color_correction_enabled = identity.color_correction_enabled;
         params.color_correction = identity.color_correction;
+        params.color_contrast_enabled = identity.color_contrast_enabled;
         params.color_contrast = identity.color_contrast;
         params.monochrome = identity.monochrome;
         params.split_shadows_hue = identity.split_shadows_hue;
@@ -3833,10 +3946,15 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, std::string(kColorCorrectionOperationId), "colorcorrection-1",
                       std::move(color_correction).value(), kColorCorrectionOperationSchemaVersion);
     }
-    if (!near(clamped.color_contrast, 0.0))
+    if (clamped.color_contrast_enabled)
     {
-        add_operation(recipe, "ravo.color.colorcontrast", "colorcontrast-1",
-                      {{"amount", ParameterValue{clamped.color_contrast}}});
+        auto color_contrast = color_contrast_to_parameters(clamped.color_contrast);
+        if (!color_contrast)
+        {
+            return color_contrast.error();
+        }
+        add_operation(recipe, std::string(kColorContrastOperationId), "colorcontrast-1",
+                      std::move(color_contrast).value(), kColorContrastOperationSchemaVersion);
     }
     if (!near(clamped.velvia, 0.0))
     {
@@ -4155,9 +4273,31 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.color_balance = std::move(color_balance).value();
             params.color_balance_enabled = true;
         }
-        else if (operation.id == "ravo.color.colorcontrast")
+        else if (operation.id == kColorContrastOperationId)
         {
-            params.color_contrast = number("amount", params.color_contrast);
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_color_contrast_operation(canonical);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            if (!canonical.enabled)
+            {
+                continue;
+            }
+            if (canonical.mask_id.has_value())
+            {
+                return make_error(
+                    ErrorCode::kUnsupported, "Develop Color Contrast masks are unsupported",
+                    {{"operation_id", canonical.id}, {"reason", "unsupported_colorcontrast_mask"}});
+            }
+            auto color_contrast = color_contrast_from_parameters(canonical.parameters);
+            if (!color_contrast)
+            {
+                return color_contrast.error();
+            }
+            params.color_contrast_enabled = true;
+            params.color_contrast = std::move(color_contrast).value();
         }
         else if (operation.id == "ravo.color.monochrome")
         {
