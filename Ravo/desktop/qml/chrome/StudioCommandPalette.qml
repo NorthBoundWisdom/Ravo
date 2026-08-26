@@ -18,7 +18,7 @@ Popup {
     modal: true
     dim: true
     focus: true
-    closePolicy: Popup.NoAutoClose
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     visible: controller && controller.paletteOpen
     padding: 0
 
@@ -66,9 +66,19 @@ Popup {
     onClosed: {
         if (controller && controller.paletteOpen)
             controller.paletteOpen = false;
-        if (previousFocusItem && previousFocusItem.visible)
-            Qt.callLater(function () { previousFocusItem.forceActiveFocus(); });
+        const focusItem = previousFocusItem;
         previousFocusItem = null;
+        Qt.callLater(function () {
+            if (focusItem && focusItem.visible)
+                focusItem.forceActiveFocus();
+        });
+    }
+
+    Shortcut {
+        enabled: root.visible
+        sequence: "Escape"
+        context: Qt.ApplicationShortcut
+        onActivated: root.close()
     }
 
     Connections {
