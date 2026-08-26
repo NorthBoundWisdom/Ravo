@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "wrapper": {
+    "todo_owner": "I5",
+    "source": "legacy/src/imageio/imageio_jpeg.c",
+    "header": "legacy/src/imageio/imageio_jpeg.h",
+    "cmake_registration": {
+      "path": "legacy/src/CMakeLists.txt",
+      "needle": "\"imageio/imageio_jpeg.c\""
+    }
+  },
+  "public_symbols": [
+    "dt_imageio_jpeg_decompress_header",
+    "dt_imageio_jpeg_decompress",
+    "dt_imageio_jpeg_compress",
+    "dt_imageio_jpeg_write",
+    "dt_imageio_jpeg_write_with_icc_profile",
+    "dt_imageio_jpeg_read_header",
+    "dt_imageio_jpeg_read",
+    "dt_imageio_jpeg_read_profile",
+    "dt_imageio_jpeg_read_color_space",
+    "dt_imageio_open_jpeg"
+  ],
+  "known_consumers": [
+    {
+      "path": "legacy/src/common/mipmap_cache.c",
+      "todo_owner": "S11",
+      "symbols": [
+        "dt_imageio_jpeg_decompress_header",
+        "dt_imageio_jpeg_decompress",
+        "dt_imageio_jpeg_write",
+        "dt_imageio_jpeg_read_header",
+        "dt_imageio_jpeg_read",
+        "dt_imageio_jpeg_read_color_space"
+      ],
+      "why_reachable": "The frozen mipmap cache decodes and writes on-disk JPEG cache entries and decodes direct or embedded JPEG thumbnails."
+    },
+    {
+      "path": "legacy/src/imageio/imageio.c",
+      "todo_owner": "I1",
+      "symbols": [
+        "dt_imageio_open_jpeg",
+        "dt_imageio_jpeg_decompress_header",
+        "dt_imageio_jpeg_decompress"
+      ],
+      "why_reachable": "The shared magic-number dispatcher registers dt_imageio_open_jpeg and its EXIF thumbnail path decodes JPEG memory."
+    },
+    {
+      "path": "legacy/src/imageio/imageio_dng.c",
+      "todo_owner": "I4",
+      "symbols": [
+        "dt_imageio_jpeg_decompress_header",
+        "dt_imageio_jpeg_decompress",
+        "dt_imageio_jpeg_compress"
+      ],
+      "why_reachable": "The DNG writer decodes supplied JPEG previews, downsamples them, and re-encodes the IFD0 thumbnail."
+    }
+  ],
+  "known_include_only": [
+    {
+      "path": "legacy/src/cli/main.c",
+      "todo_owner": "U10",
+      "why_reachable": "The frozen CLI includes the wrapper header but calls no wrapper symbol; this stale compile dependency may disappear independently."
+    },
+    {
+      "path": "legacy/src/common/exif.cc",
+      "todo_owner": "S9",
+      "why_reachable": "The EXIF/metadata owner includes the wrapper header but calls no wrapper symbol; this stale compile dependency may disappear independently."
+    }
+  ],
+  "separate_owners": [
+    {
+      "path": "legacy/src/imageio/format/jpeg.c",
+      "todo_owner": "I11",
+      "classification": "jpeg_output_plugin",
+      "local_identifier_collisions": [
+        "dt_imageio_jpeg_t",
+        "dt_imageio_jpeg_error_mgr",
+        "dt_imageio_jpeg_error_exit"
+      ],
+      "why_not_a_consumer": "The output plugin owns an independent jpeglib implementation and does not include or call the I5 wrapper. Its local type names are not wrapper API symbols."
+    },
+    {
+      "path": "legacy/src/external/LibRaw-cmake/CMakeLists.txt",
+      "todo_owner": "I2/I15",
+      "classification": "third_party_jpeg_dependency",
+      "local_identifier_collisions": [],
+      "why_not_a_consumer": "LibRaw links JPEG::JPEG independently; a third-party libjpeg dependency is not an imageio_jpeg wrapper caller."
+    }
+  ]
+}
