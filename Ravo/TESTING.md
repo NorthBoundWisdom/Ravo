@@ -58,10 +58,11 @@ three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
-channel mixer + Color Balance RGB parameter/pixel reopen, and preview-owner
-cancellation of a superseded token with old revision/asset rejection. Desktop QML smoke verifies
-that Input Profile, Output & Soft Proof, White Balance, Color Calibration, and
-full Color Balance RGB bindings load;
+RGB primaries + channel mixer + Color Balance RGB parameter/pixel reopen, and
+preview-owner cancellation of a superseded token with old revision/asset
+rejection. Desktop QML smoke verifies that Input Profile, Output & Soft Proof,
+White Balance, RGB Primaries, Color Calibration, and full Color Balance RGB
+bindings load;
 these automated checks do not rely on Computer Use.
 
 Localization is a desktop build contract. Ravo/tools/check_i18n.py requires
@@ -237,6 +238,16 @@ directories, corrupt files, and more RAW files.
   cache without invalidating the scene-linear cache. Studio presenter/QML and
   catalog reopen cover Output & Soft Proof intent forwarding. Relabelling or
   falling back to sRGB is not accepted.
+- `primaries` statically decodes the sole enabled schema-v1 instance in
+  `0152-rgb-primaries`. Synthetic coverage includes exact identity, each
+  primary hue/purity, achromatic tint, frozen forward ray/edge intersection,
+  custom RGB→XYZ construction, alternate working profiles, pre-bridge facade
+  scheduling, invalid/singular/backwards geometry, float overflow, row
+  cancellation, and input/profile immutability. CLI render and Catalog preview/
+  export share pixels; `mire1.cr2` has a Ravo-owned channel-sum reference;
+  Studio and Catalog cover all eight values through save/reopen. Generic hue
+  gradients, display-profile state, masks, and a linear-Rec709 substitution are
+  not accepted.
 - `hotpixels` covers strict four-neighbor single points, permissive
   three-neighbor adjacent points, an unchanged two-pixel boundary, cancellation,
   raster/X-Trans rejection, decoded-frame immutability, cache-key/reopen, and

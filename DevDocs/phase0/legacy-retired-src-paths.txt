@@ -27,3 +27,4 @@ iop/colorbalancergb.c
 iop/temperature.c
 iop/colorin.c
 iop/colorout.c
+iop/primaries.c

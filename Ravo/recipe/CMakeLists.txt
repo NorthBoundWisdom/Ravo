@@ -4,6 +4,7 @@ target_sources(ravo_recipe
   PRIVATE
     src/color_input.cpp
     src/color_output.cpp
+    src/primaries.cpp
     src/operation.cpp
     src/recipe.cpp
     src/develop.cpp)

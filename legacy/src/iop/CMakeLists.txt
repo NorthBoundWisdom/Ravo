@@ -130,7 +130,6 @@ add_iop(cacorrectrgb "cacorrectrgb.c")
 add_iop(diffuse "diffuse.c")
 add_iop(blurs "blurs.c")
 add_iop(agx "agx.c")
-add_iop(primaries "primaries.c")
 
 add_iop(rasterfile "rasterfile.c")
 

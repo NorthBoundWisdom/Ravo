@@ -2,12 +2,15 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <numbers>
 #include <string>
+#include <utility>
 
 #include <gtest/gtest.h>
 
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
 #include "color_balance_fixture.h"
@@ -137,6 +140,126 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     EXPECT_NEAR(restored.value().crop_width, 0.8, 1e-6);
     EXPECT_FALSE(restored.value().is_identity());
     EXPECT_TRUE(DevelopParams{}.is_identity());
+}
+
+TEST(RecipeTest, PrimariesUseCanonicalRadiansAndFollowInputBeforeOutput)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto *descriptor = registry.value().find(kPrimariesOperationId);
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_EQ(descriptor->parameters.size(), 8U);
+    EXPECT_EQ(descriptor->parameters[0].name, "achromatic_tint_hue");
+    EXPECT_EQ(descriptor->parameters[1].name, "achromatic_tint_purity");
+    EXPECT_EQ(descriptor->parameters[2].name, "red_hue");
+    EXPECT_EQ(descriptor->parameters[3].name, "red_purity");
+    EXPECT_EQ(descriptor->parameters[4].name, "green_hue");
+    EXPECT_EQ(descriptor->parameters[5].name, "green_purity");
+    EXPECT_EQ(descriptor->parameters[6].name, "blue_hue");
+    EXPECT_EQ(descriptor->parameters[7].name, "blue_purity");
+    EXPECT_EQ(descriptor->parameters[0].minimum, kPrimariesHueMin);
+    EXPECT_EQ(descriptor->parameters[0].maximum, kPrimariesHueMax);
+    EXPECT_EQ(descriptor->parameters[1].minimum, kPrimariesAchromaticTintPurityMin);
+    EXPECT_EQ(descriptor->parameters[1].maximum, kPrimariesAchromaticTintPurityMax);
+    EXPECT_EQ(descriptor->parameters[3].minimum, kPrimariesPrimaryPurityMin);
+    EXPECT_EQ(descriptor->parameters[3].maximum, kPrimariesPrimaryPurityMax);
+
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_field(params, "primariesAchromaticHueDegrees", -30.0));
+    ASSERT_TRUE(apply_develop_field(params, "primariesAchromaticPurity", 0.25));
+    ASSERT_TRUE(apply_develop_field(params, "primariesRedHueDegrees", 15.0));
+    ASSERT_TRUE(apply_develop_field(params, "primariesRedPurity", 1.2));
+    ASSERT_TRUE(apply_develop_field(params, "primariesGreenHueDegrees", -45.0));
+    ASSERT_TRUE(apply_develop_field(params, "primariesGreenPurity", 0.8));
+    ASSERT_TRUE(apply_develop_field(params, "primariesBlueHueDegrees", 90.0));
+    ASSERT_TRUE(apply_develop_field(params, "primariesBluePurity", 1.5));
+    EXPECT_NEAR(params.primaries.achromatic_tint_hue, -std::numbers::pi / 6.0, 1e-12);
+    EXPECT_NEAR(params.primaries.red_hue, std::numbers::pi / 12.0, 1e-12);
+    EXPECT_NEAR(params.primaries.green_hue, -std::numbers::pi / 4.0, 1e-12);
+    EXPECT_NEAR(params.primaries.blue_hue, std::numbers::pi / 2.0, 1e-12);
+    EXPECT_FALSE(params.primaries.is_identity());
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_EQ(recipe.value().operations.size(), 3U);
+    EXPECT_EQ(recipe.value().operations[0].id, "ravo.color.input");
+    EXPECT_EQ(recipe.value().operations[1].id, kPrimariesOperationId);
+    EXPECT_EQ(recipe.value().operations.back().id, "ravo.color.output");
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().primaries, params.primaries);
+
+    auto missing = recipe.value();
+    auto *missing_primaries = operation_by_id(missing, kPrimariesOperationId);
+    ASSERT_NE(missing_primaries, nullptr);
+    missing_primaries->parameters.erase("blue_purity");
+    const auto missing_valid = validate_recipe(missing, registry.value());
+    ASSERT_FALSE(missing_valid);
+    EXPECT_EQ(missing_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(missing_valid.error().context.at("parameter"), "blue_purity");
+
+    auto unknown = recipe.value();
+    auto *unknown_primaries = operation_by_id(unknown, kPrimariesOperationId);
+    ASSERT_NE(unknown_primaries, nullptr);
+    unknown_primaries->parameters.emplace("unrecognized", ParameterValue{0.0});
+    const auto unknown_valid = validate_recipe(unknown, registry.value());
+    ASSERT_FALSE(unknown_valid);
+    EXPECT_EQ(unknown_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(unknown_valid.error().context.at("parameter"), "unrecognized");
+
+    auto out_of_range = recipe.value();
+    auto *out_of_range_primaries = operation_by_id(out_of_range, kPrimariesOperationId);
+    ASSERT_NE(out_of_range_primaries, nullptr);
+    out_of_range_primaries->parameters["red_purity"] = ParameterValue{6.0};
+    const auto out_of_range_valid = validate_recipe(out_of_range, registry.value());
+    ASSERT_FALSE(out_of_range_valid);
+    EXPECT_EQ(out_of_range_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(out_of_range_valid.error().context.at("parameter"), "red_purity");
+
+    auto nonfinite = recipe.value();
+    auto *nonfinite_primaries = operation_by_id(nonfinite, kPrimariesOperationId);
+    ASSERT_NE(nonfinite_primaries, nullptr);
+    nonfinite_primaries->parameters["blue_hue"] =
+        ParameterValue{std::numeric_limits<double>::infinity()};
+    const auto nonfinite_valid = validate_recipe(nonfinite, registry.value());
+    ASSERT_FALSE(nonfinite_valid);
+    EXPECT_EQ(nonfinite_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(nonfinite_valid.error().context.at("parameter"), "blue_hue");
+
+    auto duplicate = recipe.value();
+    auto duplicate_primaries = duplicate.operations[1];
+    duplicate_primaries.instance_id = "primaries-2";
+    duplicate.operations.insert(duplicate.operations.end() - 1, std::move(duplicate_primaries));
+    const auto duplicate_valid = validate_recipe(duplicate, registry.value());
+    ASSERT_FALSE(duplicate_valid);
+    EXPECT_EQ(duplicate_valid.error().code, ErrorCode::kConflict);
+
+    auto output_not_last = recipe.value();
+    output_not_last.operations.push_back({"ravo.core.exposure",
+                                          1,
+                                          "exposure-after-output",
+                                          true,
+                                          {{"exposure_ev", ParameterValue{0.5}}},
+                                          std::nullopt});
+    const auto output_not_last_valid = validate_recipe(output_not_last, registry.value());
+    ASSERT_FALSE(output_not_last_valid);
+    EXPECT_EQ(output_not_last_valid.error().code, ErrorCode::kValidation);
+
+    EXPECT_TRUE(reset_develop_field(params, "primariesRedHueDegrees"));
+    EXPECT_DOUBLE_EQ(params.primaries.red_hue, 0.0);
+    EXPECT_TRUE(reset_develop_section(params, "primaries"));
+    EXPECT_EQ(params.primaries, PrimariesParams{});
+    EXPECT_FALSE(apply_develop_field(params, "primariesBluePurity",
+                                     std::numeric_limits<double>::quiet_NaN()));
+
+    auto identity =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, DevelopParams{});
+    ASSERT_TRUE(identity) << identity.error().message;
+    ASSERT_EQ(identity.value().operations.size(), 2U);
+    EXPECT_EQ(identity.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(identity.value().operations.back().id, "ravo.color.output");
 }
 
 TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)

@@ -5,6 +5,7 @@
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
+#include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo
@@ -22,5 +23,7 @@ struct LegacyXmpImportRequest
 decode_legacy_colorin_parameters(std::string_view encoded_parameters);
 [[nodiscard]] Result<OutputColorParams>
 decode_legacy_colorout_parameters(std::string_view encoded_parameters);
+[[nodiscard]] Result<PrimariesParams>
+decode_legacy_primaries_v1_parameters(std::string_view encoded_parameters);
 
 } // namespace ravo

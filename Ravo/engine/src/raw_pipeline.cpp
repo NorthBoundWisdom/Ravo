@@ -20,6 +20,8 @@
 
 #include <libraw/libraw.h>
 
+#include "ravo/recipe/primaries.h"
+
 namespace ravo
 {
 namespace
@@ -467,6 +469,10 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
                     working_bytes += raw_pixels * sizeof(float);
                 }
             }
+        }
+        if (operation.id == kPrimariesOperationId)
+        {
+            working_bytes += float_rgb_bytes;
         }
     }
     return owns_raw_copy ? working_bytes + raw_bytes : working_bytes;

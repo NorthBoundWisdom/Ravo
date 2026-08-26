@@ -27,3 +27,4 @@ supersession relationship when direction changes.
 | [0017](0017-explicit-raw-temperature.md) | Accepted | `temperature` owns pre-demosaic as-shot/daylight/manual four-channel scaling; late reference uses explicit CAT only. |
 | [0018](0018-explicit-input-color-profiles.md) | Accepted | Input profiles use explicit decode state, matrix/shaper or private ICC transforms, and profile-aware cache keys without sRGB fallback. |
 | [0019](0019-explicit-output-color-profiles.md) | Accepted | Output profiles, proofing, gamut warnings, encoded ICC state, and profile-aware publication share one engine boundary without sRGB fallback. |
+| [0020](0020-working-profile-rgb-primaries.md) | Accepted | RGB primary rotation, purity, and achromatic tint execute in the declared working profile before compatibility bridging. |

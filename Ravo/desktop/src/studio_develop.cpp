@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <numbers>
 #include <string_view>
 #include <utility>
 
@@ -380,6 +381,21 @@ QVariantMap StudioPresenter::editColorBalanceRgb() const
             {QStringLiteral("contrast"), params.contrast},
             {QStringLiteral("formulaIndex"),
              params.saturation_formula == kColorBalanceRgbFormulaJzAzBz2021 ? 1 : 0}};
+}
+
+QVariantMap StudioPresenter::editPrimaries() const
+{
+    constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi_v<double>;
+    const auto &params = develop_.primaries;
+    return {{QStringLiteral("achromaticTintHueDegrees"),
+             params.achromatic_tint_hue * kDegreesPerRadian},
+            {QStringLiteral("achromaticTintPurity"), params.achromatic_tint_purity},
+            {QStringLiteral("redHueDegrees"), params.red_hue * kDegreesPerRadian},
+            {QStringLiteral("redPurity"), params.red_purity},
+            {QStringLiteral("greenHueDegrees"), params.green_hue * kDegreesPerRadian},
+            {QStringLiteral("greenPurity"), params.green_purity},
+            {QStringLiteral("blueHueDegrees"), params.blue_hue * kDegreesPerRadian},
+            {QStringLiteral("bluePurity"), params.blue_purity}};
 }
 
 double StudioPresenter::editColorContrast() const noexcept

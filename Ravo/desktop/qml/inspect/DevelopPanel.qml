@@ -86,6 +86,29 @@ ColumnLayout {
             root.commands.resetControl(fieldName)
     }
 
+    component PrimariesSlider: CustomSlider {
+        required property var modelData
+        Layout.fillWidth: true
+        title: modelData.title
+        from: modelData.minimum
+        to: modelData.maximum
+        stepSize: modelData.step
+        validatorDecimals: modelData.decimals
+        showReset: true
+        resetValue: modelData.reset
+        delayedCommit: true
+        enabled: root.hasSelection
+        value: root.hasPresenter ? root.presenter.editPrimaries[modelData.key] : modelData.reset
+        onValueChanged: if (root.liveReady && root.commands)
+                root.commands.previewDevelopNumber(modelData.field, value)
+        onValueCommitted: function (value) {
+            if (root.commands)
+                root.commands.setDevelopNumber(modelData.field, value);
+        }
+        onResetRequested: if (root.commands)
+            root.commands.resetControl(modelData.field)
+    }
+
             CustomLabel {
                 Layout.leftMargin: Fonts.standardMargin
                 Layout.topMargin: Fonts.size8
@@ -476,6 +499,28 @@ ColumnLayout {
                             fieldName: "channelMixerBB"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerBB : 1
                             identityValue: 1
+                        }
+                    }
+                }
+
+                DevelopSection {
+                    title: qsTr("RGB Primaries")
+                    sectionId: "primaries"
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        Repeater {
+                            model: [
+                                { "title": qsTr("Achromatic tint hue"), "key": "achromaticTintHueDegrees", "field": "primariesAchromaticHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Achromatic tint purity"), "key": "achromaticTintPurity", "field": "primariesAchromaticPurity", "minimum": 0, "maximum": 0.99, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Red hue"), "key": "redHueDegrees", "field": "primariesRedHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Red purity"), "key": "redPurity", "field": "primariesRedPurity", "minimum": 0.01, "maximum": 5, "reset": 1, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Green hue"), "key": "greenHueDegrees", "field": "primariesGreenHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Green purity"), "key": "greenPurity", "field": "primariesGreenPurity", "minimum": 0.01, "maximum": 5, "reset": 1, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Blue hue"), "key": "blueHueDegrees", "field": "primariesBlueHueDegrees", "minimum": -180, "maximum": 180, "reset": 0, "step": 0.1, "decimals": 1 },
+                                { "title": qsTr("Blue purity"), "key": "bluePurity", "field": "primariesBluePurity", "minimum": 0.01, "maximum": 5, "reset": 1, "step": 0.01, "decimals": 2 }
+                            ]
+                            delegate: PrimariesSlider {}
                         }
                     }
                 }

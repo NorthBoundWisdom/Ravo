@@ -69,6 +69,16 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("maskGreyFulcrum")).toDouble(), 0.1845);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("greyFulcrum")).toDouble(), 0.1845);
     EXPECT_EQ(balance.value(QStringLiteral("formulaIndex")).toInt(), 0);
+    const auto primaries = presenter.editPrimaries();
+    EXPECT_EQ(primaries.size(), 8);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintHueDegrees")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintPurity")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("redHueDegrees")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("redPurity")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("greenHueDegrees")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("greenPurity")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("blueHueDegrees")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("bluePurity")).toDouble(), 1.0);
     const auto white_balance = presenter.editWhiteBalance();
     EXPECT_EQ(white_balance.size(), 6);
     EXPECT_EQ(white_balance.value(QStringLiteral("modeIndex")).toInt(), 0);
@@ -121,6 +131,8 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("请先打开图库。"));
     EXPECT_EQ(QCoreApplication::translate("StudioPresenter", "Library opened."),
               QStringLiteral("图库已打开。"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "RGB Primaries"),
+              QStringLiteral("RGB 原色"));
 
     QCoreApplication::removeTranslator(&translator);
 }

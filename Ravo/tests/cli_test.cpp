@@ -8,10 +8,12 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <QCoreApplication>
 #include <gtest/gtest.h>
+#include <png.h>
 
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/text_file.h"
@@ -19,6 +21,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
 #include "test_support.h"
@@ -73,6 +76,43 @@ protected:
     return {utf8.begin(), utf8.end()};
 }
 
+inline constexpr std::string_view kLegacyPrimariesPayload =
+    "cc56143f4c37093e22c9293ed9ce573f448d12be7b149e3f1e206a3e85eb513f";
+inline constexpr std::string_view kLegacyPrimariesDefaultBlend =
+    "gz09eJxjYGBgYAFiCQYYOOHEgAZY0QVwggZ7CB6pfOygYtaVAyCMi48L/AcCEA0AmawnoA==";
+
+[[nodiscard]] std::string
+legacy_primaries_xmp(const std::string_view version = "1", const std::string_view enabled = "1",
+                     const std::string_view parameters = kLegacyPrimariesPayload,
+                     const std::string_view blend = kLegacyPrimariesDefaultBlend,
+                     const std::size_t instances = 1U, const std::string_view blend_version = "13",
+                     const std::string_view extra_attributes = {})
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>)";
+    for (std::size_t index = 0; index < instances; ++index)
+    {
+        document += R"(<rdf:li darktable:operation="primaries" darktable:modversion=")";
+        document += version;
+        document += R"(" darktable:enabled=")";
+        document += enabled;
+        document += R"(" darktable:params=")";
+        document += parameters;
+        document += R"(" darktable:blendop_version=")";
+        document += blend_version;
+        document += R"(" darktable:blendop_params=")";
+        document += blend;
+        document += '"';
+        document += extra_attributes;
+        document += "/>";
+    }
+    document += R"(</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
 [[nodiscard]] bool png_has_chunk(const std::filesystem::path &path, const std::array<char, 4> &type)
 {
     std::ifstream stream(path, std::ios::binary);
@@ -101,6 +141,25 @@ protected:
         offset += static_cast<std::size_t>(size) + 12U;
     }
     return false;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> read_png_rgb(const std::filesystem::path &path)
+{
+    png_image image{};
+    image.version = PNG_IMAGE_VERSION;
+    if (png_image_begin_read_from_file(&image, path.string().c_str()) == 0)
+    {
+        return {};
+    }
+    image.format = PNG_FORMAT_RGB;
+    std::vector<std::uint8_t> pixels(PNG_IMAGE_SIZE(image));
+    if (png_image_finish_read(&image, nullptr, pixels.data(), 0, nullptr) == 0)
+    {
+        png_image_free(&image);
+        return {};
+    }
+    png_image_free(&image);
+    return pixels;
 }
 
 TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
@@ -211,6 +270,11 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     recipe.asset = {"mire1", "file:///recipe-placeholder.raw", std::nullopt};
     recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
                                  input_color_to_parameters(InputColorParams{}), std::nullopt});
+    PrimariesParams primaries;
+    primaries.red_hue = 0.18;
+    primaries.red_purity = 1.15;
+    recipe.operations.push_back({std::string(kPrimariesOperationId), 1, "primaries-1", true,
+                                 primaries_to_parameters(primaries), std::nullopt});
     OutputColorParams output_color;
     output_color.output_profile = std::string(kInputProfileDisplayP3);
     recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
@@ -246,6 +310,18 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     EXPECT_TRUE(png_has_chunk(output_path, {'i', 'C', 'C', 'P'}));
     EXPECT_FALSE(png_has_chunk(output_path, {'s', 'R', 'G', 'B'}));
     EXPECT_TRUE(stderr_stream.str().empty());
+    output.close();
+
+    Recipe direct_recipe = recipe;
+    direct_recipe.asset.input_uri = input_argument;
+    RenderRequest direct_request;
+    direct_request.asset = direct_recipe.asset;
+    direct_request.recipe = std::move(direct_recipe);
+    direct_request.output_width = 64U;
+    direct_request.output_height = 48U;
+    auto direct = engine.render_to_image(direct_request);
+    ASSERT_TRUE(direct) << direct.error().message;
+    EXPECT_EQ(read_png_rgb(output_path), direct.value().rgb);
 
     std::filesystem::remove(recipe_path, ignored);
     std::filesystem::remove(output_path, ignored);
@@ -367,6 +443,124 @@ TEST_F(CliTest, FrozenNopXmpMapsItsInputProfileExplicitly)
     EXPECT_EQ(input.value().working_profile, kInputProfileLinearRec2020);
     EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
     EXPECT_TRUE(imported.value().masks.empty());
+}
+
+TEST_F(CliTest, LegacyXmpDecodesAndImportsTheProvenRgbPrimariesSingleton)
+{
+    const auto decoded = decode_legacy_primaries_v1_parameters(kLegacyPrimariesPayload);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_NEAR(decoded.value().achromatic_tint_hue, 0.5794494152, 1e-7);
+    EXPECT_NEAR(decoded.value().achromatic_tint_purity, 0.1340000033, 1e-7);
+    EXPECT_NEAR(decoded.value().red_hue, 0.1658063233, 1e-7);
+    EXPECT_NEAR(decoded.value().red_purity, 0.8429999948, 1e-7);
+    EXPECT_NEAR(decoded.value().green_hue, -0.1431170106, 1e-7);
+    EXPECT_NEAR(decoded.value().green_purity, 1.2350000143, 1e-7);
+    EXPECT_NEAR(decoded.value().blue_hue, 0.2286381423, 1e-7);
+    EXPECT_NEAR(decoded.value().blue_purity, 0.8199999928, 1e-7);
+    auto canonical = primaries_from_parameters(primaries_to_parameters(decoded.value()));
+    ASSERT_TRUE(canonical) << canonical.error().message;
+    EXPECT_EQ(canonical.value(), decoded.value());
+
+    const auto short_payload = decode_legacy_primaries_v1_parameters("00000000");
+    ASSERT_FALSE(short_payload);
+    EXPECT_EQ(short_payload.error().code, ErrorCode::kValidation);
+    const auto non_finite_payload = decode_legacy_primaries_v1_parameters(
+        "0000c07f00000000000000000000803f000000000000803f000000000000803f");
+    ASSERT_FALSE(non_finite_payload);
+    EXPECT_EQ(non_finite_payload.error().code, ErrorCode::kValidation);
+
+    const auto document = legacy_primaries_xmp();
+    const LegacyXmpImportRequest request{document,
+                                         {"asset-1", "file:///fixture.raw", std::nullopt}};
+    const auto imported = import_legacy_xmp(request);
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().operations.size(), 3U);
+    EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
+    const auto &primaries = imported.value().operations[1];
+    EXPECT_EQ(primaries.id, kPrimariesOperationId);
+    EXPECT_EQ(primaries.instance_id, "legacy-primaries-0");
+    EXPECT_TRUE(primaries.enabled);
+    auto imported_params = primaries_from_parameters(primaries.parameters);
+    ASSERT_TRUE(imported_params) << imported_params.error().message;
+    EXPECT_EQ(imported_params.value(), decoded.value());
+    EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    ASSERT_TRUE(validate_recipe(imported.value(), registry.value()));
+}
+
+TEST_F(CliTest, LegacyXmpRejectsUnprovenRgbPrimariesHistoryStates)
+{
+    const auto import_document = [](std::string document)
+    { return import_legacy_xmp({document, {"asset-1", "file:///fixture.raw", std::nullopt}}); };
+
+    auto disabled = import_document(legacy_primaries_xmp("1", "0"));
+    ASSERT_FALSE(disabled);
+    EXPECT_EQ(disabled.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(disabled.error().context.at("reason"), "unsupported_legacy_primaries_disabled");
+
+    auto version = import_document(legacy_primaries_xmp("2"));
+    ASSERT_FALSE(version);
+    EXPECT_EQ(version.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(version.error().context.at("reason"), "unsupported_legacy_primaries_version");
+
+    auto blend = import_document(
+        legacy_primaries_xmp("1", "1", kLegacyPrimariesPayload, "unsupported-blend"));
+    ASSERT_FALSE(blend);
+    EXPECT_EQ(blend.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(blend.error().context.at("reason"), "unsupported_legacy_blend");
+
+    auto mask = import_document(legacy_primaries_xmp("1", "1", kLegacyPrimariesPayload,
+                                                     kLegacyPrimariesDefaultBlend, 1U, "13",
+                                                     R"( darktable:mask_id="mask-1")"));
+    ASSERT_FALSE(mask);
+    EXPECT_EQ(mask.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(mask.error().context.at("reason"), "unsupported_legacy_mask");
+
+    auto duplicate = import_document(
+        legacy_primaries_xmp("1", "1", kLegacyPrimariesPayload, kLegacyPrimariesDefaultBlend, 2U));
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_legacy_primaries");
+}
+
+TEST_F(CliTest, LegacyXmpPrimariesImportCommandWritesCanonicalRecipe)
+{
+    const auto directory = std::filesystem::temp_directory_path();
+    const auto xmp_path = directory / "ravo-primaries-v1.xmp";
+    const auto recipe_path = directory / "ravo-primaries-v1.recipe.json";
+    std::error_code ignored;
+    std::filesystem::remove(xmp_path, ignored);
+    std::filesystem::remove(recipe_path, ignored);
+    {
+        std::ofstream output(xmp_path, std::ios::binary);
+        ASSERT_TRUE(output);
+        output << legacy_primaries_xmp();
+    }
+    const auto xmp_u8 = xmp_path.generic_u8string();
+    const std::string xmp_argument(xmp_u8.begin(), xmp_u8.end());
+    const auto recipe_u8 = recipe_path.generic_u8string();
+    const std::string recipe_argument(recipe_u8.begin(), recipe_u8.end());
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    const std::vector<std::string_view> arguments{
+        "recipe",  "import-xmp",          xmp_argument, "--asset-id",    "asset-1",
+        "--input", "file:///fixture.raw", "--output",   recipe_argument, "--json"};
+
+    const auto exit_code = application.run(std::span{arguments});
+    const auto recipe = read_utf8_text_file(recipe_argument);
+    std::filesystem::remove(xmp_path, ignored);
+    std::filesystem::remove(recipe_path, ignored);
+
+    EXPECT_EQ(exit_code, 0);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto parsed = parse_recipe_json(recipe.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_EQ(parsed.value().operations.size(), 3U);
+    EXPECT_EQ(parsed.value().operations[1].id, kPrimariesOperationId);
+    EXPECT_EQ(parsed.value().operations.back().id, "ravo.color.output");
+    EXPECT_TRUE(stderr_stream.str().empty());
 }
 
 TEST_F(CliTest, LegacyXmpOperationsRemainExplicitlyUnsupported)

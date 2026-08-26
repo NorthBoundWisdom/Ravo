@@ -77,6 +77,13 @@ Current implementation status:
   before atomic publish. Studio presents the engine-owned result through Output
   & Soft Proof controls; it never infers a monitor profile or performs a QML
   colour transform.
+- RGB Primaries provides `ravo.color.primaries` v1 with working-profile-aware
+  red/green/blue hue and purity plus achromatic-axis tint. The engine derives
+  the frozen custom-primary matrix from immutable RGB→XYZ D50 state before the
+  linear-Rec709 compatibility bridge, retains the declared working profile,
+  and publishes an owned result only after finite/cancellation checks. Studio
+  exposes all eight canonical controls; hue is persisted in radians and shown
+  in degrees.
 - Color Calibration provides `ravo.color.channelmixerrgb` v1 with frozen V3
   CPU matrix normalization, CAT16/Bradford/XYZ/RGB, XYZ gamut, saturation,
   lightness, and grey paths. Studio exposes an explicit 3×3 matrix, while CLI,

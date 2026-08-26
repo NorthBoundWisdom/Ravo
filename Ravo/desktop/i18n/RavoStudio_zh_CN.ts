@@ -336,6 +336,42 @@
         <translation>%1 · %2 · 软打样 %3</translation>
     </message>
     <message>
+        <source>RGB Primaries</source>
+        <translation>RGB 原色</translation>
+    </message>
+    <message>
+        <source>Achromatic tint hue</source>
+        <translation>中性轴着色色相</translation>
+    </message>
+    <message>
+        <source>Achromatic tint purity</source>
+        <translation>中性轴着色纯度</translation>
+    </message>
+    <message>
+        <source>Red hue</source>
+        <translation>红色色相</translation>
+    </message>
+    <message>
+        <source>Red purity</source>
+        <translation>红色纯度</translation>
+    </message>
+    <message>
+        <source>Green hue</source>
+        <translation>绿色色相</translation>
+    </message>
+    <message>
+        <source>Green purity</source>
+        <translation>绿色纯度</translation>
+    </message>
+    <message>
+        <source>Blue hue</source>
+        <translation>蓝色色相</translation>
+    </message>
+    <message>
+        <source>Blue purity</source>
+        <translation>蓝色纯度</translation>
+    </message>
+    <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
     </message>

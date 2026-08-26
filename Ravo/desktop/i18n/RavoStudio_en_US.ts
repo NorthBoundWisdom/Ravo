@@ -336,6 +336,42 @@
         <translation>%1 · %2 · proof %3</translation>
     </message>
     <message>
+        <source>RGB Primaries</source>
+        <translation>RGB Primaries</translation>
+    </message>
+    <message>
+        <source>Achromatic tint hue</source>
+        <translation>Achromatic tint hue</translation>
+    </message>
+    <message>
+        <source>Achromatic tint purity</source>
+        <translation>Achromatic tint purity</translation>
+    </message>
+    <message>
+        <source>Red hue</source>
+        <translation>Red hue</translation>
+    </message>
+    <message>
+        <source>Red purity</source>
+        <translation>Red purity</translation>
+    </message>
+    <message>
+        <source>Green hue</source>
+        <translation>Green hue</translation>
+    </message>
+    <message>
+        <source>Green purity</source>
+        <translation>Green purity</translation>
+    </message>
+    <message>
+        <source>Blue hue</source>
+        <translation>Blue hue</translation>
+    </message>
+    <message>
+        <source>Blue purity</source>
+        <translation>Blue purity</translation>
+    </message>
+    <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
     </message>

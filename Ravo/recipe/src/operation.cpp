@@ -6,6 +6,7 @@
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/primaries.h"
 
 namespace ravo
 {
@@ -102,6 +103,27 @@ Result<OperationRegistry> make_phase1_registry()
            std::nullopt},
           {"working_profile_filename", ParameterType::kString, true, std::nullopt, std::nullopt,
            std::nullopt}},
+         false,
+         true},
+        {std::string(kPrimariesOperationId),
+         "RGB primaries",
+         1,
+         {{"achromatic_tint_hue", ParameterType::kNumber, true, std::nullopt, kPrimariesHueMin,
+           kPrimariesHueMax},
+          {"achromatic_tint_purity", ParameterType::kNumber, true, std::nullopt,
+           kPrimariesAchromaticTintPurityMin, kPrimariesAchromaticTintPurityMax},
+          {"red_hue", ParameterType::kNumber, true, std::nullopt, kPrimariesHueMin,
+           kPrimariesHueMax},
+          {"red_purity", ParameterType::kNumber, true, std::nullopt, kPrimariesPrimaryPurityMin,
+           kPrimariesPrimaryPurityMax},
+          {"green_hue", ParameterType::kNumber, true, std::nullopt, kPrimariesHueMin,
+           kPrimariesHueMax},
+          {"green_purity", ParameterType::kNumber, true, std::nullopt, kPrimariesPrimaryPurityMin,
+           kPrimariesPrimaryPurityMax},
+          {"blue_hue", ParameterType::kNumber, true, std::nullopt, kPrimariesHueMin,
+           kPrimariesHueMax},
+          {"blue_purity", ParameterType::kNumber, true, std::nullopt, kPrimariesPrimaryPurityMin,
+           kPrimariesPrimaryPurityMax}},
          false,
          true},
         {"ravo.core.exposure",

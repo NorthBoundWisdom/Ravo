@@ -107,6 +107,16 @@ namespace
     return std::bit_cast<std::int32_t>(value);
 }
 
+[[nodiscard]] float read_f32(const std::vector<std::uint8_t> &data,
+                             const std::size_t offset) noexcept
+{
+    const std::uint32_t value = static_cast<std::uint32_t>(data[offset]) |
+                                (static_cast<std::uint32_t>(data[offset + 1U]) << 8U) |
+                                (static_cast<std::uint32_t>(data[offset + 2U]) << 16U) |
+                                (static_cast<std::uint32_t>(data[offset + 3U]) << 24U);
+    return std::bit_cast<float>(value);
+}
+
 [[nodiscard]] Result<std::vector<std::uint8_t>>
 decode_legacy_parameter_blob(const std::string_view encoded, const std::size_t expected_size,
                              const std::string_view operation)
@@ -367,6 +377,8 @@ constexpr std::array kBuiltinRawOperations{
 
 constexpr std::string_view kDefaultBlendParameters =
     "gz11eJxjYGBgkGAAgRNODGiAEV0AJ2iwh+CRyscOAAdeGQQ=";
+constexpr std::string_view kPrimariesDefaultBlendParameters =
+    "gz09eJxjYGBgYAFiCQYYOOHEgAZY0QVwggZ7CB6pfOygYtaVAyCMi48L/AcCEA0AmawnoA==";
 
 [[nodiscard]] Result<bool> absorb_builtin_raw_operation(const std::string_view operation,
                                                         const QXmlStreamAttributes &attributes)
@@ -547,6 +559,33 @@ decode_legacy_colorout_parameters(const std::string_view encoded_parameters)
     return result;
 }
 
+Result<PrimariesParams>
+decode_legacy_primaries_v1_parameters(const std::string_view encoded_parameters)
+{
+    auto decoded = decode_legacy_parameter_blob(encoded_parameters, 32U, "primaries");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+
+    PrimariesParams result{
+        static_cast<double>(read_f32(decoded.value(), 0U)),
+        static_cast<double>(read_f32(decoded.value(), 4U)),
+        static_cast<double>(read_f32(decoded.value(), 8U)),
+        static_cast<double>(read_f32(decoded.value(), 12U)),
+        static_cast<double>(read_f32(decoded.value(), 16U)),
+        static_cast<double>(read_f32(decoded.value(), 20U)),
+        static_cast<double>(read_f32(decoded.value(), 24U)),
+        static_cast<double>(read_f32(decoded.value(), 28U)),
+    };
+    auto valid = validate_primaries_parameters(primaries_to_parameters(result));
+    if (!valid)
+    {
+        return valid.error();
+    }
+    return result;
+}
+
 Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
 {
     auto valid_asset = validate_asset(request.asset);
@@ -568,6 +607,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::vector<OperationInstance> operations;
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
+    std::optional<OperationInstance> primaries;
     std::size_t history_index = 0;
     while (!reader.atEnd())
     {
@@ -705,6 +745,81 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "primaries")
+            {
+                const auto version =
+                    required_attribute(reader.attributes(), u"modversion", "primaries");
+                const auto enabled =
+                    required_attribute(reader.attributes(), u"enabled", "primaries");
+                const auto parameters =
+                    required_attribute(reader.attributes(), u"params", "primaries");
+                const auto blend =
+                    required_attribute(reader.attributes(), u"blendop_params", "primaries");
+                const auto blend_version =
+                    required_attribute(reader.attributes(), u"blendop_version", "primaries");
+                if (!version || !enabled || !parameters || !blend || !blend_version)
+                {
+                    return !version    ? version.error() :
+                           !enabled    ? enabled.error() :
+                           !parameters ? parameters.error() :
+                           !blend      ? blend.error() :
+                                         blend_version.error();
+                }
+                if (version.value() != "1")
+                {
+                    return make_error(ErrorCode::kUnsupported,
+                                      "Legacy RGB primaries module version is unsupported",
+                                      {{"legacy_operation", "primaries"},
+                                       {"legacy_version", version.value()},
+                                       {"reason", "unsupported_legacy_primaries_version"}});
+                }
+                if (enabled.value() != "1")
+                {
+                    return make_error(
+                        ErrorCode::kUnsupported,
+                        "Disabled legacy RGB primaries has no canonical enabled-operation mapping",
+                        {{"legacy_operation", "primaries"},
+                         {"reason", "unsupported_legacy_primaries_disabled"}});
+                }
+                if (has_attribute(reader.attributes(), u"mask_id") ||
+                    has_attribute(reader.attributes(), u"blendop_mask_id"))
+                {
+                    return make_error(
+                        ErrorCode::kUnsupported,
+                        "Legacy RGB primaries mask state has no canonical mapping",
+                        {{"legacy_operation", "primaries"}, {"reason", "unsupported_legacy_mask"}});
+                }
+                if (blend_version.value() != "13" ||
+                    blend.value() != kPrimariesDefaultBlendParameters)
+                {
+                    return make_error(
+                        ErrorCode::kUnsupported,
+                        "Legacy RGB primaries blend or mask state has no canonical mapping",
+                        {{"legacy_operation", "primaries"},
+                         {"reason", "unsupported_legacy_blend"}});
+                }
+                if (primaries)
+                {
+                    return make_error(
+                        ErrorCode::kConflict,
+                        "Multiple enabled legacy RGB primaries instances have no canonical mapping",
+                        {{"legacy_operation", "primaries"},
+                         {"reason", "duplicate_legacy_primaries"}});
+                }
+                auto decoded = decode_legacy_primaries_v1_parameters(parameters.value());
+                if (!decoded)
+                {
+                    return decoded.error();
+                }
+                primaries = OperationInstance{std::string(kPrimariesOperationId),
+                                              1,
+                                              "legacy-primaries-" + std::to_string(history_index),
+                                              true,
+                                              primaries_to_parameters(decoded.value()),
+                                              std::nullopt};
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -756,6 +871,10 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                       input_color.value_or(OperationInstance{
                           "ravo.color.input", 1, "legacy-colorin-default", true,
                           input_color_to_parameters(InputColorParams{}), std::nullopt}));
+    if (primaries)
+    {
+        operations.insert(operations.begin() + 1, std::move(*primaries));
+    }
     operations.push_back(output_color.value_or(
         OperationInstance{"ravo.color.output", 1, "legacy-colorout-default", true,
                           output_color_to_parameters(OutputColorParams{}), std::nullopt}));

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <new>
 #include <string>
 #include <utility>
 
@@ -11,6 +12,7 @@
 #include "image_ops.h"
 #include "input_color.h"
 #include "output_color.h"
+#include "primaries.h"
 #include "raw_ca.h"
 #include "raw_pipeline.h"
 #include "raw_temperature.h"
@@ -342,6 +344,7 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
 Result<RenderedImage>
 EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
                                     const CancellationToken &cancellation) const
+try
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -359,17 +362,32 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
         return output_color.error();
     }
     WorkingImage image = working;
-    if (working.color_profile.identifier != kInputProfileLinearRec709)
+    Recipe remaining_recipe = recipe;
+    for (auto &operation : remaining_recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kPrimariesOperationId)
+        {
+            continue;
+        }
+        auto transformed = apply_primaries(image, operation, cancellation);
+        if (!transformed)
+        {
+            return transformed.error();
+        }
+        image = std::move(transformed).value();
+        operation.enabled = false;
+    }
+    if (image.color_profile.identifier != kInputProfileLinearRec709)
     {
         auto operation_working =
-            convert_working_profile(working, kInputProfileLinearRec709, cancellation);
+            convert_working_profile(image, kInputProfileLinearRec709, cancellation);
         if (!operation_working)
         {
             return operation_working.error();
         }
         image = std::move(operation_working).value();
     }
-    auto adjusted = apply_recipe_ops(std::move(image), recipe, cancellation);
+    auto adjusted = apply_recipe_ops(std::move(image), remaining_recipe, cancellation);
     if (!adjusted)
     {
         return adjusted.error();
@@ -380,6 +398,11 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
         return output.error();
     }
     return encode_profiled_output_rgb8(output.value(), cancellation);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Working render allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request,

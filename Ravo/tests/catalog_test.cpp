@@ -26,6 +26,7 @@
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/primaries.h"
 #include "ravo/services/catalog_service.h"
 
 #include "color_balance_fixture.h"
@@ -1038,6 +1039,134 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
     ASSERT_TRUE(second) << second.error().message;
     EXPECT_TRUE(second.value().cache_path.empty());
     EXPECT_NE(second.value().rgb, first_pixels);
+}
+
+TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto png_path = (root / "primaries.png").string();
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            image.setPixelColor(
+                x, y,
+                QColor((x * 17 + y * 3) % 256, (x * 5 + y * 13) % 256, (x * 11 + y * 7) % 256));
+        }
+    }
+    ASSERT_TRUE(image.save(QString::fromStdString(png_path), "PNG"));
+    const auto original_hash = file_sha256(png_path);
+    auto imported = service->import_one(png_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 48;
+    preview.persist_preview_record = true;
+    auto baseline = service->request_preview(preview);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    ASSERT_FALSE(baseline.value().cache_path.empty());
+    ASSERT_TRUE(std::filesystem::exists(baseline.value().cache_path));
+    const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
+    ASSERT_FALSE(baseline_image.isNull());
+    const auto same_pixels = [](const QImage &left, const QImage &right)
+    {
+        if (left.size() != right.size())
+        {
+            return false;
+        }
+        for (int y = 0; y < left.height(); ++y)
+        {
+            for (int x = 0; x < left.width(); ++x)
+            {
+                if (left.pixel(x, y) != right.pixel(x, y))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto edited = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(edited) << edited.error().message;
+    edited.value().primaries.achromatic_tint_hue = 0.3;
+    edited.value().primaries.achromatic_tint_purity = 0.1;
+    edited.value().primaries.red_hue = -0.05;
+    edited.value().primaries.red_purity = 0.96;
+    edited.value().primaries.green_hue = 0.04;
+    edited.value().primaries.green_purity = 1.04;
+    edited.value().primaries.blue_hue = -0.03;
+    edited.value().primaries.blue_purity = 1.02;
+    clamp_develop(edited.value());
+    auto saved = service->save_develop(asset_id, edited.value());
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    auto stored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    const auto primaries_operation = std::find_if(
+        stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
+        [](const OperationInstance &operation) { return operation.id == kPrimariesOperationId; });
+    ASSERT_NE(primaries_operation, stored_recipe.value().operations.end());
+    EXPECT_EQ(primaries_operation->schema_version, 1);
+    EXPECT_EQ(primaries_operation->parameters.size(), 8U);
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    ASSERT_FALSE(before_reopen.value().cache_path.empty());
+    ASSERT_TRUE(std::filesystem::exists(before_reopen.value().cache_path));
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_FALSE(same_pixels(before_reopen_image, baseline_image));
+    EXPECT_NE(before_reopen.value().cache_key, baseline.value().cache_key);
+
+    PreviewRequest interactive = preview;
+    interactive.persist_preview_record = false;
+    auto interactive_before_reopen = service->request_preview(interactive);
+    ASSERT_TRUE(interactive_before_reopen) << interactive_before_reopen.error().message;
+    EXPECT_TRUE(interactive_before_reopen.value().cache_path.empty());
+    ASSERT_FALSE(interactive_before_reopen.value().rgb.empty());
+
+    const auto export_path = (root / "primaries-export.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 48U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_TRUE(same_pixels(export_image, before_reopen_image));
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().primaries, edited.value().primaries);
+
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    ASSERT_FALSE(after_reopen.value().cache_path.empty());
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_TRUE(same_pixels(after_reopen_image, before_reopen_image));
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+
+    auto interactive_after_reopen = service->request_preview(interactive);
+    ASSERT_TRUE(interactive_after_reopen) << interactive_after_reopen.error().message;
+    EXPECT_EQ(interactive_after_reopen.value().rgb, interactive_before_reopen.value().rgb);
+    EXPECT_EQ(file_sha256(png_path), original_hash);
 }
 
 TEST_F(CatalogServiceTest, FileIccContentInvalidatesPreviewAndSurvivesRecipeReopen)

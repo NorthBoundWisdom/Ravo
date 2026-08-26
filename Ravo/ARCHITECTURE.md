@@ -261,6 +261,16 @@ depends only on input/working state. The engine PNG writer and Qt raster adapter
 embed the same state or fail before publication. Studio attaches it to QImage
 and only presents engine-computed soft-proof/gamut pixels.
 
+`ravo.color.primaries` v1 is the first working-profile-relative RGB grading
+operation. Recipe hue values are radians and purity values scale the ray from
+the working white point to its primary triangle. The engine derives xy from
+`LinearWorkingBuffer::color_profile.matrix_to_xyz_d50`, builds
+`inverse(working_to_xyz) * custom_to_xyz`, and keeps the original profile state
+on the adjusted pixels. It runs immediately after input colour and before the
+linear-Rec709 bridge used by existing RGB operations. Studio converts hue to
+degrees only for presentation and intent forwarding; it owns no chromaticity
+or display-profile calculation.
+
 `ravo.color.channelmixerrgb` v1 fixes the `linear_srgb_d50` workspace and
 V3 algorithm, persisting three mixing rows, saturation/lightness/grey,
 normalization, adaptation, illuminant xy, gamut, and clip. Studio normally

@@ -125,7 +125,6 @@ struct bytes or call the old dynamic module ABI.
 | `nlmeans` | yes | defer until shared denoise facilities exist |
 | `overexposed` | no | diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |
 | `overlay` | yes | queued by ADR-0015; requires asset/ROI/mask composition contract |
-| `primaries` | yes | defer until colour operation policy exists |
 | `profile_gamma` | no | defer until colour operation policy exists |
 | `rasterfile` | no | defer until raster adapter and mask contract exist |
 | `rawdenoise` | yes | defer with RAW decode capability |

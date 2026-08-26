@@ -10,6 +10,8 @@ target_sources(ravo_engine
     src/input_color.cpp
     src/input_color.h
     src/output_color.h
+    src/primaries.cpp
+    src/primaries.h
     src/raw_ca.cpp
     src/raw_ca.h
     src/raw_pipeline.cpp

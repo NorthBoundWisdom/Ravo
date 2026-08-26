@@ -1436,6 +1436,22 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
 void clamp_develop(DevelopParams &params) noexcept
 {
     clamp_temperature(params.temperature);
+    const auto clamp_primaries_value =
+        [](double &value, const double default_value, const double minimum, const double maximum)
+    { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : default_value; };
+    clamp_primaries_value(params.primaries.achromatic_tint_hue, 0.0, kPrimariesHueMin,
+                          kPrimariesHueMax);
+    clamp_primaries_value(params.primaries.achromatic_tint_purity, 0.0,
+                          kPrimariesAchromaticTintPurityMin, kPrimariesAchromaticTintPurityMax);
+    clamp_primaries_value(params.primaries.red_hue, 0.0, kPrimariesHueMin, kPrimariesHueMax);
+    clamp_primaries_value(params.primaries.red_purity, 1.0, kPrimariesPrimaryPurityMin,
+                          kPrimariesPrimaryPurityMax);
+    clamp_primaries_value(params.primaries.green_hue, 0.0, kPrimariesHueMin, kPrimariesHueMax);
+    clamp_primaries_value(params.primaries.green_purity, 1.0, kPrimariesPrimaryPurityMin,
+                          kPrimariesPrimaryPurityMax);
+    clamp_primaries_value(params.primaries.blue_hue, 0.0, kPrimariesHueMin, kPrimariesHueMax);
+    clamp_primaries_value(params.primaries.blue_purity, 1.0, kPrimariesPrimaryPurityMin,
+                          kPrimariesPrimaryPurityMax);
     for (auto *channel : {&params.channel_mixer.red, &params.channel_mixer.green,
                           &params.channel_mixer.blue, &params.channel_mixer.saturation,
                           &params.channel_mixer.lightness, &params.channel_mixer.grey})
@@ -1564,20 +1580,20 @@ void clamp_develop(DevelopParams &params) noexcept
 bool DevelopParams::is_identity() const noexcept
 {
     return temperature.is_identity() && input_color.is_identity() && output_color.is_identity() &&
-           channel_mixer.is_identity() && near(exposure_ev, 0.0) && near(contrast, 0.0) &&
-           near(highlights, 0.0) && near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) &&
-           near(vibrance, 0.0) && near(saturation, 0.0) && rotate_quarters % 4 == 0 &&
-           flip_horizontal == 0 && flip_vertical == 0 && near(straighten_degrees, 0.0) &&
-           near(crop_x, 0.0) && near(crop_y, 0.0) && near(crop_width, 1.0) &&
-           near(crop_height, 1.0) && near(sharpen, 0.0) && near(clarity, 0.0) &&
-           near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) && near(soften, 0.0) &&
-           near(dehaze, 0.0) && near(velvia, 0.0) && color_balance_rgb.is_identity() &&
-           near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
-           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
-           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
-           raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
-           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
-           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           primaries.is_identity() && channel_mixer.is_identity() && near(exposure_ev, 0.0) &&
+           near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
+           near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
+           rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
+           near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
+           near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
+           near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
+           near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
+           color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
+           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
+           tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
+           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
+           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
+           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -1694,6 +1710,70 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
     else if (name == "outputBlackPointCompensation")
     {
         params.output_color.black_point_compensation = value >= 0.5;
+    }
+    else if (name == "primariesAchromaticHueDegrees")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.achromatic_tint_hue = value * std::numbers::pi / 180.0;
+    }
+    else if (name == "primariesAchromaticPurity")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.achromatic_tint_purity = value;
+    }
+    else if (name == "primariesRedHueDegrees")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.red_hue = value * std::numbers::pi / 180.0;
+    }
+    else if (name == "primariesRedPurity")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.red_purity = value;
+    }
+    else if (name == "primariesGreenHueDegrees")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.green_hue = value * std::numbers::pi / 180.0;
+    }
+    else if (name == "primariesGreenPurity")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.green_purity = value;
+    }
+    else if (name == "primariesBlueHueDegrees")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.blue_hue = value * std::numbers::pi / 180.0;
+    }
+    else if (name == "primariesBluePurity")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.primaries.blue_purity = value;
     }
     else if (name == "channelMixerRR")
     {
@@ -2035,6 +2115,38 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.output_color = identity.output_color;
     }
+    else if (name == "primariesAchromaticHueDegrees")
+    {
+        params.primaries.achromatic_tint_hue = identity.primaries.achromatic_tint_hue;
+    }
+    else if (name == "primariesAchromaticPurity")
+    {
+        params.primaries.achromatic_tint_purity = identity.primaries.achromatic_tint_purity;
+    }
+    else if (name == "primariesRedHueDegrees")
+    {
+        params.primaries.red_hue = identity.primaries.red_hue;
+    }
+    else if (name == "primariesRedPurity")
+    {
+        params.primaries.red_purity = identity.primaries.red_purity;
+    }
+    else if (name == "primariesGreenHueDegrees")
+    {
+        params.primaries.green_hue = identity.primaries.green_hue;
+    }
+    else if (name == "primariesGreenPurity")
+    {
+        params.primaries.green_purity = identity.primaries.green_purity;
+    }
+    else if (name == "primariesBlueHueDegrees")
+    {
+        params.primaries.blue_hue = identity.primaries.blue_hue;
+    }
+    else if (name == "primariesBluePurity")
+    {
+        params.primaries.blue_purity = identity.primaries.blue_purity;
+    }
     else if (name == "channelMixerRR" || name == "channelMixerRG" || name == "channelMixerRB" ||
              name == "channelMixerGR" || name == "channelMixerGG" || name == "channelMixerGB" ||
              name == "channelMixerBR" || name == "channelMixerBG" || name == "channelMixerBB")
@@ -2326,6 +2438,10 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     else if (section == "calibration")
     {
         params.channel_mixer = identity.channel_mixer;
+    }
+    else if (section == "primaries")
+    {
+        params.primaries = identity.primaries;
     }
     else if (section == "light")
     {
@@ -2667,6 +2783,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     }
     add_operation(recipe, "ravo.color.input", "color-input-1",
                   input_color_to_parameters(clamped.input_color));
+    if (!clamped.primaries.is_identity())
+    {
+        add_operation(recipe, std::string(kPrimariesOperationId), "primaries-1",
+                      primaries_to_parameters(clamped.primaries));
+    }
     if (!clamped.channel_mixer.is_identity())
     {
         add_operation(recipe, "ravo.color.channelmixerrgb", "channelmixerrgb-1",
@@ -2950,6 +3071,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return input_color.error();
             }
             params.input_color = std::move(input_color).value();
+        }
+        else if (operation.id == kPrimariesOperationId)
+        {
+            auto primaries = primaries_from_parameters(operation.parameters);
+            if (!primaries)
+            {
+                return primaries.error();
+            }
+            params.primaries = std::move(primaries).value();
         }
         else if (operation.id == "ravo.color.output")
         {

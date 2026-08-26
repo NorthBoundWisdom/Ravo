@@ -17,6 +17,7 @@
 
 #include "capability_ops.h"
 #include "output_color.h"
+#include "primaries.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
 
@@ -2021,6 +2022,16 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (!operation.enabled || absorbed_operation(operation.id))
         {
+            continue;
+        }
+        if (operation.id == kPrimariesOperationId)
+        {
+            auto transformed = apply_primaries(image, operation, cancellation);
+            if (!transformed)
+            {
+                return transformed.error();
+            }
+            image = std::move(transformed).value();
             continue;
         }
         if (operation.id == "ravo.color.temperature")

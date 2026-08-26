@@ -17,6 +17,7 @@
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/primaries.h"
 
 namespace ravo
 {
@@ -881,6 +882,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == kPrimariesOperationId)
+        {
+            auto primaries = validate_primaries_parameters(operation.parameters);
+            if (!primaries)
+            {
+                auto error = primaries.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.display.sigmoid")
         {
             auto sigmoid = validate_sigmoid_parameters(operation.parameters);
@@ -984,6 +995,44 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                               {{"operation_id", operation.id}});
         }
         output_color_index = index;
+    }
+
+    std::optional<std::size_t> primaries_index;
+    for (std::size_t index = 0; index < recipe.operations.size(); ++index)
+    {
+        const auto &operation = recipe.operations[index];
+        if (!operation.enabled || operation.id != kPrimariesOperationId)
+        {
+            continue;
+        }
+        if (primaries_index)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Recipe contains more than one enabled RGB primaries operation",
+                              {{"operation_id", operation.id}});
+        }
+        primaries_index = index;
+    }
+    if (primaries_index)
+    {
+        if (!input_color_index)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RGB primaries requires an enabled input colour operation",
+                              {{"operation_id", std::string(kPrimariesOperationId)}});
+        }
+        if (*primaries_index != *input_color_index + 1U)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RGB primaries must immediately follow input colour",
+                              {{"operation_id", std::string(kPrimariesOperationId)}});
+        }
+        if (!output_color_index || *output_color_index != recipe.operations.size() - 1U)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RGB primaries recipes require output colour as the final operation",
+                              {{"operation_id", std::string(kPrimariesOperationId)}});
+        }
     }
 
     std::optional<std::size_t> temperature_index;
