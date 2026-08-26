@@ -68,6 +68,14 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("maskGreyFulcrum")).toDouble(), 0.1845);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("greyFulcrum")).toDouble(), 0.1845);
     EXPECT_EQ(balance.value(QStringLiteral("formulaIndex")).toInt(), 0);
+    const auto white_balance = presenter.editWhiteBalance();
+    EXPECT_EQ(white_balance.size(), 6);
+    EXPECT_EQ(white_balance.value(QStringLiteral("modeIndex")).toInt(), 0);
+    EXPECT_FALSE(white_balance.value(QStringLiteral("hasCoefficients")).toBool());
+    EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("red")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("green")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("blue")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("fourth")).toDouble(), 1.0);
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)

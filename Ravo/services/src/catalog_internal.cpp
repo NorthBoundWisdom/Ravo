@@ -200,6 +200,20 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     {
         return *flag ? "true" : "false";
     }
+    if (const auto *array = std::get_if<ParameterValue::Array>(&value.value))
+    {
+        std::string result = "[";
+        for (std::size_t index = 0; index < array->size(); ++index)
+        {
+            if (index != 0)
+            {
+                result.push_back(',');
+            }
+            result += parameter_key_part((*array)[index]);
+        }
+        result.push_back(']');
+        return result;
+    }
     return "?";
 }
 
@@ -210,20 +224,32 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     for (const auto &operation : recipe.operations)
     {
         if (!operation.enabled ||
-            (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
-             operation.id != "ravo.raw.cacorrect"))
+            (operation.id != "ravo.color.temperature" && operation.id != "ravo.raw.hotpixels" &&
+             operation.id != "ravo.raw.highlights" && operation.id != "ravo.raw.cacorrect"))
         {
             continue;
         }
         found_preprocess = true;
-        key += operation.id == "ravo.raw.hotpixels"  ? ":hot" :
-               operation.id == "ravo.raw.highlights" ? ":hl" :
-                                                       ":ca";
+        key += operation.id == "ravo.color.temperature" ? ":temp" :
+               operation.id == "ravo.raw.hotpixels"     ? ":hot" :
+               operation.id == "ravo.raw.highlights"    ? ":hl" :
+                                                          ":ca";
         static constexpr std::array<std::string_view, 3> highlight_names{"mode", "amount", "clip"};
         static constexpr std::array<std::string_view, 3> hot_pixel_names{"strength", "threshold",
                                                                          "permissive"};
         static constexpr std::array<std::string_view, 2> ca_names{"iterations",
                                                                   "avoid_color_shift"};
+        if (operation.id == "ravo.color.temperature")
+        {
+            for (const auto &[name, value] : operation.parameters)
+            {
+                key.push_back(':');
+                key += name;
+                key.push_back('=');
+                key += parameter_key_part(value);
+            }
+            continue;
+        }
         if (operation.id == "ravo.raw.cacorrect")
         {
             for (const auto name : ca_names)
@@ -251,8 +277,8 @@ void disable_raw_preprocess(Recipe &recipe)
 {
     for (auto &operation : recipe.operations)
     {
-        if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
-            operation.id == "ravo.raw.cacorrect")
+        if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
+            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect")
         {
             operation.enabled = false;
         }

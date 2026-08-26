@@ -114,6 +114,7 @@ Ravo 最终取代 `legacy/src/`。catalog/import/viewer 与 Basic Develop 已在
 | 默认降噪 | `iop/denoiseprofile.c` | `ravo.detail.denoiseprofile` | 旧实现已删除 | 默认 wavelets + Y0U0V0 + a-trous BayesShrink；无 camera profile 时用记录的 generic a/b。`nlmeans`/`atrous`/`bilateral`/`rawdenoise` 不在本项 |
 | 镜头校正 | `iop/lens.cc` | `ravo.geometry.lens` | 旧实现已删除 | 显式 lensfun poly3/poly5 + 线性 TCA + 手动 vignette spline；lookup 用版本化系数表，无匹配 fail-fast。lensfun source-root 仍是生产数据库后继，本轮未钉依赖 |
 | 颜色均衡 | `iop/colorequal.c` | `ravo.color.colorequal` | 旧实现已删除 | dt UCS 22 八节点周期 RBF LUT；`colorzones` leftover |
+| RAW 白平衡 | `iop/temperature.c` | `ravo.color.temperature` | 旧实现已删除 | 显式 `camera_cfa_or_linear_rgb` 四系数 scaling；LibRaw as-shot/daylight metadata、manual 与 late-reference + 显式 CAT；旧 Kelvin/tint 近似、generic fallback、GTK picker/preset/OpenCL 不迁 |
 | 色彩校准 | `iop/channelmixerrgb.c` | `ravo.color.channelmixerrgb` | 旧实现已删除 | 显式 `linear_srgb_d50`、V3 matrix normalization + CAT16/Bradford/XYZ/RGB + gamut + saturation/lightness/grey；默认无隐藏 CAT，旧 chart/OpenCL/XMP ABI 不迁移 |
 | 场景参照调色 | `iop/colorbalancergb.c` | `ravo.color.colorbalancergb` | 旧实现已删除 | 显式 `linear_srgb_d50` + Filmlight Yrg 三段 mask/grading RGB；DT UCS 2022 默认，JzAzBz 2021 显式可选；旧 lift/gamma/gain 近似已硬删除，`colorbalance.c` 独立排队 |
 | 渐变滤镜 | `iop/graduatednd.c` | `ravo.effect.graduatednd` | 旧实现已删除 | `_compute_density` + hue/sat RGB；正密度压暗旋转轴正方向（默认天空在上） |

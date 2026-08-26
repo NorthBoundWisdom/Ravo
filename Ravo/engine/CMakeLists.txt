@@ -10,6 +10,8 @@ target_sources(ravo_engine
     src/raw_ca.cpp
     src/raw_ca.h
     src/raw_pipeline.cpp
+    src/raw_temperature.cpp
+    src/raw_temperature.h
     src/scopes.cpp)
 
 target_include_directories(ravo_engine

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,9 +14,6 @@
 namespace ravo
 {
 
-inline constexpr double kDevelopTemperatureDefault = 6500.0;
-inline constexpr double kDevelopTemperatureMin = 2000.0;
-inline constexpr double kDevelopTemperatureMax = 12000.0;
 inline constexpr double kDevelopGammaDefault = 1.0;
 inline constexpr double kDevelopStraightenMin = -45.0;
 inline constexpr double kDevelopStraightenMax = 45.0;
@@ -63,6 +61,14 @@ inline constexpr std::string_view kChannelMixerAdaptationCat16 = "cat16";
 inline constexpr std::string_view kChannelMixerAdaptationLinearBradford = "linear_bradford";
 inline constexpr std::string_view kChannelMixerAdaptationFullBradford = "full_bradford";
 inline constexpr std::string_view kChannelMixerAdaptationXyz = "xyz";
+inline constexpr std::size_t kTemperatureChannelCount = 4;
+inline constexpr std::string_view kTemperatureWorkingSpaceCameraCfaOrLinearRgb =
+    "camera_cfa_or_linear_rgb";
+inline constexpr std::string_view kTemperatureAlgorithmChannelScaleV4 = "channel_scale_v4";
+inline constexpr std::string_view kTemperatureModeAsShot = "as_shot";
+inline constexpr std::string_view kTemperatureModeCameraReference = "camera_reference";
+inline constexpr std::string_view kTemperatureModeAsShotToReference = "as_shot_to_reference";
+inline constexpr std::string_view kTemperatureModeManual = "manual";
 inline constexpr std::string_view kColorBalanceRgbWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
 inline constexpr std::string_view kColorBalanceRgbAlgorithmFilmlightYchV5 = "filmlight_ych_v5";
 inline constexpr std::string_view kColorBalanceRgbFormulaDtUcs2022 = "dt_ucs_2022";
@@ -116,6 +122,15 @@ struct ChannelMixerParams
     [[nodiscard]] bool operator==(const ChannelMixerParams &) const noexcept = default;
 };
 
+struct TemperatureParams
+{
+    std::string mode{std::string(kTemperatureModeAsShot)};
+    std::optional<std::array<double, kTemperatureChannelCount>> coefficients;
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const TemperatureParams &) const noexcept = default;
+};
+
 struct ColorBalanceRgbParams
 {
     double shadows_y = 0.0;
@@ -158,8 +173,7 @@ struct ColorBalanceRgbParams
 
 struct DevelopParams
 {
-    double temperature = kDevelopTemperatureDefault;
-    double tint = 0.0;
+    TemperatureParams temperature;
     ChannelMixerParams channel_mixer;
     double exposure_ev = 0.0;
     double contrast = 0.0;
@@ -261,6 +275,12 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
 channel_mixer_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 channel_mixer_to_parameters(const ChannelMixerParams &params);
+[[nodiscard]] Result<void> validate_temperature_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<TemperatureParams>
+temperature_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+temperature_to_parameters(const TemperatureParams &params);
 [[nodiscard]] Result<void> validate_color_balance_rgb_parameters(
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] Result<ColorBalanceRgbParams> color_balance_rgb_from_parameters(

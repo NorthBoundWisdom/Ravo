@@ -11,6 +11,7 @@
 #include "ravo/recipe/recipe.h"
 
 #include "color_balance_fixture.h"
+#include "temperature_fixture.h"
 #include "test_support.h"
 
 namespace ravo
@@ -76,8 +77,7 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
     DevelopParams params;
-    params.temperature = 4800;
-    params.tint = 12;
+    params.temperature = test::temperature_0000_params();
     params.exposure_ev = -0.3;
     params.contrast = 0.2;
     params.rotate_quarters = 1;
@@ -93,8 +93,7 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
     auto restored = develop_from_recipe(parsed.value());
     ASSERT_TRUE(restored) << restored.error().message;
-    EXPECT_NEAR(restored.value().temperature, 4800.0, 1e-6);
-    EXPECT_NEAR(restored.value().tint, 12.0, 1e-6);
+    EXPECT_EQ(restored.value().temperature, params.temperature);
     EXPECT_NEAR(restored.value().exposure_ev, -0.3, 1e-6);
     EXPECT_EQ(restored.value().rotate_quarters, 1);
     EXPECT_NEAR(restored.value().crop_width, 0.8, 1e-6);
@@ -190,6 +189,12 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(bands.channel_mixer.red[1], 0.25, 1e-6);
     EXPECT_TRUE(reset_develop_section(bands, "calibration"));
     EXPECT_TRUE(bands.channel_mixer.is_identity());
+    EXPECT_TRUE(apply_develop_field(bands, "whiteBalanceRed", 2.25));
+    ASSERT_TRUE(bands.temperature.coefficients);
+    EXPECT_EQ(bands.temperature.mode, kTemperatureModeManual);
+    EXPECT_NEAR((*bands.temperature.coefficients)[0], 2.25, 1e-6);
+    EXPECT_TRUE(reset_develop_section(bands, "whiteBalance"));
+    EXPECT_TRUE(bands.temperature.is_identity());
     EXPECT_TRUE(apply_develop_field(bands, "colorBalanceGlobalY", 0.25));
     EXPECT_NEAR(bands.color_balance_rgb.global_y, 0.25, 1e-6);
     EXPECT_TRUE(apply_develop_field(bands, "colorBalanceFormula", 1.0));
@@ -291,6 +296,119 @@ TEST(RecipeTest, ChannelMixerSchemaRejectsInvalidEnumsArraysAndNormalization)
     auto xy_result = validate(std::move(invalid_xy));
     ASSERT_FALSE(xy_result);
     EXPECT_EQ(xy_result.error().code, ErrorCode::kValidation);
+}
+
+TEST(RecipeTest, TemperatureSchemaRoundTripsFixturesAndRejectsHiddenFallbacks)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto operation = [](const TemperatureParams &params)
+    {
+        return OperationInstance{
+            "ravo.color.temperature",          1,           "temperature-1", true,
+            temperature_to_parameters(params), std::nullopt};
+    };
+    const auto validate = [&](TemperatureParams params)
+    {
+        Recipe recipe;
+        recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+        recipe.operations.push_back(operation(params));
+        return validate_recipe(recipe, registry.value());
+    };
+
+    const auto fixture = test::temperature_0000_params();
+    auto parameters = temperature_to_parameters(fixture);
+    auto restored = temperature_from_parameters(parameters);
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value(), fixture);
+    ASSERT_TRUE(validate(fixture));
+
+    auto four_channel = temperature_from_parameters(
+        temperature_to_parameters(test::temperature_0177_four_channel_params()));
+    ASSERT_TRUE(four_channel) << four_channel.error().message;
+    EXPECT_EQ(four_channel.value(), test::temperature_0177_four_channel_params());
+
+    auto unknown = parameters;
+    unknown["kelvin_guess"] = ParameterValue{6500.0};
+    auto unknown_result = temperature_from_parameters(unknown);
+    ASSERT_FALSE(unknown_result);
+    EXPECT_EQ(unknown_result.error().context.at("parameter"), "kelvin_guess");
+
+    auto bad_mode = parameters;
+    bad_mode["mode"] = ParameterValue{"camera_magic"};
+    auto mode_result = temperature_from_parameters(bad_mode);
+    ASSERT_FALSE(mode_result);
+    EXPECT_EQ(mode_result.error().code, ErrorCode::kValidation);
+
+    auto missing = parameters;
+    missing.erase("coefficients");
+    auto missing_result = temperature_from_parameters(missing);
+    ASSERT_FALSE(missing_result);
+    EXPECT_EQ(missing_result.error().context.at("parameter"), "coefficients");
+
+    auto zero = parameters;
+    auto &zero_values = std::get<ParameterValue::Array>(zero["coefficients"].value);
+    zero_values[0] = ParameterValue{0.0};
+    auto zero_result = temperature_from_parameters(zero);
+    ASSERT_FALSE(zero_result);
+    EXPECT_EQ(zero_result.error().context.at("parameter"), "coefficients");
+
+    auto non_finite = parameters;
+    auto &finite_values = std::get<ParameterValue::Array>(non_finite["coefficients"].value);
+    finite_values[2] = ParameterValue{std::numeric_limits<double>::infinity()};
+    auto finite_result = temperature_from_parameters(non_finite);
+    ASSERT_FALSE(finite_result);
+    EXPECT_EQ(finite_result.error().context.at("parameter"), "coefficients");
+
+    auto too_many = parameters;
+    auto &too_many_values = std::get<ParameterValue::Array>(too_many["coefficients"].value);
+    too_many_values.emplace_back(1.0);
+    auto count_result = temperature_from_parameters(too_many);
+    ASSERT_FALSE(count_result);
+    EXPECT_EQ(count_result.error().context.at("parameter"), "coefficients");
+
+    auto boolean = parameters;
+    auto &boolean_values = std::get<ParameterValue::Array>(boolean["coefficients"].value);
+    boolean_values[1] = ParameterValue{true};
+    auto boolean_result = temperature_from_parameters(boolean);
+    ASSERT_FALSE(boolean_result);
+    EXPECT_EQ(boolean_result.error().context.at("parameter"), "coefficients");
+
+    auto late = test::temperature_0171_late_params();
+    auto late_without_cat = validate(late);
+    ASSERT_FALSE(late_without_cat);
+    EXPECT_EQ(late_without_cat.error().code, ErrorCode::kValidation);
+
+    ChannelMixerParams cat;
+    cat.adaptation = std::string(kChannelMixerAdaptationCat16);
+    Recipe late_recipe;
+    late_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    late_recipe.operations.push_back(operation(late));
+    late_recipe.operations.push_back({"ravo.color.channelmixerrgb", 1, "calibration-1", true,
+                                      channel_mixer_to_parameters(cat), std::nullopt});
+    auto late_valid = validate_recipe(late_recipe, registry.value());
+    ASSERT_TRUE(late_valid) << late_valid.error().message;
+
+    Recipe wrong_order = late_recipe;
+    std::swap(wrong_order.operations[0], wrong_order.operations[1]);
+    auto wrong_order_result = validate_recipe(wrong_order, registry.value());
+    ASSERT_FALSE(wrong_order_result);
+    EXPECT_EQ(wrong_order_result.error().code, ErrorCode::kValidation);
+
+    Recipe after_cfa;
+    after_cfa.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    after_cfa.operations.push_back({"ravo.raw.hotpixels",
+                                    1,
+                                    "hotpixels-1",
+                                    true,
+                                    {{"strength", ParameterValue{0.25}},
+                                     {"threshold", ParameterValue{0.05}},
+                                     {"permissive", ParameterValue{false}}},
+                                    std::nullopt});
+    after_cfa.operations.push_back(operation(fixture));
+    auto after_cfa_result = validate_recipe(after_cfa, registry.value());
+    ASSERT_FALSE(after_cfa_result);
+    EXPECT_EQ(after_cfa_result.error().code, ErrorCode::kValidation);
 }
 
 TEST(RecipeTest, ColorBalanceRgbFullSchemaRoundTripsTheFrozen0083Parameters)

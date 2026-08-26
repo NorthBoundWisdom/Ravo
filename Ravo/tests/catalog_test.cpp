@@ -28,6 +28,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include "color_balance_fixture.h"
+#include "temperature_fixture.h"
 
 namespace ravo
 {
@@ -907,7 +908,9 @@ TEST_F(CatalogServiceTest, LiveDevelopPreviewAppliesWithoutSavingRecipe)
 
     DevelopParams live;
     live.exposure_ev = 1.25;
-    live.temperature = 4500.0;
+    live.temperature.mode = std::string(kTemperatureModeManual);
+    live.temperature.coefficients =
+        std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
     PreviewRequest request;
     request.asset_id = asset_id;
     request.max_edge = kInteractivePreviewMaxEdge;
@@ -991,6 +994,18 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     ASSERT_TRUE(third) << third.error().message;
     EXPECT_EQ(third.value().srgb, first.value().srgb);
 
+    live.temperature.mode = std::string(kTemperatureModeManual);
+    live.temperature.coefficients =
+        std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
+    auto balanced = service->request_preview(request, live);
+    ASSERT_TRUE(balanced) << balanced.error().message;
+    EXPECT_NE(balanced.value().srgb, first.value().srgb);
+    ASSERT_TRUE(live.temperature.coefficients);
+    (*live.temperature.coefficients)[0] += 0.25;
+    auto rebalanced = service->request_preview(request, live);
+    ASSERT_TRUE(rebalanced) << rebalanced.error().message;
+    EXPECT_NE(rebalanced.value().srgb, balanced.value().srgb);
+
     live.raw_highlights = 1.0;
     auto highlighted = service->request_preview(request, live);
     ASSERT_TRUE(highlighted) << highlighted.error().message;
@@ -1042,6 +1057,7 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     edited.value().channel_mixer.red = {0.95, 0.05, 0.0};
     edited.value().channel_mixer.green = {0.02, 0.96, 0.02};
     edited.value().channel_mixer.blue = {0.0, 0.08, 0.92};
+    edited.value().temperature = test::temperature_0000_params();
     edited.value().color_balance_rgb = test::color_balance_0093_params();
     clamp_develop(edited.value());
 

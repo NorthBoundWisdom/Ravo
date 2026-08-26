@@ -149,6 +149,12 @@ transform 之前的 scene controls。RAW 路径可在 demosaic 前运行 `ravo.r
 `ravo.raw.cacorrect` 随后在同一副本上执行 Bayer tile 统计、全图 polynomial shift fit 和可选
 avoid-color-shift，再进入 demosaic。RAW memory estimator 必须计入 owned CFA、float scratch、拟合与
 avoid-shift factor；预算不足在分配/像素发布前失败。
+`ravo.color.temperature` v1 固定声明 `camera_cfa_or_linear_rgb` 与 `channel_scale_v4`，默认从
+`DecodedRaw` 的 LibRaw as-shot metadata 解析四通道系数，也可选择 camera-reference、显式 manual 或
+as-shot-to-reference。engine 在进入 RAW preprocess 时解析唯一 temperature intent，`cacorrect` 与 demosaic
+消费同一组系数；demosaic 对每个 CFA sample 先按自身 channel scaling，再做 camera-to-working matrix。
+temperature 参数属于 scene-linear preprocess cache key，源 `DecodedRaw` 不变。late-reference 不共享全局
+chroma state，必须在 recipe 中后接显式非 RGB `channelmixerrgb` adaptation；raster 只接受显式系数。
 `ravo.color.channelmixerrgb` v1 固定声明 `linear_srgb_d50` 工作空间与 V3 算法，完整保存三行 mixing、
 saturation/lightness/grey、normalization、adaptation、illuminant xy、gamut 与 clip。Studio 默认只编辑
 `adaptation=rgb` 的 3×3 矩阵；CAT16/Bradford/XYZ 只能由显式 canonical 参数选择，不读取隐藏 camera/ICC

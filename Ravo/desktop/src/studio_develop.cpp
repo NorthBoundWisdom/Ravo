@@ -29,14 +29,21 @@ bool StudioPresenter::canRedo() const noexcept
     return !redo_stack_.empty();
 }
 
-double StudioPresenter::editTemperature() const noexcept
+QVariantMap StudioPresenter::editWhiteBalance() const
 {
-    return develop_.temperature;
-}
-
-double StudioPresenter::editTint() const noexcept
-{
-    return develop_.tint;
+    const auto &params = develop_.temperature;
+    const auto coefficients = params.coefficients.value_or(
+        std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0});
+    const int mode = params.mode == kTemperatureModeCameraReference   ? 1 :
+                     params.mode == kTemperatureModeAsShotToReference ? 2 :
+                     params.mode == kTemperatureModeManual            ? 3 :
+                                                                        0;
+    return {{QStringLiteral("modeIndex"), mode},
+            {QStringLiteral("hasCoefficients"), params.coefficients.has_value()},
+            {QStringLiteral("red"), coefficients[0]},
+            {QStringLiteral("green"), coefficients[1]},
+            {QStringLiteral("blue"), coefficients[2]},
+            {QStringLiteral("fourth"), coefficients[3]}};
 }
 
 double StudioPresenter::editChannelMixerRR() const noexcept

@@ -7,6 +7,7 @@
 #include <initializer_list>
 #include <limits>
 #include <numbers>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -220,6 +221,175 @@ channel_triplet_parameter(const std::array<double, kChannelMixerChannelCount> &v
         array.push_back(ParameterValue{value});
     }
     return ParameterValue{std::move(array)};
+}
+
+[[nodiscard]] bool temperature_mode_supported(const std::string_view mode) noexcept
+{
+    return mode == kTemperatureModeAsShot || mode == kTemperatureModeCameraReference ||
+           mode == kTemperatureModeAsShotToReference || mode == kTemperatureModeManual;
+}
+
+[[nodiscard]] ParameterValue
+temperature_coefficients_parameter(const std::array<double, kTemperatureChannelCount> &coefficients)
+{
+    ParameterValue::Array array;
+    array.reserve(coefficients.size());
+    for (const double coefficient : coefficients)
+    {
+        array.emplace_back(coefficient);
+    }
+    return ParameterValue{std::move(array)};
+}
+
+[[nodiscard]] Result<std::array<double, kTemperatureChannelCount>>
+parse_temperature_coefficients(const ParameterValue &value)
+{
+    const auto *array = std::get_if<ParameterValue::Array>(&value.value);
+    if (array == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "Temperature coefficients must be an array");
+    }
+    if (array->size() != kTemperatureChannelCount)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Temperature coefficients must contain exactly 4 values",
+                          {{"count", std::to_string(array->size())}});
+    }
+    std::array<double, kTemperatureChannelCount> coefficients{};
+    for (std::size_t index = 0; index < coefficients.size(); ++index)
+    {
+        double coefficient = std::numeric_limits<double>::quiet_NaN();
+        if (const auto *floating = std::get_if<double>(&(*array)[index].value); floating != nullptr)
+        {
+            coefficient = *floating;
+        }
+        else if (const auto *integer = std::get_if<std::int64_t>(&(*array)[index].value);
+                 integer != nullptr)
+        {
+            coefficient = static_cast<double>(*integer);
+        }
+        if (!std::isfinite(coefficient) || coefficient <= 0.0 || coefficient > 8.0)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Temperature coefficient must be finite and within (0, 8]",
+                              {{"index", std::to_string(index)}});
+        }
+        coefficients[index] = coefficient;
+    }
+    return coefficients;
+}
+
+[[nodiscard]] bool apply_temperature_field(TemperatureParams &params, const std::string_view name,
+                                           const double value) noexcept
+{
+    if (name == "whiteBalanceMode")
+    {
+        const int mode = std::clamp(static_cast<int>(std::llround(value)), 0, 3);
+        params.mode = mode == 0 ? std::string(kTemperatureModeAsShot) :
+                      mode == 1 ? std::string(kTemperatureModeCameraReference) :
+                      mode == 2 ? std::string(kTemperatureModeAsShotToReference) :
+                                  std::string(kTemperatureModeManual);
+        if (params.mode == kTemperatureModeManual)
+        {
+            if (!params.coefficients)
+            {
+                params.coefficients =
+                    std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
+            }
+        }
+        else
+        {
+            params.coefficients.reset();
+        }
+        return true;
+    }
+
+    std::size_t index = 0;
+    if (name == "whiteBalanceRed")
+    {
+        index = 0;
+    }
+    else if (name == "whiteBalanceGreen")
+    {
+        index = 1;
+    }
+    else if (name == "whiteBalanceBlue")
+    {
+        index = 2;
+    }
+    else if (name == "whiteBalanceFourth")
+    {
+        index = 3;
+    }
+    else
+    {
+        return false;
+    }
+    if (!params.coefficients)
+    {
+        params.coefficients = std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
+    }
+    params.mode = std::string(kTemperatureModeManual);
+    (*params.coefficients)[index] = value;
+    return true;
+}
+
+[[nodiscard]] bool reset_temperature_field(TemperatureParams &params,
+                                           const std::string_view name) noexcept
+{
+    if (name == "whiteBalance" || name == "whiteBalanceMode")
+    {
+        params = TemperatureParams{};
+        return true;
+    }
+    std::size_t index = 0;
+    if (name == "whiteBalanceRed")
+    {
+        index = 0;
+    }
+    else if (name == "whiteBalanceGreen")
+    {
+        index = 1;
+    }
+    else if (name == "whiteBalanceBlue")
+    {
+        index = 2;
+    }
+    else if (name == "whiteBalanceFourth")
+    {
+        index = 3;
+    }
+    else
+    {
+        return false;
+    }
+    if (!params.coefficients)
+    {
+        params.coefficients = std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
+    }
+    params.mode = std::string(kTemperatureModeManual);
+    (*params.coefficients)[index] = 1.0;
+    return true;
+}
+
+void clamp_temperature(TemperatureParams &params) noexcept
+{
+    if (!temperature_mode_supported(params.mode))
+    {
+        params = TemperatureParams{};
+        return;
+    }
+    if (params.coefficients)
+    {
+        for (double &coefficient : *params.coefficients)
+        {
+            coefficient = clamp_value(coefficient, 0.000001, 8.0);
+        }
+    }
+    if (params.mode == kTemperatureModeManual && !params.coefficients)
+    {
+        params.coefficients = std::array<double, kTemperatureChannelCount>{1.0, 1.0, 1.0, 1.0};
+    }
 }
 
 struct ColorBalanceNumericField
@@ -675,6 +845,116 @@ channel_mixer_to_parameters(const ChannelMixerParams &params)
             {"illuminant_y", ParameterValue{params.illuminant_y}},
             {"gamut", ParameterValue{params.gamut}},
             {"clip", ParameterValue{params.clip}}};
+}
+
+bool TemperatureParams::is_identity() const noexcept
+{
+    return mode == kTemperatureModeAsShot && !coefficients.has_value();
+}
+
+Result<TemperatureParams>
+temperature_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    static const std::set<std::string, std::less<>> allowed{"working_space", "algorithm", "mode",
+                                                            "coefficients"};
+    for (const auto &[name, ignored] : parameters)
+    {
+        static_cast<void>(ignored);
+        if (!allowed.contains(name))
+        {
+            return make_error(ErrorCode::kValidation, "Temperature parameter is unknown",
+                              {{"parameter", name}});
+        }
+    }
+    const auto required_text = [&](const std::string_view name) -> Result<std::string>
+    {
+        const auto found = parameters.find(std::string(name));
+        if (found == parameters.end())
+        {
+            return make_error(ErrorCode::kValidation, "Temperature parameter is required",
+                              {{"parameter", std::string(name)}});
+        }
+        const auto *text = std::get_if<std::string>(&found->second.value);
+        if (text == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "Temperature parameter must be a string",
+                              {{"parameter", std::string(name)}});
+        }
+        return *text;
+    };
+    auto working_space = required_text("working_space");
+    auto algorithm = required_text("algorithm");
+    auto mode = required_text("mode");
+    if (!working_space || !algorithm || !mode)
+    {
+        return !working_space ? working_space.error() :
+               !algorithm     ? algorithm.error() :
+                                mode.error();
+    }
+    if (working_space.value() != kTemperatureWorkingSpaceCameraCfaOrLinearRgb)
+    {
+        return make_error(ErrorCode::kValidation, "Temperature working space is unsupported",
+                          {{"working_space", working_space.value()}});
+    }
+    if (algorithm.value() != kTemperatureAlgorithmChannelScaleV4)
+    {
+        return make_error(ErrorCode::kValidation, "Temperature algorithm is unsupported",
+                          {{"algorithm", algorithm.value()}});
+    }
+    if (!temperature_mode_supported(mode.value()))
+    {
+        return make_error(ErrorCode::kValidation, "Temperature mode is unsupported",
+                          {{"mode", mode.value()}});
+    }
+
+    TemperatureParams result;
+    result.mode = mode.value();
+    if (const auto found = parameters.find("coefficients"); found != parameters.end())
+    {
+        auto coefficients = parse_temperature_coefficients(found->second);
+        if (!coefficients)
+        {
+            auto error = coefficients.error();
+            error.context.emplace("parameter", "coefficients");
+            return error;
+        }
+        result.coefficients = coefficients.value();
+    }
+    if (result.mode == kTemperatureModeManual && !result.coefficients)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Manual temperature mode requires explicit coefficients",
+                          {{"parameter", "coefficients"}});
+    }
+    return result;
+}
+
+Result<void> validate_temperature_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    auto parsed = temperature_from_parameters(parameters);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    return {};
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+temperature_to_parameters(const TemperatureParams &params)
+{
+    std::map<std::string, ParameterValue, std::less<>> parameters{
+        {"working_space",
+         ParameterValue{std::string(kTemperatureWorkingSpaceCameraCfaOrLinearRgb)}},
+        {"algorithm", ParameterValue{std::string(kTemperatureAlgorithmChannelScaleV4)}},
+        {"mode", ParameterValue{params.mode}},
+    };
+    if (params.coefficients)
+    {
+        parameters.emplace("coefficients",
+                           temperature_coefficients_parameter(*params.coefficients));
+    }
+    return parameters;
 }
 
 bool ColorBalanceRgbParams::is_identity() const noexcept
@@ -1155,9 +1435,7 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
 
 void clamp_develop(DevelopParams &params) noexcept
 {
-    params.temperature =
-        clamp_value(params.temperature, kDevelopTemperatureMin, kDevelopTemperatureMax);
-    params.tint = clamp_value(params.tint, -150.0, 150.0);
+    clamp_temperature(params.temperature);
     for (auto *channel : {&params.channel_mixer.red, &params.channel_mixer.green,
                           &params.channel_mixer.blue, &params.channel_mixer.saturation,
                           &params.channel_mixer.lightness, &params.channel_mixer.grey})
@@ -1285,21 +1563,20 @@ void clamp_develop(DevelopParams &params) noexcept
 
 bool DevelopParams::is_identity() const noexcept
 {
-    return near(temperature, kDevelopTemperatureDefault) && near(tint, 0.0) &&
-           channel_mixer.is_identity() && near(exposure_ev, 0.0) && near(contrast, 0.0) &&
-           near(highlights, 0.0) && near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) &&
-           near(vibrance, 0.0) && near(saturation, 0.0) && rotate_quarters % 4 == 0 &&
-           flip_horizontal == 0 && flip_vertical == 0 && near(straighten_degrees, 0.0) &&
-           near(crop_x, 0.0) && near(crop_y, 0.0) && near(crop_width, 1.0) &&
-           near(crop_height, 1.0) && near(sharpen, 0.0) && near(clarity, 0.0) &&
-           near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) && near(soften, 0.0) &&
-           near(dehaze, 0.0) && near(velvia, 0.0) && color_balance_rgb.is_identity() &&
-           near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
-           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
-           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
-           raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
-           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
-           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+    return temperature.is_identity() && channel_mixer.is_identity() && near(exposure_ev, 0.0) &&
+           near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
+           near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
+           rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
+           near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
+           near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
+           near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
+           near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
+           color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
+           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
+           tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
+           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
+           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
+           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -1308,13 +1585,8 @@ bool DevelopParams::is_identity() const noexcept
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
-    if (name == "temperature")
+    if (apply_temperature_field(params.temperature, name, value))
     {
-        params.temperature = value;
-    }
-    else if (name == "tint")
-    {
-        params.tint = value;
     }
     else if (name == "channelMixerRR")
     {
@@ -1642,13 +1914,8 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
 bool reset_develop_field(DevelopParams &params, const std::string_view name)
 {
     DevelopParams identity;
-    if (name == "temperature")
+    if (reset_temperature_field(params.temperature, name))
     {
-        params.temperature = identity.temperature;
-    }
-    else if (name == "tint")
-    {
-        params.tint = identity.tint;
     }
     else if (name == "channelMixerRR" || name == "channelMixerRG" || name == "channelMixerRB" ||
              name == "channelMixerGR" || name == "channelMixerGG" || name == "channelMixerGB" ||
@@ -1929,7 +2196,6 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     else if (section == "whiteBalance")
     {
         params.temperature = identity.temperature;
-        params.tint = identity.tint;
     }
     else if (section == "calibration")
     {
@@ -2268,11 +2534,10 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     clamp_develop(clamped);
     Recipe recipe;
     recipe.asset = std::move(asset);
-    if (!near(clamped.temperature, kDevelopTemperatureDefault) || !near(clamped.tint, 0.0))
+    if (!clamped.temperature.is_identity())
     {
-        add_operation(recipe, "ravo.color.white_balance", "white-balance-1",
-                      {{"temperature", ParameterValue{clamped.temperature}},
-                       {"tint", ParameterValue{clamped.tint}}});
+        add_operation(recipe, "ravo.color.temperature", "temperature-1",
+                      temperature_to_parameters(clamped.temperature));
     }
     if (!clamped.channel_mixer.is_identity())
     {
@@ -2538,10 +2803,14 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             return as_integer(found->second, fallback);
         };
-        if (operation.id == "ravo.color.white_balance")
+        if (operation.id == "ravo.color.temperature")
         {
-            params.temperature = number("temperature", params.temperature);
-            params.tint = number("tint", params.tint);
+            auto temperature = temperature_from_parameters(operation.parameters);
+            if (!temperature)
+            {
+                return temperature.error();
+            }
+            params.temperature = std::move(temperature).value();
         }
         else if (operation.id == "ravo.color.channelmixerrgb")
         {

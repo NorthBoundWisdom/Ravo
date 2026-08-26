@@ -7,6 +7,7 @@
 #include "image_ops.h"
 #include "raw_ca.h"
 #include "raw_pipeline.h"
+#include "raw_temperature.h"
 
 namespace ravo
 {
@@ -178,6 +179,16 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     {
         return cancelled.error();
     }
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    auto temperature = resolve_raw_temperature(raw, recipe);
+    if (!temperature)
+    {
+        return temperature.error();
+    }
     const DecodedRaw *source = &raw;
     DecodedRaw prepared;
     for (const auto &operation : recipe.operations)
@@ -193,17 +204,19 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
             prepared = raw;
             source = &prepared;
         }
-        Result<void> applied = operation.id == "ravo.raw.hotpixels" ?
-                                   apply_raw_hotpixels(prepared, operation, cancellation) :
-                               operation.id == "ravo.raw.highlights" ?
-                                   apply_raw_highlights(prepared, operation, cancellation) :
-                                   apply_raw_cacorrect(prepared, operation, cancellation);
+        Result<void> applied =
+            operation.id == "ravo.raw.hotpixels" ?
+                apply_raw_hotpixels(prepared, operation, cancellation) :
+            operation.id == "ravo.raw.highlights" ?
+                apply_raw_highlights(prepared, operation, cancellation) :
+                apply_raw_cacorrect(prepared, operation, temperature.value().coefficients,
+                                    cancellation);
         if (!applied)
         {
             return applied.error();
         }
     }
-    return working_from_raw(*source, width, height, cancellation);
+    return working_from_raw(*source, width, height, temperature.value().coefficients, cancellation);
 }
 
 Result<LinearWorkingBuffer>
@@ -283,8 +296,8 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     Recipe rgb_recipe = request.recipe;
     for (auto &operation : rgb_recipe.operations)
     {
-        if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
-            operation.id == "ravo.raw.cacorrect")
+        if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
+            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect")
         {
             operation.enabled = false;
         }

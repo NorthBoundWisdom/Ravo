@@ -3,6 +3,7 @@
 #include "capability_ops.h"
 #include "image_ops.h"
 #include "raw_ca.h"
+#include "raw_temperature.h"
 
 #include <algorithm>
 #include <cmath>
@@ -49,6 +50,30 @@ namespace
         return make_error(ErrorCode::kUnsupported,
                           "The first Ravo RAW slice supports Bayer RGB CFA sensors only");
     }
+}
+
+[[nodiscard]] bool normalize_white_balance(const float source[4], const int colors,
+                                           std::array<float, 4> &output) noexcept
+{
+    const float green = source[1] > 0.0F ? source[1] : source[3] > 0.0F ? source[3] : 0.0F;
+    if (!std::isfinite(green) || green <= 0.0F)
+    {
+        return false;
+    }
+    const int required = colors >= 4 ? 4 : 3;
+    for (int channel = 0; channel < required; ++channel)
+    {
+        if (!std::isfinite(source[channel]) || source[channel] <= 0.0F)
+        {
+            return false;
+        }
+        output[static_cast<std::size_t>(channel)] = source[channel] / green;
+    }
+    if (required == 3)
+    {
+        output[3] = 1.0F;
+    }
+    return true;
 }
 
 [[nodiscard]] Result<std::unique_ptr<LibRaw>> open_libraw_file(const std::string_view input_uri)
@@ -331,13 +356,18 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     result.make = raw.idata.make;
     result.model = raw.idata.model;
 
-    const float green = raw.color.cam_mul[1] > 0.0F ? raw.color.cam_mul[1] :
-                        raw.color.cam_mul[3] > 0.0F ? raw.color.cam_mul[3] :
-                                                      1.0F;
-    if (raw.color.cam_mul[0] > 0.0F && raw.color.cam_mul[2] > 0.0F)
+    if (raw.color.as_shot_wb_applied)
     {
-        result.white_balance = {raw.color.cam_mul[0] / green, 1.0F, raw.color.cam_mul[2] / green};
+        result.as_shot_white_balance = {1.0F, 1.0F, 1.0F, 1.0F};
+        result.has_as_shot_white_balance = true;
     }
+    else
+    {
+        result.has_as_shot_white_balance = normalize_white_balance(
+            raw.color.cam_mul, raw.idata.colors, result.as_shot_white_balance);
+    }
+    result.has_camera_reference_white_balance = normalize_white_balance(
+        raw.color.pre_mul, raw.idata.colors, result.camera_reference_white_balance);
     for (std::size_t output_channel = 0; output_channel < 3; ++output_channel)
     {
         for (std::size_t input_channel = 0; input_channel < 3; ++input_channel)
@@ -422,6 +452,11 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
 
 Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &request)
 {
+    auto temperature = resolve_raw_temperature(raw, request.recipe);
+    if (!temperature)
+    {
+        return temperature.error();
+    }
     std::uint32_t default_width = raw.width;
     std::uint32_t default_height = raw.height;
     apply_display_rotation_to_size(default_width, default_height, raw.rotate_quarters);
@@ -438,24 +473,32 @@ Result<RenderedImage> render_raw(const DecodedRaw &raw, const RenderRequest &req
     Recipe rgb_recipe = request.recipe;
     for (auto &operation : rgb_recipe.operations)
     {
+        if (operation.id == "ravo.color.temperature")
+        {
+            operation.enabled = false;
+            continue;
+        }
         if (!operation.enabled ||
             (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
              operation.id != "ravo.raw.cacorrect"))
         {
             continue;
         }
-        Result<void> applied = operation.id == "ravo.raw.hotpixels" ?
-                                   apply_raw_hotpixels(prepared, operation, request.cancellation) :
-                               operation.id == "ravo.raw.highlights" ?
-                                   apply_raw_highlights(prepared, operation, request.cancellation) :
-                                   apply_raw_cacorrect(prepared, operation, request.cancellation);
+        Result<void> applied =
+            operation.id == "ravo.raw.hotpixels" ?
+                apply_raw_hotpixels(prepared, operation, request.cancellation) :
+            operation.id == "ravo.raw.highlights" ?
+                apply_raw_highlights(prepared, operation, request.cancellation) :
+                apply_raw_cacorrect(prepared, operation, temperature.value().coefficients,
+                                    request.cancellation);
         if (!applied)
         {
             return applied.error();
         }
         operation.enabled = false;
     }
-    auto working = working_from_raw(prepared, width, height, request.cancellation);
+    auto working = working_from_raw(prepared, width, height, temperature.value().coefficients,
+                                    request.cancellation);
     if (!working)
     {
         return working.error();

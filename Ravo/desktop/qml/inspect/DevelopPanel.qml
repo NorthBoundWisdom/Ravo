@@ -180,47 +180,51 @@ ColumnLayout {
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
-                        CustomSlider {
+                        CustomComboBox {
                             Layout.fillWidth: true
-                            title: qsTr("Temp")
-                            from: 2000
-                            to: 12000
-                            stepSize: 50
-                            validatorDecimals: 0
-                            showReset: true
-                            resetValue: 6500
-                            delayedCommit: true
+                            model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editTemperature : 6500
-                            onValueChanged: if (root.liveReady && root.commands)
-                                    root.commands.previewDevelopNumber("temperature", value)
-                            onValueCommitted: function (value) {
-                                if (root.commands)
-                                    root.commands.setDevelopNumber("temperature", value);
-                            }
-                            onResetRequested: if (root.commands)
-                                root.commands.resetControl("temperature")
+                            currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
                         }
-                        CustomSlider {
+                        CustomLabel {
                             Layout.fillWidth: true
-                            title: qsTr("Tint")
-                            from: -150
-                            to: 150
-                            stepSize: 1
-                            validatorDecimals: 0
-                            showReset: true
-                            resetValue: 0
-                            delayedCommit: true
-                            enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editTint : 0
-                            onValueChanged: if (root.liveReady && root.commands)
-                                    root.commands.previewDevelopNumber("tint", value)
-                            onValueCommitted: function (value) {
-                                if (root.commands)
-                                    root.commands.setDevelopNumber("tint", value);
+                            text: qsTr("Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.")
+                            wrapMode: Text.WordWrap
+                            opacity: 0.75
+                        }
+                        Repeater {
+                            model: [
+                                { "title": qsTr("Red coefficient"), "key": "red", "field": "whiteBalanceRed" },
+                                { "title": qsTr("Green coefficient"), "key": "green", "field": "whiteBalanceGreen" },
+                                { "title": qsTr("Blue coefficient"), "key": "blue", "field": "whiteBalanceBlue" },
+                                { "title": qsTr("Fourth coefficient"), "key": "fourth", "field": "whiteBalanceFourth" }
+                            ]
+                            delegate: CustomSlider {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                visible: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3
+                                         || root.presenter.editWhiteBalance.hasCoefficients)
+                                title: modelData.title
+                                from: 0.000001
+                                to: 8
+                                stepSize: 0.01
+                                validatorDecimals: 3
+                                showReset: true
+                                resetValue: 1
+                                delayedCommit: true
+                                enabled: root.hasSelection
+                                value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
+                                onValueChanged: if (root.liveReady && root.commands)
+                                        root.commands.previewDevelopNumber(modelData.field, value)
+                                onValueCommitted: function (value) {
+                                    if (root.commands)
+                                        root.commands.setDevelopNumber(modelData.field, value);
+                                }
+                                onResetRequested: if (root.commands)
+                                    root.commands.resetControl(modelData.field)
                             }
-                            onResetRequested: if (root.commands)
-                                root.commands.resetControl("tint")
                         }
                     }
                 }

@@ -420,6 +420,7 @@ void load_tile(TileBuffers &buffers, const TileBounds &bounds, const DecodedRaw 
 
 [[nodiscard]] Result<void> process_cacorrect(DecodedRaw &raw, const int iterations,
                                              const bool avoid_shift,
+                                             const std::array<float, 4> &white_balance,
                                              const CancellationToken &cancellation)
 {
     const int width = static_cast<int>(raw.width);
@@ -438,7 +439,7 @@ void load_tile(TileBuffers &buffers, const TileBounds &bounds, const DecodedRaw 
                           "RAW chromatic aberration correction requires white above black level");
     }
     float scaler = 1.0F;
-    for (const float coefficient : raw.white_balance)
+    for (const float coefficient : white_balance)
     {
         if (!std::isfinite(coefficient) || coefficient <= 0.0F)
         {
@@ -459,7 +460,7 @@ void load_tile(TileBuffers &buffers, const TileBounds &bounds, const DecodedRaw 
                                             raw.black_level),
                          0.0F) /
                 range;
-            output[index] = normalized * raw.white_balance[channel] / scaler;
+            output[index] = normalized * white_balance[channel] / scaler;
         }
     }
     const int half_width = (width + 1) / 2;
@@ -1182,7 +1183,7 @@ void load_tile(TileBuffers &buffers, const TileBounds &bounds, const DecodedRaw 
         {
             const std::size_t index = static_cast<std::size_t>(row) * width + column;
             const auto channel = cfa_channel(raw, row, column);
-            const float normalized = output[index] * scaler / raw.white_balance[channel];
+            const float normalized = output[index] * scaler / white_balance[channel];
             if (!std::isfinite(normalized))
             {
                 return make_error(ErrorCode::kValidation,
@@ -1202,6 +1203,7 @@ void load_tile(TileBuffers &buffers, const TileBounds &bounds, const DecodedRaw 
 } // namespace
 
 Result<void> apply_raw_cacorrect(DecodedRaw &raw, const OperationInstance &operation,
+                                 const std::array<float, 4> &white_balance,
                                  const CancellationToken &cancellation)
 {
     const double iterations_value = number_parameter(operation, "iterations", 2.0);
@@ -1231,7 +1233,7 @@ Result<void> apply_raw_cacorrect(DecodedRaw &raw, const OperationInstance &opera
     }
     try
     {
-        return process_cacorrect(raw, iterations, avoid_shift, cancellation);
+        return process_cacorrect(raw, iterations, avoid_shift, white_balance, cancellation);
     }
     catch (const std::bad_alloc &)
     {

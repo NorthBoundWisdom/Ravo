@@ -113,7 +113,10 @@ struct DecodedRaw
     std::uint32_t white_level = 65535;
     std::string make;
     std::string model;
-    std::array<float, 3> white_balance{1.0F, 1.0F, 1.0F};
+    std::array<float, 4> as_shot_white_balance{1.0F, 1.0F, 1.0F, 1.0F};
+    std::array<float, 4> camera_reference_white_balance{1.0F, 1.0F, 1.0F, 1.0F};
+    bool has_as_shot_white_balance = false;
+    bool has_camera_reference_white_balance = false;
     std::array<float, 9> camera_to_srgb{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
     std::vector<std::uint8_t> cfa_channels;
     std::vector<std::uint16_t> pixels;

@@ -25,6 +25,9 @@ Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽
 - RAW Repair：`ravo.raw.hotpixels` v1 在 owned Bayer CFA 副本上按冻结四同色邻居路径修复坏点，
   `ravo.raw.cacorrect` v1 保留 RawTherapee 两遍 tile/多项式拟合与 avoid-color-shift；二者的取消、
   sensor reject、memory budget、cache immutability、catalog reopen 与真实 RAW reference 均由 UT 覆盖。
+- White Balance：`ravo.color.temperature` v1 在 demosaic 前按 R/G1/B/G2 四通道系数缩放；默认 as-shot
+  与 camera-reference 分别由 LibRaw `cam_mul` / `pre_mul` 提供，manual 保存显式系数，late-reference 只允许
+  后接显式 channel-mixer CAT。旧 Kelvin/tint RGB 近似和 generic fallback 已删除。
 - Color Calibration：`ravo.color.channelmixerrgb` v1 复刻冻结 V3 CPU 的矩阵归一化、
   CAT16/Bradford/XYZ/RGB、XYZ gamut、饱和度/明度与灰度路径；Studio 暴露显式 3×3 矩阵，
   CLI、preview 与 export 复用同一 engine operation。

@@ -34,7 +34,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.raw.demosaic` | `demosaic` | first RAW vertical-slice planning |
 | `ravo.color.input` | `colorin` | first colour-chain planning |
 | `ravo.core.exposure` | `exposure` | P1 CPU develop control |
-| `ravo.color.white_balance` | `temperature` / `colorin` | P1 temperature/tint multipliers on linear RGB |
+| `ravo.color.temperature` | `temperature` | pre-demosaic/RGB four-channel scaling with explicit as-shot, camera-reference, late-reference and manual ownership |
 | `ravo.color.channelmixerrgb` | `channelmixerrgb` | frozen V3 matrix normalization, explicit adaptation, XYZ gamut and LMS/RGB saturation-lightness calibration |
 | `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 raster-input contrast and old-recipe compatibility; RAW Studio uses Sigmoid contrast |
 | `ravo.core.highlights` | `filmicrgb` | P1 highlight compression |
@@ -142,7 +142,6 @@ struct bytes or call the old dynamic module ABI.
 | `sharpen` | yes | defer until shared convolution facilities exist |
 | `soften` | yes | queued by ADR-0015; existing simplified Ravo soften is not frozen-owner acceptance |
 | `splittoning` | yes | queued by ADR-0015; existing simplified Ravo split toning is not frozen-owner acceptance |
-| `temperature` | yes | defer with RAW colour capability |
 | `velvia` | yes | queued by ADR-0015; existing simplified Ravo velvia is not frozen-owner acceptance |
 | `vignette` | yes | queued by ADR-0015; existing simplified Ravo vignette is not frozen-owner acceptance |
 | `watermark` | yes | queued by ADR-0015; requires deterministic resource/font and export contract |

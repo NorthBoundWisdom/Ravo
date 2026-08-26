@@ -4,8 +4,8 @@
 >
 > **更新日期：2026-08-26**
 >
-> **当前执行焦点：C3 RAW 白平衡 `temperature`。** 不得并行迁
-> `colorin`、`colorout`、`cacorrectrgb` 或通用 mask graph。
+> **当前执行焦点：C4 输入颜色 profile `colorin`。** 不得并行迁
+> `colorout`、`primaries`、`cacorrectrgb` 或通用 mask graph。
 
 本文只记录尚未完成的执行工作、风险、依赖、验证命令和完成门槛。当前能力、
 架构、迁移政策、leftover 边界和测试合同分别以
@@ -31,44 +31,41 @@
 
 ## 2. 迁移队列
 
-### C3. RAW 白平衡：`temperature`（当前）
+### C4. 输入颜色 profile：`colorin`（当前）
 
-目标：把冻结 `temperature.c` 的逐 CFA channel scaling 迁到 Ravo-owned RAW preprocess，
-消除当前 decoder 内隐藏 as-shot 乘法与 demosaic 后 Kelvin/tint 近似的双重 ownership，让 CLI、
-CatalogService、export 与 Studio 共用同一白平衡合同。
+目标：把冻结 `colorin.c` 的 input-profile → working-profile CPU 转换收敛到 engine 私有 color
+adapter，替代当前 RAW decoder 内固定 camera-to-sRGB matrix 和 raster 无 profile 状态的隐式路径。
 
 范围：
 
-- versioned schema 必须显式区分 `as_shot`、`camera_reference`、
-  `as_shot_to_reference` 与 resolved manual coefficients；冻结 red/green/blue/fourth
-  `[0,8]` channel 参数和 mode/preset 语义不得被二参数 Kelvin RGB 近似替代；
-- RAW 默认 as-shot 系数来自已验证 LibRaw metadata；camera reference 只能由明确 camera matrix/
-  versioned preset 解析，缺失时 fail-fast，不保留冻结硬编码 2/1/1.5 安全网；
-- CPU 保留 Bayer、X-Trans 与 non-mosaiced 三条 channel-scaling 数学；Ravo 当前不支持的 sensor/
-  demosaic 组合仍返回结构化 unsupported，不能在 RGB 后补救；
-- 必须先决定 `DecodedRaw::white_balance`、`ravo.color.channelmixerrgb` 与 late
-  reference correction 的唯一 owner，证明 RAW as-shot 不会在 decode 与 recipe 各乘一次；
-- GTK spot picker、相机 preset combobox/彩色 slider、OpenCL、动态 IOP ABI 与旧 preset/XMP ABI 不迁；
-  spot 结果若保留能力，只能保存为已解析的 canonical coefficients。
+- versioned schema 覆盖 input profile type/filename、rendering intent、gamut normalize
+  （off/sRGB/Adobe RGB/linear Rec709/linear Rec2020）、blue mapping、working profile type/filename；
+- 必须分别冻结 matrix-only、matrix + 1D shaper LUT、LCMS/ICC transform、unbounded extrapolation、
+  gamut clipping 与 RAW blue mapping 默认 CPU 数学；不得把所有 profile 简化成固定 sRGB 3×3；
+- 明确内建/enhanced/vendor matrix、embedded/file ICC、Lab/RGB input 和 working RGB 的支持集合；
+  缺失/损坏/不支持 profile 结构化失败，不静默改用 sRGB 或 generic camera matrix；
+- C4 同时决定当前 `DecodedRaw::camera_to_srgb`、raster decoder ICC 与后续 C5 `colorout` 的
+  唯一 profile-state owner；公共 recipe/ports 不暴露裸 LCMS/Qt/legacy profile 指针；
+- GTK profile combobox、OpenCL、动态 IOP ABI、旧 profile search path 与 binary preset/XMP ABI 不迁。
 
 owner / 生命周期 / 失败：
 
-- coefficients/mode schema 属于 recipe；camera/as-shot metadata 和 CFA 执行属于 engine raw pipeline；
-  services 只持久/编排，QML 只展示 resolved state 并转发意图；
-- 每次 decode 得到不可变 source metadata，recipe 产生 owned CFA 输出并进入 preprocess cache key；
-  不缓存 LibRaw、GTK、旧 preset 表或全局 chroma 指针；
-- 系数缺失/零值/非有限/越界、未知 camera reference、非法 mode/sensor、内存失败和取消都在发布前返回
-  结构化错误；不得静默使用 generic 系数或发布部分 CFA。
+- profile identifier/schema 属于 recipe/domain；解析后的 matrix/TRC/ICC transform 属于 engine 私有 adapter；
+  services 只编排，Studio 只展示稳定 profile ID 与 intent；
+- profile state 是单次 decode/render 拥有的不可变值，进入 cache key；LCMS handle/文件 mapping 在任务结束前
+  释放，不跨线程裸共享；
+- 非有限 matrix/LUT、奇异 transform、profile 缺失/损坏、unsupported intent/colorspace、分配失败与取消
+  均在输出发布前返回结构化错误，不发布部分像素。
 
 验证与完成门槛：
 
-- [ ] 全 schema round-trip；未知字段、非法 mode、非有限/零/越界系数与缺失 camera reference fail-fast；
-- [ ] Bayer/X-Trans/non-mosaiced channel mapping、第四通道、逐行取消、输入 immutability 与 cache-key UT；
-- [ ] 静态解码 `0000-nop`/代表性 RAW history 的 temperature blob，迁移前后
-  `mire1.cr2` 默认 as-shot reference 保持在记录容差内，并覆盖 camera reference/manual look；
-- [ ] `channelmixerrgb` 组合 UT 证明 WB 不重复，late reference mode 的 stage/参数 ownership 明确；
-- [ ] Studio White Balance Inspector 保存/reopen 由 presenter/QML smoke + catalog integration 自动验证；
-- [ ] 删除 `legacy/src/iop/temperature.c` 及注册；共享 preset/color science 只在消费者清零后退役；
+- [ ] 全 schema round-trip；未知字段/type/intent/normalize、损坏/缺失 profile 与非有限 matrix/LUT fail-fast；
+- [ ] identity/matrix/shaper/unbounded、五种 normalize、blue mapping、ICC path 与逐行取消 synthetic UT；
+- [ ] 静态解码 `0107-colorin-gamma`、`0108-colorin-clip`、
+  `0109-colorin-gamma-and-clip`，并建立 `0000-nop`/`mire1.cr2` RAW reference；
+- [ ] raster embedded/file ICC、RAW camera matrix、cache-key、输入 immutability 和 CLI/export 一致性有 contract；
+- [ ] Studio Input Profile Inspector 保存/reopen 由 presenter/QML smoke + catalog integration 自动验证；
+- [ ] 删除 `legacy/src/iop/colorin.c` 及注册；共享 colorspaces/LCMS owner 只在消费者清零后退役；
 - [ ] 完整 Ravo unit/contract/catalog 测试和 freeze/inventory/boundary 检查通过；
 - [ ] Windows/Linux 未跑时明确写成未验证。
 
@@ -93,14 +90,14 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 
 本节是当前 working tree 的执行清单，不是长期 capability 真相源。快照基线：
 
-- `legacy/src/iop/CMakeLists.txt` 仍注册 65 个 IOP；每个都在 3.2 单独列出；
+- `legacy/src/iop/CMakeLists.txt` 仍注册 64 个 IOP；每个都在 3.2 单独列出；
 - `legacy/src/libs/CMakeLists.txt` 有 23 个仍有源码的模块/工具，另有已退役源码的失效注册；
 - `legacy/src/views` 有 `darkroom` / `lighttable` 两个旧 view；imageio 有 4 个 format、1 个 storage 和
   9 类 dispatcher/decoder owner；
 - `common` / `control` / `develop` / GUI 与 host 资源按 3.3–3.7 的 ownership 单元列出；
 - `legacy/tests` 的 158 组 fixture 与 5 个原图在算法迁移期间保持只读，旧 runner 不运行。
 
-状态约定：`当前` 只有 C3；`排队` 必须等表中依赖和所有更早项；`删除` 表示不移植 UI/ABI；`保留证据`
+状态约定：`当前` 只有 C4；`排队` 必须等表中依赖和所有更早项；`删除` 表示不移植 UI/ABI；`保留证据`
 表示迁移完成前不得移动。任何模块达到门槛后先同步稳定真相源，再从本节删除该行。
 
 通用完成门槛：
@@ -123,7 +120,7 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 | D0.4 | `common/iop_order.c`、`libs/modulegroups.c`、`usermanual_url.c` 的已退役名字 | 最终删除引用 | 这些文件仍服务旧 UI/registry；等其所有算法消费者清零后随 DELETE 批次处理 |
 | D0.5 | 无消费者的 `iop/choleski.h`、`equalizer_eaw.h`、`svd.h`、未注册 `useless.c` | 删除 | 再次全仓搜索确认无 include/target/fixture owner，补 retired list 与 freeze check |
 
-### 3.2 IOP 算法队列（65 个注册模块）
+### 3.2 IOP 算法队列（64 个注册模块）
 
 以下表的组顺序也是依赖顺序；同组默认按行串行。`fixture` 来自冻结 manifest，只表示有静态证据，不表示已覆盖。
 
@@ -131,8 +128,7 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 
 | ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
 | --- | --- | --- | --- |
-| C3 | `temperature` — `iop/temperature.c` | yes | **当前 / ALG**；明确 RAW WB 与 `channelmixerrgb` ownership，camera/as-shot/reference 模式，详见第 2 节 |
-| C4 | `colorin` — `iop/colorin.c` | yes | 排队 / ALG；依赖 S1，ICC/input profile、matrix/LUT、unsupported profile contract |
+| C4 | `colorin` — `iop/colorin.c` | yes | **当前 / ALG**；依赖 S1，ICC/input profile、matrix/LUT、unsupported profile contract，详见第 2 节 |
 | C5 | `colorout` — `iop/colorout.c` | yes | 排队 / ALG；依赖 C4/O1，输出 profile、intent、soft-proof 与 export 一致性 |
 | C6 | `primaries` — `iop/primaries.c` | yes | 排队 / ALG；依赖 C4，custom primaries/white point/gamut mapping |
 | C7 | `profile_gamma` — `iop/profile_gamma.c` | no | 排队 / ALG；依赖 C4，无 fixture 时先提交 Ravo-owned synthetic + RAW reference |
@@ -229,7 +225,7 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 | S2 | `common/bilateral*`、`box_filters*`、`distance_transform*`、`dwt*`、`eaw*`、`eigf.h`、`gaussian*`、`guided_filter*`、`fast_guided_filter.h`、`heal*`、`locallaplacian*`、`nlmeans_core*`、`splines*`、`interpolation*`、`noiseprofiles*`、`bspline.h`、`luminance_mask.h`、`rgb_norms.h`、`focus*`、`histogram*`、`develop/noise_generator.h`、`develop/openmp_maths.h` | CORE 迁入 engine primitives | F/G/M/diagnostic 批次逐消费者验收；OpenCL twin 不迁 |
 | S3 | `develop/blend*`、`develop/blends/*`、`develop/masks/*`、`develop/masks.h` | CORE 建 canonical mask/blend graph | shape/group/coordinate/parametric blend/ROI/schema/取消 UT；M1 前置 |
 | S4 | `develop/develop*`、`pixelpipe*`、`pixelpipe_cache*`、`pixelpipe_hb*`、`tiling*`、`imageop*`、`format*`、`borders_helper*` | CORE 收敛到 Engine facade + services cache/scheduler | 每个旧 consumer 清零；不复制动态 pixelpipe/global state |
-| S5 | `iop/iop_api.h`、`common/module*`、`module_api.h`、`dynload*`、`introspection.h`、`action.h`、`darktable*`、`darktable_api.h`、`poison.h`、`iop_group*`、`iop_order*`、`iop_profile*` | DELETE 动态 IOP/module ABI 与全局 composition | 65 个 IOP 全部退役后删除；operation registry 保持内建 versioned schema |
+| S5 | `iop/iop_api.h`、`common/module*`、`module_api.h`、`dynload*`、`introspection.h`、`action.h`、`darktable*`、`darktable_api.h`、`poison.h`、`iop_group*`、`iop_order*`、`iop_profile*` | DELETE 动态 IOP/module ABI 与全局 composition | 64 个 IOP 全部退役后删除；operation registry 保持内建 versioned schema |
 | S6 | `common/database*`、`database_schema*`、`sqliteicu*` | CORE/DELETE | 对照 Ravo schema/FTS/ICU；需要的数据 contract 迁入 SQLite adapter，其余旧 catalog ABI 删除 |
 | S7 | `common/image*`、`film*`、`import_session*`、`grouping*` | CORE/DELETE | Asset/import/folder/group use case contract 覆盖后删除全局 image/film owner |
 | S8 | `common/collection*`、`selection*`、`ratings*`、`colorlabels*`、`act_on*` | CORE/DELETE | Ravo LibraryQuery/selection/review 覆盖；缺失 collection 查询逐项补 UT |
@@ -344,13 +340,13 @@ GPU 不进入当前队列。只有相关 CPU 路径验收、金样稳定且端�
 才能按 [`DevDocs/GPU_Baseline.md`](DevDocs/GPU_Baseline.md) 新建专项 TODO。
 
 3.1–3.7 已列出当前全部剩余模块；[`DevDocs/ProductRoadmap.md`](DevDocs/ProductRoadmap.md) 只保留
-尚未冻结的跨层设计约束，不能据此从本 TODO 隐去模块。C3 完成前不并行实施后续行。
+尚未冻结的跨层设计约束，不能据此从本 TODO 隐去模块。C4 完成前不并行实施后续行。
 
 ## 4. 本 TODO 完成门槛
 
 删除本文前必须同时成立：
 
-- [ ] C3 及后续逐项提升的算法已验收并从本文移除，已接受的旧 owner 同变更退役；
+- [ ] C4 及后续逐项提升的算法已验收并从本文移除，已接受的旧 owner 同变更退役；
 - [ ] 共享旧 owner 只剩明确消费者，剩余树均能映射到 `Ravo/MIGRATION.md` leftover；
 - [ ] 横向可靠性和承诺平台安装闭环达到发布门槛，或拆成有 owner 的独立根 TODO；
 - [ ] 原片安全、schema migration、备份/回滚和结构化 unsupported 有测试证据；

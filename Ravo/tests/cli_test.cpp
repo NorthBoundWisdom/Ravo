@@ -117,6 +117,22 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
                            {
                                const auto *id = operation.find("id");
                                return id != nullptr && id->string_if() != nullptr &&
+                                      *id->string_if() == "ravo.color.temperature";
+                           }));
+    EXPECT_EQ(operations->array_if()->end(),
+              std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                           [](const JsonValue &operation)
+                           {
+                               const auto *id = operation.find("id");
+                               return id != nullptr && id->string_if() != nullptr &&
+                                      *id->string_if() == "ravo.color.white_balance";
+                           }));
+    EXPECT_NE(operations->array_if()->end(),
+              std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                           [](const JsonValue &operation)
+                           {
+                               const auto *id = operation.find("id");
+                               return id != nullptr && id->string_if() != nullptr &&
                                       *id->string_if() == "ravo.color.colorbalancergb";
                            }));
     EXPECT_EQ(operations->array_if()->end(),

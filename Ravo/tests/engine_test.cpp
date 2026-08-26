@@ -20,6 +20,8 @@
 
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
+#include "raw_temperature.h"
+#include "temperature_fixture.h"
 #include "test_support.h"
 
 namespace ravo
@@ -139,6 +141,32 @@ TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)
     EXPECT_FALSE(inspected.value().model.empty());
     EXPECT_GT(inspected.value().width, 0U);
     EXPECT_GT(inspected.value().height, 0U);
+}
+
+TEST(EngineFacadeTest, DecodeExposesAsShotAndCameraReferenceWhiteBalance)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_TRUE(decoded.value().has_as_shot_white_balance);
+    EXPECT_TRUE(decoded.value().has_camera_reference_white_balance);
+    EXPECT_NEAR(decoded.value().as_shot_white_balance[0], 2.115234375F, 1.0e-6F);
+    EXPECT_NEAR(decoded.value().as_shot_white_balance[1], 1.0F, 1.0e-6F);
+    EXPECT_NEAR(decoded.value().as_shot_white_balance[2], 1.3984375F, 1.0e-6F);
+    EXPECT_FLOAT_EQ(decoded.value().as_shot_white_balance[3], 1.0F);
+    for (const float coefficient : decoded.value().camera_reference_white_balance)
+    {
+        EXPECT_TRUE(std::isfinite(coefficient));
+        EXPECT_GT(coefficient, 0.0F);
+        EXPECT_LE(coefficient, 8.0F);
+    }
+    EXPECT_NE(decoded.value().camera_reference_white_balance,
+              decoded.value().as_shot_white_balance);
+    EXPECT_NEAR(decoded.value().camera_reference_white_balance[0], 2.62727761F, 1.0e-6F);
+    EXPECT_NEAR(decoded.value().camera_reference_white_balance[1], 1.0F, 1.0e-6F);
+    EXPECT_NEAR(decoded.value().camera_reference_white_balance[2], 1.25087583F, 1.0e-6F);
+    EXPECT_NEAR(decoded.value().camera_reference_white_balance[3], 1.0F, 1.0e-6F);
 }
 
 TEST(EngineFacadeTest, ExtractsBoundedEmbeddedJpegPreview)
@@ -410,6 +438,13 @@ color_balance_rgb_operation(const ColorBalanceRgbParams &params,
             std::nullopt};
 }
 
+[[nodiscard]] OperationInstance temperature_operation(const TemperatureParams &params,
+                                                      std::string instance_id = "temperature-1")
+{
+    return {"ravo.color.temperature",          1,           std::move(instance_id), true,
+            temperature_to_parameters(params), std::nullopt};
+}
+
 [[nodiscard]] OperationInstance hot_pixels_operation(const bool permissive = false)
 {
     return {"ravo.raw.hotpixels",
@@ -443,6 +478,8 @@ color_balance_rgb_operation(const ColorBalanceRgbParams &params,
     raw.cfa_height = 2;
     raw.black_level = 0;
     raw.white_level = 1000;
+    raw.has_as_shot_white_balance = true;
+    raw.has_camera_reference_white_balance = true;
     raw.cfa_channels = {0, 1, 1, 2};
     raw.pixels.assign(static_cast<std::size_t>(raw.width) * raw.height, 100);
     return raw;
@@ -567,6 +604,116 @@ TEST(EngineFacadeTest, RawCaCorrectRejectsUnsupportedBuffersAndHonorsCancellatio
         render_op(engine.value(), solid_raster(8, 8, 120, 120, 120), raw_ca_operation(6));
     ASSERT_FALSE(invalid_iterations);
     EXPECT_EQ(invalid_iterations.error().code, ErrorCode::kValidation);
+}
+
+TEST(TemperatureTest, ScalesBayerXtransAndFourthChannelWithoutMutatingInput)
+{
+    const std::array<float, kTemperatureChannelCount> coefficients{2.0F, 3.0F, 4.0F, 5.0F};
+    const std::vector<float> bayer_input(8U, 1.0F);
+    const std::vector<std::uint8_t> four_channel_bayer{0, 1, 3, 2};
+    auto bayer = scale_temperature_cfa(bayer_input, 4, 2, 2, 2, four_channel_bayer, coefficients,
+                                       CancellationToken{});
+    ASSERT_TRUE(bayer) << bayer.error().message;
+    EXPECT_EQ(bayer.value(), (std::vector<float>{2.0F, 3.0F, 2.0F, 3.0F, 5.0F, 4.0F, 5.0F, 4.0F}));
+    EXPECT_EQ(bayer_input, std::vector<float>(8U, 1.0F));
+
+    std::vector<std::uint8_t> xtrans_pattern(36U);
+    for (std::size_t index = 0; index < xtrans_pattern.size(); ++index)
+    {
+        xtrans_pattern[index] = static_cast<std::uint8_t>(index % 3U);
+    }
+    const std::vector<float> xtrans_input(72U, 0.25F);
+    auto xtrans = scale_temperature_cfa(xtrans_input, 12, 6, 6, 6, xtrans_pattern, coefficients,
+                                        CancellationToken{});
+    ASSERT_TRUE(xtrans) << xtrans.error().message;
+    for (std::uint32_t row = 0; row < 6; ++row)
+    {
+        for (std::uint32_t column = 0; column < 12; ++column)
+        {
+            const auto channel = xtrans_pattern[(row % 6U) * 6U + (column % 6U)];
+            EXPECT_FLOAT_EQ(xtrans.value()[static_cast<std::size_t>(row) * 12U + column],
+                            0.25F * coefficients[channel]);
+        }
+    }
+
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("temperature_test"));
+    auto cancelled = scale_temperature_cfa(xtrans_input, 12, 6, 6, 6, xtrans_pattern, coefficients,
+                                           cancellation.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+
+    auto invalid_coefficients = coefficients;
+    invalid_coefficients[2] = 0.0F;
+    auto invalid = scale_temperature_cfa(xtrans_input, 12, 6, 6, 6, xtrans_pattern,
+                                         invalid_coefficients, CancellationToken{});
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
+}
+
+TEST(TemperatureTest, ResolvesMetadataModesAndManualRgbFailsFast)
+{
+    DecodedRaw raw = synthetic_bayer_raw();
+    raw.as_shot_white_balance = {2.0F, 1.0F, 1.5F, 1.0F};
+    raw.camera_reference_white_balance = {1.2F, 1.0F, 1.1F, 1.0F};
+    Recipe recipe;
+    recipe.asset = {"raw", "memory:raw", std::nullopt};
+
+    auto as_shot = resolve_raw_temperature(raw, recipe);
+    ASSERT_TRUE(as_shot) << as_shot.error().message;
+    EXPECT_EQ(as_shot.value().coefficients, raw.as_shot_white_balance);
+
+    TemperatureParams reference;
+    reference.mode = std::string(kTemperatureModeCameraReference);
+    recipe.operations = {temperature_operation(reference)};
+    auto camera = resolve_raw_temperature(raw, recipe);
+    ASSERT_TRUE(camera) << camera.error().message;
+    EXPECT_EQ(camera.value().coefficients, raw.camera_reference_white_balance);
+
+    const auto manual = test::temperature_0000_params();
+    recipe.operations = {temperature_operation(manual)};
+    auto explicit_coefficients = resolve_raw_temperature(raw, recipe);
+    ASSERT_TRUE(explicit_coefficients) << explicit_coefficients.error().message;
+    ASSERT_TRUE(manual.coefficients);
+    for (std::size_t index = 0; index < kTemperatureChannelCount; ++index)
+    {
+        EXPECT_FLOAT_EQ(explicit_coefficients.value().coefficients[index],
+                        static_cast<float>((*manual.coefficients)[index]));
+    }
+
+    raw.has_camera_reference_white_balance = false;
+    recipe.operations = {temperature_operation(reference)};
+    auto missing_reference = resolve_raw_temperature(raw, recipe);
+    ASSERT_FALSE(missing_reference);
+    EXPECT_EQ(missing_reference.error().code, ErrorCode::kValidation);
+    raw.has_as_shot_white_balance = false;
+    recipe.operations.clear();
+    auto missing_as_shot = resolve_raw_temperature(raw, recipe);
+    ASSERT_FALSE(missing_as_shot);
+    EXPECT_EQ(missing_as_shot.error().code, ErrorCode::kValidation);
+
+    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}};
+    const auto original = rgb.rgb;
+    auto automatic_on_rgb =
+        apply_temperature_rgb(rgb, temperature_operation(reference), CancellationToken{});
+    ASSERT_FALSE(automatic_on_rgb);
+    EXPECT_EQ(automatic_on_rgb.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rgb.rgb, original);
+
+    CancellationSource cancelled_source;
+    ASSERT_TRUE(cancelled_source.cancel("temperature_rgb"));
+    auto cancelled_rgb =
+        apply_temperature_rgb(rgb, temperature_operation(manual), cancelled_source.token());
+    ASSERT_FALSE(cancelled_rgb);
+    EXPECT_EQ(cancelled_rgb.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(rgb.rgb, original);
+
+    auto manual_on_rgb =
+        apply_temperature_rgb(rgb, temperature_operation(manual), CancellationToken{});
+    ASSERT_TRUE(manual_on_rgb) << manual_on_rgb.error().message;
+    EXPECT_FLOAT_EQ(rgb.rgb[0], 0.25F * 2.115234375F);
+    EXPECT_FLOAT_EQ(rgb.rgb[1], 0.5F);
+    EXPECT_FLOAT_EQ(rgb.rgb[2], 0.75F * 1.3984375F);
 }
 
 TEST(EngineFacadeTest, ChannelMixerMatchesFrozenRgbMatrixAndV3AdjustmentPaths)
@@ -852,13 +999,10 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                                std::nullopt});
     ASSERT_TRUE(vibrance) << vibrance.error().message;
 
-    auto wb = render_op(engine.value(), base_raster,
-                        {"ravo.color.white_balance",
-                         1,
-                         "wb-1",
-                         true,
-                         {{"temperature", ParameterValue{4000.0}}, {"tint", ParameterValue{20.0}}},
-                         std::nullopt});
+    TemperatureParams manual_wb;
+    manual_wb.mode = std::string(kTemperatureModeManual);
+    manual_wb.coefficients = std::array<double, kTemperatureChannelCount>{1.3, 0.9, 0.7, 1.0};
+    auto wb = render_op(engine.value(), base_raster, temperature_operation(manual_wb));
     ASSERT_TRUE(wb) << wb.error().message;
     const auto mid = (8U * 16U + 8U) * 3U;
     EXPECT_NE(wb.value().rgb[mid], base.value().rgb[mid]);
@@ -1286,6 +1430,98 @@ TEST(EngineFacadeTest, SigmoidHasARealRawReference)
     EXPECT_NEAR(static_cast<double>(sums[1]), 281792.0, 2000.0);
     EXPECT_NEAR(static_cast<double>(sums[2]), 263085.0, 2000.0);
     EXPECT_LT(clipped_channels, rendered.value().rgb.size() / 100U);
+}
+
+TEST(EngineFacadeTest, TemperatureManualAndCameraReferenceHaveRealRawReferences)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    const auto original_pixels = decoded.value().pixels;
+    Recipe manual_recipe;
+    manual_recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    manual_recipe.operations.push_back(temperature_operation(test::temperature_0000_params()));
+    auto linear = engine.value().linear_working_from_raw(decoded.value(), manual_recipe, 64, 48,
+                                                         CancellationToken{});
+    ASSERT_TRUE(linear) << linear.error().message;
+    EXPECT_EQ(decoded.value().pixels, original_pixels);
+
+    const auto render_temperature = [&](TemperatureParams params)
+    {
+        Recipe recipe;
+        recipe.asset = {"mire1", mire1_path(), std::nullopt};
+        recipe.operations.push_back(temperature_operation(params));
+        recipe.operations.push_back(sigmoid_operation());
+        RenderRequest request;
+        request.asset = recipe.asset;
+        request.recipe = recipe;
+        request.output_width = 64;
+        request.output_height = 48;
+        return engine.value().render_to_image(request);
+    };
+    const auto sums = [](const RenderedImage &image)
+    {
+        std::array<std::uint64_t, 3> result{};
+        for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+        {
+            for (std::size_t channel = 0; channel < result.size(); ++channel)
+            {
+                result[channel] += image.rgb[index + channel];
+            }
+        }
+        return result;
+    };
+
+    auto manual = render_temperature(test::temperature_0000_params());
+    ASSERT_TRUE(manual) << manual.error().message;
+    const auto manual_sums = sums(manual.value());
+    EXPECT_NEAR(static_cast<double>(manual_sums[0]), 304283.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(manual_sums[1]), 280917.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(manual_sums[2]), 261889.0, 2000.0);
+
+    TemperatureParams reference;
+    reference.mode = std::string(kTemperatureModeCameraReference);
+    auto camera = render_temperature(reference);
+    ASSERT_TRUE(camera) << camera.error().message;
+    const auto camera_sums = sums(camera.value());
+    EXPECT_NEAR(static_cast<double>(camera_sums[0]), 363500.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(camera_sums[1]), 284155.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(camera_sums[2]), 241746.0, 2000.0);
+    EXPECT_NE(camera_sums, manual_sums);
+}
+
+TEST(EngineFacadeTest, TemperatureLateReferenceUsesOnlyExplicitChannelMixerCat)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ChannelMixerParams calibration;
+    calibration.adaptation = std::string(kChannelMixerAdaptationCat16);
+    calibration.illuminant_x = 0.3819674253463745;
+    calibration.illuminant_y = 0.36998802423477173;
+    calibration.gamut = 1.0;
+    calibration.clip = true;
+    const auto render = [&](TemperatureParams params)
+    {
+        Recipe recipe;
+        recipe.asset = {"mire1", mire1_path(), std::nullopt};
+        recipe.operations.push_back(temperature_operation(params));
+        recipe.operations.push_back(channel_mixer_operation(calibration));
+        recipe.operations.push_back(sigmoid_operation());
+        RenderRequest request;
+        request.asset = recipe.asset;
+        request.recipe = recipe;
+        request.output_width = 64;
+        request.output_height = 48;
+        return engine.value().render_to_image(request);
+    };
+
+    auto manual_params = test::temperature_0000_params();
+    auto manual = render(manual_params);
+    ASSERT_TRUE(manual) << manual.error().message;
+    auto late = render(test::temperature_0171_late_params());
+    ASSERT_TRUE(late) << late.error().message;
+    EXPECT_EQ(late.value().rgb, manual.value().rgb);
 }
 
 TEST(EngineFacadeTest, ChannelMixerHasARealRawReference)

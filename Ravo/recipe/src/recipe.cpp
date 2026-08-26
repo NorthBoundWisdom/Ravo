@@ -816,6 +816,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == "ravo.color.temperature")
+        {
+            auto temperature = validate_temperature_parameters(operation.parameters);
+            if (!temperature)
+            {
+                auto error = temperature.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.color.colorbalancergb")
         {
             auto color_balance = validate_color_balance_rgb_parameters(operation.parameters);
@@ -854,6 +864,74 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                                       {{"operation_id", operation.id}});
                 }
             }
+        }
+    }
+
+    std::optional<std::size_t> temperature_index;
+    std::optional<TemperatureParams> temperature_params;
+    for (std::size_t index = 0; index < recipe.operations.size(); ++index)
+    {
+        const auto &operation = recipe.operations[index];
+        if (!operation.enabled || operation.id != "ravo.color.temperature")
+        {
+            continue;
+        }
+        if (temperature_index)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Recipe contains more than one enabled temperature operation",
+                              {{"operation_id", operation.id}});
+        }
+        auto parsed = temperature_from_parameters(operation.parameters);
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        temperature_index = index;
+        temperature_params = std::move(parsed).value();
+    }
+    if (temperature_index)
+    {
+        for (std::size_t index = 0; index < *temperature_index; ++index)
+        {
+            const auto &operation = recipe.operations[index];
+            if (operation.enabled &&
+                (operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
+                 operation.id == "ravo.raw.hotpixels"))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Temperature must precede every CFA preprocessing operation",
+                                  {{"operation_id", operation.id}});
+            }
+        }
+    }
+    if (temperature_params && temperature_params->mode == kTemperatureModeAsShotToReference)
+    {
+        bool has_explicit_late_adaptation = false;
+        for (std::size_t index = *temperature_index + 1U; index < recipe.operations.size(); ++index)
+        {
+            const auto &operation = recipe.operations[index];
+            if (!operation.enabled || operation.id != "ravo.color.channelmixerrgb")
+            {
+                continue;
+            }
+            auto mixer = channel_mixer_from_parameters(operation.parameters);
+            if (!mixer)
+            {
+                return mixer.error();
+            }
+            has_explicit_late_adaptation = mixer.value().adaptation != kChannelMixerAdaptationRgb;
+            if (has_explicit_late_adaptation)
+            {
+                break;
+            }
+        }
+        if (!has_explicit_late_adaptation)
+        {
+            return make_error(
+                ErrorCode::kValidation,
+                "As-shot-to-reference temperature requires a later explicit chromatic adaptation",
+                {{"operation_id", "ravo.color.temperature"}});
         }
     }
     return {};

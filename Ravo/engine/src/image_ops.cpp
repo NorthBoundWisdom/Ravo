@@ -15,6 +15,7 @@
 #include <png.h>
 
 #include "capability_ops.h"
+#include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
 
 namespace ravo
@@ -805,61 +806,6 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
 [[nodiscard]] float luma(const float r, const float g, const float b)
 {
     return 0.2126F * r + 0.7152F * g + 0.0722F * b;
-}
-
-void kelvin_rgb(const double temperature, float &red, float &green, float &blue)
-{
-    const double kelvin = std::clamp(temperature, 1000.0, 40000.0) / 100.0;
-    if (kelvin <= 66.0)
-    {
-        red = 1.0F;
-        green = static_cast<float>(
-            std::clamp((99.4708025861 * std::log(kelvin) - 161.1195681661) / 255.0, 0.0, 1.0));
-    }
-    else
-    {
-        red = static_cast<float>(
-            std::clamp(329.698727446 * std::pow(kelvin - 60.0, -0.1332047592) / 255.0, 0.0, 1.0));
-        green = static_cast<float>(
-            std::clamp(288.1221695283 * std::pow(kelvin - 60.0, -0.0755148492) / 255.0, 0.0, 1.0));
-    }
-    if (kelvin >= 66.0)
-    {
-        blue = 1.0F;
-    }
-    else if (kelvin <= 19.0)
-    {
-        blue = 0.0F;
-    }
-    else
-    {
-        blue = static_cast<float>(std::clamp(
-            (138.5177312231 * std::log(kelvin - 10.0) - 305.0447926307) / 255.0, 0.0, 1.0));
-    }
-}
-
-void apply_white_balance(WorkingImage &image, const double temperature, const double tint)
-{
-    float sample_r = 1.0F;
-    float sample_g = 1.0F;
-    float sample_b = 1.0F;
-    float ref_r = 1.0F;
-    float ref_g = 1.0F;
-    float ref_b = 1.0F;
-    kelvin_rgb(temperature, sample_r, sample_g, sample_b);
-    kelvin_rgb(6500.0, ref_r, ref_g, ref_b);
-    const float tint_scale = static_cast<float>(std::exp2(tint / 150.0));
-    const float mul_r =
-        (sample_r / std::max(sample_g, 1.0e-6F)) / (ref_r / std::max(ref_g, 1.0e-6F));
-    const float mul_g = tint_scale;
-    const float mul_b =
-        (sample_b / std::max(sample_g, 1.0e-6F)) / (ref_b / std::max(ref_g, 1.0e-6F));
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        image.rgb[index] *= mul_r;
-        image.rgb[index + 1U] *= mul_g;
-        image.rgb[index + 2U] *= mul_b;
-    }
 }
 
 void apply_exposure(WorkingImage &image, const double ev)
@@ -1947,11 +1893,30 @@ void apply_dehaze(WorkingImage &image, const double amount)
 
 Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t width,
                                       const std::uint32_t height,
+                                      const std::array<float, 4> &white_balance,
                                       const CancellationToken &cancellation)
 {
     if (width == 0 || height == 0)
     {
         return make_error(ErrorCode::kInvalidArgument, "Render output dimensions must be non-zero");
+    }
+    for (std::size_t channel = 0; channel < white_balance.size(); ++channel)
+    {
+        if (!std::isfinite(white_balance[channel]) || white_balance[channel] <= 0.0F ||
+            white_balance[channel] > 8.0F)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RAW temperature coefficient is outside (0, 8]",
+                              {{"channel", std::to_string(channel)}});
+        }
+    }
+    if (raw.cfa_width == 0 || raw.cfa_height == 0 ||
+        raw.cfa_channels.size() != static_cast<std::size_t>(raw.cfa_width) * raw.cfa_height ||
+        std::any_of(raw.cfa_channels.begin(), raw.cfa_channels.end(),
+                    [](const std::uint8_t channel) { return channel >= 4U; }))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "RAW temperature requires a one-to-four-channel CFA pattern");
     }
     const int turns = normalized_rotate_quarters(raw.rotate_quarters);
     std::uint32_t demosaic_width = width;
@@ -1988,11 +1953,20 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                         const std::uint32_t x = static_cast<std::uint32_t>(
                             std::clamp(static_cast<int>(source_x) + offset_x, 0,
                                        static_cast<int>(raw.width) - 1));
-                        const std::uint8_t channel =
+                        const std::uint8_t cfa_channel =
                             raw.cfa_channels[(y % raw.cfa_height) * raw.cfa_width +
                                              (x % raw.cfa_width)];
-                        sum[channel] += static_cast<float>(
-                            raw.pixels[static_cast<std::size_t>(y) * raw.width + x]);
+                        if (cfa_channel >= white_balance.size())
+                        {
+                            continue;
+                        }
+                        const std::size_t channel = cfa_channel == 3U ? 1U : cfa_channel;
+                        const float sample = std::max(
+                            0.0F, (static_cast<float>(
+                                       raw.pixels[static_cast<std::size_t>(y) * raw.width + x]) -
+                                   static_cast<float>(raw.black_level)) /
+                                      denominator);
+                        sum[channel] += sample * white_balance[cfa_channel];
                         ++count[channel];
                     }
                 }
@@ -2003,10 +1977,7 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                     const float sample = count[channel] == 0 ?
                                              0.0F :
                                              sum[channel] / static_cast<float>(count[channel]);
-                    camera_rgb[channel] =
-                        std::max(0.0F,
-                                 (sample - static_cast<float>(raw.black_level)) / denominator) *
-                        raw.white_balance[channel];
+                    camera_rgb[channel] = sample;
                 }
                 const std::size_t output_index =
                     (static_cast<std::size_t>(output_y) * demosaic_width + output_x) * 3U;
@@ -2065,10 +2036,13 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             continue;
         }
-        if (operation.id == "ravo.color.white_balance")
+        if (operation.id == "ravo.color.temperature")
         {
-            apply_white_balance(image, parameter(operation, "temperature", 6500.0),
-                                parameter(operation, "tint", 0.0));
+            auto balanced = apply_temperature_rgb(image, operation, cancellation);
+            if (!balanced)
+            {
+                return balanced.error();
+            }
             continue;
         }
         if (operation.id == "ravo.color.channelmixerrgb")

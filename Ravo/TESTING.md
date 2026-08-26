@@ -39,9 +39,9 @@ QML 组件失败会使该 target 的构建失败。手动检查：`$<TARGET_FILE
 `ravo_desktop_command_tests` 验证内建 command/action 覆盖、稳定 ID、运行时状态重校验、无效 dispatch、
 快捷键冲突、三平台主修饰键和 Unicode 模糊搜索；标签为 `ravo-desktop-smoke`。
 Develop 自动合同还覆盖 recipe/history/revision 故障注入回滚、RAW interactive 与完整 CPU render
-逐像素一致、L2–L9 + channel mixer + Color Balance RGB 参数/像素 reopen，以及 preview owner 取消
-superseded token 和拒绝旧 revision/asset。desktop QML smoke 验证 Color Calibration 与完整 Color Balance
-RGB 绑定可加载；这些自动检查不依赖 Computer Use。
+逐像素一致、L2–L9 + temperature + channel mixer + Color Balance RGB 参数/像素 reopen，以及 preview
+owner 取消 superseded token 和拒绝旧 revision/asset。desktop QML smoke 验证 White Balance、Color
+Calibration 与完整 Color Balance RGB 绑定可加载；这些自动检查不依赖 Computer Use。
 
 ## Test framework 与 target 边界
 
@@ -133,6 +133,10 @@ SQLite adapter 至少测试：
 - `channelmixerrgb` 使用静态解码的 `0085-channelmixerrgb` 两个 schema-v3 参数实例、identity/单通道/
   交叉通道/奇异矩阵合成输入和 `mire1.cr2` channel-sum reference；不得用裸 3×3 替代 CAT/gamut/V3
   saturation-lightness 路径。
+- `temperature` 使用静态解码的 `0000-nop` schema-v3、`0171-capture-sharpen` schema-v4 late-reference 与
+  `0177-bayer4` 第四通道系数；覆盖 Bayer/X-Trans/RGB channel mapping、LibRaw as-shot/daylight metadata、
+  manual、late-reference + 显式 CAT、缺失/零/非有限拒绝、取消/输入 immutability、preprocess cache key、
+  `mire1.cr2` 默认/manual/camera-reference channel-sum 和 catalog reopen。不得用 Kelvin/tint RGB 近似替代。
 - `colorbalancergb` 使用静态解码的 `0083-colorbalancergb` schema-v4 与
   `0093-colorbalancergb-ucs` schema-v5 参数、Filmlight Yrg/grading RGB 与三段 opacity synthetic、DT UCS
   gamut/soft clip、JzAzBz 92³ LUT/负 LMS clip、取消/非有限不发布和 `mire1.cr2` channel-sum reference；
