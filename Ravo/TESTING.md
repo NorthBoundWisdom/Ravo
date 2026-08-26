@@ -447,6 +447,21 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   65,500-dimension, resource, and entry/scanline cancellation gates remain.
   Final bytes use the shared encoded-publication contract; EXIF/XMP construction
   remains a later JPEG contract.
+- PNG export freezes one typed options value from `ExportRequest` through
+  CatalogService and the raster port to the private libpng encoder. Domain
+  tests cover stable 8/16-bit values and names, the 8-bit/compression-5 default,
+  compression 0–9, and fail-closed option errors. Adapter tests assert the
+  exact zlib level/memory/strategy/window/method/buffer and adaptive-filter
+  configuration, then parse IHDR/chunks and inflate rows to prove opaque,
+  non-interlaced RGB8 pixels. They verify exact sRGB/Display P3/file ICC, known
+  built-in cICP, and that a file ICC whose identifier collides with `srgb` does
+  not acquire false cICP. Dimension/source/output/ICC bounds, invalid cICP,
+  legal-but-unsupported RGB16, entry/row cancellation, deterministic
+  libpng/allocation failure, and source/profile immutability return no encoded
+  result. Catalog tests prove default and explicit propagation, non-PNG
+  isolation, and no file publication for unsupported/invalid options; PNG input
+  and shared encoded-publication regressions keep I6 decode and atomic
+  destination ownership separate.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

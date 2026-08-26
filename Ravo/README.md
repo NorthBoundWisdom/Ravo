@@ -101,8 +101,17 @@ Current implementation status:
   quality/subsampling request. Quality defaults to 95 within the frozen 5–100
   range; automatic sampling follows the frozen quality thresholds, while
   service callers may select 4:4:4, 4:4:0, 4:2:2, or 4:2:0 explicitly. The CLI
-  currently exposes quality only. EXIF/XMP policy and final encoded-file
-  publication remain separate migration work.
+  currently exposes quality only. EXIF/XMP policy remains later JPEG work;
+  final bytes use the shared ADR-0032 atomic no-replace publication boundary
+  without completing batch/storage retirement.
+- PNG export uses one typed bit-depth/compression request from CatalogService
+  through the raster port. It defaults to 8-bit and compression 5, accepts
+  compression 0–9, and delegates current RGB8 output to a private libpng owner
+  with frozen zlib/filter settings, opaque non-interlaced RGB, resolved ICC,
+  and cICP only for recognized built-in profile state. A 16-bit request is
+  valid but fails structurally for the current RGB8 rendered source rather
+  than inventing precision. Explicit PNG options in CLI plus EXIF/XMP and
+  resolution metadata remain later I12 work.
 - Final display packing is an engine-private boundary after Output Color. It
   converts finite profiled float RGB to owned RGB8 by clamping negative values,
   multiplying by 255, rounding, and clamping super-white while retaining the

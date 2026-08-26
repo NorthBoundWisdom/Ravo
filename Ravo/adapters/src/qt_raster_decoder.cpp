@@ -1,6 +1,7 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 
 #include "jpeg_encoder.h"
+#include "png_encoder.h"
 
 #include <algorithm>
 #include <array>
@@ -3117,6 +3118,54 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
                       {{"profile", profile.identifier}});
 }
 
+[[nodiscard]] std::optional<std::array<std::uint8_t, 4U>>
+png_cicp_for_profile(const ColorProfileState &profile) noexcept
+{
+    if (profile.kind != ColorProfileKind::kBuiltin || profile.model != ColorModel::kRgb ||
+        profile.camera_input)
+    {
+        return std::nullopt;
+    }
+    const std::string_view identifier = profile.identifier;
+    if (identifier == "srgb")
+    {
+        return std::array<std::uint8_t, 4U>{1U, 13U, 0U, 1U};
+    }
+    if (identifier == "rec709")
+    {
+        return std::array<std::uint8_t, 4U>{1U, 1U, 0U, 1U};
+    }
+    if (identifier == "linear_rec709")
+    {
+        return std::array<std::uint8_t, 4U>{1U, 8U, 0U, 1U};
+    }
+    if (identifier == "linear_rec2020")
+    {
+        return std::array<std::uint8_t, 4U>{9U, 8U, 0U, 1U};
+    }
+    if (identifier == "pq_rec2020")
+    {
+        return std::array<std::uint8_t, 4U>{9U, 16U, 0U, 1U};
+    }
+    if (identifier == "hlg_rec2020")
+    {
+        return std::array<std::uint8_t, 4U>{9U, 18U, 0U, 1U};
+    }
+    if (identifier == "pq_p3")
+    {
+        return std::array<std::uint8_t, 4U>{12U, 16U, 0U, 1U};
+    }
+    if (identifier == "hlg_p3")
+    {
+        return std::array<std::uint8_t, 4U>{12U, 18U, 0U, 1U};
+    }
+    if (identifier == "display_p3")
+    {
+        return std::array<std::uint8_t, 4U>{12U, 13U, 0U, 1U};
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
@@ -3361,7 +3410,8 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
 Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
     const std::uint32_t width, const std::uint32_t height, const std::vector<std::uint8_t> &rgb,
     const ColorProfileState &color_profile, const ExportFormat format,
-    const JpegExportOptions &jpeg_options, const CancellationToken &cancellation) const
+    const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+    const PngExportOptions &png_options) const
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -3431,6 +3481,56 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
                                          static_cast<std::size_t>(icc.size())},
                                         jpeg_options, cancellation);
     }
+    if (format == ExportFormat::kPng)
+    {
+        auto valid_options = validate_png_export_options(png_options);
+        if (!valid_options)
+        {
+            return valid_options.error();
+        }
+        if (png_options.bit_depth == PngBitDepth::k16)
+        {
+            return detail::encode_png_rgb8(width, height, rgb, {}, png_options, cancellation);
+        }
+        if (color_profile.model != ColorModel::kRgb)
+        {
+            return make_error(
+                ErrorCode::kUnsupported, "PNG output ICC is not an RGB profile",
+                {{"format", "png"}, {"reason", "unsupported_png_output_icc_color_model"}});
+        }
+        auto output_color_space = qt_output_color_space(color_profile);
+        if (!output_color_space)
+        {
+            const bool unsupported = output_color_space.error().code == ErrorCode::kUnsupported;
+            return make_error(output_color_space.error().code, output_color_space.error().message,
+                              {{"format", "png"},
+                               {"profile", color_profile.identifier},
+                               {"reason", unsupported ? "unsupported_png_output_profile" :
+                                                        "invalid_png_output_icc"}});
+        }
+        if (output_color_space.value().colorModel() != QColorSpace::ColorModel::Rgb)
+        {
+            return make_error(
+                ErrorCode::kUnsupported, "PNG output ICC is not an RGB profile",
+                {{"format", "png"}, {"reason", "unsupported_png_output_icc_color_model"}});
+        }
+        const QByteArray icc = output_color_space.value().iccProfile();
+        if (icc.isEmpty())
+        {
+            return make_error(ErrorCode::kValidation, "PNG output ICC could not be resolved",
+                              {{"format", "png"}, {"reason", "missing_png_output_icc"}});
+        }
+        detail::PngEncodeColorMetadata metadata;
+        metadata.resolved_rgb_icc = {reinterpret_cast<const std::uint8_t *>(icc.constData()),
+                                     static_cast<std::size_t>(icc.size())};
+        const auto cicp = png_cicp_for_profile(color_profile);
+        if (cicp)
+        {
+            metadata.has_cicp = true;
+            metadata.cicp = *cicp;
+        }
+        return detail::encode_png_rgb8(width, height, rgb, metadata, png_options, cancellation);
+    }
     const auto expected =
         static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;
     if (width == 0 || height == 0 || rgb.size() != expected)
@@ -3446,11 +3546,7 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         return make_error(ErrorCode::kValidation, "Export image is too large to encode");
     }
     QByteArray format_id;
-    if (format == ExportFormat::kPng)
-    {
-        format_id = QByteArrayLiteral("png");
-    }
-    else if (format == ExportFormat::kTiff)
+    if (format == ExportFormat::kTiff)
     {
         format_id = QByteArrayLiteral("tiff");
     }
@@ -3481,10 +3577,6 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         return make_error(ErrorCode::kIo, "Unable to open export encoder buffer");
     }
     QImageWriter writer(&buffer, format_id);
-    if (format == ExportFormat::kPng)
-    {
-        writer.setCompression(1);
-    }
     if (!writer.write(profiled))
     {
         return make_error(ErrorCode::kIo, "Unable to encode export image",

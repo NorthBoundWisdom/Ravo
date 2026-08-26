@@ -23,12 +23,13 @@ public:
     [[nodiscard]] virtual Result<DecodedRaster>
     decode_memory(const std::vector<std::uint8_t> &encoded, std::uint32_t max_edge,
                   const CancellationToken &cancellation, int rotate_quarters = 0) const = 0;
-    // Pixel, profile, JPEG-option, and cancellation inputs are borrowed only
+    // Pixel, profile, format-option, and cancellation inputs are borrowed only
     // for this synchronous call. Success returns an owned encoded byte buffer.
     [[nodiscard]] virtual Result<std::vector<std::uint8_t>>
     encode(std::uint32_t width, std::uint32_t height, const std::vector<std::uint8_t> &rgb,
            const ColorProfileState &color_profile, ExportFormat format,
-           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation) const = 0;
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options = {}) const = 0;
 };
 
 } // namespace ravo

@@ -196,6 +196,65 @@ TEST(ExportFormatTest, OwnsTypedJpegOptionsAndRejectsInvalidValues)
     EXPECT_EQ(noncanonical.error().context.at("subsampling"), "4:2:2");
 }
 
+TEST(ExportFormatTest, OwnsTypedPngOptionsAndRejectsInvalidValues)
+{
+    const PngExportOptions defaults;
+    EXPECT_EQ(defaults.bit_depth, PngBitDepth::k8);
+    EXPECT_EQ(defaults.compression, 5);
+    EXPECT_TRUE(validate_png_export_options(defaults));
+
+    struct BitDepthExpectation
+    {
+        PngBitDepth value = PngBitDepth::k8;
+        std::string_view name;
+        std::uint8_t wire_value = 0U;
+    };
+    constexpr std::array<BitDepthExpectation, 2U> kExpectations{{
+        {PngBitDepth::k8, "8", 8U},
+        {PngBitDepth::k16, "16", 16U},
+    }};
+    for (const BitDepthExpectation &expectation : kExpectations)
+    {
+        EXPECT_EQ(static_cast<std::uint8_t>(expectation.value), expectation.wire_value);
+        EXPECT_EQ(png_bit_depth_name(expectation.value), expectation.name);
+        const auto parsed = parse_png_bit_depth(expectation.name);
+        ASSERT_TRUE(parsed) << parsed.error().message;
+        EXPECT_EQ(parsed.value(), expectation.value);
+    }
+
+    EXPECT_TRUE(validate_png_export_options({PngBitDepth::k8, 0}));
+    EXPECT_TRUE(validate_png_export_options({PngBitDepth::k16, 9}));
+
+    const PngExportOptions invalid_depth{static_cast<PngBitDepth>(255U), 5};
+    const auto invalid_depth_result = validate_png_export_options(invalid_depth);
+    ASSERT_FALSE(invalid_depth_result);
+    EXPECT_EQ(invalid_depth_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_depth_result.error().context.at("format"), "png");
+    EXPECT_EQ(invalid_depth_result.error().context.at("reason"), "invalid_png_bit_depth");
+    EXPECT_EQ(invalid_depth_result.error().context.at("bit_depth"), "255");
+    EXPECT_EQ(png_bit_depth_name(invalid_depth.bit_depth), "unknown");
+
+    for (const int compression : {-1, 10})
+    {
+        const auto invalid_compression =
+            validate_png_export_options({PngBitDepth::k8, compression});
+        ASSERT_FALSE(invalid_compression);
+        EXPECT_EQ(invalid_compression.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(invalid_compression.error().context.at("format"), "png");
+        EXPECT_EQ(invalid_compression.error().context.at("reason"), "invalid_png_compression");
+        EXPECT_EQ(invalid_compression.error().context.at("compression"),
+                  std::to_string(compression));
+        EXPECT_EQ(invalid_compression.error().context.at("minimum"), "0");
+        EXPECT_EQ(invalid_compression.error().context.at("maximum"), "9");
+    }
+
+    const auto noncanonical = parse_png_bit_depth("8-bit");
+    ASSERT_FALSE(noncanonical);
+    EXPECT_EQ(noncanonical.error().context.at("format"), "png");
+    EXPECT_EQ(noncanonical.error().context.at("reason"), "invalid_png_bit_depth");
+    EXPECT_EQ(noncanonical.error().context.at("bit_depth"), "8-bit");
+}
+
 TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
 {
     AssetRecord first;

@@ -57,11 +57,14 @@ RAW metadata adapter is the only Exiv2 consumer; other roots do not link a
 product target until their corresponding lens-database or codec adapter is
 accepted. Future public contracts continue to carry owned metadata,
 calibration, or encoded bytes rather than third-party handles. Existing
-QSQLITE, zlib/libpng, and Qt JPEG/TIFF input runtime ownership is unchanged.
-The adapter-private pinned libjpeg-turbo encoder owns JPEG output quality,
-explicit chroma subsampling, ICC APP2, bounds, and cancellation; Qt TIFF output
-remains until an adapter owns its Deflate/predictor/level and multi-page
-contracts.
+QSQLITE, zlib/libpng PNG input, and Qt JPEG/TIFF input runtime ownership is
+unchanged. The adapter-private libpng/ZLIB encoder owns PNG output bit depth
+and compression, opaque non-interlaced RGB8, ICC/recognized built-in cICP,
+bounds, and cancellation; a 16-bit request remains unsupported until the
+rendered source can carry real RGB16. The adapter-private pinned libjpeg-turbo
+encoder owns JPEG output quality, explicit chroma subsampling, ICC APP2,
+bounds, and cancellation; Qt TIFF output remains until an adapter owns its
+Deflate/predictor/level and multi-page contracts.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
 services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
@@ -199,10 +202,11 @@ display-referred input and do not receive Sigmoid twice. Import persists
 thumbnail dimensions only; loupe creates 1600px on demand.
 
 The raster adapter accepts PNG/JPEG/BMP/GIF/WebP/TIFF and exports
-PNG/JPEG/TIFF. PNG/TIFF output uses Qt; the JPEG branch delegates to the
-adapter-private pinned libjpeg-turbo encoder. JPEG/GIF/WebP/TIFF plugin targets
-and QSQLITE remain configure-time requirements for their current input/runtime
-consumers. TGA/WBMP/ICO and other SQL drivers have no product consumers.
+PNG/JPEG/TIFF. PNG delegates to the adapter-private libpng/ZLIB encoder, JPEG
+delegates to the adapter-private pinned libjpeg-turbo encoder, and TIFF output
+still uses Qt. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE remain
+configure-time requirements for their current input/runtime consumers.
+TGA/WBMP/ICO and other SQL drivers have no product consumers.
 
 Radiance RGBE tranche 1 remains outside that RGB8 path. A dedicated synchronous
 `HdrDecoder` port returns owned linear RGB float32 pixels plus handle-free
@@ -611,8 +615,10 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
 - CatalogService owns local JPEG/PNG/TIFF/original-copy export. Pixel exports
   embed the recipe-declared RGB profile. JPEG requests own typed quality
   5–100/default 95 plus automatic or explicit 4:4:4/4:4:0/4:2:2/4:2:0 sampling;
-  complete metadata, path-template and batch/storage policy, and old export
-  presets remain out of scope.
+  PNG requests own typed 8/16-bit depth and compression 0–9/default 5, while
+  the current RGB8 source accepts only 8-bit output. Complete metadata,
+  explicit PNG CLI options, path-template and batch/storage policy, and old
+  export presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

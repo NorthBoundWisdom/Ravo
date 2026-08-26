@@ -222,7 +222,7 @@ default. fixture means static evidence exists, not that it is covered.
 | I9 | imageio_rgbe* | ALG/adapter | HDR RGBE decode/colour contract and fixture; do not treat it as ordinary raster |
 | I10 | imageio/format/copy.c | DELETE/reuse original-copy service | Ravo exact-byte 64 KiB streaming, exclusive temp, atomic no-replace, conflict/cancellation/source/error/disk-full and CLI context are hardened; still blocked on I1/I14/U10/J2 zero consumers before removing plugin/registration |
 | I11 | imageio/format/jpeg.c | Adapter/export | Quality/ICC/metadata/subsampling/disk-full contract |
-| I12 | imageio/format/png.c | Adapter/export | Bit depth/ICC/metadata/alpha/disk-full contract |
+| I12 | imageio/format/png.c | Adapter/export | Core accepted: typed 8/16-bit depth and compression 0–9/default 5 propagate to a bounded private libpng RGB8/opaque/non-interlaced ICC + known-built-in-cICP encoder and shared atomic publication. Remaining: real RGB16 source, EXIF/XMP/resolution, explicit PNG CLI options, shared imageio/storage/job consumers, then zero-consumer plugin/registration retirement; do not delete the old owner yet |
 | I13 | imageio/format/tiff.c | Adapter/export | 8/16/float/compression/ICC/metadata/disk-full contract |
 | I14 | imageio/storage/disk.c | DELETE/reuse CatalogService export | Path template/conflict/cancellation/atomic write covered, then delete dynamic storage ABI |
 | I15 | external/CMakeLists.txt, external/LibRaw-cmake, cie_colorimetric_tables.c, ThreadSafetyAnalysis.h | DATA/DELETE | Move needed tables into owned data; dependencies use FreeCM source roots only; delete vendored/build shims |

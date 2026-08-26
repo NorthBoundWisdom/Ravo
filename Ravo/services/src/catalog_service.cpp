@@ -1054,6 +1054,14 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
             return options.error();
         }
     }
+    if (request.format == ExportFormat::kPng)
+    {
+        auto options = validate_png_export_options(request.png_options);
+        if (!options)
+        {
+            return options.error();
+        }
+    }
     auto output = normalize_local_input(request.output_path);
     if (!output)
     {
@@ -1137,9 +1145,10 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return rendered.error();
     }
-    auto encoded = raster_->encode(rendered.value().width, rendered.value().height,
-                                   rendered.value().rgb, rendered.value().color_profile,
-                                   request.format, request.jpeg_options, request.cancellation);
+    auto encoded =
+        raster_->encode(rendered.value().width, rendered.value().height, rendered.value().rgb,
+                        rendered.value().color_profile, request.format, request.jpeg_options,
+                        request.cancellation, request.png_options);
     if (!encoded)
     {
         return encoded.error();

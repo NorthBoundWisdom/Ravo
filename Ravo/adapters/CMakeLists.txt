@@ -5,6 +5,7 @@ target_sources(ravo_adapters
     src/filesystem_preview_cache.cpp
     src/jpeg_encoder.cpp
     src/legacy_xmp.cpp
+    src/png_encoder.cpp
     src/qt_raster_decoder.cpp
     src/radiance_rgbe_decoder.cpp
     src/sqlite_catalog.cpp
@@ -19,6 +20,6 @@ target_include_directories(ravo_adapters
 
 target_link_libraries(ravo_adapters
   PUBLIC ravo_foundation ravo_recipe ravo_domain
-  PRIVATE Qt6::Core Qt6::Gui Qt6::Sql ZLIB::ZLIB ravo_libjpeg_turbo)
+  PRIVATE Qt6::Core Qt6::Gui Qt6::Sql PNG::PNG ZLIB::ZLIB ravo_libjpeg_turbo)
 
 ravo_configure_target(ravo_adapters)

@@ -276,6 +276,59 @@ Result<void> validate_jpeg_export_options(const JpegExportOptions &options)
          {"subsampling", std::to_string(static_cast<std::uint8_t>(options.subsampling))}});
 }
 
+std::string_view png_bit_depth_name(const PngBitDepth bit_depth) noexcept
+{
+    switch (bit_depth)
+    {
+    case PngBitDepth::k8:
+        return "8";
+    case PngBitDepth::k16:
+        return "16";
+    }
+    return "unknown";
+}
+
+Result<PngBitDepth> parse_png_bit_depth(const std::string_view name)
+{
+    if (name == "8")
+    {
+        return PngBitDepth::k8;
+    }
+    if (name == "16")
+    {
+        return PngBitDepth::k16;
+    }
+    return make_error(
+        ErrorCode::kValidation, "Unknown PNG bit depth",
+        {{"bit_depth", std::string(name)}, {"format", "png"}, {"reason", "invalid_png_bit_depth"}});
+}
+
+Result<void> validate_png_export_options(const PngExportOptions &options)
+{
+    switch (options.bit_depth)
+    {
+    case PngBitDepth::k8:
+    case PngBitDepth::k16:
+        break;
+    default:
+        return make_error(
+            ErrorCode::kValidation, "PNG bit depth is invalid",
+            {{"bit_depth", std::to_string(static_cast<std::uint8_t>(options.bit_depth))},
+             {"format", "png"},
+             {"reason", "invalid_png_bit_depth"}});
+    }
+    if (options.compression < kPngCompressionMin || options.compression > kPngCompressionMax)
+    {
+        return make_error(ErrorCode::kValidation, "PNG compression must be between 0 and 9",
+                          {{"compression", std::to_string(options.compression)},
+                           {"format", "png"},
+                           {"maximum", std::to_string(kPngCompressionMax)},
+                           {"minimum", std::to_string(kPngCompressionMin)},
+                           {"reason", "invalid_png_compression"}});
+    }
+    return {};
+}
+
 std::string asset_display_name(const AssetRecord &asset)
 {
     const auto slash = asset.normalized_uri.find_last_of('/');
