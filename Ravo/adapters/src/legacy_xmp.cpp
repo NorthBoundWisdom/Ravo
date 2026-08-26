@@ -56,6 +56,19 @@ namespace
                        {"reason", "unsupported_legacy_operation"}});
 }
 
+[[nodiscard]] std::optional<std::string> attribute_value(const QXmlStreamAttributes &attributes,
+                                                         const QStringView name)
+{
+    for (const auto &attribute : attributes)
+    {
+        if (attribute.name() == name)
+        {
+            return utf8(attribute.value());
+        }
+    }
+    return std::nullopt;
+}
+
 [[nodiscard]] bool has_attribute(const QXmlStreamAttributes &attributes, const QStringView name)
 {
     for (const auto &attribute : attributes)
@@ -371,7 +384,6 @@ constexpr std::array kBuiltinRawOperations{
     BuiltinRawOperation{"temperature", "3", "006007400000803f0000b33f0000c07f"},
     BuiltinRawOperation{"highlights", "2", "000000000000803f00000000000000000000803f"},
     BuiltinRawOperation{"demosaic", "3", "0000000000000000000000000000000000000000"},
-    BuiltinRawOperation{"gamma", "1", "0000000000000000"},
     BuiltinRawOperation{"flip", "2", "ffffffff"},
 };
 
@@ -379,6 +391,140 @@ constexpr std::string_view kDefaultBlendParameters =
     "gz11eJxjYGBgkGAAgRNODGiAEV0AJ2iwh+CRyscOAAdeGQQ=";
 constexpr std::string_view kPrimariesDefaultBlendParameters =
     "gz09eJxjYGBgYAFiCQYYOOHEgAZY0QVwggZ7CB6pfOygYtaVAyCMi48L/AcCEA0AmawnoA==";
+
+struct LegacyGammaBlendTuple
+{
+    std::string_view version;
+    std::string_view parameters;
+};
+
+constexpr std::string_view kGammaBlendGz14GuideOne =
+    "gz14eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfNoAAEkgGQQ=";
+constexpr std::string_view kGammaBlendGz14GuideFive =
+    "gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg=";
+constexpr std::string_view kGammaBlendGz12GuideOne =
+    "gz12eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfOqC/0AAogFjBh0A";
+constexpr std::string_view kGammaBlendGz12GuideFive =
+    "gz12eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfOqC/0AAogFpBh0E";
+constexpr std::string_view kGammaBlendGz11FeatherV1 =
+    "gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU=";
+constexpr std::string_view kGammaBlendV11UncompressedGuideFive =
+    "000000000000000018000000000000000000c84200000000000000000000000000000000050000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000";
+
+constexpr std::array kLegacyGammaBlendTuples{
+    LegacyGammaBlendTuple{"9", kDefaultBlendParameters},
+    LegacyGammaBlendTuple{"10", kGammaBlendGz14GuideOne},
+    LegacyGammaBlendTuple{"11", kGammaBlendV11UncompressedGuideFive},
+    LegacyGammaBlendTuple{"11", kGammaBlendGz14GuideOne},
+    LegacyGammaBlendTuple{"11", kGammaBlendGz14GuideFive},
+    LegacyGammaBlendTuple{"12", kGammaBlendGz12GuideFive},
+    LegacyGammaBlendTuple{"12", kGammaBlendGz14GuideOne},
+    LegacyGammaBlendTuple{"12", kGammaBlendGz14GuideFive},
+    LegacyGammaBlendTuple{"13", kGammaBlendGz11FeatherV1},
+    LegacyGammaBlendTuple{"13", kGammaBlendGz12GuideOne},
+    LegacyGammaBlendTuple{"13", kGammaBlendGz12GuideFive},
+    LegacyGammaBlendTuple{"14", kGammaBlendGz11FeatherV1},
+};
+
+[[nodiscard]] bool is_allowed_gamma_attribute(const QStringView name) noexcept
+{
+    return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
+           name == u"params" || name == u"multi_name" || name == u"multi_priority" ||
+           name == u"multi_name_hand_edited" || name == u"blendop_version" ||
+           name == u"blendop_params";
+}
+
+[[nodiscard]] Result<void> absorb_legacy_gamma(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy display encoding mask state is unsupported",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "gamma"},
+                               {"reason", "unsupported_legacy_gamma_mask"}});
+        }
+        if (!is_allowed_gamma_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy display encoding contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "gamma"},
+                               {"reason", "unsupported_legacy_gamma_attribute"}});
+        }
+    }
+
+    const auto version = attribute_value(attributes, u"modversion");
+    if (!version || *version != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy display encoding module version is unsupported",
+                          {{"legacy_operation", "gamma"},
+                           {"legacy_version", version.value_or("<missing>")},
+                           {"reason", "unsupported_legacy_gamma_version"}});
+    }
+    const auto enabled = attribute_value(attributes, u"enabled");
+    if (!enabled || *enabled != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy display encoding boundary must be enabled",
+                          {{"legacy_enabled", enabled.value_or("<missing>")},
+                           {"legacy_operation", "gamma"},
+                           {"reason", "unsupported_legacy_gamma_disabled"}});
+    }
+    const auto parameters = attribute_value(attributes, u"params");
+    if (!parameters || *parameters != "0000000000000000")
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy display encoding parameters differ from the frozen boundary",
+            {{"legacy_operation", "gamma"}, {"reason", "unsupported_legacy_gamma_parameters"}});
+    }
+
+    const auto blend_version = attribute_value(attributes, u"blendop_version");
+    const auto blend_parameters = attribute_value(attributes, u"blendop_params");
+    const bool frozen_blend =
+        blend_version && blend_parameters &&
+        std::any_of(kLegacyGammaBlendTuples.begin(), kLegacyGammaBlendTuples.end(),
+                    [&](const LegacyGammaBlendTuple &candidate)
+                    {
+                        return candidate.version == *blend_version &&
+                               candidate.parameters == *blend_parameters;
+                    });
+    if (!frozen_blend)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy display encoding blend state differs from every frozen default",
+                          {{"legacy_blend_version", blend_version.value_or("<missing>")},
+                           {"legacy_operation", "gamma"},
+                           {"reason", "unsupported_legacy_gamma_blend"}});
+    }
+
+    const auto multi_priority = attribute_value(attributes, u"multi_priority");
+    const auto multi_name = attribute_value(attributes, u"multi_name");
+    const auto multi_name_hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (!multi_priority || *multi_priority != "0" || !multi_name || !multi_name->empty() ||
+        (multi_name_hand_edited && *multi_name_hand_edited != "0"))
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy display encoding instance state is not the frozen singleton",
+            {{"legacy_operation", "gamma"}, {"reason", "unsupported_legacy_gamma_multi_state"}});
+    }
+    return {};
+}
 
 [[nodiscard]] Result<bool> absorb_builtin_raw_operation(const std::string_view operation,
                                                         const QXmlStreamAttributes &attributes)
@@ -608,6 +754,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
     std::optional<OperationInstance> primaries;
+    bool absorbed_gamma = false;
     std::size_t history_index = 0;
     while (!reader.atEnd())
     {
@@ -752,6 +899,24 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                     "Legacy profile gamma has no frozen parameter fixture for canonical import",
                     {{"legacy_operation", "profile_gamma"},
                      {"reason", "unsupported_legacy_profile_gamma_no_fixture"}});
+            }
+            if (operation.value() == "gamma")
+            {
+                if (absorbed_gamma)
+                {
+                    return make_error(
+                        ErrorCode::kConflict,
+                        "Multiple legacy display encoding boundaries have no singleton mapping",
+                        {{"legacy_operation", "gamma"}, {"reason", "duplicate_legacy_gamma"}});
+                }
+                auto absorbed = absorb_legacy_gamma(reader.attributes());
+                if (!absorbed)
+                {
+                    return absorbed.error();
+                }
+                absorbed_gamma = true;
+                ++history_index;
+                continue;
             }
             if (operation.value() == "primaries")
             {

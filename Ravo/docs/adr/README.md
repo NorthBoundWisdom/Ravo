@@ -29,3 +29,4 @@ supersession relationship when direction changes.
 | [0019](0019-explicit-output-color-profiles.md) | Accepted | Output profiles, proofing, gamut warnings, encoded ICC state, and profile-aware publication share one engine boundary without sRGB fallback. |
 | [0020](0020-working-profile-rgb-primaries.md) | Accepted | RGB primary rotation, purity, and achromatic tint execute in the declared working profile before compatibility bridging. |
 | [0021](0021-explicit-pre-input-profile-gamma.md) | Accepted | Unbreak-input-profile log/gamma correction runs on explicit source RGB before input colour conversion; picker/autotune remains unsupported without an analysis contract. |
+| [0022](0022-final-display-packing-and-diagnostic-disposition.md) | Accepted | Final profiled RGB8 packing is engine-private; legacy channel/mask display branches are unsupported presentation adapters. |

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <sstream>
 #include <span>
 #include <string>
@@ -11,8 +12,10 @@
 #include <utility>
 #include <vector>
 
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QProcess>
+#include <QXmlStreamReader>
 #include <gtest/gtest.h>
 #include <png.h>
 
@@ -82,6 +85,117 @@ inline constexpr std::string_view kLegacyPrimariesPayload =
     "cc56143f4c37093e22c9293ed9ce573f448d12be7b149e3f1e206a3e85eb513f";
 inline constexpr std::string_view kLegacyPrimariesDefaultBlend =
     "gz09eJxjYGBgYAFiCQYYOOHEgAZY0QVwggZ7CB6pfOygYtaVAyCMi48L/AcCEA0AmawnoA==";
+
+struct FrozenLegacyGammaBlendTuple
+{
+    std::string_view version;
+    std::string_view parameters;
+    std::size_t fixture_count;
+};
+
+inline constexpr std::string_view kLegacyGammaBlendV9 =
+    "gz11eJxjYGBgkGAAgRNODGiAEV0AJ2iwh+CRyscOAAdeGQQ=";
+inline constexpr std::string_view kLegacyGammaBlendGz14GuideOne =
+    "gz14eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfNoAAEkgGQQ=";
+inline constexpr std::string_view kLegacyGammaBlendGz14GuideFive =
+    "gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg=";
+inline constexpr std::string_view kLegacyGammaBlendGz12GuideOne =
+    "gz12eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfOqC/0AAogFjBh0A";
+inline constexpr std::string_view kLegacyGammaBlendGz12GuideFive =
+    "gz12eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfOqC/0AAogFpBh0E";
+inline constexpr std::string_view kLegacyGammaBlendGz11FeatherV1 =
+    "gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU=";
+inline constexpr std::string_view kLegacyGammaBlendV11UncompressedGuideFive =
+    "000000000000000018000000000000000000c84200000000000000000000000000000000050000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f"
+    "0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000";
+
+inline constexpr std::array kFrozenLegacyGammaBlendTuples{
+    FrozenLegacyGammaBlendTuple{"9", kLegacyGammaBlendV9, 37U},
+    FrozenLegacyGammaBlendTuple{"10", kLegacyGammaBlendGz14GuideOne, 37U},
+    FrozenLegacyGammaBlendTuple{"11", kLegacyGammaBlendV11UncompressedGuideFive, 1U},
+    FrozenLegacyGammaBlendTuple{"11", kLegacyGammaBlendGz14GuideOne, 19U},
+    FrozenLegacyGammaBlendTuple{"11", kLegacyGammaBlendGz14GuideFive, 25U},
+    FrozenLegacyGammaBlendTuple{"12", kLegacyGammaBlendGz12GuideFive, 2U},
+    FrozenLegacyGammaBlendTuple{"12", kLegacyGammaBlendGz14GuideOne, 5U},
+    FrozenLegacyGammaBlendTuple{"12", kLegacyGammaBlendGz14GuideFive, 4U},
+    FrozenLegacyGammaBlendTuple{"13", kLegacyGammaBlendGz11FeatherV1, 14U},
+    FrozenLegacyGammaBlendTuple{"13", kLegacyGammaBlendGz12GuideOne, 1U},
+    FrozenLegacyGammaBlendTuple{"13", kLegacyGammaBlendGz12GuideFive, 6U},
+    FrozenLegacyGammaBlendTuple{"14", kLegacyGammaBlendGz11FeatherV1, 7U},
+};
+
+struct LegacyGammaXmpOptions
+{
+    std::optional<std::string_view> version = "1";
+    std::optional<std::string_view> enabled = "1";
+    std::optional<std::string_view> parameters = "0000000000000000";
+    std::optional<std::string_view> blend_version = "9";
+    std::optional<std::string_view> blend_parameters = kLegacyGammaBlendV9;
+    std::optional<std::string_view> multi_priority = "0";
+    std::optional<std::string_view> multi_name = "";
+    std::optional<std::string_view> multi_name_hand_edited;
+    std::string_view extra_attributes;
+    std::size_t instances = 1U;
+};
+
+[[nodiscard]] std::string legacy_gamma_xmp(const LegacyGammaXmpOptions &options = {})
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>)";
+    const auto append_attribute =
+        [&](const std::string_view name, const std::optional<std::string_view> value)
+    {
+        if (value)
+        {
+            document += " darktable:";
+            document += name;
+            document += "=\"";
+            document += *value;
+            document += '"';
+        }
+    };
+    for (std::size_t index = 0; index < options.instances; ++index)
+    {
+        document += R"(<rdf:li darktable:num=")";
+        document += std::to_string(index + 40U);
+        document += R"(" darktable:operation="gamma")";
+        append_attribute("modversion", options.version);
+        append_attribute("enabled", options.enabled);
+        append_attribute("params", options.parameters);
+        append_attribute("multi_name", options.multi_name);
+        append_attribute("multi_priority", options.multi_priority);
+        append_attribute("multi_name_hand_edited", options.multi_name_hand_edited);
+        append_attribute("blendop_version", options.blend_version);
+        append_attribute("blendop_params", options.blend_parameters);
+        document += options.extra_attributes;
+        document += "/>";
+    }
+    document += R"(</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+[[nodiscard]] std::optional<std::string> xml_attribute_value(const QXmlStreamAttributes &attributes,
+                                                             const QStringView name)
+{
+    for (const auto &attribute : attributes)
+    {
+        if (attribute.name() == name)
+        {
+            return attribute.value().toString().toStdString();
+        }
+    }
+    return std::nullopt;
+}
 
 [[nodiscard]] std::string
 legacy_primaries_xmp(const std::string_view version = "1", const std::string_view enabled = "1",
@@ -474,6 +588,242 @@ TEST_F(CliTest, FrozenNopXmpMapsItsInputProfileExplicitly)
     EXPECT_EQ(input.value().working_profile, kInputProfileLinearRec2020);
     EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
     EXPECT_TRUE(imported.value().masks.empty());
+}
+
+TEST_F(CliTest, LegacyXmpGammaFixtureCensusPinsEveryFrozenMandatoryBoundary)
+{
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    std::vector<std::filesystem::path> xmp_paths;
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".xmp")
+        {
+            xmp_paths.push_back(entry.path());
+        }
+    }
+    std::sort(xmp_paths.begin(), xmp_paths.end());
+    ASSERT_EQ(xmp_paths.size(), 158U);
+
+    std::array<std::size_t, kFrozenLegacyGammaBlendTuples.size()> tuple_counts{};
+    std::size_t gamma_count = 0U;
+    std::size_t missing_hand_edited_count = 0U;
+    std::size_t zero_hand_edited_count = 0U;
+    for (const auto &path : xmp_paths)
+    {
+        SCOPED_TRACE(path.generic_string());
+        const auto path_u8 = path.generic_u8string();
+        const std::string path_utf8(path_u8.begin(), path_u8.end());
+        const auto content = read_utf8_text_file(path_utf8);
+        ASSERT_TRUE(content) << content.error().message;
+        const QByteArray bytes(content.value().data(),
+                               static_cast<qsizetype>(content.value().size()));
+        QXmlStreamReader reader(bytes);
+        std::size_t file_gamma_count = 0U;
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+            if (!reader.isStartElement() || reader.name() != u"li" ||
+                xml_attribute_value(reader.attributes(), u"operation") != "gamma")
+            {
+                continue;
+            }
+
+            ++file_gamma_count;
+            ++gamma_count;
+            const auto version = xml_attribute_value(reader.attributes(), u"modversion");
+            const auto enabled = xml_attribute_value(reader.attributes(), u"enabled");
+            const auto parameters = xml_attribute_value(reader.attributes(), u"params");
+            const auto multi_priority = xml_attribute_value(reader.attributes(), u"multi_priority");
+            const auto multi_name = xml_attribute_value(reader.attributes(), u"multi_name");
+            const auto multi_name_hand_edited =
+                xml_attribute_value(reader.attributes(), u"multi_name_hand_edited");
+            const auto blend_version = xml_attribute_value(reader.attributes(), u"blendop_version");
+            const auto blend_parameters =
+                xml_attribute_value(reader.attributes(), u"blendop_params");
+            const auto history_position = xml_attribute_value(reader.attributes(), u"num");
+
+            ASSERT_TRUE(version);
+            EXPECT_EQ(*version, "1");
+            ASSERT_TRUE(enabled);
+            EXPECT_EQ(*enabled, "1");
+            ASSERT_TRUE(parameters);
+            EXPECT_EQ(*parameters, "0000000000000000");
+            ASSERT_TRUE(multi_priority);
+            EXPECT_EQ(*multi_priority, "0");
+            ASSERT_TRUE(multi_name);
+            EXPECT_TRUE(multi_name->empty());
+            ASSERT_TRUE(history_position);
+            EXPECT_FALSE(history_position->empty());
+            EXPECT_TRUE(std::all_of(history_position->begin(), history_position->end(),
+                                    [](const char value) { return value >= '0' && value <= '9'; }));
+            if (multi_name_hand_edited)
+            {
+                EXPECT_EQ(*multi_name_hand_edited, "0");
+                ++zero_hand_edited_count;
+            }
+            else
+            {
+                ++missing_hand_edited_count;
+            }
+
+            for (const auto &attribute : reader.attributes())
+            {
+                const auto name = attribute.name();
+                EXPECT_FALSE(name.contains(u"mask"));
+                EXPECT_TRUE(name == u"num" || name == u"operation" || name == u"enabled" ||
+                            name == u"modversion" || name == u"params" || name == u"multi_name" ||
+                            name == u"multi_priority" || name == u"multi_name_hand_edited" ||
+                            name == u"blendop_version" || name == u"blendop_params")
+                    << name.toString().toStdString();
+            }
+
+            ASSERT_TRUE(blend_version);
+            ASSERT_TRUE(blend_parameters);
+            const auto tuple = std::find_if(kFrozenLegacyGammaBlendTuples.begin(),
+                                            kFrozenLegacyGammaBlendTuples.end(),
+                                            [&](const FrozenLegacyGammaBlendTuple &candidate)
+                                            {
+                                                return candidate.version == *blend_version &&
+                                                       candidate.parameters == *blend_parameters;
+                                            });
+            ASSERT_NE(tuple, kFrozenLegacyGammaBlendTuples.end());
+            ++tuple_counts[static_cast<std::size_t>(
+                std::distance(kFrozenLegacyGammaBlendTuples.begin(), tuple))];
+        }
+        ASSERT_FALSE(reader.hasError()) << reader.errorString().toStdString();
+        EXPECT_EQ(file_gamma_count, 1U);
+    }
+
+    EXPECT_EQ(gamma_count, 158U);
+    EXPECT_EQ(missing_hand_edited_count, 99U);
+    EXPECT_EQ(zero_hand_edited_count, 59U);
+    for (std::size_t index = 0; index < kFrozenLegacyGammaBlendTuples.size(); ++index)
+    {
+        SCOPED_TRACE(std::string(kFrozenLegacyGammaBlendTuples[index].version));
+        EXPECT_EQ(tuple_counts[index], kFrozenLegacyGammaBlendTuples[index].fixture_count);
+    }
+}
+
+TEST_F(CliTest, LegacyXmpGammaAbsorbsOnlyTheTwelveExactFrozenBlendTuples)
+{
+    for (std::size_t index = 0; index < kFrozenLegacyGammaBlendTuples.size(); ++index)
+    {
+        const auto &tuple = kFrozenLegacyGammaBlendTuples[index];
+        SCOPED_TRACE(std::string(tuple.version) + ":" + std::to_string(index));
+        LegacyGammaXmpOptions options;
+        options.blend_version = tuple.version;
+        options.blend_parameters = tuple.parameters;
+        if ((index % 2U) == 0U)
+        {
+            options.multi_name_hand_edited = "0";
+        }
+        const auto imported = import_legacy_xmp(
+            {legacy_gamma_xmp(options), {"asset-1", "file:///fixture.raw", std::nullopt}});
+
+        ASSERT_TRUE(imported) << imported.error().message;
+        ASSERT_EQ(imported.value().operations.size(), 2U);
+        EXPECT_EQ(imported.value().operations.front().id, "ravo.color.input");
+        EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
+        EXPECT_TRUE(std::none_of(imported.value().operations.begin(),
+                                 imported.value().operations.end(),
+                                 [](const OperationInstance &operation)
+                                 {
+                                     return operation.id == "ravo.core.gamma" ||
+                                            operation.id == kProfileGammaOperationId;
+                                 }));
+        EXPECT_TRUE(imported.value().masks.empty());
+    }
+}
+
+TEST_F(CliTest, LegacyXmpGammaRejectsEveryUnprovenHistoryState)
+{
+    const auto expect_rejected = [](const LegacyGammaXmpOptions &options,
+                                    const ErrorCode expected_code,
+                                    const std::string_view expected_reason)
+    {
+        const auto imported = import_legacy_xmp(
+            {legacy_gamma_xmp(options), {"asset-1", "file:///fixture.raw", std::nullopt}});
+        ASSERT_FALSE(imported);
+        EXPECT_EQ(imported.error().code, expected_code);
+        EXPECT_EQ(imported.error().context.at("legacy_operation"), "gamma");
+        EXPECT_EQ(imported.error().context.at("reason"), expected_reason);
+    };
+
+    LegacyGammaXmpOptions options;
+    options.version = "2";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_version");
+
+    options = {};
+    options.version.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_version");
+
+    options = {};
+    options.enabled = "0";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_disabled");
+
+    options = {};
+    options.enabled.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_disabled");
+
+    options = {};
+    options.parameters = "0000000000000001";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_parameters");
+
+    options = {};
+    options.parameters.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_parameters");
+
+    options = {};
+    options.instances = 2U;
+    expect_rejected(options, ErrorCode::kConflict, "duplicate_legacy_gamma");
+
+    options = {};
+    options.blend_version = "15";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_blend");
+
+    options = {};
+    options.blend_version.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_blend");
+
+    options = {};
+    options.blend_parameters = kLegacyGammaBlendGz14GuideOne;
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_blend");
+
+    options = {};
+    options.blend_parameters.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_blend");
+
+    options = {};
+    options.extra_attributes = R"( darktable:mask_id="42")";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_mask");
+
+    options = {};
+    options.extra_attributes = R"( darktable:blendop_mask_id="42")";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_mask");
+
+    options = {};
+    options.multi_priority = "1";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_multi_state");
+
+    options = {};
+    options.multi_priority.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_multi_state");
+
+    options = {};
+    options.multi_name = "edited";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_multi_state");
+
+    options = {};
+    options.multi_name.reset();
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_multi_state");
+
+    options = {};
+    options.multi_name_hand_edited = "1";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_multi_state");
+
+    options = {};
+    options.extra_attributes = R"( darktable:unproven_state="1")";
+    expect_rejected(options, ErrorCode::kUnsupported, "unsupported_legacy_gamma_attribute");
 }
 
 TEST_F(CliTest, LegacyXmpDecodesAndImportsTheProvenRgbPrimariesSingleton)
