@@ -59,6 +59,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.color.colorequal` | `colorequal` | selected 8-node dt UCS 22 RBF equalizer |
 | `ravo.effect.graduatednd` | `graduatednd` | `_compute_density` graduated exposure as the first local adjustment |
 | `ravo.core.toneequal` | `toneequal` | 9-band [-8,0] EV RBF equalizer under Sigmoid |
+| `ravo.color.colorbalance` | `colorbalance` | complete frozen v4 Lab D50/ProPhoto lift/gamma/gain and slope/offset/power contract; independent from Color Balance RGB |
 | `ravo.color.colorbalancergb` | `colorbalancergb` | full Filmlight Yrg grading, DT UCS default and explicit JzAzBz; the old lift/gamma/gain approximation was removed |
 | `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
@@ -94,7 +95,6 @@ struct bytes or call the old dynamic module ABI.
 | `borders` | yes | queued by ADR-0015; requires canvas/export geometry contract |
 | `cacorrectrgb` | no | defer with RAW geometry capability |
 | `censorize` | yes | queued by ADR-0015; requires mask/ROI graph |
-| `colorbalance` | yes | defer until colour operation policy exists |
 | `colorchecker` | yes | defer until colour operation policy exists |
 | `colorcontrast` | yes | defer until colour operation policy exists |
 | `colorcorrection` | yes | defer until colour operation policy exists |

@@ -58,14 +58,14 @@ three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
-profile gamma + exposure + RGB primaries + channel mixer + Color Balance RGB parameter/
-pixel reopen, and preview-owner cancellation of a superseded token with old
-revision/asset rejection. Separate final-display contracts cover private RGB8
-packing and strict legacy display-boundary absorption; neither is a Develop
-recipe operation or pixel-reopen claim. Desktop QML smoke verifies that Input
-Profile,
-Unbreak Input Profile, Output & Soft Proof, White Balance, Exposure, RGB Primaries, Color
-Calibration, and full Color Balance RGB bindings load;
+profile gamma + exposure + RGB primaries + channel mixer + Legacy Color Balance
+and Color Balance RGB parameter/pixel reopen, and preview-owner cancellation of a
+superseded token with old revision/asset rejection. Separate final-display
+contracts cover private RGB8 packing and strict legacy display-boundary
+absorption; neither is a Develop recipe operation or pixel-reopen claim.
+Desktop QML smoke verifies that Input Profile, Unbreak Input Profile, Output &
+Soft Proof, White Balance, Exposure, RGB Primaries, Color Calibration, Legacy
+Color Balance, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
 The real `ravo` process is also a protocol contract: `--json` stdout contains
@@ -263,6 +263,23 @@ directories, corrupt files, and more RAW files.
   and a `mire1.cr2` channel-sum reference. Catalog reopen and Studio QML smoke
   must cover all 32 parameters + formula; lift/gamma/gain is not accepted as a
   substitute.
+- `colorbalance` uses synthetic exact default-unmasked schema-v3 and schema-v4
+  payloads as its positive importer boundary. The complete 158-XMP census finds
+  four enabled v3 revisions only in 0033/0034; their masks, custom blend, and
+  named priority-one instances make both real fixtures negative evidence.
+  History order does not select processing order, and malformed, duplicate,
+  non-default presentation, or multi-instance state rejects structurally.
+- Legacy Color Balance CPU tests cover all 17 legacy fields and both frozen
+  modes through an independent scalar/matrix Lab D50/XYZ/ProPhoto reference.
+  Each fixed SOP/LGG golden is required to match both the reference and
+  production; a channel-order perturbation proves the reference detects drift.
+  Explicit-default presence survives recipe-to-Develop-to-recipe and Catalog/
+  Studio save/reopen because the default colour-space round trip is observable.
+  Mode-specific contrast epsilon, finite/denominator/power-domain failure,
+  row cancellation, source/profile immutability, and atomic owned output are
+  covered. The `mire1.cr2` regression also pins output channel sums and source
+  hash/size/mtime. CLI render, Catalog preview/save/reopen/export, and Studio
+  presenter/QML smoke share the same engine path and cache identity.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

@@ -363,9 +363,21 @@ derives a render-lifetime gamut LUT and executes CAT16 D65, CIE 2006 LMS,
 Filmlight Yrg/Ych, and DT UCS by default or explicit JzAzBz. It writes pixels
 to an owned output buffer and publishes only after every row succeeds. Studio
 projects canonical values into a read-only parameter map; QML owns no mask,
-LUT, or colour mathematics. The former three-parameter
-`ravo.color.colorbalance` approximation is hard-deleted; frozen
-`colorbalance.c` remains a separate later capability.
+LUT, or colour mathematics.
+
+The independent `ravo.color.colorbalance` v1 contract owns the complete frozen
+legacy Color Balance CPU path rather than reviving the removed three-parameter
+approximation. It stores explicit presence plus mode and all 16 numeric legacy
+values. Linear sRGB D50 enters a Lab D50/XYZ/ProPhoto boundary, where corrected
+RGBL lift/gamma/gain or slope/offset/power, input/output saturation, and
+grey-fulcrum contrast execute before the inverse conversion. An explicitly
+present default operation still performs this round trip; absence alone skips
+it. The engine owns finite/domain/cancellation checks and atomic output, while
+Studio exposes numeric intent only. Picker, HSL colour derivation, auto
+optimisation, masks, custom blend state, and multiple instances do not acquire
+presentation or graph semantics; unsupported serialized state rejects
+structurally. Shared ordering/proxy/name strings and the `extended.cl` kernels
+remain retirement work for D0.4/S4/S14, not runtime owners.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked

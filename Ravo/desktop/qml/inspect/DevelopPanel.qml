@@ -1047,6 +1047,78 @@ ColumnLayout {
                         }
                         CustomLabel {
                             Layout.fillWidth: true
+                            text: qsTr("Color Balance · legacy Lab / ProPhoto RGB")
+                            font.bold: true
+                            wrapMode: Text.WordWrap
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: root.hasPresenter && root.presenter.editLegacyColorBalance.enabled
+                                  ? qsTr("Enabled")
+                                  : qsTr("Inactive until edited")
+                            opacity: 0.75
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Lift / Gamma / Gain"), qsTr("Slope / Offset / Power")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter
+                                          ? root.presenter.editLegacyColorBalance.modeIndex : 1
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("legacyColorBalanceMode", currentIndex)
+                        }
+                        Repeater {
+                            model: [
+                                { "title": qsTr("Lift · Factor"), "key": "liftFactor", "field": "legacyColorBalanceLiftFactor", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.0001, "decimals": 4 },
+                                { "title": qsTr("Lift · Red"), "key": "liftRed", "field": "legacyColorBalanceLiftRed", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Lift · Green"), "key": "liftGreen", "field": "legacyColorBalanceLiftGreen", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Lift · Blue"), "key": "liftBlue", "field": "legacyColorBalanceLiftBlue", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Gamma · Factor"), "key": "gammaFactor", "field": "legacyColorBalanceGammaFactor", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.0001, "decimals": 4 },
+                                { "title": qsTr("Gamma · Red"), "key": "gammaRed", "field": "legacyColorBalanceGammaRed", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Gamma · Green"), "key": "gammaGreen", "field": "legacyColorBalanceGammaGreen", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Gamma · Blue"), "key": "gammaBlue", "field": "legacyColorBalanceGammaBlue", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Gain · Factor"), "key": "gainFactor", "field": "legacyColorBalanceGainFactor", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.0001, "decimals": 4 },
+                                { "title": qsTr("Gain · Red"), "key": "gainRed", "field": "legacyColorBalanceGainRed", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Gain · Green"), "key": "gainGreen", "field": "legacyColorBalanceGainGreen", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Gain · Blue"), "key": "gainBlue", "field": "legacyColorBalanceGainBlue", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.00001, "decimals": 5 },
+                                { "title": qsTr("Input saturation"), "key": "inputSaturation", "field": "legacyColorBalanceInputSaturation", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.0001, "decimals": 4 },
+                                { "title": qsTr("Contrast"), "key": "contrast", "field": "legacyColorBalanceContrast", "minimum": 0.01, "maximum": 1.99, "reset": 1, "step": 0.0001, "decimals": 4 },
+                                { "title": qsTr("Contrast fulcrum (%)"), "key": "greyFulcrum", "field": "legacyColorBalanceGreyFulcrum", "minimum": 0.1, "maximum": 100, "reset": 18, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Output saturation"), "key": "outputSaturation", "field": "legacyColorBalanceOutputSaturation", "minimum": 0, "maximum": 2, "reset": 1, "step": 0.0001, "decimals": 4 }
+                            ]
+                            delegate: CustomSlider {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                title: modelData.title
+                                from: modelData.minimum
+                                to: modelData.maximum
+                                stepSize: modelData.step
+                                validatorDecimals: modelData.decimals
+                                showReset: true
+                                resetValue: modelData.reset
+                                delayedCommit: true
+                                enabled: root.hasSelection
+                                value: root.hasPresenter
+                                       ? root.presenter.editLegacyColorBalance[modelData.key]
+                                       : modelData.reset
+                                onValueChanged: if (root.liveReady && root.commands)
+                                        root.commands.previewDevelopNumber(modelData.field, value)
+                                onValueCommitted: function (value) {
+                                    if (root.commands)
+                                        root.commands.setDevelopNumber(modelData.field, value);
+                                }
+                                onResetRequested: if (root.commands)
+                                    root.commands.resetControl(modelData.field)
+                            }
+                        }
+                        CustomButton {
+                            text: qsTr("Disable and reset legacy Color Balance")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetControl("legacyColorBalance")
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
                             text: qsTr("Color Balance RGB · linear sRGB D50 / Filmlight Yrg")
                             font.bold: true
                             wrapMode: Text.WordWrap

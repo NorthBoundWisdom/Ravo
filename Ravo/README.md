@@ -121,6 +121,15 @@ Current implementation status:
   default saturation/brilliance gamut path. JzAzBz 2021 is an explicit optional
   formula. Studio exposes the complete canonical parameters; the prior
   Lift/Color gamma/Gain approximation operation is removed.
+- Legacy Color Balance provides the separate `ravo.color.colorbalance` v1
+  contract for the complete frozen lift/gamma/gain and slope/offset/power
+  paths. Its 17 legacy fields drive the Lab D50/ProPhoto conversion, corrected
+  RGBL controls, input/output saturation, and grey-fulcrum contrast. Operation
+  presence is explicit because even default parameters execute the frozen
+  colour-space round trip. Strict XMP import accepts only synthetic v3/v4
+  default-unmasked singleton state; the real 0033/0034 histories establish
+  structured mask/custom-blend/multi rejection, not positive compatibility.
+  CLI, Catalog, and Studio share the same CPU implementation and cache identity.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

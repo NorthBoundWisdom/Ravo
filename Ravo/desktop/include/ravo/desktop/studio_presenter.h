@@ -122,6 +122,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSoften READ editSoften NOTIFY editChanged)
     Q_PROPERTY(double editDehaze READ editDehaze NOTIFY editChanged)
     Q_PROPERTY(double editVelvia READ editVelvia NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editLegacyColorBalance READ editLegacyColorBalance NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorBalanceRgb READ editColorBalanceRgb NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editPrimaries READ editPrimaries NOTIFY editChanged)
     Q_PROPERTY(double editColorContrast READ editColorContrast NOTIFY editChanged)
@@ -292,6 +293,7 @@ public:
     [[nodiscard]] double editSoften() const noexcept;
     [[nodiscard]] double editDehaze() const noexcept;
     [[nodiscard]] double editVelvia() const noexcept;
+    [[nodiscard]] QVariantMap editLegacyColorBalance() const;
     [[nodiscard]] QVariantMap editColorBalanceRgb() const;
     [[nodiscard]] QVariantMap editPrimaries() const;
     [[nodiscard]] double editColorContrast() const noexcept;

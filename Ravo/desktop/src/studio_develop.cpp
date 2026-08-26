@@ -369,6 +369,29 @@ double StudioPresenter::editVelvia() const noexcept
     return develop_.velvia;
 }
 
+QVariantMap StudioPresenter::editLegacyColorBalance() const
+{
+    const auto &params = develop_.color_balance;
+    return {{QStringLiteral("enabled"), develop_.color_balance_enabled},
+            {QStringLiteral("modeIndex"), params.mode == kColorBalanceModeLiftGammaGain ? 0 : 1},
+            {QStringLiteral("liftFactor"), params.lift[0]},
+            {QStringLiteral("liftRed"), params.lift[1]},
+            {QStringLiteral("liftGreen"), params.lift[2]},
+            {QStringLiteral("liftBlue"), params.lift[3]},
+            {QStringLiteral("gammaFactor"), params.gamma[0]},
+            {QStringLiteral("gammaRed"), params.gamma[1]},
+            {QStringLiteral("gammaGreen"), params.gamma[2]},
+            {QStringLiteral("gammaBlue"), params.gamma[3]},
+            {QStringLiteral("gainFactor"), params.gain[0]},
+            {QStringLiteral("gainRed"), params.gain[1]},
+            {QStringLiteral("gainGreen"), params.gain[2]},
+            {QStringLiteral("gainBlue"), params.gain[3]},
+            {QStringLiteral("inputSaturation"), params.input_saturation},
+            {QStringLiteral("contrast"), params.contrast},
+            {QStringLiteral("greyFulcrum"), params.grey_fulcrum_percent},
+            {QStringLiteral("outputSaturation"), params.output_saturation}};
+}
+
 QVariantMap StudioPresenter::editColorBalanceRgb() const
 {
     const auto &params = develop_.color_balance_rgb;

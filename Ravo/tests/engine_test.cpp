@@ -1179,6 +1179,191 @@ color_balance_rgb_operation(const ColorBalanceRgbParams &params,
             std::nullopt};
 }
 
+[[nodiscard]] OperationInstance
+legacy_color_balance_operation(const ColorBalanceParams &params,
+                               std::string instance_id = "colorbalance-1")
+{
+    return {std::string(kColorBalanceOperationId),
+            kColorBalanceOperationSchemaVersion,
+            std::move(instance_id),
+            true,
+            color_balance_to_parameters(params),
+            std::nullopt};
+}
+
+[[nodiscard]] WorkingImage legacy_color_balance_working_fixture()
+{
+    ColorProfileState profile;
+    profile.kind = ColorProfileKind::kIcc;
+    profile.model = ColorModel::kRgb;
+    profile.identifier = std::string(kInputProfileLinearRec709);
+    profile.icc_bytes = {1U, 2U, 3U, 4U};
+    auto analysis = std::make_shared<ExposureAnalysisContext>();
+    analysis->raw_pixel_count = 6U;
+    return {2U,
+            1U,
+            {0.03F, 0.18F, 0.72F, 0.91F, 0.42F, 0.07F},
+            std::move(profile),
+            std::move(analysis)};
+}
+
+// Independent scalar oracle transcribed from the frozen colorbalance.c
+// commit_params(), _process_sop(), and _process_lgg() paths. It deliberately
+// calls no production Color Balance helper, so the fixed goldens below do not
+// merely restate apply_color_balance().
+[[nodiscard]] std::vector<float>
+frozen_legacy_color_balance_reference(const WorkingImage &input, const ColorBalanceParams &params)
+{
+    const auto linear_to_xyz = [](const std::array<float, 3> &rgb)
+    {
+        return std::array<float, 3>{0.4360747F * rgb[0] + 0.3850649F * rgb[1] + 0.1430804F * rgb[2],
+                                    0.2225045F * rgb[0] + 0.7168786F * rgb[1] + 0.0606169F * rgb[2],
+                                    0.0139322F * rgb[0] + 0.0971045F * rgb[1] +
+                                        0.7141733F * rgb[2]};
+    };
+    const auto xyz_to_linear = [](const std::array<float, 3> &xyz)
+    {
+        return std::array<float, 3>{
+            3.1338561F * xyz[0] - 1.6168667F * xyz[1] - 0.4906146F * xyz[2],
+            -0.9787684F * xyz[0] + 1.9161415F * xyz[1] + 0.0334540F * xyz[2],
+            0.0719453F * xyz[0] - 0.2289914F * xyz[1] + 1.4052427F * xyz[2]};
+    };
+    const auto xyz_to_lab = [](const std::array<float, 3> &xyz)
+    {
+        constexpr std::array<float, 3> d50{0.9642F, 1.0F, 0.8249F};
+        constexpr float epsilon = 216.0F / 24389.0F;
+        constexpr float kappa = 24389.0F / 27.0F;
+        std::array<float, 3> f{};
+        for (std::size_t channel = 0U; channel < f.size(); ++channel)
+        {
+            const float value = xyz[channel] / d50[channel];
+            f[channel] = value > epsilon ? std::cbrt(value) : (kappa * value + 16.0F) / 116.0F;
+        }
+        return std::array<float, 3>{116.0F * f[1] - 16.0F, 500.0F * (f[0] - f[1]),
+                                    200.0F * (f[1] - f[2])};
+    };
+    const auto lab_to_xyz = [](const std::array<float, 3> &lab)
+    {
+        constexpr std::array<float, 3> d50{0.9642F, 1.0F, 0.8249F};
+        constexpr float epsilon = 0.20689655172413796F;
+        constexpr float kappa = 24389.0F / 27.0F;
+        const float fy = (lab[0] + 16.0F) / 116.0F;
+        const std::array<float, 3> f{fy + lab[1] / 500.0F, fy, fy - lab[2] / 200.0F};
+        std::array<float, 3> xyz{};
+        for (std::size_t channel = 0U; channel < xyz.size(); ++channel)
+        {
+            const float value = f[channel] > epsilon ? f[channel] * f[channel] * f[channel] :
+                                                       (116.0F * f[channel] - 16.0F) / kappa;
+            xyz[channel] = d50[channel] * value;
+        }
+        return xyz;
+    };
+    const auto xyz_to_prophoto = [](const std::array<float, 3> &xyz)
+    {
+        return std::array<float, 3>{
+            1.3459433F * xyz[0] - 0.2556075F * xyz[1] - 0.0511118F * xyz[2],
+            -0.5445989F * xyz[0] + 1.5081673F * xyz[1] + 0.0205351F * xyz[2], 1.2118128F * xyz[2]};
+    };
+    const auto prophoto_to_xyz = [](const std::array<float, 3> &rgb)
+    {
+        return std::array<float, 3>{0.7976749F * rgb[0] + 0.1351917F * rgb[1] + 0.0313534F * rgb[2],
+                                    0.2880402F * rgb[0] + 0.7118741F * rgb[1] + 0.0000857F * rgb[2],
+                                    0.8252100F * rgb[2]};
+    };
+    const auto corrected = [&](const std::array<double, 4> &values)
+    {
+        const float red = static_cast<float>(values[1]);
+        const float green = static_cast<float>(values[2]);
+        const float blue = static_cast<float>(values[3]);
+        const float luma = 0.2880402F * red + 0.7118741F * green + 0.0000857F * blue;
+        return std::array<float, 4>{static_cast<float>(values[0]), red - luma + 1.0F,
+                                    green - luma + 1.0F, blue - luma + 1.0F};
+    };
+
+    const auto lift = corrected(params.lift);
+    const auto gamma = corrected(params.gamma);
+    const auto gain = corrected(params.gain);
+    const bool lgg = params.mode == kColorBalanceModeLiftGammaGain;
+    std::array<float, 3> effective_lift{};
+    std::array<float, 3> effective_gain{};
+    std::array<float, 3> effective_power{};
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        effective_gain[channel] = gain[channel + 1U] * gain[0];
+        if (lgg)
+        {
+            effective_lift[channel] = 2.0F - lift[channel + 1U] * lift[0];
+            const float denominator = gamma[channel + 1U] * gamma[0];
+            effective_power[channel] =
+                2.2F * (denominator != 0.0F ? 1.0F / denominator : 1000000.0F);
+        }
+        else
+        {
+            effective_lift[channel] = lift[channel + 1U] + lift[0] - 2.0F;
+            effective_power[channel] = (2.0F - gamma[channel + 1U]) * (2.0F - gamma[0]);
+        }
+    }
+    const float input_saturation = static_cast<float>(params.input_saturation);
+    const float output_saturation = static_cast<float>(params.output_saturation);
+    const float contrast = static_cast<float>(params.contrast);
+    const float contrast_power = 1.0F / contrast;
+    const float grey = static_cast<float>(params.grey_fulcrum_percent / 100.0);
+    const bool run_input_saturation = std::abs(input_saturation - 1.0F) > 1.0e-6F;
+    const bool run_output_saturation = std::abs(output_saturation - 1.0F) > 1.0e-6F;
+    const bool run_contrast = std::abs((lgg ? contrast_power : contrast) - 1.0F) > 1.0e-6F;
+
+    std::vector<float> result(input.rgb.size());
+    for (std::size_t index = 0U; index < input.rgb.size(); index += 3U)
+    {
+        const std::array<float, 3> source{input.rgb[index], input.rgb[index + 1U],
+                                          input.rgb[index + 2U]};
+        auto xyz = lab_to_xyz(xyz_to_lab(linear_to_xyz(source)));
+        auto rgb = xyz_to_prophoto(xyz);
+        if (run_input_saturation)
+        {
+            for (float &sample : rgb)
+            {
+                sample = xyz[1] + input_saturation * (sample - xyz[1]);
+            }
+        }
+        for (std::size_t channel = 0U; channel < rgb.size(); ++channel)
+        {
+            if (lgg)
+            {
+                float value = std::pow(std::max(rgb[channel], 0.0F), 1.0F / 2.2F);
+                value = ((value - 1.0F) * effective_lift[channel] + 1.0F) * effective_gain[channel];
+                rgb[channel] = std::pow(std::max(value, 0.0F), effective_power[channel]);
+            }
+            else
+            {
+                rgb[channel] = std::pow(
+                    std::max(effective_gain[channel] * rgb[channel] + effective_lift[channel],
+                             0.0F),
+                    effective_power[channel]);
+            }
+        }
+        if (run_output_saturation)
+        {
+            const float luma = prophoto_to_xyz(rgb)[1];
+            for (float &sample : rgb)
+            {
+                sample = luma + output_saturation * (sample - luma);
+            }
+        }
+        if (run_contrast)
+        {
+            for (float &sample : rgb)
+            {
+                sample = std::pow(std::max(sample, 0.0F) / grey, contrast_power) * grey;
+            }
+        }
+        const auto output = xyz_to_linear(lab_to_xyz(xyz_to_lab(prophoto_to_xyz(rgb))));
+        std::copy(output.begin(), output.end(),
+                  result.begin() + static_cast<std::ptrdiff_t>(index));
+    }
+    return result;
+}
+
 [[nodiscard]] OperationInstance temperature_operation(const TemperatureParams &params,
                                                       std::string instance_id = "temperature-1")
 {
@@ -1564,6 +1749,237 @@ TEST(EngineFacadeTest, ChannelMixerMatchesFrozenRgbMatrixAndV3AdjustmentPaths)
     EXPECT_NEAR(adjusted.value().rgb[0], 231, 1);
     EXPECT_NEAR(adjusted.value().rgb[1], 52, 1);
     EXPECT_NEAR(adjusted.value().rgb[2], 58, 1);
+}
+
+TEST(LegacyColorBalanceTest, SopAndLggModesPreserveFrozenMathAndOwnedPublication)
+{
+    const auto input = legacy_color_balance_working_fixture();
+    const auto original = input;
+
+    ColorBalanceParams sop;
+    sop.lift = {0.96, 1.03, 0.98, 1.06};
+    sop.gamma = {1.08, 0.91, 1.05, 0.97};
+    sop.gain = {1.04, 1.12, 0.95, 1.08};
+    sop.input_saturation = 0.84;
+    sop.contrast = 1.16;
+    sop.grey_fulcrum_percent = 18.0;
+    sop.output_saturation = 1.09;
+    auto sop_result = apply_color_balance(input, sop, CancellationToken{});
+    ASSERT_TRUE(sop_result) << sop_result.error().message;
+    ASSERT_EQ(sop_result.value().rgb.size(), input.rgb.size());
+    const std::array<float, 6> expected_sop{0.10232526F, 0.15027370F, 0.66838688F,
+                                            0.85773712F, 0.34731370F, 0.18906617F};
+    const auto reference_sop = frozen_legacy_color_balance_reference(input, sop);
+    for (std::size_t index = 0U; index < expected_sop.size(); ++index)
+    {
+        EXPECT_NEAR(reference_sop[index], expected_sop[index], 2.0e-5F) << index;
+        EXPECT_NEAR(sop_result.value().rgb[index], expected_sop[index], 2.0e-5F) << index;
+        EXPECT_NEAR(sop_result.value().rgb[index], reference_sop[index], 2.0e-5F) << index;
+    }
+    auto channel_order_perturbation = sop;
+    std::swap(channel_order_perturbation.lift[1], channel_order_perturbation.lift[3]);
+    const auto perturbed_reference =
+        frozen_legacy_color_balance_reference(input, channel_order_perturbation);
+    bool perturbation_detected = false;
+    for (std::size_t index = 0U; index < reference_sop.size(); ++index)
+    {
+        perturbation_detected |=
+            std::abs(reference_sop[index] - perturbed_reference[index]) > 1.0e-3F;
+    }
+    EXPECT_TRUE(perturbation_detected)
+        << "the independent oracle must detect a frozen RGB channel-order perturbation";
+
+    ColorBalanceParams lgg = sop;
+    lgg.mode = std::string(kColorBalanceModeLiftGammaGain);
+    auto lgg_result = apply_color_balance(input, lgg, CancellationToken{});
+    ASSERT_TRUE(lgg_result) << lgg_result.error().message;
+    const std::array<float, 6> expected_lgg{0.12932241F, 0.17394857F, 0.73170942F,
+                                            1.06095791F, 0.34121433F, 0.19952966F};
+    const auto reference_lgg = frozen_legacy_color_balance_reference(input, lgg);
+    for (std::size_t index = 0U; index < expected_lgg.size(); ++index)
+    {
+        EXPECT_NEAR(reference_lgg[index], expected_lgg[index], 2.0e-5F) << index;
+        EXPECT_NEAR(lgg_result.value().rgb[index], expected_lgg[index], 2.0e-5F) << index;
+        EXPECT_NEAR(lgg_result.value().rgb[index], reference_lgg[index], 2.0e-5F) << index;
+    }
+    EXPECT_NE(lgg_result.value().rgb, sop_result.value().rgb);
+
+    auto defaults = apply_color_balance(input, ColorBalanceParams{}, CancellationToken{});
+    ASSERT_TRUE(defaults) << defaults.error().message;
+    const auto reference_defaults =
+        frozen_legacy_color_balance_reference(input, ColorBalanceParams{});
+    // The frozen operation performs its Lab/ProPhoto conversion boundary even at defaults.
+    EXPECT_NE(defaults.value().rgb, input.rgb);
+    ASSERT_EQ(defaults.value().rgb.size(), reference_defaults.size());
+    for (std::size_t index = 0U; index < reference_defaults.size(); ++index)
+    {
+        EXPECT_NEAR(defaults.value().rgb[index], reference_defaults[index], 2.0e-5F) << index;
+    }
+    EXPECT_EQ(sop_result.value().width, input.width);
+    EXPECT_EQ(sop_result.value().height, input.height);
+    EXPECT_EQ(sop_result.value().color_profile, input.color_profile);
+    EXPECT_EQ(sop_result.value().exposure_analysis, input.exposure_analysis);
+    EXPECT_NE(sop_result.value().rgb.data(), input.rgb.data());
+    ASSERT_FALSE(sop_result.value().color_profile.icc_bytes.empty());
+    EXPECT_NE(sop_result.value().color_profile.icc_bytes.data(),
+              input.color_profile.icc_bytes.data());
+    sop_result.value().rgb[0] = 42.0F;
+    sop_result.value().color_profile.icc_bytes[0] = 99U;
+    EXPECT_EQ(input.width, original.width);
+    EXPECT_EQ(input.height, original.height);
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(LegacyColorBalanceTest, ModeSpecificNearOneContrastThresholdIsFrozen)
+{
+    const auto input = legacy_color_balance_working_fixture();
+    for (const std::string_view mode :
+         {kColorBalanceModeSlopeOffsetPower, kColorBalanceModeLiftGammaGain})
+    {
+        SCOPED_TRACE(mode);
+        ColorBalanceParams baseline;
+        baseline.mode = std::string(mode);
+        auto without_contrast = apply_color_balance(input, baseline, CancellationToken{});
+        ASSERT_TRUE(without_contrast) << without_contrast.error().message;
+
+        auto inside = baseline;
+        inside.contrast = 1.0 + 0.5e-6;
+        auto inside_result = apply_color_balance(input, inside, CancellationToken{});
+        ASSERT_TRUE(inside_result) << inside_result.error().message;
+        EXPECT_EQ(inside_result.value().rgb, without_contrast.value().rgb);
+
+        auto outside = baseline;
+        outside.contrast = 1.0 + 2.0e-6;
+        auto outside_result = apply_color_balance(input, outside, CancellationToken{});
+        ASSERT_TRUE(outside_result) << outside_result.error().message;
+        EXPECT_NE(outside_result.value().rgb, without_contrast.value().rgb);
+    }
+}
+
+TEST(LegacyColorBalanceTest, BoundaryFailuresCancellationAndMasksNeverPublishPartialPixels)
+{
+    const auto input = legacy_color_balance_working_fixture();
+    const auto original = input;
+
+    WorkingImage zero = input;
+    zero.width = 0U;
+    auto zero_result = apply_color_balance(zero, ColorBalanceParams{}, CancellationToken{});
+    ASSERT_FALSE(zero_result);
+    EXPECT_EQ(zero_result.error().code, ErrorCode::kValidation);
+
+    WorkingImage wrong_size = input;
+    wrong_size.width = 3U;
+    auto size_result = apply_color_balance(wrong_size, ColorBalanceParams{}, CancellationToken{});
+    ASSERT_FALSE(size_result);
+    EXPECT_EQ(size_result.error().code, ErrorCode::kValidation);
+
+    WorkingImage lab = input;
+    lab.color_profile.model = ColorModel::kLab;
+    auto model_result = apply_color_balance(lab, ColorBalanceParams{}, CancellationToken{});
+    ASSERT_FALSE(model_result);
+    EXPECT_EQ(model_result.error().code, ErrorCode::kUnsupported);
+
+    WorkingImage wrong_profile = input;
+    wrong_profile.color_profile.identifier = "linear_rec2020";
+    auto profile_result =
+        apply_color_balance(wrong_profile, ColorBalanceParams{}, CancellationToken{});
+    ASSERT_FALSE(profile_result);
+    EXPECT_EQ(profile_result.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(profile_result.error().context.at("reason"),
+              "unsupported_colorbalance_working_space");
+
+    for (const std::string_view mode :
+         {kColorBalanceModeSlopeOffsetPower, kColorBalanceModeLiftGammaGain})
+    {
+        for (const float sample :
+             {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+              -std::numeric_limits<float>::infinity()})
+        {
+            SCOPED_TRACE(mode);
+            WorkingImage invalid = input;
+            invalid.rgb[2] = sample;
+            ColorBalanceParams params;
+            params.mode = std::string(mode);
+            auto result = apply_color_balance(invalid, params, CancellationToken{});
+            ASSERT_FALSE(result);
+            EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+            EXPECT_EQ(result.error().context.at("reason"), "nonfinite_colorbalance_input");
+            EXPECT_EQ(invalid.rgb[0], input.rgb[0]);
+            EXPECT_EQ(invalid.rgb[1], input.rgb[1]);
+        }
+    }
+
+    for (const std::string_view mode :
+         {kColorBalanceModeSlopeOffsetPower, kColorBalanceModeLiftGammaGain})
+    {
+        ColorBalanceParams invalid_denominator;
+        invalid_denominator.mode = std::string(mode);
+        invalid_denominator.contrast = 0.0;
+        auto denominator = apply_color_balance(input, invalid_denominator, CancellationToken{});
+        ASSERT_FALSE(denominator);
+        EXPECT_EQ(denominator.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(denominator.error().context.at("parameter"), "contrast");
+    }
+
+    ColorBalanceParams invalid_power;
+    invalid_power.mode = std::string(kColorBalanceModeLiftGammaGain);
+    invalid_power.gamma = {0.0, 0.0, 0.0, 0.0};
+    WorkingImage superwhite = input;
+    superwhite.rgb.assign(superwhite.rgb.size(), 2.0F);
+    auto power = apply_color_balance(superwhite, invalid_power, CancellationToken{});
+    ASSERT_FALSE(power);
+    EXPECT_EQ(power.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(power.error().context.at("reason"), "nonfinite_colorbalance_curve");
+
+    ColorBalanceParams sop_power;
+    WorkingImage negative = input;
+    negative.rgb.assign(negative.rgb.size(), -2.0F);
+    auto clipped_power = apply_color_balance(negative, sop_power, CancellationToken{});
+    ASSERT_TRUE(clipped_power) << clipped_power.error().message;
+    EXPECT_TRUE(std::all_of(clipped_power.value().rgb.begin(), clipped_power.value().rgb.end(),
+                            [](const float sample) { return std::isfinite(sample); }));
+
+    for (const std::string_view mode :
+         {kColorBalanceModeSlopeOffsetPower, kColorBalanceModeLiftGammaGain})
+    {
+        CancellationSource cancelled;
+        ASSERT_TRUE(cancelled.cancel("legacy-colorbalance-pre-cancel"));
+        ColorBalanceParams params;
+        params.mode = std::string(mode);
+        auto pre_cancelled = apply_color_balance(input, params, cancelled.token());
+        ASSERT_FALSE(pre_cancelled);
+        EXPECT_EQ(pre_cancelled.error().code, ErrorCode::kCancelled);
+    }
+
+    WorkingImage large;
+    large.width = 1024U;
+    large.height = 2048U;
+    large.color_profile = input.color_profile;
+    large.rgb.assign(static_cast<std::size_t>(large.width) * large.height * 3U, 0.5F);
+    for (const std::string_view mode :
+         {kColorBalanceModeSlopeOffsetPower, kColorBalanceModeLiftGammaGain})
+    {
+        const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                                std::chrono::milliseconds{1});
+        ColorBalanceParams params;
+        params.mode = std::string(mode);
+        auto row_cancelled = apply_color_balance(large, params, deadline.token());
+        ASSERT_FALSE(row_cancelled);
+        EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
+    }
+    EXPECT_FLOAT_EQ(large.rgb.front(), 0.5F);
+    EXPECT_FLOAT_EQ(large.rgb.back(), 0.5F);
+
+    auto masked = legacy_color_balance_operation(ColorBalanceParams{});
+    masked.mask_id = "mask-1";
+    auto mask_result = apply_color_balance(input, masked, CancellationToken{});
+    ASSERT_FALSE(mask_result);
+    EXPECT_EQ(mask_result.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(mask_result.error().context.at("reason"), "colorbalance_mask_graph_unavailable");
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
 }
 
 TEST(ColorBalanceRgbTest, FilmlightTransformsAndOpacityMasksMatchTheFrozenMath)
@@ -2525,6 +2941,54 @@ TEST(EngineFacadeTest, ColorBalanceRgb0083HasARealRawReference)
     EXPECT_NEAR(static_cast<double>(sums[0]), 270856.0, 2500.0);
     EXPECT_NEAR(static_cast<double>(sums[1]), 283113.0, 2500.0);
     EXPECT_NEAR(static_cast<double>(sums[2]), 241983.0, 2500.0);
+}
+
+TEST(EngineFacadeTest, LegacyColorBalanceV4HasARealRawReferenceAndPreservesTheSource)
+{
+    const auto source_before = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(source_before.has_value());
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    ColorBalanceParams params;
+    params.mode = std::string(kColorBalanceModeLiftGammaGain);
+    params.lift = {0.96, 1.03, 0.98, 1.06};
+    params.gamma = {1.08, 0.91, 1.05, 0.97};
+    params.gain = {1.04, 1.12, 0.95, 1.08};
+    params.input_saturation = 0.84;
+    params.contrast = 1.16;
+    params.grey_fulcrum_percent = 18.0;
+    params.output_saturation = 1.09;
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
+    recipe.operations.push_back(legacy_color_balance_operation(params));
+    recipe.operations.push_back(sigmoid_operation());
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64U;
+    request.output_height = 48U;
+    auto rendered = engine.value().render_to_image(request);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().width, 64U);
+    ASSERT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0U; index + 2U < rendered.value().rgb.size(); index += 3U)
+    {
+        for (std::size_t channel = 0U; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    // Ravo-owned reference for the frozen v4 LGG path on the pinned RAW fixture.
+    // The tolerance permits cross-platform libm rounding without accepting a mode,
+    // working-space, or channel-order change.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 370241.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 274553.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 346452.0, 2500.0);
+    const auto source_after = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(source_after.has_value());
+    EXPECT_EQ(*source_after, *source_before);
 }
 
 TEST(EngineFacadeTest, HotPixelsHasARealRawReferenceAndKeepsDecodedFrameImmutable)

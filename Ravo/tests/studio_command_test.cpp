@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <array>
+
 #include <QCoreApplication>
+#include <QFile>
 #include <QKeySequence>
 #include <QTranslator>
 
@@ -61,6 +64,17 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_FALSE(presenter.editHotPixelsPermissive());
     EXPECT_EQ(presenter.editRawCaIterations(), 0);
     EXPECT_FALSE(presenter.editRawCaAvoidShift());
+    const auto legacy_balance = presenter.editLegacyColorBalance();
+    EXPECT_EQ(legacy_balance.size(), 18);
+    EXPECT_FALSE(legacy_balance.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(legacy_balance.value(QStringLiteral("modeIndex")).toInt(), 1);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("liftFactor")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("gammaBlue")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("gainGreen")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("inputSaturation")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("contrast")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("greyFulcrum")).toDouble(), 18.0);
+    EXPECT_DOUBLE_EQ(legacy_balance.value(QStringLiteral("outputSaturation")).toDouble(), 1.0);
     const auto balance = presenter.editColorBalanceRgb();
     EXPECT_EQ(balance.size(), 33);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("globalY")).toDouble(), 0.0);
@@ -130,6 +144,34 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("deflickerTargetEv")).toDouble(), -4.0);
     EXPECT_FALSE(exposure.value(QStringLiteral("compensateExposureBias")).toBool());
     EXPECT_FALSE(exposure.value(QStringLiteral("compensateHighlightPreservation")).toBool());
+}
+
+TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    constexpr std::array<const char *, 14> zero_to_two_fields{
+        "legacyColorBalanceLiftFactor",      "legacyColorBalanceLiftRed",
+        "legacyColorBalanceLiftGreen",       "legacyColorBalanceLiftBlue",
+        "legacyColorBalanceGammaFactor",     "legacyColorBalanceGammaRed",
+        "legacyColorBalanceGammaGreen",      "legacyColorBalanceGammaBlue",
+        "legacyColorBalanceGainFactor",      "legacyColorBalanceGainRed",
+        "legacyColorBalanceGainGreen",       "legacyColorBalanceGainBlue",
+        "legacyColorBalanceInputSaturation", "legacyColorBalanceOutputSaturation",
+    };
+    for (const auto *field : zero_to_two_fields)
+    {
+        const auto expected = QStringLiteral("\"field\": \"%1\", \"minimum\": 0, \"maximum\": 2")
+                                  .arg(QString::fromLatin1(field));
+        EXPECT_TRUE(source.contains(expected)) << field;
+    }
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "\"field\": \"legacyColorBalanceContrast\", \"minimum\": 0.01, \"maximum\": 1.99")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "\"field\": \"legacyColorBalanceGreyFulcrum\", \"minimum\": 0.1, \"maximum\": 100")));
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)

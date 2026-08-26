@@ -1130,6 +1130,199 @@ TEST(RecipeTest, ColorBalanceRgbFullSchemaRoundTripsTheFrozen0083Parameters)
     EXPECT_EQ(restored.value().color_balance_rgb, fixture);
 }
 
+TEST(RecipeTest, LegacyColorBalanceSchemaRoundTripsAllFrozenV4FieldsIndependently)
+{
+    ColorBalanceParams params;
+    params.mode = std::string(kColorBalanceModeLiftGammaGain);
+    params.lift = {0.91, 1.02, 0.97, 1.08};
+    params.gamma = {1.12, 0.88, 1.07, 0.94};
+    params.gain = {1.09, 1.15, 0.93, 1.04};
+    params.input_saturation = 0.83;
+    params.contrast = 1.17;
+    params.grey_fulcrum_percent = 21.5;
+    params.output_saturation = 1.11;
+
+    const auto parameters = color_balance_to_parameters(params);
+    EXPECT_EQ(parameters.size(), 19U);
+    auto decoded = color_balance_from_parameters(parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), params);
+
+    DevelopParams develop;
+    develop.color_balance_enabled = true;
+    develop.color_balance = params;
+    develop.color_balance_rgb.global_y = 0.08;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_EQ(recipe.value().operations.size(), 4U);
+    const auto *legacy = operation_by_id(recipe.value(), kColorBalanceOperationId);
+    const auto *rgb = operation_by_id(recipe.value(), "ravo.color.colorbalancergb");
+    ASSERT_NE(legacy, nullptr);
+    ASSERT_NE(rgb, nullptr);
+    EXPECT_NE(legacy->instance_id, rgb->instance_id);
+    EXPECT_LT(static_cast<std::size_t>(legacy - recipe.value().operations.data()),
+              static_cast<std::size_t>(rgb - recipe.value().operations.data()));
+
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto *descriptor = registry.value().find(kColorBalanceOperationId);
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_EQ(descriptor->parameter_schema_version, kColorBalanceOperationSchemaVersion);
+    EXPECT_EQ(descriptor->parameters.size(), 19U);
+    EXPECT_FALSE(descriptor->supports_mask);
+    EXPECT_TRUE(descriptor->cpu_reference_available);
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().color_balance, params);
+    EXPECT_EQ(restored.value().color_balance_rgb, develop.color_balance_rgb);
+}
+
+TEST(RecipeTest, LegacyColorBalanceStrictSchemaFieldAssignmentClampAndResetAreComplete)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto validate = [&](std::map<std::string, ParameterValue, std::less<>> parameters)
+    {
+        Recipe recipe;
+        recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+        recipe.operations.push_back({std::string(kColorBalanceOperationId),
+                                     kColorBalanceOperationSchemaVersion, "colorbalance-1", true,
+                                     std::move(parameters), std::nullopt});
+        return validate_recipe(recipe, registry.value());
+    };
+
+    const auto canonical = color_balance_to_parameters(ColorBalanceParams{});
+    ASSERT_TRUE(validate(canonical));
+    for (const std::string_view key :
+         {"working_space", "algorithm", "mode", "lift_factor", "lift_red", "lift_green",
+          "lift_blue", "gamma_factor", "gamma_red", "gamma_green", "gamma_blue", "gain_factor",
+          "gain_red", "gain_green", "gain_blue", "input_saturation", "contrast",
+          "grey_fulcrum_percent", "output_saturation"})
+    {
+        auto missing = canonical;
+        missing.erase(std::string(key));
+        auto result = validate(std::move(missing));
+        ASSERT_FALSE(result) << key;
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation) << key;
+    }
+
+    for (const auto &[key, value] : std::array<std::pair<std::string_view, ParameterValue>, 8>{
+             std::pair{"working_space", ParameterValue{std::string("prophoto")}},
+             std::pair{"algorithm", ParameterValue{std::string("simplified")}},
+             std::pair{"mode", ParameterValue{std::string("legacy")}},
+             std::pair{"lift_red", ParameterValue{-0.01}},
+             std::pair{"gamma_green", ParameterValue{2.01}},
+             std::pair{"contrast", ParameterValue{0.0}},
+             std::pair{"grey_fulcrum_percent", ParameterValue{101.0}},
+             std::pair{"gain_blue", ParameterValue{std::numeric_limits<double>::infinity()}},
+         })
+    {
+        auto invalid = canonical;
+        invalid[std::string(key)] = value;
+        auto result = validate(std::move(invalid));
+        ASSERT_FALSE(result) << key;
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation) << key;
+    }
+    auto unknown = canonical;
+    unknown["rgb_global"] = ParameterValue{1.0};
+    ASSERT_FALSE(validate(std::move(unknown)));
+
+    DevelopParams develop;
+    const std::array assignments{
+        std::pair{"legacyColorBalanceLiftFactor", 0.91},
+        std::pair{"legacyColorBalanceLiftRed", 1.02},
+        std::pair{"legacyColorBalanceLiftGreen", 0.97},
+        std::pair{"legacyColorBalanceLiftBlue", 1.08},
+        std::pair{"legacyColorBalanceGammaFactor", 1.12},
+        std::pair{"legacyColorBalanceGammaRed", 0.88},
+        std::pair{"legacyColorBalanceGammaGreen", 1.07},
+        std::pair{"legacyColorBalanceGammaBlue", 0.94},
+        std::pair{"legacyColorBalanceGainFactor", 1.09},
+        std::pair{"legacyColorBalanceGainRed", 1.15},
+        std::pair{"legacyColorBalanceGainGreen", 0.93},
+        std::pair{"legacyColorBalanceGainBlue", 1.04},
+        std::pair{"legacyColorBalanceInputSaturation", 0.83},
+        std::pair{"legacyColorBalanceContrast", 1.17},
+        std::pair{"legacyColorBalanceGreyFulcrum", 21.5},
+        std::pair{"legacyColorBalanceOutputSaturation", 1.11},
+    };
+    ASSERT_TRUE(apply_develop_field_strict(develop, "legacyColorBalanceMode", 0.0));
+    for (const auto &[name, value] : assignments)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, name, value)) << name;
+    }
+    EXPECT_EQ(develop.color_balance.mode, kColorBalanceModeLiftGammaGain);
+    EXPECT_TRUE(develop.color_balance_enabled);
+    EXPECT_FALSE(develop.color_balance.is_identity());
+    auto before_invalid = develop;
+    EXPECT_FALSE(apply_develop_field_strict(develop, "legacyColorBalanceContrast", 0.0));
+    EXPECT_EQ(develop, before_invalid);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "legacyColorBalanceLiftRed",
+                                            std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_EQ(develop, before_invalid);
+
+    for (const auto &[name, ignored] : assignments)
+    {
+        static_cast<void>(ignored);
+        ASSERT_TRUE(reset_develop_field(develop, name)) << name;
+    }
+    ASSERT_TRUE(reset_develop_field(develop, "legacyColorBalanceMode"));
+    EXPECT_TRUE(develop.color_balance_enabled);
+    EXPECT_TRUE(develop.color_balance.is_identity());
+
+    develop.color_balance.lift[1] = 4.0;
+    develop.color_balance.contrast = -1.0;
+    develop.color_balance.grey_fulcrum_percent = std::numeric_limits<double>::quiet_NaN();
+    develop.color_balance.mode = "unknown";
+    clamp_develop(develop);
+    EXPECT_DOUBLE_EQ(develop.color_balance.lift[1], 2.0);
+    EXPECT_DOUBLE_EQ(develop.color_balance.contrast, 0.01);
+    EXPECT_DOUBLE_EQ(develop.color_balance.grey_fulcrum_percent, 18.0);
+    EXPECT_EQ(develop.color_balance.mode, kColorBalanceModeSlopeOffsetPower);
+    ASSERT_TRUE(reset_develop_field(develop, "legacyColorBalance"));
+    EXPECT_FALSE(develop.color_balance_enabled);
+    EXPECT_EQ(develop.color_balance, ColorBalanceParams{});
+}
+
+TEST(RecipeTest, ExplicitDefaultLegacyColorBalancePresenceSurvivesDevelopRoundTrip)
+{
+    Recipe recipe;
+    recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    recipe.operations.push_back({std::string(kColorBalanceOperationId),
+                                 kColorBalanceOperationSchemaVersion, "colorbalance-explicit", true,
+                                 color_balance_to_parameters(ColorBalanceParams{}), std::nullopt});
+
+    auto develop = develop_from_recipe(recipe);
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_TRUE(develop.value().color_balance_enabled);
+    EXPECT_EQ(develop.value().color_balance, ColorBalanceParams{});
+    EXPECT_FALSE(develop.value().is_identity());
+
+    auto restored = recipe_from_develop(recipe.asset, develop.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto *operation = operation_by_id(restored.value(), kColorBalanceOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_TRUE(operation->enabled);
+    EXPECT_EQ(operation->parameters.size(), 19U);
+    auto decoded = color_balance_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), ColorBalanceParams{});
+
+    ASSERT_TRUE(reset_develop_field(develop.value(), "legacyColorBalanceLiftRed"));
+    EXPECT_TRUE(develop.value().color_balance_enabled);
+    ASSERT_TRUE(reset_develop_field(develop.value(), "legacyColorBalance"));
+    EXPECT_FALSE(develop.value().color_balance_enabled);
+    auto absent = recipe_from_develop(recipe.asset, develop.value());
+    ASSERT_TRUE(absent) << absent.error().message;
+    EXPECT_EQ(operation_by_id(absent.value(), kColorBalanceOperationId), nullptr);
+}
+
 TEST(RecipeTest, ColorBalanceRgbSchemaFailsFastOnEveryInvalidPolicyClass)
 {
     auto registry = make_phase1_registry();

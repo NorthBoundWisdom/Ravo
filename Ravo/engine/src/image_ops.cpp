@@ -2183,6 +2183,266 @@ catch (const std::bad_alloc &)
                       {{"reason", "allocation_failed"}});
 }
 
+Result<WorkingImage> apply_color_balance(const WorkingImage &input,
+                                         const ColorBalanceParams &params,
+                                         const CancellationToken &cancellation)
+try
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    auto canonical = color_balance_from_parameters(color_balance_to_parameters(params));
+    if (!canonical)
+    {
+        return canonical.error();
+    }
+    if (input.width == 0U || input.height == 0U)
+    {
+        return make_error(ErrorCode::kValidation, "Color Balance input dimensions must be non-zero",
+                          {{"reason", "invalid_colorbalance_dimensions"}});
+    }
+    const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
+    if (pixels > std::numeric_limits<std::size_t>::max() / 3U ||
+        input.rgb.size() != static_cast<std::size_t>(pixels * 3U))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Balance input buffer does not match its dimensions",
+                          {{"reason", "invalid_colorbalance_buffer"}});
+    }
+    if (input.color_profile.model != ColorModel::kRgb ||
+        input.color_profile.identifier != kInputProfileLinearRec709)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Color Balance requires linear sRGB D50 working pixels",
+                          {{"profile", input.color_profile.identifier},
+                           {"reason", "unsupported_colorbalance_working_space"}});
+    }
+    for (std::uint32_t row = 0U; row < input.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const std::size_t begin = static_cast<std::size_t>(row) * input.width * 3U;
+        const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
+        for (std::size_t index = begin; index < end; ++index)
+        {
+            if (!std::isfinite(input.rgb[index]))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Color Balance input contains a non-finite sample",
+                                  {{"sample_index", std::to_string(index)},
+                                   {"reason", "nonfinite_colorbalance_input"}});
+            }
+        }
+    }
+
+    constexpr std::array<float, 3> kProPhotoLuma{0.2880402F, 0.7118741F, 0.0000857F};
+    const auto corrected = [&](const std::array<double, kColorBalanceChannelCount> &values)
+    {
+        const float luma = std::fma(kProPhotoLuma[0], static_cast<float>(values[1]),
+                                    std::fma(kProPhotoLuma[1], static_cast<float>(values[2]),
+                                             kProPhotoLuma[2] * static_cast<float>(values[3])));
+        return std::array<float, 4>{static_cast<float>(values[0]),
+                                    static_cast<float>(values[1]) - luma + 1.0F,
+                                    static_cast<float>(values[2]) - luma + 1.0F,
+                                    static_cast<float>(values[3]) - luma + 1.0F};
+    };
+    const auto lift = corrected(canonical.value().lift);
+    const auto gamma = corrected(canonical.value().gamma);
+    const auto gain = corrected(canonical.value().gain);
+    std::array<float, 3> effective_lift{};
+    std::array<float, 3> effective_gain{};
+    std::array<float, 3> effective_power{};
+    const bool lgg = canonical.value().mode == kColorBalanceModeLiftGammaGain;
+    for (std::size_t channel = 0U; channel < 3U; ++channel)
+    {
+        effective_gain[channel] = gain[channel + 1U] * gain[0];
+        if (lgg)
+        {
+            effective_lift[channel] = 2.0F - lift[channel + 1U] * lift[0];
+            const float denominator = gamma[channel + 1U] * gamma[0];
+            effective_power[channel] =
+                2.2F * (denominator != 0.0F ? 1.0F / denominator : 1000000.0F);
+        }
+        else
+        {
+            effective_lift[channel] = lift[channel + 1U] + lift[0] - 2.0F;
+            effective_power[channel] = (2.0F - gamma[channel + 1U]) * (2.0F - gamma[0]);
+        }
+        if (!std::isfinite(effective_lift[channel]) || !std::isfinite(effective_gain[channel]) ||
+            !std::isfinite(effective_power[channel]))
+        {
+            return make_error(
+                ErrorCode::kValidation, "Color Balance derived curve is not finite",
+                {{"channel", std::to_string(channel)}, {"reason", "invalid_colorbalance_curve"}});
+        }
+    }
+    const float input_saturation = static_cast<float>(canonical.value().input_saturation);
+    const float output_saturation = static_cast<float>(canonical.value().output_saturation);
+    const float contrast = static_cast<float>(canonical.value().contrast);
+    const float contrast_power = 1.0F / contrast;
+    const float grey = static_cast<float>(canonical.value().grey_fulcrum_percent / 100.0);
+    if (!std::isfinite(contrast_power) || !std::isfinite(grey) || grey <= 0.0F)
+    {
+        return make_error(ErrorCode::kValidation, "Color Balance contrast denominator is invalid",
+                          {{"reason", "invalid_colorbalance_denominator"}});
+    }
+
+    WorkingImage output;
+    output.width = input.width;
+    output.height = input.height;
+    output.color_profile = input.color_profile;
+    output.exposure_analysis = input.exposure_analysis;
+    output.rgb.resize(input.rgb.size());
+    const bool run_input_saturation = std::abs(input_saturation - 1.0F) > 1.0e-6F;
+    const bool run_output_saturation = std::abs(output_saturation - 1.0F) > 1.0e-6F;
+    const bool run_contrast = std::abs((lgg ? contrast_power : contrast) - 1.0F) > 1.0e-6F;
+
+    for (std::uint32_t row = 0U; row < input.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        for (std::uint32_t column = 0U; column < input.width; ++column)
+        {
+            const std::size_t index = (static_cast<std::size_t>(row) * input.width + column) * 3U;
+            float xyz[3]{};
+            linear_rgb_to_xyz_d50(input.rgb[index], input.rgb[index + 1U], input.rgb[index + 2U],
+                                  xyz);
+            float lab[3]{};
+            xyz_d50_to_lab(xyz, lab);
+            // Preserve the frozen module boundary: it receives Lab D50, then converts
+            // Lab -> XYZ -> ProPhoto even though Ravo stores the surrounding pixels as RGB.
+            lab_to_xyz_d50(lab, xyz);
+            float rgb[3]{};
+            xyz_to_prophoto(xyz, rgb);
+            if (run_input_saturation)
+            {
+                for (std::size_t channel = 0U; channel < 3U; ++channel)
+                {
+                    rgb[channel] = xyz[1] + input_saturation * (rgb[channel] - xyz[1]);
+                }
+            }
+            for (std::size_t channel = 0U; channel < 3U; ++channel)
+            {
+                if (lgg)
+                {
+                    float value = std::pow(std::max(rgb[channel], 0.0F), 1.0F / 2.2F);
+                    value =
+                        ((value - 1.0F) * effective_lift[channel] + 1.0F) * effective_gain[channel];
+                    rgb[channel] = std::pow(std::max(value, 0.0F), effective_power[channel]);
+                }
+                else
+                {
+                    const float value = std::max(
+                        effective_gain[channel] * rgb[channel] + effective_lift[channel], 0.0F);
+                    rgb[channel] = std::pow(value, effective_power[channel]);
+                }
+                if (!std::isfinite(rgb[channel]))
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "Color Balance curve produced a non-finite sample",
+                                      {{"sample_index", std::to_string(index + channel)},
+                                       {"reason", "nonfinite_colorbalance_curve"}});
+                }
+            }
+            if (run_output_saturation)
+            {
+                float balanced_xyz[3]{};
+                prophoto_to_xyz(rgb, balanced_xyz);
+                for (std::size_t channel = 0U; channel < 3U; ++channel)
+                {
+                    rgb[channel] =
+                        balanced_xyz[1] + output_saturation * (rgb[channel] - balanced_xyz[1]);
+                }
+            }
+            if (run_contrast)
+            {
+                for (float &sample : rgb)
+                {
+                    sample = std::pow(std::max(sample, 0.0F) / grey, contrast_power) * grey;
+                }
+            }
+            prophoto_to_lab(rgb, lab);
+            lab_to_xyz_d50(lab, xyz);
+            xyz_d50_to_linear_rgb(xyz, output.rgb[index], output.rgb[index + 1U],
+                                  output.rgb[index + 2U]);
+            for (std::size_t channel = 0U; channel < 3U; ++channel)
+            {
+                if (!std::isfinite(output.rgb[index + channel]))
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "Color Balance produced a non-finite output sample",
+                                      {{"sample_index", std::to_string(index + channel)},
+                                       {"reason", "nonfinite_colorbalance_output"}});
+                }
+            }
+        }
+    }
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    return output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Color Balance output allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
+Result<WorkingImage> apply_color_balance(const WorkingImage &input,
+                                         const OperationInstance &operation,
+                                         const CancellationToken &cancellation)
+try
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    if (operation.id != kColorBalanceOperationId)
+    {
+        return make_error(ErrorCode::kValidation, "Operation is not Color Balance",
+                          {{"operation_id", operation.id}});
+    }
+    if (operation.schema_version != kColorBalanceOperationSchemaVersion)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Color Balance operation schema version is unsupported",
+                          {{"operation_id", operation.id},
+                           {"schema_version", std::to_string(operation.schema_version)}});
+    }
+    if (operation.mask_id.has_value())
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Color Balance mask evaluation is unavailable",
+            {{"operation_id", operation.id}, {"reason", "colorbalance_mask_graph_unavailable"}});
+    }
+    if (!operation.enabled)
+    {
+        return input;
+    }
+    auto params = color_balance_from_parameters(operation.parameters);
+    if (!params)
+    {
+        return params.error();
+    }
+    return apply_color_balance(input, params.value(), cancellation);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Color Balance operation allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
 Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t width,
                                       const std::uint32_t height,
                                       const std::array<float, 4> &white_balance,
@@ -2471,6 +2731,16 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             {
                 return curved.error();
             }
+            continue;
+        }
+        if (operation.id == kColorBalanceOperationId)
+        {
+            auto balanced = apply_color_balance(image, operation, cancellation);
+            if (!balanced)
+            {
+                return balanced.error();
+            }
+            image = std::move(balanced).value();
             continue;
         }
         if (operation.id == "ravo.color.colorbalancergb")

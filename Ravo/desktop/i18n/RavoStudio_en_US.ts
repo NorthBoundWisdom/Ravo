@@ -440,6 +440,90 @@
         <translation>Velvia</translation>
     </message>
     <message>
+        <source>Color Balance · legacy Lab / ProPhoto RGB</source>
+        <translation>Color Balance · legacy Lab / ProPhoto RGB</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>Enabled</translation>
+    </message>
+    <message>
+        <source>Inactive until edited</source>
+        <translation>Inactive until edited</translation>
+    </message>
+    <message>
+        <source>Lift / Gamma / Gain</source>
+        <translation>Lift / Gamma / Gain</translation>
+    </message>
+    <message>
+        <source>Slope / Offset / Power</source>
+        <translation>Slope / Offset / Power</translation>
+    </message>
+    <message>
+        <source>Lift · Factor</source>
+        <translation>Lift · Factor</translation>
+    </message>
+    <message>
+        <source>Lift · Red</source>
+        <translation>Lift · Red</translation>
+    </message>
+    <message>
+        <source>Lift · Green</source>
+        <translation>Lift · Green</translation>
+    </message>
+    <message>
+        <source>Lift · Blue</source>
+        <translation>Lift · Blue</translation>
+    </message>
+    <message>
+        <source>Gamma · Factor</source>
+        <translation>Gamma · Factor</translation>
+    </message>
+    <message>
+        <source>Gamma · Red</source>
+        <translation>Gamma · Red</translation>
+    </message>
+    <message>
+        <source>Gamma · Green</source>
+        <translation>Gamma · Green</translation>
+    </message>
+    <message>
+        <source>Gamma · Blue</source>
+        <translation>Gamma · Blue</translation>
+    </message>
+    <message>
+        <source>Gain · Factor</source>
+        <translation>Gain · Factor</translation>
+    </message>
+    <message>
+        <source>Gain · Red</source>
+        <translation>Gain · Red</translation>
+    </message>
+    <message>
+        <source>Gain · Green</source>
+        <translation>Gain · Green</translation>
+    </message>
+    <message>
+        <source>Gain · Blue</source>
+        <translation>Gain · Blue</translation>
+    </message>
+    <message>
+        <source>Input saturation</source>
+        <translation>Input saturation</translation>
+    </message>
+    <message>
+        <source>Contrast fulcrum (%)</source>
+        <translation>Contrast fulcrum (%)</translation>
+    </message>
+    <message>
+        <source>Output saturation</source>
+        <translation>Output saturation</translation>
+    </message>
+    <message>
+        <source>Disable and reset legacy Color Balance</source>
+        <translation>Disable and reset legacy Color Balance</translation>
+    </message>
+    <message>
         <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
         <translation>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</translation>
     </message>

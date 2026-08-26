@@ -74,6 +74,13 @@ inline constexpr std::string_view kTemperatureModeAsShot = "as_shot";
 inline constexpr std::string_view kTemperatureModeCameraReference = "camera_reference";
 inline constexpr std::string_view kTemperatureModeAsShotToReference = "as_shot_to_reference";
 inline constexpr std::string_view kTemperatureModeManual = "manual";
+inline constexpr std::string_view kColorBalanceOperationId = "ravo.color.colorbalance";
+inline constexpr std::int64_t kColorBalanceOperationSchemaVersion = 1;
+inline constexpr std::string_view kColorBalanceWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
+inline constexpr std::string_view kColorBalanceAlgorithmLabD50ProPhotoV4 = "lab_d50_prophoto_v4";
+inline constexpr std::string_view kColorBalanceModeLiftGammaGain = "lift_gamma_gain";
+inline constexpr std::string_view kColorBalanceModeSlopeOffsetPower = "slope_offset_power";
+inline constexpr std::size_t kColorBalanceChannelCount = 4;
 inline constexpr std::string_view kColorBalanceRgbWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
 inline constexpr std::string_view kColorBalanceRgbAlgorithmFilmlightYchV5 = "filmlight_ych_v5";
 inline constexpr std::string_view kColorBalanceRgbFormulaDtUcs2022 = "dt_ucs_2022";
@@ -134,6 +141,22 @@ struct TemperatureParams
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const TemperatureParams &) const noexcept = default;
+};
+
+struct ColorBalanceParams
+{
+    std::string mode{std::string(kColorBalanceModeSlopeOffsetPower)};
+    // Legacy channel order is factor, red, green, blue.
+    std::array<double, kColorBalanceChannelCount> lift{1.0, 1.0, 1.0, 1.0};
+    std::array<double, kColorBalanceChannelCount> gamma{1.0, 1.0, 1.0, 1.0};
+    std::array<double, kColorBalanceChannelCount> gain{1.0, 1.0, 1.0, 1.0};
+    double input_saturation = 1.0;
+    double contrast = 1.0;
+    double grey_fulcrum_percent = 18.0;
+    double output_saturation = 1.0;
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const ColorBalanceParams &) const noexcept = default;
 };
 
 struct ColorBalanceRgbParams
@@ -216,6 +239,8 @@ struct DevelopParams
     double soften = 0.0;
     double dehaze = 0.0;
     double velvia = 0.0;
+    bool color_balance_enabled = false;
+    ColorBalanceParams color_balance;
     ColorBalanceRgbParams color_balance_rgb;
     double color_contrast = 0.0;
     double monochrome = 0.0;
@@ -297,6 +322,12 @@ channel_mixer_to_parameters(const ChannelMixerParams &params);
 temperature_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 temperature_to_parameters(const TemperatureParams &params);
+[[nodiscard]] Result<void> validate_color_balance_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<ColorBalanceParams>
+color_balance_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+color_balance_to_parameters(const ColorBalanceParams &params);
 [[nodiscard]] Result<void> validate_color_balance_rgb_parameters(
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] Result<ColorBalanceRgbParams> color_balance_rgb_from_parameters(

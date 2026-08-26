@@ -83,7 +83,8 @@ target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)
 target_include_directories(ravo_desktop_command_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_desktop_command_tests PRIVATE
-  RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n")
+  RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n"
+  RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml")
 add_dependencies(ravo_desktop_command_tests ravo_studio_translations)
 ravo_configure_target(ravo_desktop_command_tests)
 ravo_copy_windows_runtime_dlls(ravo_desktop_command_tests)

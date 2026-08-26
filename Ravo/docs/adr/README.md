@@ -32,3 +32,4 @@ supersession relationship when direction changes.
 | [0022](0022-final-display-packing-and-diagnostic-disposition.md) | Accepted | Final profiled RGB8 packing is engine-private; legacy channel/mask display branches are unsupported presentation adapters. |
 | [0023](0023-jpeg-input-adapter-contract.md) | Accepted | JPEG input owns content recognition, EXIF scaling, strict APP2 ICC state, explicit RGB8 opacity, and atomic corrupt-input failure. |
 | [0024](0024-exposure-analysis-and-metadata-contract.md) | Accepted | Exposure v2 owns manual/black, private RAW metadata, original-RAW deflicker analysis, and an exact unmasked-only legacy boundary. |
+| [0025](0025-legacy-colorbalance-contract.md) | Accepted | Legacy Color Balance owns the full v4 Lab/ProPhoto CPU path, explicit presence, and an exact default-unmasked importer boundary distinct from Color Balance RGB. |

@@ -440,6 +440,90 @@
         <translation>Velvia</translation>
     </message>
     <message>
+        <source>Color Balance · legacy Lab / ProPhoto RGB</source>
+        <translation>色彩平衡 · 旧版 Lab / ProPhoto RGB</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation>已启用</translation>
+    </message>
+    <message>
+        <source>Inactive until edited</source>
+        <translation>编辑后启用</translation>
+    </message>
+    <message>
+        <source>Lift / Gamma / Gain</source>
+        <translation>提升 / 伽马 / 增益</translation>
+    </message>
+    <message>
+        <source>Slope / Offset / Power</source>
+        <translation>斜率 / 偏移 / 幂</translation>
+    </message>
+    <message>
+        <source>Lift · Factor</source>
+        <translation>提升 · 系数</translation>
+    </message>
+    <message>
+        <source>Lift · Red</source>
+        <translation>提升 · 红色</translation>
+    </message>
+    <message>
+        <source>Lift · Green</source>
+        <translation>提升 · 绿色</translation>
+    </message>
+    <message>
+        <source>Lift · Blue</source>
+        <translation>提升 · 蓝色</translation>
+    </message>
+    <message>
+        <source>Gamma · Factor</source>
+        <translation>伽马 · 系数</translation>
+    </message>
+    <message>
+        <source>Gamma · Red</source>
+        <translation>伽马 · 红色</translation>
+    </message>
+    <message>
+        <source>Gamma · Green</source>
+        <translation>伽马 · 绿色</translation>
+    </message>
+    <message>
+        <source>Gamma · Blue</source>
+        <translation>伽马 · 蓝色</translation>
+    </message>
+    <message>
+        <source>Gain · Factor</source>
+        <translation>增益 · 系数</translation>
+    </message>
+    <message>
+        <source>Gain · Red</source>
+        <translation>增益 · 红色</translation>
+    </message>
+    <message>
+        <source>Gain · Green</source>
+        <translation>增益 · 绿色</translation>
+    </message>
+    <message>
+        <source>Gain · Blue</source>
+        <translation>增益 · 蓝色</translation>
+    </message>
+    <message>
+        <source>Input saturation</source>
+        <translation>输入饱和度</translation>
+    </message>
+    <message>
+        <source>Contrast fulcrum (%)</source>
+        <translation>对比度支点（%）</translation>
+    </message>
+    <message>
+        <source>Output saturation</source>
+        <translation>输出饱和度</translation>
+    </message>
+    <message>
+        <source>Disable and reset legacy Color Balance</source>
+        <translation>禁用并重置旧版色彩平衡</translation>
+    </message>
+    <message>
         <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
         <translation>RGB 色彩平衡 · 线性 sRGB D50 / Filmlight Yrg</translation>
     </message>

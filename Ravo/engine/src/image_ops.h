@@ -11,6 +11,7 @@ namespace ravo
 {
 
 using WorkingImage = LinearWorkingBuffer;
+struct ColorBalanceParams;
 
 [[nodiscard]] Result<WorkingImage> working_from_raw(const DecodedRaw &raw, std::uint32_t width,
                                                     std::uint32_t height,
@@ -25,6 +26,14 @@ using WorkingImage = LinearWorkingBuffer;
 [[nodiscard]] Result<WorkingImage> apply_exposure(const WorkingImage &input,
                                                   const OperationInstance &operation,
                                                   const CancellationToken &cancellation);
+// Frozen legacy colorbalance.c v4. The borrowed input is never mutated; successful
+// publication owns its pixels/profile and preserves the immutable RAW analysis snapshot.
+[[nodiscard]] Result<WorkingImage> apply_color_balance(const WorkingImage &input,
+                                                       const ColorBalanceParams &params,
+                                                       const CancellationToken &cancellation);
+[[nodiscard]] Result<WorkingImage> apply_color_balance(const WorkingImage &input,
+                                                       const OperationInstance &operation,
+                                                       const CancellationToken &cancellation);
 [[nodiscard]] Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                                                     const CancellationToken &cancellation);
 [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image);
