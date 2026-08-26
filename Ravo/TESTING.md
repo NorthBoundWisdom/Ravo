@@ -1,14 +1,17 @@
 # Ravo Testing Strategy
 
-## 当前证据基线
+## Current evidence baseline
 
-冻结的 0.9 资产只用于静态取证：
+Frozen 0.9 assets are used only for static evidence:
 
-- `legacy/tests/` 有 158 组 XMP + `expected.png` fixture 和 5 个原图；
-- fixture 覆盖 68 个 operation 名；数字是资产盘点，不是 Ravo 覆盖率；
-- 旧工程、旧 CLI、旧 CTest、旧打包 target 和 `legacy/tests/run` 全部禁止运行。
+- `legacy/tests/` contains 158 XMP + `expected.png` fixture sets and five
+  source images.
+- Fixtures cover 68 operation names; that number is an asset inventory, not
+  Ravo coverage.
+- The old project, old CLI, old CTest, old package targets, and
+  `legacy/tests/run` are all prohibited from execution.
 
-边界检查：
+Boundary checks:
 
 ```text
 python3 Ravo/tools/freeze_legacy_manifest.py --check
@@ -17,167 +20,237 @@ python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 ```
 
-当前 dependency-boundary checker 已覆盖产品 target 图：`Qt6::Sql` 仅 adapters，`Qt6::Gui` 仅 raster
-adapters/desktop，`Qt6::Qml`/`Qt6::Quick`、`QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` 与
-`GeoControls`/`GeoControls.AppShell` import 与 production `.qml` 仅 desktop；所有 Ravo target 禁止 Qt
-Widgets。不能删除检查来放行新依赖。
+The dependency-boundary checker covers the product target graph:
+`Qt6::Sql` is adapters-only, `Qt6::Gui` is raster adapters/desktop-only,
+`Qt6::Qml`/`Qt6::Quick`, `QtQuick.Controls`/`QtQuick.Dialogs`/
+`QtQuick.Layouts`, `GeoControls`/`GeoControls.AppShell` imports, and production
+`.qml` are desktop-only; every Ravo target rejects Qt Widgets. Do not remove a
+check to admit a new dependency.
 
-当前 Ravo Debug 图覆盖 foundation/recipe/engine/CLI 与 catalog integration。Review 契约包括 schema
-v2→v4 迁移、review 持久化、筛选与缺失原片状态；Develop 契约包括每张图一份 canonical recipe、CPU
-develop 操作、edited preview，以及 `ravo catalog` JSON 命令走同一 CatalogService。
-schema v4 覆盖 Unicode 标签筛选、可写 metadata、history/snapshot 保存与恢复。FreeCM Test 和 `ctest --test-dir build/<preset>` 从仓库根运行同一套
-测试。GitHub Actions 在 `mac_clang_debug`、`linux_clang_debug` 与 `win_msvc_debug` 上跑同一组
-CTest，并额外跑 freeze/capability/boundary 等静态检查。CI 先 `--init` 再改活动锁里的 Qt/PATH，然后
-`--update`。构建走 `cmake --build build/<preset>`，不依赖 Linux 模板里的 `ClangDebug` 构建
-preset 名，也让 Windows gtest discovery 能看见 runner `Path` 上的 Qt。它不构建 `legacy/`。
-unit/contract 覆盖 foundation/recipe/executor、CLI JSON/退出码、有限 XMP 映射、真实
-`mire1.cr2` inspect/render。catalog 测试覆盖 schema create/reopen/newer-version reject、
-PNG/JPEG/RAW 幂等导入、目录跳过 sidecar、原片哈希不变、preview 缓存、缺失/不支持输入，以及
-recipe 与 review 独立性。它们不替代本机 Studio 手工 Fit/100%/Develop 验收。
-`ravo_studio` 每次成功链接后会以 `--smoke` 在 `offscreen` 平台加载主 QML 并立即退出；
-QML 组件失败会使该 target 的构建失败。手动检查：`$<TARGET_FILE:ravo_studio> --smoke`。
-`ravo_desktop_command_tests` 验证内建 command/action 覆盖、稳定 ID、运行时状态重校验、无效 dispatch、
-快捷键冲突、三平台主修饰键和 Unicode 模糊搜索；标签为 `ravo-desktop-smoke`。
-Develop 自动合同还覆盖 recipe/history/revision 故障注入回滚、RAW interactive 与完整 CPU render
-逐像素一致、L2–L9 + temperature + channel mixer + Color Balance RGB 参数/像素 reopen，以及 preview
-owner 取消 superseded token 和拒绝旧 revision/asset。desktop QML smoke 验证 White Balance、Color
-Calibration 与完整 Color Balance RGB 绑定可加载；这些自动检查不依赖 Computer Use。
+The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
+integration. Review contracts include schema v2→v4 migration, review
+persistence, filtering, and missing-source state. Develop contracts include one
+canonical recipe per image, CPU Develop operations, edited previews, and
+`ravo catalog` JSON commands going through the same CatalogService. Schema v4
+covers Unicode tag filtering, writable metadata, and history/snapshot save and
+restore. FreeCM Test and `ctest --test-dir build/<preset>` run the same suite
+from the repository root. GitHub Actions runs the same CTest set on
+`mac_clang_debug`, `linux_clang_debug`, and `win_msvc_debug`, plus static
+freeze/capability/boundary checks. CI runs `--init`, updates Qt/PATH in the
+active lock, then runs `--update`. Builds use `cmake --build build/<preset>` so
+they do not depend on the Linux template's `ClangDebug` build-preset name and
+Windows gtest discovery can see Qt on runner `Path`. CI does not build
+`legacy/`.
 
-## Test framework 与 target 边界
+Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
+codes, limited XMP mapping, and real `mire1.cr2` inspect/render. Catalog tests
+cover schema create/reopen/newer-version reject, idempotent PNG/JPEG/RAW
+import, directory sidecar skipping, unchanged source hashes, preview cache,
+missing/unsupported input, and recipe/review independence. They do not replace
+local manual Studio Fit/100%/Develop acceptance. Each successful link of
+`ravo_studio` runs `--smoke` on the `offscreen` platform to load the root QML
+and exit immediately; a QML component failure fails the target build. Manual
+check: `$<TARGET_FILE:ravo_studio> --smoke`.
+`ravo_desktop_command_tests` validates built-in command/action coverage,
+stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,
+three-platform primary modifiers, and Unicode fuzzy search; its label is
+`ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
+failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
+interactive and full CPU render, L2–L9 + temperature + channel mixer + Color
+Balance RGB parameter/pixel reopen, and preview-owner cancellation of a
+superseded token with old revision/asset rejection. Desktop QML smoke verifies
+that White Balance, Color Calibration, and full Color Balance RGB bindings load;
+these automated checks do not rely on Computer Use.
 
-所有 Ravo C++ unit、contract 和 integration test 使用 GoogleTest；port 交互需要时可使用 GoogleMock。
-CMocka 只属于冻结 `src/tests`，不得链接 Ravo target。测试依赖从现有 FreeCM/CMake 工具链发现，不使用
-`FetchContent` 或 CMake 网络下载。
+## Test framework and target boundaries
 
-测试 target 只能链接 Ravo 新 target。Qt Core/Gui/Qml/Quick/Sql 与 SQLite 进入第一版后，测试仍不得
-包含 GTK、Qt Widgets、旧 `src` 头、旧数据库类型或动态 IOP；`QSqlDatabase` 和 `QImageReader` 只出现
-在 adapter 实现与对应 contract test，QML source 和 Qt Quick Test 只出现在 desktop/test owner。
+All Ravo C++ unit, contract, and integration tests use GoogleTest; GoogleMock
+may be used where port interaction requires it. CMocka belongs only to frozen
+`src/tests` and must not link Ravo targets. Test dependencies are discovered
+through the existing FreeCM/CMake toolchain; do not use FetchContent or CMake
+network downloads.
 
-## 第一版测试层次
+Test targets link only new Ravo targets. After Qt Core/Gui/Qml/Quick/Sql and
+SQLite enter the first version, tests still must not include GTK, Qt Widgets,
+old `src` headers, old database types, or dynamic IOP. `QSqlDatabase` and
+`QImageReader` appear only in adapter implementation and their contract tests;
+QML source and Qt Quick Test appear only in desktop/test owners.
 
-| 层次 | 目标 | 当前典型内容 |
+## First-version test layers
+
+| Layer | Goal | Current representative content |
 | --- | --- | --- |
-| Unit | 纯值类型/算法 | schema version、URI 规范化、asset ID、状态机、cache key |
-| Port contract | 实现与抽象契约 | SQLite repository、filesystem、codec、preview cache |
-| Service integration | 无 UI 真实用例 | create → import PNG/RAW → list → preview → reopen |
-| Engine reference | 像素/metadata | RAW/raster 尺寸、orientation、颜色、有限值、有界输出 |
-| Failure/recovery | 可信状态 | duplicate、unsupported、missing、取消、事务失败、cache 损坏 |
-| Desktop acceptance | 最小产品闭环 | 创建/打开、导入、列表、选择、fit/100%、重启 |
-| Resource/performance | 可交付性 | import-to-preview、峰值内存、长列表、关闭窗口、缓存预算 |
-| Platform/package | 真实部署 | Windows/macOS/Linux configure/build，staged install 运行闭环 |
+| Unit | Pure value types/algorithms | schema version, URI normalization, asset ID, state machine, cache key |
+| Port contract | Implementation and abstraction contract | SQLite repository, filesystem, codec, preview cache |
+| Service integration | Real use case without UI | create → import PNG/RAW → list → preview → reopen |
+| Engine reference | Pixels/metadata | RAW/raster size, orientation, colour, finite values, bounded output |
+| Failure/recovery | Trusted state | duplicate, unsupported, missing, cancellation, transaction failure, cache corruption |
+| Desktop acceptance | Minimum product loop | create/open, import, list, selection, fit/100%, restart |
+| Resource/performance | Deliverability | import-to-preview, peak memory, long list, window close, cache budget |
+| Platform/package | Real deployment | Windows/macOS/Linux configure/build and staged-install runtime loop |
 
-UI 测试不能替代 service integration。当前可以使用最小手工桌面验收，但 catalog、import、preview 和失败
-路径必须先有无 UI 自动测试。QML component 可使用 Qt Quick Test 验证 binding、intent 转发和状态呈现；
-业务结果仍由 GoogleTest service/contract 测试验证。
+UI testing does not replace service integration. Minimum manual desktop
+acceptance may be used today, but catalog, import, preview, and failure paths
+need headless automated tests first. QML components may use Qt Quick Test for
+binding, intent forwarding, and state presentation; GoogleTest service/contract
+tests still validate business outcomes.
 
 ## Catalog contract
 
-SQLite adapter 至少测试：
+The SQLite adapter tests at least:
 
-- schema v1 create、空库 reopen、逐版本 migration 和 unknown-newer-version reject；
-- transaction commit/rollback、foreign key、唯一 URI 和并发/串行连接 owner；
-- duplicate import 幂等，失败 item 不产生 ready asset；
-- 数据库只读、不可写、损坏、磁盘满/提交失败时保持可重新打开的可信状态；
-- close 等待任务结束并释放 statement/connection；异常不穿过 target ABI。
+- schema v1 creation, empty-library reopen, each-version migration, and
+  unknown-newer-version rejection;
+- transaction commit/rollback, foreign keys, unique URI, and concurrent/serial
+  connection owners;
+- idempotent duplicate import, where a failed item does not produce a ready
+  asset;
+- a trusted reopenable state for read-only, non-writable, corrupt, disk-full,
+  or commit-failed databases;
+- close waits for tasks and releases statements/connections; no exception
+  crosses a target ABI.
 
-测试使用临时目录中的独立数据库，不读取或覆盖用户 catalog。schema fixture 随 migration 版本提交，
-不得通过直接改旧 fixture 伪造升级成功。
+Tests use independent databases in temporary directories and never read or
+overwrite a user catalog. Commit schema fixtures with migration versions; never
+fake upgrade success by directly editing an old fixture.
 
-## Import 与原片安全
+## Import and source-image safety
 
-第一条 integration 同时覆盖仓库 PNG 与 `legacy/tests/images/mire1.cr2`。之后扩展 JPEG/TIFF、目录、
-损坏文件和更多 RAW。
+The first integration covers both a repository PNG and
+`legacy/tests/images/mire1.cr2`. Later coverage expands to JPEG/TIFF,
+directories, corrupt files, and more RAW files.
 
-- 导入前后比较原片 hash/size/mtime，证明 reference-only 路径不修改原文件；
-- 格式由 codec 探测确认，测试错误扩展名与 unsupported 内容；
-- 每项结果区分 imported/duplicate/unsupported/failed，部分失败不丢明细；
-- 目录枚举、排序和批次边界在确定性模式固定；
-- 取消停止未派发工作，已提交可信资产保持有效；
-- 源文件移走后 catalog 保留 missing 状态，viewer 不显示上一张图片冒充结果。
+- Compare the source image hash/size/mtime before and after import to prove a
+  reference-only path does not modify the original.
+- Confirm formats through codec probing and test misleading extensions and
+  unsupported content.
+- Each item distinguishes imported/duplicate/unsupported/failed; partial
+  failure does not lose details.
+- Directory enumeration, sorting, and batch boundaries are fixed in
+  deterministic mode.
+- Cancellation stops undispatched work; already committed trusted assets remain
+  valid.
+- After a source moves, the catalog retains missing state; the viewer must not
+  show a previous image as its result.
 
-## Preview 与 viewer
+## Preview and viewer
 
-- preview cache 写入临时文件后原子提交；已有可信文件不被失败请求覆盖；
-- cache key 包含源指纹、尺寸和 contract version；损坏/缺失 cache 可重建；
-- RAW 与 raster 共同验证 orientation、目标尺寸、alpha、颜色描述、NaN/Inf 和内存预算；
-- preview contract v4 的 RAW 路径必须验证完整 decode + 默认 Sigmoid；raster 基线不得被二次
-  display-transform。Sigmoid 至少有 schema 往返、合成色块、`mire1.cr2` channel-sum
-  reference 与 catalog reset/reopen；
-- RAW 导入与 Gallery 缩略图可持久化 embedded JPEG browse 缓存，cache key 必须带
-  `embedded-jpeg` digest，且与 1600px processed preview 分文件；`prefer_embedded_preview`
-  不得影响 interactive/develop/export；
-- 交互预览使用 scene-linear 工作缓冲：RAW unpack/demosaic 缓存在 CatalogService，拖动时只把
-  已缓存的 linear buffer 套上 recipe；不得把 embedded JPEG 当作可编辑数据。CLI/Studio 同一
-  `request_preview` 合同；晚到结果按 request revision 丢弃；
-- 示波器从当前 preview 的 display-referred sRGB 收集：RGB 直方图跳过 bin 0 求峰值，
-  parade 用 8/9 映射和 160 档 tone。Gallery 网格用 browse 缩略图计算示波器，避免选中时
-  完整 RAW decode；loupe/develop 仍用 processed preview，不得把 embedded JPEG 当可编辑数据；
-- 快速切换资产时，旧 request revision 的晚到结果被丢弃；
-- superseded Develop request 的独立 token 必须在新 revision 发布时取消；即使取消与完成竞态，旧
-  revision/asset 仍不得更新 preview；
-- 窗口关闭/关闭 catalog 后没有 detached task、晚到 UI 更新、未提交事务或临时 preview；
-- viewer 手工验收至少覆盖 loading/ready/missing/unsupported/failed、fit、100% 与平移；
-- Gallery 网格滚动只走 browse 缩略图，不得为网格选中项排队 1600px processed preview；
-  打开已有 cache 的 catalog 不得再对每张图跑一遍 ensureThumbnail 工作队列；
-- 导入使用系统文件/文件夹对话框；选完路径后扫描/导入必须在 worker 上跑，左侧
-  Import/Previews 进度条从 Scanning 起可见，窗口不得卡住；每张成功导入的照片立刻
-  出现在网格里并带 browse 缩略图。
+- Write preview cache to a temporary file and publish atomically; a failed
+  request never overwrites an existing trusted file.
+- Cache keys include source fingerprint, size, and contract version; corrupt or
+  missing cache can be rebuilt.
+- RAW and raster jointly validate orientation, target size, alpha, colour
+  description, NaN/Inf, and memory budget.
+- RAW preview contract v4 validates complete decode + default Sigmoid; the
+  raster baseline must not receive a second display transform. Sigmoid requires
+  at least schema round-trip, synthetic colour patches, `mire1.cr2`
+  channel-sum reference, and catalog reset/reopen.
+- RAW import and Gallery thumbnails may persist embedded-JPEG browse cache. Its
+  key must use the `embedded-jpeg` digest and be a separate file from the
+  1600px processed preview; `prefer_embedded_preview` must not affect
+  interactive/develop/export.
+- Interactive preview uses a scene-linear working buffer: CatalogService caches
+  RAW unpack/demosaic and a drag applies a recipe only to the cached linear
+  buffer. Embedded JPEG must not become editable data. CLI/Studio share the
+  `request_preview` contract; late results are dropped by request revision.
+- Scopes collect from the current display-referred sRGB preview: RGB histogram
+  skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone bins. The
+  Gallery grid computes scopes from browse thumbnails to avoid full RAW decode
+  on selection; loupe/develop still use processed preview and never treat
+  embedded JPEG as editable data.
+- Quickly switching assets drops late results from old request revisions.
+- A superseded Develop request's independent token cancels when a new revision
+  publishes; even if cancellation races with completion, an old revision/asset
+  cannot update preview.
+- After window or catalog close, there is no detached task, late UI update,
+  uncommitted transaction, or temporary preview.
+- Manual viewer acceptance covers at least loading/ready/missing/unsupported/
+  failed, fit, 100%, and pan.
+- Gallery-grid scrolling uses browse thumbnails only; it must not queue a
+  1600px processed preview for the selected grid item. Opening a catalog with
+  existing cache must not rerun an `ensureThumbnail` work queue for every image.
+- Import uses system file/folder dialogs. After paths are chosen, scanning and
+  import run on workers; left Import/Previews progress is visible from Scanning
+  onward, the window remains responsive, and every successfully imported photo
+  appears immediately in the grid with a browse thumbnail.
 
-## 冻结 fixture 复用
+## Frozen fixture reuse
 
-- `tests/fixtures/fixture_classification_ledger.json` 继续与 legacy manifest 的 fixture ID 集合完全一致；
-- 已提交 RAW、XMP、`expected.png` 是只读输入；Ravo 自有 float/golden、metadata 摘要和容差另存；
-- Ravo CPU 与冻结资产比较像素、NaN/Inf、尺寸/ROI、alpha、颜色、metadata 和错误状态；
-- 已删除产品能力只有在兼容性决定记录后才能排除，并测试可读的结构化拒绝；
-- 一张 8-bit PNG 不能单独满足 operation 或颜色验收。
-- `channelmixerrgb` 使用静态解码的 `0085-channelmixerrgb` 两个 schema-v3 参数实例、identity/单通道/
-  交叉通道/奇异矩阵合成输入和 `mire1.cr2` channel-sum reference；不得用裸 3×3 替代 CAT/gamut/V3
-  saturation-lightness 路径。
-- `temperature` 使用静态解码的 `0000-nop` schema-v3、`0171-capture-sharpen` schema-v4 late-reference 与
-  `0177-bayer4` 第四通道系数；覆盖 Bayer/X-Trans/RGB channel mapping、LibRaw as-shot/daylight metadata、
-  manual、late-reference + 显式 CAT、缺失/零/非有限拒绝、取消/输入 immutability、preprocess cache key、
-  `mire1.cr2` 默认/manual/camera-reference channel-sum 和 catalog reopen。不得用 Kelvin/tint RGB 近似替代。
-- `colorbalancergb` 使用静态解码的 `0083-colorbalancergb` schema-v4 与
-  `0093-colorbalancergb-ucs` schema-v5 参数、Filmlight Yrg/grading RGB 与三段 opacity synthetic、DT UCS
-  gamut/soft clip、JzAzBz 92³ LUT/负 LMS clip、取消/非有限不发布和 `mire1.cr2` channel-sum reference；
-  catalog reopen 与 Studio QML smoke 必须覆盖完整 32 参数 + formula，不接受 lift/gamma/gain 替代。
-- `hotpixels` 覆盖严格四邻居单点、permissive 三邻居相邻点、两圈边界不动、取消、raster/X-Trans reject、
-  decoded-frame immutability、cache-key/reopen 与 `mire1.cr2` reference；不得在 demosaic 后补救或原地修改
-  service 缓存。
-- `cacorrect` 覆盖默认两遍 `mire1.cr2`、`0084-cacorrect` 五遍 + avoid-color-shift、Bayer/raster/X-Trans
-  边界、取消、内存预算、decoded-frame immutability、cache-key 与 catalog reopen；固定 R/B shift 不能满足
-  tile/median/polynomial/interpolation 门槛。
+- `tests/fixtures/fixture_classification_ledger.json` remains exactly aligned
+  with the fixture-ID set in the legacy manifest.
+- Committed RAW, XMP, and `expected.png` are read-only input; store Ravo-owned
+  float/goldens, metadata summaries, and tolerances separately.
+- Ravo CPU compares pixels, NaN/Inf, size/ROI, alpha, colour, metadata, and
+  error state against frozen assets.
+- A removed product capability may be excluded only after its compatibility
+  decision is recorded and tested as a readable structured rejection.
+- One 8-bit PNG alone cannot satisfy operation or colour acceptance.
+- `channelmixerrgb` uses two statically decoded schema-v3 parameter instances
+  from `0085-channelmixerrgb`, identity/single-channel/cross-channel/singular-
+  matrix synthetic inputs, and a `mire1.cr2` channel-sum reference. A bare 3×3
+  cannot replace the CAT/gamut/V3 saturation-lightness path.
+- `temperature` uses statically decoded `0000-nop` schema-v3,
+  `0171-capture-sharpen` schema-v4 late-reference, and `0177-bayer4`
+  fourth-channel coefficients. It covers Bayer/X-Trans/RGB channel mapping,
+  LibRaw as-shot/daylight metadata, manual, late-reference + explicit CAT,
+  missing/zero/nonfinite rejection, cancellation/input immutability,
+  preprocess cache key, `mire1.cr2` default/manual/camera-reference channel
+  sums, and catalog reopen. A Kelvin/tint RGB approximation is not a substitute.
+- `colorbalancergb` uses statically decoded `0083-colorbalancergb` schema-v4
+  and `0093-colorbalancergb-ucs` schema-v5 parameters, Filmlight Yrg/grading
+  RGB plus three-zone-opacity synthetic tests, DT UCS gamut/soft clip, JzAzBz
+  92³ LUT/negative-LMS clip, cancellation/no publication on nonfinite values,
+  and a `mire1.cr2` channel-sum reference. Catalog reopen and Studio QML smoke
+  must cover all 32 parameters + formula; lift/gamma/gain is not accepted as a
+  substitute.
+- `hotpixels` covers strict four-neighbor single points, permissive
+  three-neighbor adjacent points, an unchanged two-pixel boundary, cancellation,
+  raster/X-Trans rejection, decoded-frame immutability, cache-key/reopen, and
+  `mire1.cr2` reference. It must not repair after demosaic or modify service
+  cache in place.
+- `cacorrect` covers the default two-pass `mire1.cr2`, five passes from
+  `0084-cacorrect` + avoid-color-shift, Bayer/raster/X-Trans boundaries,
+  cancellation, memory budget, decoded-frame immutability, cache key, and
+  catalog reopen. A fixed R/B shift cannot meet tile/median/polynomial/
+  interpolation gates.
 
-## 确定性模式
+## Deterministic mode
 
-测试必须能固定：
+Tests must fix:
 
-- CPU backend、worker 数、调度和内存预算；
-- catalog schema、URI normalization 和目录枚举顺序；
-- preview 尺寸、orientation、插值、颜色与 metadata 策略；
-- cache root、cache contract version 和源文件指纹输入；
-- engine、recipe、operation 和第三方依赖版本；
-- 随机种子（若算法需要）。
+- CPU backend, worker count, scheduling, and memory budget;
+- catalog schema, URI normalization, and directory-enumeration order;
+- preview size, orientation, interpolation, colour, and metadata strategy;
+- cache root, cache-contract version, and source-file fingerprint inputs;
+- engine, recipe, operation, and third-party dependency versions;
+- random seed, if an algorithm requires it.
 
-浮点允许有逐项记录的容差，但 geometry、orientation、operation 顺序、mask、离散状态和 catalog 事务
-语义不能以浮点差异为理由变化。
+Floating point may have individually recorded tolerances, but geometry,
+orientation, operation order, masks, discrete states, and catalog transaction
+semantics cannot change because of a floating-point difference.
 
-## 本地标签与验证节奏
+## Local labels and validation cadence
 
-现有标签：
+Current labels:
 
-- `ravo-unit`：快速纯逻辑；
-- `ravo-contract`：facade、adapter、CLI 和冻结边界。
+- `ravo-unit`: fast pure logic;
+- `ravo-contract`: facade, adapter, CLI, and frozen-boundary tests.
 
-随桌面产品增加：
+Added with the desktop product:
 
-- `ravo-catalog`：schema/repository/service integration；
-- `ravo-desktop-smoke`：命令 registry 静态契约、可自动化的窗口生命周期与 composition smoke；不取代
-  命令面板 focus、键盘导航、确认对话框和文本输入隔离的 Studio 手工验收。
+- `ravo-catalog`: schema/repository/service integration;
+- `ravo-desktop-smoke`: static command-registry contracts and automatable
+  window-lifecycle/composition smoke. It does not replace Studio manual
+  acceptance of command-palette focus, keyboard navigation, confirmation
+  dialogs, and text-input isolation.
 
-后续再建立 `ravo-regression`、`ravo-sanitizer` 和 `ravo-performance`。不存在的标签不得描述为已通过。
-文档改动无需强行构建；CMake/依赖/公共头变化至少 configure/build；catalog/import/desktop 行为变化运行
-相关标签和真实纵切片；公共调度或 schema 变化运行完整 Ravo test set。
+Later add `ravo-regression`, `ravo-sanitizer`, and `ravo-performance`. Never
+describe a nonexistent label as passing. Documentation changes do not require a
+forced build; CMake/dependency/public-header changes require at least
+configure/build; catalog/import/desktop behavior changes run relevant labels
+and the real vertical slice; broad scheduling or schema changes run the full
+Ravo test set.
 
-每次依赖或公共构建图升级都按实际可用主机分别复验；其他平台的历史结果与本次未验证状态必须分开
-报告，不能把单一平台写成全平台通过。
+Revalidate each dependency or public build-graph upgrade on every actually
+available host. Report historical results for other platforms separately from
+those untested in this change; never present one platform as passing on all.

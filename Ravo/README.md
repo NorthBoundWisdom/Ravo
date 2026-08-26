@@ -1,68 +1,101 @@
 # Ravo
 
-Ravo 是当前仓库中唯一可构建的照片软件。当前产品目标是尽快交付一个跨平台第一版：
-创建/打开本地 SQLite 图库、reference-only 导入 JPEG/PNG/TIFF/RAW，并在 Ravo Studio 中浏览图片。
-现有 C++20 Engine 和 `ravo` CLI 是这个软件的底层与无 UI 客户端，desktop 不会另写一套业务或算法。
+Ravo is the only buildable photo software in this repository. Its current
+product goal is to deliver a cross-platform first version quickly: create or
+open a local SQLite catalog, import JPEG/PNG/TIFF/RAW by reference, and browse
+images in Ravo Studio. The existing C++20 Engine and `ravo` CLI are the
+software's foundation and headless client; desktop does not implement a second
+set of business logic or algorithms.
 
-当前实现状态：
+Current implementation status:
 
-- 已完成 foundation/recipe/engine/adapters/CLI/test 骨架和版本化 JSON/错误契约；
-- `ravo inspect` 可读取 LibRaw 支持的首个 16-bit Bayer RAW 切片，宽高为相机方向下的显示尺寸；
-- `ravo render` 可执行 nop 与 `ravo.core.exposure`，完成裁剪、black/white 归一化、camera WB、
-  LibRaw camera-to-sRGB、基础 3×3 Bayer 插值、sRGB 编码和原子 PNG 输出；
-- legacy XMP 仅支持空 history、严格 nop 基线和已证明的 schema-6/v5 手动 singleton exposure 子集；
-- Catalog 纵切片已落地：reference-only JPEG/PNG/RAW 导入、库外 preview cache、
-  `ravo_studio` Qt Quick 窗口，控件来自 source-root `GeoControls`。
-- Browse & Review：catalog schema v2、评分/色标/拒绝、Gallery（grid/loupe）与 Edit 分栏、filmstrip（与 grid 相同的 contain 整图，letterbox 显示序号/评分/标记）、可折叠文件夹树、左侧 Import/Export、Fit/Fill/100%、筛选排序、Cmd/Ctrl 点选加减与 Shift 连选、右侧面板 RGB 直方图/parade 示波器。
-- Studio 内建命令由 C++ registry 统一投影到菜单、快捷键、控件和顶部命令面板；macOS 使用
-  `Cmd+Shift+P`，Windows/Linux 使用 `Ctrl+Shift+P`，不可用命令保留可见原因。
-- Basic Develop：catalog schema v4 每张图一份 canonical recipe，外加标签/可写 metadata 与
-  持久 history/snapshot；CPU 含 RAW 高光重建（默认 opposed）、wavelets+Y0U0V0 降噪、
-  lensfun poly3/vignette、dt UCS `colorequal`、渐变滤镜和 9 带 toneequal。Studio 有
-  Edit 面板、before/after 与会话内 undo/redo。RAW 交互预览复用 scene-linear 工作图，
-  superseded request 会取消且晚到结果按 revision 丢弃；recipe/history/revision 原子保存，
-  L2–L9 参数与像素 reopen 合同由 catalog UT 覆盖。
-- RAW Repair：`ravo.raw.hotpixels` v1 在 owned Bayer CFA 副本上按冻结四同色邻居路径修复坏点，
-  `ravo.raw.cacorrect` v1 保留 RawTherapee 两遍 tile/多项式拟合与 avoid-color-shift；二者的取消、
-  sensor reject、memory budget、cache immutability、catalog reopen 与真实 RAW reference 均由 UT 覆盖。
-- White Balance：`ravo.color.temperature` v1 在 demosaic 前按 R/G1/B/G2 四通道系数缩放；默认 as-shot
-  与 camera-reference 分别由 LibRaw `cam_mul` / `pre_mul` 提供，manual 保存显式系数，late-reference 只允许
-  后接显式 channel-mixer CAT。旧 Kelvin/tint RGB 近似和 generic fallback 已删除。
-- Color Calibration：`ravo.color.channelmixerrgb` v1 复刻冻结 V3 CPU 的矩阵归一化、
-  CAT16/Bradford/XYZ/RGB、XYZ gamut、饱和度/明度与灰度路径；Studio 暴露显式 3×3 矩阵，
-  CLI、preview 与 export 复用同一 engine operation。
-- Color Balance RGB：`ravo.color.colorbalancergb` v1 在显式 `linear_srgb_d50` 工作空间执行
-  Filmlight Yrg 三段 luminance mask、grading RGB offset/slope/power、fulcrumed luminance，并以
-  DT UCS 2022 为默认 saturation/brilliance gamut 路径；JzAzBz 2021 是显式可选公式。Studio 暴露完整
-  canonical 参数，原 Lift/Color gamma/Gain 近似 operation 已移除。
-- RAW preview/export 以 `ravo.display.sigmoid` v1 作为唯一 Standard SDR 显示变换；
-  recipe 可调 contrast/skew/hue preservation，默认基线不标记为用户编辑。
-  Gallery 内嵌 JPEG 缩略图与 inspect 尺寸按相机方向转正。
-  Configure 强制要求 JPEG/GIF/WebP/TIFF imageformat plugins 与 QSQLITE driver；缺失直接阻断。
+- Foundation/recipe/engine/adapters/CLI/test scaffolding and versioned
+  JSON/error contracts are complete.
+- `ravo inspect` reads the first LibRaw-supported 16-bit Bayer RAW slice and
+  reports width and height in camera-oriented display dimensions.
+- `ravo render` executes nop and `ravo.core.exposure`, including crop,
+  black/white normalization, camera WB, LibRaw camera-to-sRGB, basic 3×3 Bayer
+  interpolation, sRGB encoding, and atomic PNG output.
+- Legacy XMP supports only empty history, a strict nop baseline, and the
+  demonstrated schema-6/v5 manual singleton-exposure subset.
+- The catalog vertical slice is implemented: reference-only JPEG/PNG/RAW
+  import, preview cache outside the library, and the `ravo_studio` Qt Quick
+  window using controls from the `GeoControls` source root.
+- Browse & Review includes catalog schema v2; ratings, color labels, and reject
+  state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
+  images like the grid and shows number/rating/flags in its letterbox;
+  collapsible folder tree; left Import/Export; Fit/Fill/100%; filtering and
+  sorting; additive Cmd/Ctrl click and range Shift selection; plus RGB
+  histogram/parade scopes in the right panel.
+- Studio built-in commands are projected by one C++ registry into menus,
+  shortcuts, controls, and the top command palette. macOS uses
+  `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
+  a visible reason.
+- Basic Develop provides catalog schema v4 with one canonical recipe per image,
+  tags/writable metadata, and persistent history/snapshots. CPU supports RAW
+  highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
+  lensfun poly3/vignette, dt UCS `colorequal`, graduated filter, and nine-band
+  toneequal. Studio provides an Edit panel, before/after, and session undo/redo.
+  RAW interactive preview reuses a scene-linear working image; superseded
+  requests cancel and late results are dropped by revision; recipe/history/
+  revision save atomically, and catalog unit tests cover L2–L9 parameters and
+  pixel reopen contracts.
+- RAW Repair provides `ravo.raw.hotpixels` v1 on an owned Bayer CFA copy under
+  the frozen same-colour four-neighbor path. `ravo.raw.cacorrect` v1 retains
+  RawTherapee two-pass tile/polynomial fitting and avoid-color-shift. Unit
+  tests cover cancellation, sensor rejection, memory budget, cache immutability,
+  catalog reopen, and real RAW references for both.
+- White Balance provides `ravo.color.temperature` v1 before demosaic using
+  R/G1/B/G2 four-channel coefficients. LibRaw `cam_mul` / `pre_mul` provide
+  as-shot and camera-reference defaults; manual stores explicit coefficients,
+  while late-reference permits only a following explicit channel-mixer CAT. The
+  old Kelvin/tint RGB approximation and generic fallback are removed.
+- Color Calibration provides `ravo.color.channelmixerrgb` v1 with frozen V3
+  CPU matrix normalization, CAT16/Bradford/XYZ/RGB, XYZ gamut, saturation,
+  lightness, and grey paths. Studio exposes an explicit 3×3 matrix, while CLI,
+  preview, and export reuse the same engine operation.
+- Color Balance RGB provides `ravo.color.colorbalancergb` v1 in the explicit
+  `linear_srgb_d50` workspace, with Filmlight Yrg three-zone luminance mask,
+  grading RGB offset/slope/power, fulcrumed luminance, and DT UCS 2022 as the
+  default saturation/brilliance gamut path. JzAzBz 2021 is an explicit optional
+  formula. Studio exposes the complete canonical parameters; the prior
+  Lift/Color gamma/Gain approximation operation is removed.
+- RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
+  display transform. Recipes may adjust contrast/skew/hue preservation, while
+  the default baseline is not marked as a user edit. Gallery embedded-JPEG
+  thumbnails and inspect dimensions are corrected to camera orientation.
+  Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE
+  driver; missing them is a hard error.
 
-当前 legacy 迁移执行顺序见
-[TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md)，方向变化见
-[ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md)。
+The current legacy migration order is in
+[TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md); changes of direction
+are in [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md).
 
-## 第一版闭环
+## First-version loop
 
-第一版必须完成：
+The first version must complete the following:
 
-1. 在 Ravo Studio 创建或打开图库数据库；
-2. 导入本地文件/目录，至少用一张 PNG 和真实 `mire1.cr2` 贯穿测试；
-3. Gallery 显示资产，选择后可适应窗口、100% 和平移查看；
-4. 重启后重新打开同一 catalog 并查看；
-5. 重复、损坏、缺失、不可写和取消具有可见、可恢复的结构化结果；
-6. 原片始终只读，preview 是数据库外可重建的原子缓存。
+1. Create or open a catalog database in Ravo Studio.
+2. Import local files/directories, carrying at least one PNG and real
+   `mire1.cr2` through tests.
+3. Show assets in Gallery; select one and view it at fit, 100%, and with pan.
+4. Restart and reopen the same catalog for viewing.
+5. Duplicates, corruption, missing files, non-writable paths, and cancellation
+   have visible, recoverable structured results.
+6. Originals are always read-only; previews are atomically written,
+   rebuildable caches outside the database.
 
-第一版桌面采用 Qt 6 Quick/QML：C++20 composition/presenter 持有 services、任务和资源，QML 只负责
-布局、展示、绑定与输入。SQLite 由私有 QSQLITE adapter 持有，JPEG/PNG 首版由私有 `QImageReader`
-adapter 解码。UI 只消费 presenter 暴露的 service state 和只读 preview；SQL、codec、RAW 处理、任务和
-缓存不进入 QML。首版不链接 Qt Widgets，也不维护 Widgets fallback。
+The first desktop uses Qt 6 Quick/QML. C++20 composition/presenters own
+services, tasks, and resources; QML performs only layout, presentation,
+binding, and input. A private QSQLITE adapter owns SQLite and a private
+`QImageReader` adapter decodes the first JPEG/PNG path. UI consumes only
+presenter-exposed service state and read-only previews; SQL, codecs, RAW
+processing, tasks, and cache do not enter QML. The first version links no Qt
+Widgets and retains no Widgets fallback.
 
-## 构建与测试
+## Build and test
 
-先从仓库根检查本机活动 source-root 状态：
+First inspect active source-root state from the repository root:
 
 ```text
 python3 configs/source_roots.py show --format json
@@ -70,29 +103,32 @@ python3 configs/source_roots.py resolve --format json
 python3 configs/source_roots.py verify
 ```
 
-首次准备工作区或活动锁变化后，按授权运行：
+After authorized first workspace preparation or an active-lock change, run:
 
 ```text
 python3 configs/source_root_workflow.py --init
 python3 configs/source_root_workflow.py --update
 ```
 
-`--init` 是唯一允许联网的依赖动作；`--update` 离线物化 source roots 并生成根
-`CMakePresets.json`。打包运行时路径由 active lock 的
-`RAVO_PACKAGE_RUNTIME_SEARCH_PATHS` 提供，模板只保存三平台示例。普通 Build/Test/Run 不隐式代跑
-Config 或依赖更新。
+`--init` is the only dependency action allowed to use the network; `--update`
+materializes source roots offline and generates the root `CMakePresets.json`.
+Packaging runtime paths are supplied by the active lock's
+`RAVO_PACKAGE_RUNTIME_SEARCH_PATHS`; the template stores only three-platform
+examples. Ordinary Build/Test/Run does not implicitly run Config or dependency
+updates.
 
-macOS Debug：
+macOS Debug:
 
 ```text
 cmake --preset mac_clang_debug -DBUILD_TESTING=ON
 cmake --build --preset mac_clang_debug
 ```
 
-Windows 使用 `win_msvc_debug` / `win_msvc_release`，Linux 使用 `linux_clang_*`。FreeCM Config/Build/Run/Test
-调用同一组 cmake preset 命令。`Ravo/tools/freecm_project.py` 与 `.ps1` 只是可选包装。
+Use `win_msvc_debug` / `win_msvc_release` on Windows and `linux_clang_*` on
+Linux. FreeCM Config/Build/Run/Test use the same CMake preset commands.
+`Ravo/tools/freecm_project.py` and `.ps1` are optional wrappers only.
 
-Release staged install：
+Release staged install:
 
 ```text
 cmake --preset mac_clang_release
@@ -110,24 +146,27 @@ cmake --build build/mac_clang_release --target RavoPackage
 The same target produces a Windows ZIP with `win_msvc_release` and a Linux
 AppDir tar.gz with `linux_clang_release`. `RavoPackage` includes Ravo Studio,
 the `ravo` CLI, Qt/QML runtime dependencies, and the license. Output paths and
-CI artifact ownership are documented in
-[Packaging](../DevDocs/Packaging.md).
+CI artifact ownership are documented in [Packaging](../DevDocs/Packaging.md).
 
-FreeCM Package follows the active Config, so both Debug and Release Configs
-have matching Package variants. Run Config before Package; tagged CI releases
+FreeCM Package follows the active Config, so Debug and Release each have a
+compatible Package variant. Run Config before Package; tagged CI releases
 always use Release.
 
-仓库根 CMake 只构建 Ravo，不得配置、编译或运行冻结 0.9（`legacy/src/`）。
-Windows/MSVC 与本机 macOS/Clang 曾验证当前 engine/CLI 图；Linux 仍需在目标主机验证。第一版增加
-Qt Gui/Qml/Quick/Sql、QML modules、runtime plugins 和 desktop 后必须重新建立三平台结果。
+The repository-root CMake builds only Ravo; it must not configure, compile, or
+run frozen 0.9 (`legacy/src/`). Windows/MSVC and local macOS/Clang have
+previously validated the current engine/CLI graph; Linux still requires
+validation on its target host. The addition of Qt Gui/Qml/Quick/Sql, QML
+modules, runtime plugins, and desktop requires renewed three-platform results.
 
-## FreeCM 项目工作流
+## FreeCM project workflow
 
-`configs/freecm.commands.jsonc` 使用 manifest v2。Debug/Release 和 Windows/macOS/Linux 是独立 Config；
-Build、Run、Test、Package 显式绑定兼容 Config，不会暗中 Configure。Release Package 直接调用
-`RavoPackage`，与 GitHub Actions 共用 FreeCM 部署路径。
+`configs/freecm.commands.jsonc` uses manifest v2. Debug/Release and
+Windows/macOS/Linux are independent Configs. Build, Run, Test, and Package
+explicitly bind a compatible Config and never configure secretly. Release
+Package calls `RavoPackage` directly and shares the FreeCM deployment path used
+by GitHub Actions.
 
-维护动作：
+Maintenance actions:
 
 ```text
 python3 configs/source_root_workflow.py --refreshpin
@@ -136,12 +175,14 @@ python3 configs/source_root_workflow.py --update
 python3 configs/source_root_workflow.py --cleanbuild --dry-run
 ```
 
-`--pinlatest` 只使用本地 seed 可见提交，并把活动锁留在 `latest`；它是依赖刷新候选而非发布基线。
-`--cleanbuild` 保留 `build/dependency_seed_repos` 与 `build/dependency_source_roots`。完整授权边界、
-FreeCM gitlink 更新、manual 联调和发布顺序见
-[Dependency Workflow](../DevDocs/Dependency_Workflow.md)。
+`--pinlatest` uses only commits visible in local seeds and leaves the active
+lock in `latest`; it is a dependency-refresh candidate, not a release baseline.
+`--cleanbuild` preserves `build/dependency_seed_repos` and
+`build/dependency_source_roots`. See [Dependency Workflow](../DevDocs/Dependency_Workflow.md)
+for complete authority boundaries, FreeCM gitlink updates, manual integration,
+and publication order.
 
-## CLI 当前能力
+## Current CLI capabilities
 
 ```text
 ravo inspect <input> --json
@@ -158,45 +199,55 @@ ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|original [--quality 90] --json
 ```
 
-已有输出路径返回结构化 `conflict`，不会被隐式覆盖。catalog 命令调用与 Studio 相同的
-services，作为无 UI 验收客户端。
+An existing output path returns structured `conflict`; it is never overwritten
+implicitly. Catalog commands call the same services as Studio and serve as the
+headless acceptance client.
 
-## 名称与目录
+## Names and directories
 
-| 名称/目录 | 用途 |
+| Name/directory | Purpose |
 | --- | --- |
-| Ravo Engine / `engine/` | RAW/raster、CPU preview/render、色彩和 operation |
-| `ravo` / `cli/` | 正式 CLI 与机器 JSON 客户端 |
-| `foundation/` | error、ID、取消和资源契约 |
+| Ravo Engine / `engine/` | RAW/raster, CPU preview/render, colour, and operations |
+| `ravo` / `cli/` | Supported CLI and machine-JSON client |
+| `foundation/` | errors, IDs, cancellation, and resource contracts |
 | `recipe/` | versioned recipe/operation schema |
-| `adapters/` | filesystem、codec、SQLite catalog、raster JPEG/PNG、preview cache |
-| `domain/` | Asset/Catalog/Import/Preview 状态与 ports |
-| `services/` | create/open/import/list/preview 用例 |
-| Ravo Studio / `desktop/` | C++ presenter + Qt Quick/QML Gallery 与 viewer |
-| `tests/` | unit、contract、catalog integration、fixture 和后续 desktop smoke |
+| `adapters/` | filesystem, codec, SQLite catalog, raster JPEG/PNG, preview cache |
+| `domain/` | Asset/Catalog/Import/Preview state and ports |
+| `services/` | create/open/import/list/preview use cases |
+| Ravo Studio / `desktop/` | C++ presenters with Qt Quick/QML Gallery and viewer |
+| `tests/` | unit, contract, catalog integration, fixtures, and later desktop smoke |
 
-Debug 构建后的 Studio 入口是
-`build/mac_clang_debug/Ravo/desktop/ravo_studio.app`（Windows 为
-`build/win_msvc_debug/Ravo/desktop/ravo_studio.exe`，Linux 为
-`build/linux_clang_debug/Ravo/desktop/ravo_studio`）。可带
-`--catalog <library.sqlite>` 直接打开已有图库。FreeCM 的 Run 与 GeoDebugger/DwgParser 一样：先
-`cmake --build --preset … --target ravo_studio`，再直接启动这个 GUI。
-第一版手工闭环：Create Library → Import `legacy/tests/0000-nop/expected.png` 与
-`legacy/tests/images/mire1.cr2` → 选择资产 → Fit / 100%。
+After a Debug build, Studio is at
+`build/mac_clang_debug/Ravo/desktop/ravo_studio.app` (Windows:
+`build/win_msvc_debug/Ravo/desktop/ravo_studio.exe`; Linux:
+`build/linux_clang_debug/Ravo/desktop/ravo_studio`). Pass
+`--catalog <library.sqlite>` to open an existing library directly. FreeCM Run
+works like GeoDebugger/DwgParser: first run
+`cmake --build --preset … --target ravo_studio`, then start the GUI directly.
+The first manual loop is: Create Library → Import
+`legacy/tests/0000-nop/expected.png` and `legacy/tests/images/mire1.cr2` →
+select an asset → Fit / 100%.
 
-## 与冻结 `legacy/src/` 的关系
+## Relationship to frozen `legacy/src/`
 
-`legacy/src/` 是 0.9 行为的只读事实来源；Ravo 是唯一增长方向。Ravo 可以静态读取源码和 fixture，但生产
-target 不得包含旧私有头、链接旧库、加载旧 IOP 或访问全局 `darktable`。冻结应用也不得增加 Ravo
-adapter。只有 Ravo 满足根 TODO 的发行切换与回滚门槛后，才处理剩余旧应用。
+`legacy/src/` is the read-only factual source for 0.9 behavior; Ravo is the
+only growth direction. Ravo may statically read source and fixtures, but
+production targets must not include old private headers, link old libraries,
+load old IOPs, or access global `darktable`. The frozen application also
+receives no Ravo adapter. Handle the remaining old application only after Ravo
+meets the root TODO's release-transition and rollback gates.
 
-## 文档入口
+## Documentation entry points
 
-- [AGENTS.md](AGENTS.md)：Ravo 子树实施约束；
-- [ARCHITECTURE.md](ARCHITECTURE.md)：target、数据、ownership 与线程边界；
-- [MIGRATION.md](MIGRATION.md)：单向迁移、ledger 与退役规则；
-- [TESTING.md](TESTING.md)：第一版 catalog/import/viewer 与冻结 fixture 验收；
-- [ADR 索引](docs/adr/README.md)：长期架构决定；
-- [根 legacy 迁移 TODO](../TODO_LEGACY_MIGRATION.md)：仅记录未完成执行项与门槛。
+- [AGENTS.md](AGENTS.md): Ravo subtree implementation constraints;
+- [ARCHITECTURE.md](ARCHITECTURE.md): target, data, ownership, and thread
+  boundaries;
+- [MIGRATION.md](MIGRATION.md): one-way migration, ledger, and retirement
+  rules;
+- [TESTING.md](TESTING.md): first-version catalog/import/viewer and frozen
+  fixture acceptance;
+- [ADR index](docs/adr/README.md): durable architecture decisions;
+- [root legacy migration TODO](../TODO_LEGACY_MIGRATION.md): unfinished
+  execution items and gates only.
 
-仓库整体采用 GPLv3，详见根目录 [LICENSE](../LICENSE)。
+The repository is distributed under GPLv3; see the root [LICENSE](../LICENSE).

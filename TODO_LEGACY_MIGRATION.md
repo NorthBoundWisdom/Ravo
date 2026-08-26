@@ -1,79 +1,100 @@
 # Ravo Legacy Migration TODO
 
-> **状态：in progress**
+> **Status: in progress**
 >
-> **更新日期：2026-08-26**
+> **Updated: 2026-08-26**
 >
-> **当前执行焦点：C4 输入颜色 profile `colorin`。** 不得并行迁
-> `colorout`、`primaries`、`cacorrectrgb` 或通用 mask graph。
+> **Current execution focus: C4 input colour profile colorin.** Do not migrate
+> colorout, primaries, cacorrectrgb, or the general mask graph in parallel.
 
-本文只记录尚未完成的执行工作、风险、依赖、验证命令和完成门槛。当前能力、
-架构、迁移政策、leftover 边界和测试合同分别以
-[`Ravo/README.md`](Ravo/README.md)、
-[`Ravo/ARCHITECTURE.md`](Ravo/ARCHITECTURE.md)、
-[`Ravo/MIGRATION.md`](Ravo/MIGRATION.md) 和
-[`Ravo/TESTING.md`](Ravo/TESTING.md) 为真相源。尚未具备执行门槛的能力只记录在
-[`DevDocs/ProductRoadmap.md`](DevDocs/ProductRoadmap.md)。
+This document records only unfinished execution work, risks, dependencies,
+verification commands, and acceptance gates. Current capability, architecture,
+migration policy, leftover boundary, and test contracts are owned by
+Ravo/README.md, Ravo/ARCHITECTURE.md, Ravo/MIGRATION.md, and Ravo/TESTING.md.
+DevDocs/ProductRoadmap.md records cross-layer design constraints that are not
+ready for execution.
 
-## 1. 执行规则
+## 1. Execution rules
 
-- 一次只推进队列中的第一项；未完成前不得并行开下一项。
-- 已迁入 engine/catalog 但未达到本节门槛的能力，不算「Ravo 已验收」。
-- 每项先静态读取旧 owner/fixture，再定义 Ravo owner、生命周期、失败/取消路径和最小验证集。
-- 算法项必须复刻冻结 C 的默认 CPU 路径（公式、色彩空间、滤波器、默认 mode），再按下线门槛删除旧 owner。
-  不得用简化替代算法充当「已迁入」或删除旧实现的理由。允许去掉 GUI、旧 lifecycle、OpenCL 与动态 ABI；
-  不允许替换核心数学。
-- 「Ravo 已验收」和旧 owner 删除门槛统一按 `Ravo/MIGRATION.md`；门槛未满足只能改 Ravo。
-- 完成一项时，把长期结论同步到 README/ARCHITECTURE/MIGRATION/TESTING/ADR/代码或测试，
-  然后从本文删除该项；不要留下 `[x]` 历史或归档 TODO。
-- 可靠性 finding 可以阻断当前项，但不得借机批量清理 GTK/OpenCL/共享 imageio/fixture。
-- 未运行的平台和手工检查必须写成「未验证」，不得复用历史结果冒充本轮通过。
+- Advance only the first item in the queue. Do not start another before it is
+  complete.
+- A capability implemented in engine/catalog but not meeting this section's gate
+  is not “Ravo accepted.”
+- For every item, statically read old owner/fixtures first; then define Ravo
+  owner, lifecycle, failure/cancellation path, and minimum validation set.
+- Algorithm work reproduces frozen C default CPU behavior: formula, colour space,
+  filters, and default mode. Do not call a simplified replacement “migrated” or
+  use it to delete old implementation. GUI, lifecycle, OpenCL, and dynamic ABI
+  may be removed, but core mathematics may not be substituted.
+- Use Ravo/MIGRATION.md for “Ravo accepted” and old-owner deletion gates. Until
+  those gates are met, modify only Ravo.
+- On completion, move durable conclusions into README/ARCHITECTURE/MIGRATION/
+  TESTING/ADR/code/tests, then remove the item here. Do not leave checked-off
+  history or archived TODOs.
+- Reliability findings can block the current item but must not be used to bulk
+  clean GTK/OpenCL/shared imageio/fixtures.
+- Mark an unrun platform or manual check as untested; never use historic results
+  to represent current acceptance.
 
-## 2. 迁移队列
+## 2. Migration queue
 
-### C4. 输入颜色 profile：`colorin`（当前）
+### C4. Input colour profile: colorin (current)
 
-目标：把冻结 `colorin.c` 的 input-profile → working-profile CPU 转换收敛到 engine 私有 color
-adapter，替代当前 RAW decoder 内固定 camera-to-sRGB matrix 和 raster 无 profile 状态的隐式路径。
+Goal: move frozen colorin.c input-profile → working-profile CPU conversion into
+an engine-private colour adapter, replacing the current fixed camera-to-sRGB
+matrix in RAW decode and raster decode's implicit no-profile path.
 
-范围：
+Scope:
 
-- versioned schema 覆盖 input profile type/filename、rendering intent、gamut normalize
-  （off/sRGB/Adobe RGB/linear Rec709/linear Rec2020）、blue mapping、working profile type/filename；
-- 必须分别冻结 matrix-only、matrix + 1D shaper LUT、LCMS/ICC transform、unbounded extrapolation、
-  gamut clipping 与 RAW blue mapping 默认 CPU 数学；不得把所有 profile 简化成固定 sRGB 3×3；
-- 明确内建/enhanced/vendor matrix、embedded/file ICC、Lab/RGB input 和 working RGB 的支持集合；
-  缺失/损坏/不支持 profile 结构化失败，不静默改用 sRGB 或 generic camera matrix；
-- C4 同时决定当前 `DecodedRaw::camera_to_srgb`、raster decoder ICC 与后续 C5 `colorout` 的
-  唯一 profile-state owner；公共 recipe/ports 不暴露裸 LCMS/Qt/legacy profile 指针；
-- GTK profile combobox、OpenCL、动态 IOP ABI、旧 profile search path 与 binary preset/XMP ABI 不迁。
+- Versioned schema covers input profile type/name, rendering intent, gamut
+  normalization (off/sRGB/Adobe RGB/linear Rec709/linear Rec2020), blue mapping,
+  and working profile type/name.
+- Freeze matrix-only, matrix + 1D shaper LUT, LCMS/ICC transform, unbounded
+  extrapolation, gamut clipping, and RAW blue-mapping default CPU mathematics
+  separately; do not reduce every profile to a fixed sRGB 3×3.
+- Define the support set for built-in/enhanced/vendor matrix, embedded/file ICC,
+  Lab/RGB input, and working RGB. Missing, corrupt, or unsupported profile
+  structures return structured failure instead of silently using sRGB or a
+  generic camera matrix.
+- C4 selects the sole profile-state owner for current
+  DecodedRaw::camera_to_srgb, raster decoder ICC, and later C5 colorout.
+  Public recipes/ports expose no raw LCMS/Qt/legacy profile pointer.
+- Do not port GTK profile combobox, OpenCL, dynamic IOP ABI, old profile search
+  paths, or binary preset/XMP ABI.
 
-owner / 生命周期 / 失败：
+Owner, lifecycle, and failure:
 
-- profile identifier/schema 属于 recipe/domain；解析后的 matrix/TRC/ICC transform 属于 engine 私有 adapter；
-  services 只编排，Studio 只展示稳定 profile ID 与 intent；
-- profile state 是单次 decode/render 拥有的不可变值，进入 cache key；LCMS handle/文件 mapping 在任务结束前
-  释放，不跨线程裸共享；
-- 非有限 matrix/LUT、奇异 transform、profile 缺失/损坏、unsupported intent/colorspace、分配失败与取消
-  均在输出发布前返回结构化错误，不发布部分像素。
+- Profile identifier/schema belongs to recipe/domain. Parsed matrix/TRC/ICC
+  transform belongs to an engine-private adapter. Services orchestrate only;
+  Studio shows stable profile ID and intent only.
+- Profile state is an immutable value owned by one decode/render and enters the
+  cache key. LCMS handle/file mapping is released when the task ends and is not
+  bare-shared across threads.
+- Nonfinite matrix/LUT, singular transform, missing/corrupt profile, unsupported
+  intent/colourspace, allocation failure, and cancellation return structured
+  error before output publication; they publish no partial pixels.
 
-验证与完成门槛：
+Validation and acceptance gates:
 
-- [ ] 全 schema round-trip；未知字段/type/intent/normalize、损坏/缺失 profile 与非有限 matrix/LUT fail-fast；
-- [ ] identity/matrix/shaper/unbounded、五种 normalize、blue mapping、ICC path 与逐行取消 synthetic UT；
-- [ ] 静态解码 `0107-colorin-gamma`、`0108-colorin-clip`、
-  `0109-colorin-gamma-and-clip`，并建立 `0000-nop`/`mire1.cr2` RAW reference；
-- [ ] raster embedded/file ICC、RAW camera matrix、cache-key、输入 immutability 和 CLI/export 一致性有 contract；
-- [ ] Studio Input Profile Inspector 保存/reopen 由 presenter/QML smoke + catalog integration 自动验证；
-- [ ] 删除 `legacy/src/iop/colorin.c` 及注册；共享 colorspaces/LCMS owner 只在消费者清零后退役；
-- [ ] 完整 Ravo unit/contract/catalog 测试和 freeze/inventory/boundary 检查通过；
-- [ ] Windows/Linux 未跑时明确写成未验证。
+- [ ] Full schema round-trip; unknown field/type/intent/normalize, corrupt/missing
+  profile, and nonfinite matrix/LUT fail fast.
+- [ ] Synthetic identity/matrix/shaper/unbounded/five-normalize/blue-mapping/ICC
+  paths plus row-by-row cancellation.
+- [ ] Static decode 0107-colorin-gamma, 0108-colorin-clip, and
+  0109-colorin-gamma-and-clip; establish 0000-nop/mire1.cr2 RAW references.
+- [ ] Contract coverage for raster embedded/file ICC, RAW camera matrix, cache
+  key, input immutability, and CLI/export consistency.
+- [ ] Studio Input Profile Inspector save/reopen through presenter/QML smoke and
+  catalog integration automation.
+- [ ] Delete legacy/src/iop/colorin.c and registration; retire shared
+  colorspaces/LCMS owner only after consumers reach zero.
+- [ ] Full Ravo unit/contract/catalog tests and freeze/inventory/boundary checks.
+- [ ] Explicitly report Windows/Linux as untested when they are not run.
 
-最小命令：
+Minimum commands:
 
-```text
-cmake --build --preset mac_clang_debug --target \
-  ravo_unit_tests ravo_contract_tests ravo_catalog_tests ravo_desktop_command_tests ravo_studio
+~~~text
+cmake --build --preset mac_clang_debug --target   ravo_unit_tests ravo_contract_tests ravo_catalog_tests ravo_desktop_command_tests ravo_studio
 
 ./build/mac_clang_debug/Ravo/tests/ravo_unit_tests
 ./build/mac_clang_debug/Ravo/tests/ravo_contract_tests
@@ -84,272 +105,301 @@ python3 Ravo/tools/freeze_legacy_manifest.py --check
 python3 Ravo/tools/check_capability_inventory.py
 python3 Ravo/tools/check_freeze_reference.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
-```
+~~~
 
-## 3. 完整剩余模块清单与串行顺序
+## 3. Complete remaining-module inventory and serial order
 
-本节是当前 working tree 的执行清单，不是长期 capability 真相源。快照基线：
+This section is an execution inventory for the current worktree, not the
+long-term capability authority. Snapshot baseline:
 
-- `legacy/src/iop/CMakeLists.txt` 仍注册 64 个 IOP；每个都在 3.2 单独列出；
-- `legacy/src/libs/CMakeLists.txt` 有 23 个仍有源码的模块/工具，另有已退役源码的失效注册；
-- `legacy/src/views` 有 `darkroom` / `lighttable` 两个旧 view；imageio 有 4 个 format、1 个 storage 和
-  9 类 dispatcher/decoder owner；
-- `common` / `control` / `develop` / GUI 与 host 资源按 3.3–3.7 的 ownership 单元列出；
-- `legacy/tests` 的 158 组 fixture 与 5 个原图在算法迁移期间保持只读，旧 runner 不运行。
+- legacy/src/iop/CMakeLists.txt still registers 64 IOPs; every IOP has a row in
+  section 3.2.
+- legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
+  registrations whose source has retired.
+- legacy/src/views has darkroom/lighttable; imageio has four formats, one
+  storage owner, and nine dispatcher/decoder owner groups.
+- common, control, develop, GUI, and host resources are divided into ownership
+  units in sections 3.3–3.7.
+- The 158 fixture sets and five source images in legacy/tests remain read-only
+  throughout algorithm migration; old runners never run.
 
-状态约定：`当前` 只有 C4；`排队` 必须等表中依赖和所有更早项；`删除` 表示不移植 UI/ABI；`保留证据`
-表示迁移完成前不得移动。任何模块达到门槛后先同步稳定真相源，再从本节删除该行。
+Status terms: **current** means C4 only. **Queued** waits for dependencies and
+all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
+move it before migration completes. When a module meets its gate, first update
+stable truth, then remove its row. Do not leave historical checked marks here.
 
-通用完成门槛：
+General completion gates:
 
-- **ALG**：静态读 owner/fixture → versioned schema/工作空间/ROI → 完整默认 CPU 数学 → synthetic + 真实
-  fixture + 错误/取消/资源 UT → CLI/Studio/service 正式消费 → 删除源码、注册、专用 helper/kernel/resource；
-- **CORE**：列出所有消费者，能力进入 foundation/domain/services/engine 私有 owner；线程/缓存/事务生命周期
-  有 contract；消费者清零后删除共享 C/全局状态；
-- **DELETE**：全仓证明没有未验收算法消费者，删除 CMake/动态加载/GTK 资源/配置键/文档引用，不创建 Qt
-  fallback 或空壳；
-- **DATA**：先把仍需的 fixture/schema/resource 迁到 Ravo 真相源并校验 hash/round-trip，再删除旧 runner/资产。
+- **ALG:** statically read owner/fixture → versioned schema/workspace/ROI →
+  complete default CPU mathematics → synthetic + real fixture + error/
+  cancellation/resource unit tests → supported CLI/Studio/services consumption
+  → delete old source, registration, exclusive helper/kernel/resource.
+- **CORE:** list all consumers; move capability into a private
+  foundation/domain/services/engine owner; test thread/cache/transaction
+  lifecycle; delete shared C/global state after consumers reach zero.
+- **DELETE:** prove no unaccepted algorithm consumer exists; delete CMake,
+  dynamic loading, GTK resources, configuration keys, and documentation
+  references without a Qt fallback or empty shell.
+- **DATA:** move needed fixture/schema/resource into a Ravo truth source and
+  check hash/round-trip before deleting old runner/assets.
 
-### 3.1 已退役 owner 的残留清理
+### 3.1 Cleanup left after retired owners
 
-| ID | 模块 / owner | 动作 | 依赖与完成门槛 |
+| ID | Module / owner | Action | Dependency and gate |
 | --- | --- | --- | --- |
-| D0.1 | `iop/hlreconstruct/*` | 删除 | `highlights.c` 已退役；确认无消费者，补入 retired list，freeze check 通过 |
-| D0.2 | `libs/CMakeLists.txt` 中 `export`、`copy_history`、`tagging`、`metadata*`、`history`、`snapshots` 失效项 | 删除注册 | 不修改其他冻结模块；全仓确认对应源码已在 retired list |
-| D0.3 | `host/data/kernels` 中已退役 IOP 的独占 kernel/entry | 删除 | 先区分共享 `extended.cl`/color helpers；只删无剩余消费者的 entry 与 programs 注册 |
-| D0.4 | `common/iop_order.c`、`libs/modulegroups.c`、`usermanual_url.c` 的已退役名字 | 最终删除引用 | 这些文件仍服务旧 UI/registry；等其所有算法消费者清零后随 DELETE 批次处理 |
-| D0.5 | 无消费者的 `iop/choleski.h`、`equalizer_eaw.h`、`svd.h`、未注册 `useless.c` | 删除 | 再次全仓搜索确认无 include/target/fixture owner，补 retired list 与 freeze check |
+| D0.1 | iop/hlreconstruct/* | Delete | highlights.c retired; prove no consumer, add retired list, pass freeze check |
+| D0.2 | stale export/copy_history/tagging/metadata/history/snapshots entries in libs/CMakeLists.txt | Delete registrations | Do not modify other frozen modules; prove corresponding sources are on retired list |
+| D0.3 | host/data/kernels exclusive kernels/entries for retired IOPs | Delete | Distinguish shared extended.cl/colour helpers; remove only entries/program registrations with no remaining consumer |
+| D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry; remove with their DELETE batch after all algorithm consumers clear |
+| D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP 算法队列（64 个注册模块）
+### 3.2 IOP algorithm queue (64 registered modules)
 
-以下表的组顺序也是依赖顺序；同组默认按行串行。`fixture` 来自冻结 manifest，只表示有静态证据，不表示已覆盖。
+The group order below is dependency order; rows in a group are serial by
+default. fixture means static evidence exists, not that it is covered.
 
-#### A. 当前颜色调度与颜色基础
+#### A. Current colour scheduling and foundation
 
-| ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
+| ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C4 | `colorin` — `iop/colorin.c` | yes | **当前 / ALG**；依赖 S1，ICC/input profile、matrix/LUT、unsupported profile contract，详见第 2 节 |
-| C5 | `colorout` — `iop/colorout.c` | yes | 排队 / ALG；依赖 C4/O1，输出 profile、intent、soft-proof 与 export 一致性 |
-| C6 | `primaries` — `iop/primaries.c` | yes | 排队 / ALG；依赖 C4，custom primaries/white point/gamut mapping |
-| C7 | `profile_gamma` — `iop/profile_gamma.c` | no | 排队 / ALG；依赖 C4，无 fixture 时先提交 Ravo-owned synthetic + RAW reference |
-| C8 | `gamma` — `iop/gamma.c` | yes | 排队 / ALG；现有简化 `ravo.core.gamma` 不算验收，复刻冻结 lookup/边界 |
-| C9 | `exposure` — `iop/exposure.c` | yes | 排队 / ALG；补齐 automatic/black/deflicker与 mask 语义，现有手动 EV 只是子集 |
-| C10 | `colorbalance` — `iop/colorbalance.c` | yes | 排队 / ALG；与 `ravo.color.colorbalancergb` 明确 overlap，不用三参数替代旧完整路径 |
-| C11 | `colorchecker` — `iop/colorchecker.c` | yes | 排队 / ALG；依赖 C4/S1；算法/校准表迁入，GTK chart/picker 删除 |
-| C12 | `colorcorrection` — `iop/colorcorrection.c` | yes | 排队 / ALG；依赖 S1/M1，Lab/色度与 blend contract |
-| C13 | `colorcontrast` — `iop/colorcontrast.c` | yes | 排队 / ALG；现有简化 control 不算验收，复刻冻结色彩空间数学 |
-| C14 | `colorharmonizer` — `iop/colorharmonizer.c` | yes | 排队 / ALG；依赖 S1/M1，色彩和谐与 mask/ROI |
-| C15 | `colorize` — `iop/colorize.c` | yes | 排队 / ALG；依赖 S1/M1，Lab hue/saturation/source mix |
-| C16 | `colormapping` — `iop/colormapping.c` | yes | 排队 / ALG；依赖 S1，source/target statistics、cluster 与确定性 |
-| C17 | `colorzones` — `iop/colorzones.c` | yes | 排队 / ALG；`colorequal` 保持默认；迁入完整可选 HSL/Lab 分区与曲线 |
-| C18 | `monochrome` — `iop/monochrome.c` | yes | 排队 / ALG；现有单 amount 不算验收，复刻 channel filter 与色彩空间 |
-| C19 | `lowlight` — `iop/lowlight.c` | yes | 排队 / ALG；依赖 S1，低光色觉曲线与 LUT |
-| C20 | `splittoning` — `iop/splittoning.c` | yes | 排队 / ALG；现有简化 split toning 不算验收，复刻 balance/compress 路径 |
-| C21 | `velvia` — `iop/velvia.c` | yes | 排队 / ALG；现有简化 velvia 不算验收，复刻 luminance/saturation weighting |
+| C4 | colorin — iop/colorin.c | yes | **Current / ALG**; depends on S1; ICC/input profile, matrix/LUT, unsupported-profile contract; see section 2 |
+| C5 | colorout — iop/colorout.c | yes | Queued / ALG; depends on C4/O1; output profile, intent, soft proof, export consistency |
+| C6 | primaries — iop/primaries.c | yes | Queued / ALG; depends on C4; custom primaries/white point/gamut mapping |
+| C7 | profile_gamma — iop/profile_gamma.c | no | Queued / ALG; depends on C4; create Ravo-owned synthetic + RAW reference first |
+| C8 | gamma — iop/gamma.c | yes | Queued / ALG; existing simplified ravo.core.gamma is not acceptance; reproduce frozen lookup/boundaries |
+| C9 | exposure — iop/exposure.c | yes | Queued / ALG; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
+| C10 | colorbalance — iop/colorbalance.c | yes | Queued / ALG; define overlap with ravo.color.colorbalancergb; do not substitute three parameters for full old path |
+| C11 | colorchecker — iop/colorchecker.c | yes | Queued / ALG; depends on C4/S1; move algorithm/calibration tables and delete GTK chart/picker |
+| C12 | colorcorrection — iop/colorcorrection.c | yes | Queued / ALG; depends on S1/M1; Lab/chroma and blend contract |
+| C13 | colorcontrast — iop/colorcontrast.c | yes | Queued / ALG; simplified control is not acceptance; reproduce frozen colour-space mathematics |
+| C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / ALG; depends on S1/M1; colour harmony and mask/ROI |
+| C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
+| C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
+| C17 | colorzones — iop/colorzones.c | yes | Queued / ALG; colorequal stays default; migrate complete optional HSL/Lab partitions and curves |
+| C18 | monochrome — iop/monochrome.c | yes | Queued / ALG; current one-amount control is not acceptance; reproduce channel filter/colour-space path |
+| C19 | lowlight — iop/lowlight.c | yes | Queued / ALG; depends on S1; low-light perception curve and LUT |
+| C20 | splittoning — iop/splittoning.c | yes | Queued / ALG; simplified split toning is not acceptance; reproduce balance/compress |
+| C21 | velvia — iop/velvia.c | yes | Queued / ALG; simplified velvia is not acceptance; reproduce luminance/saturation weighting |
 
-#### B. 显示变换、曲线与 LUT
+#### B. Display transforms, curves, and LUTs
 
-| ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
+| ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| T1 | `basecurve` — `iop/basecurve.c` | yes | 排队 / ALG；依赖 C4，camera preset、exposure fusion、曲线插值 |
-| T2 | `rgbcurve` — `iop/rgbcurve.c` | yes | 排队 / ALG；独立于已迁 `tonecurve`，复刻 linked/independent/preserve-color modes |
-| T3 | `rgblevels` — `iop/rgblevels.c` | yes | 排队 / ALG；auto/manual、linked channels、picker UI 删除 |
-| T4 | `filmicrgb` — `iop/filmicrgb.c` | yes | 排队 / ALG；Sigmoid 保持默认；完整 scene/display、chroma/gamut/reconstruct modes |
-| T5 | `agx` — `iop/agx.c` | yes | 排队 / ALG；Sigmoid 保持默认；AgX curve、primaries与 gamut path |
-| T6 | `lut3d` — `iop/lut3d.c` | yes | 排队 / ALG；依赖 C4/I/O，LUT format adapter、missing/invalid file、interpolation |
-| T7 | `negadoctor` — `iop/negadoctor.c` | yes | 排队 / ALG；negative input、film base、scanner/profile 与 picker UI 分离 |
+| T1 | basecurve — iop/basecurve.c | yes | Queued / ALG; depends on C4; camera presets, exposure fusion, curve interpolation |
+| T2 | rgbcurve — iop/rgbcurve.c | yes | Queued / ALG; distinct from migrated tonecurve; reproduce linked/independent/preserve-colour modes |
+| T3 | rgblevels — iop/rgblevels.c | yes | Queued / ALG; auto/manual, linked channels, picker UI deleted |
+| T4 | filmicrgb — iop/filmicrgb.c | yes | Queued / ALG; Sigmoid remains default; complete scene/display, chroma/gamut/reconstruction modes |
+| T5 | agx — iop/agx.c | yes | Queued / ALG; Sigmoid remains default; AgX curve, primaries, gamut path |
+| T6 | lut3d — iop/lut3d.c | yes | Queued / ALG; depends on C4/I/O; LUT format adapter, missing/invalid file, interpolation |
+| T7 | negadoctor — iop/negadoctor.c | yes | Queued / ALG; negative input, film base, scanner/profile, picker UI separated |
 
-#### C. RAW preprocess 与 demosaic
+#### C. RAW preprocess and demosaic
 
-| ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
+| ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| R1 | `rawprepare` — `iop/rawprepare.c` | yes | 排队 / ALG；补齐 crop/black/white/CFA/orientation，取代当前 absorbed 子集 |
-| R2 | `demosaic` — `iop/demosaic.c` + `iop/demosaicing/*` | yes | 排队 / ALG；Bayer/X-Trans 各 mode、dual/green matching、memory/ROI；基础 3×3 只是子集 |
-| R3 | `rawdenoise` — `iop/rawdenoise.c` | yes | 排队 / ALG；pre-demosaic wavelet/threshold 与 sensor reject |
-| R4 | `cacorrectrgb` — `iop/cacorrectrgb.c` | no | 排队 / ALG；与已迁 pre-demosaic `cacorrect` 分离；先建立 synthetic/RAW fixture |
-| R5 | `colorreconstruct` — `iop/colorreconstruction.c` | yes | 排队 / ALG；依赖 R2/C4，完整高光颜色传播/ROI |
-| R6 | `rasterfile` — `iop/rasterfile.c` | no | 排队 / ALG；依赖 I1/M1，raster-source/mask ownership 和无 fixture 基线 |
+| R1 | rawprepare — iop/rawprepare.c | yes | Queued / ALG; complete crop/black/white/CFA/orientation, replacing current absorbed subset |
+| R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; Bayer/X-Trans modes, dual/green matching, memory/ROI; basic 3×3 is only a subset |
+| R3 | rawdenoise — iop/rawdenoise.c | yes | Queued / ALG; pre-demosaic wavelet/threshold and sensor rejection |
+| R4 | cacorrectrgb — iop/cacorrectrgb.c | no | Queued / ALG; separate from migrated pre-demosaic cacorrect; create synthetic/RAW fixture first |
+| R5 | colorreconstruct — iop/colorreconstruction.c | yes | Queued / ALG; depends on R2/C4; complete highlight colour propagation/ROI |
+| R6 | rasterfile — iop/rasterfile.c | no | Queued / ALG; depends on I1/M1; raster-source/mask ownership and no-fixture baseline |
 
-#### D. 几何、画布与尺度
+#### D. Geometry, canvas, and scale
 
-| ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
+| ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| G1 | `flip` — `iop/flip.c` | yes | 排队 / ALG；补齐 EXIF/orientation/ROI，现有 mirror/quarter-turn 只是子集 |
-| G2 | `rotatepixels` — `iop/rotatepixels.c` | no | 排队 / ALG；依赖 G1，sensor/pixel rotation synthetic fixture |
-| G3 | `scalepixels` — `iop/scalepixels.c` | no | 排队 / ALG；依赖 S3，插值/ROI/scale contract 与 synthetic fixture |
-| G4 | `crop` — `iop/crop.c` | yes | 排队 / ALG；依赖 M1/G1，完整 aspect/keystone/ROI；现有 normalized crop 只是子集 |
-| G5 | `enlargecanvas` — `iop/enlargecanvas.c` | yes | 排队 / ALG；canvas coordinate、fill/alpha、mask transform |
-| G6 | `ashift` — `iop/ashift.c` + `ashift_lsd.c` + `ashift_nmsimplex.c` | yes | 排队 / ALG；line detection、lens geometry、auto/manual fit；现有 straighten 不是替代 |
-| G7 | `finalscale` — `iop/finalscale.c` | no | 排队 / ALG；依赖 G3/O1，正式 resampling/output-size contract |
-| G8 | `borders` — `iop/borders.c` | yes | 排队 / ALG；依赖 G5/O1，frame/aspect/color/metadata 与 export |
-| G9 | `liquify` — `iop/liquify.c` | yes | 排队 / ALG；依赖 M1/G4，deformation graph、ROI 与 cancellation |
+| G1 | flip — iop/flip.c | yes | Queued / ALG; complete EXIF/orientation/ROI; existing mirror/quarter-turn is only a subset |
+| G2 | rotatepixels — iop/rotatepixels.c | no | Queued / ALG; depends on G1; sensor/pixel rotation synthetic fixture |
+| G3 | scalepixels — iop/scalepixels.c | no | Queued / ALG; depends on S3; interpolation/ROI/scale contract and synthetic fixture |
+| G4 | crop — iop/crop.c | yes | Queued / ALG; depends on M1/G1; complete aspect/keystone/ROI; current normalized crop is only a subset |
+| G5 | enlargecanvas — iop/enlargecanvas.c | yes | Queued / ALG; canvas coordinates, fill/alpha, mask transform |
+| G6 | ashift — iop/ashift.c + ashift_lsd.c + ashift_nmsimplex.c | yes | Queued / ALG; line detection, lens geometry, automatic/manual fit; current straighten is not a substitute |
+| G7 | finalscale — iop/finalscale.c | no | Queued / ALG; depends on G3/O1; formal resampling/output-size contract |
+| G8 | borders — iop/borders.c | yes | Queued / ALG; depends on G5/O1; frame/aspect/colour/metadata and export |
+| G9 | liquify — iop/liquify.c | yes | Queued / ALG; depends on M1/G4; deformation graph, ROI, cancellation |
 
-#### E. Detail、降噪、模糊与局部对比
+#### E. Detail, denoise, blur, and local contrast
 
-| ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
+| ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| F1 | `sharpen` — `iop/sharpen.c` | yes | 排队 / ALG；现有简化 USM 不算验收，复刻 blur/threshold/ROI |
-| F2 | `highpass` — `iop/highpass.c` | yes | 排队 / ALG；依赖 S3/M1，Lab/RGB blend 与 contrast path |
-| F3 | `lowpass` — `iop/lowpass.c` | yes | 排队 / ALG；依赖 S3/M1，Gaussian/bilateral modes 与 saturation |
-| F4 | `shadhi` — `iop/shadhi.c` | yes | 排队 / ALG；依赖 S3，bilateral shadows/highlights 路径 |
-| F5 | `atrous` — `iop/atrous.c` | yes | 排队 / ALG；完整 a-trous 多尺度 bands、boost/threshold、mask |
-| F6 | `bilat` — `iop/bilat.c` | yes | 排队 / ALG；冻结快速 bilateral grid，不与 `bilateral` 合并猜测 |
-| F7 | `bilateral` — `iop/bilateral.cc` + `Permutohedral.h` | yes | 排队 / ALG；permutohedral lattice、memory budget、CPU determinism |
-| F8 | `nlmeans` — `iop/nlmeans.c` | yes | 排队 / ALG；依赖 S3，patch/search/scattering 与取消 |
-| F9 | `diffuse` — `iop/diffuse.c` | yes | 排队 / ALG；多迭代 anisotropic diffusion、scale/ROI、blending |
-| F10 | `blurs` — `iop/blurs.c` | yes | 排队 / ALG；Gaussian/lens/motion modes，不用单一 blur 替代 |
-| F11 | `hazeremoval` — `iop/hazeremoval.c` | yes | 排队 / ALG；atmospheric model、distance estimate、guided filter |
-| F12 | `soften` — `iop/soften.c` | yes | 排队 / ALG；现有简化 soften 不算验收，复刻 blur/mix/color path |
+| F1 | sharpen — iop/sharpen.c | yes | Queued / ALG; simple USM is not acceptance; reproduce blur/threshold/ROI |
+| F2 | highpass — iop/highpass.c | yes | Queued / ALG; depends on S3/M1; Lab/RGB blend and contrast path |
+| F3 | lowpass — iop/lowpass.c | yes | Queued / ALG; depends on S3/M1; Gaussian/bilateral modes and saturation |
+| F4 | shadhi — iop/shadhi.c | yes | Queued / ALG; depends on S3; bilateral shadows/highlights path |
+| F5 | atrous — iop/atrous.c | yes | Queued / ALG; complete a-trous multiscale bands, boost/threshold, mask |
+| F6 | bilat — iop/bilat.c | yes | Queued / ALG; frozen fast bilateral grid; do not merge it with bilateral by assumption |
+| F7 | bilateral — iop/bilateral.cc + Permutohedral.h | yes | Queued / ALG; permutohedral lattice, memory budget, CPU determinism |
+| F8 | nlmeans — iop/nlmeans.c | yes | Queued / ALG; depends on S3; patch/search/scattering and cancellation |
+| F9 | diffuse — iop/diffuse.c | yes | Queued / ALG; iterative anisotropic diffusion, scale/ROI, blend |
+| F10 | blurs — iop/blurs.c | yes | Queued / ALG; Gaussian/lens/motion modes; one blur is not a substitute |
+| F11 | hazeremoval — iop/hazeremoval.c | yes | Queued / ALG; atmospheric model, distance estimate, guided filter |
+| F12 | soften — iop/soften.c | yes | Queued / ALG; simplified soften is not acceptance; reproduce blur/mix/colour path |
 
-#### F. Mask、合成、修复、效果与诊断
+#### F. Masks, compositing, repair, effects, and diagnostics
 
-| ID | IOP / owner | fixture | 状态 / 依赖 / 特有门槛 |
+| ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| M1 | `mask_manager` — `iop/mask_manager.c` | yes | 排队 / ALG+CORE；先完成 3.3 S3 canonical mask/blend graph |
-| M2 | `retouch` — `iop/retouch.c` | yes | 排队 / ALG；依赖 M1/S2，clone/heal/blur/fill、source geometry |
-| M3 | `overlay` — `iop/overlay.c` | yes | 排队 / ALG；依赖 M1/I1/G5，资源生命周期与 alpha composition |
-| M4 | `censorize` — `iop/censorize.c` | yes | 排队 / ALG；依赖 M1/S2，pixelate/blur/noise modes |
-| M5 | `watermark` — `iop/watermark.c` | yes | 排队 / ALG+DATA；依赖 M1/I1，SVG/text/font/metadata resource determinism |
-| M6 | `bloom` — `iop/bloom.c` | yes | 排队 / ALG；现有简化 bloom 不算验收，复刻 threshold/blur/mix |
-| M7 | `grain` — `iop/grain.c` | yes | 排队 / ALG；现有 deterministic noise 不算验收，复刻 Lab/ISO/channel mode |
-| M8 | `vignette` — `iop/vignette.c` | yes | 排队 / ALG；现有简化 radial darkening 不算验收，复刻 shape/dither/colors |
-| O1 | `dither` — `iop/dither.c` | yes | 排队 / ALG；quantization method、bit depth、deterministic random 与 export |
-| O2 | `overexposed` — `iop/overexposed.c` | no | 排队 / ALG；只迁诊断计算/阈值，GTK overlay presentation 删除，建 synthetic fixture |
-| O3 | `rawoverexposed` — `iop/rawoverexposed.c` | no | 排队 / ALG；RAW CFA threshold/channel diagnostic，建 synthetic fixture |
+| M1 | mask_manager — iop/mask_manager.c | yes | Queued / ALG+CORE; first complete the canonical mask/blend graph in 3.3 S3 |
+| M2 | retouch — iop/retouch.c | yes | Queued / ALG; depends on M1/S2; clone/heal/blur/fill and source geometry |
+| M3 | overlay — iop/overlay.c | yes | Queued / ALG; depends on M1/I1/G5; resource lifecycle and alpha composition |
+| M4 | censorize — iop/censorize.c | yes | Queued / ALG; depends on M1/S2; pixelate/blur/noise modes |
+| M5 | watermark — iop/watermark.c | yes | Queued / ALG+DATA; depends on M1/I1; SVG/text/font/metadata resource determinism |
+| M6 | bloom — iop/bloom.c | yes | Queued / ALG; simplified bloom is not acceptance; reproduce threshold/blur/mix |
+| M7 | grain — iop/grain.c | yes | Queued / ALG; deterministic noise substitute is not acceptance; reproduce Lab/ISO/channel mode |
+| M8 | vignette — iop/vignette.c | yes | Queued / ALG; simple radial darkening is not acceptance; reproduce shape/dither/colours |
+| O1 | dither — iop/dither.c | yes | Queued / ALG; quantization method, bit depth, deterministic random, export |
+| O2 | overexposed — iop/overexposed.c | no | Queued / ALG; migrate diagnostic calculation/threshold only, delete GTK overlay, create synthetic fixture |
+| O3 | rawoverexposed — iop/rawoverexposed.c | no | Queued / ALG; RAW CFA threshold/channel diagnostic, create synthetic fixture |
 
-### 3.3 Shared algorithm、pixelpipe、mask 与 domain owner
+### 3.3 Shared algorithms, pixelpipe, masks, and domain owners
 
-| ID | owner 路径 | 动作 | 依赖与完成门槛 |
+| ID | Owner paths | Action | Dependency and acceptance gate |
 | --- | --- | --- | --- |
-| S1 | `common/colorspaces*`、`chromatic_adaptation.h`、`illuminants.h`、`matrices*`、`custom_primaries*`、`gamut_mapping.h`、`darktable_ucs_22_helpers.h`、`color_*`、`colorchecker.h`、`curve_tools*`、`wb_presets*` | CORE 迁入 engine 私有 color science | C3–C21/T1–T7 的显式 workspace/LUT owner；无 GTK/LCMS 裸类型越界 |
-| S2 | `common/bilateral*`、`box_filters*`、`distance_transform*`、`dwt*`、`eaw*`、`eigf.h`、`gaussian*`、`guided_filter*`、`fast_guided_filter.h`、`heal*`、`locallaplacian*`、`nlmeans_core*`、`splines*`、`interpolation*`、`noiseprofiles*`、`bspline.h`、`luminance_mask.h`、`rgb_norms.h`、`focus*`、`histogram*`、`develop/noise_generator.h`、`develop/openmp_maths.h` | CORE 迁入 engine primitives | F/G/M/diagnostic 批次逐消费者验收；OpenCL twin 不迁 |
-| S3 | `develop/blend*`、`develop/blends/*`、`develop/masks/*`、`develop/masks.h` | CORE 建 canonical mask/blend graph | shape/group/coordinate/parametric blend/ROI/schema/取消 UT；M1 前置 |
-| S4 | `develop/develop*`、`pixelpipe*`、`pixelpipe_cache*`、`pixelpipe_hb*`、`tiling*`、`imageop*`、`format*`、`borders_helper*` | CORE 收敛到 Engine facade + services cache/scheduler | 每个旧 consumer 清零；不复制动态 pixelpipe/global state |
-| S5 | `iop/iop_api.h`、`common/module*`、`module_api.h`、`dynload*`、`introspection.h`、`action.h`、`darktable*`、`darktable_api.h`、`poison.h`、`iop_group*`、`iop_order*`、`iop_profile*` | DELETE 动态 IOP/module ABI 与全局 composition | 64 个 IOP 全部退役后删除；operation registry 保持内建 versioned schema |
-| S6 | `common/database*`、`database_schema*`、`sqliteicu*` | CORE/DELETE | 对照 Ravo schema/FTS/ICU；需要的数据 contract 迁入 SQLite adapter，其余旧 catalog ABI 删除 |
-| S7 | `common/image*`、`film*`、`import_session*`、`grouping*` | CORE/DELETE | Asset/import/folder/group use case contract 覆盖后删除全局 image/film owner |
-| S8 | `common/collection*`、`selection*`、`ratings*`、`colorlabels*`、`act_on*` | CORE/DELETE | Ravo LibraryQuery/selection/review 覆盖；缺失 collection 查询逐项补 UT |
-| S9 | `common/exif*`、`metadata*`、`metadata_export*`、`tags*` | CORE/DATA | capture/writable/ICC/export metadata schema，原片只读；Exiv2 类型留 adapter 私有 |
-| S10 | `common/history*`、`history_snapshot*`、`styles*`、`presets*`、`undo*` | CORE/DATA | canonical recipe history/style/preset import/reject 与 rollback；GUI preset owner 删除 |
-| S11 | `common/cache*`、`image_cache*`、`mipmap_cache*`、`imagebuf*` | CORE/DELETE | 明确 byte budget/LRU/atomic publication；由 CatalogService/PreviewCache 取代 |
-| S12 | `common/atomic*`、`dtpthread*`、`resource_limits*`、`system_signal_handling*`、`utility*`、`datetime*`、`variables*`、`calculator*`、`file_location*`、`math.h`、`points.h`、`heap.h`、`tea.h`、`dttypes.h`、`debug.h`、`extra_optimizations.h`、`sse.h`、`grealpath.h`、`win_file_trash*` | CORE/DELETE | 仅迁仍有 Ravo consumer 的值/线程/路径/平台逻辑；其余随全局 core 删除 |
-| S13 | `common/curl_tools*`、`dbus*`、`gimp*`、`pwstorage/*`、`overlay*` | DELETE 或 adapter | 只有 active IOP/service 明确需要才建独立 port；不得保留远程发布/UI 凭据壳 |
-| S14 | `common/opencl*`、`dlopencl*`、`opencl_drivers_blacklist.h` | DELETE | CPU goldens 完成后删除；Ravo GPU 不复用 OpenCL API |
+| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | Explicit workspace/LUT owner for C3–C21/T1–T7; no GTK/LCMS concrete type leakage |
+| S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept per F/G/M/diagnostic consumer; do not port OpenCL twins |
+| S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: create canonical mask/blend graph | Shape/group/coordinate/parametric blend/ROI/schema/cancellation tests; prerequisite for M1 |
+| S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; do not copy dynamic pixelpipe/global state |
+| S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all 64 IOPs retire; built-in versioned operation registry remains |
+| S6 | common/database*, database_schema*, sqliteicu* | CORE/DELETE | Compare against Ravo schema/FTS/ICU; move needed data contracts into SQLite adapter and delete remaining old catalog ABI |
+| S7 | common/image*, film*, import_session*, grouping* | CORE/DELETE | Delete global image/film owner after Asset/import/folder/group contracts cover it |
+| S8 | common/collection*, selection*, ratings*, colorlabels*, act_on* | CORE/DELETE | Ravo LibraryQuery/selection/review coverage; map each missing collection query or mark unsupported |
+| S9 | common/exif*, metadata*, metadata_export*, tags* | CORE/DATA | Capture/writable/ICC/export metadata schema, originals read-only; Exiv2 types remain adapter-private |
+| S10 | common/history*, history_snapshot*, styles*, presets*, undo* | CORE/DATA | Canonical recipe history/style/preset import/reject and rollback; delete GUI preset owner |
+| S11 | common/cache*, image_cache*, mipmap_cache*, imagebuf* | CORE/DELETE | Explicit byte budget/LRU/atomic publication; replace with CatalogService/PreviewCache |
+| S12 | common/atomic*, dtpthread*, resource_limits*, system_signal_handling*, utility*, datetime*, variables*, calculator*, file_location*, math.h, points.h, heap.h, tea.h, dttypes.h, debug.h, extra_optimizations.h, sse.h, grealpath.h, win_file_trash* | CORE/DELETE | Move only value/thread/path/platform logic with Ravo consumers; delete the rest with global core |
+| S13 | common/curl_tools*, dbus*, gimp*, pwstorage/*, overlay* | DELETE or adapter | Create an independent port only for an explicitly active IOP/service; do not keep remote-publish/UI credential shells |
+| S14 | common/opencl*, dlopencl*, opencl_drivers_blacklist.h | DELETE | Delete after CPU goldens complete; Ravo GPU never reuses OpenCL API |
 
-### 3.4 Codec、imageio 与输出插件
+### 3.4 Codec, imageio, and output plugins
 
-| ID | owner | 动作 | 完成门槛 |
+| ID | Owner | Action | Acceptance gate |
 | --- | --- | --- | --- |
-| I1 | `imageio/imageio.c`、`imageio_module*`、`imageio_common.h` | CORE/DELETE dispatcher | 所有 format/storage 走 Ravo ports；动态 imageio ABI 与全局 registry 删除 |
-| I2 | `imageio_libraw*` | adapter audit | Ravo pinned LibRaw 覆盖 RAW metadata/embedded/decode/sensor errors 后删除旧 wrapper |
-| I3 | `imageio_rawspeed*` + external RawSpeed wiring | DELETE 或独立 decoder | 先做格式/性能/fixture 决定；不得与 LibRaw 静默 fallback |
-| I4 | `imageio_dng*`、`common/dng_opcode*` | ALG/adapter | DNG opcode/crop/black/metadata fixture；LibRaw 已处理部分不能冒充全覆盖 |
-| I5 | `imageio_jpeg*` | adapter audit | orientation/ICC/alpha/errors 与 Qt decoder contract；无消费者后删旧 libjpeg wrapper |
-| I6 | `imageio_png*` | adapter audit | bit depth/ICC/alpha/errors 与 Qt decoder contract |
-| I7 | `imageio_tiff*` | adapter audit | 8/16/float、multi-page、ICC/alpha/errors 与 Qt contract |
-| I8 | `imageio_qoi*` + `qoi.h` | ALG/adapter | 若 Ravo 保留 QOI，补 decoder/encoder fixture；否则明确 unsupported 后删除 |
-| I9 | `imageio_rgbe*` | ALG/adapter | HDR RGBE decode/color contract 与 fixture；不得当普通 raster |
-| I10 | `imageio/format/copy.c` | DELETE/复用 original-copy service | 原子复制、conflict/cancel 已测后清理动态 format ABI |
-| I11 | `imageio/format/jpeg.c` | adapter/export | quality/ICC/metadata/subsampling/disk-full contract |
-| I12 | `imageio/format/png.c` | adapter/export | bit depth/ICC/metadata/alpha/disk-full contract |
-| I13 | `imageio/format/tiff.c` | adapter/export | 8/16/float/compression/ICC/metadata/disk-full contract |
-| I14 | `imageio/storage/disk.c` | DELETE/复用 CatalogService export | path template/conflict/cancel/atomic write 覆盖；动态 storage ABI 删除 |
-| I15 | `external/CMakeLists.txt`、`external/LibRaw-cmake`、`cie_colorimetric_tables.c`、`ThreadSafetyAnalysis.h` | DATA/DELETE | 必要 table 迁入 owner；依赖只走 FreeCM source-root，删 vendored/build shim |
+| I1 | imageio/imageio.c, imageio_module*, imageio_common.h | CORE/DELETE dispatcher | All formats/storage use Ravo ports; delete dynamic imageio ABI/global registry |
+| I2 | imageio_libraw* | Adapter audit | Ravo pinned LibRaw covers RAW metadata/embedded/decode/sensor error, then delete old wrapper |
+| I3 | imageio_rawspeed* + external RawSpeed wiring | DELETE or independent decoder | Make format/performance/fixture decision; do not silently fall back to LibRaw |
+| I4 | imageio_dng*, common/dng_opcode* | ALG/adapter | DNG opcode/crop/black/metadata fixture; LibRaw partial coverage is not complete coverage |
+| I5 | imageio_jpeg* | Adapter audit | Orientation/ICC/alpha/error contract for Qt decoder; delete old libjpeg wrapper without consumers |
+| I6 | imageio_png* | Adapter audit | Bit depth/ICC/alpha/error contract for Qt decoder |
+| I7 | imageio_tiff* | Adapter audit | 8/16/float, multi-page, ICC/alpha/error Qt contract |
+| I8 | imageio_qoi* + qoi.h | ALG/adapter | If Ravo keeps QOI, add decoder/encoder fixtures; otherwise explicit unsupported then delete |
+| I9 | imageio_rgbe* | ALG/adapter | HDR RGBE decode/colour contract and fixture; do not treat it as ordinary raster |
+| I10 | imageio/format/copy.c | DELETE/reuse original-copy service | Atomic copy, conflict/cancellation tested, then remove dynamic format ABI |
+| I11 | imageio/format/jpeg.c | Adapter/export | Quality/ICC/metadata/subsampling/disk-full contract |
+| I12 | imageio/format/png.c | Adapter/export | Bit depth/ICC/metadata/alpha/disk-full contract |
+| I13 | imageio/format/tiff.c | Adapter/export | 8/16/float/compression/ICC/metadata/disk-full contract |
+| I14 | imageio/storage/disk.c | DELETE/reuse CatalogService export | Path template/conflict/cancellation/atomic write covered, then delete dynamic storage ABI |
+| I15 | external/CMakeLists.txt, external/LibRaw-cmake, cie_colorimetric_tables.c, ThreadSafetyAnalysis.h | DATA/DELETE | Move needed tables into owned data; dependencies use FreeCM source roots only; delete vendored/build shims |
 
-### 3.5 Control、jobs 与应用生命周期
+### 3.5 Control, jobs, and application lifecycle
 
-| ID | owner | 动作 | 完成门槛 |
+| ID | Owner | Action | Acceptance gate |
 | --- | --- | --- | --- |
-| J1 | `control/control*`、`jobs*`、`progress*`、`signal*` | CORE/DELETE | SerialExecutor/task handle/cancel/progress/close 资源合同覆盖；无 detached/global controller |
-| J2 | `control/jobs/control_jobs*` | DELETE/映射 use case | command/service contract 覆盖后删除旧 job wrapper |
-| J3 | `control/jobs/develop_jobs*` | CORE/DELETE | preview/render/export queue、supersede/cancel/close UT |
-| J4 | `control/jobs/film_jobs*` | CORE/DELETE | folder/import batch/reopen 由 CatalogService 覆盖 |
-| J5 | `control/jobs/image_jobs*` | CORE/DELETE | asset mutation、duplicate/missing/errors 的 service contract |
-| J6 | `control/jobs/sidecar_jobs*` | DATA/DELETE | XMP read/write policy、原片安全、conflict/rollback 明确后删除 |
-| J7 | `control/conf*`、`settings.h`、`crawler*` | DELETE 或 Ravo settings port | 只迁有产品 consumer 的 typed setting；不保留旧 key compatibility 壳 |
+| J1 | control/control*, jobs*, progress*, signal* | CORE/DELETE | SerialExecutor/task-handle/cancellation/progress/close resource contracts; no detached/global controller |
+| J2 | control/jobs/control_jobs* | DELETE/map use case | Delete old job wrapper after command/service contracts cover it |
+| J3 | control/jobs/develop_jobs* | CORE/DELETE | Preview/render/export queue, supersede/cancel/close tests |
+| J4 | control/jobs/film_jobs* | CORE/DELETE | Folder/import batch/reopen owned by CatalogService |
+| J5 | control/jobs/image_jobs* | CORE/DELETE | Asset mutation, duplicate/missing/error service contract |
+| J6 | control/jobs/sidecar_jobs* | DATA/DELETE | Explicit XMP read/write policy, original safety, conflict/rollback before deletion |
+| J7 | control/conf*, settings.h, crawler* | DELETE or Ravo settings port | Move only typed setting with a product consumer; keep no old-key compatibility shell |
 
-### 3.6 旧 UI、views 与 Lighttable/libs（删除，不移植）
+### 3.6 Old UI, views, and Lighttable/libs (delete, do not port)
 
-| ID | 模块 / owner | 动作 | 删除门槛 |
+| ID | Module / owner | Action | Deletion gate |
 | --- | --- | --- | --- |
-| U1 | `bauhaus/*` | DELETE | 所有 IOP UI 已由 Studio 或无 UI recipe 消费；不建 Qt/Bauhaus adapter |
-| U2 | `dtgtk/*` | DELETE | button/range/expander/thumbnail/thumbtable/culling 等无算法消费者 |
-| U3 | `gui/gtk*`、`workspace*`、`accelerators*`、`context_menu*`、`system_commands*` | DELETE | Studio command registry/composition 已覆盖所需意图 |
-| U4 | `gui/color_picker_proxy*`、`guides*`、`hist_dialog*`、`import_metadata*`、`metadata_tags*`、`log_history*` | DELETE | 所需计算/metadata service 先迁；GTK dialog/picker 不迁 |
-| U5 | `gui/preferences*`、`presets*`、`styles_dialog*`、`about*`、`splash*` | DELETE/DATA | typed settings/style schema 先完成；旧窗口与资源删除 |
-| U6 | `views/darkroom.c` | DELETE | 所有 Develop consumer 在 Studio，旧 view/module ABI 清零 |
-| U7 | `views/lighttable.c` | DELETE | Gallery/import/review consumer 在 Studio，旧 view/module ABI 清零 |
-| U8 | `views/view*` | DELETE | U6/U7 与动态 view loader 删除后清理 |
-| L1 | `libs/import.c` | DELETE | import service + Studio/CLI contract 覆盖 |
-| L2 | `libs/styles.c` | DATA/DELETE | style schema/import/reject 完成 |
-| L3 | `libs/image.c` | DELETE | Asset actions/metadata/review service 覆盖 |
-| L4 | `libs/select.c` | DELETE | Studio multi/range selection UT 覆盖 |
-| L5 | `libs/recentcollect.c` | DELETE | catalog recent/filter product decision与 query contract |
-| L6 | `libs/filtering.c` + `libs/filters/*` | CORE/DELETE | 每个过滤字段（aperture/color/date/duplicate/exposure/filename/focal/history/ISO/local-copy/module-order/rating/ratio/search）映射 LibraryQuery 或明确 unsupported |
-| L7 | `libs/navigation.c` | DELETE | Studio zoom/pan/navigation state 覆盖 |
-| L8 | `libs/histogram.c` + `libs/scopes/*` | CORE/DELETE | RGB histogram/waveform/vectorscope/split 各自 UT；现有 histogram/parade 只是子集 |
-| L9 | `libs/modulegroups.c` + header | DELETE | Studio Inspector grouping 完成后删除旧模块名/quick-access 配置 |
-| L10 | `libs/backgroundjobs.c` | DELETE | J1 progress/task presentation 覆盖 |
-| L11 | `libs/masks.c` | DELETE | S3/M1 canonical mask service + Studio intent 覆盖 |
-| L12 | `libs/ioporder.c` | DELETE | canonical recipe operation order/version contract 覆盖 |
-| L13 | `libs/tools/viewswitcher.c` | DELETE | Studio Gallery/Edit mode command 覆盖 |
-| L14 | `libs/tools/darktable.c` | DELETE | 旧品牌/label 工具无消费者 |
-| L15 | `libs/tools/flags.c` | DELETE | reject/flag review state 覆盖 |
-| L16 | `libs/tools/colorlabels.c` | DELETE | color label service/Studio 覆盖 |
-| L17 | `libs/tools/ratings.c` | DELETE | rating service/Studio 覆盖 |
-| L18 | `libs/tools/lighttable.c` | DELETE | Gallery mode command 覆盖 |
-| L19 | `libs/tools/view_toolbox.c` | DELETE | Studio view commands 覆盖 |
-| L20 | `libs/tools/module_toolbox.c` | DELETE | Studio Inspector/command registry 覆盖 |
-| L21 | `libs/tools/filmstrip.c` | DELETE | Studio filmstrip/model contract 覆盖 |
-| L22 | `libs/tools/hinter.c` | DELETE | Studio visible status/error presentation 覆盖 |
-| L23 | `libs/tools/image_infos.c` | DELETE | Asset metadata presenter 覆盖 |
-| U9 | `libs/lib*` / `lib_api.h` | DELETE | L1–L23 清零后删除动态 Lighttable module loader |
-| U10 | `main.c`、`cli/main.c`、`src/CMakeLists.txt`、`config.cmake.h`、`strings.h` 旧 app/CLI target | DELETE | Ravo CLI/Studio/package 三平台闭环，无旧入口消费者 |
-| U11 | `osx/*`、`win_msvc_compat.h`、`unistd.h`、launcher/plist templates | DELETE | Ravo 平台 composition/package 已覆盖 |
+| U1 | bauhaus/* | DELETE | Every IOP UI is consumed by Studio or headless recipe; do not create a Qt/Bauhaus adapter |
+| U2 | dtgtk/* | DELETE | button/range/expander/thumbnail/thumbtable/culling and similar have no algorithm consumer |
+| U3 | gui/gtk*, workspace*, accelerators*, context_menu*, system_commands* | DELETE | Studio command registry/composition covers required intent |
+| U4 | gui/color_picker_proxy*, guides*, hist_dialog*, import_metadata*, metadata_tags*, log_history* | DELETE | Move required calculation/metadata service first; do not port GTK dialog/picker |
+| U5 | gui/preferences*, presets*, styles_dialog*, about*, splash* | DELETE/DATA | Complete typed settings/style schema first; delete old windows/resources |
+| U6 | views/darkroom.c | DELETE | All Develop consumers are in Studio; old view/module ABI reaches zero |
+| U7 | views/lighttable.c | DELETE | Gallery/import/review consumers are in Studio |
+| U8 | views/view* | DELETE | Remove after U6/U7 and dynamic view loader |
+| L1 | libs/import.c | DELETE | Import service plus Studio/CLI contracts cover it |
+| L2 | libs/styles.c | DATA/DELETE | Complete style schema/import/reject |
+| L3 | libs/image.c | DELETE | Asset actions/metadata/review service covers it |
+| L4 | libs/select.c | DELETE | Studio multi/range selection tests cover it |
+| L5 | libs/recentcollect.c | DELETE | Product decision and query contract for recent/filter |
+| L6 | libs/filtering.c + libs/filters/* | CORE/DELETE | Map every filter field to LibraryQuery or explicit unsupported |
+| L7 | libs/navigation.c | DELETE | Studio zoom/pan/navigation-state coverage |
+| L8 | libs/histogram.c + libs/scopes/* | CORE/DELETE | Separate RGB histogram/waveform/vectorscope/split tests; current histogram/parade is only a subset |
+| L9 | libs/modulegroups.c + header | DELETE | Studio Inspector grouping complete; delete old names/quick-access config |
+| L10 | libs/backgroundjobs.c | DELETE | J1 progress/task presentation covers it |
+| L11 | libs/masks.c | DELETE | S3/M1 canonical mask service plus Studio intents cover it |
+| L12 | libs/ioporder.c | DELETE | Canonical recipe operation-order/version contract covers it |
+| L13 | libs/tools/viewswitcher.c | DELETE | Studio Gallery/Edit command covers it |
+| L14 | libs/tools/darktable.c | DELETE | Old brand/label tool has no consumer |
+| L15 | libs/tools/flags.c | DELETE | Reject/flag review state covers it |
+| L16 | libs/tools/colorlabels.c | DELETE | Colour-label service/Studio covers it |
+| L17 | libs/tools/ratings.c | DELETE | Rating service/Studio covers it |
+| L18 | libs/tools/lighttable.c | DELETE | Studio Gallery-mode command covers it |
+| L19 | libs/tools/view_toolbox.c | DELETE | Studio view commands cover it |
+| L20 | libs/tools/module_toolbox.c | DELETE | Studio Inspector/command registry covers it |
+| L21 | libs/tools/filmstrip.c | DELETE | Studio filmstrip/model contract covers it |
+| L22 | libs/tools/hinter.c | DELETE | Studio visible status/error presentation covers it |
+| L23 | libs/tools/image_infos.c | DELETE | Asset-metadata presenter covers it |
+| U9 | libs/lib* / lib_api.h | DELETE | Delete dynamic Lighttable module loader after L1–L23 reach zero |
+| U10 | main.c, cli/main.c, src/CMakeLists.txt, config.cmake.h, strings.h old app/CLI targets | DELETE | Ravo CLI/Studio/package three-platform loop and no old entry consumer |
+| U11 | osx/*, win_msvc_compat.h, unistd.h, launcher/plist templates | DELETE | Ravo platform composition/package covers it |
 
-### 3.7 Host resources、测试证据与最终目录清理
+### 3.7 Host resources, test evidence, and final directory cleanup
 
-| ID | 路径 | 动作 | 完成门槛 |
+| ID | Path | Action | Acceptance gate |
 | --- | --- | --- | --- |
-| H1 | `host/data/kernels/*` | DELETE | 对应 CPU ALG 全部验收；必要 GPU 数学只从 Ravo CPU 真相源重写，不复用 OpenCL |
-| H2 | `host/data/noiseprofiles*`、`wb_presets*`、color tables | DATA | 迁入 versioned Ravo calibration resource + schema/checksum，或对应能力明确不需要后删除 |
-| H3 | `host/data/styles/*` | DATA | canonical style import/reject fixture 后迁入 Ravo tests 或删除 |
-| H4 | `host/data/watermarks/*` | DATA | M5 所需资源迁入 versioned test/product assets；未用资源删除 |
-| H5 | `host/data/themes/*`、`pixmaps/*`、`shortcutsrc`、darktable config XML/DTD | DELETE | Studio theme/icon/command truth source 已覆盖；不保留 GTK 资源 |
-| H6 | `host/packaging/*`、`host/cmake/*`、host tools/scripts/CMake | DELETE | RavoPackage 三平台安装闭环通过后删除旧构建/打包逻辑 |
-| E1 | `legacy/tests` 原图、XMP、expected PNG | 保留证据 → DATA | 每个 IOP 行完成后将仍需 golden/metadata 摘要迁入 Ravo fixture truth source并校验 hash；队列清空前只读 |
-| E2 | `legacy/src/tests/*`、`legacy/tests/run`、check/delta/performance binaries/scripts | DELETE | Ravo regression/performance/sanitizer 入口存在；从未运行旧 test target/runner |
-| E3 | `legacy/benchmarks/*` | DELETE/DATA | 有效门槛吸收到 `DevDocs/GPU_Baseline.md`，旧脚本不执行 |
-| E4 | `legacy/docs/*`、`RELEASE_NOTES.md`、legacy README | 保留证据 → DELETE | 所有算法/ownership 结论进入 ADR/ARCHITECTURE/TESTING 后删除旧源码地图 |
-| E5 | `legacy/host`、`legacy/src` 空目录与根 `legacy/` | DELETE | 所有 ALG/CORE/DATA/DELETE 行清空、fixture 迁出、全仓链接与 package 检查通过 |
+| H1 | host/data/kernels/* | DELETE | All matching CPU algorithms accepted; any needed GPU mathematics is rewritten from Ravo CPU truth, not OpenCL |
+| H2 | host/data/noiseprofiles*, wb_presets*, colour tables | DATA | Move to versioned Ravo calibration resource + schema/checksum, or delete when capability explicitly does not need it |
+| H3 | host/data/styles/* | DATA | Move into Ravo test truth or delete after canonical style import/reject fixture |
+| H4 | host/data/watermarks/* | DATA | Move resources needed by M5 into versioned product/test assets; delete unused resources |
+| H5 | host/data/themes/*, pixmaps/*, shortcutsrc, darktable config XML/DTD | DELETE | Studio theme/icon/command truth source covers it; do not retain GTK resources |
+| H6 | host/packaging/*, host/cmake/*, host tools/scripts/CMake | DELETE | RavoPackage three-platform install loop passes |
+| E1 | legacy/tests source images, XMP, expected PNG | Keep evidence → DATA | As each IOP finishes, move remaining goldens/metadata summaries into Ravo fixture truth and check hash; read-only until queue clears |
+| E2 | legacy/src/tests/*, legacy/tests/run, check/delta/performance binaries/scripts | DELETE | Ravo regression/performance/sanitizer entry points exist; old target/runner never runs |
+| E3 | legacy/benchmarks/* | DELETE/DATA | Move valid gates into DevDocs/GPU_Baseline.md; do not execute old scripts |
+| E4 | legacy/docs/*, RELEASE_NOTES.md, legacy README | Keep evidence → DELETE | Delete after algorithm/ownership conclusions enter ADR/ARCHITECTURE/TESTING |
+| E5 | legacy/host, legacy/src empty directories, root legacy/ | DELETE | All ALG/CORE/DATA/DELETE rows clear, fixtures move, repository links/package checks pass |
 
-### 3.8 横向可靠性与发行阻塞
+### 3.8 Cross-cutting reliability and release blockers
 
-以下均未完成；它们不构成第二条功能队列，但可阻断受影响项或发行。
+The following are all unfinished. They are not a second feature queue, but can
+block affected work or release:
 
-- [ ] Gallery thumbnail 虚拟化、长列表内存、worker/preview/cache 明确预算；
-- [ ] 数据库不可写/损坏、cache 损坏、磁盘满、源移动、批量取消、崩溃重开；
-- [ ] schema migration fixture、导入到首帧指标、窗口/catalog 关闭后的资源销毁；
-- [ ] 键盘、焦点、HiDPI、可访问性；
-- [ ] Windows/macOS/Linux configure/build/test、staged install 和安装目录闭环；
-- [ ] metadata/ICC 与输出颜色合同达到承诺格式门槛；
-- [ ] 指定 packaged-release product owner 与 code-review owner；
-- [ ] 发行切换前证明备份/回滚、原片安全和无 legacy 生产依赖。
+- [ ] Gallery thumbnail virtualization, long-list memory, explicit worker/
+  preview/cache budgets.
+- [ ] Database non-writable/corrupt, cache corruption, full disk, moved source,
+  batch cancellation, crash reopen.
+- [ ] Schema-migration fixture, import-to-first-frame metric, and resource
+  destruction after window/catalog close.
+- [ ] Keyboard, focus, HiDPI, and accessibility.
+- [ ] Windows/macOS/Linux configure/build/test, staged install, and installed
+  application loop.
+- [ ] Metadata/ICC and output-colour contract meet promised format gates.
+- [ ] Name packaged-release product owner and code-review owner.
+- [ ] Before release transition, prove backup/rollback, original safety, and no
+  legacy production dependency.
 
-GPU 不进入当前队列。只有相关 CPU 路径验收、金样稳定且端到端测量证明收益后，
-才能按 [`DevDocs/GPU_Baseline.md`](DevDocs/GPU_Baseline.md) 新建专项 TODO。
+GPU is outside the current queue. Create a dedicated TODO under
+DevDocs/GPU_Baseline.md only after the relevant CPU path is accepted, goldens
+are stable, and end-to-end measurements prove benefit.
 
-3.1–3.7 已列出当前全部剩余模块；[`DevDocs/ProductRoadmap.md`](DevDocs/ProductRoadmap.md) 只保留
-尚未冻结的跨层设计约束，不能据此从本 TODO 隐去模块。C4 完成前不并行实施后续行。
+Sections 3.1–3.7 list every current remaining module.
+DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
+constraints; it cannot be used to hide modules from this TODO. Do not implement
+later rows in parallel before C4 completes.
 
-## 4. 本 TODO 完成门槛
+## 4. Completion gate for this TODO
 
-删除本文前必须同时成立：
+Delete this document only when all are true:
 
-- [ ] C4 及后续逐项提升的算法已验收并从本文移除，已接受的旧 owner 同变更退役；
-- [ ] 共享旧 owner 只剩明确消费者，剩余树均能映射到 `Ravo/MIGRATION.md` leftover；
-- [ ] 横向可靠性和承诺平台安装闭环达到发布门槛，或拆成有 owner 的独立根 TODO；
-- [ ] 原片安全、schema migration、备份/回滚和结构化 unsupported 有测试证据；
-- [ ] 全仓搜索、target/link 图和运行验收证明不存在 Ravo ↔ legacy 生产依赖；
-- [ ] 长期结论已同步到 owning docs/ADR/代码/manifest/checker/test；
-- [ ] 本文不再包含未完成项，然后直接删除，不移入 `DevDocs/` 归档。
+- [ ] C4 and every later raised algorithm are accepted and removed from this
+  document, with accepted old owner retired in the same change.
+- [ ] Shared old owners have only explicit consumers left and the remaining tree
+  maps to leftovers in Ravo/MIGRATION.md.
+- [ ] Cross-cutting reliability and promised platform-install loops meet release
+  gates, or become independent root TODOs with owners.
+- [ ] Original safety, schema migration, backup/rollback, and structured
+  unsupported state have test evidence.
+- [ ] Repository search, target/link graph, and runtime acceptance prove no Ravo
+  ↔ legacy production dependency.
+- [ ] Durable conclusions are synchronized into owning docs/ADRs/code/manifests/
+  checkers/tests.
+- [ ] This document contains no unfinished item and is deleted directly rather
+  than moved into a DevDocs archive.

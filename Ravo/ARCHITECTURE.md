@@ -1,10 +1,12 @@
 # Ravo Architecture
 
-## 核心结论
+## Core conclusion
 
-Ravo 当前第一产品是可实际使用的本地照片浏览器：创建/打开 SQLite catalog，reference-only 导入
-JPEG/PNG/TIFF/RAW，并在 Ravo Studio 中查看图片。`ravo` CLI 继续是受支持的无 UI 客户端；CLI 与
-desktop 必须调用同一 application services 和 engine，不得拥有两套 catalog、import、preview 或 recipe。
+Ravo's current first product is a usable local photo browser: create or open an
+SQLite catalog, import JPEG/PNG/TIFF/RAW by reference, and view images in Ravo
+Studio. The `ravo` CLI remains a supported headless client. CLI and desktop
+must call the same application services and engine; they must not own separate
+catalog, import, preview, or recipe implementations.
 
 ```text
 ravo CLI ───────────────┐
@@ -20,215 +22,302 @@ ravo CLI ───────────────┐
                  │ implements    │ implements
           SQLite/FS Adapter   RAW/Raster/Cache Adapters
 
-冻结 0.9 legacy/src/ ──只读源码与 fixture 证据──▶ Ravo tests
-冻结 0.9 legacy/src/ ╳──────────────────────────▶ Ravo production
+Frozen 0.9 legacy/src/ ──read-only source and fixture evidence──▶ Ravo tests
+Frozen 0.9 legacy/src/ ╳────────────────────────────────────────▶ Ravo production
 ```
 
-这条顺序由 [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md) 接受。它提前验证 catalog、导入、
-preview、任务和窗口生命周期，但不恢复旧 GTK、动态 IOP ABI 或全局状态。
+[ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md) accepts this order. It
+validates catalog, import, preview, task, and window lifecycles early without
+restoring the old GTK, dynamic IOP ABI, or global state.
 
-## Target 与依赖方向
+## Targets and dependency direction
 
-| Target | 所有权 | 允许依赖 | 禁止依赖 |
+| Target | Ownership | Allowed dependencies | Forbidden dependencies |
 | --- | --- | --- | --- |
-| `ravo_foundation` | errors、IDs、取消、基础资源契约 | 标准库、按需 QtCore | recipe、engine、catalog、UI |
-| `ravo_recipe` | recipe、operation schema、版本升级 | foundation、按需 QtCore | codec、数据库、UI |
-| `ravo_engine` | inspect、operation registry、CPU render/preview | foundation、recipe、engine ports、按需 QtCore | catalog、services、CLI、UI、旧 `src` |
-| `ravo_domain` | Asset/Catalog、Import/Preview 状态、repository ports | foundation | SQLite、codec、engine 私有类型、UI |
-| `ravo_services` | create/open/import/list/preview 用例与任务编排 | domain、engine facade | SQL、QML/presentation 类型、第三方 codec 类型 |
-| `ravo_adapters` | SQLite、filesystem、RAW/raster codec、preview cache | 对应 ports、Qt Core/Gui/Sql、固定第三方依赖 | QML/UI 状态、旧核心 |
-| `ravo_cli` | 参数、JSON、退出码、CLI composition | services、engine facade、adapters | 算法、SQL、UI |
-| `ravo_desktop` | C++ composition/presenter、Qt Quick/QML 窗口、Gallery、viewer、文件选择。presenter 按 catalog/preview/develop 分 TU，QML 按 `theme/` `gallery/` `inspect/` `chrome/` 分目录 | services、只读 preview 资源、Qt Core/Gui/Qml/Quick、GeoControls | Qt Widgets、SQL、codec、算法私有状态 |
+| `ravo_foundation` | errors, IDs, cancellation, basic resource contracts | standard library, QtCore where needed | recipe, engine, catalog, UI |
+| `ravo_recipe` | recipes, operation schema, version upgrades | foundation, QtCore where needed | codec, database, UI |
+| `ravo_engine` | inspect, operation registry, CPU render/preview | foundation, recipe, engine ports, QtCore where needed | catalog, services, CLI, UI, old `src` |
+| `ravo_domain` | Asset/Catalog, Import/Preview state, repository ports | foundation | SQLite, codec, engine-private types, UI |
+| `ravo_services` | create/open/import/list/preview use cases and task orchestration | domain, engine facade | SQL, QML/presentation types, third-party codec types |
+| `ravo_adapters` | SQLite, filesystem, RAW/raster codecs, preview cache | matching ports, Qt Core/Gui/Sql, pinned third-party dependencies | QML/UI state, old core |
+| `ravo_cli` | arguments, JSON, exit codes, CLI composition | services, engine facade, adapters | algorithms, SQL, UI |
+| `ravo_desktop` | C++ composition/presenters, Qt Quick/QML window, Gallery, viewer, file selection; presenters split by catalog/preview/develop and QML by `theme/`, `gallery/`, `inspect/`, and `chrome/` | services, read-only preview resources, Qt Core/Gui/Qml/Quick, GeoControls | Qt Widgets, SQL, codecs, algorithm-private state |
 
-SQLite 由私有 Qt Sql/QSQLITE adapter 包装，raster 首版由私有 `QImageReader` adapter 包装；LibRaw 和平台
-API 同样不越过 port。Qt 值类型可在有明确收益的 target 内使用，但 recipe、CLI JSON、catalog schema
-和公开持久化契约不得序列化 Qt/C++ 对象内存布局。
+Private Qt Sql/QSQLITE and `QImageReader` adapters contain SQLite and the
+first raster path. LibRaw and platform APIs likewise do not cross a port. Qt
+value types may be used inside a target with a clear benefit, but recipes, CLI
+JSON, catalog schema, and public persisted contracts must not serialize Qt/C++
+object memory layout.
 
-Ravo Studio 只有一套 presentation 架构：C++ composition root 持有 services、任务与
-`QQmlApplicationEngine`，desktop-owned QObject presenter/model 把不可变 service snapshot 和 commands
-映射给 QML。QML/JavaScript 只拥有瞬时 view state、布局、绑定和输入，不实现 catalog/import/preview
-业务规则。Studio 的命令由 desktop-owned C++ registry/controller 统一拥有。一个 command 注册稳定 ID、
-严格参数、运行时状态与 handler；action contribution 把同一 command 投影到菜单、快捷键、右键菜单、
-控件和命令面板。所有入口在执行时重新检查上下文，禁用状态带可见原因；窗口对话框由 controller 发出
-presentation request，QML 只负责展示与回传选择结果。参数依赖当前控件值的内部命令不进入命令面板。
-QML 只保留瞬时 focus/popup 状态与薄 action binding，不再维护第二份 ID、标题、快捷键或 enablement 表。
-Gallery 网格模式只调度 `kThumbnailMaxEdge` browse 缩略图，不为选中项排队 1600px processed
-preview；直方图/parade 由该缩略图计算。切到 loupe/develop 后再请求完整 decode。打开/导入后 presenter 从 preview 表灌入已有
-cache 路径，网格委托不再为 ready 缩略图打满单线程队列。左侧 Library 面板顶部分别显示导入与
-preview 构建进度。选完系统文件夹/文件对话框后，扫描和导入在 worker 上跑，不阻塞 UI。每张成功导入的
-照片立刻插入网格并带上 browse 缩略图，不必等整批结束。
-网格按可用宽度把 cell 拟合到 120–320 的范围并显示纵向滚动条，滚动时只有选中
-项滚出视口才 `positionViewAtIndex`。`--catalog <library.sqlite>` 由 C++ 交给 presenter，QML
-在启动会话时打开该路径而不是默认库。
-Develop 预览由 presenter 做有界合并：同一时刻最多一个 in-flight 渲染，另加最多一份待保存
-recipe 和一份待预览请求；新 revision 立即取消旧 token，过期结果按 revision + asset 双重丢弃，
-失败时保留上次已验证 preview。拖动时 presenter 只转发
-内存中的 develop 参数，不写 recipe；服务层按 `kInteractivePreviewMaxEdge` 在已缓存的
-scene-linear 工作图上套用效果，只返回内存像素、不写 PNG/cache。RAW unpack 与 demosaic 缓存在
-CatalogService，highlight reconstruction 变化时失效；不得回退到 embedded JPEG。松手后再保存
-并请求完整 preview。
-Develop 裁剪在画布上交互：crop tool 预览去掉 crop 与 straighten，由 Qt Quick 旋转工作图；
-描边与照片共用这一 GPU 变换，裁剪框保持屏幕轴向并内接旋转后的照片。框选和 Angle 拖动只更新
-内存参数，松手后写入 recipe；导出仍走 CPU straighten，不是 engine GPU adapter。
-删除照片默认只从 catalog 移除记录和 preview cache，不删除原片。显式的
-“Delete from Disk” 命令在确认后删除原文件，再移除 catalog 记录。QML 资源通过 `qt_add_qml_module`
-纳入构建和部署；首版不链接 Qt Widgets，也不提供混合 fallback。
+Ravo Studio has one presentation architecture. Its C++ composition root owns
+services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
+presenters/models map immutable service snapshots and commands to QML.
+QML/JavaScript owns transient view state, layout, bindings, and input only; it
+does not implement catalog/import/preview business rules. A desktop-owned C++
+registry/controller owns commands. Each command has a stable ID, strict
+parameters, runtime state, and a handler, while action contributions project it
+to menus, shortcuts, context menus, controls, and the command palette. Every
+entry rechecks context at execution, disabled state has a visible reason, and
+the controller issues dialog presentation requests that QML displays and returns.
+Commands that depend on current control values are not in the command palette.
+QML retains only transient focus/popup state and thin action binding, not a
+second table of IDs, titles, shortcuts, or enablement.
 
-## 核心数据契约
+Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
+1600px processed preview merely for a selected grid item; histogram and parade
+are calculated from that thumbnail. Loupe/develop requests full decode. On
+open/import, presenters seed ready cache paths from the preview table so grid
+delegates do not saturate a single-thread queue. The Library panel separately
+shows import and preview-build progress. After system file/folder selection,
+scanning and import run on workers and each successful photo immediately
+appears in the grid with a browse thumbnail.
+
+Grid cells fit available width in the 120–320 range and have a vertical scroll
+bar. `positionViewAtIndex` runs only when the selected item leaves the
+viewport. C++ passes `--catalog <library.sqlite>` to the presenter; QML opens
+it at session start rather than a default library.
+
+Develop preview is bounded and coalesced: at most one render is in flight, plus
+one recipe waiting to save and one preview request waiting. A new revision
+cancels the old token; stale results are dropped by revision and asset, while
+failure retains the prior verified preview. During a drag, the presenter only
+forwards in-memory parameters. Services apply effects to cached scene-linear
+working images at `kInteractivePreviewMaxEdge`, return memory pixels, and do
+not write PNG/cache. CatalogService caches RAW unpack and demosaic, invalidating
+them when highlight reconstruction changes; it must not fall back to embedded
+JPEG. Save and request a complete preview after release.
+
+Develop crop is interactive: crop-tool preview removes crop and straighten,
+while Qt Quick rotates the working image. Photo and overlay share the GPU
+transform; the crop frame remains screen-axis aligned and inscribed in the
+rotated image. Selection and Angle dragging change in-memory parameters only;
+release writes the recipe. Export continues to use CPU straighten, not an
+engine GPU adapter. Deleting a photo normally removes only the catalog record
+and preview cache. The explicit “Delete from Disk” command deletes the source
+after confirmation, then removes the catalog record. QML resources are built
+and deployed with `qt_add_qml_module`; the first version links no Qt Widgets
+and has no hybrid fallback.
+
+## Core data contracts
 
 ### Catalog
 
-catalog 是单个用户选择的 SQLite 文件。schema v1 至少保存：
+A catalog is one user-selected SQLite file. Schema v1 stores at least:
 
-- schema 版本与迁移元数据；
-- 稳定 asset ID、规范化本地 URI、媒体类型、源文件 size/mtime/可选指纹；
-- 尺寸、orientation、基础拍摄元数据、import 状态和结构化错误摘要；
-- preview contract 版本、cache key、尺寸、状态和最近成功时间。
+- schema version and migration metadata;
+- stable asset ID, normalized local URI, media type, source size/mtime/optional
+  fingerprint;
+- dimensions, orientation, basic capture metadata, import state, and structured
+  error summary;
+- preview contract version, cache key, dimensions, state, and latest success.
 
-规范化 URI 在一个 catalog 内唯一。数据库不保存原片或完整 preview blob，不保存 presentation 状态、recipe
-对象布局、codec 句柄或数据库行地址。schema v2 在 `asset` 上保存 rating/color/reject；schema v3 用
-`asset_recipe` 保存每张图最多一份 canonical recipe JSON；schema v4 增加
-`asset_tag`、`asset_metadata`（只读 capture EXIF + catalog-only 可写字段）和
-`asset_recipe_history`（history/snapshot）。SQLite adapter 打开时启用 WAL、`synchronous=NORMAL`
-和 `busy_timeout`，导入批次不会被每条 autocommit 的 FULL 同步写放大。新库和每次 migration 使用事务；未知更高
-schema 版本 fail-fast。
-当前 recipe 行（或 baseline 清除）、自动 history 与 catalog revision 由 repository adapter 在一个事务中
-发布；任一步失败全部回滚，service 不做补偿写或暴露半提交 recipe。
+Normalized URIs are unique within a catalog. The database stores neither source
+files nor full preview blobs, nor presentation state, recipe object layout,
+codec handles, or database-row addresses. Schema v2 stores rating/color/reject
+on `asset`; v3 stores at most one canonical recipe JSON per image in
+`asset_recipe`; v4 adds `asset_tag`, `asset_metadata` (read-only capture
+EXIF plus catalog-only writable fields), and `asset_recipe_history`
+(history/snapshot). The SQLite adapter enables WAL, `synchronous=NORMAL`, and
+`busy_timeout`. New catalogs and migrations use transactions, and an unknown
+higher schema version fails fast.
 
-首版不读取或迁移冻结 0.9 catalog。未来兼容工作必须有独立产品决定、备份/回滚和 fixture。
+The repository adapter atomically publishes the current recipe row (or baseline
+clearing), automatic history, and catalog revision. Any failed step rolls back
+everything; services neither compensate writes nor expose a partially committed
+recipe. The first version does not read or migrate a frozen 0.9 catalog. Future
+compatibility requires an independent product decision, backup/rollback, and
+fixtures.
 
 ### Import
 
-`ImportRequest` 携带 catalog ID、文件/目录输入、递归与格式策略、资源预算、取消 token 和 correlation
-ID。`ImportItemResult` 对每个输入返回 imported、duplicate、unsupported 或 failed；批次不能因部分
-成功丢失失败明细。
+`ImportRequest` carries catalog ID, file/directory input, recursion/format
+policy, resource budget, cancellation token, and correlation ID.
+`ImportItemResult` returns imported, duplicate, unsupported, or failed for
+each input; partial success must not lose failure detail.
 
-导入首版只登记原文件，不复制、移动、改名、改写 metadata 或删除。格式由 codec 探测确认，扩展名只做
-候选过滤。RAW 一次 LibRaw open 读取拍摄 metadata 与 embedded JPEG，并持久化
-`kThumbnailMaxEdge` browse 缩略图；不在导入时做 1600px 完整 decode。先验证可信 metadata，再通过事务发布可见 asset；取消停止未派发工作，已提交结果仍保持有效。
+First-version import only registers sources: it never copies, moves, renames,
+rewrites metadata, or deletes them. Codec probing confirms a format; extensions
+are only candidate filters. One LibRaw open reads RAW capture metadata and
+embedded JPEG, then persists a `kThumbnailMaxEdge` browse thumbnail; import
+does not perform a 1600px full decode. It validates trusted metadata before
+transactionally publishing an asset. Cancellation stops undispatched work;
+committed results remain valid.
 
 ### Preview
 
-`PreviewRequest` 显式携带 asset ID、目标像素尺寸、方向/颜色策略、backend、内存/线程预算、取消 token
-和 request revision。`PreviewResult` 返回可信的只读 preview 资源或结构化失败。
+`PreviewRequest` explicitly carries asset ID, target pixel dimensions,
+orientation/colour policy, backend, memory/thread budget, cancellation token,
+and request revision. `PreviewResult` returns a trusted read-only preview
+resource or structured failure.
 
-RAW 通过 Ravo CPU engine，JPEG/PNG/TIFF 通过 raster adapter；两条路径统一 orientation、颜色、alpha、
-缩放、有限值与错误契约。preview 在数据库外原子写入受控缓存，cache key 包含源指纹、目标尺寸和 contract
-版本。缓存损坏或缺失时可从只读原片重建。
-导入和 Gallery 缩略图走 browse 缓存：RAW 在一次 LibRaw open 中读取 metadata 与 embedded JPEG，
-按 `kThumbnailMaxEdge` 写入 cache key digest `embedded-jpeg` 的 PNG。这不是可编辑的
-scene-linear 数据。Loupe、Develop、示波器、export 和 `prefer_embedded_preview=false` 的
-`request_preview` 仍走 preview contract v4：完整 CPU decode/render，并在 scene-linear
-工作缓冲末端应用 `ravo.display.sigmoid` 基线。两种缓存不得共用 digest。无 embedded JPEG 时
-browse 路径 fail-open 到完整 decode，不写空图。基线 operation 不产生 `asset_recipe` 行，也不标记
-`has_edits`；用户覆盖参数后才持久化。已有 JPEG/PNG/TIFF 是 display-referred 输入，不隐式重复应用
-Sigmoid；导入同样只持久化 thumbnail 尺寸，loupe 按需生成 1600px。
+RAW uses the Ravo CPU engine, while JPEG/PNG/TIFF use the raster adapter. Both
+share orientation, colour, alpha, scaling, finite-value, and error contracts.
+Preview cache is atomically written outside the database, keyed by source
+fingerprint, target dimensions, and contract version. Corrupt or missing cache
+rebuilds from the read-only source.
 
-Qt raster adapter 实际接受 PNG/JPEG/BMP/GIF/WebP/TIFF，并导出 PNG/JPEG/TIFF；因此对应
-JPEG/GIF/WebP/TIFF plugin targets 与 catalog 使用的 QSQLITE driver 都是 configure-time required。
-TGA/WBMP/ICO 和其他 SQL drivers 没有产品消费者，不进入 required 集合。
+Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
+embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
+`embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
+Develop, scopes, export, and `request_preview` with
+`prefer_embedded_preview=false` use preview contract v4: full CPU
+decode/render followed by the `ravo.display.sigmoid` baseline at the end of
+the scene-linear buffer. The cache types must not share a digest. Without
+embedded JPEG, browse fails open to full decode and never writes an empty image.
+The baseline creates no `asset_recipe` row and does not set `has_edits`;
+persistence begins only after a user override. Existing JPEG/PNG/TIFF are
+display-referred input and do not receive Sigmoid twice. Import persists
+thumbnail dimensions only; loupe creates 1600px on demand.
 
-### Recipe 与 operation
+The Qt raster adapter accepts PNG/JPEG/BMP/GIF/WebP/TIFF and exports
+PNG/JPEG/TIFF. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE are configure-time
+requirements. TGA/WBMP/ICO and other SQL drivers have no product consumers.
 
-既有 canonical recipe、operation descriptor、`RenderRequest`/`RenderResult` 和显式 colour contract
-继续有效。第一版 viewer 只依赖生成可信 preview 所需的最小 CPU 链，不要求先迁完全部旧 operation。
-后续编辑 UI 只能映射 versioned schema，不拥有第二套算法或 history 格式。
-色调曲线是 `ravo.core.tonecurve`：冻结 C 默认 RGB linked（Lab D50 → ProPhoto，
-`preserve_colors=average`），0–1 点列表、`interpolation=monotone_hermite`。
-`working_space=lab|xyz|lab_independent` 是显式 C mode。Inspector 只转发点；求值在 recipe/engine。
-唯一默认显示变换是 `ravo.display.sigmoid` v1：`working_space=linear_srgb`、
-`color_processing=per_channel`，显式保存 middle-grey contrast、skew、Standard SDR
-black/white target 与 hue preservation。它是 RAW 基线与 scene-referred operation 链的末端，
-随后才做 sRGB encoding。RAW Studio 的 Contrast 由 Sigmoid 拥有；`ravo.core.contrast`
-继续服务 display-referred raster 输入和旧 recipe。highlights/shadows/whites/blacks 仍是
-transform 之前的 scene controls。RAW 路径可在 demosaic 前运行 `ravo.raw.highlights`；
-默认降噪、镜头校正、dt UCS `colorequal`、渐变滤镜和 9 带 toneequal 走同一 recipe/engine。
-`ravo.raw.hotpixels` 在 highlights 之前处理 owned `DecodedRaw` 副本；两者都在 demosaic 前完成并在
-进入 RGB recipe 前禁用。scene-linear cache preprocess key 包含全部 CFA operation 的参数与顺序；原始 decoded cache
-不被 recipe mutation 污染。当前 hot-pixel sensor contract 只接受完整 Bayer 2×2 CFA。
-`ravo.raw.cacorrect` 随后在同一副本上执行 Bayer tile 统计、全图 polynomial shift fit 和可选
-avoid-color-shift，再进入 demosaic。RAW memory estimator 必须计入 owned CFA、float scratch、拟合与
-avoid-shift factor；预算不足在分配/像素发布前失败。
-`ravo.color.temperature` v1 固定声明 `camera_cfa_or_linear_rgb` 与 `channel_scale_v4`，默认从
-`DecodedRaw` 的 LibRaw as-shot metadata 解析四通道系数，也可选择 camera-reference、显式 manual 或
-as-shot-to-reference。engine 在进入 RAW preprocess 时解析唯一 temperature intent，`cacorrect` 与 demosaic
-消费同一组系数；demosaic 对每个 CFA sample 先按自身 channel scaling，再做 camera-to-working matrix。
-temperature 参数属于 scene-linear preprocess cache key，源 `DecodedRaw` 不变。late-reference 不共享全局
-chroma state，必须在 recipe 中后接显式非 RGB `channelmixerrgb` adaptation；raster 只接受显式系数。
-`ravo.color.channelmixerrgb` v1 固定声明 `linear_srgb_d50` 工作空间与 V3 算法，完整保存三行 mixing、
-saturation/lightness/grey、normalization、adaptation、illuminant xy、gamut 与 clip。Studio 默认只编辑
-`adaptation=rgb` 的 3×3 矩阵；CAT16/Bradford/XYZ 只能由显式 canonical 参数选择，不读取隐藏 camera/ICC
-状态，避免与 RAW camera WB 重复。
-`ravo.color.colorbalancergb` v1 同样显式声明 `linear_srgb_d50`，保存四段 Y/C/H、三段 falloff/fulcrum、
-chroma/saturation/brilliance、hue/vibrance/contrast 和 formula。engine 同步派生 render-lifetime gamut LUT，
-执行 CAT16 D65、CIE 2006 LMS、Filmlight Yrg/Ych 与 DT UCS（默认）或显式 JzAzBz；逐像素结果先写 owned
-输出缓冲，全部行成功后发布。Studio 的只读参数 map 只投影 canonical 值，QML 不拥有 mask、LUT 或色彩数学。
-原 `ravo.color.colorbalance` 三参数近似已硬删除；冻结 `colorbalance.c` 仍是独立后续 capability。
+### Recipe and operation
 
-所有 decode/preview/render 边界仍显式携带像素格式、alpha、源/目标颜色描述和 profile 状态；UI、文件名
-或无标记 buffer 不得隐式选择色彩策略。完整约束见
-[ADR-0006](docs/adr/0006-explicit-colour-contract.md)。
+Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`,
+and the explicit colour contract remain valid. The first viewer needs only the
+minimal CPU chain that yields a trusted preview; later editing UI maps the
+versioned schema only and owns neither a second algorithm nor history format.
+
+`ravo.core.tonecurve` implements the frozen C RGB-linked default:
+Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
+`interpolation=monotone_hermite`. `working_space=lab|xyz|lab_independent`
+is an explicit C mode; Inspector forwards points and recipe/engine evaluates.
+
+`ravo.display.sigmoid` v1 is the sole default display transform:
+`working_space=linear_srgb`, `color_processing=per_channel`, middle-grey
+contrast, skew, Standard SDR black/white target, and hue preservation. It is
+the RAW baseline and final scene-referred operation before sRGB encoding. RAW
+Studio Contrast belongs to Sigmoid; `ravo.core.contrast` serves
+display-referred raster input and old recipes. Highlights/shadows/whites/blacks
+are scene controls before the transform.
+
+RAW may execute `ravo.raw.highlights` before demosaic; default denoise, lens
+correction, dt UCS `colorequal`, graduated filter, and nine-band toneequal
+use the same recipe/engine. `ravo.raw.hotpixels` processes an owned
+`DecodedRaw` copy before highlights. Both complete before demosaic and are
+disabled before RGB recipe. The scene-linear preprocess cache key includes all
+CFA-operation parameters and order; recipe mutation never contaminates raw
+decoded cache. The current hot-pixel sensor contract accepts complete Bayer 2×2
+CFA only. `ravo.raw.cacorrect` runs Bayer tile statistics, full-image
+polynomial shift fit, and optional avoid-color-shift on the same copy before
+demosaic. The RAW memory estimate includes owned CFA, float scratch, fitting,
+and avoid-shift factor; low budget fails before allocation or pixel publication.
+
+`ravo.color.temperature` v1 fixes `camera_cfa_or_linear_rgb` and
+`channel_scale_v4`. It normally parses four-channel coefficients from LibRaw
+as-shot metadata in `DecodedRaw`, and may use camera-reference, explicit
+manual, or as-shot-to-reference. The engine resolves one temperature intent at
+RAW preprocess; cacorrect and demosaic consume the same coefficients. Demosaic
+scales each CFA sample by its own channel before the camera-to-working matrix.
+Temperature is in the scene-linear preprocess cache key; source `DecodedRaw`
+is immutable. Late reference shares no global chroma state and must be followed
+by explicit non-RGB `channelmixerrgb` adaptation; raster accepts explicit
+coefficients only.
+
+`ravo.color.channelmixerrgb` v1 fixes the `linear_srgb_d50` workspace and
+V3 algorithm, persisting three mixing rows, saturation/lightness/grey,
+normalization, adaptation, illuminant xy, gamut, and clip. Studio normally
+edits only the `adaptation=rgb` 3×3 matrix; CAT16/Bradford/XYZ are selected
+only through explicit canonical parameters and never hidden camera/ICC state.
+
+`ravo.color.colorbalancergb` v1 also explicitly declares
+`linear_srgb_d50`. It stores four Y/C/H zones, three falloff/fulcrum values,
+chroma/saturation/brilliance, hue/vibrance/contrast, and formula. The engine
+derives a render-lifetime gamut LUT and executes CAT16 D65, CIE 2006 LMS,
+Filmlight Yrg/Ych, and DT UCS by default or explicit JzAzBz. It writes pixels
+to an owned output buffer and publishes only after every row succeeds. Studio
+projects canonical values into a read-only parameter map; QML owns no mask,
+LUT, or colour mathematics. The former three-parameter
+`ravo.color.colorbalance` approximation is hard-deleted; frozen
+`colorbalance.c` remains a separate later capability.
+
+Every decode/preview/render boundary carries explicit pixel format, alpha,
+source/target colour description, and profile state. UI, file name, or unmarked
+buffer must not implicitly select colour strategy. See
+[ADR-0006](docs/adr/0006-explicit-colour-contract.md).
 
 ## Services
 
-第一版 services 至少提供：
+First-version services provide:
 
-- `CreateCatalog` / `OpenCatalog`：创建、校验、迁移并返回不可变 catalog snapshot；
-- `ImportAssets`：枚举输入、调用 codec/engine、事务提交资产并调度 preview；
-- `ListAssets` / `ObserveCatalog`：返回稳定排序和 revision，不暴露 SQL cursor；
-- `RequestPreview` / `CancelPreview`：按 viewport 请求有界 preview，丢弃过期结果；
-- `CloseCatalog`：停止相关任务、释放连接和缓存句柄后完成。
+- `CreateCatalog` / `OpenCatalog`: create, validate, migrate, and return an
+  immutable catalog snapshot;
+- `ImportAssets`: enumerate inputs, call codec/engine, transactionally publish
+  assets, and schedule preview;
+- `ListAssets` / `ObserveCatalog`: return stable order and revision without
+  SQL cursors;
+- `RequestPreview` / `CancelPreview`: request bounded previews by viewport
+  and discard stale results;
+- `CloseCatalog`: stop associated tasks and release connection/cache handles
+  before completion.
 
-CLI 和 desktop composition root 可以选择不同的 presenter，但必须装配同一 services、ports 和 adapter。
+CLI and desktop composition roots may use different presenters, but must
+assemble the same services, ports, and adapters.
 
-## 所有权、生命周期与线程
+## Ownership, lifecycle, and threads
 
-- composition root 创建 catalog repository、codec、engine、cache、executor、services 和客户端，并在任务
-  全部终止后按反向顺序销毁。
-- UI 主线程拥有 `QQmlApplicationEngine`、窗口和 desktop presentation state；扫描、metadata、decode、
-  preview、cache 与数据库 I/O 只在 C++ owner 管理的任务中运行，禁止 detached thread。
-- catalog、asset、recipe、descriptor 和跨线程结果是不可变快照；写操作产生新 revision。
-- database connection 不跨线程裸共享；adapter 使用明确的串行 owner 或每 worker 受控连接，并在关闭前
-  完成/回滚事务。
-- pixel buffer 和 preview 临时文件有唯一写 owner；只读共享必须绑定资源句柄和清晰有效期。
-- 每个异步完成事件携带 catalog/asset/request revision；取消、catalog 关闭或选择变化后的旧结果丢弃。
-- codec、数据库、缓存或内存失败只能从可信输入重试或返回失败，不能继续展示部分输出。
-- 用户原片始终只读；数据库和 preview 只在事务/原子提交成功后对客户端可见。
+- Composition creates catalog repository, codecs, engine, cache, executor,
+  services, and clients, then destroys them in reverse order after tasks stop.
+- The UI main thread owns `QQmlApplicationEngine`, windows, and desktop
+  presentation state. Scanning, metadata, decode, preview, cache, and database
+  I/O run only in C++ owner-managed tasks; detached threads are prohibited.
+- Catalog, asset, recipe, descriptor, and cross-thread results are immutable
+  snapshots; writes make a new revision.
+- Database connections are never bare-shared across threads. Adapters use an
+  explicit serial owner or a controlled connection per worker and finish or
+  roll back transactions before close.
+- Pixel buffers and preview temporary files have one write owner; read-only
+  sharing binds a resource handle and clear validity period.
+- Every asynchronous completion carries catalog/asset/request revision; results
+  after cancellation, catalog close, or selection change are discarded.
+- Codec, database, cache, or memory failure retries only from trusted input or
+  returns failure; it must not display partial output.
+- Originals stay read-only. Database and previews become visible only after
+  transaction or atomic publication succeeds.
 
-## Desktop 边界
+## Desktop boundary
 
-Ravo Studio 第一版负责：
+The Ravo Studio first version owns:
 
-- 创建/打开 catalog、选择文件/目录；
-- Gallery 列表、loading/ready/missing/unsupported/failed 状态；
-- 选择图片、Gallery（grid/放大）与 Edit 分栏、适应窗口、100% 和平移；
-  grid 与 filmstrip 用 contain 整图显示，letterbox 空白叠加序号、评分、格式/尺寸与标记；
-- Gallery/Edit 共用右侧面板上方示波器：冻结 C 的 256 档 RGB 直方图（linear Y）与 RGB parade 分量图；
-- 进度、取消和可恢复错误呈现；
-- 窗口、焦点、键盘、HiDPI 和基本可访问性。
+- creating/opening catalogs and choosing files/directories;
+- Gallery list states: loading, ready, missing, unsupported, and failed;
+- selection, Gallery grid/loupe and Edit panes, fit, 100%, and pan. Grid and
+  filmstrip use whole-image containment with letterbox number, rating,
+  format/dimension, and flag overlays;
+- shared scopes above the right Gallery/Edit panel: frozen-C 256-bin RGB
+  histogram (linear Y) and RGB-parade component plot;
+- progress, cancellation, and recoverable-error presentation;
+- window, focus, keyboard, HiDPI, and basic accessibility.
 
-QML view 只向 desktop-owned C++ presenter 发送 intent，并观察带 revision 的不可变 view state。可见控件
-使用 GeoControls（按钮、标签、列表项、分段开关、状态栏、文件对话框）。Gallery/`Image` 只消费受控
-preview 资源，不直接打开用户原片。QML 中不得出现 SQL、文件枚举、codec 探测、任务调度或与
-services 重复的业务状态机。文件夹选择 GeoControls 没有对应控件，因此由 desktop 的
-`FolderDialogPage.qml` 按同一对话框契约封装 `FolderDialog`。
+QML sends only intents to desktop-owned C++ presenters and observes immutable,
+revisioned view state. Visible controls use GeoControls (buttons, labels, list
+items, segmented switches, status bar, and file dialog). Gallery/`Image`
+consumes controlled preview resources only and never opens an original directly.
+QML contains no SQL, file enumeration, codec probing, task scheduling, or
+services-duplicated business state machine. GeoControls has no folder picker, so
+`FolderDialogPage.qml` wraps `FolderDialog` under the same dialog contract.
 
-Ravo Studio 不负责：
+Ravo Studio does not own SQL, file enumeration, codec probing, RAW processing,
+preview cache, recipe evaluation, bare engine/SQLite/LibRaw objects, shell
+launch of `ravo`, old GTK widgets, a Qt Widgets fallback, old config keys, or
+dynamic IOP lifecycle.
 
-- SQL、文件枚举、codec 探测、RAW 处理、preview 缓存或 recipe 求值；
-- 直接持有 engine/SQLite/LibRaw 裸对象；
-- 通过 shell 启动 `ravo`；
-- 复刻旧 GTK widget、引入 Qt Widgets fallback、旧配置键或动态 IOP 生命周期。
+## CLI boundary
 
-## CLI 边界
+CLI owns arguments, stdin/stdout, versioned JSON, stable exit codes, and
+headless composition. Existing catalog create/import/list/preview/develop/export
+commands validate the same services; human logs must not pollute JSON stdout.
 
-CLI 继续负责参数、stdin/stdout、版本化 JSON、稳定退出码和 headless composition。现有
-catalog create/import/list/preview/develop/export 命令验证同一 services；人类日志不能污染 JSON stdout。
+## Current non-goals
 
-## 当前非目标
-
-- 本地 JPEG/PNG/TIFF/原片复制导出已由 CatalogService 拥有；完整 metadata/ICC、批量任务和旧导出预设仍不在范围内。
-- 第一版不实现完整 history/styles、mask/blend、全部 operation 或旧 catalog 迁移。
-- CPU 正确性和 viewer 资源门槛完成前不实现 GPU backend。
-- 不为尚无消费者的网络、云同步、公共插件 ABI 或复杂查询语言冻结接口。
-- 不修改冻结 0.9 来调用 Ravo，也不让 Ravo 生产代码调用冻结应用。
+- CatalogService owns local JPEG/PNG/TIFF/original-copy export; complete
+  metadata/ICC, batch jobs, and old export presets remain out of scope.
+- The first version does not implement full history/styles, mask/blend, every
+  operation, or old-catalog migration.
+- Do not implement GPU before CPU correctness and viewer resource gates.
+- Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
+  query language without consumers.
+- Do not modify frozen 0.9 to call Ravo or let Ravo production call the frozen
+  application.
