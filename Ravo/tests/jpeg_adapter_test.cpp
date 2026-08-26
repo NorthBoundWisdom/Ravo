@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -19,6 +20,7 @@
 #include <QIODevice>
 #include <gtest/gtest.h>
 
+#include "../adapters/src/jpeg_encoder.h"
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
@@ -100,6 +102,289 @@ void append_u16_be(QByteArray &bytes, const std::uint16_t value)
     bytes.append(static_cast<char>(value & 0xFFU));
 }
 
+struct JpegSamplingFactors
+{
+    std::uint8_t y_horizontal = 0U;
+    std::uint8_t y_vertical = 0U;
+    std::uint8_t cb_horizontal = 0U;
+    std::uint8_t cb_vertical = 0U;
+    std::uint8_t cr_horizontal = 0U;
+    std::uint8_t cr_vertical = 0U;
+};
+
+struct JpegHeaderSegment
+{
+    std::uint8_t id = 0U;
+    std::size_t payload_offset = 0U;
+    std::size_t payload_size = 0U;
+};
+
+struct JpegFrameContract
+{
+    std::uint8_t precision = 0U;
+    std::uint16_t width = 0U;
+    std::uint16_t height = 0U;
+    JpegSamplingFactors sampling;
+};
+
+struct JpegDensity
+{
+    std::uint8_t unit = 0U;
+    std::uint16_t horizontal = 0U;
+    std::uint16_t vertical = 0U;
+};
+
+struct JpegIccSegment
+{
+    std::uint8_t sequence = 0U;
+    std::uint8_t total = 0U;
+    std::vector<std::uint8_t> bytes;
+};
+
+[[nodiscard]] std::optional<std::vector<JpegHeaderSegment>>
+jpeg_header_segments(const std::vector<std::uint8_t> &bytes)
+{
+    if (bytes.size() < 4U || bytes[0] != 0xFFU || bytes[1] != 0xD8U)
+    {
+        return std::nullopt;
+    }
+    std::vector<JpegHeaderSegment> segments;
+    std::size_t offset = 2U;
+    while (offset < bytes.size())
+    {
+        if (bytes[offset] != 0xFFU)
+        {
+            return std::nullopt;
+        }
+        while (offset < bytes.size() && bytes[offset] == 0xFFU)
+        {
+            ++offset;
+        }
+        if (offset >= bytes.size())
+        {
+            return std::nullopt;
+        }
+        const std::uint8_t id = bytes[offset++];
+        if (id == 0xD9U || id == 0xDAU)
+        {
+            return segments;
+        }
+        if (id == 0xD8U || (id >= 0xD0U && id <= 0xD7U))
+        {
+            continue;
+        }
+        if (bytes.size() - offset < 2U)
+        {
+            return std::nullopt;
+        }
+        const std::uint16_t length = static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(bytes[offset]) << 8U) | bytes[offset + 1U]);
+        if (length < 2U || length > bytes.size() - offset)
+        {
+            return std::nullopt;
+        }
+        segments.push_back({id, offset + 2U, static_cast<std::size_t>(length) - 2U});
+        offset += length;
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] bool is_jpeg_frame_marker(const std::uint8_t id) noexcept
+{
+    return (id >= 0xC0U && id <= 0xC3U) || (id >= 0xC5U && id <= 0xC7U) ||
+           (id >= 0xC9U && id <= 0xCBU) || (id >= 0xCDU && id <= 0xCFU);
+}
+
+[[nodiscard]] std::optional<JpegFrameContract>
+jpeg_frame_contract(const std::vector<std::uint8_t> &bytes)
+{
+    const auto segments = jpeg_header_segments(bytes);
+    if (!segments)
+    {
+        return std::nullopt;
+    }
+    for (const JpegHeaderSegment &segment : *segments)
+    {
+        if (!is_jpeg_frame_marker(segment.id))
+        {
+            continue;
+        }
+        if (segment.payload_size != 15U)
+        {
+            return std::nullopt;
+        }
+        const std::size_t offset = segment.payload_offset;
+        if (bytes[offset + 5U] != 3U || bytes[offset + 6U] != 1U || bytes[offset + 9U] != 2U ||
+            bytes[offset + 12U] != 3U)
+        {
+            return std::nullopt;
+        }
+        const auto factors = [&](const std::size_t index)
+        {
+            return std::pair{static_cast<std::uint8_t>(bytes[offset + index] >> 4U),
+                             static_cast<std::uint8_t>(bytes[offset + index] & 0x0FU)};
+        };
+        const auto y = factors(7U);
+        const auto cb = factors(10U);
+        const auto cr = factors(13U);
+        return JpegFrameContract{
+            bytes[offset],
+            static_cast<std::uint16_t>((static_cast<std::uint16_t>(bytes[offset + 3U]) << 8U) |
+                                       bytes[offset + 4U]),
+            static_cast<std::uint16_t>((static_cast<std::uint16_t>(bytes[offset + 1U]) << 8U) |
+                                       bytes[offset + 2U]),
+            {y.first, y.second, cb.first, cb.second, cr.first, cr.second}};
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::optional<JpegSamplingFactors>
+jpeg_sampling_factors(const std::vector<std::uint8_t> &bytes)
+{
+    const auto frame = jpeg_frame_contract(bytes);
+    return frame ? std::optional(frame->sampling) : std::nullopt;
+}
+
+[[nodiscard]] std::optional<JpegDensity> jpeg_density(const std::vector<std::uint8_t> &bytes)
+{
+    static constexpr std::array<std::uint8_t, 5U> kJfif{'J', 'F', 'I', 'F', 0U};
+    const auto segments = jpeg_header_segments(bytes);
+    if (!segments)
+    {
+        return std::nullopt;
+    }
+    for (const JpegHeaderSegment &segment : *segments)
+    {
+        const auto payload_offset = static_cast<std::ptrdiff_t>(segment.payload_offset);
+        if (segment.id != 0xE0U || segment.payload_size < 12U ||
+            !std::equal(kJfif.begin(), kJfif.end(), bytes.begin() + payload_offset))
+        {
+            continue;
+        }
+        const std::size_t offset = segment.payload_offset;
+        return JpegDensity{
+            bytes[offset + 7U],
+            static_cast<std::uint16_t>((static_cast<std::uint16_t>(bytes[offset + 8U]) << 8U) |
+                                       bytes[offset + 9U]),
+            static_cast<std::uint16_t>((static_cast<std::uint16_t>(bytes[offset + 10U]) << 8U) |
+                                       bytes[offset + 11U])};
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::optional<std::vector<JpegIccSegment>>
+jpeg_icc_segments(const std::vector<std::uint8_t> &bytes)
+{
+    static constexpr std::array<std::uint8_t, 12U> kIccSignature{'I', 'C', 'C', '_', 'P', 'R',
+                                                                 'O', 'F', 'I', 'L', 'E', 0U};
+    const auto segments = jpeg_header_segments(bytes);
+    if (!segments)
+    {
+        return std::nullopt;
+    }
+    std::vector<JpegIccSegment> result;
+    for (const JpegHeaderSegment &segment : *segments)
+    {
+        const auto payload_offset = static_cast<std::ptrdiff_t>(segment.payload_offset);
+        if (segment.id != 0xE2U || segment.payload_size < 14U ||
+            !std::equal(kIccSignature.begin(), kIccSignature.end(), bytes.begin() + payload_offset))
+        {
+            continue;
+        }
+        const std::size_t offset = segment.payload_offset;
+        result.push_back(
+            {bytes[offset + 12U],
+             bytes[offset + 13U],
+             {bytes.begin() + static_cast<std::ptrdiff_t>(offset + 14U),
+              bytes.begin() + static_cast<std::ptrdiff_t>(offset + segment.payload_size)}});
+    }
+    return result;
+}
+
+[[nodiscard]] std::optional<std::uint16_t>
+jpeg_first_luminance_quantizer(const std::vector<std::uint8_t> &bytes)
+{
+    const auto segments = jpeg_header_segments(bytes);
+    if (!segments)
+    {
+        return std::nullopt;
+    }
+    for (const JpegHeaderSegment &segment : *segments)
+    {
+        if (segment.id != 0xDBU)
+        {
+            continue;
+        }
+        std::size_t offset = segment.payload_offset;
+        const std::size_t end = offset + segment.payload_size;
+        while (offset < end)
+        {
+            const std::uint8_t table = bytes[offset++];
+            const bool sixteen_bit = (table >> 4U) == 1U;
+            const std::size_t table_bytes = sixteen_bit ? 128U : 64U;
+            if ((table >> 4U) > 1U || end - offset < table_bytes)
+            {
+                return std::nullopt;
+            }
+            if ((table & 0x0FU) == 0U)
+            {
+                return sixteen_bit ? std::optional<std::uint16_t>(static_cast<std::uint16_t>(
+                                         (static_cast<std::uint16_t>(bytes[offset]) << 8U) |
+                                         bytes[offset + 1U])) :
+                                     std::optional<std::uint16_t>(bytes[offset]);
+            }
+            offset += table_bytes;
+        }
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> jpeg_test_pixels(const std::uint32_t width,
+                                                         const std::uint32_t height)
+{
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U);
+    for (std::size_t index = 0U; index < pixels.size(); ++index)
+    {
+        pixels[index] = static_cast<std::uint8_t>((index * 29U + index / 7U) & 0xFFU);
+    }
+    return pixels;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> display_p3_icc()
+{
+    const QByteArray profile = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    EXPECT_FALSE(profile.isEmpty());
+    return {reinterpret_cast<const std::uint8_t *>(profile.constData()),
+            reinterpret_cast<const std::uint8_t *>(profile.constData()) + profile.size()};
+}
+
+template <typename T>
+void expect_jpeg_encode_error(const Result<T> &result, const ErrorCode code,
+                              const std::string_view reason)
+{
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, code);
+    EXPECT_EQ(result.error().context.at("format"), "jpeg");
+    EXPECT_EQ(result.error().context.at("reason"), reason);
+}
+
+struct JpegScanlineCancellation
+{
+    CancellationSource source;
+    bool reached = false;
+};
+
+void cancel_jpeg_at_scanline(void *const context, const detail::JpegEncodeCheckpoint checkpoint,
+                             const std::uint32_t progress) noexcept
+{
+    auto *const cancellation = static_cast<JpegScanlineCancellation *>(context);
+    if (checkpoint == detail::JpegEncodeCheckpoint::kScanline && progress == 4U)
+    {
+        cancellation->reached = true;
+        (void)cancellation->source.cancel("jpeg-scanline-test");
+    }
+}
+
 [[nodiscard]] QByteArray marker(const std::uint8_t id, const QByteArray &payload)
 {
     EXPECT_LE(payload.size() + 2, 65535);
@@ -109,6 +394,252 @@ void append_u16_be(QByteArray &bytes, const std::uint16_t value)
     append_u16_be(result, static_cast<std::uint16_t>(payload.size() + 2));
     result.append(payload);
     return result;
+}
+
+TEST(JpegExportContractTest, AutoSubsamplingMatchesFrozenLegacyQualityThresholds)
+{
+    struct Expectation
+    {
+        int quality = 0;
+        std::uint8_t y_horizontal = 0U;
+        std::uint8_t y_vertical = 0U;
+    };
+    constexpr std::array<Expectation, 4U> kExpectations{
+        {{90, 2U, 2U}, {91, 2U, 1U}, {92, 2U, 1U}, {93, 1U, 1U}}};
+    std::vector<std::uint8_t> pixels = jpeg_test_pixels(32U, 24U);
+    const auto source = pixels;
+    ColorProfileState srgb;
+    srgb.kind = ColorProfileKind::kBuiltin;
+    srgb.model = ColorModel::kRgb;
+    srgb.identifier = "srgb";
+    QtRasterDecoder decoder;
+
+    for (const Expectation &expectation : kExpectations)
+    {
+        SCOPED_TRACE(expectation.quality);
+        const auto encoded = decoder.encode(32U, 24U, pixels, srgb, ExportFormat::kJpeg,
+                                            expectation.quality, CancellationToken{});
+        ASSERT_TRUE(encoded) << encoded.error().message;
+        const auto sampling = jpeg_sampling_factors(encoded.value());
+        ASSERT_TRUE(sampling);
+        EXPECT_EQ(sampling->y_horizontal, expectation.y_horizontal);
+        EXPECT_EQ(sampling->y_vertical, expectation.y_vertical);
+        EXPECT_EQ(sampling->cb_horizontal, 1U);
+        EXPECT_EQ(sampling->cb_vertical, 1U);
+        EXPECT_EQ(sampling->cr_horizontal, 1U);
+        EXPECT_EQ(sampling->cr_vertical, 1U);
+    }
+    EXPECT_EQ(pixels, source);
+}
+
+TEST(JpegExportContractTest, QualityConfigurationMatchesFrozenLegacySource)
+{
+    struct Expectation
+    {
+        int quality = 0;
+        int smoothing = 0;
+        detail::JpegDctMethod dct = detail::JpegDctMethod::kIntegerSlow;
+        std::uint8_t y_horizontal = 0U;
+        std::uint8_t y_vertical = 0U;
+    };
+    constexpr std::array<Expectation, 13U> kExpectations{{
+        {39, 60, detail::JpegDctMethod::kIntegerFast, 2U, 2U},
+        {40, 40, detail::JpegDctMethod::kIntegerFast, 2U, 2U},
+        {49, 40, detail::JpegDctMethod::kIntegerFast, 2U, 2U},
+        {50, 40, detail::JpegDctMethod::kIntegerSlow, 2U, 2U},
+        {59, 40, detail::JpegDctMethod::kIntegerSlow, 2U, 2U},
+        {60, 20, detail::JpegDctMethod::kIntegerSlow, 2U, 2U},
+        {79, 20, detail::JpegDctMethod::kIntegerSlow, 2U, 2U},
+        {80, 0, detail::JpegDctMethod::kIntegerSlow, 2U, 2U},
+        {90, 0, detail::JpegDctMethod::kIntegerSlow, 2U, 2U},
+        {91, 0, detail::JpegDctMethod::kIntegerSlow, 2U, 1U},
+        {92, 0, detail::JpegDctMethod::kIntegerSlow, 2U, 1U},
+        {95, 0, detail::JpegDctMethod::kIntegerSlow, 1U, 1U},
+        {96, 0, detail::JpegDctMethod::kFloat, 1U, 1U},
+    }};
+    for (const Expectation &expectation : kExpectations)
+    {
+        SCOPED_TRACE(expectation.quality);
+        const auto configuration = detail::jpeg_encode_configuration(expectation.quality);
+        ASSERT_TRUE(configuration) << configuration.error().message;
+        EXPECT_EQ(configuration.value().quality, expectation.quality);
+        EXPECT_EQ(configuration.value().smoothing_factor, expectation.smoothing);
+        EXPECT_EQ(configuration.value().dct_method, expectation.dct);
+        EXPECT_TRUE(configuration.value().optimize_coding);
+        EXPECT_EQ(configuration.value().y_horizontal, expectation.y_horizontal);
+        EXPECT_EQ(configuration.value().y_vertical, expectation.y_vertical);
+        EXPECT_EQ(configuration.value().cb_horizontal, 1U);
+        EXPECT_EQ(configuration.value().cb_vertical, 1U);
+        EXPECT_EQ(configuration.value().cr_horizontal, 1U);
+        EXPECT_EQ(configuration.value().cr_vertical, 1U);
+    }
+    expect_jpeg_encode_error(detail::jpeg_encode_configuration(0), ErrorCode::kValidation,
+                             "invalid_jpeg_quality");
+    expect_jpeg_encode_error(detail::jpeg_encode_configuration(101), ErrorCode::kValidation,
+                             "invalid_jpeg_quality");
+}
+
+TEST(JpegExportContractTest, QualityControlsBaselineQuantization)
+{
+    struct Expectation
+    {
+        int quality = 0;
+        std::uint16_t first_luminance_quantizer = 0U;
+    };
+    constexpr std::array<Expectation, 6U> kExpectations{
+        {{5, 160U}, {39, 20U}, {50, 16U}, {90, 3U}, {95, 2U}, {100, 1U}}};
+    const auto pixels = jpeg_test_pixels(32U, 24U);
+    ColorProfileState srgb;
+    srgb.kind = ColorProfileKind::kBuiltin;
+    srgb.model = ColorModel::kRgb;
+    srgb.identifier = "srgb";
+    QtRasterDecoder decoder;
+    for (const Expectation &expectation : kExpectations)
+    {
+        SCOPED_TRACE(expectation.quality);
+        const auto encoded = decoder.encode(32U, 24U, pixels, srgb, ExportFormat::kJpeg,
+                                            expectation.quality, CancellationToken{});
+        ASSERT_TRUE(encoded) << encoded.error().message;
+        const auto quantizer = jpeg_first_luminance_quantizer(encoded.value());
+        ASSERT_TRUE(quantizer);
+        EXPECT_EQ(*quantizer, expectation.first_luminance_quantizer);
+    }
+}
+
+TEST(JpegExportContractTest, EmbedsResolvedRgbIccExactlyAndUsesFrozenJfifDensity)
+{
+    const auto pixels = jpeg_test_pixels(37U, 19U);
+    const auto profile = display_p3_icc();
+    const auto pixels_before = pixels;
+    const auto profile_before = profile;
+    ColorProfileState display_p3;
+    display_p3.kind = ColorProfileKind::kIcc;
+    display_p3.model = ColorModel::kRgb;
+    display_p3.identifier = "display-p3-test";
+    display_p3.icc_bytes = profile;
+    QtRasterDecoder decoder;
+    const auto encoded =
+        decoder.encode(37U, 19U, pixels, display_p3, ExportFormat::kJpeg, 95, CancellationToken{});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    const auto frame = jpeg_frame_contract(encoded.value());
+    ASSERT_TRUE(frame);
+    EXPECT_EQ(frame->precision, 8U);
+    EXPECT_EQ(frame->width, 37U);
+    EXPECT_EQ(frame->height, 19U);
+    const auto density = jpeg_density(encoded.value());
+    ASSERT_TRUE(density);
+    EXPECT_EQ(density->unit, 1U);
+    EXPECT_EQ(density->horizontal, 300U);
+    EXPECT_EQ(density->vertical, 300U);
+    const auto segments = jpeg_icc_segments(encoded.value());
+    ASSERT_TRUE(segments);
+    ASSERT_EQ(segments->size(), 1U);
+    EXPECT_EQ(segments->front().sequence, 1U);
+    EXPECT_EQ(segments->front().total, 1U);
+    EXPECT_EQ(segments->front().bytes, profile);
+    EXPECT_EQ(pixels, pixels_before);
+    EXPECT_EQ(profile, profile_before);
+}
+
+TEST(JpegExportContractTest, SplitsResolvedIccAtTheFrozenAppTwoPayloadBoundary)
+{
+    const auto pixels = jpeg_test_pixels(8U, 8U);
+    std::vector<std::uint8_t> profile(detail::kJpegIccSegmentBytes + 257U);
+    for (std::size_t index = 0U; index < profile.size(); ++index)
+    {
+        profile[index] = static_cast<std::uint8_t>((index * 17U + 3U) & 0xFFU);
+    }
+    const auto profile_before = profile;
+    const auto encoded = detail::encode_jpeg_rgb8(8U, 8U, pixels, profile, 90, CancellationToken{});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    const auto segments = jpeg_icc_segments(encoded.value());
+    ASSERT_TRUE(segments);
+    ASSERT_EQ(segments->size(), 2U);
+    EXPECT_EQ((*segments)[0].sequence, 1U);
+    EXPECT_EQ((*segments)[0].total, 2U);
+    EXPECT_EQ((*segments)[0].bytes.size(), detail::kJpegIccSegmentBytes);
+    EXPECT_EQ((*segments)[1].sequence, 2U);
+    EXPECT_EQ((*segments)[1].total, 2U);
+    EXPECT_EQ((*segments)[1].bytes.size(), 257U);
+    std::vector<std::uint8_t> reassembled = (*segments)[0].bytes;
+    reassembled.insert(reassembled.end(), (*segments)[1].bytes.begin(), (*segments)[1].bytes.end());
+    EXPECT_EQ(reassembled, profile);
+    EXPECT_EQ(profile, profile_before);
+}
+
+TEST(JpegExportContractTest, RejectsInvalidAndOversizedInputsWithoutPublishingBytes)
+{
+    const auto pixels = jpeg_test_pixels(16U, 8U);
+    const auto profile = display_p3_icc();
+    expect_jpeg_encode_error(
+        detail::encode_jpeg_rgb8(0U, 8U, pixels, profile, 90, CancellationToken{}),
+        ErrorCode::kValidation, "invalid_jpeg_dimensions");
+    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(detail::kJpegMaxDimension + 1U, 1U, pixels,
+                                                      profile, 90, CancellationToken{}),
+                             ErrorCode::kValidation, "invalid_jpeg_dimensions");
+    expect_jpeg_encode_error(
+        detail::encode_jpeg_rgb8(65535U, 1U, pixels, profile, 90, CancellationToken{}),
+        ErrorCode::kValidation, "invalid_jpeg_dimensions");
+    expect_jpeg_encode_error(
+        detail::encode_jpeg_rgb8(16U, 8U, std::span<const std::uint8_t>(pixels).first(10U), profile,
+                                 90, CancellationToken{}),
+        ErrorCode::kValidation, "jpeg_source_size_mismatch");
+    expect_jpeg_encode_error(
+        detail::encode_jpeg_rgb8(14000U, 14000U, {}, profile, 90, CancellationToken{}),
+        ErrorCode::kValidation, "jpeg_source_too_large");
+    expect_jpeg_encode_error(detail::encode_jpeg_rgb8(16U, 8U, pixels, {}, 90, CancellationToken{}),
+                             ErrorCode::kValidation, "missing_jpeg_output_icc");
+    std::vector<std::uint8_t> oversized_profile(detail::kJpegMaxIccBytes + 1U);
+    expect_jpeg_encode_error(
+        detail::encode_jpeg_rgb8(16U, 8U, pixels, oversized_profile, 90, CancellationToken{}),
+        ErrorCode::kValidation, "oversized_jpeg_output_icc");
+
+    detail::JpegEncodeControl tiny_output;
+    tiny_output.max_output_bytes = 32U;
+    expect_jpeg_encode_error(
+        detail::encode_jpeg_rgb8(16U, 8U, pixels, profile, 90, CancellationToken{}, tiny_output),
+        ErrorCode::kValidation, "jpeg_output_too_large");
+
+    // legacy dimension() advertised 65535, but its jpeg_start_compress()
+    // owner enforced JPEG_MAX_DIMENSION=65500.
+    for (const auto [width, height] : std::array<std::pair<std::uint32_t, std::uint32_t>, 2U>{
+             {{detail::kJpegMaxDimension, 1U}, {1U, detail::kJpegMaxDimension}}})
+    {
+        SCOPED_TRACE(std::to_string(width) + "x" + std::to_string(height));
+        const auto boundary_pixels = jpeg_test_pixels(width, height);
+        const auto encoded = detail::encode_jpeg_rgb8(width, height, boundary_pixels, profile, 90,
+                                                      CancellationToken{});
+        ASSERT_TRUE(encoded) << encoded.error().message;
+        const auto frame = jpeg_frame_contract(encoded.value());
+        ASSERT_TRUE(frame);
+        EXPECT_EQ(frame->width, width);
+        EXPECT_EQ(frame->height, height);
+    }
+}
+
+TEST(JpegExportContractTest, HonorsEntryAndScanlineCancellationWithoutMutatingInputs)
+{
+    const auto pixels = jpeg_test_pixels(128U, 64U);
+    const auto profile = display_p3_icc();
+    const auto pixels_before = pixels;
+    const auto profile_before = profile;
+    CancellationSource entry;
+    ASSERT_TRUE(entry.cancel("jpeg-entry-test"));
+    const auto entry_result =
+        detail::encode_jpeg_rgb8(128U, 64U, pixels, profile, 95, entry.token());
+    ASSERT_FALSE(entry_result);
+    EXPECT_EQ(entry_result.error().code, ErrorCode::kCancelled);
+
+    JpegScanlineCancellation scanline;
+    detail::JpegEncodeControl control;
+    control.checkpoint_observer = {&scanline, cancel_jpeg_at_scanline};
+    const auto scanline_result =
+        detail::encode_jpeg_rgb8(128U, 64U, pixels, profile, 95, scanline.source.token(), control);
+    ASSERT_FALSE(scanline_result);
+    EXPECT_EQ(scanline_result.error().code, ErrorCode::kCancelled);
+    EXPECT_TRUE(scanline.reached);
+    EXPECT_EQ(pixels, pixels_before);
+    EXPECT_EQ(profile, profile_before);
 }
 
 [[nodiscard]] QByteArray inject_after_soi(const QByteArray &jpeg,

@@ -1,5 +1,7 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 
+#include "jpeg_encoder.h"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -3372,6 +3374,64 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
         return make_error(ErrorCode::kInvalidArgument,
                           "Original-copy export does not encode pixels");
     }
+    if (format == ExportFormat::kJpeg)
+    {
+        if (width == 0U || height == 0U || width > detail::kJpegMaxDimension ||
+            height > detail::kJpegMaxDimension)
+        {
+            return make_error(ErrorCode::kValidation, "JPEG dimensions exceed the encoder limit",
+                              {{"format", "jpeg"},
+                               {"height", std::to_string(height)},
+                               {"maximum_dimension", std::to_string(detail::kJpegMaxDimension)},
+                               {"reason", "invalid_jpeg_dimensions"},
+                               {"width", std::to_string(width)}});
+        }
+        const std::uint64_t source_bytes =
+            static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;
+        if (source_bytes > detail::kJpegMaxSourceBytes)
+        {
+            return make_error(ErrorCode::kValidation, "JPEG RGB source exceeds the safe bound",
+                              {{"format", "jpeg"},
+                               {"maximum_bytes", std::to_string(detail::kJpegMaxSourceBytes)},
+                               {"reason", "jpeg_source_too_large"},
+                               {"size_bytes", std::to_string(source_bytes)}});
+        }
+        if (rgb.size() != source_bytes)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "JPEG RGB source does not match its dimensions",
+                              {{"actual_bytes", std::to_string(rgb.size())},
+                               {"expected_bytes", std::to_string(source_bytes)},
+                               {"format", "jpeg"},
+                               {"reason", "jpeg_source_size_mismatch"}});
+        }
+        auto configuration = detail::jpeg_encode_configuration(jpeg_quality);
+        if (!configuration)
+        {
+            return configuration.error();
+        }
+        auto output_color_space = qt_output_color_space(color_profile);
+        if (!output_color_space)
+        {
+            return output_color_space.error();
+        }
+        if (output_color_space.value().colorModel() != QColorSpace::ColorModel::Rgb)
+        {
+            return make_error(
+                ErrorCode::kUnsupported, "JPEG output ICC is not an RGB profile",
+                {{"format", "jpeg"}, {"reason", "unsupported_jpeg_output_icc_color_model"}});
+        }
+        const QByteArray icc = output_color_space.value().iccProfile();
+        if (icc.isEmpty())
+        {
+            return make_error(ErrorCode::kValidation, "JPEG output ICC could not be resolved",
+                              {{"format", "jpeg"}, {"reason", "missing_jpeg_output_icc"}});
+        }
+        return detail::encode_jpeg_rgb8(width, height, rgb,
+                                        {reinterpret_cast<const std::uint8_t *>(icc.constData()),
+                                         static_cast<std::size_t>(icc.size())},
+                                        jpeg_quality, cancellation);
+    }
     const auto expected =
         static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;
     if (width == 0 || height == 0 || rgb.size() != expected)
@@ -3390,10 +3450,6 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
     if (format == ExportFormat::kPng)
     {
         format_id = QByteArrayLiteral("png");
-    }
-    else if (format == ExportFormat::kJpeg)
-    {
-        format_id = QByteArrayLiteral("jpeg");
     }
     else if (format == ExportFormat::kTiff)
     {
@@ -3426,10 +3482,6 @@ QtRasterDecoder::encode(const std::uint32_t width, const std::uint32_t height,
         return make_error(ErrorCode::kIo, "Unable to open export encoder buffer");
     }
     QImageWriter writer(&buffer, format_id);
-    if (format == ExportFormat::kJpeg)
-    {
-        writer.setQuality(jpeg_quality);
-    }
     if (format == ExportFormat::kPng)
     {
         writer.setCompression(1);

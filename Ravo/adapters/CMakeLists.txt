@@ -3,12 +3,15 @@ add_library(ravo_adapters STATIC)
 target_sources(ravo_adapters
   PRIVATE
     src/filesystem_preview_cache.cpp
+    src/jpeg_encoder.cpp
     src/legacy_xmp.cpp
     src/qt_raster_decoder.cpp
     src/radiance_rgbe_decoder.cpp
     src/sqlite_catalog.cpp
     src/text_file.cpp)
 
+target_include_directories(ravo_adapters SYSTEM BEFORE PRIVATE
+  $<TARGET_PROPERTY:ravo_libjpeg_turbo,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(ravo_adapters
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -16,6 +19,6 @@ target_include_directories(ravo_adapters
 
 target_link_libraries(ravo_adapters
   PUBLIC ravo_foundation ravo_recipe ravo_domain
-  PRIVATE Qt6::Core Qt6::Gui Qt6::Sql ZLIB::ZLIB)
+  PRIVATE Qt6::Core Qt6::Gui Qt6::Sql ZLIB::ZLIB ravo_libjpeg_turbo)
 
 ravo_configure_target(ravo_adapters)

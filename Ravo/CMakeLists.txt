@@ -67,11 +67,89 @@ endfunction()
 ravo_require_migration_source_root(
   RAVO_EXIV2_SOURCE_ROOT EXIV2_SOURCE_ROOT include/exiv2/exiv2.hpp)
 ravo_require_migration_source_root(
-  RAVO_LIBJPEG_TURBO_SOURCE_ROOT LIBJPEG_TURBO_SOURCE_ROOT src/turbojpeg.h)
+  RAVO_LIBJPEG_TURBO_SOURCE_ROOT LIBJPEG_TURBO_SOURCE_ROOT src/jpeglib.h)
 ravo_require_migration_source_root(
   RAVO_LENSFUN_SOURCE_ROOT LENSFUN_SOURCE_ROOT data/db/timestamp.txt)
 ravo_require_migration_source_root(
   RAVO_LIBTIFF_SOURCE_ROOT LIBTIFF_SOURCE_ROOT libtiff/tiffio.h)
+
+# libjpeg-turbo intentionally rejects add_subdirectory integration. Build the
+# pinned source root in an isolated ExternalProject and import only its static
+# classic libjpeg archive; no host-selected JPEG fallback or dependency install
+# surface enters the Ravo graph.
+include(ExternalProject)
+set(_ravo_libjpeg_turbo_prefix
+  "${CMAKE_BINARY_DIR}/_deps/ravo-libjpeg-turbo")
+set(_ravo_libjpeg_turbo_install
+  "${_ravo_libjpeg_turbo_prefix}/install")
+if(MSVC)
+  set(_ravo_libjpeg_turbo_archive
+    "${_ravo_libjpeg_turbo_install}/lib/jpeg-static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+else()
+  set(_ravo_libjpeg_turbo_archive
+    "${_ravo_libjpeg_turbo_install}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}jpeg${CMAKE_STATIC_LIBRARY_SUFFIX}")
+endif()
+set(_ravo_libjpeg_turbo_cmake_args
+  "-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
+  "-DCMAKE_INSTALL_LIBDIR=lib"
+  "-DCMAKE_INSTALL_INCLUDEDIR=include"
+  "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+  "-DENABLE_SHARED=OFF"
+  "-DENABLE_STATIC=ON"
+  "-DWITH_ARITH_DEC=OFF"
+  "-DWITH_ARITH_ENC=OFF"
+  "-DWITH_JPEG7=OFF"
+  "-DWITH_JPEG8=OFF"
+  "-DWITH_SIMD=OFF"
+  "-DWITH_TURBOJPEG=OFF"
+  "-DWITH_TOOLS=OFF"
+  "-DWITH_TESTS=OFF"
+  "-DWITH_JNA="
+  "-DWITH_FUZZ=OFF"
+  "-DWITH_PROFILE=OFF")
+if(CMAKE_BUILD_TYPE)
+  list(APPEND _ravo_libjpeg_turbo_cmake_args
+    "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+endif()
+if(CMAKE_C_COMPILER)
+  list(APPEND _ravo_libjpeg_turbo_cmake_args
+    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}")
+endif()
+if(CMAKE_C_COMPILER_LAUNCHER)
+  list(APPEND _ravo_libjpeg_turbo_cmake_args
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}")
+endif()
+if(CMAKE_OSX_ARCHITECTURES)
+  list(APPEND _ravo_libjpeg_turbo_cmake_args
+    "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
+endif()
+if(CMAKE_OSX_DEPLOYMENT_TARGET)
+  list(APPEND _ravo_libjpeg_turbo_cmake_args
+    "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+ExternalProject_Add(ravo_libjpeg_turbo_external
+  PREFIX "${_ravo_libjpeg_turbo_prefix}/project"
+  SOURCE_DIR "${RAVO_LIBJPEG_TURBO_SOURCE_ROOT}"
+  BINARY_DIR "${_ravo_libjpeg_turbo_prefix}/build"
+  INSTALL_DIR "${_ravo_libjpeg_turbo_install}"
+  CMAKE_ARGS ${_ravo_libjpeg_turbo_cmake_args}
+  UPDATE_COMMAND ""
+  PATCH_COMMAND ""
+  TEST_COMMAND ""
+  BUILD_ALWAYS TRUE
+  BUILD_BYPRODUCTS "${_ravo_libjpeg_turbo_archive}"
+  EXCLUDE_FROM_ALL TRUE)
+file(MAKE_DIRECTORY "${_ravo_libjpeg_turbo_install}/include")
+add_library(ravo_libjpeg_turbo STATIC IMPORTED GLOBAL)
+set_target_properties(ravo_libjpeg_turbo PROPERTIES
+  IMPORTED_LOCATION "${_ravo_libjpeg_turbo_archive}"
+  INTERFACE_INCLUDE_DIRECTORIES "${_ravo_libjpeg_turbo_install}/include"
+  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_ravo_libjpeg_turbo_install}/include")
+add_dependencies(ravo_libjpeg_turbo ravo_libjpeg_turbo_external)
+unset(_ravo_libjpeg_turbo_archive)
+unset(_ravo_libjpeg_turbo_cmake_args)
+unset(_ravo_libjpeg_turbo_install)
+unset(_ravo_libjpeg_turbo_prefix)
 
 if(NOT DEFINED ENV{GEOCONTROLS_SOURCE_ROOT})
   message(FATAL_ERROR "GEOCONTROLS_SOURCE_ROOT is required; run the FreeCM source-root update")
