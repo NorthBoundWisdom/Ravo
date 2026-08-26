@@ -99,7 +99,7 @@ private:
     std::map<std::string, std::size_t, std::less<>> indexes_;
 };
 
-inline constexpr std::size_t kPhase1OperationCount = 47;
+inline constexpr std::size_t kPhase1OperationCount = 48;
 
 [[nodiscard]] Result<OperationRegistry> make_phase1_registry();
 [[nodiscard]] std::string_view parameter_type_name(ParameterType type) noexcept;

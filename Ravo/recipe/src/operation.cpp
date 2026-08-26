@@ -5,6 +5,7 @@
 #include <cmath>
 #include <utility>
 
+#include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
@@ -534,6 +535,23 @@ Result<OperationRegistry> make_phase1_registry()
          {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
           {"algorithm", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
           {"patches", ParameterType::kArray, true, std::nullopt, std::nullopt, std::nullopt}},
+         false,
+         true},
+        {std::string(kColorCorrectionOperationId),
+         "Color Correction",
+         kColorCorrectionOperationSchemaVersion,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"algorithm", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"highlight_a", ParameterType::kNumber, true, std::nullopt, kColorCorrectionEndpointMin,
+           kColorCorrectionEndpointMax},
+          {"highlight_b", ParameterType::kNumber, true, std::nullopt, kColorCorrectionEndpointMin,
+           kColorCorrectionEndpointMax},
+          {"shadow_a", ParameterType::kNumber, true, std::nullopt, kColorCorrectionEndpointMin,
+           kColorCorrectionEndpointMax},
+          {"shadow_b", ParameterType::kNumber, true, std::nullopt, kColorCorrectionEndpointMin,
+           kColorCorrectionEndpointMax},
+          {"saturation", ParameterType::kNumber, true, std::nullopt, kColorCorrectionSaturationMin,
+           kColorCorrectionSaturationMax}},
          false,
          true},
         {"ravo.color.colorbalancergb",

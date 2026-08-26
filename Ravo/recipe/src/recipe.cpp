@@ -13,6 +13,7 @@
 #include <system_error>
 #include <utility>
 
+#include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
@@ -994,6 +995,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             if (!color_checker)
             {
                 auto error = color_checker.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kColorCorrectionOperationId)
+        {
+            auto color_correction = validate_color_correction_parameters(operation.parameters);
+            if (!color_correction)
+            {
+                auto error = color_correction.error();
                 error.context.emplace("operation_id", operation.id);
                 return error;
             }

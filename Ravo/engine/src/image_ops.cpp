@@ -19,6 +19,7 @@
 #include <zlib.h>
 
 #include "capability_ops.h"
+#include "color_correction.h"
 #include "color_checker.h"
 #include "d50_lab.h"
 #include "output_color.h"
@@ -2729,6 +2730,16 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (operation.id == kColorCheckerOperationId)
         {
             auto corrected = apply_color_checker(image, operation, cancellation);
+            if (!corrected)
+            {
+                return corrected.error();
+            }
+            image = std::move(corrected).value();
+            continue;
+        }
+        if (operation.id == kColorCorrectionOperationId)
+        {
+            auto corrected = apply_color_correction(image, operation, cancellation);
             if (!corrected)
             {
                 return corrected.error();
