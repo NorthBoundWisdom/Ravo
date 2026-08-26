@@ -839,6 +839,12 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
             {
                 return unsupported_item(location.value().path, raster.error());
             }
+            const auto reason = raster.error().context.find("reason");
+            if (format != raster.error().context.end() && format->second == "qoi" &&
+                reason != raster.error().context.end() && reason->second == "unsupported_qoi_input")
+            {
+                return unsupported_item(location.value().path, raster.error());
+            }
             auto probed = engine_->inspect_with_embedded_preview(location.value().path,
                                                                  kThumbnailMaxEdge, cancellation);
             if (!probed)

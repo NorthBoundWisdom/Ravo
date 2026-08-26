@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "wrapper": {
+    "todo_owner": "I8",
+    "source": "legacy/src/imageio/imageio_qoi.c",
+    "header": "legacy/src/imageio/imageio_qoi.h",
+    "exclusive_resources": [
+      "legacy/src/imageio/qoi.h"
+    ],
+    "cmake_registration": {
+      "path": "legacy/src/CMakeLists.txt",
+      "needle": "\"imageio/imageio_qoi.c\""
+    }
+  },
+  "public_symbols": [
+    "dt_imageio_open_qoi",
+    "qoi_decode",
+    "qoi_encode",
+    "qoi_read",
+    "qoi_write"
+  ],
+  "known_consumers": [
+    {
+      "path": "legacy/src/imageio/imageio.c",
+      "todo_owner": "I1",
+      "symbols": [
+        "dt_imageio_open_qoi"
+      ],
+      "why_reachable": "The shared magic-number dispatcher advertises QOI as an LDR input, recognizes the qoif signature, and calls the I8 wrapper."
+    }
+  ],
+  "known_include_only": [],
+  "separate_owners": [
+    {
+      "path": "legacy/src/common/image.h",
+      "todo_owner": "S7",
+      "classification": "legacy_qoi_loader_identity",
+      "local_identifier_collisions": [
+        "LOADER_QOI"
+      ],
+      "why_not_a_consumer": "The shared legacy image record retains the QOI loader enum and label but does not include or call the I8 wrapper. It remains a downstream retirement dependency for S7."
+    },
+    {
+      "path": "legacy/host/data/supported_extensions.cmake",
+      "todo_owner": "I1/H6",
+      "classification": "legacy_qoi_extension_registration",
+      "local_identifier_collisions": [],
+      "why_not_a_consumer": "The host data list advertises the qoi extension but does not include or call the I8 wrapper. It must stop advertising QOI when the I1 dispatcher and H6 host data are retired."
+    }
+  ]
+}

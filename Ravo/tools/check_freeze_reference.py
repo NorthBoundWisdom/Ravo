@@ -30,6 +30,9 @@ PNG_WRAPPER_CONSUMERS = Path(
 TIFF_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_tiff_wrapper_consumers.json"
 )
+QOI_WRAPPER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_qoi_wrapper_consumers.json"
+)
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {
@@ -61,6 +64,11 @@ PNG_WRAPPER_INCLUDE = re.compile(
 TIFF_WRAPPER_INCLUDE = re.compile(
     r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_tiff\.h>'
     r'|"(?:[^"\r\n/]+/)*imageio_tiff\.h")',
+    re.MULTILINE,
+)
+QOI_WRAPPER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*(?:imageio_qoi|qoi)\.h>'
+    r'|"(?:[^"\r\n/]+/)*(?:imageio_qoi|qoi)\.h")',
     re.MULTILINE,
 )
 
@@ -132,6 +140,14 @@ def load_wrapper_manifest(
             raise FreezeCheckError(
                 f"{label} manifest wrapper.cmake_registration.{field} is malformed"
             )
+    exclusive_resources = _strings(
+        wrapper.get("exclusive_resources", []),
+        "wrapper.exclusive_resources",
+        label,
+    )
+    owner_paths = [wrapper["source"], wrapper["header"], *exclusive_resources]
+    if len(owner_paths) != len(set(owner_paths)):
+        raise FreezeCheckError(f"{label} manifest repeats a wrapper owner path")
     public = set(_strings(document.get("public_symbols"), "public_symbols", label))
     consumers = _entries(
         document,
@@ -177,6 +193,10 @@ def load_tiff_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
     return load_wrapper_manifest(repository_root, TIFF_WRAPPER_CONSUMERS, "TIFF")
 
 
+def load_qoi_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, QOI_WRAPPER_CONSUMERS, "QOI")
+
+
 def _files(repository_root: Path, *, cmake: bool) -> list[Path]:
     result: list[Path] = []
     for base in (repository_root / "legacy/src", repository_root / "Ravo"):
@@ -203,6 +223,8 @@ def verify_wrapper_consumers(
 ) -> dict[str, Any]:
     wrapper = manifest["wrapper"]
     source, header = wrapper["source"], wrapper["header"]
+    exclusive_resources = wrapper.get("exclusive_resources", [])
+    owner_paths = {source, header, *exclusive_resources}
     registration = wrapper["cmake_registration"]
     pattern = re.compile(
         r"\b(?:" + "|".join(map(re.escape, manifest["public_symbols"])) + r")\b"
@@ -211,7 +233,7 @@ def verify_wrapper_consumers(
     includes: set[str] = set()
     for path in _files(repository_root, cmake=False):
         relative = path.relative_to(repository_root).as_posix()
-        if relative in {source, header}:
+        if relative in owner_paths:
             continue
         text = _read_text(path)
         found = {match.group() for match in pattern.finditer(text)}
@@ -267,14 +289,16 @@ def verify_wrapper_consumers(
     if registration_count > 1:
         raise FreezeCheckError(f"{label} wrapper CMake registration is duplicated")
 
-    source_exists = (repository_root / source).is_file()
-    header_exists = (repository_root / header).is_file()
-    if source_exists != header_exists:
-        raise FreezeCheckError(f"{label} wrapper source/header retirement is partial")
+    owner_presence = {
+        path: (repository_root / path).is_file() for path in sorted(owner_paths)
+    }
+    owner_exists = any(owner_presence.values())
+    if owner_exists and not all(owner_presence.values()):
+        raise FreezeCheckError(f"{label} wrapper owner retirement is partial")
 
     blockers = sorted(symbols)
     if blockers:
-        if not source_exists or registration_count != 1:
+        if not owner_exists or registration_count != 1:
             raise FreezeCheckError(
                 f"{label} wrapper or registration was retired while consumers remain"
             )
@@ -284,7 +308,7 @@ def verify_wrapper_consumers(
             raise FreezeCheckError(
                 f"{label} wrapper has no callers; retire its stale includes and owner together"
             )
-        if source_exists or registration_count:
+        if owner_exists or registration_count:
             raise FreezeCheckError(
                 f"{label} wrapper has no callers and must be retired with its registration"
             )
@@ -295,6 +319,10 @@ def verify_wrapper_consumers(
         "todo_owner": wrapper["todo_owner"],
         "source": source,
         "header": header,
+        "exclusive_resources": [
+            {"path": path, "present": owner_presence[path]}
+            for path in exclusive_resources
+        ],
         "cmake_registration": {
             "path": registration["path"],
             "present": registration_count == 1,
@@ -349,6 +377,15 @@ def verify_tiff_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
         load_tiff_wrapper_manifest(repository_root),
         TIFF_WRAPPER_INCLUDE,
         "TIFF",
+    )
+
+
+def verify_qoi_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_qoi_wrapper_manifest(repository_root),
+        QOI_WRAPPER_INCLUDE,
+        "QOI",
     )
 
 
@@ -474,7 +511,13 @@ def verify_worktree(
 
 def verify(
     repository_root: Path, freeze_commit: str
-) -> tuple[dict[str, str], dict[str, Any], dict[str, Any], dict[str, Any]]:
+) -> tuple[
+    dict[str, str],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+]:
     freeze = run_git(repository_root, "rev-parse", f"{freeze_commit}^{{commit}}")
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, "HEAD^{commit}")
     retired = load_retired_src_paths(repository_root)
@@ -495,7 +538,8 @@ def verify(
     jpeg_wrapper = verify_jpeg_wrapper_consumers(repository_root)
     png_wrapper = verify_png_wrapper_consumers(repository_root)
     tiff_wrapper = verify_tiff_wrapper_consumers(repository_root)
-    return trees, jpeg_wrapper, png_wrapper, tiff_wrapper
+    qoi_wrapper = verify_qoi_wrapper_consumers(repository_root)
+    return trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper
 
 
 def main() -> int:
@@ -514,11 +558,11 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="emit the verified freeze and current JPEG/PNG/TIFF wrapper censuses as JSON",
+        help="emit the verified freeze and current JPEG/PNG/TIFF/QOI wrapper censuses as JSON",
     )
     arguments = parser.parse_args()
     try:
-        trees, jpeg_wrapper, png_wrapper, tiff_wrapper = verify(
+        trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper = verify(
             arguments.repository_root.resolve(), arguments.freeze_commit
         )
     except FreezeCheckError as error:
@@ -533,6 +577,7 @@ def main() -> int:
                     "legacy_jpeg_wrapper": jpeg_wrapper,
                     "legacy_png_wrapper": png_wrapper,
                     "legacy_tiff_wrapper": tiff_wrapper,
+                    "legacy_qoi_wrapper": qoi_wrapper,
                 },
                 indent=2,
                 sort_keys=True,
@@ -548,7 +593,9 @@ def main() -> int:
         f"png_wrapper={png_wrapper['state']} "
         f"png_blockers={len(png_wrapper['blocking_consumers'])} "
         f"tiff_wrapper={tiff_wrapper['state']} "
-        f"tiff_blockers={len(tiff_wrapper['blocking_consumers'])}"
+        f"tiff_blockers={len(tiff_wrapper['blocking_consumers'])} "
+        f"qoi_wrapper={qoi_wrapper['state']} "
+        f"qoi_blockers={len(qoi_wrapper['blocking_consumers'])}"
     )
     return 0
 

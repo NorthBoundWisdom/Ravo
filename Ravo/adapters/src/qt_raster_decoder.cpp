@@ -39,6 +39,7 @@ inline constexpr std::array<std::uint8_t, 11> kJpegIccPrefix{'I', 'C', 'C', '_',
                                                              'O', 'F', 'I', 'L', 'E'};
 inline constexpr std::array<std::uint8_t, 8> kPngSignature{0x89U, 'P',   'N',   'G',
                                                            0x0DU, 0x0AU, 0x1AU, 0x0AU};
+inline constexpr std::array<std::uint8_t, 4> kQoiSignature{'q', 'o', 'i', 'f'};
 inline constexpr std::uint64_t kPngMaxEncodedBytes = 1024ULL * 1024ULL * 1024ULL;
 inline constexpr std::uint64_t kPngMaxDecodedBytes = 512ULL * 1024ULL * 1024ULL;
 inline constexpr std::size_t kPngMaxIccBytes = 16U * 1024U * 1024U;
@@ -98,6 +99,11 @@ struct TiffFileCandidate
 {
     bool recognized = false;
     QByteArray bytes;
+};
+
+struct QoiFileCandidate
+{
+    bool recognized = false;
 };
 
 struct TiffField
@@ -162,6 +168,11 @@ struct TiffField
     return magic == 42U || magic == 43U;
 }
 
+[[nodiscard]] bool is_qoi_payload(const std::span<const std::uint8_t> bytes) noexcept
+{
+    return starts_with(bytes, kQoiSignature);
+}
+
 [[nodiscard]] std::span<const std::uint8_t> byte_span(const QByteArray &bytes) noexcept
 {
     return {reinterpret_cast<const std::uint8_t *>(bytes.constData()),
@@ -196,6 +207,13 @@ struct TiffField
     context.emplace("reason", reason);
     context.emplace("source", source);
     return make_error(code, std::move(message), std::move(context));
+}
+
+[[nodiscard]] TaskError qoi_unsupported_error(const std::string_view source)
+{
+    return make_error(
+        ErrorCode::kUnsupported, "QOI input is explicitly unsupported",
+        {{"format", "qoi"}, {"reason", "unsupported_qoi_input"}, {"source", std::string(source)}});
 }
 
 [[nodiscard]] std::uint32_t read_u32_be(const std::span<const std::uint8_t> bytes) noexcept
@@ -2103,6 +2121,59 @@ read_tiff_file_candidate(const std::string_view path,
     return result;
 }
 
+[[nodiscard]] Result<QoiFileCandidate>
+read_qoi_file_candidate(const std::string_view path,
+                        const CancellationToken *const cancellation = nullptr)
+{
+    if (path.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Raster path must not be empty");
+    }
+    const QString file_name = qstring_from_utf8(path);
+    const QFileInfo info(file_name);
+    if (!info.exists())
+    {
+        return make_error(ErrorCode::kNotFound, "Raster input does not exist",
+                          {{"path", std::string(path)}});
+    }
+    if (!info.isFile())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Raster path must reference a regular file",
+                          {{"path", std::string(path)}});
+    }
+    if (cancellation != nullptr)
+    {
+        auto active = cancellation->check();
+        if (!active)
+        {
+            return active.error();
+        }
+    }
+    QFile file(file_name);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        return make_error(
+            ErrorCode::kIo, "Unable to open raster input",
+            {{"path", std::string(path)}, {"qt_error", file.errorString().toUtf8().toStdString()}});
+    }
+    const QByteArray prefix = file.peek(static_cast<qint64>(kQoiSignature.size()));
+    if (file.error() != QFileDevice::NoError)
+    {
+        return make_error(
+            ErrorCode::kIo, "Unable to inspect raster input",
+            {{"path", std::string(path)}, {"qt_error", file.errorString().toUtf8().toStdString()}});
+    }
+    if (cancellation != nullptr)
+    {
+        auto active = cancellation->check();
+        if (!active)
+        {
+            return active.error();
+        }
+    }
+    return QoiFileCandidate{is_qoi_payload(byte_span(prefix))};
+}
+
 [[nodiscard]] std::string media_type_for_format(const QByteArray &format)
 {
     const QByteArray lowered = format.toLower();
@@ -3003,6 +3074,15 @@ Result<RasterInfo> QtRasterDecoder::probe(const std::string_view path) const
         // decode as strict PNG to preserve atomic corrupt-input failure.
         return probe_tiff_bytes(tiff_candidate.value().bytes, path);
     }
+    auto qoi_candidate = read_qoi_file_candidate(path);
+    if (!qoi_candidate)
+    {
+        return qoi_candidate.error();
+    }
+    if (qoi_candidate.value().recognized)
+    {
+        return qoi_unsupported_error(path);
+    }
     QImageReader reader;
     auto prepared = prepare_raster_reader(reader, path);
     if (!prepared)
@@ -3071,6 +3151,20 @@ Result<DecodedRaster> QtRasterDecoder::decode(const std::string_view path,
     {
         return decode_tiff_bytes(tiff_candidate.value().bytes, max_edge, cancellation, path, 0);
     }
+    auto qoi_candidate = read_qoi_file_candidate(path, &cancellation);
+    if (!qoi_candidate)
+    {
+        return qoi_candidate.error();
+    }
+    if (qoi_candidate.value().recognized)
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        return qoi_unsupported_error(path);
+    }
     QImageReader reader;
     auto prepared = prepare_raster_reader(reader, path);
     if (!prepared)
@@ -3106,6 +3200,15 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
     {
         return tiff_error(ErrorCode::kValidation, "TIFF input is too large", "memory",
                           "oversized_tiff_input");
+    }
+    if (is_qoi_payload(encoded_bytes))
+    {
+        cancelled = cancellation.check();
+        if (!cancelled)
+        {
+            return cancelled.error();
+        }
+        return qoi_unsupported_error("memory");
     }
     QByteArray bytes(reinterpret_cast<const char *>(encoded.data()),
                      static_cast<qsizetype>(encoded.size()));
