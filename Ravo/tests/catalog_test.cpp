@@ -714,18 +714,18 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     ASSERT_TRUE(imported) << imported.error().message;
     const auto asset_id = imported.value().asset->id;
 
-    auto tagged = service->set_tags(asset_id, {"风景", "  风景  ", "archive"});
+    auto tagged = service->set_tags(asset_id, {"landscape", "  landscape  ", "archive"});
     ASSERT_TRUE(tagged) << tagged.error().message;
     ASSERT_EQ(tagged.value().tags.size(), 2U);
-    EXPECT_EQ(tagged.value().tags.front(), "风景");
+    EXPECT_EQ(tagged.value().tags.front(), "landscape");
     EXPECT_EQ(tagged.value().tags.back(), "archive");
 
     WritableMetadata metadata;
-    metadata.title = "标题";
+    metadata.title = "Title";
     metadata.creator = "Ravo";
     auto written = service->set_writable_metadata(asset_id, metadata);
     ASSERT_TRUE(written) << written.error().message;
-    EXPECT_EQ(written.value().metadata.title, "标题");
+    EXPECT_EQ(written.value().metadata.title, "Title");
 
     DevelopParams params;
     params.exposure_ev = 0.4;
@@ -738,7 +738,7 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     ASSERT_TRUE(service->save_develop(asset_id, next));
 
     LibraryQuery query;
-    query.tag = "风景";
+    query.tag = "landscape";
     auto filtered = service->list_assets(query);
     ASSERT_TRUE(filtered) << filtered.error().message;
     ASSERT_EQ(filtered.value().size(), 1U);
@@ -755,7 +755,7 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().tags.size(), 2U);
-    EXPECT_EQ(listed.value().front().metadata.title, "标题");
+    EXPECT_EQ(listed.value().front().metadata.title, "Title");
     auto history = service->list_recipe_history(asset_id);
     ASSERT_TRUE(history) << history.error().message;
     ASSERT_FALSE(history.value().empty());

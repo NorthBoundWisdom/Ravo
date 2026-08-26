@@ -70,4 +70,4 @@ New Ravo tests use GoogleTest (and GoogleMock where an interaction needs to be
 verified). CMocka remains confined to the legacy `src/tests` targets.
 GoogleTest 1.17.0 is available through the existing Windows toolchain; the
 Phase 1 Ravo targets and their actual validation commands are documented in
-[Ravo/README.md](../../README.md#构建与测试).
+[Ravo/README.md](../../README.md#build-from-source).

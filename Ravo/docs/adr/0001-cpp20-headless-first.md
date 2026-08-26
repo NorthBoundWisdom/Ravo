@@ -9,31 +9,49 @@ and prohibition on wrapping the frozen core remain in force.
 
 ## Context
 
-0.9 将 GTK、IOP 生命周期、pixelpipe、数据库、任务和 OpenCL 类型混在同一编译图。现有算法与关键
-依赖主要是 C/C++，而真正有价值的回归资产是 CLI 图像金样，不是足够覆盖重写的细粒度 UT。
+Version 0.9 combines GTK, IOP lifecycle, pixelpipe, database, tasks, and
+OpenCL types in a single build graph. Existing algorithms and critical
+dependencies are primarily C/C++, while the most valuable regression assets
+are CLI image goldens rather than fine-grained unit tests sufficient to cover a
+rewrite.
 
-同时改写架构、全部数值算法和语言会把数值一致性、FFI、所有权、构建及 UI 风险叠加在一起。桌面 UI
-也不应成为验证新图像内核的前提。
+Rewriting the architecture, all numerical algorithms, and the language at once
+would compound numerical-consistency, FFI, ownership, build, and UI risks. The
+desktop UI must not be a prerequisite for validating the new image kernel.
 
 ## Decision
 
-- Ravo 第一方实现统一使用 C++20、CMake 与 FreeCM；首个可交付版本不加入 Rust/Cargo。
-- 第一产品是无 UI 的 Ravo Engine 和正式 `ravo` CLI。
-- CPU 是参考实现；旧图像 fixture 通过 legacy XMP adapter 和 CLI 差分复用。
-- 原决定要求 catalog、services 和 Ravo Studio 等到无头阶段验收后开始；该排期已被
-  ADR-0007 取代，M1 现在允许最小纵切片并继续复用同一 engine/CLI 契约。
-- 未来 UI 直接调用 engine/services API，不启动 CLI 子进程；CLI 继续作为受支持批处理工具。
+- All first-party Ravo implementation uses C++20, CMake, and FreeCM; the first
+  deliverable does not add Rust/Cargo.
+- The first product is the headless Ravo Engine and supported `ravo` CLI.
+- CPU is the reference implementation; old image fixtures are reused through
+  the legacy XMP adapter and CLI comparisons.
+- The original decision required catalog, services, and Ravo Studio to wait
+  until the headless phase was accepted. ADR-0007 supersedes that schedule:
+  M1 now permits a minimal vertical slice that continues to reuse the same
+  engine/CLI contract.
+- Future UI calls the engine/services API directly rather than starting a CLI
+  subprocess; the CLI remains a supported batch tool.
 
 ## Consequences
 
-- 可以在保留数值语义的同时重建所有权、线程、错误和数据契约。
-- 第一阶段没有 GUI 演示，但可以更早获得可自动验证、可脚本使用的真实产品。
-- C++ 不自动消除内存/并发问题，因此必须使用 RAII、明确 owner、sanitizer 和严格依赖边界。
-- UI 框架选择延后，不影响 engine 进度。
+- Ownership, threading, error, and data contracts can be rebuilt while
+  retaining numerical semantics.
+- The first phase has no GUI demonstration, but can deliver a real product
+  that is automatically verifiable and scriptable earlier.
+- C++ does not automatically eliminate memory or concurrency problems, so the
+  implementation must use RAII, explicit owners, sanitizers, and strict
+  dependency boundaries.
+- Deferring UI framework selection does not block engine progress.
 
 ## Rejected alternatives
 
-- **纯 Rust 首版**：长期安全性有吸引力，但会同时引入算法再实现、第三方 FFI 和双构建体系风险。
-- **Rust 上层 + C++ engine 同时开工**：过早冻结 FFI，并增加两套工具链与所有权协议。
-- **先重写 UI**：无法解决 engine 耦合，也不能利用现有无头图像回归作为主验收入口。
-- **把旧核心包成新库**：会保留 GTK/IOP/global state 泄漏，不构成 clean-slate 架构。
+- **Pure-Rust first version:** attractive for long-term safety, but it would
+  simultaneously introduce algorithm reimplementation, third-party FFI, and a
+  second build-system risk.
+- **Start Rust presentation and the C++ engine together:** freezes the FFI too
+  early and adds two toolchains and ownership protocols.
+- **Rewrite the UI first:** does not resolve engine coupling or make existing
+  headless image regression useful as the primary acceptance entry point.
+- **Wrap the old core as a new library:** retains GTK/IOP/global-state leakage
+  and is not a clean-slate architecture.

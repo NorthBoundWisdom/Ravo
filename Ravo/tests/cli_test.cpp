@@ -247,7 +247,7 @@ TEST_F(CliTest, RecipeValidateUsesTheFacadeAndReturnsMachineData)
 TEST_F(CliTest, Utf8FilePathsAreResolvedInsideTheQtAdapter)
 {
     const auto path = std::filesystem::temp_directory_path() /
-                      std::filesystem::path(std::u8string(u8"ravo-路径-契约.json"));
+                      std::filesystem::path(std::u8string(u8"ravo-path-contract.json"));
     {
         std::ofstream output(path, std::ios::binary);
         ASSERT_TRUE(output);

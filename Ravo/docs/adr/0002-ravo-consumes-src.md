@@ -8,28 +8,46 @@ incremental old-side adapters and capability-by-capability deletion strategy.
 
 ## Context
 
-并行重写容易形成两套永久实现：Ravo 持续增加代码，而 `src` 因兼容理由永远不删。这样会扩大维护面，
-也会诱使新代码通过旧头文件、旧库或 shim 取得短期进度。
+Parallel rewrites can become two permanent implementations: Ravo keeps growing
+while `src` is never removed for compatibility reasons. That expands the
+maintenance surface and tempts new code to achieve short-term progress through
+old headers, old libraries, or shims.
 
-期望状态是 Ravo 覆盖能力逐渐增加，`src` 的可达能力逐渐减少，最终 Ravo 取代整个旧应用。
+The desired end state is that Ravo's covered capability grows while the
+reachable capability of `src` shrinks, until Ravo replaces the entire former
+application.
 
 ## Decision
 
-- 迁移以 capability/operation 为单位，并为每项建立旧 CPU 基线和新契约。
-- Ravo 生产代码永不依赖 `src`；验证只读取冻结 fixture，不配置、编译或运行独立旧进程。
-- 必要过渡依赖只能是 `src` → Ravo 稳定 facade，而且必须带来可衡量的旧代码删除。
-- 一项能力只有在 Ravo 验收、消费者切换、旧源码/构建/资源/配置/文档删除后才算迁移完成。
-- 最终发行切换后删除旧应用入口和剩余 `src`，Ravo 成为唯一受支持实现。
+- Migrate by capability/operation, establishing an old CPU baseline and a new
+  contract for each item.
+- Ravo production code never depends on `src`; validation only reads frozen
+  fixtures and never configures, compiles, or runs an independent old process.
+- Any necessary transition dependency may only be a stable `src` → Ravo
+  facade, and it must enable measurable old-code deletion.
+- A capability is migrated only after Ravo acceptance, consumer migration, and
+  removal of old source, build wiring, resources, configuration, and
+  documentation.
+- Delete the former application entry points and remaining `src` after the
+  final release transition; Ravo becomes the only supported implementation.
 
 ## Consequences
 
-- 迁移期间可能存在并行可执行文件，但不存在 Ravo 对旧核心的编译或运行时依赖。
-- 短期实现速度可能慢于直接复制；长期不会维护两份可达算法或永久兼容层。
-- 删除是每个迁移单元的一部分，需要风险相称的回归和兼容性决定。
-- 源码行数可用于观察趋势，但完成度以可达消费者、测试和所有权为准。
+- Parallel executables may exist during migration, but Ravo has neither a
+  build-time nor runtime dependency on the old core.
+- Short-term implementation can be slower than direct copying; long-term, the
+  project will not maintain two reachable algorithms or a permanent
+  compatibility layer.
+- Deletion is part of every migration unit and requires regression and
+  compatibility decisions proportional to the risk.
+- Source-line counts can show a trend, but acceptance is measured by reachable
+  consumers, tests, and ownership.
 
 ## Rejected alternatives
 
-- **Ravo 永久链接 `libdarktable`**：耦合方向错误，无法独立发布或删除旧核心。
-- **先复制全部源码再整理**：形成第二份遗留系统，无法证明每项行为或所有权边界。
-- **只在最终一次性删除 `src`**：长期累积重复实现，切换风险不可控。
+- **Link `libdarktable` permanently from Ravo:** the dependency direction is
+  wrong and prevents independent release or old-core removal.
+- **Copy all source first and tidy it later:** creates a second legacy system
+  and cannot prove individual behavior or ownership boundaries.
+- **Delete `src` only once at the very end:** accumulates duplicate
+  implementations and makes transition risk uncontrollable.

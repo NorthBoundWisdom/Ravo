@@ -1,11 +1,11 @@
 ---
 name: review-and-commit
-description: Review the working tree, commit and push dirty source-root seeds before pinning and committing the Ravo main repo. Use when the user asks to commit, 提交, 提交全部diff, 提交并推送, land changes, review-and-commit, or /review-and-commit.
+description: Review the working tree, commit and push dirty source-root seeds before pinning and committing the Ravo main repo. Use when the user asks to commit, commit all diffs, commit and push, land changes, review-and-commit, or /review-and-commit.
 ---
 
 # Review and Commit
 
-Only commit when the user explicitly asks. Treat “提交全部 diff” as this whole
+Only commit when the user explicitly asks. Treat “commit all diffs” as this whole
 procedure, not “git commit in the parent repo.”
 
 Grok loads the same workflow from `.grok/skills/review-and-commit/SKILL.md`.

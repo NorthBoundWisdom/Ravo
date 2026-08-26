@@ -56,9 +56,9 @@ TEST(DomainUriTest, NormalizesAbsoluteAndRelativePathsToTheSameFileUri)
 TEST(DomainUriTest, RoundTripsNonAsciiPathsThroughFileUris)
 {
     const auto directory =
-        std::filesystem::temp_directory_path() / std::filesystem::path(u8"ravo-uri-unicode-安吉");
+        std::filesystem::temp_directory_path() / std::filesystem::path(u8"ravo-uri-unicode-café");
     std::filesystem::create_directories(directory);
-    const auto file = directory / std::filesystem::path(u8"照片.arw");
+    const auto file = directory / std::filesystem::path(u8"photo.arw");
     {
         std::ofstream output(file, std::ios::binary);
         output << "raw";
@@ -68,7 +68,7 @@ TEST(DomainUriTest, RoundTripsNonAsciiPathsThroughFileUris)
     const std::string path(reinterpret_cast<const char *>(utf8.data()), utf8.size());
     const auto normalized = normalize_local_input(path);
     ASSERT_TRUE(normalized) << normalized.error().message;
-    const auto district = std::string_view(reinterpret_cast<const char *>(u8"安吉"));
+    const auto district = std::string_view(reinterpret_cast<const char *>(u8"café"));
     EXPECT_NE(normalized.value().uri.find(district), std::string::npos);
     EXPECT_EQ(normalized.value().uri.find('%'), std::string::npos);
 
@@ -185,23 +185,23 @@ TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
 
 TEST(DomainUriTest, DisplayNameKeepsUtf8FolderNames)
 {
-    EXPECT_EQ(uri_display_name(utf8_text(u8"file:///Users/me/照片/测试.jpg")),
-              utf8_text(u8"测试.jpg"));
-    EXPECT_EQ(uri_parent(utf8_text(u8"file:///Users/me/照片/测试.jpg")),
-              utf8_text(u8"file:///Users/me/照片"));
-    EXPECT_EQ(uri_display_name(utf8_text(u8"file:///Users/me/照片")), utf8_text(u8"照片"));
+    EXPECT_EQ(uri_display_name(utf8_text(u8"file:///Users/me/photos/résumé.jpg")),
+              utf8_text(u8"résumé.jpg"));
+    EXPECT_EQ(uri_parent(utf8_text(u8"file:///Users/me/photos/résumé.jpg")),
+              utf8_text(u8"file:///Users/me/photos"));
+    EXPECT_EQ(uri_display_name(utf8_text(u8"file:///Users/me/photos")), utf8_text(u8"photos"));
 }
 
 TEST(LibraryFolderTest, BuildsTreeFromUtf8FolderNames)
 {
     AssetRecord photo;
     photo.id = "ast_cjk";
-    photo.normalized_uri = utf8_text(u8"file:///Users/me/照片/测试/a.jpg");
+    photo.normalized_uri = utf8_text(u8"file:///Users/me/photos/résumé/a.jpg");
     const auto folders = library_folders({photo});
     bool saw_test = false;
     for (const auto &folder : folders)
     {
-        if (folder.display_name == utf8_text(u8"测试"))
+        if (folder.display_name == utf8_text(u8"résumé"))
         {
             saw_test = true;
             EXPECT_EQ(folder.asset_count, 1);
@@ -252,10 +252,10 @@ TEST(LibraryFolderTest, BuildsTreeFromImportedAssetUris)
 
 TEST(DomainTypesTest, NormalizesUnicodeTagsAndFiltersAssets)
 {
-    auto parsed = parse_tag_list("  风景, archive, 风景 ");
+    auto parsed = parse_tag_list("  landscape, archive, landscape ");
     ASSERT_TRUE(parsed) << parsed.error().message;
     ASSERT_EQ(parsed.value().size(), 2U);
-    EXPECT_EQ(parsed.value().front(), "风景");
+    EXPECT_EQ(parsed.value().front(), "landscape");
     EXPECT_EQ(parsed.value().back(), "archive");
     auto empty = normalize_tag_name("   ");
     ASSERT_FALSE(empty);
@@ -263,9 +263,9 @@ TEST(DomainTypesTest, NormalizesUnicodeTagsAndFiltersAssets)
 
     AssetRecord tagged;
     tagged.id = "ast_tag";
-    tagged.tags = {"风景"};
+    tagged.tags = {"landscape"};
     LibraryQuery query;
-    query.tag = "风景";
+    query.tag = "landscape";
     EXPECT_TRUE(asset_matches_query(tagged, query));
     query.tag = "archive";
     EXPECT_FALSE(asset_matches_query(tagged, query));
