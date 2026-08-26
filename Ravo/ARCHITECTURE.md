@@ -244,6 +244,18 @@ is immutable. Late reference shares no global chroma state and must be followed
 by explicit non-RGB `channelmixerrgb` adaptation; raster accepts explicit
 coefficients only.
 
+`ravo.color.profilegamma` v1 is an opt-in source-RGB correction immediately
+before input colour. RAW applies it after demosaic; raster applies it after
+encoded RGB normalization. Logarithmic mode uses the frozen float `fastlog2`
+approximation and `2^-16` input/output floors. Gamma mode owns a render-local
+65,536-entry piecewise LUT and four-sample exponential extrapolation. Both
+paths produce an owned buffer, retain the exact source `ColorProfileState`,
+check cancellation by row, and enter the scene-linear preprocess cache key.
+Absence or disabled state is the identity; enabled default log parameters are
+not. `security_factor` remains canonical but has no pixel effect. The old
+picker/autotune is unsupported until an engine/service analysis contract owns
+pre-operation pixels, ROI, statistics, cancellation, and recipe revision.
+
 Canonical recipe schema v3 upgrades schema-v1/v2 recipes by inserting explicit
 source → linear Rec709 `ravo.color.input` and working → output
 `ravo.color.output` operations. Input colour follows RAW preprocessing and owns

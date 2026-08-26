@@ -28,3 +28,4 @@ iop/temperature.c
 iop/colorin.c
 iop/colorout.c
 iop/primaries.c
+iop/profile_gamma.c

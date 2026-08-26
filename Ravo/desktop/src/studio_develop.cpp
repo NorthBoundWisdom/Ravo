@@ -71,6 +71,19 @@ QVariantMap StudioPresenter::editInputColor() const
         {QStringLiteral("workingProfile"), QString::fromStdString(params.working_profile)}};
 }
 
+QVariantMap StudioPresenter::editProfileGamma() const
+{
+    const auto &params = develop_.profile_gamma;
+    return {{QStringLiteral("enabled"), develop_.profile_gamma_enabled},
+            {QStringLiteral("modeIndex"), params.mode == kProfileGammaModeGamma ? 1 : 0},
+            {QStringLiteral("linear"), params.linear},
+            {QStringLiteral("gamma"), params.gamma},
+            {QStringLiteral("dynamicRange"), params.dynamic_range},
+            {QStringLiteral("greyPoint"), params.grey_point},
+            {QStringLiteral("shadowsRange"), params.shadows_range},
+            {QStringLiteral("securityFactor"), params.security_factor}};
+}
+
 QVariantMap StudioPresenter::editOutputColor() const
 {
     const auto index_of = [](const auto &values, const std::string_view selected)

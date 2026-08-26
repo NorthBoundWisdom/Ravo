@@ -11,6 +11,7 @@
 
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
+#include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
@@ -177,6 +178,8 @@ struct ColorBalanceRgbParams
 struct DevelopParams
 {
     TemperatureParams temperature;
+    bool profile_gamma_enabled = false;
+    ProfileGammaParams profile_gamma;
     InputColorParams input_color;
     OutputColorParams output_color;
     PrimariesParams primaries;

@@ -10,6 +10,7 @@
 
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
@@ -270,6 +271,222 @@ TEST(RecipeTest, PrimariesUseCanonicalRadiansAndFollowInputBeforeOutput)
     EXPECT_EQ(params.primaries, PrimariesParams{});
     EXPECT_FALSE(apply_develop_field(params, "primariesBluePurity",
                                      std::numeric_limits<double>::quiet_NaN()));
+
+    auto identity =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, DevelopParams{});
+    ASSERT_TRUE(identity) << identity.error().message;
+    ASSERT_EQ(identity.value().operations.size(), 2U);
+    EXPECT_EQ(identity.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(identity.value().operations.back().id, "ravo.color.output");
+}
+
+TEST(RecipeTest, ProfileGammaIsExplicitAndImmediatelyPrecedesInputColour)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    const auto *descriptor = registry.value().find(kProfileGammaOperationId);
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_EQ(descriptor->parameter_schema_version, kProfileGammaOperationSchemaVersion);
+    ASSERT_EQ(descriptor->parameters.size(), 7U);
+    EXPECT_EQ(descriptor->parameters[0].name, "mode");
+    EXPECT_EQ(descriptor->parameters[1].name, "linear");
+    EXPECT_EQ(descriptor->parameters[2].name, "gamma");
+    EXPECT_EQ(descriptor->parameters[3].name, "dynamic_range");
+    EXPECT_EQ(descriptor->parameters[4].name, "grey_point");
+    EXPECT_EQ(descriptor->parameters[5].name, "shadows_range");
+    EXPECT_EQ(descriptor->parameters[6].name, "security_factor");
+    EXPECT_EQ(descriptor->parameters[1].minimum, kProfileGammaLinearMin);
+    EXPECT_EQ(descriptor->parameters[1].maximum, kProfileGammaLinearMax);
+    EXPECT_EQ(descriptor->parameters[3].minimum, kProfileGammaDynamicRangeMin);
+    EXPECT_EQ(descriptor->parameters[3].maximum, kProfileGammaDynamicRangeMax);
+    EXPECT_EQ(descriptor->parameters[6].minimum, kProfileGammaSecurityFactorMin);
+    EXPECT_EQ(descriptor->parameters[6].maximum, kProfileGammaSecurityFactorMax);
+
+    ProfileGammaParams defaults;
+    EXPECT_TRUE(defaults.is_default());
+    EXPECT_EQ(defaults.mode, kProfileGammaModeLogarithmic);
+    EXPECT_DOUBLE_EQ(defaults.linear, 0.1);
+    EXPECT_DOUBLE_EQ(defaults.gamma, 0.45);
+    EXPECT_DOUBLE_EQ(defaults.dynamic_range, 10.0);
+    EXPECT_DOUBLE_EQ(defaults.grey_point, 18.0);
+    EXPECT_DOUBLE_EQ(defaults.shadows_range, -5.0);
+    EXPECT_DOUBLE_EQ(defaults.security_factor, 0.0);
+
+    ProfileGammaParams invalid_profile_gamma;
+    invalid_profile_gamma.mode = "automatic";
+    const auto invalid_profile_gamma_parameters =
+        profile_gamma_to_parameters(invalid_profile_gamma);
+    ASSERT_FALSE(invalid_profile_gamma_parameters);
+    EXPECT_EQ(invalid_profile_gamma_parameters.error().code, ErrorCode::kValidation);
+
+    DevelopParams invalid_profile_gamma_recipe;
+    invalid_profile_gamma_recipe.profile_gamma_enabled = true;
+    invalid_profile_gamma_recipe.profile_gamma = invalid_profile_gamma;
+    const auto invalid_profile_gamma_from_develop = recipe_from_develop(
+        {"asset-1", "file:///fixture.raw", std::nullopt}, invalid_profile_gamma_recipe);
+    ASSERT_FALSE(invalid_profile_gamma_from_develop);
+    EXPECT_EQ(invalid_profile_gamma_from_develop.error().code, ErrorCode::kValidation);
+
+    DevelopParams disabled_invalid_profile_gamma;
+    disabled_invalid_profile_gamma.profile_gamma.mode = "automatic";
+    clamp_develop(disabled_invalid_profile_gamma);
+    EXPECT_EQ(disabled_invalid_profile_gamma.profile_gamma.mode, kProfileGammaModeLogarithmic);
+
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaEnabled", 1.0));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaModeIndex", 1.0));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaLinear", 0.2));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaGamma", 0.8));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaDynamicRange", 14.0));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaGreyPoint", 20.0));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaShadowsRange", -7.0));
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaSecurityFactor", 12.5));
+    EXPECT_TRUE(params.profile_gamma_enabled);
+    EXPECT_EQ(params.profile_gamma.mode, kProfileGammaModeGamma);
+
+    DevelopParams strict_params;
+    const auto strict_rejected =
+        apply_develop_field_strict(strict_params, "profileGammaDynamicRange", 0.0);
+    ASSERT_FALSE(strict_rejected);
+    EXPECT_EQ(strict_rejected.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_DOUBLE_EQ(strict_params.profile_gamma.dynamic_range, kProfileGammaDynamicRangeDefault);
+    ASSERT_TRUE(apply_develop_field_strict(strict_params, "profileGammaDynamicRange", 12.0));
+    EXPECT_DOUBLE_EQ(strict_params.profile_gamma.dynamic_range, 12.0);
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_EQ(recipe.value().operations.size(), 3U);
+    EXPECT_EQ(recipe.value().operations[0].id, kProfileGammaOperationId);
+    EXPECT_EQ(recipe.value().operations[1].id, "ravo.color.input");
+    EXPECT_EQ(recipe.value().operations.back().id, "ravo.color.output");
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
+
+    auto restored = develop_from_recipe(parsed.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().profile_gamma_enabled);
+    EXPECT_EQ(restored.value().profile_gamma, params.profile_gamma);
+
+    auto missing = recipe.value();
+    auto *missing_profile_gamma = operation_by_id(missing, kProfileGammaOperationId);
+    ASSERT_NE(missing_profile_gamma, nullptr);
+    missing_profile_gamma->parameters.erase("gamma");
+    const auto missing_valid = validate_recipe(missing, registry.value());
+    ASSERT_FALSE(missing_valid);
+    EXPECT_EQ(missing_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(missing_valid.error().context.at("parameter"), "gamma");
+
+    auto unknown = recipe.value();
+    auto *unknown_profile_gamma = operation_by_id(unknown, kProfileGammaOperationId);
+    ASSERT_NE(unknown_profile_gamma, nullptr);
+    unknown_profile_gamma->parameters.emplace("unknown", ParameterValue{0.0});
+    const auto unknown_valid = validate_recipe(unknown, registry.value());
+    ASSERT_FALSE(unknown_valid);
+    EXPECT_EQ(unknown_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(unknown_valid.error().context.at("parameter"), "unknown");
+
+    auto invalid_mode = recipe.value();
+    auto *invalid_mode_profile_gamma = operation_by_id(invalid_mode, kProfileGammaOperationId);
+    ASSERT_NE(invalid_mode_profile_gamma, nullptr);
+    invalid_mode_profile_gamma->parameters["mode"] = ParameterValue{"automatic"};
+    const auto invalid_mode_valid = validate_recipe(invalid_mode, registry.value());
+    ASSERT_FALSE(invalid_mode_valid);
+    EXPECT_EQ(invalid_mode_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_mode_valid.error().context.at("parameter"), "mode");
+
+    auto out_of_range = recipe.value();
+    auto *out_of_range_profile_gamma = operation_by_id(out_of_range, kProfileGammaOperationId);
+    ASSERT_NE(out_of_range_profile_gamma, nullptr);
+    out_of_range_profile_gamma->parameters["dynamic_range"] = ParameterValue{32.1};
+    const auto out_of_range_valid = validate_recipe(out_of_range, registry.value());
+    ASSERT_FALSE(out_of_range_valid);
+    EXPECT_EQ(out_of_range_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(out_of_range_valid.error().context.at("parameter"), "dynamic_range");
+
+    auto non_finite = recipe.value();
+    auto *non_finite_profile_gamma = operation_by_id(non_finite, kProfileGammaOperationId);
+    ASSERT_NE(non_finite_profile_gamma, nullptr);
+    non_finite_profile_gamma->parameters["grey_point"] =
+        ParameterValue{std::numeric_limits<double>::quiet_NaN()};
+    const auto non_finite_valid = validate_recipe(non_finite, registry.value());
+    ASSERT_FALSE(non_finite_valid);
+    EXPECT_EQ(non_finite_valid.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(non_finite_valid.error().context.at("parameter"), "grey_point");
+
+    auto duplicate = recipe.value();
+    auto duplicate_profile_gamma = duplicate.operations.front();
+    duplicate_profile_gamma.instance_id = "profilegamma-2";
+    duplicate.operations.insert(duplicate.operations.begin() + 1,
+                                std::move(duplicate_profile_gamma));
+    const auto duplicate_valid = validate_recipe(duplicate, registry.value());
+    ASSERT_FALSE(duplicate_valid);
+    EXPECT_EQ(duplicate_valid.error().code, ErrorCode::kConflict);
+
+    auto misordered = recipe.value();
+    std::swap(misordered.operations[0], misordered.operations[1]);
+    const auto misordered_valid = validate_recipe(misordered, registry.value());
+    ASSERT_FALSE(misordered_valid);
+    EXPECT_EQ(misordered_valid.error().code, ErrorCode::kValidation);
+
+    auto disabled = recipe.value();
+    disabled.operations.front().enabled = false;
+    ASSERT_TRUE(validate_recipe(disabled, registry.value()));
+    auto disabled_develop = develop_from_recipe(disabled);
+    ASSERT_TRUE(disabled_develop) << disabled_develop.error().message;
+    EXPECT_FALSE(disabled_develop.value().profile_gamma_enabled);
+    EXPECT_TRUE(disabled_develop.value().profile_gamma.is_default());
+
+    DevelopParams gamma_one;
+    gamma_one.profile_gamma_enabled = true;
+    gamma_one.profile_gamma.mode = std::string(kProfileGammaModeGamma);
+    gamma_one.profile_gamma.gamma = 1.0;
+    auto gamma_one_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, gamma_one);
+    ASSERT_TRUE(gamma_one_recipe) << gamma_one_recipe.error().message;
+    EXPECT_NE(operation_by_id(gamma_one_recipe.value(), kProfileGammaOperationId), nullptr);
+
+    DevelopParams linear_one;
+    linear_one.profile_gamma_enabled = true;
+    linear_one.profile_gamma.mode = std::string(kProfileGammaModeGamma);
+    linear_one.profile_gamma.linear = 1.0;
+    auto linear_one_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, linear_one);
+    ASSERT_TRUE(linear_one_recipe) << linear_one_recipe.error().message;
+    EXPECT_NE(operation_by_id(linear_one_recipe.value(), kProfileGammaOperationId), nullptr);
+
+    DevelopParams disabled_identity;
+    disabled_identity.profile_gamma.gamma = 1.0;
+    EXPECT_TRUE(disabled_identity.is_identity());
+    DevelopParams enabled_default;
+    enabled_default.profile_gamma_enabled = true;
+    EXPECT_FALSE(enabled_default.is_identity());
+
+    EXPECT_TRUE(reset_develop_field(params, "profileGammaGamma"));
+    EXPECT_DOUBLE_EQ(params.profile_gamma.gamma, kProfileGammaGammaDefault);
+    const ProfileGammaParams session_profile_gamma = params.profile_gamma;
+    EXPECT_TRUE(reset_develop_field(params, "profileGammaEnabled"));
+    EXPECT_FALSE(params.profile_gamma_enabled);
+    EXPECT_EQ(params.profile_gamma, session_profile_gamma);
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaEnabled", 1.0));
+    EXPECT_TRUE(params.profile_gamma_enabled);
+    EXPECT_EQ(params.profile_gamma, session_profile_gamma);
+    ASSERT_TRUE(apply_develop_field(params, "profileGammaEnabled", 0.0));
+    auto disabled_canonical =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(disabled_canonical) << disabled_canonical.error().message;
+    EXPECT_EQ(operation_by_id(disabled_canonical.value(), kProfileGammaOperationId), nullptr);
+    auto disabled_roundtrip = develop_from_recipe(disabled_canonical.value());
+    ASSERT_TRUE(disabled_roundtrip) << disabled_roundtrip.error().message;
+    EXPECT_FALSE(disabled_roundtrip.value().profile_gamma_enabled);
+    EXPECT_TRUE(disabled_roundtrip.value().profile_gamma.is_default());
+    EXPECT_TRUE(reset_develop_section(params, "profileGamma"));
+    EXPECT_FALSE(params.profile_gamma_enabled);
+    EXPECT_TRUE(params.profile_gamma.is_default());
 
     auto identity =
         recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, DevelopParams{});

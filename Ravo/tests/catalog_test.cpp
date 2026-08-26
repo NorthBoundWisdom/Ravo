@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -26,6 +27,7 @@
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/services/catalog_service.h"
 
@@ -1166,6 +1168,174 @@ TEST_F(CatalogServiceTest, RgbPrimariesPersistAndReproducePixelsAfterReopen)
     auto interactive_after_reopen = service->request_preview(interactive);
     ASSERT_TRUE(interactive_after_reopen) << interactive_after_reopen.error().message;
     EXPECT_EQ(interactive_after_reopen.value().rgb, interactive_before_reopen.value().rgb);
+    EXPECT_EQ(file_sha256(png_path), original_hash);
+}
+
+TEST_F(CatalogServiceTest, ProfileGammaModesPersistAndReproducePreviewAndExportAfterReopen)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto png_path = (root / "profile-gamma.png").string();
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            image.setPixelColor(
+                x, y,
+                QColor((x * 11 + y * 7) % 256, (x * 3 + y * 17) % 256, (x * 19 + y * 5) % 256));
+        }
+    }
+    ASSERT_TRUE(image.save(QString::fromStdString(png_path), "PNG"));
+    const auto original_hash = file_sha256(png_path);
+    auto imported = service->import_one(png_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    const auto image_rgb = [](const QImage &source)
+    {
+        const QImage rgb = source.convertToFormat(QImage::Format_RGB888);
+        const auto row_bytes = static_cast<std::size_t>(rgb.width()) * 3U;
+        std::vector<std::uint8_t> result;
+        result.reserve(row_bytes * static_cast<std::size_t>(rgb.height()));
+        for (int y = 0; y < rgb.height(); ++y)
+        {
+            const auto *line = rgb.constScanLine(y);
+            result.insert(result.end(), line, line + row_bytes);
+        }
+        return result;
+    };
+
+    PreviewRequest persisted;
+    persisted.asset_id = asset_id;
+    persisted.max_edge = 48;
+    persisted.persist_preview_record = true;
+    auto baseline = service->request_preview(persisted);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
+    ASSERT_FALSE(baseline_image.isNull());
+    const auto same_pixels = [](const QImage &left, const QImage &right)
+    {
+        if (left.size() != right.size())
+        {
+            return false;
+        }
+        for (int y = 0; y < left.height(); ++y)
+        {
+            for (int x = 0; x < left.width(); ++x)
+            {
+                if (left.pixel(x, y) != right.pixel(x, y))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto logarithmic = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(logarithmic) << logarithmic.error().message;
+    logarithmic.value().profile_gamma_enabled = true;
+    logarithmic.value().profile_gamma.mode = std::string(kProfileGammaModeLogarithmic);
+    logarithmic.value().profile_gamma.linear = 0.2;
+    logarithmic.value().profile_gamma.gamma = 0.65;
+    logarithmic.value().profile_gamma.dynamic_range = 8.5;
+    logarithmic.value().profile_gamma.grey_point = 20.0;
+    logarithmic.value().profile_gamma.shadows_range = -6.5;
+    logarithmic.value().profile_gamma.security_factor = 12.0;
+    clamp_develop(logarithmic.value());
+    ASSERT_TRUE(service->save_develop(asset_id, logarithmic.value()));
+
+    auto log_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(log_recipe) << log_recipe.error().message;
+    const auto profile_gamma_operation =
+        std::find_if(log_recipe.value().operations.begin(), log_recipe.value().operations.end(),
+                     [](const OperationInstance &operation)
+                     { return operation.id == kProfileGammaOperationId; });
+    ASSERT_NE(profile_gamma_operation, log_recipe.value().operations.end());
+    EXPECT_EQ(profile_gamma_operation->schema_version, kProfileGammaOperationSchemaVersion);
+    EXPECT_TRUE(profile_gamma_operation->enabled);
+    EXPECT_EQ(profile_gamma_operation->parameters.size(), 7U);
+
+    auto log_persisted = service->request_preview(persisted);
+    ASSERT_TRUE(log_persisted) << log_persisted.error().message;
+    const QImage log_image(QString::fromStdString(log_persisted.value().cache_path));
+    ASSERT_FALSE(log_image.isNull());
+    EXPECT_NE(log_persisted.value().cache_key, baseline.value().cache_key);
+    EXPECT_FALSE(same_pixels(log_image, baseline_image));
+
+    PreviewRequest interactive = persisted;
+    interactive.persist_preview_record = false;
+    auto log_interactive = service->request_preview(interactive);
+    ASSERT_TRUE(log_interactive) << log_interactive.error().message;
+    ASSERT_FALSE(log_interactive.value().rgb.empty());
+    EXPECT_EQ(log_interactive.value().rgb, image_rgb(log_image));
+
+    ExportRequest log_export;
+    log_export.asset_id = asset_id;
+    log_export.output_path = (root / "profile-gamma-log.png").string();
+    log_export.format = ExportFormat::kPng;
+    log_export.max_edge = 48U;
+    auto exported_log = service->export_asset(log_export);
+    ASSERT_TRUE(exported_log) << exported_log.error().message;
+    const QImage log_export_image(QString::fromStdString(log_export.output_path));
+    ASSERT_FALSE(log_export_image.isNull());
+    EXPECT_TRUE(same_pixels(log_export_image, log_image));
+
+    auto gamma = logarithmic.value();
+    gamma.profile_gamma.mode = std::string(kProfileGammaModeGamma);
+    gamma.profile_gamma.linear = 0.12;
+    gamma.profile_gamma.gamma = 0.72;
+    clamp_develop(gamma);
+    ASSERT_TRUE(service->save_develop(asset_id, gamma));
+
+    auto gamma_persisted = service->request_preview(persisted);
+    ASSERT_TRUE(gamma_persisted) << gamma_persisted.error().message;
+    const QImage gamma_image(QString::fromStdString(gamma_persisted.value().cache_path));
+    ASSERT_FALSE(gamma_image.isNull());
+    EXPECT_NE(gamma_persisted.value().cache_key, log_persisted.value().cache_key);
+    EXPECT_FALSE(same_pixels(gamma_image, log_image));
+
+    auto gamma_interactive = service->request_preview(interactive);
+    ASSERT_TRUE(gamma_interactive) << gamma_interactive.error().message;
+    ASSERT_FALSE(gamma_interactive.value().rgb.empty());
+    EXPECT_EQ(gamma_interactive.value().rgb, image_rgb(gamma_image));
+
+    ExportRequest gamma_export;
+    gamma_export.asset_id = asset_id;
+    gamma_export.output_path = (root / "profile-gamma-gamma.png").string();
+    gamma_export.format = ExportFormat::kPng;
+    gamma_export.max_edge = 48U;
+    auto exported_gamma = service->export_asset(gamma_export);
+    ASSERT_TRUE(exported_gamma) << exported_gamma.error().message;
+    const QImage gamma_export_image(QString::fromStdString(gamma_export.output_path));
+    ASSERT_FALSE(gamma_export_image.isNull());
+    EXPECT_TRUE(same_pixels(gamma_export_image, gamma_image));
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().profile_gamma_enabled);
+    EXPECT_EQ(restored.value().profile_gamma, gamma.profile_gamma);
+
+    auto reopened_persisted = service->request_preview(persisted);
+    ASSERT_TRUE(reopened_persisted) << reopened_persisted.error().message;
+    const QImage reopened_image(QString::fromStdString(reopened_persisted.value().cache_path));
+    ASSERT_FALSE(reopened_image.isNull());
+    EXPECT_EQ(reopened_persisted.value().cache_key, gamma_persisted.value().cache_key);
+    EXPECT_TRUE(same_pixels(reopened_image, gamma_image));
+
+    auto reopened_interactive = service->request_preview(interactive);
+    ASSERT_TRUE(reopened_interactive) << reopened_interactive.error().message;
+    EXPECT_EQ(reopened_interactive.value().rgb, gamma_interactive.value().rgb);
     EXPECT_EQ(file_sha256(png_path), original_hash);
 }
 

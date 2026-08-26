@@ -47,7 +47,8 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.geometry.crop` | `crop` | P1 normalized free crop |
 | `ravo.geometry.flip` | `flip` | horizontal/vertical mirror |
 | `ravo.geometry.straighten` | `ashift` / `clipping` | P1 free-angle straighten before crop |
-| `ravo.core.gamma` | `gamma` / `profile_gamma` | display gamma on linear RGB |
+| `ravo.core.gamma` | none | simplified P1 display gamma; it is not frozen `gamma` acceptance |
+| `ravo.color.profilegamma` | `profile_gamma` | explicit pre-input logarithmic/gamma profile correction with frozen LUT/extrapolation |
 | `ravo.core.tonecurve` | `tonecurve` | frozen C default RGB-linked ProPhoto curve; `lab`/`xyz`/`lab_independent` are explicit modes |
 | `ravo.display.sigmoid` | `sigmoid` | RAW Standard SDR baseline; per-channel default and C `rgb_ratio` color processing |
 | `ravo.raw.highlights` | `highlights` | Bayer CFA opposed/clip/inpaint/LCh before demosaic |
@@ -125,7 +126,6 @@ struct bytes or call the old dynamic module ABI.
 | `nlmeans` | yes | defer until shared denoise facilities exist |
 | `overexposed` | no | diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |
 | `overlay` | yes | queued by ADR-0015; requires asset/ROI/mask composition contract |
-| `profile_gamma` | no | defer until colour operation policy exists |
 | `rasterfile` | no | defer until raster adapter and mask contract exist |
 | `rawdenoise` | yes | defer with RAW decode capability |
 | `rawoverexposed` | no | RAW diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |

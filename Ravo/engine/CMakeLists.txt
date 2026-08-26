@@ -10,6 +10,8 @@ target_sources(ravo_engine
     src/input_color.cpp
     src/input_color.h
     src/output_color.h
+    src/profile_gamma.cpp
+    src/profile_gamma.h
     src/primaries.cpp
     src/primaries.h
     src/raw_ca.cpp

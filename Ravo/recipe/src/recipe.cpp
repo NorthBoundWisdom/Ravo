@@ -17,6 +17,7 @@
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 
 namespace ravo
@@ -882,6 +883,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == kProfileGammaOperationId)
+        {
+            auto profile_gamma = validate_profile_gamma_parameters(operation.parameters);
+            if (!profile_gamma)
+            {
+                auto error = profile_gamma.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == kPrimariesOperationId)
         {
             auto primaries = validate_primaries_parameters(operation.parameters);
@@ -978,6 +989,38 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                               {{"operation_id", operation.id}});
         }
         input_color_index = index;
+    }
+
+    std::optional<std::size_t> profile_gamma_index;
+    for (std::size_t index = 0; index < recipe.operations.size(); ++index)
+    {
+        const auto &operation = recipe.operations[index];
+        if (!operation.enabled || operation.id != kProfileGammaOperationId)
+        {
+            continue;
+        }
+        if (profile_gamma_index)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Recipe contains more than one enabled profile gamma operation",
+                              {{"operation_id", operation.id}});
+        }
+        profile_gamma_index = index;
+    }
+    if (profile_gamma_index)
+    {
+        if (!input_color_index)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Profile gamma requires an enabled input colour operation",
+                              {{"operation_id", std::string(kProfileGammaOperationId)}});
+        }
+        if (*profile_gamma_index + 1U != *input_color_index)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Profile gamma must immediately precede input colour",
+                              {{"operation_id", std::string(kProfileGammaOperationId)}});
+        }
     }
 
     std::optional<std::size_t> output_color_index;

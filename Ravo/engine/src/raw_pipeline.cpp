@@ -21,6 +21,7 @@
 #include <libraw/libraw.h>
 
 #include "ravo/recipe/primaries.h"
+#include "ravo/recipe/profile_gamma.h"
 
 namespace ravo
 {
@@ -473,6 +474,10 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         if (operation.id == kPrimariesOperationId)
         {
             working_bytes += float_rgb_bytes;
+        }
+        if (operation.id == kProfileGammaOperationId)
+        {
+            working_bytes += float_rgb_bytes + 0x10000U * sizeof(float);
         }
     }
     return owns_raw_copy ? working_bytes + raw_bytes : working_bytes;

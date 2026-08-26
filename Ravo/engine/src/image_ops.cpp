@@ -21,6 +21,7 @@
 #include "primaries.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/profile_gamma.h"
 
 namespace ravo
 {
@@ -111,7 +112,8 @@ Result<void> for_each_row(const std::uint32_t height, const CancellationToken &c
 [[nodiscard]] bool absorbed_operation(const std::string_view id) noexcept
 {
     return id == "ravo.core.identity" || id == "ravo.raw.prepare" || id == "ravo.raw.demosaic" ||
-           id == "ravo.color.input" || id == "ravo.color.output" || id == "ravo.output.scale";
+           id == "ravo.color.input" || id == kProfileGammaOperationId ||
+           id == "ravo.color.output" || id == "ravo.output.scale";
 }
 
 [[nodiscard]] double as_number(const ParameterValue &value, const double fallback)

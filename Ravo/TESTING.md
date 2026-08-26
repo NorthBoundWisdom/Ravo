@@ -58,11 +58,11 @@ three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
-RGB primaries + channel mixer + Color Balance RGB parameter/pixel reopen, and
-preview-owner cancellation of a superseded token with old revision/asset
-rejection. Desktop QML smoke verifies that Input Profile, Output & Soft Proof,
-White Balance, RGB Primaries, Color Calibration, and full Color Balance RGB
-bindings load;
+profile gamma + RGB primaries + channel mixer + Color Balance RGB parameter/
+pixel reopen, and preview-owner cancellation of a superseded token with old
+revision/asset rejection. Desktop QML smoke verifies that Input Profile,
+Unbreak Input Profile, Output & Soft Proof, White Balance, RGB Primaries, Color
+Calibration, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
 The real `ravo` process is also a protocol contract: `--json` stdout contains
@@ -242,6 +242,16 @@ directories, corrupt files, and more RAW files.
   non-finite rejection, row cancellation, source immutability, and external
   ICC cache invalidation. Untagged raster must fail unless the recipe declares
   a concrete profile; sRGB fallback is not accepted.
+- `profile_gamma` has no enabled history in the 158 frozen XMPs, so tests do
+  not invent a legacy payload or golden. Synthetic coverage freezes the CPU
+  float `fastlog2`, both `2^-16` floors, grey/shadow/dynamic-range boundaries,
+  the 65,536-entry piecewise gamma LUT, negative/index truncation, the exact
+  `x == 1` extrapolation boundary, and values above one. Tagged-raster and
+  `mire1.cr2` references cover both modes before input colour; cancellation,
+  dimension/finite failure, input/profile immutability, scene-linear cache
+  identity, CLI/Catalog pixel parity, and Catalog save/reopen are explicit.
+  Legacy XMP naming the operation rejects structurally. Picker/autotune has no
+  product API and cannot be inferred from display scopes.
 - `colorout` statically decodes every distinct schema-v5 payload from all 158
   frozen XMPs. Synthetic coverage includes matrix/shaper and frozen unbounded
   output, matrix-free ICC LUT profiles, RGB/XYZ/Lab, four rendering intents,

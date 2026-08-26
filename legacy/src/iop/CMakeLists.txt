@@ -93,7 +93,6 @@ add_iop(vignette "vignette.c")
 add_iop(splittoning "splittoning.c")
 add_iop(grain "grain.c")
 add_iop(bilateral "bilateral.cc")
-add_iop(profile_gamma "profile_gamma.c")
 add_iop(colormapping "colormapping.c")
 
 add_iop(demosaic "demosaic.c" "demosaicing/amaze.cc" DEFAULT_VISIBLE)

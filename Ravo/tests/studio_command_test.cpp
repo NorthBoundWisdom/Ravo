@@ -98,6 +98,16 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
               QStringLiteral("source"));
     EXPECT_EQ(input_color.value(QStringLiteral("workingProfile")).toString(),
               QStringLiteral("linear_rec709"));
+    const auto profile_gamma = presenter.editProfileGamma();
+    EXPECT_EQ(profile_gamma.size(), 8);
+    EXPECT_FALSE(profile_gamma.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(profile_gamma.value(QStringLiteral("modeIndex")).toInt(), 0);
+    EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("linear")).toDouble(), 0.1);
+    EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("gamma")).toDouble(), 0.45);
+    EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("dynamicRange")).toDouble(), 10.0);
+    EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("greyPoint")).toDouble(), 18.0);
+    EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("shadowsRange")).toDouble(), -5.0);
+    EXPECT_DOUBLE_EQ(profile_gamma.value(QStringLiteral("securityFactor")).toDouble(), 0.0);
     const auto output_color = presenter.editOutputColor();
     EXPECT_EQ(output_color.size(), 9);
     EXPECT_EQ(output_color.value(QStringLiteral("outputProfileIndex")).toInt(), 0);
@@ -133,6 +143,8 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("图库已打开。"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "RGB Primaries"),
               QStringLiteral("RGB 原色"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Unbreak input profile"),
+              QStringLiteral("修正输入配置文件"));
 
     QCoreApplication::removeTranslator(&translator);
 }

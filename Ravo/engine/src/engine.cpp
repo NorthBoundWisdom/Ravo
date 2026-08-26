@@ -12,6 +12,7 @@
 #include "image_ops.h"
 #include "input_color.h"
 #include "output_color.h"
+#include "profile_gamma.h"
 #include "primaries.h"
 #include "raw_ca.h"
 #include "raw_pipeline.h"
@@ -301,11 +302,25 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     {
         return input_color.error();
     }
+    auto profile_gamma = resolve_profile_gamma(recipe);
+    if (!profile_gamma)
+    {
+        return profile_gamma.error();
+    }
     ProfiledColorBuffer profiled;
     profiled.width = demosaiced.value().width;
     profiled.height = demosaiced.value().height;
     profiled.channels = std::move(demosaiced.value().rgb);
     profiled.color_profile = std::move(demosaiced.value().color_profile);
+    if (profile_gamma.value())
+    {
+        auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
+        if (!corrected)
+        {
+            return corrected.error();
+        }
+        profiled = std::move(corrected).value();
+    }
     return apply_input_color(profiled, input_color.value(), cancellation);
 }
 
@@ -333,11 +348,25 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
     {
         return input_color.error();
     }
+    auto profile_gamma = resolve_profile_gamma(recipe);
+    if (!profile_gamma)
+    {
+        return profile_gamma.error();
+    }
     ProfiledColorBuffer profiled;
     profiled.width = encoded.value().width;
     profiled.height = encoded.value().height;
     profiled.channels = std::move(encoded.value().rgb);
     profiled.color_profile = std::move(encoded.value().color_profile);
+    if (profile_gamma.value())
+    {
+        auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
+        if (!corrected)
+        {
+            return corrected.error();
+        }
+        profiled = std::move(corrected).value();
+    }
     return apply_input_color(profiled, input_color.value(), cancellation);
 }
 
@@ -454,7 +483,8 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     for (auto &operation : rgb_recipe.operations)
     {
         if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
-            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect")
+            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
+            operation.id == kProfileGammaOperationId)
         {
             operation.enabled = false;
         }

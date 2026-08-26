@@ -14,6 +14,7 @@
 
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/profile_gamma.h"
 
 namespace ravo
 {
@@ -223,13 +224,37 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
 
 [[nodiscard]] std::string input_color_preprocess_key(const Recipe &recipe)
 {
+    std::string key;
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled || operation.id != "ravo.color.input")
+        if (!operation.enabled)
         {
             continue;
         }
-        std::string key = "color";
+        if (operation.id == kProfileGammaOperationId)
+        {
+            if (key.empty())
+            {
+                key = "color";
+            }
+            key += ":profilegamma";
+            for (const auto &[name, value] : operation.parameters)
+            {
+                key.push_back(':');
+                key += name;
+                key.push_back('=');
+                key += parameter_key_part(value);
+            }
+            continue;
+        }
+        if (operation.id != "ravo.color.input")
+        {
+            continue;
+        }
+        if (key.empty())
+        {
+            key = "color";
+        }
         for (const auto &[name, value] : operation.parameters)
         {
             key.push_back(':');
@@ -239,7 +264,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
         }
         return key;
     }
-    return "color:source:linear_rec709";
+    return key.empty() ? "color:source:linear_rec709" : key;
 }
 
 [[nodiscard]] std::string raw_preprocess_key(const Recipe &recipe)
@@ -303,7 +328,8 @@ void disable_raw_preprocess(Recipe &recipe)
     for (auto &operation : recipe.operations)
     {
         if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
-            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect")
+            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
+            operation.id == kProfileGammaOperationId)
         {
             operation.enabled = false;
         }

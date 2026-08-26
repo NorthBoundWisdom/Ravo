@@ -300,6 +300,38 @@
         <translation>%1 → %2</translation>
     </message>
     <message>
+        <source>Unbreak input profile</source>
+        <translation>修正输入配置文件</translation>
+    </message>
+    <message>
+        <source>Enable correction</source>
+        <translation>启用校正</translation>
+    </message>
+    <message>
+        <source>Logarithmic</source>
+        <translation>对数</translation>
+    </message>
+    <message>
+        <source>Dynamic range</source>
+        <translation>动态范围</translation>
+    </message>
+    <message>
+        <source>Middle gray luma</source>
+        <translation>中间灰亮度</translation>
+    </message>
+    <message>
+        <source>Black relative exposure</source>
+        <translation>相对黑色曝光</translation>
+    </message>
+    <message>
+        <source>Linear part</source>
+        <translation>线性部分</translation>
+    </message>
+    <message>
+        <source>Gamma exponent</source>
+        <translation>伽马指数</translation>
+    </message>
+    <message>
         <source>Output &amp; Soft Proof</source>
         <translation>输出与软打样</translation>
     </message>

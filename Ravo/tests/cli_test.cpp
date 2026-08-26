@@ -22,6 +22,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
@@ -289,6 +290,15 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
 
     Recipe recipe;
     recipe.asset = {"mire1", "file:///recipe-placeholder.raw", std::nullopt};
+    ProfileGammaParams profile_gamma;
+    profile_gamma.mode = std::string(kProfileGammaModeGamma);
+    profile_gamma.linear = 0.08;
+    profile_gamma.gamma = 0.55;
+    auto profile_gamma_parameters = profile_gamma_to_parameters(profile_gamma);
+    ASSERT_TRUE(profile_gamma_parameters) << profile_gamma_parameters.error().message;
+    recipe.operations.push_back({std::string(kProfileGammaOperationId),
+                                 kProfileGammaOperationSchemaVersion, "profilegamma-1", true,
+                                 std::move(profile_gamma_parameters).value(), std::nullopt});
     recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
                                  input_color_to_parameters(InputColorParams{}), std::nullopt});
     PrimariesParams primaries;
@@ -598,6 +608,25 @@ TEST_F(CliTest, LegacyXmpOperationsRemainExplicitlyUnsupported)
     ASSERT_FALSE(imported);
     EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
     EXPECT_EQ(imported.error().context.at("legacy_operation"), "exposure");
+}
+
+TEST_F(CliTest, LegacyXmpProfileGammaRejectsMissingFrozenPayloadEvidence)
+{
+    constexpr std::string_view xmp = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+    <rdf:li darktable:operation="profile_gamma" darktable:modversion="2" darktable:enabled="1"/>
+  </rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    const LegacyXmpImportRequest request{xmp, {"asset-1", "file:///fixture.raw", std::nullopt}};
+
+    const auto imported = import_legacy_xmp(request);
+
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(imported.error().context.at("legacy_operation"), "profile_gamma");
+    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_profile_gamma_no_fixture");
 }
 
 TEST_F(CliTest, LegacyXmpMapsTheProvenManualExposureV5Subset)

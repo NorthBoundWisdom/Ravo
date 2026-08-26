@@ -1,8 +1,10 @@
 #include "input_color.h"
 #include "output_color.h"
+#include "profile_gamma.h"
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -1351,6 +1353,23 @@ try
             return profile.error();
         }
         result += "_working-" + color_profile_fingerprint(profile.value().state);
+    }
+    auto profile_gamma = resolve_profile_gamma(recipe);
+    if (!profile_gamma)
+    {
+        return profile_gamma.error();
+    }
+    if (profile_gamma.value())
+    {
+        const auto &gamma = *profile_gamma.value();
+        const auto bits = [](const double value)
+        { return std::to_string(std::bit_cast<std::uint64_t>(value)); };
+        result += "_profilegamma-mode=" + gamma.mode + ":linear_bits=" + bits(gamma.linear) +
+                  ":gamma_bits=" + bits(gamma.gamma) +
+                  ":dynamic_range_bits=" + bits(gamma.dynamic_range) +
+                  ":grey_point_bits=" + bits(gamma.grey_point) +
+                  ":shadows_range_bits=" + bits(gamma.shadows_range) +
+                  ":security_factor_bits=" + bits(gamma.security_factor);
     }
     return result;
 }

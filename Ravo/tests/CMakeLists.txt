@@ -25,6 +25,7 @@ add_executable(ravo_contract_tests
   engine_test.cpp
   input_color_test.cpp
   output_color_test.cpp
+  profile_gamma_test.cpp
   primaries_test.cpp)
 target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli)
 target_include_directories(ravo_contract_tests PRIVATE

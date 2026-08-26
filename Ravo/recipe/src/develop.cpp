@@ -1436,6 +1436,28 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
 void clamp_develop(DevelopParams &params) noexcept
 {
     clamp_temperature(params.temperature);
+    const auto clamp_profile_gamma_value =
+        [](double &value, const double default_value, const double minimum, const double maximum)
+    { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : default_value; };
+    if (!params.profile_gamma_enabled &&
+        params.profile_gamma.mode != kProfileGammaModeLogarithmic &&
+        params.profile_gamma.mode != kProfileGammaModeGamma)
+    {
+        params.profile_gamma.mode = std::string(kProfileGammaModeLogarithmic);
+    }
+    clamp_profile_gamma_value(params.profile_gamma.linear, kProfileGammaLinearDefault,
+                              kProfileGammaLinearMin, kProfileGammaLinearMax);
+    clamp_profile_gamma_value(params.profile_gamma.gamma, kProfileGammaGammaDefault,
+                              kProfileGammaGammaMin, kProfileGammaGammaMax);
+    clamp_profile_gamma_value(params.profile_gamma.dynamic_range, kProfileGammaDynamicRangeDefault,
+                              kProfileGammaDynamicRangeMin, kProfileGammaDynamicRangeMax);
+    clamp_profile_gamma_value(params.profile_gamma.grey_point, kProfileGammaGreyPointDefault,
+                              kProfileGammaGreyPointMin, kProfileGammaGreyPointMax);
+    clamp_profile_gamma_value(params.profile_gamma.shadows_range, kProfileGammaShadowsRangeDefault,
+                              kProfileGammaShadowsRangeMin, kProfileGammaShadowsRangeMax);
+    clamp_profile_gamma_value(params.profile_gamma.security_factor,
+                              kProfileGammaSecurityFactorDefault, kProfileGammaSecurityFactorMin,
+                              kProfileGammaSecurityFactorMax);
     const auto clamp_primaries_value =
         [](double &value, const double default_value, const double minimum, const double maximum)
     { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : default_value; };
@@ -1579,15 +1601,15 @@ void clamp_develop(DevelopParams &params) noexcept
 
 bool DevelopParams::is_identity() const noexcept
 {
-    return temperature.is_identity() && input_color.is_identity() && output_color.is_identity() &&
-           primaries.is_identity() && channel_mixer.is_identity() && near(exposure_ev, 0.0) &&
-           near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
-           near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
-           rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
-           near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
-           near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
-           near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
-           near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
+    return temperature.is_identity() && !profile_gamma_enabled && input_color.is_identity() &&
+           output_color.is_identity() && primaries.is_identity() && channel_mixer.is_identity() &&
+           near(exposure_ev, 0.0) && near(contrast, 0.0) && near(highlights, 0.0) &&
+           near(shadows, 0.0) && near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) &&
+           near(saturation, 0.0) && rotate_quarters % 4 == 0 && flip_horizontal == 0 &&
+           flip_vertical == 0 && near(straighten_degrees, 0.0) && near(crop_x, 0.0) &&
+           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
+           near(sharpen, 0.0) && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
+           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) &&
            color_balance_rgb.is_identity() && near(color_contrast, 0.0) && near(monochrome, 0.0) &&
            near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
            tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
@@ -1620,6 +1642,71 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     };
     if (apply_temperature_field(params.temperature, name, value))
     {
+    }
+    else if (name == "profileGammaEnabled")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma_enabled = value >= 0.5;
+    }
+    else if (name == "profileGammaModeIndex")
+    {
+        auto mode = selected(kSelectableProfileGammaModes);
+        if (!mode)
+        {
+            return false;
+        }
+        params.profile_gamma.mode = std::move(*mode);
+    }
+    else if (name == "profileGammaLinear")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma.linear = value;
+    }
+    else if (name == "profileGammaGamma")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma.gamma = value;
+    }
+    else if (name == "profileGammaDynamicRange")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma.dynamic_range = value;
+    }
+    else if (name == "profileGammaGreyPoint")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma.grey_point = value;
+    }
+    else if (name == "profileGammaShadowsRange")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma.shadows_range = value;
+    }
+    else if (name == "profileGammaSecurityFactor")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.profile_gamma.security_factor = value;
     }
     else if (name == "inputProfile")
     {
@@ -2139,6 +2226,38 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     if (reset_temperature_field(params.temperature, name))
     {
     }
+    else if (name == "profileGammaEnabled")
+    {
+        params.profile_gamma_enabled = identity.profile_gamma_enabled;
+    }
+    else if (name == "profileGammaModeIndex")
+    {
+        params.profile_gamma.mode = identity.profile_gamma.mode;
+    }
+    else if (name == "profileGammaLinear")
+    {
+        params.profile_gamma.linear = identity.profile_gamma.linear;
+    }
+    else if (name == "profileGammaGamma")
+    {
+        params.profile_gamma.gamma = identity.profile_gamma.gamma;
+    }
+    else if (name == "profileGammaDynamicRange")
+    {
+        params.profile_gamma.dynamic_range = identity.profile_gamma.dynamic_range;
+    }
+    else if (name == "profileGammaGreyPoint")
+    {
+        params.profile_gamma.grey_point = identity.profile_gamma.grey_point;
+    }
+    else if (name == "profileGammaShadowsRange")
+    {
+        params.profile_gamma.shadows_range = identity.profile_gamma.shadows_range;
+    }
+    else if (name == "profileGammaSecurityFactor")
+    {
+        params.profile_gamma.security_factor = identity.profile_gamma.security_factor;
+    }
     else if (name == "inputProfile" || name == "workingProfile" || name == "renderingIntent" ||
              name == "gamutNormalize" || name == "blueMapping")
     {
@@ -2461,6 +2580,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     else if (section == "whiteBalance")
     {
         params.temperature = identity.temperature;
+    }
+    else if (section == "profileGamma")
+    {
+        params.profile_gamma_enabled = identity.profile_gamma_enabled;
+        params.profile_gamma = identity.profile_gamma;
     }
     else if (section == "inputProfile")
     {
@@ -2816,6 +2940,16 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.color.temperature", "temperature-1",
                       temperature_to_parameters(clamped.temperature));
     }
+    if (clamped.profile_gamma_enabled)
+    {
+        auto profile_gamma = profile_gamma_to_parameters(clamped.profile_gamma);
+        if (!profile_gamma)
+        {
+            return profile_gamma.error();
+        }
+        add_operation(recipe, std::string(kProfileGammaOperationId), "profilegamma-1",
+                      std::move(profile_gamma).value());
+    }
     add_operation(recipe, "ravo.color.input", "color-input-1",
                   input_color_to_parameters(clamped.input_color));
     if (!clamped.primaries.is_identity())
@@ -3097,6 +3231,16 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return temperature.error();
             }
             params.temperature = std::move(temperature).value();
+        }
+        else if (operation.id == kProfileGammaOperationId)
+        {
+            auto profile_gamma = profile_gamma_from_parameters(operation.parameters);
+            if (!profile_gamma)
+            {
+                return profile_gamma.error();
+            }
+            params.profile_gamma_enabled = true;
+            params.profile_gamma = std::move(profile_gamma).value();
         }
         else if (operation.id == "ravo.color.input")
         {

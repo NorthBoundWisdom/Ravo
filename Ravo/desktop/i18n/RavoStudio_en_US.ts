@@ -300,6 +300,38 @@
         <translation>%1 → %2</translation>
     </message>
     <message>
+        <source>Unbreak input profile</source>
+        <translation>Unbreak input profile</translation>
+    </message>
+    <message>
+        <source>Enable correction</source>
+        <translation>Enable correction</translation>
+    </message>
+    <message>
+        <source>Logarithmic</source>
+        <translation>Logarithmic</translation>
+    </message>
+    <message>
+        <source>Dynamic range</source>
+        <translation>Dynamic range</translation>
+    </message>
+    <message>
+        <source>Middle gray luma</source>
+        <translation>Middle gray luma</translation>
+    </message>
+    <message>
+        <source>Black relative exposure</source>
+        <translation>Black relative exposure</translation>
+    </message>
+    <message>
+        <source>Linear part</source>
+        <translation>Linear part</translation>
+    </message>
+    <message>
+        <source>Gamma exponent</source>
+        <translation>Gamma exponent</translation>
+    </message>
+    <message>
         <source>Output &amp; Soft Proof</source>
         <translation>Output &amp; Soft Proof</translation>
     </message>

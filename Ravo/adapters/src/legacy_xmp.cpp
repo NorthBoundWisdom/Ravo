@@ -745,6 +745,14 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "profile_gamma")
+            {
+                return make_error(
+                    ErrorCode::kUnsupported,
+                    "Legacy profile gamma has no frozen parameter fixture for canonical import",
+                    {{"legacy_operation", "profile_gamma"},
+                     {"reason", "unsupported_legacy_profile_gamma_no_fixture"}});
+            }
             if (operation.value() == "primaries")
             {
                 const auto version =

@@ -6,6 +6,7 @@
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 
 namespace ravo
@@ -88,6 +89,24 @@ Result<OperationRegistry> make_phase1_registry()
         {"ravo.core.identity", "Identity", 1, {}, false, false},
         {"ravo.raw.prepare", "RAW prepare", 1, {}, false, false},
         {"ravo.raw.demosaic", "RAW demosaic", 1, {}, false, false},
+        {std::string(kProfileGammaOperationId),
+         "Unbreak input profile",
+         kProfileGammaOperationSchemaVersion,
+         {{"mode", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"linear", ParameterType::kNumber, true, std::nullopt, kProfileGammaLinearMin,
+           kProfileGammaLinearMax},
+          {"gamma", ParameterType::kNumber, true, std::nullopt, kProfileGammaGammaMin,
+           kProfileGammaGammaMax},
+          {"dynamic_range", ParameterType::kNumber, true, std::nullopt,
+           kProfileGammaDynamicRangeMin, kProfileGammaDynamicRangeMax},
+          {"grey_point", ParameterType::kNumber, true, std::nullopt, kProfileGammaGreyPointMin,
+           kProfileGammaGreyPointMax},
+          {"shadows_range", ParameterType::kNumber, true, std::nullopt,
+           kProfileGammaShadowsRangeMin, kProfileGammaShadowsRangeMax},
+          {"security_factor", ParameterType::kNumber, true, std::nullopt,
+           kProfileGammaSecurityFactorMin, kProfileGammaSecurityFactorMax}},
+         false,
+         true},
         {"ravo.color.input",
          "Input colour",
          1,

@@ -4,8 +4,8 @@
 >
 > **Updated: 2026-08-26**
 >
-> **Current execution focus: C7 unbreak input profile / profile_gamma.** Do not
-> migrate gamma, exposure, cacorrectrgb, or the general mask graph in parallel.
+> **Current execution focus: C8 final display encoding / gamma.** Do not migrate
+> exposure, colorbalance, cacorrectrgb, or the general mask graph in parallel.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -38,57 +38,55 @@ ready for execution.
 
 ## 2. Migration queue
 
-### C7. Unbreak input profile: profile_gamma (current)
+### C8. Final display encoding: gamma (current)
 
-Goal: migrate the optional display-referred RGB profile correction as a
-versioned CPU operation with explicit logarithmic and gamma modes. It must not
-be inferred from input-profile metadata or silently enabled by decode.
+Goal: migrate the mandatory final float-to-display-buffer boundary without
+confusing it with the optional `ravo.core.gamma` edit. The frozen owner is an
+output packer and diagnostic display adapter; its two serialized floats do not
+drive the normal CPU path.
 
 Scope:
 
-- Frozen census: none of the 158 XMP histories contains `profile_gamma`.
-  Create Ravo-owned synthetic fixtures plus raster and `mire1.cr2` references;
-  no historical payload may be invented as a golden.
-- Define the schema-v2 fields exactly: mode (`logarithmic|gamma`), linear part,
-  gamma exponent, dynamic range, middle-grey percent, black-relative exposure,
-  and safety factor, with the frozen bounds/defaults.
-- Preserve logarithmic mode's `2^-16` floor, grey normalization, `log2`, shadow
-  offset, dynamic-range division, and output floor. Preserve gamma mode's
-  65,536-entry piecewise table, clamped negative/index behavior, and frozen
-  exponential extrapolation for values at or above one.
-- Picker/autotune statistics require an explicit engine/service intent and
-  deterministic pixel source. GTK pickers, preset widgets, dynamic IOP ABI,
-  OpenCL, and blend UI are not migrated; the general mask graph stays queued.
+- Frozen census: all 158 XMP histories contain one enabled schema-v1 `gamma`
+  instance with the same zeroed eight-byte payload. Verify version, enabled
+  state, payload, singleton, and default blend statically; the canonical import
+  continues to absorb only that exact mandatory boundary.
+- Preserve the normal `_copy_output` path after output colour: clamp negative
+  values to zero, multiply by 255, `roundf`, clamp above 255, and publish one
+  8-bit RGB value per channel. The old BGR byte order is a GTK/pixelpipe memory
+  layout, not a colour transform and not Ravo's `RenderedImage` contract.
+- `colorout` already owns transfer encoding and ICC state. C8 must not apply an
+  sRGB curve again, create a second output-profile transform, or reinterpret
+  the unused legacy `gamma/linear` fields as `ravo.core.gamma`.
+- Channel false-colour, monochrome-channel, and mask-overlay branches depend on
+  old display/mask state. Record a dated migrate-or-unsupported decision for
+  each calculation; do not smuggle them into QML or block the normal packer on
+  the future general mask graph.
 
 Owner, lifecycle, and failure:
 
-- Recipe owns the enabled operation, one explicit mode, and six bounded scalar
-  parameters. Engine owns a render-local LUT/extrapolation tuple or log
-  constants and writes an owned RGB result; it never changes the declared
-  profile state.
-- Missing mode, zero/invalid grey or dynamic range, nonfinite parameters/input/
-  output, LUT or allocation failure, cancellation, and unsupported auto-source
-  requests fail before publishing pixels. No gamma/log fallback is permitted.
-- Auto-derived values, if exposed, are returned as canonical parameters and
-  only become recipe state through the normal atomic CatalogService save path.
+- Engine owns a private output-packing boundary from immutable finite profiled
+  float RGB to an owned `RenderedImage`; CLI/Catalog encoders consume that one
+  result and retain its exact `ColorProfileState`.
+- Invalid dimensions/model, nonfinite samples, allocation failure, and row
+  cancellation fail before pixel/cache/file publication. No alternative
+  transfer curve, channel order, or unprofiled fallback is permitted.
+- Recipe owns no new C8 operation. Legacy XMP absorption is an import rule for
+  the mandatory old boundary; the existing simplified gamma edit remains a
+  separately unsupported subset and cannot satisfy C8.
 
 Validation and acceptance gates:
 
-- [ ] Canonical schema round-trip, defaults/bounds, unknown/missing/nonfinite
-  rejection, and explicit enabled/disabled recipe behavior.
-- [ ] Synthetic logarithmic noise/black/grey/white/boundary tests and gamma
-  linear/power/piecewise 65,536-LUT/unbounded tests; row cancellation and input
-  immutability.
-- [ ] Ravo-owned tagged-raster plus `mire1.cr2` references for both modes; input
-  and output profile state remains unchanged.
-- [ ] Explicit autotune/picker statistics contract or a dated unsupported
-  decision; no QML histogram implementation.
-- [ ] CLI render and CatalogService preview/export parity, cache identity,
-  cancellation, save/reopen, and late-result coverage.
-- [ ] Studio Inspector mode/parameter forwarding and presenter/QML smoke if the
-  operation is product-exposed.
-- [ ] Delete `legacy/src/iop/profile_gamma.c` and registration; defer shared
-  kernel cleanup to D0.3 unless all consumers are proven absent.
+- [ ] Static census of all 158 exact schema-v1 payloads; modified payload,
+  version, disabled state, duplicate, and blend/mask data reject explicitly.
+- [ ] Synthetic negative, zero, half-rounding, one, super-white, RGB-order,
+  dimension/model, nonfinite, row-cancellation, and source-immutability tests.
+- [ ] Built-in sRGB, Display P3, and file-ICC output retain profile state and
+  match CLI/Catalog PNG/JPEG/TIFF publication without double encoding.
+- [ ] Record dated decisions for channel/mask diagnostic branches and cover
+  every supported calculation through an engine contract, not UI state.
+- [ ] Delete `legacy/src/iop/gamma.c` and registration after the output boundary
+  and strict import are accepted; defer shared order/manual names to D0.4.
 - [ ] Full Ravo unit/contract/catalog tests and freeze/inventory/boundary checks.
 - [ ] Explicitly report Windows/Linux as untested when they are not run.
 
@@ -113,8 +111,8 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 58 unconditional IOP registrations plus two
-  conditional owners (`liquify`, `watermark`); all 60 have a row in section 3.2.
+- legacy/src/iop/CMakeLists.txt has 57 unconditional IOP registrations plus two
+  conditional owners (`liquify`, `watermark`); all 59 have a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
@@ -124,7 +122,7 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C7 only. **Queued** waits for dependencies and
+Status terms: **current** means C8 only. **Queued** waits for dependencies and
 all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
 move it before migration completes. When a module meets its gate, first update
 stable truth, then remove its row. Do not leave historical checked marks here.
@@ -154,7 +152,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (60 owners: 58 unconditional + 2 conditional)
+### 3.2 IOP algorithm queue (59 owners: 57 unconditional + 2 conditional)
 
 The group order below is dependency order; rows in a group are serial by
 default. fixture means static evidence exists, not that it is covered.
@@ -163,8 +161,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C7 | profile_gamma — iop/profile_gamma.c | no | **Current / ALG**; explicit log/gamma modes, LUT/unbounded path, and Ravo-owned synthetic + RAW references; see section 2 |
-| C8 | gamma — iop/gamma.c | yes | Queued / ALG; existing simplified ravo.core.gamma is not acceptance; reproduce frozen lookup/boundaries |
+| C8 | gamma — iop/gamma.c | yes | **Current / ALG**; mandatory output packing plus explicit channel/mask diagnostic decisions; existing `ravo.core.gamma` is unrelated; see section 2 |
 | C9 | exposure — iop/exposure.c | yes | Queued / ALG; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
 | C10 | colorbalance — iop/colorbalance.c | yes | Queued / ALG; define overlap with ravo.color.colorbalancergb; do not substitute three parameters for full old path |
 | C11 | colorchecker — iop/colorchecker.c | yes | Queued / ALG; depends on explicit input-profile state/S1; move algorithm/calibration tables and delete GTK chart/picker |
@@ -381,13 +378,13 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later rows in parallel before C7 completes.
+later rows in parallel before C8 completes.
 
 ## 4. Completion gate for this TODO
 
 Delete this document only when all are true:
 
-- [ ] C7 and every later raised algorithm are accepted and removed from this
+- [ ] C8 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

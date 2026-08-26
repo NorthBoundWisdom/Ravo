@@ -67,6 +67,14 @@ Current implementation status:
   colour boundaries. Input profile state and external ICC content participate
   in the scene-linear and preview cache keys, and Studio exposes the canonical
   Input Profile controls.
+- Unbreak Input Profile provides `ravo.color.profilegamma` v1 as an explicit
+  pre-input correction for profiles that expect non-linear RGB. Logarithmic
+  mode retains the frozen `fastlog2` and `2^-16` floors; gamma mode retains the
+  65,536-sample piecewise table and unbounded extrapolation. RAW runs it after
+  demosaic and raster runs it on decoded RGB, both before Input Color. The
+  operation is opt-in, cache-keyed, and never substituted by the simplified
+  `ravo.core.gamma`. Studio exposes manual mode controls; legacy picker/
+  autotune remains unsupported until it has a deterministic analysis contract.
 - Output Color provides `ravo.color.output` v1 with built-in/file ICC output,
   four rendering intents, soft proof, gamut warning, proof intent, and black-
   point compensation. Matrix/shaper output uses the frozen 65,536-sample LUT
