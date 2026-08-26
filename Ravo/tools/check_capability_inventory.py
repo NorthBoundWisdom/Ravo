@@ -100,7 +100,7 @@ def table_rows(path: Path) -> dict[str, tuple[str, str]]:
 
 def verify(repository_root: Path) -> None:
     manifest_path = repository_root / "Ravo" / "tests" / "fixtures" / "legacy_manifest.json"
-    inventory_path = repository_root / "Ravo" / "docs" / "phase0" / "capability-inventory.md"
+    inventory_path = repository_root / "DevDocs" / "phase0" / "capability-inventory.md"
     cmake_path = repository_root / "legacy" / "src" / "iop" / "CMakeLists.txt"
     registry = registered_iops(cmake_path)
     operations = manifest_operations(load_json(manifest_path))

@@ -6491,7 +6491,7 @@
     "6"
   ],
   "manifest_schema_version": 1,
-  "notice": "Hashes identify committed legacy assets. They do not certify that a legacy CPU run reproduced expected_png; consult Ravo/docs/phase0/legacy-baseline-2026-07-21.md.",
+  "notice": "Hashes identify committed legacy assets. They do not certify that a legacy CPU run reproduced expected_png; consult DevDocs/phase0/legacy-baseline-2026-07-21.md.",
   "operations": [
     "agx",
     "ashift",

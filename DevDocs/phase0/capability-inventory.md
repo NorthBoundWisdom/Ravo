@@ -3,7 +3,7 @@
 ## Purpose and status
 
 This is a historical Phase 0 implementation inventory, not a promise to reproduce every
-legacy IOP. [`Ravo/MIGRATION.md`](../../MIGRATION.md) retains the
+legacy IOP. [`Ravo/MIGRATION.md`](../../Ravo/MIGRATION.md) retains the
 product-boundary authority; several creative and specialised modules are still
 explicit candidates for a separate keep/remove decision. The table identifies
 work that must not be silently implied by a successful Ravo build.
@@ -13,7 +13,7 @@ catalog and minimal desktop viewer are authorized in M1. That decision does not
 authorize legacy catalog migration or any operation marked deferred below.
 
 The source inventory is collected from the leftover `add_iop(...)`
-registrations in [`legacy/src/iop/CMakeLists.txt`](../../../legacy/src/iop/CMakeLists.txt);
+registrations in [`legacy/src/iop/CMakeLists.txt`](../../legacy/src/iop/CMakeLists.txt);
 Ravo-accepted owners are removed from both lists when retired.
 The generated fixture manifest records the 68 operation names currently
 represented by XMP regression assets.  A `yes` in the fixture column means

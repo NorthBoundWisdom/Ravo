@@ -26,7 +26,7 @@ The source and fixture tree IDs match the current committed HEAD; no `src` or
 `legacy/tests` path changed after the freeze commit. The freeze checker also
 guards the legacy root CMake graph, `cmake/`, `data/`, and `packaging/` against
 working-tree or committed drift. The fixture hashes and exact paths are in
-[`../../tests/fixtures/legacy_manifest.json`](../../tests/fixtures/legacy_manifest.json).
+[`../../Ravo/tests/fixtures/legacy_manifest.json`](../../Ravo/tests/fixtures/legacy_manifest.json).
 The manifest is the authoritative static inventory. The stored PNGs are frozen
 reference inputs; policy does not require or permit reproducing them with an
 old executable on this or any other toolchain.
@@ -84,7 +84,7 @@ also report unsupported blend parameters. The local vcpkg LensFun package
 contains the DLL, headers, and metadata but no XML database. NumPy is absent,
 so `legacy/tests/count-diff-pixels` returns its fallback value of `50000`.
 Neither condition is an image result or a valid reason to change an expected
-PNG. Under [ADR-0004](../adr/0004-freeze-09-ravo-only-growth.md) these source
+PNG. Under [ADR-0004](../../Ravo/docs/adr/0004-freeze-09-ravo-only-growth.md) these source
 experiments are not a new 0.9 implementation plan and must not be extended to
 repair LensFun, history, module loading, or packaging. Ravo proceeds from the
 committed fixture hashes and produces only Ravo-owned acceptance evidence.

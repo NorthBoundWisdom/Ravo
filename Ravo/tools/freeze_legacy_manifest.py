@@ -112,7 +112,7 @@ def build_manifest(repository_root: Path) -> dict[str, Any]:
         "state": "frozen-static-reference",
         "notice": (
             "Hashes identify committed legacy assets. They do not certify that a legacy "
-            "CPU run reproduced expected_png; consult Ravo/docs/phase0/legacy-baseline-2026-07-21.md."
+            "CPU run reproduced expected_png; consult DevDocs/phase0/legacy-baseline-2026-07-21.md."
         ),
         "fixture_count": len(fixtures),
         "legacy_xmp_schema_versions": sorted(all_schema_versions),

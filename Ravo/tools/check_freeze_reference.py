@@ -17,7 +17,7 @@ PROTECTED_PATHS: tuple[tuple[str, str], ...] = (
     ("legacy/host/data", "data"),
     ("legacy/host/packaging", "packaging"),
 )
-RETIRED_SRC_LIST = Path("Ravo/docs/phase0/legacy-retired-src-paths.txt")
+RETIRED_SRC_LIST = Path("DevDocs/phase0/legacy-retired-src-paths.txt")
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {

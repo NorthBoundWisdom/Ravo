@@ -3,8 +3,8 @@
 ## Status and authority
 
 This is a historical Phase 0 contract. It still records valid CLI behaviours
-and service-boundary evidence, but [ADR-0007](../adr/0007-first-usable-catalog-viewer.md)
-and the root [active migration TODO](../../../TODO_LEGACY_MIGRATION.md) supersede its original delivery order.
+and service-boundary evidence, but [ADR-0007](../../Ravo/docs/adr/0007-first-usable-catalog-viewer.md)
+and the root [active migration TODO](../../TODO_LEGACY_MIGRATION.md) supersede its original delivery order.
 The implementation-state column remains evidence; only the root roadmap can
 promote an unfinished use case.
 
@@ -61,5 +61,5 @@ binary, toolchain, or runtime reproduction is required:
 The old project and its runners must not be invoked. Frozen source, XMP, RAW,
 and `expected.png` assets are immutable reference inputs; Ravo output is stored
 separately and never used to replace them. The candidate paths and hashes are checked against the inventory by
-[`check_vertical_slice_plan.py`](../../tools/check_vertical_slice_plan.py); the
+[`check_vertical_slice_plan.py`](../../Ravo/tools/check_vertical_slice_plan.py); the
 candidate remains `candidate-not-frozen` until every table gate is met.
