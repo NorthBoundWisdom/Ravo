@@ -95,6 +95,14 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("maskGreyFulcrum")).toDouble(), 0.1845);
     EXPECT_DOUBLE_EQ(balance.value(QStringLiteral("greyFulcrum")).toDouble(), 0.1845);
     EXPECT_EQ(balance.value(QStringLiteral("formulaIndex")).toInt(), 0);
+    const auto color_correction = presenter.editColorCorrection();
+    EXPECT_EQ(color_correction.size(), 6);
+    EXPECT_FALSE(color_correction.value(QStringLiteral("enabled")).toBool());
+    EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("highlightA")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("highlightB")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("shadowA")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("shadowB")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_correction.value(QStringLiteral("saturation")).toDouble(), 1.0);
     const auto primaries = presenter.editPrimaries();
     EXPECT_EQ(primaries.size(), 8);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintHueDegrees")).toDouble(), 0.0);
@@ -213,6 +221,49 @@ TEST(StudioQmlContract, ColorCheckerExposesEveryLabFieldWithoutClampingCanonical
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorChecker\")")));
 }
 
+TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    constexpr std::array<const char *, 4> endpoint_fields{
+        "colorCorrectionHighlightA", "colorCorrectionHighlightB", "colorCorrectionShadowA",
+        "colorCorrectionShadowB"};
+    for (const auto *field : endpoint_fields)
+    {
+        const auto expected = QStringLiteral("\"field\": \"%1\", \"minimum\": -40, \"maximum\": 40")
+                                  .arg(QString::fromLatin1(field));
+        EXPECT_TRUE(source.contains(expected)) << field;
+    }
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "\"field\": \"colorCorrectionSaturation\", \"minimum\": -3, \"maximum\": 3")));
+
+    const auto section_begin = source.indexOf(QStringLiteral("colorCorrectionEnabled"));
+    const auto section_end = source.indexOf(QStringLiteral("colorContrast"), section_begin);
+    ASSERT_GE(section_begin, 0);
+    ASSERT_GT(section_end, section_begin);
+    const auto section = source.mid(section_begin, section_end - section_begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorCorrection")));
+    EXPECT_TRUE(section.contains(
+        QStringLiteral("setDevelopNumber(\"colorCorrectionEnabled\", checked ? 1 : 0)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(modelData.field, value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(modelData.field, value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(modelData.field)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorCorrection\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("affine_lab_v1")));
+
+    const auto rgb_balance = source.indexOf(QStringLiteral("colorBalanceGlobalY"));
+    const auto correction = source.indexOf(QStringLiteral("colorCorrectionHighlightA"));
+    const auto contrast = source.indexOf(QStringLiteral("colorContrast"), correction);
+    ASSERT_GE(rgb_balance, 0);
+    ASSERT_GE(correction, 0);
+    ASSERT_GE(contrast, 0);
+    EXPECT_LT(rgb_balance, correction);
+    EXPECT_LT(correction, contrast);
+}
+
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
@@ -237,6 +288,8 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("修正输入配置文件"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color look-up table · D50 Lab"),
               QStringLiteral("颜色查找表 · D50 Lab"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Color Correction · D50 Lab"),
+              QStringLiteral("色彩校正 · D50 Lab"));
 
     QCoreApplication::removeTranslator(&translator);
 }

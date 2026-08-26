@@ -11,6 +11,7 @@
 
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -246,6 +247,8 @@ struct DevelopParams
     ColorCheckerParams color_checker;
     std::int64_t color_checker_patch = 0;
     ColorBalanceRgbParams color_balance_rgb;
+    bool color_correction_enabled = false;
+    ColorCorrectionParams color_correction;
     double color_contrast = 0.0;
     double monochrome = 0.0;
     double split_shadows_hue = 0.0;

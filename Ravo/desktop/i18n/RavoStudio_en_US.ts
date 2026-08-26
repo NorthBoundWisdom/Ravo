@@ -732,6 +732,34 @@
         <translation>Hue rotation</translation>
     </message>
     <message>
+        <source>Color Correction · D50 Lab</source>
+        <translation>Color Correction · D50 Lab</translation>
+    </message>
+    <message>
+        <source>Enable Color Correction</source>
+        <translation>Enable Color Correction</translation>
+    </message>
+    <message>
+        <source>Highlights · a*</source>
+        <translation>Highlights · a*</translation>
+    </message>
+    <message>
+        <source>Highlights · b*</source>
+        <translation>Highlights · b*</translation>
+    </message>
+    <message>
+        <source>Shadows · a*</source>
+        <translation>Shadows · a*</translation>
+    </message>
+    <message>
+        <source>Shadows · b*</source>
+        <translation>Shadows · b*</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color Correction</source>
+        <translation>Disable and reset Color Correction</translation>
+    </message>
+    <message>
         <source>Color contrast</source>
         <translation>Color contrast</translation>
     </message>

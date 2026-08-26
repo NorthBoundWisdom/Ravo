@@ -464,6 +464,17 @@ QVariantMap StudioPresenter::editColorBalanceRgb() const
              params.saturation_formula == kColorBalanceRgbFormulaJzAzBz2021 ? 1 : 0}};
 }
 
+QVariantMap StudioPresenter::editColorCorrection() const
+{
+    const auto &params = develop_.color_correction;
+    return {{QStringLiteral("enabled"), develop_.color_correction_enabled},
+            {QStringLiteral("highlightA"), params.highlight_a},
+            {QStringLiteral("highlightB"), params.highlight_b},
+            {QStringLiteral("shadowA"), params.shadow_a},
+            {QStringLiteral("shadowB"), params.shadow_b},
+            {QStringLiteral("saturation"), params.saturation}};
+}
+
 QVariantMap StudioPresenter::editPrimaries() const
 {
     constexpr double kDegreesPerRadian = 180.0 / std::numbers::pi_v<double>;

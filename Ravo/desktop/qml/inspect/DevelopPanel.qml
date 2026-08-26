@@ -1292,6 +1292,60 @@ ColumnLayout {
                                     root.commands.resetControl(modelData.field)
                             }
                         }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: qsTr("Color Correction · D50 Lab")
+                            font.bold: true
+                            wrapMode: Text.WordWrap
+                        }
+                        CustomCheckBox {
+                            objectName: "colorCorrectionEnabled"
+                            text: qsTr("Enable Color Correction")
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter
+                                     && root.presenter.editColorCorrection.enabled
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("colorCorrectionEnabled", checked ? 1 : 0)
+                        }
+                        Repeater {
+                            model: [
+                                { "title": qsTr("Highlights · a*"), "key": "highlightA", "field": "colorCorrectionHighlightA", "minimum": -40, "maximum": 40, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Highlights · b*"), "key": "highlightB", "field": "colorCorrectionHighlightB", "minimum": -40, "maximum": 40, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Shadows · a*"), "key": "shadowA", "field": "colorCorrectionShadowA", "minimum": -40, "maximum": 40, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Shadows · b*"), "key": "shadowB", "field": "colorCorrectionShadowB", "minimum": -40, "maximum": 40, "reset": 0, "step": 0.01, "decimals": 2 },
+                                { "title": qsTr("Saturation"), "key": "saturation", "field": "colorCorrectionSaturation", "minimum": -3, "maximum": 3, "reset": 1, "step": 0.01, "decimals": 2 }
+                            ]
+                            delegate: CustomSlider {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                title: modelData.title
+                                from: modelData.minimum
+                                to: modelData.maximum
+                                stepSize: modelData.step
+                                validatorDecimals: modelData.decimals
+                                showReset: true
+                                resetValue: modelData.reset
+                                delayedCommit: true
+                                enabled: root.hasSelection
+                                value: root.hasPresenter
+                                       ? root.presenter.editColorCorrection[modelData.key]
+                                       : modelData.reset
+                                onValueChanged: if (root.liveReady && root.commands)
+                                        root.commands.previewDevelopNumber(modelData.field, value)
+                                onValueCommitted: function (value) {
+                                    if (root.commands)
+                                        root.commands.setDevelopNumber(modelData.field, value);
+                                }
+                                onResetRequested: if (root.commands)
+                                    root.commands.resetControl(modelData.field)
+                            }
+                        }
+                        CustomButton {
+                            text: qsTr("Disable and reset Color Correction")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetControl("colorCorrection")
+                        }
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Color contrast")

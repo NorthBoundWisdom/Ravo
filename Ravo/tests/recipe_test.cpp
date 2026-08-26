@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -1500,6 +1501,153 @@ TEST(RecipeTest, ExplicitDefaultLegacyColorBalancePresenceSurvivesDevelopRoundTr
     auto absent = recipe_from_develop(recipe.asset, develop.value());
     ASSERT_TRUE(absent) << absent.error().message;
     EXPECT_EQ(operation_by_id(absent.value(), kColorBalanceOperationId), nullptr);
+}
+
+TEST(RecipeTest, ColorCorrectionDevelopFieldsAreStrictResettableAndCanonicallyOrdered)
+{
+    DevelopParams develop;
+    EXPECT_FALSE(develop.color_correction_enabled);
+    EXPECT_EQ(develop.color_correction, ColorCorrectionParams{});
+
+    struct Boundary
+    {
+        std::string_view field;
+        double minimum;
+        double maximum;
+    };
+    constexpr std::array boundaries{
+        Boundary{"colorCorrectionHighlightA", kColorCorrectionEndpointMin,
+                 kColorCorrectionEndpointMax},
+        Boundary{"colorCorrectionHighlightB", kColorCorrectionEndpointMin,
+                 kColorCorrectionEndpointMax},
+        Boundary{"colorCorrectionShadowA", kColorCorrectionEndpointMin,
+                 kColorCorrectionEndpointMax},
+        Boundary{"colorCorrectionShadowB", kColorCorrectionEndpointMin,
+                 kColorCorrectionEndpointMax},
+        Boundary{"colorCorrectionSaturation", kColorCorrectionSaturationMin,
+                 kColorCorrectionSaturationMax},
+    };
+    for (const auto &[field, minimum, maximum] : boundaries)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, field, minimum)) << field;
+        EXPECT_TRUE(develop.color_correction_enabled) << field;
+        ASSERT_TRUE(apply_develop_field_strict(develop, field, maximum)) << field;
+        const DevelopParams before_low = develop;
+        EXPECT_FALSE(apply_develop_field_strict(develop, field, minimum - 0.01)) << field;
+        EXPECT_EQ(develop, before_low) << field;
+        const DevelopParams before_high = develop;
+        EXPECT_FALSE(apply_develop_field_strict(develop, field, maximum + 0.01)) << field;
+        EXPECT_EQ(develop, before_high) << field;
+    }
+    const DevelopParams before_nonfinite = develop;
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorCorrectionHighlightA",
+                                            std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_EQ(develop, before_nonfinite);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorCorrectionEnabled", 0.5));
+    EXPECT_EQ(develop, before_nonfinite);
+
+    DevelopParams repaired;
+    repaired.color_correction_enabled = true;
+    repaired.color_correction =
+        ColorCorrectionParams{std::numeric_limits<double>::infinity(), -41.0,
+                              std::numeric_limits<double>::quiet_NaN(), 41.0, -4.0};
+    clamp_develop(repaired);
+    EXPECT_TRUE(repaired.color_correction_enabled);
+    EXPECT_EQ(repaired.color_correction,
+              (ColorCorrectionParams{0.0, kColorCorrectionEndpointMin, 0.0,
+                                     kColorCorrectionEndpointMax, kColorCorrectionSaturationMin}));
+
+    const std::array assignments{
+        std::pair{"colorCorrectionHighlightA", 12.5},
+        std::pair{"colorCorrectionHighlightB", -8.25},
+        std::pair{"colorCorrectionShadowA", -4.75},
+        std::pair{"colorCorrectionShadowB", 9.5},
+        std::pair{"colorCorrectionSaturation", 1.375},
+    };
+    for (const auto &[field, value] : assignments)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, field, value)) << field;
+    }
+    EXPECT_EQ(develop.color_correction, (ColorCorrectionParams{12.5, -8.25, -4.75, 9.5, 1.375}));
+
+    develop.color_balance_rgb.global_y = 0.01;
+    develop.color_contrast = 0.25;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto rgb_balance =
+        std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
+                     [](const OperationInstance &operation)
+                     { return operation.id == "ravo.color.colorbalancergb"; });
+    const auto correction =
+        std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
+                     [](const OperationInstance &operation)
+                     { return operation.id == kColorCorrectionOperationId; });
+    const auto contrast =
+        std::find_if(recipe.value().operations.begin(), recipe.value().operations.end(),
+                     [](const OperationInstance &operation)
+                     { return operation.id == "ravo.color.colorcontrast"; });
+    ASSERT_NE(rgb_balance, recipe.value().operations.end());
+    ASSERT_NE(correction, recipe.value().operations.end());
+    ASSERT_NE(contrast, recipe.value().operations.end());
+    EXPECT_LT(rgb_balance, correction);
+    EXPECT_LT(correction, contrast);
+    auto canonical = color_correction_from_parameters(correction->parameters);
+    ASSERT_TRUE(canonical) << canonical.error().message;
+    EXPECT_EQ(canonical.value(), develop.color_correction);
+
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_correction_enabled);
+    EXPECT_EQ(restored.value().color_correction, develop.color_correction);
+
+    for (const auto &[field, ignored] : assignments)
+    {
+        static_cast<void>(ignored);
+        ASSERT_TRUE(reset_develop_field(develop, field)) << field;
+        EXPECT_TRUE(develop.color_correction_enabled) << field;
+    }
+    EXPECT_EQ(develop.color_correction, ColorCorrectionParams{});
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorCorrectionEnabled", 0.0));
+    EXPECT_FALSE(develop.color_correction_enabled);
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorCorrectionEnabled", 1.0));
+    EXPECT_TRUE(develop.color_correction_enabled);
+    ASSERT_TRUE(reset_develop_field(develop, "colorCorrection"));
+    EXPECT_FALSE(develop.color_correction_enabled);
+    EXPECT_EQ(develop.color_correction, ColorCorrectionParams{});
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorCorrectionHighlightA", 1.0));
+    ASSERT_TRUE(reset_develop_section(develop, "color"));
+    EXPECT_FALSE(develop.color_correction_enabled);
+    EXPECT_EQ(develop.color_correction, ColorCorrectionParams{});
+}
+
+TEST(RecipeTest, ExplicitDefaultColorCorrectionPresenceSurvivesDevelopRoundTrip)
+{
+    const auto parameters = color_correction_to_parameters(ColorCorrectionParams{});
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    Recipe recipe;
+    recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    recipe.operations.push_back({std::string(kColorCorrectionOperationId),
+                                 kColorCorrectionOperationSchemaVersion, "colorcorrection-explicit",
+                                 true, parameters.value(), std::nullopt});
+
+    auto develop = develop_from_recipe(recipe);
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_TRUE(develop.value().color_correction_enabled);
+    EXPECT_EQ(develop.value().color_correction, ColorCorrectionParams{});
+    EXPECT_FALSE(develop.value().is_identity());
+
+    auto restored = recipe_from_develop(recipe.asset, develop.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    const auto *operation = operation_by_id(restored.value(), kColorCorrectionOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_TRUE(operation->enabled);
+    auto decoded = color_correction_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), ColorCorrectionParams{});
+
+    auto absent = recipe_from_develop(recipe.asset, DevelopParams{});
+    ASSERT_TRUE(absent) << absent.error().message;
+    EXPECT_EQ(operation_by_id(absent.value(), kColorCorrectionOperationId), nullptr);
 }
 
 TEST(RecipeTest, ColorBalanceRgbSchemaFailsFastOnEveryInvalidPolicyClass)

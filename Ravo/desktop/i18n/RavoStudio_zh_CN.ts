@@ -732,6 +732,34 @@
         <translation>色相旋转</translation>
     </message>
     <message>
+        <source>Color Correction · D50 Lab</source>
+        <translation>色彩校正 · D50 Lab</translation>
+    </message>
+    <message>
+        <source>Enable Color Correction</source>
+        <translation>启用色彩校正</translation>
+    </message>
+    <message>
+        <source>Highlights · a*</source>
+        <translation>高光 · a*</translation>
+    </message>
+    <message>
+        <source>Highlights · b*</source>
+        <translation>高光 · b*</translation>
+    </message>
+    <message>
+        <source>Shadows · a*</source>
+        <translation>阴影 · a*</translation>
+    </message>
+    <message>
+        <source>Shadows · b*</source>
+        <translation>阴影 · b*</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color Correction</source>
+        <translation>禁用并重置色彩校正</translation>
+    </message>
+    <message>
         <source>Color contrast</source>
         <translation>色彩对比</translation>
     </message>

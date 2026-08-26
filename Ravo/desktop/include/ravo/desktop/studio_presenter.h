@@ -125,6 +125,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editLegacyColorBalance READ editLegacyColorBalance NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorChecker READ editColorChecker NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorBalanceRgb READ editColorBalanceRgb NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorCorrection READ editColorCorrection NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editPrimaries READ editPrimaries NOTIFY editChanged)
     Q_PROPERTY(double editColorContrast READ editColorContrast NOTIFY editChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
@@ -297,6 +298,7 @@ public:
     [[nodiscard]] QVariantMap editLegacyColorBalance() const;
     [[nodiscard]] QVariantMap editColorChecker() const;
     [[nodiscard]] QVariantMap editColorBalanceRgb() const;
+    [[nodiscard]] QVariantMap editColorCorrection() const;
     [[nodiscard]] QVariantMap editPrimaries() const;
     [[nodiscard]] double editColorContrast() const noexcept;
     [[nodiscard]] double editMonochrome() const noexcept;

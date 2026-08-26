@@ -710,6 +710,97 @@ selected_color_checker_patch(const DevelopParams &params) noexcept
     return true;
 }
 
+struct ColorCorrectionNumericField
+{
+    std::string_view develop_name;
+    double ColorCorrectionParams::*member;
+    double minimum;
+    double maximum;
+};
+
+[[nodiscard]] const std::array<ColorCorrectionNumericField, 5> &
+color_correction_numeric_fields() noexcept
+{
+    static const std::array<ColorCorrectionNumericField, 5> fields{{
+        {"colorCorrectionHighlightA", &ColorCorrectionParams::highlight_a,
+         kColorCorrectionEndpointMin, kColorCorrectionEndpointMax},
+        {"colorCorrectionHighlightB", &ColorCorrectionParams::highlight_b,
+         kColorCorrectionEndpointMin, kColorCorrectionEndpointMax},
+        {"colorCorrectionShadowA", &ColorCorrectionParams::shadow_a, kColorCorrectionEndpointMin,
+         kColorCorrectionEndpointMax},
+        {"colorCorrectionShadowB", &ColorCorrectionParams::shadow_b, kColorCorrectionEndpointMin,
+         kColorCorrectionEndpointMax},
+        {"colorCorrectionSaturation", &ColorCorrectionParams::saturation,
+         kColorCorrectionSaturationMin, kColorCorrectionSaturationMax},
+    }};
+    return fields;
+}
+
+[[nodiscard]] bool apply_color_correction_field(DevelopParams &params, const std::string_view name,
+                                                const double value) noexcept
+{
+    if (name == "colorCorrectionEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.color_correction_enabled = value == 1.0;
+        return true;
+    }
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+    for (const auto &field : color_correction_numeric_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.color_correction.*(field.member) = value;
+            params.color_correction_enabled = true;
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_color_correction_field(DevelopParams &params,
+                                                const std::string_view name) noexcept
+{
+    const ColorCorrectionParams defaults;
+    if (name == "colorCorrection")
+    {
+        params.color_correction_enabled = false;
+        params.color_correction = defaults;
+        return true;
+    }
+    if (name == "colorCorrectionEnabled")
+    {
+        params.color_correction_enabled = false;
+        return true;
+    }
+    for (const auto &field : color_correction_numeric_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.color_correction.*(field.member) = defaults.*(field.member);
+            return true;
+        }
+    }
+    return false;
+}
+
+void clamp_color_correction(ColorCorrectionParams &params) noexcept
+{
+    const ColorCorrectionParams defaults;
+    for (const auto &field : color_correction_numeric_fields())
+    {
+        double &value = params.*(field.member);
+        value = std::isfinite(value) ? clamp_value(value, field.minimum, field.maximum) :
+                                       defaults.*(field.member);
+    }
+}
+
 struct ColorBalanceNumericField
 {
     std::string_view parameter_name;
@@ -1984,6 +2075,7 @@ void clamp_develop(DevelopParams &params) noexcept
             std::clamp(params.color_checker_patch, std::int64_t{0},
                        static_cast<std::int64_t>(params.color_checker.patches.size() - 1U));
     clamp_color_balance(params.color_balance_rgb);
+    clamp_color_correction(params.color_correction);
     if (params.exposure_mode != kExposureModeManual &&
         params.exposure_mode != kExposureModeDeflicker)
     {
@@ -2123,12 +2215,13 @@ bool DevelopParams::is_identity() const noexcept
            near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
            near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
            near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) && !color_balance_enabled &&
-           !color_checker_enabled && color_balance_rgb.is_identity() && near(color_contrast, 0.0) &&
-           near(monochrome, 0.0) && near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
-           tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
-           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
-           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
-           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !color_checker_enabled && color_balance_rgb.is_identity() && !color_correction_enabled &&
+           near(color_contrast, 0.0) && near(monochrome, 0.0) && near(split_amount, 0.0) &&
+           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
+           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
+           raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
+           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
+           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -2568,6 +2661,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
     }
     else if (apply_color_balance_field(params.color_balance_rgb, name, value))
+    {
+    }
+    else if (apply_color_correction_field(params, name, value))
     {
     }
     else if (name == "colorContrast")
@@ -3012,6 +3108,9 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     else if (reset_color_balance_field(params.color_balance_rgb, name))
     {
     }
+    else if (reset_color_correction_field(params, name))
+    {
+    }
     else if (name == "colorContrast")
     {
         params.color_contrast = identity.color_contrast;
@@ -3255,6 +3354,8 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.color_checker = identity.color_checker;
         params.color_checker_patch = identity.color_checker_patch;
         params.color_balance_rgb = identity.color_balance_rgb;
+        params.color_correction_enabled = identity.color_correction_enabled;
+        params.color_correction = identity.color_correction;
         params.color_contrast = identity.color_contrast;
         params.monochrome = identity.monochrome;
         params.split_shadows_hue = identity.split_shadows_hue;
@@ -3722,6 +3823,16 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.color.colorbalancergb", "colorbalancergb-1",
                       color_balance_rgb_to_parameters(clamped.color_balance_rgb));
     }
+    if (clamped.color_correction_enabled)
+    {
+        auto color_correction = color_correction_to_parameters(clamped.color_correction);
+        if (!color_correction)
+        {
+            return color_correction.error();
+        }
+        add_operation(recipe, std::string(kColorCorrectionOperationId), "colorcorrection-1",
+                      std::move(color_correction).value(), kColorCorrectionOperationSchemaVersion);
+    }
     if (!near(clamped.color_contrast, 0.0))
     {
         add_operation(recipe, "ravo.color.colorcontrast", "colorcontrast-1",
@@ -4023,6 +4134,16 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return color_balance.error();
             }
             params.color_balance_rgb = std::move(color_balance).value();
+        }
+        else if (operation.id == kColorCorrectionOperationId)
+        {
+            auto color_correction = color_correction_from_parameters(operation.parameters);
+            if (!color_correction)
+            {
+                return color_correction.error();
+            }
+            params.color_correction_enabled = true;
+            params.color_correction = std::move(color_correction).value();
         }
         else if (operation.id == kColorBalanceOperationId)
         {

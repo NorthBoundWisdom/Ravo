@@ -29,6 +29,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -85,6 +86,64 @@ protected:
         std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
+}
+
+struct SourceFileSnapshot
+{
+    std::uintmax_t size = 0U;
+    std::filesystem::file_time_type modified;
+    std::uint64_t content_hash = 1469598103934665603ULL;
+
+    [[nodiscard]] bool operator==(const SourceFileSnapshot &) const = default;
+};
+
+[[nodiscard]] std::optional<SourceFileSnapshot> source_file_snapshot(const std::string &path)
+{
+    std::error_code error;
+    SourceFileSnapshot result;
+    result.size = std::filesystem::file_size(path, error);
+    if (error)
+    {
+        return std::nullopt;
+    }
+    result.modified = std::filesystem::last_write_time(path, error);
+    if (error)
+    {
+        return std::nullopt;
+    }
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+    {
+        return std::nullopt;
+    }
+    std::array<char, 64U * 1024U> block{};
+    while (input)
+    {
+        input.read(block.data(), static_cast<std::streamsize>(block.size()));
+        const auto read = input.gcount();
+        for (std::streamsize index = 0; index < read; ++index)
+        {
+            result.content_hash ^=
+                static_cast<std::uint8_t>(block[static_cast<std::size_t>(index)]);
+            result.content_hash *= 1099511628211ULL;
+        }
+    }
+    if (!input.eof())
+    {
+        return std::nullopt;
+    }
+    return result;
+}
+
+[[nodiscard]] std::uint64_t pixel_hash(const std::vector<std::uint8_t> &pixels) noexcept
+{
+    std::uint64_t hash = 1469598103934665603ULL;
+    for (const auto value : pixels)
+    {
+        hash ^= value;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
 }
 
 inline constexpr std::string_view kLegacyPrimariesPayload =
@@ -633,6 +692,14 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
                                return id != nullptr && id->string_if() != nullptr &&
                                       *id->string_if() == "ravo.color.colorbalance";
                            }));
+    EXPECT_NE(operations->array_if()->end(),
+              std::find_if(operations->array_if()->begin(), operations->array_if()->end(),
+                           [](const JsonValue &operation)
+                           {
+                               const auto *id = operation.find("id");
+                               return id != nullptr && id->string_if() != nullptr &&
+                                      *id->string_if() == kColorCorrectionOperationId;
+                           }));
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
@@ -664,6 +731,9 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     std::error_code ignored;
     std::filesystem::remove(recipe_path, ignored);
     std::filesystem::remove(output_path, ignored);
+    const auto input_argument = mire1_path();
+    const auto source_before = source_file_snapshot(input_argument);
+    ASSERT_TRUE(source_before.has_value());
 
     Recipe recipe;
     recipe.asset = {"mire1", "file:///recipe-placeholder.raw", std::nullopt};
@@ -709,6 +779,17 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     recipe.operations.push_back({std::string(kColorBalanceOperationId),
                                  kColorBalanceOperationSchemaVersion, "colorbalance-1", true,
                                  color_balance_to_parameters(color_balance), std::nullopt});
+    ColorCorrectionParams color_correction;
+    color_correction.highlight_a = 12.5;
+    color_correction.highlight_b = -8.25;
+    color_correction.shadow_a = -4.75;
+    color_correction.shadow_b = 9.5;
+    color_correction.saturation = 1.375;
+    auto color_correction_parameters = color_correction_to_parameters(color_correction);
+    ASSERT_TRUE(color_correction_parameters) << color_correction_parameters.error().message;
+    recipe.operations.push_back({std::string(kColorCorrectionOperationId),
+                                 kColorCorrectionOperationSchemaVersion, "colorcorrection-1", true,
+                                 std::move(color_correction_parameters).value(), std::nullopt});
     OutputColorParams output_color;
     output_color.output_profile = std::string(kInputProfileDisplayP3);
     recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
@@ -728,7 +809,6 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     std::ostringstream stdout_stream;
     std::ostringstream stderr_stream;
     const CliApplication application(engine, stdout_stream, stderr_stream);
-    const auto input_argument = mire1_path();
     const std::vector<std::string_view> arguments{
         "render",        input_argument, "--recipe", recipe_argument, "--output",
         output_argument, "--backend",    "cpu",      "--width",       "64",
@@ -748,6 +828,12 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
 
     Recipe direct_recipe = recipe;
     direct_recipe.asset.input_uri = input_argument;
+    Recipe baseline_recipe = direct_recipe;
+    baseline_recipe.operations.erase(
+        std::remove_if(baseline_recipe.operations.begin(), baseline_recipe.operations.end(),
+                       [](const OperationInstance &operation)
+                       { return operation.id == kColorCorrectionOperationId; }),
+        baseline_recipe.operations.end());
     RenderRequest direct_request;
     direct_request.asset = direct_recipe.asset;
     direct_request.recipe = std::move(direct_recipe);
@@ -755,7 +841,22 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     direct_request.output_height = 48U;
     auto direct = engine.render_to_image(direct_request);
     ASSERT_TRUE(direct) << direct.error().message;
-    EXPECT_EQ(read_png_rgb(output_path), direct.value().rgb);
+    RenderRequest baseline_request;
+    baseline_request.asset = baseline_recipe.asset;
+    baseline_request.recipe = std::move(baseline_recipe);
+    baseline_request.output_width = 64U;
+    baseline_request.output_height = 48U;
+    auto baseline = engine.render_to_image(baseline_request);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    const auto cli_pixels = read_png_rgb(output_path);
+    EXPECT_EQ(cli_pixels, direct.value().rgb);
+    EXPECT_EQ(pixel_hash(cli_pixels), pixel_hash(direct.value().rgb));
+    EXPECT_NE(pixel_hash(cli_pixels), pixel_hash(baseline.value().rgb))
+        << "the canonical Color Correction operation must change the rendered RAW pixels";
+
+    const auto source_after = source_file_snapshot(input_argument);
+    ASSERT_TRUE(source_after.has_value());
+    EXPECT_EQ(*source_after, *source_before);
 
     std::filesystem::remove(recipe_path, ignored);
     std::filesystem::remove(output_path, ignored);
