@@ -619,18 +619,56 @@ ColumnLayout {
                     ColumnLayout {
                         Layout.fillWidth: true
                         width: parent.width
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: qsTr("Exposure mode")
+                            font.bold: true
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Manual"), qsTr("Deflicker")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter
+                                ? root.presenter.editExposureParams.modeIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("exposureMode", currentIndex)
+                        }
+                        CustomSlider {
+                            Layout.fillWidth: true
+                            title: qsTr("Exposure black")
+                            from: -0.1
+                            to: 0.1
+                            stepSize: 0.0001
+                            validatorDecimals: 4
+                            showReset: true
+                            resetValue: 0
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editExposureParams.black : 0
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("exposureBlack", value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("exposureBlack", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("exposureBlack")
+                        }
                         CustomSlider {
                             Layout.fillWidth: true
                             title: qsTr("Exposure")
                             from: -3
                             to: 4
-                            stepSize: 0.01
-                            validatorDecimals: 2
+                            stepSize: 0.001
+                            validatorDecimals: 3
                             showReset: true
                             resetValue: 0
                             delayedCommit: true
+                            visible: !root.hasPresenter
+                                || root.presenter.editExposureParams.modeIndex === 0
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editExposure : 0
+                            value: root.hasPresenter
+                                ? root.presenter.editExposureParams.exposureEv : 0
                             onValueChanged: if (root.liveReady && root.commands)
                                     root.commands.previewDevelopNumber("exposure", value)
                             onValueCommitted: function (value) {
@@ -639,6 +677,78 @@ ColumnLayout {
                             }
                             onResetRequested: if (root.commands)
                                 root.commands.resetControl("exposure")
+                        }
+                        CustomCheckBox {
+                            text: qsTr("Compensate exposure bias")
+                            visible: !root.hasPresenter
+                                || root.presenter.editExposureParams.modeIndex === 0
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter
+                                && root.presenter.editExposureParams.compensateExposureBias
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("exposureCompensateBias",
+                                    checked ? 1 : 0)
+                        }
+                        CustomCheckBox {
+                            text: qsTr("Compensate highlight preservation")
+                            visible: !root.hasPresenter
+                                || root.presenter.editExposureParams.modeIndex === 0
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter
+                                && root.presenter.editExposureParams.compensateHighlightPreservation
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("exposureCompensateHighlight",
+                                    checked ? 1 : 0)
+                        }
+                        CustomSlider {
+                            Layout.fillWidth: true
+                            title: qsTr("Deflicker percentile")
+                            from: 0
+                            to: 100
+                            stepSize: 0.1
+                            validatorDecimals: 1
+                            showReset: true
+                            resetValue: 50
+                            delayedCommit: true
+                            visible: root.hasPresenter
+                                && root.presenter.editExposureParams.modeIndex === 1
+                            enabled: root.hasSelection
+                            value: root.hasPresenter
+                                ? root.presenter.editExposureParams.deflickerPercentile : 50
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(
+                                        "exposureDeflickerPercentile", value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(
+                                        "exposureDeflickerPercentile", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("exposureDeflickerPercentile")
+                        }
+                        CustomSlider {
+                            Layout.fillWidth: true
+                            title: qsTr("Deflicker target EV")
+                            from: -18
+                            to: 18
+                            stepSize: 0.01
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: -4
+                            delayedCommit: true
+                            visible: root.hasPresenter
+                                && root.presenter.editExposureParams.modeIndex === 1
+                            enabled: root.hasSelection
+                            value: root.hasPresenter
+                                ? root.presenter.editExposureParams.deflickerTargetEv : -4
+                            onValueChanged: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber("exposureDeflickerTarget", value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("exposureDeflickerTarget", value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl("exposureDeflickerTarget")
                         }
                         CustomLabel {
                             Layout.fillWidth: true

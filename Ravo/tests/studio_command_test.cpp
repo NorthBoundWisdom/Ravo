@@ -121,6 +121,15 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_EQ(output_color.value(QStringLiteral("proofMode")).toString(), QStringLiteral("off"));
     EXPECT_EQ(output_color.value(QStringLiteral("proofProfile")).toString(),
               QStringLiteral("srgb"));
+    const auto exposure = presenter.editExposureParams();
+    EXPECT_EQ(exposure.size(), 7);
+    EXPECT_EQ(exposure.value(QStringLiteral("modeIndex")).toInt(), 0);
+    EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("black")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("exposureEv")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("deflickerPercentile")).toDouble(), 50.0);
+    EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("deflickerTargetEv")).toDouble(), -4.0);
+    EXPECT_FALSE(exposure.value(QStringLiteral("compensateExposureBias")).toBool());
+    EXPECT_FALSE(exposure.value(QStringLiteral("compensateHighlightPreservation")).toBool());
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)

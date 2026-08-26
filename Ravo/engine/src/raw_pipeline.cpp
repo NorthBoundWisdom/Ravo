@@ -3,13 +3,17 @@
 #include "image_ops.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <QByteArray>
 #include <QFile>
@@ -18,6 +22,7 @@
 #include <QString>
 #include <QUrl>
 
+#include <exiv2/exiv2.hpp>
 #include <libraw/libraw.h>
 
 #include "ravo/recipe/primaries.h"
@@ -120,7 +125,272 @@ namespace
     }
 }
 
+[[nodiscard]] RawExposureMetadata failed_exposure_metadata(const std::string_view detail)
+{
+    RawExposureMetadata result;
+    result.status = RawExposureMetadataStatus::kReadFailed;
+    result.failure_detail = std::string(detail);
+    return result;
+}
+
+[[nodiscard]] RawExposureMetadata read_legacy_exposure_metadata(const QString &path)
+{
+    try
+    {
+        const QByteArray utf8 = path.toUtf8();
+        auto image = Exiv2::ImageFactory::open(utf8.constData());
+        if (!image)
+        {
+            return failed_exposure_metadata("Exiv2 did not create an image reader");
+        }
+        image->readMetadata();
+        const auto &exif = image->exifData();
+        LegacyExposureMetadataTags tags;
+
+        const auto find = [&exif](const char *key) { return exif.findKey(Exiv2::ExifKey(key)); };
+        const auto present = [&exif](const Exiv2::ExifData::const_iterator position)
+        { return position != exif.end() && position->size() != 0U; };
+        const auto scalar_float = [&](const char *key) -> std::optional<double>
+        {
+            const auto position = find(key);
+            if (!present(position))
+            {
+                return std::nullopt;
+            }
+            return static_cast<double>(position->toFloat());
+        };
+        const auto scalar_integer = [&](const Exiv2::ExifData::const_iterator position)
+        { return position->toInt64(0U); };
+        const auto integer_values = [&](const Exiv2::ExifData::const_iterator position,
+                                        const std::size_t required, const std::size_t maximum)
+        {
+            std::vector<std::int64_t> values;
+            if (position->count() < required)
+            {
+                return values;
+            }
+            const std::size_t count = std::min<std::size_t>(position->count(), maximum);
+            values.reserve(count);
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                values.push_back(position->toInt64(index));
+            }
+            return values;
+        };
+
+        tags.photo_exposure_bias_ev = scalar_float("Exif.Photo.ExposureBiasValue");
+        if (!tags.photo_exposure_bias_ev)
+        {
+            tags.image_exposure_bias_ev = scalar_float("Exif.Image.ExposureBiasValue");
+        }
+
+        auto position = find("Exif.Canon.LightingOpt");
+        if (present(position))
+        {
+            tags.canon_lighting_opt = integer_values(position, 3U, 3U);
+        }
+        else if ((position = find("Exif.CanonLiOp.AutoLightingOptimizer")), present(position))
+        {
+            tags.canon_auto_lighting_optimizer = integer_values(position, 1U, 1U);
+        }
+        else if ((position = find("Exif.Fujifilm.DevelopmentDynamicRange")), present(position))
+        {
+            tags.fuji_development_dynamic_range = scalar_integer(position);
+        }
+        else if ((position = find("Exif.Fujifilm.AutoDynamicRange")), present(position))
+        {
+            tags.fuji_auto_dynamic_range = scalar_integer(position);
+        }
+        else if ((position = find("Exif.Nikon3.ColorSpace")), present(position))
+        {
+            tags.nikon_color_space = scalar_integer(position);
+        }
+        else if ((position = find("Exif.Nikon3.ActiveDLighting")), present(position))
+        {
+            tags.nikon_active_d_lighting = scalar_integer(position);
+        }
+        else if ((position = find("Exif.OlympusCs.Gradation")), present(position))
+        {
+            tags.olympus_camera_settings_gradation = integer_values(position, 3U, 4U);
+        }
+        else if ((position = find("Exif.OlympusRd2.Gradation")), present(position))
+        {
+            tags.olympus_raw_development_gradation = integer_values(position, 3U, 4U);
+        }
+        else if ((position = find("Exif.Pentax.DynamicRangeExpansion")), present(position))
+        {
+            const Exiv2::DataBuf bytes = position->dataArea();
+            std::vector<std::uint8_t> values;
+            if (!bytes.empty())
+            {
+                values.push_back(bytes.read_uint8(0U));
+            }
+            tags.pentax_dynamic_range_expansion = std::move(values);
+        }
+
+        auto resolved = resolve_legacy_exposure_metadata(tags);
+        if (!resolved)
+        {
+            const auto reason = resolved.error().context.find("reason");
+            return failed_exposure_metadata(reason == resolved.error().context.end() ?
+                                                resolved.error().message :
+                                                reason->second);
+        }
+        return std::move(resolved).value();
+    }
+    catch (const std::bad_alloc &)
+    {
+        throw;
+    }
+    catch (const Exiv2::Error &error)
+    {
+        return failed_exposure_metadata(error.what());
+    }
+    catch (const std::exception &error)
+    {
+        return failed_exposure_metadata(error.what());
+    }
+}
+
 } // namespace
+
+Result<RawExposureMetadata> resolve_legacy_exposure_metadata(const LegacyExposureMetadataTags &tags)
+{
+    RawExposureMetadata result;
+    result.status = RawExposureMetadataStatus::kReady;
+    const std::optional<double> exposure_bias =
+        tags.photo_exposure_bias_ev ? tags.photo_exposure_bias_ev : tags.image_exposure_bias_ev;
+    if (exposure_bias)
+    {
+        if (!std::isfinite(*exposure_bias))
+        {
+            return make_error(ErrorCode::kValidation, "RAW exposure-bias metadata is not finite",
+                              {{"reason", "non_finite_exposure_bias_metadata"}});
+        }
+        result.exposure_bias_ev = std::clamp(*exposure_bias, -5.0, 5.0);
+    }
+
+    double highlight = 0.0;
+    const auto malformed = [](const std::string_view tag)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "RAW highlight-preservation metadata is malformed",
+                          {{"metadata_tag", std::string(tag)},
+                           {"reason", "malformed_highlight_preservation_metadata"}});
+    };
+    if (tags.canon_lighting_opt)
+    {
+        if (tags.canon_lighting_opt->size() < 3U)
+        {
+            return malformed("Exif.Canon.LightingOpt");
+        }
+        switch ((*tags.canon_lighting_opt)[2])
+        {
+        case 0:
+            highlight = 0.50;
+            break;
+        case 1:
+            highlight = 0.33;
+            break;
+        case 2:
+            highlight = 0.66;
+            break;
+        default:
+            break;
+        }
+    }
+    else if (tags.canon_auto_lighting_optimizer)
+    {
+        if (tags.canon_auto_lighting_optimizer->empty())
+        {
+            return malformed("Exif.CanonLiOp.AutoLightingOptimizer");
+        }
+        switch (tags.canon_auto_lighting_optimizer->front())
+        {
+        case 0:
+            highlight = 0.50;
+            break;
+        case 1:
+            highlight = 0.33;
+            break;
+        case 2:
+            highlight = 0.66;
+            break;
+        default:
+            break;
+        }
+    }
+    else if (tags.fuji_development_dynamic_range || tags.fuji_auto_dynamic_range)
+    {
+        const auto range = tags.fuji_development_dynamic_range ?
+                               *tags.fuji_development_dynamic_range :
+                               *tags.fuji_auto_dynamic_range;
+        highlight = range == 200 ? 1.0 : range == 400 ? 2.0 : 0.0;
+    }
+    else if (tags.nikon_color_space)
+    {
+        highlight = *tags.nikon_color_space == 4 ? 2.0 : 0.0;
+    }
+    else if (tags.nikon_active_d_lighting)
+    {
+        switch (*tags.nikon_active_d_lighting)
+        {
+        case 3:
+            highlight = 0.33;
+            break;
+        case 5:
+            highlight = 0.66;
+            break;
+        case 7:
+            highlight = 1.00;
+            break;
+        case 8:
+            highlight = 1.10;
+            break;
+        case 9:
+            highlight = 1.20;
+            break;
+        case 10:
+            highlight = 1.30;
+            break;
+        case 11:
+            highlight = 1.33;
+            break;
+        default:
+            break;
+        }
+    }
+    else if (tags.olympus_camera_settings_gradation || tags.olympus_raw_development_gradation)
+    {
+        const auto &gradation = tags.olympus_camera_settings_gradation ?
+                                    *tags.olympus_camera_settings_gradation :
+                                    *tags.olympus_raw_development_gradation;
+        if (gradation.size() < 3U)
+        {
+            return malformed(tags.olympus_camera_settings_gradation ? "Exif.OlympusCs.Gradation" :
+                                                                      "Exif.OlympusRd2.Gradation");
+        }
+        const std::int64_t override_state = gradation.size() > 3U ? gradation[3] : 0;
+        if (override_state == 1)
+        {
+            highlight = 0.33;
+        }
+        else if (gradation[0] == -1 && gradation[1] == -1 && gradation[2] == 1)
+        {
+            highlight = 0.66;
+        }
+    }
+    else if (tags.pentax_dynamic_range_expansion)
+    {
+        if (tags.pentax_dynamic_range_expansion->empty())
+        {
+            return malformed("Exif.Pentax.DynamicRangeExpansion");
+        }
+        highlight = tags.pentax_dynamic_range_expansion->front() == 1U ? 1.0 : 0.0;
+    }
+    result.highlight_preservation_ev = std::clamp(highlight, -1.0, 4.0);
+    return result;
+}
 
 Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::string_view input_uri)
 {
@@ -320,12 +590,24 @@ Result<RawInspectPreview> inspect_raw_with_embedded_preview(const std::string_vi
     return result;
 }
 
-Result<DecodedRaw> decode_raw(const std::string_view input_uri)
+Result<DecodedRaw> decode_raw(const std::string_view input_uri,
+                              const CancellationToken &cancellation)
+try
 {
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
     auto decoder = open_libraw_file(input_uri);
     if (!decoder)
     {
         return decoder.error();
+    }
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
     }
     const int unpack_status = decoder.value()->unpack();
     if (unpack_status != LIBRAW_SUCCESS)
@@ -358,6 +640,25 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     result.white_level = raw.color.maximum > 0 ? raw.color.maximum : 65535U;
     result.make = raw.idata.make;
     result.model = raw.idata.model;
+    float deflicker_black = 0.0F;
+    for (std::size_t channel = 0; channel < 4U; ++channel)
+    {
+        const auto separate =
+            static_cast<std::uint16_t>(raw.rawdata.color.black + raw.rawdata.color.cblack[channel]);
+        deflicker_black += static_cast<float>(separate);
+    }
+    result.exposure_deflicker_black_level =
+        static_cast<std::uint16_t>(std::round(deflicker_black / 4.0F));
+    const unsigned deflicker_white = raw.rawdata.color.linear_max[0] != 0U ?
+                                         raw.rawdata.color.linear_max[0] :
+                                         raw.rawdata.color.maximum;
+    result.exposure_deflicker_white_level = static_cast<std::uint16_t>(deflicker_white);
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    result.exposure_metadata = read_legacy_exposure_metadata(local_path(input_uri));
 
     if (raw.color.as_shot_wb_applied)
     {
@@ -419,6 +720,11 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
     result.pixels.resize(static_cast<std::size_t>(result.width) * result.height);
     for (std::uint32_t y = 0; y < result.height; ++y)
     {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
         const auto *source = raw.rawdata.raw_image +
                              (static_cast<std::size_t>(sizes.top_margin) + y) * pitch +
                              sizes.left_margin;
@@ -427,6 +733,64 @@ Result<DecodedRaw> decode_raw(const std::string_view input_uri)
         std::copy_n(source, result.width, result.pixels.begin() + row_offset);
     }
     return result;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "RAW decode allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
+Result<std::shared_ptr<const ExposureAnalysisContext>>
+build_exposure_analysis_context(const DecodedRaw &raw, const CancellationToken &cancellation)
+try
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    const std::uint64_t pixel_count = static_cast<std::uint64_t>(raw.width) * raw.height;
+    if (raw.width == 0U || raw.height == 0U ||
+        pixel_count > std::numeric_limits<std::size_t>::max() ||
+        raw.pixels.size() != static_cast<std::size_t>(pixel_count))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Exposure RAW analysis input does not match its dimensions",
+                          {{"reason", "invalid_exposure_raw_dimensions"}});
+    }
+    if (pixel_count > std::numeric_limits<std::uint32_t>::max())
+    {
+        return make_error(ErrorCode::kUnsupported, "Exposure RAW histogram counters would overflow",
+                          {{"reason", "exposure_raw_histogram_overflow"}});
+    }
+
+    auto context = std::make_shared<ExposureAnalysisContext>();
+    context->raw_histogram.assign(kExposureRawHistogramBins, 0U);
+    context->raw_pixel_count = pixel_count;
+    context->raw_black_level = raw.exposure_deflicker_black_level;
+    context->raw_white_level = raw.exposure_deflicker_white_level;
+    context->metadata = raw.exposure_metadata;
+    for (std::uint32_t row = 0; row < raw.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const std::size_t begin = static_cast<std::size_t>(row) * raw.width;
+        const std::size_t end = begin + raw.width;
+        for (std::size_t index = begin; index < end; ++index)
+        {
+            ++context->raw_histogram[raw.pixels[index]];
+        }
+    }
+    std::shared_ptr<const ExposureAnalysisContext> published = std::move(context);
+    return published;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Exposure RAW analysis allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe,
@@ -440,8 +804,15 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
     // Worst case: source, working, normalization, output, and proof profiles
     // each own three input and three output shaper curves.
     constexpr std::uint64_t color_lut_bytes = 30U * 0x10000U * sizeof(float);
+    const std::uint64_t failure_detail_bytes =
+        static_cast<std::uint64_t>(raw.exposure_metadata.failure_detail.capacity()) + 1U;
+    const std::uint64_t exposure_analysis_bytes =
+        sizeof(ExposureAnalysisContext) +
+        2U * sizeof(std::shared_ptr<const ExposureAnalysisContext>) +
+        kExposureRawHistogramBins * sizeof(std::uint32_t) + 2U * failure_detail_bytes;
     const std::uint64_t float_rgb_bytes = output_pixels * 3U * sizeof(float);
-    std::uint64_t working_bytes = output_bytes + 2U * float_rgb_bytes + color_lut_bytes + raw_bytes;
+    std::uint64_t working_bytes =
+        output_bytes + 2U * float_rgb_bytes + color_lut_bytes + raw_bytes + exposure_analysis_bytes;
     bool owns_raw_copy = false;
     for (const auto &operation : recipe.operations)
     {
@@ -480,7 +851,9 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
             working_bytes += float_rgb_bytes + 0x10000U * sizeof(float);
         }
     }
-    return owns_raw_copy ? working_bytes + raw_bytes : working_bytes;
+    // A RAW repair operation copies the decoded frame before mutation. Its
+    // metadata string allocation coexists with the source and analysis copy.
+    return owns_raw_copy ? working_bytes + raw_bytes + failure_detail_bytes : working_bytes;
 }
 
 Result<void> write_png_atomically(const std::string_view output_uri, const RenderedImage &image)

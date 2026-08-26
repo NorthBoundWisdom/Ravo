@@ -262,7 +262,7 @@ Result<DecodedRaw> EngineFacade::decode_raw_frame(const std::string_view input_u
         return make_error(ErrorCode::kInvalidArgument,
                           "Input URI must not be empty for RAW decode");
     }
-    auto decoded = decode_raw(input_uri);
+    auto decoded = decode_raw(input_uri, cancellation);
     if (!decoded)
     {
         return decoded.error();
@@ -294,6 +294,11 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     if (!temperature)
     {
         return temperature.error();
+    }
+    auto exposure_analysis = build_exposure_analysis_context(raw, cancellation);
+    if (!exposure_analysis)
+    {
+        return exposure_analysis.error();
     }
     const DecodedRaw *source = &raw;
     DecodedRaw prepared;
@@ -352,7 +357,13 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
         }
         profiled = std::move(corrected).value();
     }
-    return apply_input_color(profiled, input_color.value(), cancellation);
+    auto working = apply_input_color(profiled, input_color.value(), cancellation);
+    if (!working)
+    {
+        return working.error();
+    }
+    working.value().exposure_analysis = std::move(exposure_analysis).value();
+    return working;
 }
 
 Result<LinearWorkingBuffer>

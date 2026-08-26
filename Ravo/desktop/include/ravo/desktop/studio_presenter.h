@@ -89,6 +89,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editChannelMixerBR READ editChannelMixerBR NOTIFY editChanged)
     Q_PROPERTY(double editChannelMixerBG READ editChannelMixerBG NOTIFY editChanged)
     Q_PROPERTY(double editChannelMixerBB READ editChannelMixerBB NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editExposureParams READ editExposureParams NOTIFY editChanged)
     Q_PROPERTY(double editExposure READ editExposure NOTIFY editChanged)
     Q_PROPERTY(double editContrast READ editContrast NOTIFY editChanged)
     Q_PROPERTY(double editHighlights READ editHighlights NOTIFY editChanged)
@@ -259,6 +260,7 @@ public:
     [[nodiscard]] double editChannelMixerBR() const noexcept;
     [[nodiscard]] double editChannelMixerBG() const noexcept;
     [[nodiscard]] double editChannelMixerBB() const noexcept;
+    [[nodiscard]] QVariantMap editExposureParams() const;
     [[nodiscard]] double editExposure() const noexcept;
     [[nodiscard]] double editContrast() const noexcept;
     [[nodiscard]] double editHighlights() const noexcept;

@@ -1542,6 +1542,91 @@ TEST_F(CatalogServiceTest, RawLivePreviewReusesLinearWorkingWithoutSaving)
     EXPECT_EQ(highlighted.value().height, first.value().height);
 }
 
+TEST_F(CatalogServiceTest, ExposureDeflickerPreviewPersistsReopensAndExportsIdenticalPixels)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto baseline = service->request_preview(preview);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    ASSERT_FALSE(baseline.value().cache_path.empty());
+    const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
+    ASSERT_FALSE(baseline_image.isNull());
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto develop = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    develop.value().exposure_mode = std::string(kExposureModeDeflicker);
+    develop.value().exposure_black = -0.01;
+    develop.value().exposure_ev = 3.0;
+    develop.value().exposure_deflicker_percentile = 65.0;
+    develop.value().exposure_deflicker_target_ev = -3.5;
+    develop.value().exposure_compensate_exposure_bias = true;
+    develop.value().exposure_compensate_highlight_preservation = true;
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    ASSERT_FALSE(before_reopen.value().cache_path.empty());
+    EXPECT_NE(before_reopen.value().cache_key, baseline.value().cache_key);
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_NE(before_reopen_image, baseline_image);
+
+    const auto export_path = (root / "exposure-deflicker-export.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 64U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    ASSERT_EQ(export_image.size(), before_reopen_image.size());
+    for (int y = 0; y < export_image.height(); ++y)
+    {
+        for (int x = 0; x < export_image.width(); ++x)
+        {
+            EXPECT_EQ(export_image.pixel(x, y), before_reopen_image.pixel(x, y)) << x << ',' << y;
+        }
+    }
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().exposure_mode, develop.value().exposure_mode);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_black, develop.value().exposure_black);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, develop.value().exposure_ev);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_deflicker_percentile,
+                     develop.value().exposure_deflicker_percentile);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_deflicker_target_ev,
+                     develop.value().exposure_deflicker_target_ev);
+    EXPECT_EQ(restored.value().exposure_compensate_exposure_bias,
+              develop.value().exposure_compensate_exposure_bias);
+    EXPECT_EQ(restored.value().exposure_compensate_highlight_preservation,
+              develop.value().exposure_compensate_highlight_preservation);
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+}
+
 TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfterReopen)
 {
     auto created = open_service(true);

@@ -1570,7 +1570,13 @@ try
     InputColorParams params;
     params.input_profile = std::string(kInputProfileSource);
     params.working_profile = std::string(target_profile);
-    return apply_input_color(source, params, cancellation);
+    auto converted = apply_input_color(source, params, cancellation);
+    if (!converted)
+    {
+        return converted.error();
+    }
+    converted.value().exposure_analysis = input.exposure_analysis;
+    return converted;
 }
 catch (const std::bad_alloc &)
 {

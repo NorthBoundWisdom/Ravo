@@ -30,3 +30,4 @@ iop/colorout.c
 iop/primaries.c
 iop/profile_gamma.c
 iop/gamma.c
+iop/exposure.c

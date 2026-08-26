@@ -44,16 +44,18 @@ restoring the old GTK, dynamic IOP ABI, or global state.
 | `ravo_desktop` | C++ composition/presenters, Qt Quick/QML window, Gallery, viewer, file selection; presenters split by catalog/preview/develop and QML by `theme/`, `gallery/`, `inspect/`, and `chrome/` | services, read-only preview resources, Qt Core/Gui/Qml/Quick, GeoControls | Qt Widgets, SQL, codecs, algorithm-private state |
 
 Private Qt Sql/QSQLITE and `QImageReader` adapters contain SQLite and the
-first raster path. LibRaw, LittleCMS, and platform APIs likewise do not cross a
-port. LittleCMS is linked only by `ravo_engine`; public colour state owns ICC
-bytes or matrices instead of third-party handles. Qt value types may be used
-inside a target with a clear benefit, but recipes, CLI JSON, catalog schema,
-and public persisted contracts must not serialize Qt/C++ object memory layout.
+first raster path. LibRaw, LittleCMS, Exiv2, and platform APIs likewise do not
+cross a port. LittleCMS and Exiv2 are linked only by `ravo_engine`; public
+colour and exposure-analysis state owns ICC bytes, matrices, or metadata values
+instead of third-party handles. Qt value types may be used inside a target with
+a clear benefit, but recipes, CLI JSON, catalog schema, and public persisted
+contracts must not serialize Qt/C++ object memory layout.
 
 Exiv2, LensFun, LibJpegTurbo, and LibTIFF are pinned migration source roots.
-Configure validates the exact materialized sources, but no product target links
-them until the corresponding private metadata, lens-database, or codec adapter
-is accepted. Future public contracts continue to carry owned metadata,
+Configure validates the exact materialized sources. The accepted engine-private
+RAW metadata adapter is the only Exiv2 consumer; other roots do not link a
+product target until their corresponding lens-database or codec adapter is
+accepted. Future public contracts continue to carry owned metadata,
 calibration, or encoded bytes rather than third-party handles. Existing
 QSQLITE, zlib/libpng, and Qt JPEG/TIFF imageformat runtime ownership is
 unchanged; the direct codec roots replace that path only when the adapter owns
@@ -212,15 +214,46 @@ Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
 is an explicit C mode; Inspector forwards points and recipe/engine evaluates.
 
 The lightweight P1 global controls do not stand in for the later full-module
-migration queue. Within their exposed subset, Exposure uses `2^EV`; Contrast,
-Saturation, and Vibrance use the darktable basic-adjustments CPU response;
+migration queue. Contrast, Saturation, and Vibrance use the darktable basic-
+adjustments CPU response;
 Lab-backed controls share the engine's D50 working conversion; and hidden
 Sharpen, Grain, Vignette, Bloom, and Soften defaults use the corresponding
 source parameters. Studio presents darktable-equivalent soft ranges while
-recipe validation retains the explicit hard bounds. Full `exposure`,
-`shadhi`, `gamma`, `sharpen`, `grain`, `vignette`, `bloom`, `soften`, and
+recipe validation retains the explicit hard bounds. Full `shadhi`, `gamma`,
+`sharpen`, `grain`, `vignette`, `bloom`, `soften`, and
 `hazeremoval` capability acceptance remains governed by the root migration
 queue rather than inferred from these global controls.
+
+`ravo.core.exposure` v2 owns the frozen legacy exposure CPU contract. Manual
+mode resolves optional camera metadata into
+`effective_ev = exposure_ev - clamp(exposure_bias, -5, 5) +
+clamp(highlight_preservation, -1, 4)` and applies
+`(sample - black) / (exp2(-effective_ev) - black)`. Deflicker replaces that
+effective EV with `target_ev - raw_ev`, where `raw_ev` comes from the first
+65,536-bin cumulative histogram sample at the requested percentile. The
+histogram is captured from the original `DecodedRaw` before hot-pixel repair,
+highlight reconstruction, chromatic-aberration correction, resize, demosaic,
+or input-colour conversion.
+
+The RAW decode path publishes a `shared_ptr<const ExposureAnalysisContext>`
+containing an owned histogram and value-only metadata snapshot. Every operation
+that rebuilds a `LinearWorkingBuffer` propagates the same snapshot, so live
+preview and cache reuse cannot silently recompute it from processed pixels.
+Pinned Exiv2 remains private to the engine adapter; missing tags are the frozen
+zero-EV state, while a file-read failure is retained separately and fails only
+when the recipe requests metadata compensation. Histogram/context bytes and
+owned error-string capacity participate in the RAW memory estimate, and
+allocation, finite-value, and row-cancellation failures publish no output.
+
+Raster input retains manual EV plus black but rejects deflicker and metadata
+compensation because it has no original-RAW analysis context. The old GTK area
+picker is presentation-time analysis rather than serialized exposure math and
+has no implicit Studio substitute. Legacy import accepts only the exact
+default-unmasked singleton boundary and returns stable incompatibility for
+mask, custom blend, or multi-instance state. Shared old exposure proxy/order
+names and `basic.cl` kernel text are cleanup owners for D0.4/S4/S14, not runtime
+exposure owners. [ADR-0024](docs/adr/0024-exposure-analysis-and-metadata-contract.md)
+freezes these boundaries.
 
 `ravo.display.sigmoid` v1 is the sole default display transform:
 `working_space=linear_srgb`, `color_processing=per_channel`, middle-grey

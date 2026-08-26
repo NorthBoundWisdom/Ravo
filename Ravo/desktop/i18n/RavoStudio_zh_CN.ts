@@ -156,8 +156,40 @@
         <translation>明度</translation>
     </message>
     <message>
+        <source>Exposure mode</source>
+        <translation>曝光模式</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <translation>手动</translation>
+    </message>
+    <message>
+        <source>Deflicker</source>
+        <translation>去闪烁</translation>
+    </message>
+    <message>
+        <source>Exposure black</source>
+        <translation>曝光黑位</translation>
+    </message>
+    <message>
         <source>Exposure</source>
         <translation>曝光</translation>
+    </message>
+    <message>
+        <source>Compensate exposure bias</source>
+        <translation>补偿曝光偏置</translation>
+    </message>
+    <message>
+        <source>Compensate highlight preservation</source>
+        <translation>补偿高光保留</translation>
+    </message>
+    <message>
+        <source>Deflicker percentile</source>
+        <translation>去闪烁百分位</translation>
+    </message>
+    <message>
+        <source>Deflicker target EV</source>
+        <translation>去闪烁目标 EV</translation>
     </message>
     <message>
         <source>Sigmoid Display · Standard SDR</source>

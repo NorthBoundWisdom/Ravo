@@ -44,7 +44,7 @@ Windows gtest discovery can see Qt on runner `Path`. CI does not build
 `legacy/`.
 
 Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
-codes, limited XMP mapping, and real `mire1.cr2` inspect/render. Catalog tests
+codes, bounded strict XMP mappings, and real `mire1.cr2` inspect/render. Catalog tests
 cover schema create/reopen/newer-version reject, idempotent PNG/JPEG/RAW
 import, directory sidecar skipping, unchanged source hashes, preview cache,
 missing/unsupported input, and recipe/review independence. They do not replace
@@ -58,13 +58,13 @@ three-platform primary modifiers, and Unicode fuzzy search; its label is
 `ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
-profile gamma + RGB primaries + channel mixer + Color Balance RGB parameter/
+profile gamma + exposure + RGB primaries + channel mixer + Color Balance RGB parameter/
 pixel reopen, and preview-owner cancellation of a superseded token with old
 revision/asset rejection. Separate final-display contracts cover private RGB8
 packing and strict legacy display-boundary absorption; neither is a Develop
 recipe operation or pixel-reopen claim. Desktop QML smoke verifies that Input
 Profile,
-Unbreak Input Profile, Output & Soft Proof, White Balance, RGB Primaries, Color
+Unbreak Input Profile, Output & Soft Proof, White Balance, Exposure, RGB Primaries, Color
 Calibration, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
@@ -229,6 +229,33 @@ directories, corrupt files, and more RAW files.
   missing/zero/nonfinite rejection, cancellation/input immutability,
   preprocess cache key, `mire1.cr2` default/manual/camera-reference channel
   sums, and catalog reopen. A Kelvin/tint RGB approximation is not a substitute.
+- `exposure` statically inventories all 158 frozen XMPs: 110 revisions in 73
+  files (v5=5, v6=102, v7=3), with 109 enabled and one disabled. Tests select
+  the greatest `num` independently of XML order, reject conflicting duplicate
+  revisions, and cover the 73 final revisions (v5=4, v6=66, v7=3). Exact
+  default-unmasked singleton state is accepted; mask/custom blend,
+  `multi_priority > 0`, non-empty `multi_name`, and non-frozen lexical state
+  reject structurally. Schema v2 and v1 upgrade tests cover manual/deflicker,
+  black, percentile, target, and both compensation flags.
+- Exposure CPU tests freeze
+  `effective_ev = exposure_ev - clamp(exposure_bias, -5, 5) +
+  clamp(highlight_preservation, -1, 4)` when enabled and
+  `(sample - black) / (exp2(-effective_ev) - black)`. Canon/Fujifilm/Nikon/
+  Olympus/Pentax metadata-priority and clamp cases are pure value tests;
+  missing tags mean zero EV, while file-read failure matters only when
+  compensation is requested. Deflicker uses the original 65,536-bin RAW
+  histogram, double `pixels * percentile / 100`, first cumulative bin at the
+  threshold, and `target_ev - raw_ev`, replacing manual EV and both
+  compensation terms. Synthetic coverage includes finite boundaries,
+  pre/row cancellation, memory budget, source/profile/context immutability, and
+  owned output. Raster manual mode works, while raster deflicker/compensation
+  reject structurally.
+- The exposure `mire1.cr2` reference pins black 1015, white 16224, median bin
+  2535, and display RGB sums near 251749/234182/220350 with tolerance 1500.
+  The source hash, byte size, and mtime remain unchanged. CLI render, Catalog
+  preview/save/reopen/export, Studio presenter/QML smoke, and interactive/full
+  render parity all consume the same engine context; no test treats the GTK
+  area picker as serialized recipe behavior.
 - `colorbalancergb` uses statically decoded `0083-colorbalancergb` schema-v4
   and `0093-colorbalancergb-ucs` schema-v5 parameters, Filmlight Yrg/grading
   RGB plus three-zone-opacity synthetic tests, DT UCS gamut/soft clip, JzAzBz

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -61,12 +63,40 @@ struct RasterBuffer
     ColorProfileState color_profile;
 };
 
+inline constexpr std::size_t kExposureRawHistogramBins = 1U << 16U;
+
+enum class RawExposureMetadataStatus
+{
+    kUnavailable,
+    kReady,
+    kReadFailed,
+};
+
+struct RawExposureMetadata
+{
+    RawExposureMetadataStatus status = RawExposureMetadataStatus::kUnavailable;
+    double exposure_bias_ev = 0.0;
+    double highlight_preservation_ev = 0.0;
+    std::string failure_detail;
+};
+
+struct ExposureAnalysisContext
+{
+    std::vector<std::uint32_t> raw_histogram;
+    std::uint64_t raw_pixel_count = 0;
+    std::uint32_t raw_black_level = 0;
+    std::uint32_t raw_white_level = 0;
+    RawExposureMetadata metadata;
+};
+
 struct LinearWorkingBuffer
 {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::vector<float> rgb;
     ColorProfileState color_profile;
+    // RAW-only analysis is immutable and may be shared by live-preview/cache copies.
+    std::shared_ptr<const ExposureAnalysisContext> exposure_analysis;
 };
 
 inline constexpr std::uint32_t kRgbHistogramBins = 256;
@@ -122,6 +152,9 @@ struct DecodedRaw
     std::array<float, 4> camera_reference_white_balance{1.0F, 1.0F, 1.0F, 1.0F};
     bool has_as_shot_white_balance = false;
     bool has_camera_reference_white_balance = false;
+    std::uint32_t exposure_deflicker_black_level = 0;
+    std::uint32_t exposure_deflicker_white_level = 0;
+    RawExposureMetadata exposure_metadata;
     ColorProfileState color_profile;
     std::vector<std::uint8_t> cfa_channels;
     std::vector<std::uint16_t> pixels;

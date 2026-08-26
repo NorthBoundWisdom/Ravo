@@ -60,10 +60,10 @@ function(ravo_require_migration_source_root output_variable environment_variable
   set(${output_variable} "${_source_root}" PARENT_SCOPE)
 endfunction()
 
-# These approved migration inputs are materialized and validated now so later
-# metadata, lens-database, and codec adapters cannot fall back to host-selected
-# source. They are not linked until the owning migration item accepts its
-# private adapter contract.
+# These approved migration inputs are materialized and validated so metadata,
+# lens-database, and codec adapters cannot fall back to host-selected source.
+# Each owning migration item links only the source required by its private
+# adapter contract.
 ravo_require_migration_source_root(
   RAVO_EXIV2_SOURCE_ROOT EXIV2_SOURCE_ROOT include/exiv2/exiv2.hpp)
 ravo_require_migration_source_root(
@@ -121,6 +121,70 @@ if(WIN32)
   target_link_libraries(ravo_libraw PRIVATE ws2_32)
 elseif(UNIX)
   target_link_libraries(ravo_libraw PRIVATE m)
+endif()
+
+# Exposure metadata stays behind the engine's RAW adapter. Keep the pinned
+# Exiv2 source fully offline and omit every unrelated application/test surface.
+function(ravo_add_private_exiv2)
+  # Exiv2's 3.11 policy floor predates CMP0077/CMP0074. Supply the parent
+  # defaults so its option() calls honor this function-scoped offline profile.
+  set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+  set(CMAKE_POLICY_DEFAULT_CMP0074 NEW)
+  set(BUILD_SHARED_LIBS OFF)
+  set(EXIV2_ENABLE_XMP OFF)
+  set(EXIV2_ENABLE_EXTERNAL_XMP OFF)
+  set(EXIV2_ENABLE_PNG OFF)
+  set(EXIV2_ENABLE_NLS OFF)
+  set(EXIV2_ENABLE_LENSDATA OFF)
+  set(EXIV2_ENABLE_WEBREADY OFF)
+  set(EXIV2_ENABLE_CURL OFF)
+  set(EXIV2_ENABLE_BMFF ON)
+  set(EXIV2_ENABLE_BROTLI OFF)
+  set(EXIV2_ENABLE_VIDEO OFF)
+  set(EXIV2_ENABLE_INIH OFF)
+  set(EXIV2_ENABLE_FILESYSTEM_ACCESS ON)
+  # Ravo already found Zlib for its own codec graph. Do not let that parent
+  # result define EXV_HAVE_LIBZ after Exiv2's PNG sources were disabled.
+  set(ZLIB_FOUND OFF)
+  set(EXIV2_BUILD_SAMPLES OFF)
+  set(EXIV2_BUILD_EXIV2_COMMAND OFF)
+  set(EXIV2_BUILD_UNIT_TESTS OFF)
+  set(EXIV2_BUILD_FUZZ_TESTS OFF)
+  set(EXIV2_BUILD_DOC OFF)
+  set(EXIV2_TEAM_PACKAGING OFF)
+  set(BUILD_WITH_CCACHE OFF)
+  set(BUILD_WITH_COVERAGE OFF)
+
+  # FindIconv can expose the active Xcode SDK's usr/include as a system include.
+  # AppleClang already searches that directory through its SDK, while repeating
+  # it after libc++ changes the normal C/C++ header ordering. Remove only that
+  # exact redundant Xcode-SDK spelling; custom/Homebrew Iconv roots stay intact.
+  if(APPLE)
+    find_package(Iconv)
+    if(TARGET Iconv::Iconv)
+      get_target_property(_ravo_iconv_includes Iconv::Iconv INTERFACE_INCLUDE_DIRECTORIES)
+      if(_ravo_iconv_includes)
+        set(_ravo_filtered_iconv_includes "")
+        foreach(_ravo_iconv_include IN LISTS _ravo_iconv_includes)
+          if(NOT _ravo_iconv_include MATCHES
+              "/Xcode[^/]*/Contents/Developer/Platforms/MacOSX[.]platform/Developer/SDKs/MacOSX[^/]*[.]sdk/usr/include/?$")
+            list(APPEND _ravo_filtered_iconv_includes "${_ravo_iconv_include}")
+          endif()
+        endforeach()
+        set_property(TARGET Iconv::Iconv PROPERTY
+          INTERFACE_INCLUDE_DIRECTORIES "${_ravo_filtered_iconv_includes}")
+      endif()
+    endif()
+  endif()
+  add_subdirectory("${RAVO_EXIV2_SOURCE_ROOT}" "${CMAKE_BINARY_DIR}/_deps/exiv2" EXCLUDE_FROM_ALL)
+  if(TARGET exiv2lib)
+    target_include_directories(exiv2lib SYSTEM INTERFACE
+      "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>")
+  endif()
+endfunction()
+ravo_add_private_exiv2()
+if(NOT TARGET Exiv2::exiv2lib)
+  message(FATAL_ERROR "Exiv2 source root did not provide Exiv2::exiv2lib")
 endif()
 
 if(NOT DEFINED ENV{LITTLECMS_SOURCE_ROOT})

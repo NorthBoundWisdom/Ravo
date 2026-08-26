@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <new>
 #include <numbers>
@@ -842,6 +843,142 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     return {};
 }
 
+[[nodiscard]] Result<double> exposure_metadata_ev(const WorkingImage &input,
+                                                  const ExposureParams &params)
+{
+    if (!params.compensate_exposure_bias && !params.compensate_highlight_preservation)
+    {
+        return params.exposure_ev;
+    }
+    if (!input.exposure_analysis)
+    {
+        const bool bias = params.compensate_exposure_bias;
+        return make_error(ErrorCode::kUnsupported,
+                          bias ?
+                              "Exposure-bias compensation requires bounded RAW metadata" :
+                              "Highlight-preservation compensation requires bounded RAW metadata",
+                          {{"operation_id", std::string(kExposureOperationId)},
+                           {"reason", bias ? "exposure_bias_compensation_requires_metadata" :
+                                             "exposure_highlight_compensation_requires_metadata"}});
+    }
+    const auto &metadata = input.exposure_analysis->metadata;
+    if (metadata.status == RawExposureMetadataStatus::kReadFailed)
+    {
+        std::map<std::string, std::string, std::less<>> context{
+            {"operation_id", std::string(kExposureOperationId)},
+            {"reason", "exposure_metadata_read_failed"}};
+        if (!metadata.failure_detail.empty())
+        {
+            context.emplace("detail", metadata.failure_detail);
+        }
+        return make_error(ErrorCode::kIo, "RAW exposure metadata could not be read",
+                          std::move(context));
+    }
+    if (metadata.status != RawExposureMetadataStatus::kReady)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "RAW exposure metadata was not captured for this working buffer",
+                          {{"operation_id", std::string(kExposureOperationId)},
+                           {"reason", "exposure_metadata_unavailable"}});
+    }
+    if (!std::isfinite(metadata.exposure_bias_ev) ||
+        !std::isfinite(metadata.highlight_preservation_ev))
+    {
+        return make_error(ErrorCode::kValidation, "RAW exposure metadata is not finite",
+                          {{"reason", "non_finite_exposure_metadata"}});
+    }
+    double effective = params.exposure_ev;
+    if (params.compensate_exposure_bias)
+    {
+        effective -= std::clamp(metadata.exposure_bias_ev, -5.0, 5.0);
+    }
+    if (params.compensate_highlight_preservation)
+    {
+        effective += std::clamp(metadata.highlight_preservation_ev, -1.0, 4.0);
+    }
+    if (!std::isfinite(effective))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Effective metadata-compensated exposure is not finite",
+                          {{"reason", "non_finite_effective_exposure"}});
+    }
+    return effective;
+}
+
+[[nodiscard]] Result<double> exposure_deflicker_ev(const WorkingImage &input,
+                                                   const ExposureParams &params,
+                                                   const CancellationToken &cancellation)
+{
+    if (!input.exposure_analysis)
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Exposure deflicker requires the original single-channel uint16 RAW histogram",
+            {{"operation_id", std::string(kExposureOperationId)},
+             {"reason", "exposure_deflicker_requires_raw_histogram"}});
+    }
+    const auto &analysis = *input.exposure_analysis;
+    if (analysis.raw_histogram.size() != kExposureRawHistogramBins ||
+        analysis.raw_pixel_count == 0U)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure RAW histogram is malformed",
+                          {{"reason", "invalid_exposure_raw_histogram"}});
+    }
+    if (analysis.raw_black_level >= analysis.raw_white_level ||
+        analysis.raw_white_level >= kExposureRawHistogramBins)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure RAW black/white levels are invalid",
+                          {{"reason", "invalid_exposure_raw_levels"}});
+    }
+
+    std::uint64_t histogram_pixels = 0U;
+    for (std::size_t bin = 0; bin < analysis.raw_histogram.size(); ++bin)
+    {
+        if (bin % 4096U == 0U)
+        {
+            auto active = cancellation.check();
+            if (!active)
+            {
+                return active.error();
+            }
+        }
+        histogram_pixels += analysis.raw_histogram[bin];
+    }
+    if (histogram_pixels != analysis.raw_pixel_count)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Exposure RAW histogram pixel count is inconsistent",
+                          {{"reason", "invalid_exposure_raw_histogram_count"}});
+    }
+    const double pixels = static_cast<double>(analysis.raw_pixel_count);
+    const double threshold = std::clamp(pixels * params.deflicker_percentile / 100.0, 0.0, pixels);
+    std::uint64_t cumulative = 0U;
+    std::uint32_t raw_value = 0U;
+    for (std::size_t bin = 0; bin < analysis.raw_histogram.size(); ++bin)
+    {
+        cumulative += analysis.raw_histogram[bin];
+        if (static_cast<double>(cumulative) >= threshold)
+        {
+            raw_value = static_cast<std::uint32_t>(bin);
+            break;
+        }
+    }
+
+    const std::uint32_t raw_range = analysis.raw_white_level - analysis.raw_black_level;
+    const std::int64_t black_relative =
+        static_cast<std::int64_t>(raw_value) - analysis.raw_black_level;
+    const std::int64_t bounded_raw = std::max<std::int64_t>(black_relative, 1);
+    const double raw_ev =
+        -std::log2(static_cast<double>(raw_range)) + std::log2(static_cast<double>(bounded_raw));
+    const double effective = params.deflicker_target_ev - raw_ev;
+    if (!std::isfinite(raw_ev) || !std::isfinite(effective))
+    {
+        return make_error(ErrorCode::kValidation, "Exposure deflicker correction is not finite",
+                          {{"reason", "non_finite_exposure_deflicker"}});
+    }
+    return effective;
+}
+
 [[nodiscard]] Result<WorkingImage> apply_exposure_impl(const WorkingImage &input,
                                                        const ExposureParams &params,
                                                        const CancellationToken &cancellation)
@@ -856,36 +993,20 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     {
         return valid_parameters.error();
     }
-    if (params.mode == kExposureModeDeflicker)
-    {
-        return make_error(
-            ErrorCode::kUnsupported,
-            "Exposure deflicker requires the original single-channel uint16 RAW histogram",
-            {{"operation_id", std::string(kExposureOperationId)},
-             {"reason", "exposure_deflicker_requires_raw_histogram"}});
-    }
-    if (params.compensate_exposure_bias)
-    {
-        return make_error(ErrorCode::kUnsupported,
-                          "Exposure-bias compensation requires bounded source metadata",
-                          {{"operation_id", std::string(kExposureOperationId)},
-                           {"reason", "exposure_bias_compensation_requires_metadata"}});
-    }
-    if (params.compensate_highlight_preservation)
-    {
-        return make_error(
-            ErrorCode::kUnsupported,
-            "Highlight-preservation compensation requires bounded camera RAW metadata",
-            {{"operation_id", std::string(kExposureOperationId)},
-             {"reason", "exposure_highlight_compensation_requires_metadata"}});
-    }
     auto valid_input = validate_exposure_input(input, cancellation);
     if (!valid_input)
     {
         return valid_input.error();
     }
+    auto effective_exposure = params.mode == kExposureModeDeflicker ?
+                                  exposure_deflicker_ev(input, params, cancellation) :
+                                  exposure_metadata_ev(input, params);
+    if (!effective_exposure)
+    {
+        return effective_exposure.error();
+    }
 
-    const double white = std::exp2(-params.exposure_ev);
+    const double white = std::exp2(-effective_exposure.value());
     const double denominator = white - params.black;
     const double scale = 1.0 / denominator;
     if (!std::isfinite(white) || !std::isfinite(denominator) || denominator <= 0.0 ||
@@ -899,6 +1020,7 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     output.width = input.width;
     output.height = input.height;
     output.color_profile = input.color_profile;
+    output.exposure_analysis = input.exposure_analysis;
     output.rgb.resize(input.rgb.size());
     for (std::uint32_t row = 0; row < input.height; ++row)
     {
@@ -1045,6 +1167,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     }
     WorkingImage output;
     output.color_profile = image.color_profile;
+    output.exposure_analysis = image.exposure_analysis;
     if (turns == 2)
     {
         output.width = image.width;
@@ -1119,6 +1242,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     }
     WorkingImage output;
     output.color_profile = image.color_profile;
+    output.exposure_analysis = image.exposure_analysis;
     output.width = crop_w;
     output.height = crop_h;
     output.rgb.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
@@ -1141,6 +1265,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     }
     WorkingImage output;
     output.color_profile = image.color_profile;
+    output.exposure_analysis = image.exposure_analysis;
     output.width = image.width;
     output.height = image.height;
     output.rgb.resize(image.rgb.size());
@@ -1210,6 +1335,7 @@ void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb
     const double cy = (height - 1.0) * 0.5;
     WorkingImage output;
     output.color_profile = image.color_profile;
+    output.exposure_analysis = image.exposure_analysis;
     output.width = image.width;
     output.height = image.height;
     output.rgb.assign(image.rgb.size(), 0.0F);

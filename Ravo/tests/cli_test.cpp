@@ -4,7 +4,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <span>
 #include <string>
@@ -484,6 +486,14 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     primaries.red_purity = 1.15;
     recipe.operations.push_back({std::string(kPrimariesOperationId), 1, "primaries-1", true,
                                  primaries_to_parameters(primaries), std::nullopt});
+    ExposureParams exposure;
+    exposure.mode = std::string(kExposureModeDeflicker);
+    exposure.black = -0.01;
+    exposure.compensate_exposure_bias = true;
+    exposure.compensate_highlight_preservation = true;
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure-deflicker-1", true, exposure_to_parameters(exposure),
+                                 std::nullopt});
     OutputColorParams output_color;
     output_color.output_profile = std::string(kInputProfileDisplayP3);
     recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
@@ -1088,6 +1098,192 @@ TEST_F(CliTest, LegacyXmpMapsStrictExposureV5V6AndV7Payloads)
         EXPECT_EQ(params.value().compensate_highlight_preservation,
                   test_case.highlight_preservation);
     }
+}
+
+TEST_F(CliTest, LegacyXmpExposureFixtureCensusPinsRevisionsSingletonsMasksAndBlendStates)
+{
+    const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";
+    std::vector<std::filesystem::path> xmp_paths;
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(fixture_root))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".xmp")
+        {
+            xmp_paths.push_back(entry.path());
+        }
+    }
+    std::sort(xmp_paths.begin(), xmp_paths.end());
+    ASSERT_EQ(xmp_paths.size(), 158U);
+
+    struct CensusEntry
+    {
+        std::uint64_t history_position = 0U;
+        std::string version;
+        std::string enabled;
+        std::string multi_priority;
+        std::string multi_name;
+        std::string multi_name_hand_edited;
+        std::string blend_version;
+        std::string blend_parameters;
+        bool frozen_blend = false;
+    };
+    std::map<std::string, std::size_t, std::less<>> versions;
+    std::map<std::string, std::size_t, std::less<>> enabled_states;
+    std::map<std::string, std::size_t, std::less<>> priorities;
+    std::map<std::string, std::size_t, std::less<>> names;
+    std::map<std::string, std::size_t, std::less<>> hand_edited_states;
+    std::map<std::string, std::size_t, std::less<>> blend_versions;
+    std::map<std::uint64_t, std::size_t> history_positions;
+    std::array<std::size_t, 6> records_per_file{};
+    std::set<std::pair<std::string, std::string>> distinct_blends;
+    std::set<std::pair<std::string, std::string>> frozen_blends;
+    std::size_t exposure_records = 0U;
+    std::size_t frozen_blend_records = 0U;
+    std::size_t explicit_mask_attributes = 0U;
+    std::size_t strictly_increasing_revision_files = 0U;
+    std::size_t final_singleton_frozen_files = 0U;
+    std::map<std::string, std::size_t, std::less<>> final_versions;
+    std::map<std::string, std::size_t, std::less<>> final_enabled_states;
+
+    for (const auto &path : xmp_paths)
+    {
+        SCOPED_TRACE(path.generic_string());
+        const auto content = read_utf8_text_file(path.generic_string());
+        ASSERT_TRUE(content) << content.error().message;
+        const QByteArray bytes(content.value().data(),
+                               static_cast<qsizetype>(content.value().size()));
+        QXmlStreamReader reader(bytes);
+        std::vector<CensusEntry> file_entries;
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+            if (!reader.isStartElement() || reader.name() != u"li" ||
+                xml_attribute_value(reader.attributes(), u"operation") != "exposure")
+            {
+                continue;
+            }
+            for (const auto &attribute : reader.attributes())
+            {
+                explicit_mask_attributes += attribute.name().contains(u"mask") ? 1U : 0U;
+                const auto name = attribute.name();
+                EXPECT_TRUE(name == u"num" || name == u"operation" || name == u"enabled" ||
+                            name == u"modversion" || name == u"params" || name == u"multi_name" ||
+                            name == u"multi_priority" || name == u"multi_name_hand_edited" ||
+                            name == u"blendop_version" || name == u"blendop_params")
+                    << name.toString().toStdString();
+            }
+
+            const auto position = xml_attribute_value(reader.attributes(), u"num");
+            const auto version = xml_attribute_value(reader.attributes(), u"modversion");
+            const auto enabled = xml_attribute_value(reader.attributes(), u"enabled");
+            const auto priority = xml_attribute_value(reader.attributes(), u"multi_priority");
+            const auto name = xml_attribute_value(reader.attributes(), u"multi_name");
+            const auto hand_edited =
+                xml_attribute_value(reader.attributes(), u"multi_name_hand_edited");
+            const auto blend_version = xml_attribute_value(reader.attributes(), u"blendop_version");
+            const auto blend_parameters =
+                xml_attribute_value(reader.attributes(), u"blendop_params");
+            ASSERT_TRUE(position);
+            ASSERT_TRUE(version);
+            ASSERT_TRUE(enabled);
+            ASSERT_TRUE(priority);
+            ASSERT_TRUE(name);
+            ASSERT_TRUE(blend_version);
+            ASSERT_TRUE(blend_parameters);
+            const auto parsed_position = static_cast<std::uint64_t>(std::stoull(*position));
+
+            LegacyExposureXmpOptions blend_probe;
+            blend_probe.blend_version = *blend_version;
+            blend_probe.blend_parameters = *blend_parameters;
+            const auto probed =
+                import_legacy_xmp({legacy_exposure_xmp(blend_probe),
+                                   {"blend-census", "file:///fixture.raw", std::nullopt}});
+            const bool frozen_blend = static_cast<bool>(probed);
+            if (!frozen_blend)
+            {
+                EXPECT_EQ(probed.error().code, ErrorCode::kUnsupported);
+                EXPECT_EQ(probed.error().context.at("reason"), "unsupported_legacy_exposure_blend");
+            }
+
+            file_entries.push_back({parsed_position, *version, *enabled, *priority, *name,
+                                    hand_edited.value_or("<missing>"), *blend_version,
+                                    *blend_parameters, frozen_blend});
+            ++exposure_records;
+            ++versions[*version];
+            ++enabled_states[*enabled];
+            ++priorities[*priority];
+            ++names[*name];
+            ++hand_edited_states[hand_edited.value_or("<missing>")];
+            ++blend_versions[*blend_version];
+            ++history_positions[parsed_position];
+            distinct_blends.emplace(*blend_version, *blend_parameters);
+            if (frozen_blend)
+            {
+                ++frozen_blend_records;
+                frozen_blends.emplace(*blend_version, *blend_parameters);
+            }
+        }
+        ASSERT_FALSE(reader.hasError()) << reader.errorString().toStdString();
+        ASSERT_LT(file_entries.size(), records_per_file.size());
+        ++records_per_file[file_entries.size()];
+        if (file_entries.empty())
+        {
+            continue;
+        }
+        const bool increasing =
+            std::adjacent_find(file_entries.begin(), file_entries.end(),
+                               [](const CensusEntry &left, const CensusEntry &right)
+                               { return left.history_position >= right.history_position; }) ==
+            file_entries.end();
+        strictly_increasing_revision_files += increasing ? 1U : 0U;
+        const auto final =
+            std::max_element(file_entries.begin(), file_entries.end(),
+                             [](const CensusEntry &left, const CensusEntry &right)
+                             { return left.history_position < right.history_position; });
+        ++final_versions[final->version];
+        ++final_enabled_states[final->enabled];
+        const bool singleton =
+            final->multi_priority == "0" && final->multi_name.empty() &&
+            (final->multi_name_hand_edited == "<missing>" || final->multi_name_hand_edited == "0");
+        final_singleton_frozen_files += singleton && final->frozen_blend ? 1U : 0U;
+    }
+
+    const decltype(versions) expected_versions{{"5", 5U}, {"6", 102U}, {"7", 3U}};
+    const decltype(enabled_states) expected_enabled{{"0", 1U}, {"1", 109U}};
+    const decltype(priorities) expected_priorities{
+        {"0", 77U}, {"1", 9U}, {"2", 8U}, {"3", 8U}, {"4", 8U}};
+    const decltype(names) expected_names{{"", 47U},
+                                         {"1", 9U},
+                                         {"2", 8U},
+                                         {"3", 8U},
+                                         {"4", 8U},
+                                         {"Défaut pour « relatif à la scène »", 16U},
+                                         {"_builtin_scene-referred default", 7U},
+                                         {"scene-referred default", 7U}};
+    const decltype(hand_edited_states) expected_hand_edited{{"0", 38U}, {"<missing>", 72U}};
+    const decltype(blend_versions) expected_blend_versions{{"9", 19U}, {"10", 4U},  {"11", 56U},
+                                                           {"12", 6U}, {"13", 18U}, {"14", 7U}};
+    const decltype(history_positions) expected_positions{{6U, 1U},  {7U, 6U},   {8U, 43U},
+                                                         {9U, 24U}, {10U, 13U}, {11U, 10U},
+                                                         {12U, 8U}, {13U, 3U},  {14U, 2U}};
+    const decltype(final_versions) expected_final_versions{{"5", 4U}, {"6", 66U}, {"7", 3U}};
+    const decltype(final_enabled_states) expected_final_enabled{{"0", 1U}, {"1", 72U}};
+    EXPECT_EQ(exposure_records, 110U);
+    EXPECT_EQ(records_per_file, (std::array<std::size_t, 6>{85U, 61U, 3U, 1U, 0U, 8U}));
+    EXPECT_EQ(versions, expected_versions);
+    EXPECT_EQ(enabled_states, expected_enabled);
+    EXPECT_EQ(priorities, expected_priorities);
+    EXPECT_EQ(names, expected_names);
+    EXPECT_EQ(hand_edited_states, expected_hand_edited);
+    EXPECT_EQ(blend_versions, expected_blend_versions);
+    EXPECT_EQ(history_positions, expected_positions);
+    EXPECT_EQ(final_versions, expected_final_versions);
+    EXPECT_EQ(final_enabled_states, expected_final_enabled);
+    EXPECT_EQ(distinct_blends.size(), 50U);
+    EXPECT_EQ(frozen_blends.size(), 11U);
+    EXPECT_EQ(frozen_blend_records, 69U);
+    EXPECT_EQ(explicit_mask_attributes, 0U);
+    EXPECT_EQ(strictly_increasing_revision_files, 73U);
+    EXPECT_EQ(final_singleton_frozen_files, 29U);
 }
 
 TEST_F(CliTest, LegacyXmpImportsTheFrozenRealExposureFixture)

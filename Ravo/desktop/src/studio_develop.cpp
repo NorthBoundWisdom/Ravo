@@ -152,6 +152,18 @@ double StudioPresenter::editChannelMixerBB() const noexcept
     return develop_.channel_mixer.blue[2];
 }
 
+QVariantMap StudioPresenter::editExposureParams() const
+{
+    return {{QStringLiteral("modeIndex"), develop_.exposure_mode == kExposureModeDeflicker ? 1 : 0},
+            {QStringLiteral("black"), develop_.exposure_black},
+            {QStringLiteral("exposureEv"), develop_.exposure_ev},
+            {QStringLiteral("deflickerPercentile"), develop_.exposure_deflicker_percentile},
+            {QStringLiteral("deflickerTargetEv"), develop_.exposure_deflicker_target_ev},
+            {QStringLiteral("compensateExposureBias"), develop_.exposure_compensate_exposure_bias},
+            {QStringLiteral("compensateHighlightPreservation"),
+             develop_.exposure_compensate_highlight_preservation}};
+}
+
 double StudioPresenter::editExposure() const noexcept
 {
     return develop_.exposure_ev;

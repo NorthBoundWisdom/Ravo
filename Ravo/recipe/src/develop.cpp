@@ -1928,17 +1928,67 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.channel_mixer.blue[2] = value;
     }
+    else if (name == "exposureMode")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.exposure_mode =
+            value == 0.0 ? std::string(kExposureModeManual) : std::string(kExposureModeDeflicker);
+    }
+    else if (name == "exposureBlack")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.exposure_black = value;
+    }
     else if (name == "exposure")
     {
-        params.exposure_ev = value;
-        if (std::isfinite(value))
+        if (!std::isfinite(value))
         {
-            const double white = std::exp2(-value);
-            if (params.exposure_black >= white)
-            {
-                params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
-            }
+            return false;
         }
+        params.exposure_ev = value;
+        const double white = std::exp2(-value);
+        if (params.exposure_black >= white)
+        {
+            params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
+        }
+    }
+    else if (name == "exposureDeflickerPercentile")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.exposure_deflicker_percentile = value;
+    }
+    else if (name == "exposureDeflickerTarget")
+    {
+        if (!std::isfinite(value))
+        {
+            return false;
+        }
+        params.exposure_deflicker_target_ev = value;
+    }
+    else if (name == "exposureCompensateBias")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.exposure_compensate_exposure_bias = value == 1.0;
+    }
+    else if (name == "exposureCompensateHighlight")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.exposure_compensate_highlight_preservation = value == 1.0;
     }
     else if (name == "contrast")
     {
@@ -2342,9 +2392,34 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.channel_mixer = identity.channel_mixer;
     }
+    else if (name == "exposureMode")
+    {
+        params.exposure_mode = identity.exposure_mode;
+    }
+    else if (name == "exposureBlack")
+    {
+        params.exposure_black = identity.exposure_black;
+    }
     else if (name == "exposure")
     {
         params.exposure_ev = identity.exposure_ev;
+    }
+    else if (name == "exposureDeflickerPercentile")
+    {
+        params.exposure_deflicker_percentile = identity.exposure_deflicker_percentile;
+    }
+    else if (name == "exposureDeflickerTarget")
+    {
+        params.exposure_deflicker_target_ev = identity.exposure_deflicker_target_ev;
+    }
+    else if (name == "exposureCompensateBias")
+    {
+        params.exposure_compensate_exposure_bias = identity.exposure_compensate_exposure_bias;
+    }
+    else if (name == "exposureCompensateHighlight")
+    {
+        params.exposure_compensate_highlight_preservation =
+            identity.exposure_compensate_highlight_preservation;
     }
     else if (name == "contrast")
     {

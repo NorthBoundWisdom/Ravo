@@ -156,8 +156,40 @@
         <translation>Light</translation>
     </message>
     <message>
+        <source>Exposure mode</source>
+        <translation>Exposure mode</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <translation>Manual</translation>
+    </message>
+    <message>
+        <source>Deflicker</source>
+        <translation>Deflicker</translation>
+    </message>
+    <message>
+        <source>Exposure black</source>
+        <translation>Exposure black</translation>
+    </message>
+    <message>
         <source>Exposure</source>
         <translation>Exposure</translation>
+    </message>
+    <message>
+        <source>Compensate exposure bias</source>
+        <translation>Compensate exposure bias</translation>
+    </message>
+    <message>
+        <source>Compensate highlight preservation</source>
+        <translation>Compensate highlight preservation</translation>
+    </message>
+    <message>
+        <source>Deflicker percentile</source>
+        <translation>Deflicker percentile</translation>
+    </message>
+    <message>
+        <source>Deflicker target EV</source>
+        <translation>Deflicker target EV</translation>
     </message>
     <message>
         <source>Sigmoid Display · Standard SDR</source>

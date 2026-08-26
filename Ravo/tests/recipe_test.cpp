@@ -195,6 +195,52 @@ TEST(RecipeTest, StrictDevelopFieldAssignmentRejectsInsteadOfClamping)
     EXPECT_DOUBLE_EQ(params.exposure_ev, -1.0);
 }
 
+TEST(RecipeTest, DevelopFieldAssignmentAndResetCoverTheFullExposureV2Contract)
+{
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposureMode", 1.0));
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposureBlack", -0.125));
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposure", 1.25));
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposureDeflickerPercentile", 72.5));
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposureDeflickerTarget", -3.25));
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposureCompensateBias", 1.0));
+    ASSERT_TRUE(apply_develop_field_strict(params, "exposureCompensateHighlight", 1.0));
+    EXPECT_EQ(params.exposure_mode, kExposureModeDeflicker);
+    EXPECT_DOUBLE_EQ(params.exposure_black, -0.125);
+    EXPECT_DOUBLE_EQ(params.exposure_ev, 1.25);
+    EXPECT_DOUBLE_EQ(params.exposure_deflicker_percentile, 72.5);
+    EXPECT_DOUBLE_EQ(params.exposure_deflicker_target_ev, -3.25);
+    EXPECT_TRUE(params.exposure_compensate_exposure_bias);
+    EXPECT_TRUE(params.exposure_compensate_highlight_preservation);
+
+    for (const auto &[name, value] : std::array<std::pair<std::string_view, double>, 6>{
+             std::pair{"exposureMode", 0.5},
+             std::pair{"exposureBlack", std::numeric_limits<double>::infinity()},
+             std::pair{"exposureDeflickerPercentile", 100.01},
+             std::pair{"exposureDeflickerTarget", -18.01}, std::pair{"exposureCompensateBias", 0.5},
+             std::pair{"exposureCompensateHighlight", -1.0}})
+    {
+        auto invalid = apply_develop_field_strict(params, name, value);
+        EXPECT_FALSE(invalid) << name;
+    }
+
+    for (const std::string_view name :
+         {"exposureMode", "exposureBlack", "exposure", "exposureDeflickerPercentile",
+          "exposureDeflickerTarget", "exposureCompensateBias", "exposureCompensateHighlight"})
+    {
+        EXPECT_TRUE(reset_develop_field(params, name)) << name;
+    }
+    const DevelopParams identity;
+    EXPECT_EQ(params.exposure_mode, identity.exposure_mode);
+    EXPECT_DOUBLE_EQ(params.exposure_black, identity.exposure_black);
+    EXPECT_DOUBLE_EQ(params.exposure_ev, identity.exposure_ev);
+    EXPECT_DOUBLE_EQ(params.exposure_deflicker_percentile, identity.exposure_deflicker_percentile);
+    EXPECT_DOUBLE_EQ(params.exposure_deflicker_target_ev, identity.exposure_deflicker_target_ev);
+    EXPECT_EQ(params.exposure_compensate_exposure_bias, identity.exposure_compensate_exposure_bias);
+    EXPECT_EQ(params.exposure_compensate_highlight_preservation,
+              identity.exposure_compensate_highlight_preservation);
+}
+
 TEST(RecipeTest, DevelopRoundTripRetainsTheFullExposureV2Contract)
 {
     DevelopParams params;

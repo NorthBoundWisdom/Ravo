@@ -6,12 +6,15 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <numbers>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <png.h>
@@ -23,6 +26,9 @@
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
 #include "image_ops.h"
+#include "input_color.h"
+#include "primaries.h"
+#include "raw_pipeline.h"
 #include "raw_temperature.h"
 #include "temperature_fixture.h"
 #include "test_support.h"
@@ -49,6 +55,53 @@ public:
         std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2";
     const auto utf8 = path.generic_u8string();
     return {utf8.begin(), utf8.end()};
+}
+
+struct SourceFileSnapshot
+{
+    std::uintmax_t size = 0;
+    std::filesystem::file_time_type modified;
+    std::uint64_t content_hash = 1469598103934665603ULL;
+
+    bool operator==(const SourceFileSnapshot &) const = default;
+};
+
+[[nodiscard]] std::optional<SourceFileSnapshot> source_file_snapshot(const std::string &path)
+{
+    std::error_code error;
+    SourceFileSnapshot result;
+    result.size = std::filesystem::file_size(path, error);
+    if (error)
+    {
+        return std::nullopt;
+    }
+    result.modified = std::filesystem::last_write_time(path, error);
+    if (error)
+    {
+        return std::nullopt;
+    }
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+    {
+        return std::nullopt;
+    }
+    std::array<char, 64U * 1024U> block{};
+    while (input)
+    {
+        input.read(block.data(), static_cast<std::streamsize>(block.size()));
+        const auto read = input.gcount();
+        for (std::streamsize index = 0; index < read; ++index)
+        {
+            result.content_hash ^=
+                static_cast<std::uint8_t>(block[static_cast<std::size_t>(index)]);
+            result.content_hash *= 1099511628211ULL;
+        }
+    }
+    if (!input.eof())
+    {
+        return std::nullopt;
+    }
+    return result;
 }
 
 struct DecodedPng
@@ -83,6 +136,24 @@ void declare_input(Recipe &recipe)
                                  input_color_to_parameters(InputColorParams{}), std::nullopt});
     recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
                                  output_color_to_parameters(OutputColorParams{}), std::nullopt});
+}
+
+[[nodiscard]] std::shared_ptr<const ExposureAnalysisContext>
+exposure_analysis(const std::initializer_list<std::pair<std::uint16_t, std::uint32_t>> bins,
+                  const std::uint32_t black_level, const std::uint32_t white_level,
+                  RawExposureMetadata metadata = {})
+{
+    auto context = std::make_shared<ExposureAnalysisContext>();
+    context->raw_histogram.assign(kExposureRawHistogramBins, 0U);
+    for (const auto &[bin, count] : bins)
+    {
+        context->raw_histogram[bin] += count;
+        context->raw_pixel_count += count;
+    }
+    context->raw_black_level = black_level;
+    context->raw_white_level = white_level;
+    context->metadata = std::move(metadata);
+    return context;
 }
 
 [[nodiscard]] std::optional<DecodedPng> read_rgb_png(const std::filesystem::path &path)
@@ -183,7 +254,7 @@ TEST(ExposureTest, ManualEvAndBlackUseTheFrozenLegacyFormulaWithoutMutatingSourc
     profile.has_matrix = true;
     profile.camera_input = true;
     profile.icc_bytes = {1U, 2U, 3U};
-    const WorkingImage input{2, 1, {-0.5F, 0.0F, 0.25F, 0.5F, 1.0F, 2.0F}, profile};
+    const WorkingImage input{2, 1, {-0.5F, 0.0F, 0.25F, 0.5F, 1.0F, 2.0F}, profile, {}};
     const auto original = input;
     ExposureParams params;
     params.black = -0.25;
@@ -216,7 +287,7 @@ TEST(ExposureTest, ManualEvAndBlackUseTheFrozenLegacyFormulaWithoutMutatingSourc
 
 TEST(ExposureTest, BoundaryFailuresNeverPublishOrMutatePixels)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
     input.color_profile.kind = ColorProfileKind::kBuiltin;
     input.color_profile.model = ColorModel::kRgb;
     input.color_profile.identifier = "linear-rec709";
@@ -298,9 +369,9 @@ TEST(ExposureTest, BoundaryFailuresNeverPublishOrMutatePixels)
     EXPECT_FLOAT_EQ(large.rgb.back(), 0.5F);
 }
 
-TEST(ExposureTest, DeferredModesAndMetadataCompensationFailWithFrozenReasons)
+TEST(ExposureTest, RasterDeflickerAndMetadataCompensationFailWithFrozenReasons)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
     input.color_profile.model = ColorModel::kRgb;
 
     ExposureParams deflicker;
@@ -336,6 +407,347 @@ TEST(ExposureTest, DeferredModesAndMetadataCompensationFailWithFrozenReasons)
     ASSERT_FALSE(masked_result);
     EXPECT_EQ(masked_result.error().code, ErrorCode::kUnsupported);
     EXPECT_EQ(masked_result.error().context.at("reason"), "exposure_mask_graph_unavailable");
+}
+
+TEST(ExposureTest, ManualMetadataCompensationUsesLegacyOrderBoundsAndOwnedOutput)
+{
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    input.color_profile.kind = ColorProfileKind::kMatrix;
+    input.color_profile.model = ColorModel::kRgb;
+    input.color_profile.identifier = "metadata-fixture";
+    input.color_profile.icc_bytes = {4U, 5U, 6U};
+    RawExposureMetadata metadata;
+    metadata.status = RawExposureMetadataStatus::kReady;
+    metadata.exposure_bias_ev = 2.25;
+    metadata.highlight_preservation_ev = 0.66;
+    input.exposure_analysis = exposure_analysis({}, 0U, 1024U, metadata);
+    const auto original = input;
+
+    ExposureParams params;
+    params.black = -0.125;
+    params.exposure_ev = 1.0;
+    params.compensate_exposure_bias = true;
+    params.compensate_highlight_preservation = true;
+    auto result = apply_exposure(input, params, CancellationToken{});
+
+    ASSERT_TRUE(result) << result.error().message;
+    const double effective_ev = 1.0 - 2.25 + 0.66;
+    const double scale = 1.0 / (std::exp2(-effective_ev) - params.black);
+    for (std::size_t index = 0; index < input.rgb.size(); ++index)
+    {
+        EXPECT_NEAR(result.value().rgb[index],
+                    (static_cast<double>(input.rgb[index]) - params.black) * scale, 1.0e-6);
+    }
+    EXPECT_EQ(result.value().exposure_analysis, input.exposure_analysis);
+    EXPECT_NE(result.value().rgb.data(), input.rgb.data());
+    EXPECT_NE(result.value().color_profile.icc_bytes.data(), input.color_profile.icc_bytes.data());
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+
+    auto clamped_input = input;
+    auto clamped_context = std::make_shared<ExposureAnalysisContext>(*input.exposure_analysis);
+    clamped_context->metadata.exposure_bias_ev = 50.0;
+    clamped_context->metadata.highlight_preservation_ev = 50.0;
+    clamped_input.exposure_analysis = clamped_context;
+    params.black = 0.0;
+    auto clamped = apply_exposure(clamped_input, params, CancellationToken{});
+    ASSERT_TRUE(clamped) << clamped.error().message;
+    for (std::size_t index = 0; index < input.rgb.size(); ++index)
+    {
+        EXPECT_NEAR(clamped.value().rgb[index], input.rgb[index], 1.0e-6) << index;
+    }
+}
+
+TEST(ExposureTest, MetadataReadStateDistinguishesAbsentTagsFailuresAndCorruption)
+{
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    input.color_profile.model = ColorModel::kRgb;
+    RawExposureMetadata ready;
+    ready.status = RawExposureMetadataStatus::kReady;
+    input.exposure_analysis = exposure_analysis({}, 0U, 1024U, ready);
+    ExposureParams requested;
+    requested.exposure_ev = 1.0;
+    requested.compensate_exposure_bias = true;
+    requested.compensate_highlight_preservation = true;
+
+    auto missing_tags_are_zero = apply_exposure(input, requested, CancellationToken{});
+    ASSERT_TRUE(missing_tags_are_zero) << missing_tags_are_zero.error().message;
+    EXPECT_NEAR(missing_tags_are_zero.value().rgb[0], input.rgb[0] * 2.0, 1.0e-6);
+
+    auto failed_context = std::make_shared<ExposureAnalysisContext>(*input.exposure_analysis);
+    failed_context->metadata.status = RawExposureMetadataStatus::kReadFailed;
+    failed_context->metadata.failure_detail = "fixture metadata failure";
+    input.exposure_analysis = failed_context;
+    auto ordinary_manual = apply_exposure(input, ExposureParams{}, CancellationToken{});
+    ASSERT_TRUE(ordinary_manual) << ordinary_manual.error().message;
+    auto failed = apply_exposure(input, requested, CancellationToken{});
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+    EXPECT_EQ(failed.error().context.at("reason"), "exposure_metadata_read_failed");
+    EXPECT_EQ(failed.error().context.at("detail"), "fixture metadata failure");
+
+    auto unavailable_context = std::make_shared<ExposureAnalysisContext>(*failed_context);
+    unavailable_context->metadata = {};
+    input.exposure_analysis = unavailable_context;
+    auto unavailable = apply_exposure(input, requested, CancellationToken{});
+    ASSERT_FALSE(unavailable);
+    EXPECT_EQ(unavailable.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(unavailable.error().context.at("reason"), "exposure_metadata_unavailable");
+
+    auto corrupt_context = std::make_shared<ExposureAnalysisContext>(*unavailable_context);
+    corrupt_context->metadata.status = RawExposureMetadataStatus::kReady;
+    corrupt_context->metadata.exposure_bias_ev = std::numeric_limits<double>::infinity();
+    input.exposure_analysis = corrupt_context;
+    auto corrupt = apply_exposure(input, requested, CancellationToken{});
+    ASSERT_FALSE(corrupt);
+    EXPECT_EQ(corrupt.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(corrupt.error().context.at("reason"), "non_finite_exposure_metadata");
+}
+
+TEST(ExposureMetadataTest, BiasUsesPhotoThenImagePriorityAndLegacyClamp)
+{
+    LegacyExposureMetadataTags tags;
+    auto absent = resolve_legacy_exposure_metadata(tags);
+    ASSERT_TRUE(absent) << absent.error().message;
+    EXPECT_EQ(absent.value().status, RawExposureMetadataStatus::kReady);
+    EXPECT_DOUBLE_EQ(absent.value().exposure_bias_ev, 0.0);
+    EXPECT_DOUBLE_EQ(absent.value().highlight_preservation_ev, 0.0);
+
+    tags.photo_exposure_bias_ev = 9.0;
+    tags.image_exposure_bias_ev = -9.0;
+    auto photo = resolve_legacy_exposure_metadata(tags);
+    ASSERT_TRUE(photo) << photo.error().message;
+    EXPECT_DOUBLE_EQ(photo.value().exposure_bias_ev, 5.0);
+
+    tags.photo_exposure_bias_ev.reset();
+    auto image = resolve_legacy_exposure_metadata(tags);
+    ASSERT_TRUE(image) << image.error().message;
+    EXPECT_DOUBLE_EQ(image.value().exposure_bias_ev, -5.0);
+
+    tags.image_exposure_bias_ev = std::numeric_limits<double>::quiet_NaN();
+    auto invalid = resolve_legacy_exposure_metadata(tags);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "non_finite_exposure_bias_metadata");
+}
+
+TEST(ExposureMetadataTest, HighlightMappingFreezesMakerPriorityAndValues)
+{
+    for (const auto &[state, expected] : std::array<std::pair<std::int64_t, double>, 4>{
+             std::pair{0, 0.50}, std::pair{1, 0.33}, std::pair{2, 0.66}, std::pair{3, 0.0}})
+    {
+        LegacyExposureMetadataTags tags;
+        tags.canon_lighting_opt = std::vector<std::int64_t>{12, 1, state};
+        tags.fuji_development_dynamic_range = 400;
+        auto mapped = resolve_legacy_exposure_metadata(tags);
+        ASSERT_TRUE(mapped) << mapped.error().message;
+        EXPECT_DOUBLE_EQ(mapped.value().highlight_preservation_ev, expected) << state;
+    }
+
+    LegacyExposureMetadataTags canon_cr3;
+    canon_cr3.canon_auto_lighting_optimizer = std::vector<std::int64_t>{2};
+    auto canon = resolve_legacy_exposure_metadata(canon_cr3);
+    ASSERT_TRUE(canon) << canon.error().message;
+    EXPECT_DOUBLE_EQ(canon.value().highlight_preservation_ev, 0.66);
+
+    LegacyExposureMetadataTags fuji;
+    fuji.fuji_development_dynamic_range = 200;
+    fuji.fuji_auto_dynamic_range = 400;
+    auto development = resolve_legacy_exposure_metadata(fuji);
+    ASSERT_TRUE(development) << development.error().message;
+    EXPECT_DOUBLE_EQ(development.value().highlight_preservation_ev, 1.0);
+    fuji.fuji_development_dynamic_range.reset();
+    auto automatic = resolve_legacy_exposure_metadata(fuji);
+    ASSERT_TRUE(automatic) << automatic.error().message;
+    EXPECT_DOUBLE_EQ(automatic.value().highlight_preservation_ev, 2.0);
+
+    LegacyExposureMetadataTags nikon;
+    nikon.nikon_color_space = 4;
+    nikon.nikon_active_d_lighting = 11;
+    auto hlg = resolve_legacy_exposure_metadata(nikon);
+    ASSERT_TRUE(hlg) << hlg.error().message;
+    EXPECT_DOUBLE_EQ(hlg.value().highlight_preservation_ev, 2.0);
+    nikon.nikon_color_space.reset();
+    const std::array<std::pair<std::int64_t, double>, 8> nikon_cases{
+        std::pair{3, 0.33}, std::pair{5, 0.66}, std::pair{7, 1.0},   std::pair{8, 1.1},
+        std::pair{9, 1.2},  std::pair{10, 1.3}, std::pair{11, 1.33}, std::pair{65535, 0.0}};
+    for (const auto &[state, expected] : nikon_cases)
+    {
+        nikon.nikon_active_d_lighting = state;
+        auto mapped = resolve_legacy_exposure_metadata(nikon);
+        ASSERT_TRUE(mapped) << mapped.error().message;
+        EXPECT_DOUBLE_EQ(mapped.value().highlight_preservation_ev, expected) << state;
+    }
+
+    LegacyExposureMetadataTags olympus;
+    olympus.olympus_camera_settings_gradation = std::vector<std::int64_t>{0, 0, 0, 1};
+    auto overridden = resolve_legacy_exposure_metadata(olympus);
+    ASSERT_TRUE(overridden) << overridden.error().message;
+    EXPECT_DOUBLE_EQ(overridden.value().highlight_preservation_ev, 0.33);
+    olympus.olympus_camera_settings_gradation = std::vector<std::int64_t>{-1, -1, 1};
+    auto low_key = resolve_legacy_exposure_metadata(olympus);
+    ASSERT_TRUE(low_key) << low_key.error().message;
+    EXPECT_DOUBLE_EQ(low_key.value().highlight_preservation_ev, 0.66);
+
+    LegacyExposureMetadataTags pentax;
+    pentax.pentax_dynamic_range_expansion = std::vector<std::uint8_t>{1U, 2U};
+    auto expanded = resolve_legacy_exposure_metadata(pentax);
+    ASSERT_TRUE(expanded) << expanded.error().message;
+    EXPECT_DOUBLE_EQ(expanded.value().highlight_preservation_ev, 1.0);
+
+    LegacyExposureMetadataTags malformed;
+    malformed.canon_lighting_opt = std::vector<std::int64_t>{1, 2};
+    auto rejected = resolve_legacy_exposure_metadata(malformed);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "malformed_highlight_preservation_metadata");
+}
+
+TEST(ExposureTest, DeflickerPercentilesUseOriginalUint16HistogramAndOverrideCompensations)
+{
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    input.color_profile.model = ColorModel::kRgb;
+    RawExposureMetadata failed_metadata;
+    failed_metadata.status = RawExposureMetadataStatus::kReadFailed;
+    failed_metadata.failure_detail = "must be ignored by deflicker";
+    input.exposure_analysis =
+        exposure_analysis({{100U, 1U}, {200U, 1U}, {400U, 2U}}, 64U, 1024U, failed_metadata);
+    const auto original = input;
+
+    struct Case
+    {
+        double percentile;
+        std::uint32_t selected_raw;
+    };
+    for (const Case test_case : {Case{0.0, 0U}, Case{50.0, 200U}, Case{100.0, 400U}})
+    {
+        ExposureParams params;
+        params.mode = std::string(kExposureModeDeflicker);
+        params.black = -0.125;
+        params.exposure_ev = kExposureEvMax;
+        params.deflicker_percentile = test_case.percentile;
+        params.deflicker_target_ev = -4.0;
+        params.compensate_exposure_bias = true;
+        params.compensate_highlight_preservation = true;
+        auto result = apply_exposure(input, params, CancellationToken{});
+
+        ASSERT_TRUE(result) << result.error().message;
+        const double raw_range = 1024.0 - 64.0;
+        const double black_relative = static_cast<double>(
+            std::max<std::int64_t>(static_cast<std::int64_t>(test_case.selected_raw) - 64, 1));
+        const double raw_ev = -std::log2(raw_range) + std::log2(black_relative);
+        const double effective_ev = params.deflicker_target_ev - raw_ev;
+        const double scale = 1.0 / (std::exp2(-effective_ev) - params.black);
+        for (std::size_t index = 0; index < input.rgb.size(); ++index)
+        {
+            EXPECT_NEAR(result.value().rgb[index],
+                        (static_cast<double>(input.rgb[index]) - params.black) * scale, 1.0e-6)
+                << test_case.percentile << ":" << index;
+        }
+        EXPECT_EQ(result.value().exposure_analysis, input.exposure_analysis);
+    }
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ExposureTest, DeflickerRejectsMalformedHistogramCountsAndRawLevels)
+{
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    input.color_profile.model = ColorModel::kRgb;
+    ExposureParams params;
+    params.mode = std::string(kExposureModeDeflicker);
+
+    auto malformed = std::make_shared<ExposureAnalysisContext>();
+    malformed->raw_pixel_count = 1U;
+    malformed->raw_black_level = 0U;
+    malformed->raw_white_level = 1024U;
+    input.exposure_analysis = malformed;
+    auto wrong_bins = apply_exposure(input, params, CancellationToken{});
+    ASSERT_FALSE(wrong_bins);
+    EXPECT_EQ(wrong_bins.error().context.at("reason"), "invalid_exposure_raw_histogram");
+
+    malformed->raw_histogram.assign(kExposureRawHistogramBins, 0U);
+    malformed->raw_histogram[100U] = 2U;
+    auto wrong_count = apply_exposure(input, params, CancellationToken{});
+    ASSERT_FALSE(wrong_count);
+    EXPECT_EQ(wrong_count.error().context.at("reason"), "invalid_exposure_raw_histogram_count");
+
+    malformed->raw_pixel_count = 2U;
+    malformed->raw_black_level = 1024U;
+    malformed->raw_white_level = 1024U;
+    auto wrong_levels = apply_exposure(input, params, CancellationToken{});
+    ASSERT_FALSE(wrong_levels);
+    EXPECT_EQ(wrong_levels.error().context.at("reason"), "invalid_exposure_raw_levels");
+}
+
+TEST(ExposureAnalysisTest, SnapshotOwnsOriginalRawHistogramAndHonorsCancellation)
+{
+    DecodedRaw raw;
+    raw.width = 3U;
+    raw.height = 2U;
+    raw.pixels = {0U, 100U, 100U, 400U, 65535U, 400U};
+    raw.exposure_deflicker_black_level = 64U;
+    raw.exposure_deflicker_white_level = 1024U;
+    raw.exposure_metadata.status = RawExposureMetadataStatus::kReady;
+    raw.exposure_metadata.exposure_bias_ev = 0.5;
+    const auto source = raw;
+
+    auto snapshot = build_exposure_analysis_context(raw, CancellationToken{});
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    ASSERT_EQ(snapshot.value()->raw_histogram.size(), kExposureRawHistogramBins);
+    EXPECT_EQ(snapshot.value()->raw_pixel_count, 6U);
+    EXPECT_EQ(snapshot.value()->raw_histogram[0U], 1U);
+    EXPECT_EQ(snapshot.value()->raw_histogram[100U], 2U);
+    EXPECT_EQ(snapshot.value()->raw_histogram[400U], 2U);
+    EXPECT_EQ(snapshot.value()->raw_histogram[65535U], 1U);
+    EXPECT_EQ(snapshot.value()->raw_black_level, 64U);
+    EXPECT_EQ(snapshot.value()->raw_white_level, 1024U);
+    EXPECT_DOUBLE_EQ(snapshot.value()->metadata.exposure_bias_ev, 0.5);
+    EXPECT_EQ(raw.pixels, source.pixels);
+    EXPECT_EQ(raw.exposure_metadata.exposure_bias_ev, source.exposure_metadata.exposure_bias_ev);
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("analysis-pre-cancel"));
+    auto pre_cancelled = build_exposure_analysis_context(raw, cancelled.token());
+    ASSERT_FALSE(pre_cancelled);
+    EXPECT_EQ(pre_cancelled.error().code, ErrorCode::kCancelled);
+
+    DecodedRaw large = raw;
+    large.width = 1024U;
+    large.height = 8192U;
+    large.pixels.assign(static_cast<std::size_t>(large.width) * large.height, 100U);
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+    auto row_cancelled = build_exposure_analysis_context(large, deadline.token());
+    ASSERT_FALSE(row_cancelled);
+    EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(large.pixels.front(), 100U);
+    EXPECT_EQ(large.pixels.back(), 100U);
+}
+
+TEST(ExposureAnalysisTest, MemoryEstimateIncludesHistogramContextAndOwnedFailureDetail)
+{
+    DecodedRaw raw;
+    raw.width = 2U;
+    raw.height = 2U;
+    raw.pixels.assign(4U, 0U);
+    Recipe recipe;
+    const std::uint64_t empty_capacity = raw.exposure_metadata.failure_detail.capacity();
+    const std::uint64_t without_detail = estimate_raw_render_memory(raw, recipe, 2U, 2U);
+    raw.exposure_metadata.failure_detail.reserve(4096U);
+    raw.exposure_metadata.failure_detail = "seventeen-characters";
+    const std::uint64_t failure_capacity = raw.exposure_metadata.failure_detail.capacity();
+    const std::uint64_t with_detail = estimate_raw_render_memory(raw, recipe, 2U, 2U);
+
+    // DecodedRaw and the immutable analysis snapshot coexist during render, so
+    // both owned string allocations (including their terminators) are budgeted.
+    EXPECT_EQ(with_detail - without_detail, 2U * (failure_capacity - empty_capacity));
+    EXPECT_GE(without_detail,
+              kExposureRawHistogramBins * sizeof(std::uint32_t) + sizeof(ExposureAnalysisContext));
+
+    recipe.operations.push_back({"ravo.raw.highlights", 1, "highlights-1", true, {}, std::nullopt});
+    const std::uint64_t with_raw_copy = estimate_raw_render_memory(raw, recipe, 2U, 2U);
+    EXPECT_EQ(with_raw_copy - with_detail,
+              raw.pixels.size() * sizeof(std::uint16_t) + failure_capacity + 1U);
 }
 
 TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)
@@ -531,6 +943,86 @@ TEST(EngineFacadeTest, ExposureOperationRaisesRenderedFixtureBrightness)
 
     std::filesystem::remove(base_path, ignored);
     std::filesystem::remove(exposed_path, ignored);
+}
+
+TEST(EngineFacadeTest, ExposureDeflickerHasAFrozenRawReferenceAndPreservesTheSource)
+{
+    const auto source_before = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(source_before.has_value());
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto decoded = engine.value().decode_raw_frame(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    const auto original_pixels = decoded.value().pixels;
+    auto analysis = build_exposure_analysis_context(decoded.value(), CancellationToken{});
+    ASSERT_TRUE(analysis) << analysis.error().message;
+    ASSERT_EQ(analysis.value()->raw_histogram.size(), kExposureRawHistogramBins);
+    EXPECT_EQ(analysis.value()->raw_pixel_count, decoded.value().pixels.size());
+    EXPECT_EQ(analysis.value()->raw_black_level, 1015U);
+    EXPECT_EQ(analysis.value()->raw_white_level, 16224U);
+    EXPECT_EQ(analysis.value()->metadata.status, RawExposureMetadataStatus::kReady);
+    EXPECT_DOUBLE_EQ(analysis.value()->metadata.exposure_bias_ev, 0.0);
+    EXPECT_DOUBLE_EQ(analysis.value()->metadata.highlight_preservation_ev, 0.0);
+
+    const double threshold = static_cast<double>(analysis.value()->raw_pixel_count) * 50.0 / 100.0;
+    std::uint64_t cumulative = 0U;
+    std::uint32_t median_bin = 0U;
+    for (std::size_t bin = 0U; bin < analysis.value()->raw_histogram.size(); ++bin)
+    {
+        cumulative += analysis.value()->raw_histogram[bin];
+        if (static_cast<double>(cumulative) >= threshold)
+        {
+            median_bin = static_cast<std::uint32_t>(bin);
+            break;
+        }
+    }
+    EXPECT_EQ(median_bin, 2535U);
+
+    ExposureParams params;
+    params.mode = std::string(kExposureModeDeflicker);
+    Recipe recipe;
+    recipe.asset = {"mire1", mire1_path(), std::nullopt};
+    declare_input(recipe);
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure-deflicker-reference", true,
+                                 exposure_to_parameters(params), std::nullopt});
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    request.output_width = 64U;
+    request.output_height = 48U;
+    const std::uint64_t required_bytes = estimate_raw_render_memory(
+        decoded.value(), recipe, *request.output_width, *request.output_height);
+    ASSERT_GT(required_bytes, 0U);
+    RenderRequest constrained = request;
+    constrained.memory_budget_bytes = required_bytes - 1U;
+    auto budget_rejected = engine.value().render_to_image(constrained);
+    ASSERT_FALSE(budget_rejected);
+    EXPECT_EQ(budget_rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(budget_rejected.error().context.at("required_bytes"), std::to_string(required_bytes));
+
+    auto rendered = engine.value().render_to_image(request);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().width, 64U);
+    ASSERT_EQ(rendered.value().height, 48U);
+    std::array<std::uint64_t, 3> sums{};
+    for (std::size_t index = 0U; index + 2U < rendered.value().rgb.size(); index += 3U)
+    {
+        for (std::size_t channel = 0U; channel < sums.size(); ++channel)
+        {
+            sums[channel] += rendered.value().rgb[index + channel];
+        }
+    }
+    // Ravo-owned reference statistics for the original pre-repair RAW histogram and
+    // the frozen default deflicker target. The tolerance permits platform libm/SIMD
+    // rounding without accepting a changed histogram source or exposure formula.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 251749.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 234182.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 220350.0, 1500.0);
+    EXPECT_EQ(decoded.value().pixels, original_pixels);
+    const auto source_after = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(source_after.has_value());
+    EXPECT_EQ(*source_after, *source_before);
 }
 
 TEST(EngineFacadeTest, ValidatedRenderReportsProgressAndMissingInput)
@@ -733,6 +1225,37 @@ color_balance_rgb_operation(const ColorBalanceRgbParams &params,
     raw.cfa_channels = {0, 1, 1, 2};
     raw.pixels.assign(static_cast<std::size_t>(raw.width) * raw.height, 100);
     return raw;
+}
+
+TEST(ExposureAnalysisTest, RawInputColorPrimariesAndProfileConversionPreserveOneSnapshot)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    DecodedRaw raw = synthetic_bayer_raw();
+    raw.exposure_deflicker_black_level = 0U;
+    raw.exposure_deflicker_white_level = 1000U;
+    raw.exposure_metadata.status = RawExposureMetadataStatus::kReady;
+    const auto original_pixels = raw.pixels;
+    Recipe recipe;
+    recipe.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
+    declare_input(recipe);
+
+    auto working = engine.value().linear_working_from_raw(raw, recipe, 9U, 9U, CancellationToken{});
+    ASSERT_TRUE(working) << working.error().message;
+    ASSERT_TRUE(working.value().exposure_analysis);
+    const auto snapshot = working.value().exposure_analysis;
+    EXPECT_EQ(snapshot->raw_histogram[100U], 81U);
+    EXPECT_EQ(snapshot->raw_pixel_count, 81U);
+
+    auto converted =
+        convert_working_profile(working.value(), kInputProfileLinearRec2020, CancellationToken{});
+    ASSERT_TRUE(converted) << converted.error().message;
+    EXPECT_EQ(converted.value().exposure_analysis, snapshot);
+
+    auto primaries = apply_primaries(converted.value(), PrimariesParams{}, CancellationToken{});
+    ASSERT_TRUE(primaries) << primaries.error().message;
+    EXPECT_EQ(primaries.value().exposure_analysis, snapshot);
+    EXPECT_EQ(raw.pixels, original_pixels);
 }
 
 TEST(EngineFacadeTest, HotPixelsMatchesFrozenBayerNeighbourContract)
@@ -945,7 +1468,7 @@ TEST(TemperatureTest, ResolvesMetadataModesAndManualRgbFailsFast)
     ASSERT_FALSE(missing_as_shot);
     EXPECT_EQ(missing_as_shot.error().code, ErrorCode::kValidation);
 
-    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}, {}};
+    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
     const auto original = rgb.rgb;
     auto automatic_on_rgb =
         apply_temperature_rgb(rgb, temperature_operation(reference), CancellationToken{});
@@ -1160,7 +1683,7 @@ TEST(ColorBalanceRgbTest, CancellationAndNonFiniteInputNeverPublishPartialPixels
     ColorBalanceRgbParams params;
     params.global_y = 0.2;
     const auto operation = color_balance_rgb_operation(params);
-    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}, {}};
+    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}, {}, {}};
     const auto original = image.rgb;
     CancellationSource cancellation;
     ASSERT_TRUE(cancellation.cancel("color_balance_cancel"));
@@ -1557,7 +2080,7 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
 
 TEST(EngineFacadeTest, BasicAdjustmentParametersFollowDarktableCpuResponse)
 {
-    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}};
+    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}, {}};
     const auto apply = [&](OperationInstance operation)
     {
         Recipe recipe;
@@ -1665,7 +2188,7 @@ TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
     ASSERT_TRUE(bloom) << bloom.error().message;
     EXPECT_EQ(bloom.value().rgb, midtone.rgb);
 
-    const WorkingImage haze_source{1, 1, {0.20F, 0.30F, 0.40F}, {}};
+    const WorkingImage haze_source{1, 1, {0.20F, 0.30F, 0.40F}, {}, {}};
     Recipe haze_recipe;
     haze_recipe.operations.push_back({"ravo.effect.dehaze",
                                       1,
@@ -1687,7 +2210,7 @@ TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
 
 TEST(EngineFacadeTest, LabDevelopOperationsUseTheD50WorkingConversion)
 {
-    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}};
+    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}, {}};
     Recipe recipe;
     recipe.operations.push_back({"ravo.color.colorcontrast",
                                  1,

@@ -4,7 +4,7 @@
 >
 > **Updated: 2026-08-26**
 >
-> **Current execution focus: C9 exposure.** Do not migrate colorbalance,
+> **Current execution focus: C10 colorbalance.** Do not migrate colorchecker,
 > cacorrectrgb, or the general mask graph in parallel.
 
 This document records only unfinished execution work, risks, dependencies,
@@ -38,7 +38,7 @@ ready for execution.
 
 ## 2. Migration queue
 
-C9 exposure is current. Its owner, scope, dependencies, and acceptance gate are
+C10 colorbalance is current. Its owner, scope, dependencies, and acceptance gate are
 recorded in section 3.2. Complete its static owner and fixture analysis before
 changing code; do not start a later IOP algorithm row in parallel. Independent
 adapter or reliability work may run only when its dependencies are met and its
@@ -49,8 +49,8 @@ owners and files do not overlap.
 This section is an execution inventory for the current worktree, not the
 long-term capability authority. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 56 unconditional IOP registrations plus two
-  conditional owners (`liquify`, `watermark`); all 58 have a row in section 3.2.
+- legacy/src/iop/CMakeLists.txt has 55 unconditional IOP registrations plus two
+  conditional owners (`liquify`, `watermark`); all 57 have a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
   registrations whose source has retired.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
@@ -60,7 +60,7 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means C9 only. **Queued** waits for dependencies and
+Status terms: **current** means C10 only. **Queued** waits for dependencies and
 all earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
 move it before migration completes. When a module meets its gate, first update
 stable truth, then remove its row. Do not leave historical checked marks here.
@@ -87,10 +87,10 @@ General completion gates:
 | D0.1 | iop/hlreconstruct/* | Delete | highlights.c retired; prove no consumer, add retired list, pass freeze check |
 | D0.2 | stale export/copy_history/tagging/metadata/history/snapshots entries in libs/CMakeLists.txt | Delete registrations | Do not modify other frozen modules; prove corresponding sources are on retired list |
 | D0.3 | host/data/kernels exclusive kernels/entries for retired IOPs | Delete | Distinguish shared extended.cl/colour helpers; remove only entries/program registrations with no remaining consumer |
-| D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry; remove with their DELETE batch after all algorithm consumers clear |
+| D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry, including shared exposure order/module-group/manual names; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (58 owners: 56 unconditional + 2 conditional)
+### 3.2 IOP algorithm queue (57 owners: 55 unconditional + 2 conditional)
 
 The group order below is dependency order; rows in a group are serial by
 default. fixture means static evidence exists, not that it is covered.
@@ -99,8 +99,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C9 | exposure — iop/exposure.c | yes | **Current / ALG**; complete automatic/black/deflicker and mask semantics; existing manual EV is only a subset |
-| C10 | colorbalance — iop/colorbalance.c | yes | Queued / ALG; define overlap with ravo.color.colorbalancergb; do not substitute three parameters for full old path |
+| C10 | colorbalance — iop/colorbalance.c | yes | **Current / ALG**; define overlap with ravo.color.colorbalancergb; do not substitute three parameters for full old path |
 | C11 | colorchecker — iop/colorchecker.c | yes | Queued / ALG; depends on explicit input-profile state/S1; move algorithm/calibration tables and delete GTK chart/picker |
 | C12 | colorcorrection — iop/colorcorrection.c | yes | Queued / ALG; depends on S1/M1; Lab/chroma and blend contract |
 | C13 | colorcontrast — iop/colorcontrast.c | yes | Queued / ALG; simplified control is not acceptance; reproduce frozen colour-space mathematics |
@@ -190,7 +189,7 @@ default. fixture means static evidence exists, not that it is covered.
 | S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | Explicit workspace/LUT owner for C3–C21/T1–T7; no GTK/LCMS concrete type leakage |
 | S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept per F/G/M/diagnostic consumer; do not port OpenCL twins |
 | S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: create canonical mask/blend graph | Shape/group/coordinate/parametric blend/ROI/schema/cancellation tests; prerequisite for M1 |
-| S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; do not copy dynamic pixelpipe/global state |
+| S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
 | S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all remaining IOPs retire; built-in versioned operation registry remains |
 | S6 | common/database*, database_schema*, sqliteicu* | CORE/DELETE | Compare against Ravo schema/FTS/ICU; move needed data contracts into SQLite adapter and delete remaining old catalog ABI |
 | S7 | common/image*, film*, import_session*, grouping* | CORE/DELETE | Delete global image/film owner after Asset/import/folder/group contracts cover it |
@@ -200,7 +199,7 @@ default. fixture means static evidence exists, not that it is covered.
 | S11 | common/cache*, image_cache*, mipmap_cache*, imagebuf* | CORE/DELETE | Explicit byte budget/LRU/atomic publication; replace with CatalogService/PreviewCache |
 | S12 | common/atomic*, dtpthread*, resource_limits*, system_signal_handling*, utility*, datetime*, variables*, calculator*, file_location*, math.h, points.h, heap.h, tea.h, dttypes.h, debug.h, extra_optimizations.h, sse.h, grealpath.h, win_file_trash* | CORE/DELETE | Move only value/thread/path/platform logic with Ravo consumers; delete the rest with global core |
 | S13 | common/curl_tools*, dbus*, gimp*, pwstorage/*, overlay* | DELETE or adapter | Create an independent port only for an explicitly active IOP/service; do not keep remote-publish/UI credential shells |
-| S14 | common/opencl*, dlopencl*, opencl_drivers_blacklist.h | DELETE | Delete after CPU goldens complete; Ravo GPU never reuses OpenCL API |
+| S14 | common/opencl*, dlopencl*, opencl_drivers_blacklist.h | DELETE | Delete after CPU goldens complete, including the shared `host/data/kernels/basic.cl` exposure kernel/program path; Ravo GPU never reuses OpenCL API |
 
 ### 3.4 Codec, imageio, and output plugins
 
@@ -315,7 +314,7 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Do not implement
-later IOP algorithm rows in parallel before C9 completes. Independent adapter
+later IOP algorithm rows in parallel before C10 completes. Independent adapter
 or reliability work requires satisfied dependencies and explicitly non-
 overlapping owners and files.
 
@@ -323,7 +322,7 @@ overlapping owners and files.
 
 Delete this document only when all are true:
 
-- [ ] C9 and every later raised algorithm are accepted and removed from this
+- [ ] C10 and every later raised algorithm are accepted and removed from this
   document, with accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.

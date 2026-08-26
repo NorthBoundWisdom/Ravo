@@ -13,13 +13,15 @@ Current implementation status:
   JSON/error contracts are complete.
 - `ravo inspect` reads the first LibRaw-supported 16-bit Bayer RAW slice and
   reports width and height in camera-oriented display dimensions.
-- `ravo render` executes nop and `ravo.core.exposure`, including crop,
-  black/white normalization, camera WB, profile-aware camera-to-working
-  conversion, basic 3×3 Bayer interpolation, declared output-profile
+- `ravo render` executes the canonical bounded RAW/raster recipe, including
+  crop, black/white normalization, camera WB, profile-aware camera-to-working
+  conversion, basic 3×3 Bayer interpolation, exposure, declared output-profile
   conversion, embedded ICC state, and atomic PNG output.
 - Legacy XMP supports empty history, a strict nop baseline with explicit
-  `colorin`/`colorout` mapping, and the demonstrated schema-6/v5 manual
-  singleton-exposure subset.
+  `colorin`/`colorout` mapping, and the frozen exposure v5/v6/v7 final-revision
+  boundary. Exact default-unmasked singleton state maps to the canonical recipe;
+  mask, custom blend, multi-instance, and conflicting-revision state rejects
+  structurally.
 - The catalog vertical slice is implemented: reference-only JPEG/PNG/RAW
   import, preview cache outside the library, and the `ravo_studio` Qt Quick
   window using controls from the `GeoControls` source root.
@@ -56,6 +58,16 @@ Current implementation status:
   as-shot and camera-reference defaults; manual stores explicit coefficients,
   while late-reference permits only a following explicit channel-mixer CAT. The
   old Kelvin/tint RGB approximation and generic fallback are removed.
+- Exposure provides `ravo.core.exposure` v2 with the frozen manual EV and black
+  response, optional camera exposure-bias/highlight-preservation compensation,
+  and deflicker percentile-to-EV analysis. RAW deflicker owns an immutable 65,536-bin snapshot
+  from the original decoded sensor data before repair, resize, or demosaic;
+  private pinned Exiv2 supplies value-only metadata without crossing the engine
+  boundary. Memory, cancellation, missing-tag, metadata-read-failure, and raster
+  unsupported states are explicit. CLI render, Catalog preview/save/reopen/
+  export, and Studio use the same recipe/engine path. The legacy spot picker is
+  not serialized exposure math, and the strict importer accepts only the exact
+  default-unmasked legacy boundary.
 - Input Color provides `ravo.color.input` v1 with explicit input/working
   profile identifiers, intent, gamut-normalization target, and RAW blue
   mapping. RAW publishes a camera-to-XYZ D50 matrix; raster decode preserves
