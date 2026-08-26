@@ -28,9 +28,29 @@ ColumnLayout {
     }
 
     component MixerSlider: CustomSlider {
+        id: mixer
+        required property string inputChannel
         property string fieldName
         property double currentValue: 0
         property double identityValue: 0
+        readonly property color lowTrackColor: {
+            if (inputChannel === "red")
+                return "#3f9297";
+            if (inputChannel === "green")
+                return "#a65b9a";
+            if (inputChannel === "blue")
+                return "#c09a45";
+            return Theme.midColor;
+        }
+        readonly property color highTrackColor: {
+            if (inputChannel === "red")
+                return "#d45c64";
+            if (inputChannel === "green")
+                return "#58b574";
+            if (inputChannel === "blue")
+                return "#5b83d1";
+            return Theme.midColor;
+        }
         Layout.fillWidth: true
         from: -2
         to: 2
@@ -41,6 +61,21 @@ ColumnLayout {
         delayedCommit: true
         enabled: root.hasSelection
         value: currentValue
+        trackGradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop {
+                position: 0
+                color: mixer.lowTrackColor
+            }
+            GradientStop {
+                position: 0.5
+                color: Theme.midColor
+            }
+            GradientStop {
+                position: 1
+                color: mixer.highTrackColor
+            }
+        }
         onValueChanged: if (root.liveReady && root.commands)
                 root.commands.previewDevelopNumber(fieldName, value)
         onValueCommitted: function (value) {
@@ -306,48 +341,57 @@ ColumnLayout {
                         }
                         MixerSlider {
                             title: qsTr("Red ← Red")
+                            inputChannel: "red"
                             fieldName: "channelMixerRR"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerRR : 1
                             identityValue: 1
                         }
                         MixerSlider {
                             title: qsTr("Red ← Green")
+                            inputChannel: "green"
                             fieldName: "channelMixerRG"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerRG : 0
                         }
                         MixerSlider {
                             title: qsTr("Red ← Blue")
+                            inputChannel: "blue"
                             fieldName: "channelMixerRB"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerRB : 0
                         }
                         MixerSlider {
                             title: qsTr("Green ← Red")
+                            inputChannel: "red"
                             fieldName: "channelMixerGR"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerGR : 0
                         }
                         MixerSlider {
                             title: qsTr("Green ← Green")
+                            inputChannel: "green"
                             fieldName: "channelMixerGG"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerGG : 1
                             identityValue: 1
                         }
                         MixerSlider {
                             title: qsTr("Green ← Blue")
+                            inputChannel: "blue"
                             fieldName: "channelMixerGB"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerGB : 0
                         }
                         MixerSlider {
                             title: qsTr("Blue ← Red")
+                            inputChannel: "red"
                             fieldName: "channelMixerBR"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerBR : 0
                         }
                         MixerSlider {
                             title: qsTr("Blue ← Green")
+                            inputChannel: "green"
                             fieldName: "channelMixerBG"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerBG : 0
                         }
                         MixerSlider {
                             title: qsTr("Blue ← Blue")
+                            inputChannel: "blue"
                             fieldName: "channelMixerBB"
                             currentValue: root.hasPresenter ? root.presenter.editChannelMixerBB : 1
                             identityValue: 1
