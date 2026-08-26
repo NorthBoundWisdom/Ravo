@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "d50_lab.h"
 #include "ravo/recipe/color_input.h"
 
 namespace ravo
@@ -458,52 +459,6 @@ void gauss_solve_triangular(const std::vector<double> &matrix, const std::vector
     return result;
 }
 
-void linear_rgb_to_xyz_d50(const std::array<float, 3> &rgb, float xyz[3]) noexcept
-{
-    xyz[0] = 0.4360747F * rgb[0] + 0.3850649F * rgb[1] + 0.1430804F * rgb[2];
-    xyz[1] = 0.2225045F * rgb[0] + 0.7168786F * rgb[1] + 0.0606169F * rgb[2];
-    xyz[2] = 0.0139322F * rgb[0] + 0.0971045F * rgb[1] + 0.7141733F * rgb[2];
-}
-
-void xyz_d50_to_linear_rgb(const float xyz[3], std::array<float, 3> &rgb) noexcept
-{
-    rgb[0] = 3.1338561F * xyz[0] - 1.6168667F * xyz[1] - 0.4906146F * xyz[2];
-    rgb[1] = -0.9787684F * xyz[0] + 1.9161415F * xyz[1] + 0.0334540F * xyz[2];
-    rgb[2] = 0.0719453F * xyz[0] - 0.2289914F * xyz[1] + 1.4052427F * xyz[2];
-}
-
-void xyz_d50_to_lab(const float xyz[3], std::array<float, 3> &lab) noexcept
-{
-    constexpr std::array<float, 3> d50{0.9642F, 1.0F, 0.8249F};
-    constexpr float epsilon = 216.0F / 24389.0F;
-    constexpr float kappa = 24389.0F / 27.0F;
-    std::array<float, 3> value{};
-    for (std::size_t channel = 0U; channel < value.size(); ++channel)
-    {
-        const float normalized = xyz[channel] / d50[channel];
-        value[channel] =
-            normalized > epsilon ? std::cbrt(normalized) : (kappa * normalized + 16.0F) / 116.0F;
-    }
-    lab[0] = 116.0F * value[1] - 16.0F;
-    lab[1] = 500.0F * (value[0] - value[1]);
-    lab[2] = 200.0F * (value[1] - value[2]);
-}
-
-void lab_to_xyz_d50(const std::array<float, 3> &lab, float xyz[3]) noexcept
-{
-    constexpr std::array<float, 3> d50{0.9642F, 1.0F, 0.8249F};
-    constexpr float epsilon = 0.20689655172413796F;
-    constexpr float kappa = 24389.0F / 27.0F;
-    const float fy = (lab[0] + 16.0F) / 116.0F;
-    const float fx = fy + lab[1] / 500.0F;
-    const float fz = fy - lab[2] / 200.0F;
-    const auto inverse = [](const float value)
-    { return value > epsilon ? value * value * value : (116.0F * value - 16.0F) / kappa; };
-    xyz[0] = d50[0] * inverse(fx);
-    xyz[1] = d50[1] * inverse(fy);
-    xyz[2] = d50[2] * inverse(fz);
-}
-
 } // namespace
 
 float color_checker_thin_plate_kernel(const std::array<float, 3> &left,
@@ -618,18 +573,14 @@ try
             const std::size_t index = (static_cast<std::size_t>(row) * input.width + column) * 3U;
             const std::array<float, 3> rgb{input.rgb[index], input.rgb[index + 1U],
                                            input.rgb[index + 2U]};
-            float xyz[3]{};
-            linear_rgb_to_xyz_d50(rgb, xyz);
-            std::array<float, 3> lab{};
-            xyz_d50_to_lab(xyz, lab);
+            const auto lab = d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(rgb));
             auto transformed = evaluate_fit(fit.value(), lab, cancellation);
             if (!transformed)
             {
                 return transformed.error();
             }
-            lab_to_xyz_d50(transformed.value(), xyz);
-            std::array<float, 3> transformed_rgb{};
-            xyz_d50_to_linear_rgb(xyz, transformed_rgb);
+            const auto transformed_rgb =
+                d50_lab::xyz_to_linear_rec709(d50_lab::lab_to_xyz(transformed.value()));
             for (std::size_t channel = 0U; channel < transformed_rgb.size(); ++channel)
             {
                 if (!std::isfinite(transformed_rgb[channel]))

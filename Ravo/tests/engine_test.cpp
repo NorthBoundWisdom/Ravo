@@ -5,6 +5,7 @@
 #include <bit>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
@@ -27,6 +28,7 @@
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
 #include "color_checker.h"
+#include "d50_lab.h"
 #include "image_ops.h"
 #include "input_color.h"
 #include "primaries.h"
@@ -1232,6 +1234,83 @@ legacy_color_balance_operation(const ColorBalanceParams &params,
             {0.03F, 0.18F, 0.72F, 0.91F, 0.42F, 0.07F},
             std::move(profile),
             std::move(analysis)};
+}
+
+using FrozenD50Triplet = std::array<float, 3>;
+
+// Independent scalar oracle transcribed from the frozen
+// common/colorspaces_inline_conversions.h owner. In particular, it preserves
+// the transposed-matrix addition order, the pre-rounded D50 reciprocals, and
+// the Lab inverse scale/add order instead of calling the production seam.
+[[nodiscard]] FrozenD50Triplet frozen_linear_rec709_to_xyz_d50(const FrozenD50Triplet &rgb) noexcept
+{
+    return {0.4360747F * rgb[0] + 0.3850649F * rgb[1] + 0.1430804F * rgb[2],
+            0.2225045F * rgb[0] + 0.7168786F * rgb[1] + 0.0606169F * rgb[2],
+            0.0139322F * rgb[0] + 0.0971045F * rgb[1] + 0.7141733F * rgb[2]};
+}
+
+[[nodiscard]] FrozenD50Triplet frozen_xyz_d50_to_linear_rec709(const FrozenD50Triplet &xyz) noexcept
+{
+    // Keep every negative coefficient as an added product, matching the frozen
+    // dt_apply_transposed_color_matrix expression order rather than subtraction.
+    return {3.1338561F * xyz[0] + (-1.6168667F) * xyz[1] + (-0.4906146F) * xyz[2],
+            (-0.9787684F) * xyz[0] + 1.9161415F * xyz[1] + 0.0334540F * xyz[2],
+            0.0719453F * xyz[0] + (-0.2289914F) * xyz[1] + 1.4052427F * xyz[2]};
+}
+
+[[nodiscard]] FrozenD50Triplet frozen_xyz_d50_to_lab(const FrozenD50Triplet &xyz) noexcept
+{
+    constexpr FrozenD50Triplet d50_inverse{1.0F / 0.9642F, 1.0F, 1.0F / 0.8249F};
+    constexpr float epsilon = 216.0F / 24389.0F;
+    constexpr float kappa = 24389.0F / 27.0F;
+    FrozenD50Triplet transformed{};
+    for (std::size_t channel = 0U; channel < transformed.size(); ++channel)
+    {
+        const float normalized = xyz[channel] * d50_inverse[channel];
+        transformed[channel] =
+            normalized > epsilon ? std::cbrt(normalized) : (kappa * normalized + 16.0F) / 116.0F;
+    }
+    return {116.0F * transformed[1] - 16.0F, 500.0F * (transformed[0] - transformed[1]),
+            -200.0F * (transformed[2] - transformed[1])};
+}
+
+[[nodiscard]] FrozenD50Triplet frozen_lab_to_xyz_d50(const FrozenD50Triplet &lab) noexcept
+{
+    constexpr FrozenD50Triplet d50{0.9642F, 1.0F, 0.8249F};
+    constexpr FrozenD50Triplet offset{0.0F, 16.0F, 0.0F};
+    constexpr FrozenD50Triplet coefficient{1.0F / 500.0F, 1.0F / 116.0F, -1.0F / 200.0F};
+    constexpr FrozenD50Triplet add_coefficient{1.0F, 0.0F, 1.0F};
+    constexpr float epsilon = 0.20689655172413796F;
+    constexpr float kappa = 24389.0F / 27.0F;
+    const FrozenD50Triplet reordered{lab[1], lab[0], lab[2]};
+    FrozenD50Triplet scaled{};
+    for (std::size_t channel = 0U; channel < scaled.size(); ++channel)
+    {
+        scaled[channel] = (reordered[channel] + offset[channel]) * coefficient[channel];
+    }
+    FrozenD50Triplet xyz{};
+    for (std::size_t channel = 0U; channel < xyz.size(); ++channel)
+    {
+        const float value = scaled[channel] + scaled[1] * add_coefficient[channel];
+        const float inverse =
+            value > epsilon ? value * value * value : (116.0F * value - 16.0F) / kappa;
+        xyz[channel] = d50[channel] * inverse;
+    }
+    return xyz;
+}
+
+[[nodiscard]] std::array<std::uint32_t, 3>
+d50_triplet_bits(const FrozenD50Triplet &triplet) noexcept
+{
+    return {std::bit_cast<std::uint32_t>(triplet[0]), std::bit_cast<std::uint32_t>(triplet[1]),
+            std::bit_cast<std::uint32_t>(triplet[2])};
+}
+
+void expect_frozen_d50_bits(const FrozenD50Triplet &actual, const FrozenD50Triplet &oracle,
+                            const std::array<std::uint32_t, 3> &golden)
+{
+    EXPECT_EQ(d50_triplet_bits(oracle), golden);
+    EXPECT_EQ(d50_triplet_bits(actual), golden);
 }
 
 // Independent scalar oracle transcribed from the frozen colorbalance.c
@@ -2446,6 +2525,177 @@ TEST(ColorCheckerTest, WorkingPublicationIsOwnedImmutableAndRejectsEveryInvalidB
     EXPECT_EQ(input.rgb, original.rgb);
     EXPECT_EQ(input.color_profile, original.color_profile);
     EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(D50LabBridgeTest, MatricesAndD50WhiteBlackMatchFrozenBitGoldens)
+{
+    struct MatrixCase
+    {
+        FrozenD50Triplet input;
+        std::array<std::uint32_t, 3> forward;
+        std::array<std::uint32_t, 3> inverse;
+    };
+    const std::array cases{
+        MatrixCase{{1.0F, 0.0F, 0.0F},
+                   {0x3edf452fU, 0x3e63d838U, 0x3c6443e2U},
+                   {0x40489119U, 0xbf7a9091U, 0x3d93580fU}},
+        MatrixCase{{0.0F, 1.0F, 0.0F},
+                   {0x3ec5273aU, 0x3f37855bU, 0x3dc6deb9U},
+                   {0xbfcef57dU, 0x3ff54420U, 0xbe6a7cb9U}},
+        MatrixCase{{0.0F, 0.0F, 1.0F},
+                   {0x3e1283abU, 0x3d78496dU, 0x3f36d410U},
+                   {0xbefb31d6U, 0x3d090710U, 0x3fb3defeU}},
+    };
+    for (const auto &[input, forward, inverse] : cases)
+    {
+        expect_frozen_d50_bits(d50_lab::linear_rec709_to_xyz(input),
+                               frozen_linear_rec709_to_xyz_d50(input), forward);
+        expect_frozen_d50_bits(d50_lab::xyz_to_linear_rec709(input),
+                               frozen_xyz_d50_to_linear_rec709(input), inverse);
+    }
+
+    constexpr FrozenD50Triplet black_xyz{0.0F, 0.0F, 0.0F};
+    constexpr FrozenD50Triplet d50_white{0.9642F, 1.0F, 0.8249F};
+    constexpr FrozenD50Triplet black_lab{0.0F, 0.0F, 0.0F};
+    constexpr FrozenD50Triplet white_lab{100.0F, 0.0F, 0.0F};
+    expect_frozen_d50_bits(d50_lab::xyz_to_lab(black_xyz), frozen_xyz_d50_to_lab(black_xyz),
+                           {0xb3800000U, 0x00000000U, 0x80000000U});
+    expect_frozen_d50_bits(d50_lab::xyz_to_lab(d50_white), frozen_xyz_d50_to_lab(d50_white),
+                           {0x42c80000U, 0x00000000U, 0x80000000U});
+    expect_frozen_d50_bits(d50_lab::lab_to_xyz(black_lab), frozen_lab_to_xyz_d50(black_lab),
+                           {0xae8be8cdU, 0xae911aa6U, 0xae6f648aU});
+    expect_frozen_d50_bits(d50_lab::lab_to_xyz(white_lab), frozen_lab_to_xyz_d50(white_lab),
+                           {0x3f76d5d0U, 0x3f800000U, 0x3f532ca5U});
+}
+
+TEST(D50LabBridgeTest, XyzToLabFreezesEpsilonAndReciprocalMultiplyOrder)
+{
+    constexpr float epsilon = 216.0F / 24389.0F;
+    struct BranchCase
+    {
+        float y;
+        std::array<std::uint32_t, 3> expected;
+    };
+    const std::array cases{
+        BranchCase{epsilon * 0.99F, {0x40fd70a5U, 0xc2088d3fU, 0x415a7b98U}},
+        BranchCase{epsilon, {0x41000001U, 0xc209ee59U, 0x415cb08fU}},
+        BranchCase{epsilon * 1.01F, {0x41014698U, 0xc20b4e47U, 0x415ee3a5U}},
+    };
+    for (const auto &[y, expected] : cases)
+    {
+        const FrozenD50Triplet xyz{0.0F, y, 0.0F};
+        expect_frozen_d50_bits(d50_lab::xyz_to_lab(xyz), frozen_xyz_d50_to_lab(xyz), expected);
+    }
+
+    constexpr FrozenD50Triplet rgb{0.1938238604679151F, 0.36766030739017674F, 0.38827863670090734F};
+    const auto xyz = frozen_linear_rec709_to_xyz_d50(rgb);
+    const auto expected = frozen_xyz_d50_to_lab(xyz);
+    expect_frozen_d50_bits(d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(rgb)), expected,
+                           {0x42805bf3U, 0xc15d8c10U, 0xc0deecf2U});
+
+    constexpr FrozenD50Triplet d50{0.9642F, 1.0F, 0.8249F};
+    constexpr float kappa = 24389.0F / 27.0F;
+    FrozenD50Triplet divided{};
+    for (std::size_t channel = 0U; channel < divided.size(); ++channel)
+    {
+        const float normalized = xyz[channel] / d50[channel];
+        divided[channel] =
+            normalized > epsilon ? std::cbrt(normalized) : (kappa * normalized + 16.0F) / 116.0F;
+    }
+    const FrozenD50Triplet divide_perturbation{116.0F * divided[1] - 16.0F,
+                                               500.0F * (divided[0] - divided[1]),
+                                               -200.0F * (divided[2] - divided[1])};
+    EXPECT_EQ(d50_triplet_bits(divide_perturbation),
+              (std::array<std::uint32_t, 3>{0x42805bf3U, 0xc15d8c10U, 0xc0deecd9U}));
+    EXPECT_NE(d50_triplet_bits(divide_perturbation), d50_triplet_bits(expected));
+}
+
+TEST(D50LabBridgeTest, LabToXyzFreezesInverseThresholdAndScaleMultiplyOrder)
+{
+    struct BranchCase
+    {
+        float lightness;
+        std::array<std::uint32_t, 3> expected;
+    };
+    const std::array cases{
+        BranchCase{7.99F, {0x3c0bbc07U, 0x3c10ec37U, 0x3bef17efU}},
+        BranchCase{8.0F, {0x3c0be8ccU, 0x3c111aa5U, 0x3bef6488U}},
+        BranchCase{8.01F, {0x3c0c1598U, 0x3c11491bU, 0x3befb12fU}},
+    };
+    for (const auto &[lightness, expected] : cases)
+    {
+        const FrozenD50Triplet lab{lightness, 0.0F, 0.0F};
+        expect_frozen_d50_bits(d50_lab::lab_to_xyz(lab), frozen_lab_to_xyz_d50(lab), expected);
+    }
+
+    constexpr FrozenD50Triplet lab{50.0F, 20.0F, -30.0F};
+    const auto expected = frozen_lab_to_xyz_d50(lab);
+    expect_frozen_d50_bits(d50_lab::lab_to_xyz(lab), expected,
+                           {0x3e5ef828U, 0x3e3c9b63U, 0x3e9cf659U});
+
+    constexpr FrozenD50Triplet d50{0.9642F, 1.0F, 0.8249F};
+    constexpr float threshold = 0.20689655172413796F;
+    constexpr float kappa = 24389.0F / 27.0F;
+    const float fy = (lab[0] + 16.0F) / 116.0F;
+    const FrozenD50Triplet divided{fy + lab[1] / 500.0F, fy, fy - lab[2] / 200.0F};
+    FrozenD50Triplet divide_perturbation{};
+    for (std::size_t channel = 0U; channel < divide_perturbation.size(); ++channel)
+    {
+        const float value = divided[channel] > threshold ?
+                                divided[channel] * divided[channel] * divided[channel] :
+                                (116.0F * divided[channel] - 16.0F) / kappa;
+        divide_perturbation[channel] = d50[channel] * value;
+    }
+    EXPECT_EQ(d50_triplet_bits(divide_perturbation),
+              (std::array<std::uint32_t, 3>{0x3e5ef828U, 0x3e3c9b63U, 0x3e9cf65cU}));
+    EXPECT_NE(d50_triplet_bits(divide_perturbation), d50_triplet_bits(expected));
+}
+
+TEST(D50LabBridgeTest, ExtendedRoundTripsAndNonFiniteValuesPreserveFrozenClassification)
+{
+    constexpr FrozenD50Triplet extended_rgb{-0.25F, 0.5F, 1.75F};
+    const auto expected_lab = frozen_xyz_d50_to_lab(frozen_linear_rec709_to_xyz_d50(extended_rgb));
+    expect_frozen_d50_bits(d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(extended_rgb)),
+                           expected_lab, {0x428c3252U, 0xc19ff315U, 0xc2a7fbbeU});
+
+    constexpr FrozenD50Triplet extended_lab{-25.0F, 120.0F, -90.0F};
+    expect_frozen_d50_bits(d50_lab::lab_to_xyz(extended_lab), frozen_lab_to_xyz_d50(extended_lab),
+                           {0x3b46abe3U, 0xbce2b9a4U, 0x3d2e846eU});
+
+    struct RoundTripCase
+    {
+        FrozenD50Triplet input;
+        std::array<std::uint32_t, 3> expected;
+    };
+    const std::array cases{
+        RoundTripCase{{0.25F, 0.5F, 0.75F}, {0x3e800006U, 0x3efffffcU, 0x3f400000U}},
+        RoundTripCase{extended_rgb, {0xbe7ffffaU, 0x3efffffcU, 0x3fe00002U}},
+    };
+    for (const auto &[input, expected] : cases)
+    {
+        const auto oracle = frozen_xyz_d50_to_linear_rec709(
+            frozen_lab_to_xyz_d50(frozen_xyz_d50_to_lab(frozen_linear_rec709_to_xyz_d50(input))));
+        const auto actual = d50_lab::xyz_to_linear_rec709(
+            d50_lab::lab_to_xyz(d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(input))));
+        expect_frozen_d50_bits(actual, oracle, expected);
+    }
+
+    const std::array nonfinite{std::numeric_limits<float>::quiet_NaN(),
+                               std::numeric_limits<float>::infinity(),
+                               -std::numeric_limits<float>::infinity()};
+    const auto all_nonfinite = [](const FrozenD50Triplet &value)
+    {
+        return std::ranges::all_of(value,
+                                   [](const float sample) { return !std::isfinite(sample); });
+    };
+    for (const float sample : nonfinite)
+    {
+        const FrozenD50Triplet value{sample, sample, sample};
+        EXPECT_TRUE(all_nonfinite(d50_lab::linear_rec709_to_xyz(value)));
+        EXPECT_TRUE(all_nonfinite(d50_lab::xyz_to_linear_rec709(value)));
+        EXPECT_TRUE(all_nonfinite(d50_lab::xyz_to_lab(value)));
+        EXPECT_TRUE(all_nonfinite(d50_lab::lab_to_xyz(value)));
+    }
 }
 
 TEST(ColorCheckerTest, RgbAndD50LabBridgeMatchesTheFrozenScalarReference)

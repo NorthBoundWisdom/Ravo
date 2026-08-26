@@ -20,6 +20,7 @@
 
 #include "capability_ops.h"
 #include "color_checker.h"
+#include "d50_lab.h"
 #include "output_color.h"
 #include "primaries.h"
 #include "raw_temperature.h"
@@ -162,47 +163,28 @@ constexpr int kToneCurveLut = 0x10000;
 
 void linear_rgb_to_xyz_d50(const float r, const float g, const float b, float xyz[3]) noexcept
 {
-    xyz[0] = 0.4360747F * r + 0.3850649F * g + 0.1430804F * b;
-    xyz[1] = 0.2225045F * r + 0.7168786F * g + 0.0606169F * b;
-    xyz[2] = 0.0139322F * r + 0.0971045F * g + 0.7141733F * b;
+    const auto converted = d50_lab::linear_rec709_to_xyz({r, g, b});
+    std::copy(converted.begin(), converted.end(), xyz);
 }
 
 void xyz_d50_to_linear_rgb(const float xyz[3], float &r, float &g, float &b) noexcept
 {
-    r = 3.1338561F * xyz[0] - 1.6168667F * xyz[1] - 0.4906146F * xyz[2];
-    g = -0.9787684F * xyz[0] + 1.9161415F * xyz[1] + 0.0334540F * xyz[2];
-    b = 0.0719453F * xyz[0] - 0.2289914F * xyz[1] + 1.4052427F * xyz[2];
+    const auto converted = d50_lab::xyz_to_linear_rec709({xyz[0], xyz[1], xyz[2]});
+    r = converted[0];
+    g = converted[1];
+    b = converted[2];
 }
 
 void xyz_d50_to_lab(const float xyz[3], float lab[3]) noexcept
 {
-    constexpr float kD50[3] = {0.9642F, 1.0F, 0.8249F};
-    constexpr float kEpsilon = 216.0F / 24389.0F;
-    constexpr float kKappa = 24389.0F / 27.0F;
-    float f[3]{};
-    for (int i = 0; i < 3; ++i)
-    {
-        const float x = xyz[i] / kD50[i];
-        f[i] = x > kEpsilon ? std::cbrt(x) : (kKappa * x + 16.0F) / 116.0F;
-    }
-    lab[0] = 116.0F * f[1] - 16.0F;
-    lab[1] = 500.0F * (f[0] - f[1]);
-    lab[2] = 200.0F * (f[1] - f[2]);
+    const auto converted = d50_lab::xyz_to_lab({xyz[0], xyz[1], xyz[2]});
+    std::copy(converted.begin(), converted.end(), lab);
 }
 
 void lab_to_xyz_d50(const float lab[3], float xyz[3]) noexcept
 {
-    constexpr float kD50[3] = {0.9642F, 1.0F, 0.8249F};
-    constexpr float kEpsilon = 0.20689655172413796F;
-    constexpr float kKappa = 24389.0F / 27.0F;
-    const float fy = (lab[0] + 16.0F) / 116.0F;
-    const float fx = fy + lab[1] / 500.0F;
-    const float fz = fy - lab[2] / 200.0F;
-    const auto inv = [](const float x)
-    { return x > kEpsilon ? x * x * x : (116.0F * x - 16.0F) / kKappa; };
-    xyz[0] = kD50[0] * inv(fx);
-    xyz[1] = kD50[1] * inv(fy);
-    xyz[2] = kD50[2] * inv(fz);
+    const auto converted = d50_lab::lab_to_xyz({lab[0], lab[1], lab[2]});
+    std::copy(converted.begin(), converted.end(), xyz);
 }
 
 void xyz_to_prophoto(const float xyz[3], float rgb[3]) noexcept

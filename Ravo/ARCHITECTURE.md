@@ -401,6 +401,15 @@ not runtime dependencies of the canonical operation.
 [ADR-0026](docs/adr/0026-colorchecker-calibration-contract.md)
 freezes these boundaries.
 
+The RGB↔XYZ D50↔Lab conversion is one engine-private, value-only owner shared
+by Color Checker, Legacy Color Balance, Tone Curve, and the Lab basic controls.
+It freezes the transposed matrix expression order, pre-rounded D50 reciprocal,
+epsilon/kappa branches, Lab scale/add order, negative zero, and non-finite
+propagation with bit-exact source-derived goldens. It adds no clamp, finite
+repair, profile selection, or publication policy. This bounded S1.1 owner is
+complete, while the wider S1 colour-science workspace/LUT migration remains
+unfinished.
+
 `ravo.color.colorbalancergb` v1 also explicitly declares
 `linear_srgb_d50`. It stores four Y/C/H zones, three falloff/fulcrum values,
 chroma/saturation/brilliance, hue/vibrance/contrast, and formula. The engine
@@ -423,6 +432,14 @@ optimisation, masks, custom blend state, and multiple instances do not acquire
 presentation or graph semantics; unsupported serialized state rejects
 structurally. Shared ordering/proxy/name strings and the `extended.cl` kernels
 remain retirement work for D0.4/S4/S14, not runtime owners.
+
+The C12 `colorcorrection` static owner/dependency audit is complete and may
+proceed test-first against the shared S1.1 D50 Lab boundary. Across all 158
+frozen XMPs, only 0029 and 0092 contain actual operation records; both are
+enabled v1 singleton, priority-zero, unnamed, and default-unmasked evidence.
+The general mask/M1 graph remains unmigrated, so masks, custom blend, multiple
+instances, and every other non-evidenced presentation state are a structured
+unsupported boundary rather than an implicit fallback.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked

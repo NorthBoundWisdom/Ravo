@@ -79,10 +79,13 @@ decoders and manual UI observations are not pixel or persistence oracles.
 
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,
-and the non-jumping hidden defaults for Bloom and negative Dehaze. Parameter
-response sweeps use a committed RAW or raster input and compare exact channel
-sums plus display-luma movement; a qualitative “looks less strong” result is
-not an acceptance value.
+and the non-jumping hidden defaults for Bloom and negative Dehaze. The unified
+engine-private RGB↔XYZ D50↔Lab owner has source-derived bit goldens for matrix
+order, D50 white/black, both piecewise thresholds, multiply/divide-distinguishing
+vectors, negative/extended values, round trips, and NaN/Inf propagation.
+Parameter response sweeps use a committed RAW or raster input and compare exact
+channel sums plus display-luma movement; a qualitative “looks less strong”
+result is not an acceptance value.
 
 Localization is a desktop build contract. Ravo/tools/check_i18n.py requires
 well-formed TS XML, no active unfinished/empty translations, matching
@@ -318,6 +321,12 @@ completion or legacy wrapper retirement.
   covered. The `mire1.cr2` regression also pins output channel sums and source
   hash/size/mtime. CLI render, Catalog preview/save/reopen/export, and Studio
   presenter/QML smoke share the same engine path and cache identity.
+- `colorcorrection` static analysis covers all 158 frozen XMPs. Only 0029 and
+  0092 contain actual records; both are enabled schema-v1 singleton,
+  priority-zero, unnamed, and default-unmasked evidence. Test-first C12 work may
+  use the source-derived S1.1 D50 Lab bit contract. General mask/M1 remains
+  unmigrated, and masks, custom blend, multi-instance, or other non-evidenced
+  presentation states must reject structurally rather than fall back.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

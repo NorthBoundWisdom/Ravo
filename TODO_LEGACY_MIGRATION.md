@@ -4,10 +4,13 @@
 >
 > **Updated: 2026-08-27**
 >
-> **Current execution focus: C12 colorcorrection static owner/dependency
-> audit.** Its CPU implementation is blocked by S1/M1; first define and complete
-> a separately owned prerequisite tranche. Do not begin C12 implementation,
-> colorcontrast, or cacorrectrgb in parallel with that audit.
+> **Current execution focus: C12 colorcorrection test-first implementation.**
+> Its static owner/dependency audit is complete and the bounded S1.1
+> engine-private D50 Lab bridge prerequisite is satisfied. General mask/M1 work
+> remains outside C12: legacy import accepts the evidenced v1 singleton,
+> priority-zero, unnamed, default-unmasked envelope represented by 0029/0092,
+> and rejects every other presentation state structurally. Do not begin
+> colorcontrast or cacorrectrgb in parallel with C12.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -40,13 +43,14 @@ ready for execution.
 
 ## 2. Migration queue
 
-C12 colorcorrection static owner/dependency audit is current. Its owner, scope,
-dependencies, and acceptance gate are recorded in section 3.2. Implementation
-remains blocked by S1/M1: the audit must define a bounded, independently owned
-prerequisite tranche and move execution focus to that owner before algorithm
-changes. Do not start a later IOP algorithm row in parallel. Independent adapter
-or reliability work may run only when its dependencies are met and its owners
-and files do not overlap.
+C12 colorcorrection is current and may enter test-first implementation. Its
+static owner/dependency audit is complete, and S1.1 now provides the frozen
+engine-private D50 Lab bridge. S1 as a whole and the general mask/M1 graph remain
+unfinished; legacy import therefore accepts the evidenced v1 singleton,
+priority-zero, unnamed, default-unmasked envelope represented by 0029/0092 and
+rejects other mask/blend/presentation states structurally. Do not start a later
+IOP algorithm row in parallel. Independent adapter or reliability work may run
+only when its dependencies are met and its owners and files do not overlap.
 
 ## 3. Complete remaining-module inventory and serial order
 
@@ -64,11 +68,11 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means the C12 static dependency audit only; C12 CPU
-implementation remains blocked. **Queued** waits for dependencies and all
-earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not move
-it before migration completes. When a module meets its gate, first update stable
-truth, then remove its row. Do not leave historical checked marks here.
+Status terms: **current** means C12 test-first implementation. **Queued** waits
+for dependencies and all earlier rows. **Delete** means no UI/ABI port. **Keep
+evidence** means do not move it before migration completes. When a module meets
+its gate, first update stable truth, then remove its row. Do not leave historical
+checked marks here.
 
 General completion gates:
 
@@ -104,7 +108,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C12 | colorcorrection — iop/colorcorrection.c | yes | **Current static audit / blocked ALG**; depends on S1/M1; define and complete an independent prerequisite tranche before Lab/chroma/blend implementation |
+| C12 | colorcorrection — iop/colorcorrection.c | yes | **Current / test-first ALG**; static audit and S1.1 D50 Lab prerequisite complete; legacy import accepts the evidenced v1 singleton, priority-zero, unnamed, default-unmasked envelope represented by 0029/0092, with general mask/M1 and every other presentation state explicitly unsupported |
 | C13 | colorcontrast — iop/colorcontrast.c | yes | Queued / ALG; simplified control is not acceptance; reproduce frozen colour-space mathematics |
 | C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / ALG; depends on S1/M1; colour harmony and mask/ROI |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
@@ -189,7 +193,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | Owner paths | Action | Dependency and acceptance gate |
 | --- | --- | --- | --- |
-| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | Explicit workspace/LUT owner for C3–C21/T1–T7; no GTK/LCMS concrete type leakage |
+| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 unifies the frozen D50 Lab bridge behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
 | S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept per F/G/M/diagnostic consumer; do not port OpenCL twins |
 | S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: create canonical mask/blend graph | Shape/group/coordinate/parametric blend/ROI/schema/cancellation tests; prerequisite for M1 |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
