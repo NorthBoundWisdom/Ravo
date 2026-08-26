@@ -37,6 +37,13 @@ portable Qt runtime paths as Studio. Ravo does not request FreeCM's optional
 second rpath-normalization pass because universal Qt slices can carry different
 per-architecture rpath sets.
 
+Studio's checked-in TS catalogs are validated before lrelease creates
+build-local QM files. macOS copies those files to
+Ravo Studio.app/Contents/Resources/i18n; Windows and Linux package the same
+i18n tree beside the executable. A missing or incomplete catalog fails the
+Studio translation target before deployment rather than producing a partial
+language package.
+
 ## Local commands and artifacts
 
 Machine-specific runtime roots are owned by the ignored active lock:

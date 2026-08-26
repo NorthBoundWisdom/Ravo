@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QString>
@@ -170,7 +171,8 @@ namespace ravo
             break;
         }
     }
-    return QStringLiteral("Imported %1, duplicate %2, unsupported %3, failed %4")
+    return QCoreApplication::translate("StudioPresenter",
+                                       "Imported %1, duplicate %2, unsupported %3, failed %4")
         .arg(imported)
         .arg(duplicate)
         .arg(unsupported)

@@ -9,6 +9,7 @@ target_sources(ravo_desktop
     src/folder_list_model.cpp
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
+    src/studio_language_manager.cpp
     src/studio_presenter.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
@@ -16,7 +17,8 @@ target_sources(ravo_desktop
     include/ravo/desktop/folder_list_model.h
     include/ravo/desktop/preview_request_owner.h
     include/ravo/desktop/studio_command_controller.h
-    include/ravo/desktop/studio_presenter.h)
+    include/ravo/desktop/studio_presenter.h
+    src/studio_language_manager.h)
 
 target_include_directories(ravo_desktop
   PUBLIC
@@ -25,7 +27,7 @@ target_include_directories(ravo_desktop
 
 target_link_libraries(ravo_desktop
   PUBLIC ravo_services ravo_adapters
-  PRIVATE Qt6::Gui)
+  PRIVATE Qt6::Gui Qt6::Qml)
 
 set_target_properties(ravo_desktop PROPERTIES AUTOMOC ON)
 ravo_configure_target(ravo_desktop)
@@ -134,6 +136,7 @@ qt_add_resources(ravo_studio "studio_app_icon"
 if(NOT Python3_Interpreter_FOUND)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
 endif()
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/StudioTranslations.cmake")
 add_custom_command(
   TARGET ravo_studio
   POST_BUILD

@@ -62,6 +62,15 @@ superseded token with old revision/asset rejection. Desktop QML smoke verifies
 that Input Profile, White Balance, Color Calibration, and full Color Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
+Localization is a desktop build contract. Ravo/tools/check_i18n.py requires
+well-formed TS XML, no active unfinished/empty translations, matching
+placeholders/newlines, and English source identity. The
+ravo_studio_translations target then compiles both catalogs; the desktop command
+test loads the built Chinese QM and verifies QML, command, and presenter
+contexts. Refresh catalogs only through the project i18n workflow before these
+checks, so current source and historical Chinese translations remain separate
+and reproducible.
+
 ## Test framework and target boundaries
 
 All Ravo C++ unit, contract, and integration tests use GoogleTest; GoogleMock

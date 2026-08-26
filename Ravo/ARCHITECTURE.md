@@ -64,6 +64,16 @@ Commands that depend on current control values are not in the command palette.
 QML retains only transient focus/popup state and thin action binding, not a
 second table of IDs, titles, shortcuts, or enablement.
 
+Desktop localization is likewise presentation-only. The desktop-owned language
+manager selects only en_US or zh_CN, persists that UI preference locally, and
+owns the QTranslator lifetime. It installs a verified candidate before
+discarding the prior translator, then asks the QML engine and command controller
+to retranslate. Source TS catalogs and the Chinese translation memory are
+repository assets; CMake validates and compiles them to build-local QM files,
+which are the only files deployed with Studio. Missing Chinese artifacts are
+reported and leave the active language unchanged; no catalog, service, task, or
+engine state is translated or altered.
+
 Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
 1600px processed preview merely for a selected grid item; histogram and parade
 are calculated from that thumbnail. Loupe/develop requests full decode. On

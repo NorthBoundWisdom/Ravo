@@ -15,6 +15,12 @@
     "qmlDir": "@RAVO_PACKAGE_QML_DIR@"
   },
   "resources": {
+    "copyTrees": [
+      {
+        "source": "@CMAKE_CURRENT_BINARY_DIR@/desktop/i18n",
+        "destination": "i18n"
+      }
+    ],
     "copyFiles": [
       {
         "source": "@CMAKE_CURRENT_BINARY_DIR@/cli/ravo",

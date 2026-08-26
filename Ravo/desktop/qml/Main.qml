@@ -10,7 +10,8 @@ ApplicationWindow {
     height: 900
     visible: true
     color: Theme.windowColor
-    title: studio.catalogOpen ? ("Ravo Studio — " + studio.catalogPath) : "Ravo Studio"
+    title: studio.catalogOpen ? qsTr("Ravo Studio — %1").arg(studio.catalogPath) :
+                                qsTr("Ravo Studio")
     palette.window: Theme.windowColor
     palette.windowText: Theme.windowTextColor
     palette.base: Theme.baseColor
@@ -734,7 +735,9 @@ ApplicationWindow {
         MainStatusBar {
             Layout.fillWidth: true
             statusText: studio.statusText
-            viewerText: studio.previewLoading ? qsTr("Loading preview…") : (studio.selectedAssetId.length > 0 ? (studio.visibleCount + " photos") : "")
+            viewerText: studio.previewLoading ? qsTr("Loading preview…") :
+                                                (studio.selectedAssetId.length > 0 ?
+                                                     qsTr("%1 photos").arg(studio.visibleCount) : "")
         }
     }
 
@@ -748,6 +751,7 @@ ApplicationWindow {
         visible: window.settingsOpen
         z: 20
         presenter: studio
+        languageManager: studioLanguage
         onCloseRequested: window.settingsOpen = false
     }
 

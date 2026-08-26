@@ -14,6 +14,7 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
 #include "studio_image_providers.h"
+#include "studio_language_manager.h"
 
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
@@ -64,6 +65,7 @@ int main(int argc, char *argv[])
     const QStringList arguments = QCoreApplication::arguments();
     const bool smoke = arguments.contains(QStringLiteral("--smoke"));
     QString catalog_path;
+    QString requested_language;
     for (int index = 1; index < arguments.size(); ++index)
     {
         const QString &argument = arguments.at(index);
@@ -75,12 +77,44 @@ int main(int argc, char *argv[])
         if (argument.startsWith(QLatin1String("--catalog=")))
         {
             catalog_path = argument.mid(QStringLiteral("--catalog=").size());
+            continue;
+        }
+        if (argument == QLatin1String("--language"))
+        {
+            if (index + 1 >= arguments.size() || arguments.at(index + 1).trimmed().isEmpty())
+            {
+                LOG_ERROR(ravo::logger(), "--language requires en_US or zh_CN");
+                ravo::shutdown_logging();
+                return 1;
+            }
+            requested_language = arguments.at(++index);
+            continue;
+        }
+        if (argument.startsWith(QLatin1String("--language=")))
+        {
+            requested_language = argument.mid(QStringLiteral("--language=").size());
+            if (requested_language.trimmed().isEmpty())
+            {
+                LOG_ERROR(ravo::logger(), "--language requires en_US or zh_CN");
+                ravo::shutdown_logging();
+                return 1;
+            }
         }
     }
     LOG_INFO(ravo::logger(), "Ravo Studio starting");
 
+    ravo::StudioLanguageManager language_manager;
+    if (!language_manager.initialize(requested_language) && !requested_language.isEmpty())
+    {
+        LOG_ERROR(ravo::logger(), "requested UI language failed: {}",
+                  requested_language.toStdString());
+        ravo::shutdown_logging();
+        return 1;
+    }
     ravo::StudioPresenter presenter;
     ravo::StudioCommandController command_controller(presenter);
+    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
+                     &command_controller, &ravo::StudioCommandController::retranslate);
     if (!catalog_path.isEmpty())
     {
         presenter.setStartupCatalogPath(QFileInfo(catalog_path).absoluteFilePath());
@@ -88,6 +122,7 @@ int main(int argc, char *argv[])
                  presenter.startupCatalogPath().toStdString());
     }
     QQmlApplicationEngine engine;
+    language_manager.setQmlEngine(&engine);
     engine.addImportPath(QStringLiteral("qrc:/"));
     engine.addImageProvider(QStringLiteral("studioPreview"),
                             new ravo::StudioPreviewImageProvider(presenter));
@@ -95,6 +130,7 @@ int main(int argc, char *argv[])
                             new ravo::StudioScopeImageProvider(presenter));
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     engine.rootContext()->setContextProperty(QStringLiteral("studioCommands"), &command_controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);

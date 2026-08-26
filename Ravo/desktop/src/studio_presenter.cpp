@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QList>
@@ -112,7 +113,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
     if (!created)
     {
         error_text_ = qstring_from_utf8(created.error().message);
-        status_text_ = QStringLiteral("Engine failed to start.");
+        status_text_ = QCoreApplication::translate("StudioPresenter", "Engine failed to start.");
     }
 }
 
@@ -822,12 +823,13 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
     const QString local = file_url.toLocalFile();
     if (local.isEmpty())
     {
-        setError(QStringLiteral("Catalog path is not a local file."));
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Catalog path is not a local file."));
         return;
     }
     setBusy(true);
     setError({});
-    setStatus(QStringLiteral("Creating library…"));
+    setStatus(QCoreApplication::translate("StudioPresenter", "Creating library…"));
     const auto path = utf8_from_qstring(local);
     executor_.post(
         [this, path]()
@@ -863,14 +865,15 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                     if (!failure.isEmpty())
                     {
                         setError(failure);
-                        setStatus(QStringLiteral("Create failed."));
+                        setStatus(QCoreApplication::translate("StudioPresenter", "Create failed."));
                         return;
                     }
                     catalog_path_ = qstring_from_utf8(path);
                     thumbnail_requests_.clear();
                     emit catalogChanged();
                     setError({});
-                    setStatus(QStringLiteral("Library created. Import photos or a folder."));
+                    setStatus(QCoreApplication::translate(
+                        "StudioPresenter", "Library created. Import photos or a folder."));
                     applyFolders(std::move(listing.folders).value());
                     applyAssets(std::move(listing.assets).value(), true,
                                 std::move(listing.thumbnail_urls),
@@ -889,12 +892,13 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
     const QString local = file_url.toLocalFile();
     if (local.isEmpty())
     {
-        setError(QStringLiteral("Catalog path is not a local file."));
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Catalog path is not a local file."));
         return;
     }
     setBusy(true);
     setError({});
-    setStatus(QStringLiteral("Opening library…"));
+    setStatus(QCoreApplication::translate("StudioPresenter", "Opening library…"));
     const auto path = utf8_from_qstring(local);
     executor_.post(
         [this, path]()
@@ -930,7 +934,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     if (!failure.isEmpty())
                     {
                         setError(failure);
-                        setStatus(QStringLiteral("Open failed."));
+                        setStatus(QCoreApplication::translate("StudioPresenter", "Open failed."));
                         return;
                     }
                     catalog_path_ = qstring_from_utf8(path);
@@ -942,7 +946,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     emit previewChanged();
                     emit thumbnailsChanged();
                     setError({});
-                    setStatus(QStringLiteral("Library opened."));
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Library opened."));
                     applyFolders(std::move(listing.folders).value());
                     applyAssets(std::move(listing.assets).value(), true,
                                 std::move(listing.thumbnail_urls),
@@ -1000,7 +1004,7 @@ void StudioPresenter::exportSelectedToPath(const QString &path, const QString &f
     }
     if (output.isEmpty())
     {
-        setError(QStringLiteral("Export path must not be empty."));
+        setError(QCoreApplication::translate("StudioPresenter", "Export path must not be empty."));
         return;
     }
     auto format = export_format_from_ui(output, filter);
@@ -1017,7 +1021,7 @@ void StudioPresenter::exportSelectedToPath(const QString &path, const QString &f
     }
     setBusy(true);
     setError({});
-    setStatus(QStringLiteral("Exporting…"));
+    setStatus(QCoreApplication::translate("StudioPresenter", "Exporting…"));
     executor_.post(
         [this, asset_id = utf8_from_qstring(selected_asset_id_),
          output_path = utf8_from_qstring(output), export_format = format.value()]()
@@ -1040,10 +1044,10 @@ void StudioPresenter::exportSelectedToPath(const QString &path, const QString &f
                     if (!exported)
                     {
                         setError(qstring_from_utf8(exported.error().message));
-                        setStatus(QStringLiteral("Export failed."));
+                        setStatus(QCoreApplication::translate("StudioPresenter", "Export failed."));
                         return;
                     }
-                    setStatus(QStringLiteral("Exported %1 (%2×%3)")
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Exported %1 (%2×%3)")
                                   .arg(QFileInfo(qstring_from_utf8(exported.value().output_path))
                                            .fileName())
                                   .arg(exported.value().width)
@@ -1071,11 +1075,11 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
     }
     if (paths.empty())
     {
-        setError(QStringLiteral("No local files selected."));
+        setError(QCoreApplication::translate("StudioPresenter", "No local files selected."));
         return;
     }
     setError({});
-    setStatus(QStringLiteral("Scanning folder…"));
+    setStatus(QCoreApplication::translate("StudioPresenter", "Scanning folder…"));
     setImportWork(0, 0, true);
     executor_.post(
         [this, paths = std::move(paths), query = current_query()]()
@@ -1101,7 +1105,8 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
                             [this, completed_count, total_count, copied = std::move(copied)]()
                             {
                                 setImportWork(completed_count, total_count, true);
-                                setStatus(QStringLiteral("Importing %1 / %2…")
+                                setStatus(QCoreApplication::translate("StudioPresenter",
+                                                                      "Importing %1 / %2…")
                                               .arg(completed_count)
                                               .arg(total_count));
                                 if (copied)
@@ -1141,13 +1146,13 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
                     if (!listing.assets)
                     {
                         setError(qstring_from_utf8(listing.assets.error().message));
-                        setStatus(QStringLiteral("Import failed."));
+                        setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
                         return;
                     }
                     if (!listing.folders)
                     {
                         setError(qstring_from_utf8(listing.folders.error().message));
-                        setStatus(QStringLiteral("Import failed."));
+                        setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
                         return;
                     }
                     setError(first_error);
@@ -1749,8 +1754,11 @@ void StudioPresenter::remove_selected_from_catalog()
                     }
                     setStatus(
                         count == 1 ?
-                            QStringLiteral("Removed from catalog. Original file was not deleted.") :
-                            QStringLiteral(
+                            QCoreApplication::translate(
+                                "StudioPresenter",
+                                "Removed from catalog. Original file was not deleted.") :
+                            QCoreApplication::translate(
+                                "StudioPresenter",
                                 "Removed %1 photos from catalog. Original files were not deleted.")
                                 .arg(count));
                 },
@@ -1829,10 +1837,13 @@ void StudioPresenter::remove_selected_from_disk()
                         const int row = std::min(keep_index, assets_.rowCount() - 1);
                         selectAsset(assets_.assetIdAt(row));
                     }
-                    setStatus(count == 1 ?
-                                  QStringLiteral("Deleted original file and catalog record.") :
-                                  QStringLiteral("Deleted %1 original files and catalog records.")
-                                      .arg(count));
+                    setStatus(
+                        count == 1 ?
+                            QCoreApplication::translate(
+                                "StudioPresenter", "Deleted original file and catalog record.") :
+                            QCoreApplication::translate(
+                                "StudioPresenter", "Deleted %1 original files and catalog records.")
+                                .arg(count));
                 },
                 Qt::QueuedConnection);
         });

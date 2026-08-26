@@ -33,6 +33,10 @@ Current implementation status:
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
   a visible reason.
+- Studio UI supports English and Simplified Chinese. The desktop-owned language
+  manager persists the selected UI language, loads only the build-produced Qt
+  catalog, and leaves service/engine machine errors outside the catalog
+  contract.
 - Basic Develop provides catalog schema v4 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
@@ -170,6 +174,24 @@ previously validated the current engine/CLI graph; Linux still requires
 validation on its target host. The addition of Qt Gui/Qml/Quick/Sql, QML
 modules, runtime plugins, and desktop requires renewed three-platform results.
 
+## Studio localization
+
+Studio localization source is versioned under desktop/i18n, while QM files are
+build output. Refresh source and reuse the persistent Chinese translation
+memory with the project-local
+[i18n workflow](../.codex/skills/i18n-translation-workflow/SKILL.md):
+
+~~~text
+python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --part 1
+# Translate only <unfinished> values in Ravo/desktop/i18n/zh_translate.ini.
+python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --part 2
+cmake --build --preset mac_clang_debug --target ravo_studio_translations
+~~~
+
+The workflow requires the Qt kit's LinguistTools. It fails on malformed
+translation memory, incomplete active translations, placeholder mismatch, or
+invalid TS XML; it never writes source catalogs into the build tree.
+
 ## FreeCM project workflow
 
 `configs/freecm.commands.jsonc` uses manifest v2. Debug/Release and
@@ -258,6 +280,8 @@ meets the root TODO's release-transition and rollback gates.
   rules;
 - [TESTING.md](TESTING.md): first-version catalog/import/viewer and frozen
   fixture acceptance;
+- [i18n workflow](../.codex/skills/i18n-translation-workflow/SKILL.md):
+  source extraction, Chinese translation memory, and catalog validation;
 - [ADR index](docs/adr/README.md): durable architecture decisions;
 - [root legacy migration TODO](../TODO_LEGACY_MIGRATION.md): unfinished
   execution items and gates only.

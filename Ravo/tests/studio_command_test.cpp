@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QKeySequence>
+#include <QTranslator>
 
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -92,6 +93,23 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
+}
+
+TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
+{
+    ensure_qt_core();
+    QTranslator translator;
+    ASSERT_TRUE(
+        translator.load(QStringLiteral(RAVO_STUDIO_TRANSLATION_DIR "/RavoStudio_zh_CN.qm")));
+    ASSERT_TRUE(QCoreApplication::installTranslator(&translator));
+
+    EXPECT_EQ(QCoreApplication::translate("SettingsPage", "Language"), QStringLiteral("语言"));
+    EXPECT_EQ(QCoreApplication::translate("StudioCommands", "Open a library first."),
+              QStringLiteral("请先打开图库。"));
+    EXPECT_EQ(QCoreApplication::translate("StudioPresenter", "Library opened."),
+              QStringLiteral("图库已打开。"));
+
+    QCoreApplication::removeTranslator(&translator);
 }
 
 TEST(StudioCommands, CommandPaletteUsesQtPortablePrimaryModifierPolicy)

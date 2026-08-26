@@ -46,6 +46,7 @@ public:
     void setTextInputActive(bool active);
     void setSettingsOpen(bool open);
     void setModalOpen(bool open);
+    void retranslate();
 
     Q_INVOKABLE QVariantList menuEntries(const QString &path) const;
     Q_INVOKABLE QVariantMap action(const QString &action_id) const;

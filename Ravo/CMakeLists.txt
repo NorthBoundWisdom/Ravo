@@ -25,6 +25,7 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS
   QuickControls2
   QuickDialogs2
   QuickLayouts
+  LinguistTools
   Svg)
 
 set(_ravo_required_qt_runtime_plugins

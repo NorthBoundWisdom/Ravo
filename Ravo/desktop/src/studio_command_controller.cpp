@@ -166,6 +166,51 @@ QString tr_command(const QString &source)
     return QCoreApplication::translate("StudioCommands", bytes.constData());
 }
 
+[[maybe_unused]] const char *const kStudioCommandTranslationSources[] = {
+    QT_TRANSLATE_NOOP("StudioCommands", "This command takes no argument."),
+    QT_TRANSLATE_NOOP("StudioCommands", "A non-empty string is required."),
+    QT_TRANSLATE_NOOP("StudioCommands", "An object argument is required."),
+    QT_TRANSLATE_NOOP("StudioCommands", "A non-empty list of paths is required."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Every import path must be a non-empty string."),
+    QT_TRANSLATE_NOOP("StudioCommands", "%1 must be a finite number."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Missing command argument field: %1."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown %1 value."),
+    QT_TRANSLATE_NOOP("StudioCommands", "A current confirmation token is required."),
+    QT_TRANSLATE_NOOP("StudioCommands",
+                      "The photo selection changed after confirmation was requested."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Export path must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown rating filter mode."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Rating filter value must be an integer from 0 to 5."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown library sort field."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown library sort direction."),
+    QT_TRANSLATE_NOOP("StudioCommands", "An asset ID is required."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Rating must be an integer between 0 and 5."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown color label."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown writable metadata field."),
+    QT_TRANSLATE_NOOP("StudioCommands", "A non-negative integer history ID is required."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Navigation argument must be 'range'."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Thumbnail size must be an integer between 120 and 320."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Develop control name must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Develop value must be finite."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Tone curve points must be a list."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Crop width and height must be positive."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Crop state must be boolean."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Close Settings to use this command."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Open a library first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Wait for library work to finish."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Select a photo first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Open a photo first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Open Edit first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Nothing to undo."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Nothing to redo."),
+    QT_TRANSLATE_NOOP("StudioCommands", "The selected originals cannot be deleted."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Command unavailable in the current context."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unreject"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Done Cropping"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown action: %1"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown command: %1"),
+    QT_TRANSLATE_NOOP("StudioCommands", "Unknown command source: %1")};
+
 QString primary_key(const QString &key, const bool shift = false, const bool alt = false)
 {
     // QKeySequence PortableText uses Ctrl as the cross-platform primary
@@ -315,103 +360,126 @@ QVector<ActionSpec> builtin_actions()
     };
     const auto key = [](const QString &sequence, const bool non_text = false)
     { return ShortcutSpec{sequence, non_text}; };
-    const auto file = QStringLiteral("File");
-    const auto edit = QStringLiteral("Edit");
-    const auto view = QStringLiteral("View");
-    const auto photo = QStringLiteral("Photo");
+    const auto file = QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "File"));
+    const auto edit = QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Edit"));
+    const auto view = QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "View"));
+    const auto photo = QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Photo"));
 
-    add(command::kLibraryCreate, command::kLibraryCreate, QStringLiteral("Create Library..."), file,
+    add(command::kLibraryCreate, command::kLibraryCreate,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Create Library...")), file,
         {QStringLiteral("new"), QStringLiteral("catalog")}, QStringLiteral("file.library"), 10,
         true, {key(primary_key(QStringLiteral("N")))});
-    add(command::kLibraryOpen, command::kLibraryOpen, QStringLiteral("Open Library..."), file,
+    add(command::kLibraryOpen, command::kLibraryOpen,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Open Library...")), file,
         {QStringLiteral("catalog")}, QStringLiteral("file.library"), 20, true,
         {key(primary_key(QStringLiteral("O")))});
     add(command::kLibraryImportFiles, command::kLibraryImportFiles,
-        QStringLiteral("Import Photos..."), file,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import Photos...")), file,
         {QStringLiteral("files"), QStringLiteral("photos")}, QStringLiteral("file.transfer"), 10,
         true, {key(primary_key(QStringLiteral("I")))});
     add(command::kLibraryImportFolder, command::kLibraryImportFolder,
-        QStringLiteral("Import Folder..."), file,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import Folder...")), file,
         {QStringLiteral("directory"), QStringLiteral("photos")}, QStringLiteral("file.transfer"),
         20, true, {key(primary_key(QStringLiteral("I"), true))});
-    add(command::kLibraryExport, command::kLibraryExport, QStringLiteral("Export Photo..."), file,
+    add(command::kLibraryExport, command::kLibraryExport,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Photo...")), file,
         {QStringLiteral("save"), QStringLiteral("render")}, QStringLiteral("file.transfer"), 30,
         true, {key(primary_key(QStringLiteral("E"), true))});
-    add(command::kWindowClose, command::kWindowClose, QStringLiteral("Close Window"), file,
+    add(command::kWindowClose, command::kWindowClose,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Close Window")), file,
         {QStringLiteral("window")}, QStringLiteral("file.window"), 10, true,
         {key(primary_key(QStringLiteral("W")))});
-    add(command::kWindowSettings, command::kWindowSettings, QStringLiteral("Settings..."), file,
+    add(command::kWindowSettings, command::kWindowSettings,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Settings...")), file,
         {QStringLiteral("preferences"), QStringLiteral("configuration")},
         QStringLiteral("file.window"), 20, true, {key(primary_key(QStringLiteral(",")))});
-    add(command::kWindowQuit, command::kWindowQuit, QStringLiteral("Quit Ravo Studio"), file,
+    add(command::kWindowQuit, command::kWindowQuit,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Quit Ravo Studio")), file,
         {QStringLiteral("exit")}, QStringLiteral("file.window"), 30, true,
         {key(primary_key(QStringLiteral("Q")))});
 
-    add(command::kEditUndo, command::kEditUndo, QStringLiteral("Undo"), edit,
+    add(command::kEditUndo, command::kEditUndo,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Undo")), edit,
         {QStringLiteral("history")}, QStringLiteral("edit.history"), 10, true,
         {key(primary_key(QStringLiteral("Z"))), key(QStringLiteral("Z"), true)});
-    add(command::kEditRedo, command::kEditRedo, QStringLiteral("Redo"), edit,
+    add(command::kEditRedo, command::kEditRedo,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Redo")), edit,
         {QStringLiteral("history")}, QStringLiteral("edit.history"), 20, true,
         {key(primary_key(QStringLiteral("Z"), true)), key(QStringLiteral("Shift+Z"), true)});
-    add(command::kEditResetAll, command::kEditResetAll, QStringLiteral("Reset All Edits"), edit,
+    add(command::kEditResetAll, command::kEditResetAll,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reset All Edits")), edit,
         {QStringLiteral("develop"), QStringLiteral("clear")}, QStringLiteral("edit.reset"), 10,
         true, {key(primary_key(QStringLiteral("R"), true))});
 
-    add(command::kViewGrid, command::kViewGrid, QStringLiteral("Gallery"), view,
-        {QStringLiteral("grid"), QStringLiteral("library")}, QStringLiteral("view.mode"), 10,
-        true, {key(primary_key(QStringLiteral("1"))), key(QStringLiteral("G"), true)});
-    add(command::kViewLoupe, command::kViewLoupe, QStringLiteral("Loupe"), view,
-        {QStringLiteral("photo"), QStringLiteral("viewer")}, QStringLiteral("view.mode"), 20,
-        true, {key(primary_key(QStringLiteral("2"))), key(QStringLiteral("E"), true),
-               key(QStringLiteral("Return"), true), key(QStringLiteral("Enter"), true)});
-    add(command::kViewDevelop, command::kViewDevelop, QStringLiteral("Edit"), view,
+    add(command::kViewGrid, command::kViewGrid,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Gallery")), view,
+        {QStringLiteral("grid"), QStringLiteral("library")}, QStringLiteral("view.mode"), 10, true,
+        {key(primary_key(QStringLiteral("1"))), key(QStringLiteral("G"), true)});
+    add(command::kViewLoupe, command::kViewLoupe,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Loupe")), view,
+        {QStringLiteral("photo"), QStringLiteral("viewer")}, QStringLiteral("view.mode"), 20, true,
+        {key(primary_key(QStringLiteral("2"))), key(QStringLiteral("E"), true),
+         key(QStringLiteral("Return"), true), key(QStringLiteral("Enter"), true)});
+    add(command::kViewDevelop, command::kViewDevelop,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Edit")), view,
         {QStringLiteral("develop")}, QStringLiteral("view.mode"), 30, true,
         {key(primary_key(QStringLiteral("3"))), key(QStringLiteral("D"), true)});
-    add(command::kViewFit, command::kViewFit, QStringLiteral("Fit"), view,
+    add(command::kViewFit, command::kViewFit,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Fit")), view,
         {QStringLiteral("zoom")}, QStringLiteral("view.zoom"), 10, true,
         {key(primary_key(QStringLiteral("0"))), key(QStringLiteral("F"), true)});
-    add(command::kViewFill, command::kViewFill, QStringLiteral("Fill"), view,
+    add(command::kViewFill, command::kViewFill,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Fill")), view,
         {QStringLiteral("zoom")}, QStringLiteral("view.zoom"), 20, true,
         {key(primary_key(QStringLiteral("9")))});
-    add(command::kViewActual, command::kViewActual, QStringLiteral("Actual Size"), view,
+    add(command::kViewActual, command::kViewActual,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Actual Size")), view,
         {QStringLiteral("100%"), QStringLiteral("zoom")}, QStringLiteral("view.zoom"), 30, true,
         {key(primary_key(QStringLiteral("0"), false, true)), key(QStringLiteral("Shift+1"), true)});
-    add(command::kEditBeforeAfter, command::kEditBeforeAfter, QStringLiteral("Before / After"),
-        view, {QStringLiteral("compare")}, QStringLiteral("view.compare"), 10, true,
+    add(command::kEditBeforeAfter, command::kEditBeforeAfter,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Before / After")), view,
+        {QStringLiteral("compare")}, QStringLiteral("view.compare"), 10, true,
         {key(QStringLiteral("\\"), true)});
     add(command::kWindowPalette, command::kWindowPalette,
-        QStringLiteral("Show Command Palette"), view,
-        {QStringLiteral("commands"), QStringLiteral("search")}, QStringLiteral("view.commands"),
-        10, false, {key(primary_key(QStringLiteral("P"), true))});
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Show Command Palette")), view,
+        {QStringLiteral("commands"), QStringLiteral("search")}, QStringLiteral("view.commands"), 10,
+        false, {key(primary_key(QStringLiteral("P"), true))});
 
-    add(command::kPhotoPrevious, command::kPhotoPrevious, QStringLiteral("Previous Photo"), photo,
+    add(command::kPhotoPrevious, command::kPhotoPrevious,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Previous Photo")), photo,
         {QStringLiteral("navigate")}, QStringLiteral("photo.navigate"), 10, true,
         {key(QStringLiteral("Left"), true)});
-    add(command::kPhotoNext, command::kPhotoNext, QStringLiteral("Next Photo"), photo,
+    add(command::kPhotoNext, command::kPhotoNext,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Next Photo")), photo,
         {QStringLiteral("navigate")}, QStringLiteral("photo.navigate"), 20, true,
         {key(QStringLiteral("Right"), true)});
     add(action_id::kPreviousRange, command::kPhotoPrevious,
-        QStringLiteral("Extend Selection to Previous"), photo,
-        {QStringLiteral("range"), QStringLiteral("selection")}, {}, 0, false,
-        {key(QStringLiteral("Shift+Left"), true)}, QStringLiteral("range"), true);
-    add(action_id::kNextRange, command::kPhotoNext, QStringLiteral("Extend Selection to Next"),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Extend Selection to Previous")),
         photo, {QStringLiteral("range"), QStringLiteral("selection")}, {}, 0, false,
+        {key(QStringLiteral("Shift+Left"), true)}, QStringLiteral("range"), true);
+    add(action_id::kNextRange, command::kPhotoNext,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Extend Selection to Next")), photo,
+        {QStringLiteral("range"), QStringLiteral("selection")}, {}, 0, false,
         {key(QStringLiteral("Shift+Right"), true)}, QStringLiteral("range"), true);
-    add(command::kEditCropTool, command::kEditCropTool, QStringLiteral("Crop & Rotate"), photo,
-        {QStringLiteral("crop"), QStringLiteral("straighten")},
-        QStringLiteral("photo.transform"), 10, true, {key(QStringLiteral("R"), true)});
-    add(command::kEditRotateLeft, command::kEditRotateLeft, QStringLiteral("Rotate Left"), photo,
+    add(command::kEditCropTool, command::kEditCropTool,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Crop & Rotate")), photo,
+        {QStringLiteral("crop"), QStringLiteral("straighten")}, QStringLiteral("photo.transform"),
+        10, true, {key(QStringLiteral("R"), true)});
+    add(command::kEditRotateLeft, command::kEditRotateLeft,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Rotate Left")), photo,
         {QStringLiteral("transform")}, QStringLiteral("photo.transform"), 20, true,
         {key(primary_key(QStringLiteral("[")))});
-    add(command::kEditRotateRight, command::kEditRotateRight, QStringLiteral("Rotate Right"), photo,
+    add(command::kEditRotateRight, command::kEditRotateRight,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Rotate Right")), photo,
         {QStringLiteral("transform")}, QStringLiteral("photo.transform"), 30, true,
         {key(primary_key(QStringLiteral("]")))});
     add(command::kEditFlipHorizontal, command::kEditFlipHorizontal,
-        QStringLiteral("Flip Horizontal"), photo, {QStringLiteral("mirror")},
-        QStringLiteral("photo.transform"), 40, true,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Flip Horizontal")), photo,
+        {QStringLiteral("mirror")}, QStringLiteral("photo.transform"), 40, true,
         {key(primary_key(QStringLiteral("H"), true))});
-    add(command::kEditFlipVertical, command::kEditFlipVertical, QStringLiteral("Flip Vertical"),
-        photo, {QStringLiteral("mirror")}, QStringLiteral("photo.transform"), 50, true,
+    add(command::kEditFlipVertical, command::kEditFlipVertical,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Flip Vertical")), photo,
+        {QStringLiteral("mirror")}, QStringLiteral("photo.transform"), 50, true,
         {key(primary_key(QStringLiteral("V"), true))});
 
     const char *rating_ids[] = {action_id::kRating0, action_id::kRating1, action_id::kRating2,
@@ -419,7 +487,7 @@ QVector<ActionSpec> builtin_actions()
     for (int rating = 0; rating <= 5; ++rating)
     {
         add(rating_ids[rating], command::kPhotoSetRating,
-            QStringLiteral("Rating %1").arg(rating), photo,
+            QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Rating %1")).arg(rating), photo,
             {QStringLiteral("stars"), QStringLiteral("review")}, QStringLiteral("photo.rating"),
             rating, true, {key(QString::number(rating), true)}, rating, true);
     }
@@ -429,12 +497,13 @@ QVector<ActionSpec> builtin_actions()
         const char *value;
         const char *title;
     };
-    const ColorAction colors[] = {{action_id::kColorNone, "none", "No Color"},
-                                  {action_id::kColorRed, "red", "Red"},
-                                  {action_id::kColorYellow, "yellow", "Yellow"},
-                                  {action_id::kColorGreen, "green", "Green"},
-                                  {action_id::kColorBlue, "blue", "Blue"},
-                                  {action_id::kColorPurple, "purple", "Purple"}};
+    const ColorAction colors[] = {
+        {action_id::kColorNone, "none", QT_TRANSLATE_NOOP("StudioCommands", "No Color")},
+        {action_id::kColorRed, "red", QT_TRANSLATE_NOOP("StudioCommands", "Red")},
+        {action_id::kColorYellow, "yellow", QT_TRANSLATE_NOOP("StudioCommands", "Yellow")},
+        {action_id::kColorGreen, "green", QT_TRANSLATE_NOOP("StudioCommands", "Green")},
+        {action_id::kColorBlue, "blue", QT_TRANSLATE_NOOP("StudioCommands", "Blue")},
+        {action_id::kColorPurple, "purple", QT_TRANSLATE_NOOP("StudioCommands", "Purple")}};
     int color_order = 0;
     for (const auto &color : colors)
     {
@@ -442,26 +511,30 @@ QVector<ActionSpec> builtin_actions()
             {QStringLiteral("label"), QStringLiteral("review")}, QStringLiteral("photo.color"),
             color_order++, true, {}, QString::fromLatin1(color.value), true);
     }
-    add(command::kPhotoToggleReject, command::kPhotoToggleReject, QStringLiteral("Reject"), photo,
+    add(command::kPhotoToggleReject, command::kPhotoToggleReject,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reject")), photo,
         {QStringLiteral("review"), QStringLiteral("flag")}, QStringLiteral("photo.review"), 10,
         true, {key(QStringLiteral("X"), true)});
     add(command::kPhotoRequestRemove, command::kPhotoRequestRemove,
-        QStringLiteral("Remove from Catalog..."), photo,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove from Catalog...")), photo,
         {QStringLiteral("library"), QStringLiteral("delete")}, QStringLiteral("photo.delete"), 10,
         true, {key(QStringLiteral("Delete"), true), key(QStringLiteral("Backspace"), true)});
     add(command::kPhotoRequestDelete, command::kPhotoRequestDelete,
-        QStringLiteral("Delete from Disk..."), photo,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Delete from Disk...")), photo,
         {QStringLiteral("original"), QStringLiteral("permanent")}, QStringLiteral("photo.delete"),
         20, true);
     add(command::kLibraryClearFilters, command::kLibraryClearFilters,
-        QStringLiteral("Clear Library Filters"), QStringLiteral("Library"),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Clear Library Filters")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
         {QStringLiteral("search"), QStringLiteral("show all")}, {}, 0, true);
-    add(command::kWindowAbout, command::kWindowAbout, QStringLiteral("About Ravo Studio"),
-        QStringLiteral("Help"), {QStringLiteral("version")}, QStringLiteral("help.about"), 10,
-        true);
-    add(command::kWindowDismiss, command::kWindowDismiss, QStringLiteral("Dismiss Current View"),
-        QStringLiteral("Window"), {QStringLiteral("escape")}, {}, 0, false,
-        {key(QStringLiteral("Esc"), true)});
+    add(command::kWindowAbout, command::kWindowAbout,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "About Ravo Studio")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Help")), {QStringLiteral("version")},
+        QStringLiteral("help.about"), 10, true);
+    add(command::kWindowDismiss, command::kWindowDismiss,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Dismiss Current View")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Window")),
+        {QStringLiteral("escape")}, {}, 0, false, {key(QStringLiteral("Esc"), true)});
     return result;
 }
 
@@ -522,8 +595,11 @@ bool numeric_argument(const QVariant &argument)
 
 QString finite_number(const QVariant &argument, const QString &name)
 {
-    return numeric_argument(argument) && std::isfinite(argument.toDouble()) ? QString{} :
-                                                                             QStringLiteral("%1 must be a finite number.").arg(name);
+    return numeric_argument(argument) && std::isfinite(argument.toDouble()) ?
+               QString{} :
+               tr_command(QString::fromUtf8(
+                              QT_TRANSLATE_NOOP("StudioCommands", "%1 must be a finite number.")))
+                   .arg(name);
 }
 
 QString required_fields(const QVariant &argument, const QStringList &fields)
@@ -534,7 +610,9 @@ QString required_fields(const QVariant &argument, const QStringList &fields)
     const auto values = argument.toMap();
     for (const auto &field : fields)
         if (!values.contains(field))
-            return QStringLiteral("Missing command argument field: %1.").arg(field);
+            return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                  "StudioCommands", "Missing command argument field: %1.")))
+                .arg(field);
     return {};
 }
 
@@ -542,7 +620,9 @@ QString one_of(const QVariant &argument, const QSet<QString> &values, const QStr
 {
     return argument.metaType().id() == QMetaType::QString && values.contains(argument.toString()) ?
                QString{} :
-               QStringLiteral("Unknown %1 value.").arg(name);
+               tr_command(
+                   QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Unknown %1 value.")))
+                   .arg(name);
 }
 
 QStringList strings_from(const QVariant &argument)
@@ -929,7 +1009,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &) { presenter_.resetSection(argument.toString()); });
     add(command::kEditResetControl, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &) { presenter_.resetControl(argument.toString()); });
-    add(command::kEditSetNumber, Condition::kDevelopSelection,
+    add(
+        command::kEditSetNumber, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
             const auto error = required_fields(argument,
@@ -949,7 +1030,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             const double value = fields.value(QStringLiteral("value")).toDouble();
             if (!std::isfinite(value))
             {
-                presenter_.setError(QStringLiteral("Develop value must be finite."));
+                presenter_.setError(tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "Develop value must be finite."))));
                 return;
             }
             if (fields.value(QStringLiteral("live")).toBool())
@@ -1478,6 +1560,11 @@ void StudioCommandController::setModalOpen(const bool open)
     if (modal_open_ == open)
         return;
     modal_open_ = open;
+    refresh();
+}
+
+void StudioCommandController::retranslate()
+{
     refresh();
 }
 

@@ -17,6 +17,7 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
 | [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Accepted architecture decisions |
+| [../.codex/skills/i18n-translation-workflow/SKILL.md](../.codex/skills/i18n-translation-workflow/SKILL.md) | Ravo Studio source extraction, Chinese translation memory, and catalog workflow |
 | [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Unfinished legacy migration execution |
 | [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |
 
