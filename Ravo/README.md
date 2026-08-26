@@ -161,6 +161,26 @@ Current implementation status:
   and cache identity. The old GTK plane/picker, three presets, and OpenCL path
   are not product contracts; shared kernel/order/registry/style/pixmap assets
   remain separately owned cleanup.
+- Color Contrast provides the independent `ravo.color.colorcontrast` v2
+  contract with explicit operation presence and exactly seven fields:
+  `working_space=lab_d50`, `algorithm=axis_affine_v2`, separate a*/b*
+  steepness and offset values, and the bounded/unbounded switch. The engine
+  privately bridges linear Rec709 through D50 Lab, narrows once to float, and
+  retains the frozen per-axis multiply/add and clamp order. The frozen module-v1
+  upgrade adds `unbound=false`; the former Ravo `amount` v1 recipe maps
+  deterministically to both slopes, with zero retaining its historical skip.
+  Explicit schema-v2 defaults remain present and observable. Strict XMP import
+  accepts the verbatim enabled-v2 singleton, priority-zero, unnamed,
+  default-unmasked record from 0038 plus a synthetic legacy-v1 upgrade under
+  the same presentation envelope; the complete masked 0038 document and all
+  custom blend/multi states reject structurally. CLI render, Catalog
+  preview/save/reopen/export, and Studio's full generic Develop controls share
+  the same recipe, cache, cancellation, ownership, and error path. GTK sliders,
+  OpenCL execution, and the general mask graph are not product contracts. The
+  owner has no 2D plane, picker, or three-preset algorithm and does not inherit
+  those adjacent Color Correction presentation assets. Shared `extended.cl`,
+  order/modulegroup/usermanual names, the example style, and frozen fixtures
+  remain D0.3/D0.4/S14/E1 owners.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

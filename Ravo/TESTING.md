@@ -59,14 +59,16 @@ three-platform primary modifiers, and Unicode fuzzy search; its label is
 failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
 interactive and full CPU render, L2–L9 + temperature + input/output profile +
 profile gamma + exposure + RGB primaries + channel mixer + Color Checker +
-Legacy Color Balance and Color Balance RGB parameter/pixel reopen, and preview-
-owner cancellation of a superseded token with old revision/asset rejection.
+Legacy Color Balance + Color Balance RGB + Color Correction + Color Contrast
+parameter/pixel reopen, and preview-owner cancellation of a superseded token
+with old revision/asset rejection.
 Separate final-display
 contracts cover private RGB8 packing and strict legacy display-boundary
 absorption; neither is a Develop recipe operation or pixel-reopen claim.
 Desktop QML smoke verifies that Input Profile, Unbreak Input Profile, Output &
 Soft Proof, White Balance, Exposure, RGB Primaries, Color Calibration, Color
-Checker, Legacy Color Balance, and full Color Balance RGB bindings load;
+Checker, Legacy Color Balance, Color Correction, Color Contrast, and full Color
+Balance RGB bindings load;
 these automated checks do not rely on Computer Use.
 
 The real `ravo` process is also a protocol contract: `--json` stdout contains
@@ -79,7 +81,8 @@ decoders and manual UI observations are not pixel or persistence oracles.
 
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,
-and the non-jumping hidden defaults for Bloom and negative Dehaze. The unified
+the Color Contrast per-axis float affine/clamp order, and the non-jumping hidden
+defaults for Bloom and negative Dehaze. The unified
 engine-private RGB↔XYZ D50↔Lab owner has source-derived bit goldens for matrix
 order, D50 white/black, both piecewise thresholds, multiply/divide-distinguishing
 vectors, negative/extended values, round trips, and NaN/Inf propagation.
@@ -373,6 +376,31 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   locks its six-key presenter, five hard-bound generic intents, compiled Chinese
   strings, and offscreen QML smoke. GTK plane/picker, three presets, OpenCL, and
   the general mask graph are outside this accepted contract.
+- The complete 158-XMP census finds one actual Color Contrast record, in 0038:
+  enabled v2, priority zero, empty name, exact default-unmasked blend-v10 state,
+  and a generic history position that does not define processing order. A
+  minimal document containing the verbatim record is positive evidence; the
+  complete 0038 document remains negative because it contains a real mask
+  graph. Synthetic legacy v1 freezes the four-float copy plus `unbound=0`.
+  Disabled, duplicate, custom blend, mask, multi/name/priority, unknown,
+  malformed, non-finite, and unsupported-version state reject structurally.
+- Color Contrast recipe tests lock all seven schema-v2 fields, [0, 5]
+  steepness bounds, full finite-float offsets, explicit presence/default
+  round-trip, field/group reset, canonical Color Correction → Color Contrast →
+  Velvia order, and the former Ravo `amount` v1 mapping including its zero
+  skip. An independent scalar/D50 oracle and fixed bit goldens distinguish
+  axis order, float narrowing/evaluation, bounded ternary clamp, unbounded
+  output, extended/negative values, and the observable default Lab bridge.
+  Engine tests cover canonical dispatch, dimensions/buffer/profile, every
+  parameter/input/output finite failure, mask rejection, pre-cancel and
+  row-deadline cancellation, source immutability, profile/analysis retention, atomic
+  publication, and separately owned output.
+- CLI descriptor/import/render tests, Catalog explicit-default preview/save/
+  export/close/reopen pixels and cache identity, and Studio's six-key presenter,
+  two hard-bounded slopes, two full-float scientific offsets, unbound toggle,
+  generic intents, compiled Chinese strings, and offscreen QML smoke all use
+  the same canonical recipe/engine path. GTK sliders, OpenCL, and the general
+  mask graph are not claimed by these tests.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

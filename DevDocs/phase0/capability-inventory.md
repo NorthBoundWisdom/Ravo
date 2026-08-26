@@ -44,7 +44,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.core.whites` | none | P1 white-point control |
 | `ravo.core.blacks` | none | P1 black-point control |
 | `ravo.color.vibrance` | `vibrance` | P1 vibrance |
-| `ravo.color.saturation` | `colorcontrast` | P1 saturation |
+| `ravo.color.saturation` | none | P1 RGB average-saturation control; it is independent from frozen Color Contrast |
 | `ravo.geometry.rotate` | `flip` | P1 90° quarter turns |
 | `ravo.geometry.crop` | `crop` | P1 normalized free crop |
 | `ravo.geometry.flip` | `flip` | horizontal/vertical mirror |
@@ -63,7 +63,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.core.toneequal` | `toneequal` | 9-band [-8,0] EV RBF equalizer under Sigmoid |
 | `ravo.color.colorbalance` | `colorbalance` | complete frozen v4 Lab D50/ProPhoto lift/gamma/gain and slope/offset/power contract; independent from Color Balance RGB |
 | `ravo.color.colorbalancergb` | `colorbalancergb` | full Filmlight Yrg grading, DT UCS default and explicit JzAzBz; the old lift/gamma/gain approximation was removed |
-| `ravo.color.colorcontrast` | `colorcontrast` | chroma steepness |
+| `ravo.color.colorcontrast` | `colorcontrast` | explicit schema-v2 D50 Lab per-axis affine contrast, both v1 upgrades, and strict 0038 default-unmasked import |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
 | `ravo.color.monochrome` | `monochrome` | luma mix |
 | `ravo.color.splittoning` | `splittoning` | shadow/highlight hue mix |
@@ -97,7 +97,6 @@ struct bytes or call the old dynamic module ABI.
 | `borders` | yes | queued by ADR-0015; requires canvas/export geometry contract |
 | `cacorrectrgb` | no | defer with RAW geometry capability |
 | `censorize` | yes | queued by ADR-0015; requires mask/ROI graph |
-| `colorcontrast` | yes | defer until colour operation policy exists |
 | `colorharmonizer` | yes | queued by ADR-0015; requires explicit color-space and overlap contract |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
@@ -145,12 +144,12 @@ struct bytes or call the old dynamic module ABI.
 
 | Capability | Current Ravo state | Rationale |
 | --- | --- | --- |
-| Legacy XMP input | Parse only bounded strict mappings; exposure selects the greatest v5/v6/v7 revision independently of XML order, Color Checker accepts its sole evidenced enabled-v2 default-unmasked singleton plus a synthetic v1 upgrade, and Color Correction accepts the enabled-v1 singleton/priority-zero/unnamed/default-unmasked envelope represented by 0029/0092 | Modified payload/version/enabled/blend/mask/multi/conflicting-revision state returns structured incompatibility; inactive Color Checker v2 tail planes are intentionally ignored and no old ABI bytes cross the boundary |
-| Canonical recipe | Versioned JSON, immutable snapshots, explicit schema upgrades and operation presence | Exposure v1 upgrades to v2 with explicit mode, black, percentile/target, and compensation flags; Color Checker preserves every ordered source/target Lab pair; Color Correction distinguishes absence from an explicitly present default five-parameter operation |
+| Legacy XMP input | Parse only bounded strict mappings; exposure selects the greatest v5/v6/v7 revision independently of XML order, Color Checker accepts its sole evidenced enabled-v2 default-unmasked singleton plus a synthetic v1 upgrade, Color Correction accepts the enabled-v1 singleton/priority-zero/unnamed/default-unmasked envelope represented by 0029/0092, and Color Contrast accepts the evidenced enabled-v2 singleton/priority-zero/unnamed/default-unmasked record from 0038 plus a synthetic legacy-v1 upgrade under that presentation envelope | Modified payload/version/enabled/blend/mask/multi/conflicting-revision state returns structured incompatibility; inactive Color Checker v2 tail planes are intentionally ignored and no old ABI bytes cross the boundary |
+| Canonical recipe | Versioned JSON, immutable snapshots, explicit schema upgrades and operation presence | Exposure v1 upgrades to v2 with explicit mode, black, percentile/target, and compensation flags; Color Checker preserves every ordered source/target Lab pair; Color Correction distinguishes absence from an explicitly present default five-parameter operation; Color Contrast distinguishes absence from explicit schema-v2 defaults and normalizes both frozen legacy v1 and prior Ravo `amount` v1 state |
 | RAW/JPEG/PNG/TIFF decode | 16-bit Bayer RAW inspect/decode implemented through fixed LibRaw; raster inputs remain unsupported | Real `mire1.cr2` contract coverage exists, but other sensors and JPEG/PNG/TIFF still need fixture-backed behaviour |
 | Default display transform | `ravo.display.sigmoid` v1 on RAW; no implicit transform on display-referred raster inputs | Fixed per-channel linear-sRGB/Standard-SDR policy keeps CLI, Studio and export deterministic; advanced primaries and alternate transforms are unsupported |
 | JPEG/PNG/TIFF/original export | Catalog export writes JPEG/PNG, TIFF when the Qt plugin exists, or an original-byte copy; existing targets conflict | CLI `catalog export` and Studio File → Export Photo share CatalogService. Metadata/ICC embedding remains later |
-| Masks and blending | Exposure, Color Checker, and Color Correction accept their exact default-unmasked legacy states and reject mask/custom-blend/multi state structurally; the general mask graph remains deferred | Operation-specific retirement boundaries do not invent general mask/ROI semantics |
+| Masks and blending | Exposure, Color Checker, Color Correction, and Color Contrast accept their exact default-unmasked legacy states and reject mask/custom-blend/multi state structurally; the general mask graph remains deferred | Operation-specific retirement boundaries do not invent general mask/ROI semantics |
 | Catalog, history, styles | New SQLite catalog/viewer authorized for M1; history and styles remain later work | The first product imports originals by reference and does not migrate the legacy catalog |
 | GPU/OpenCL/Metal | Explicitly out of Phase 1 | CPU-only reference work precedes any backend adapter |
 

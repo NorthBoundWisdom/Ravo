@@ -466,6 +466,46 @@ not the old GTK 2D plane/picker, three presets, blend UI, or OpenCL path. Shared
 D0.3/D0.4 or later cleanup owners. [ADR-0029](docs/adr/0029-colorcorrection-contract.md)
 freezes this boundary.
 
+`ravo.color.colorcontrast` v2 is the independent frozen Color Contrast owner.
+Its exact seven-field schema declares `working_space=lab_d50`,
+`algorithm=axis_affine_v2`, separate finite float-representable a*/b*
+steepness and offset values, and boolean `unbound`; steepness is bounded to
+[0, 5], while offsets retain the complete finite float surface. Develop owns
+explicit presence because even canonical defaults execute an observable D50
+round trip. Numeric edits establish presence, individual resets retain it, and
+whole-operation or Color-section reset removes it. Canonical order is Color
+Correction, Color Contrast, then Velvia.
+
+The former Ravo schema-v1 `amount` contract remains compatibility input only.
+A nonzero value narrows in its original float order and maps to both slopes,
+zero offsets, and `unbound=true`; zero preserves its prior skip. Frozen legacy
+module v1 separately copies its four floats and adds `unbound=false`. Recipe
+validation, Develop load, and engine dispatch share those deterministic
+normalizations rather than maintaining parallel runtime implementations.
+
+The CPU path accepts only declared linear-Rec709 RGB and privately uses the
+S1.1 D50 Lab bridge. It narrows canonical values once, then evaluates each
+chromatic channel as `input * steepness + offset` in frozen float order.
+Unbounded mode adds no clamp; bounded mode preserves the frozen per-axis
+ternary clamp to [-128, 128]. L* and the surrounding profile contract are
+retained. Dimensions, buffer length, profile, parameters, input/output samples,
+allocation, mask state, and pre/row/final cancellation fail before publication.
+Success owns separate pixels and profile storage, preserves the immutable
+exposure-analysis snapshot, and leaves its borrowed input unchanged.
+
+The 158-XMP census has one actual record, in 0038. Strict import accepts its
+enabled-v2 singleton, priority-zero, unnamed, exact default-unmasked blend-v10
+envelope and the corresponding synthetic v1 upgrade; history position remains
+only the generic instance identifier. The complete 0038 document is a stable
+negative because it contains the unsupported mask graph. Disabled, duplicate,
+custom-blend, multi/name/priority, mask, unknown, malformed, non-finite, and
+unsupported-version state rejects structurally. CLI, Catalog, and Studio use
+the same recipe/engine/cache path; QML forwards only the six Develop fields and
+contains no Lab mathematics. GTK presentation and OpenCL are not product
+contracts. Shared `extended.cl`, order/modulegroup/usermanual names, the sepia
+style, and frozen fixtures remain D0.3/D0.4/S14/E1 cleanup or evidence owners.
+[ADR-0031](docs/adr/0031-colorcontrast-contract.md) freezes this boundary.
+
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked
 buffer must not implicitly select colour strategy. See
