@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "wrapper": {
+    "todo_owner": "I9",
+    "source": "legacy/src/imageio/imageio_rgbe.c",
+    "header": "legacy/src/imageio/imageio_rgbe.h",
+    "exclusive_resources": [],
+    "cmake_registration": {
+      "path": "legacy/src/CMakeLists.txt",
+      "needle": "\"imageio/imageio_rgbe.c\""
+    }
+  },
+  "public_symbols": [
+    "dt_imageio_open_rgbe",
+    "RGBE_ReadHeader",
+    "RGBE_ReadPixels",
+    "RGBE_ReadPixels_RLE"
+  ],
+  "known_consumers": [
+    {
+      "path": "legacy/src/imageio/imageio.c",
+      "todo_owner": "I1",
+      "symbols": [
+        "dt_imageio_open_rgbe"
+      ],
+      "why_reachable": "The shared input dispatcher recognizes both frozen Radiance magic tokens and invokes the I9 wrapper before its generic HDR and RAW routing."
+    }
+  ],
+  "known_include_only": [],
+  "separate_owners": [
+    {
+      "path": "legacy/src/common/image.h",
+      "todo_owner": "S7",
+      "classification": "legacy_rgbe_loader_identity",
+      "local_identifier_collisions": [
+        "LOADER_RGBE"
+      ],
+      "why_not_a_consumer": "The shared legacy image record retains an RGBE loader identity and a separate Bayer-filter acronym, but does not include or call the I9 wrapper."
+    },
+    {
+      "path": "legacy/src/common/image.c",
+      "todo_owner": "S7",
+      "classification": "legacy_hdr_extension_identity",
+      "local_identifier_collisions": [],
+      "why_not_a_consumer": "The shared image helper classifies .hdr and DT_IMAGE_HDR state without including or calling the I9 wrapper."
+    },
+    {
+      "path": "legacy/src/imageio/imageio_common.h",
+      "todo_owner": "I1",
+      "classification": "cfa_acronym_and_stale_generic_hdr_declaration",
+      "local_identifier_collisions": [
+        "FILTERS_ARE_RGBE",
+        "dt_imageio_open_hdr"
+      ],
+      "why_not_a_consumer": "FILTERS_ARE_RGBE is a CFA-layout acronym and dt_imageio_open_hdr is a distinct stale declaration; neither references an I9 linkage symbol."
+    },
+    {
+      "path": "legacy/src/views/view.c",
+      "todo_owner": "U8",
+      "classification": "legacy_loader_display_label",
+      "local_identifier_collisions": [],
+      "why_not_a_consumer": "The view displays an RGBE loader label but does not include or call the I9 wrapper."
+    },
+    {
+      "path": "legacy/host/data/supported_extensions.cmake",
+      "todo_owner": "I1/H6",
+      "classification": "legacy_hdr_extension_registration",
+      "local_identifier_collisions": [],
+      "why_not_a_consumer": "The host data list advertises .hdr independently of the wrapper and must be reconciled with the dispatcher and packaging owners."
+    }
+  ]
+}

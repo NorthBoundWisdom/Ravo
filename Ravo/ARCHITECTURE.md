@@ -201,6 +201,15 @@ The Qt raster adapter accepts PNG/JPEG/BMP/GIF/WebP/TIFF and exports
 PNG/JPEG/TIFF. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE are configure-time
 requirements. TGA/WBMP/ICO and other SQL drivers have no product consumers.
 
+Radiance RGBE tranche 1 remains outside that RGB8 path. A dedicated synchronous
+`HdrDecoder` port returns owned linear RGB float32 pixels plus handle-free
+Radiance value metadata; borrowed path and encoded-byte inputs live only for
+the decode call. The adapter owns header/RLE parsing, bounds, and file I/O.
+Until a later HDR engine/preview tranche is accepted, the Qt raster adapter
+recognizes both RGBE magic tokens as structured unsupported input and Catalog
+publishes no asset or preview. See
+[ADR-0027](docs/adr/0027-radiance-rgbe-decoder-contract.md).
+
 ### Recipe and operation
 
 Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`,

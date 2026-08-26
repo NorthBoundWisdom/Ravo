@@ -33,6 +33,9 @@ TIFF_WRAPPER_CONSUMERS = Path(
 QOI_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_qoi_wrapper_consumers.json"
 )
+RGBE_WRAPPER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_rgbe_wrapper_consumers.json"
+)
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {
@@ -69,6 +72,11 @@ TIFF_WRAPPER_INCLUDE = re.compile(
 QOI_WRAPPER_INCLUDE = re.compile(
     r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*(?:imageio_qoi|qoi)\.h>'
     r'|"(?:[^"\r\n/]+/)*(?:imageio_qoi|qoi)\.h")',
+    re.MULTILINE,
+)
+RGBE_WRAPPER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_rgbe\.h>'
+    r'|"(?:[^"\r\n/]+/)*imageio_rgbe\.h")',
     re.MULTILINE,
 )
 
@@ -195,6 +203,10 @@ def load_tiff_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
 
 def load_qoi_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
     return load_wrapper_manifest(repository_root, QOI_WRAPPER_CONSUMERS, "QOI")
+
+
+def load_rgbe_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, RGBE_WRAPPER_CONSUMERS, "RGBE")
 
 
 def _files(repository_root: Path, *, cmake: bool) -> list[Path]:
@@ -389,6 +401,15 @@ def verify_qoi_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
     )
 
 
+def verify_rgbe_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_rgbe_wrapper_manifest(repository_root),
+        RGBE_WRAPPER_INCLUDE,
+        "RGBE",
+    )
+
+
 def run_git(repository_root: Path, *arguments: str) -> str:
     completed = subprocess.run(
         ("git", *arguments),
@@ -517,6 +538,7 @@ def verify(
     dict[str, Any],
     dict[str, Any],
     dict[str, Any],
+    dict[str, Any],
 ]:
     freeze = run_git(repository_root, "rev-parse", f"{freeze_commit}^{{commit}}")
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, "HEAD^{commit}")
@@ -539,7 +561,8 @@ def verify(
     png_wrapper = verify_png_wrapper_consumers(repository_root)
     tiff_wrapper = verify_tiff_wrapper_consumers(repository_root)
     qoi_wrapper = verify_qoi_wrapper_consumers(repository_root)
-    return trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper
+    rgbe_wrapper = verify_rgbe_wrapper_consumers(repository_root)
+    return trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper, rgbe_wrapper
 
 
 def main() -> int:
@@ -558,11 +581,11 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="emit the verified freeze and current JPEG/PNG/TIFF/QOI wrapper censuses as JSON",
+        help="emit the verified freeze and current JPEG/PNG/TIFF/QOI/RGBE wrapper censuses as JSON",
     )
     arguments = parser.parse_args()
     try:
-        trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper = verify(
+        trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper, rgbe_wrapper = verify(
             arguments.repository_root.resolve(), arguments.freeze_commit
         )
     except FreezeCheckError as error:
@@ -578,6 +601,7 @@ def main() -> int:
                     "legacy_png_wrapper": png_wrapper,
                     "legacy_tiff_wrapper": tiff_wrapper,
                     "legacy_qoi_wrapper": qoi_wrapper,
+                    "legacy_rgbe_wrapper": rgbe_wrapper,
                 },
                 indent=2,
                 sort_keys=True,
@@ -595,7 +619,9 @@ def main() -> int:
         f"tiff_wrapper={tiff_wrapper['state']} "
         f"tiff_blockers={len(tiff_wrapper['blocking_consumers'])} "
         f"qoi_wrapper={qoi_wrapper['state']} "
-        f"qoi_blockers={len(qoi_wrapper['blocking_consumers'])}"
+        f"qoi_blockers={len(qoi_wrapper['blocking_consumers'])} "
+        f"rgbe_wrapper={rgbe_wrapper['state']} "
+        f"rgbe_blockers={len(rgbe_wrapper['blocking_consumers'])}"
     )
     return 0
 

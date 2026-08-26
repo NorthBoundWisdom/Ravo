@@ -34,3 +34,4 @@ supersession relationship when direction changes.
 | [0024](0024-exposure-analysis-and-metadata-contract.md) | Accepted | Exposure v2 owns manual/black, private RAW metadata, original-RAW deflicker analysis, and an exact unmasked-only legacy boundary. |
 | [0025](0025-legacy-colorbalance-contract.md) | Accepted | Legacy Color Balance owns the full v4 Lab/ProPhoto CPU path, explicit presence, and an exact default-unmasked importer boundary distinct from Color Balance RGB. |
 | [0026](0026-colorchecker-calibration-contract.md) | Accepted | Color Checker owns an explicit ordered D50 Lab polynomial/RBF fit, exact frozen solver and presets, and an enabled default-unmasked legacy boundary. |
+| [0027](0027-radiance-rgbe-decoder-contract.md) | Accepted | Radiance RGBE uses a dedicated owned float decode contract while Qt raster and Catalog remain explicitly unsupported. |

@@ -164,6 +164,16 @@ directories, corrupt files, and more RAW files.
 - After a source moves, the catalog retains missing state; the viewer must not
   show a previous image as its result.
 
+Radiance RGBE tranche-1 adapter tests pin exact flat and new-RLE float output,
+default/custom primary matrices, non-effective gamma/exposure provenance,
+canonical orientation, bounded allocation/header parsing, structured malformed
+and unsupported input, cancellation, path/memory parity, and source
+immutability. Qt raster and Catalog tests exercise both magic tokens and require
+the exact `format=rgbe` / `reason=unsupported_rgbe_input` result with zero asset
+or preview publication. A dynamic legacy consumer census remains blocked while
+the frozen image-I/O dispatcher is reachable; these tests do not claim I9
+completion or legacy wrapper retirement.
+
 ## Preview and viewer
 
 - Write preview cache to a temporary file and publish atomically; a failed

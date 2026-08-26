@@ -118,6 +118,32 @@ gtest_discover_tests(ravo_qoi_catalog_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-qoi-catalog")
 
+add_executable(ravo_rgbe_adapter_tests rgbe_adapter_test.cpp)
+target_link_libraries(ravo_rgbe_adapter_tests
+  PRIVATE GTest::gtest ravo_adapters Qt6::Core)
+target_include_directories(ravo_rgbe_adapter_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_rgbe_adapter_tests)
+ravo_copy_windows_runtime_dlls(ravo_rgbe_adapter_tests)
+gtest_discover_tests(ravo_rgbe_adapter_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-rgbe-adapter")
+
+add_executable(ravo_rgbe_catalog_tests rgbe_catalog_test.cpp)
+target_link_libraries(ravo_rgbe_catalog_tests
+  PRIVATE
+    GTest::gtest
+    ravo_services
+    ravo_adapters
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Sql)
+target_include_directories(ravo_rgbe_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_rgbe_catalog_tests)
+ravo_copy_windows_runtime_dlls(ravo_rgbe_catalog_tests)
+gtest_discover_tests(ravo_rgbe_catalog_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-rgbe-catalog")
+
 add_executable(ravo_desktop_command_tests studio_command_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)

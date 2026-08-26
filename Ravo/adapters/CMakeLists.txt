@@ -5,6 +5,7 @@ target_sources(ravo_adapters
     src/filesystem_preview_cache.cpp
     src/legacy_xmp.cpp
     src/qt_raster_decoder.cpp
+    src/radiance_rgbe_decoder.cpp
     src/sqlite_catalog.cpp
     src/text_file.cpp)
 
