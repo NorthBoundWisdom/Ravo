@@ -30,6 +30,9 @@ inline constexpr int kJpegQualityMax = 100;
 inline constexpr int kDefaultPngCompression = 5;
 inline constexpr int kPngCompressionMin = 0;
 inline constexpr int kPngCompressionMax = 9;
+inline constexpr int kDefaultTiffCompressionLevel = 6;
+inline constexpr int kTiffCompressionLevelMin = 1;
+inline constexpr int kTiffCompressionLevelMax = 9;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
 inline constexpr std::string_view kMediaTypeJpeg = "image/jpeg";
@@ -139,6 +142,31 @@ struct PngExportOptions
     int compression = kDefaultPngCompression;
 
     [[nodiscard]] bool operator==(const PngExportOptions &) const = default;
+};
+
+enum class TiffSampleType : std::uint8_t
+{
+    kUint8 = 0,
+    kUint16 = 1,
+    kFloat16 = 2,
+    kFloat32 = 3,
+};
+
+enum class TiffCompression : std::uint8_t
+{
+    kNone = 0,
+    kDeflate = 1,
+    kDeflatePredictor = 2,
+};
+
+struct TiffExportOptions
+{
+    TiffSampleType sample_type = TiffSampleType::kUint8;
+    TiffCompression compression = TiffCompression::kDeflatePredictor;
+    int compression_level = kDefaultTiffCompressionLevel;
+    bool grayscale_if_neutral = false;
+
+    [[nodiscard]] bool operator==(const TiffExportOptions &) const = default;
 };
 
 enum class RasterPixelFormat : std::uint8_t
@@ -305,6 +333,7 @@ struct ExportRequest
     CancellationToken cancellation{};
     std::string correlation_id;
     PngExportOptions png_options;
+    TiffExportOptions tiff_options;
 };
 
 struct ExportResult
@@ -361,6 +390,11 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] std::string_view png_bit_depth_name(PngBitDepth bit_depth) noexcept;
 [[nodiscard]] Result<PngBitDepth> parse_png_bit_depth(std::string_view name);
 [[nodiscard]] Result<void> validate_png_export_options(const PngExportOptions &options);
+[[nodiscard]] std::string_view tiff_sample_type_name(TiffSampleType sample_type) noexcept;
+[[nodiscard]] Result<TiffSampleType> parse_tiff_sample_type(std::string_view name);
+[[nodiscard]] std::string_view tiff_compression_name(TiffCompression compression) noexcept;
+[[nodiscard]] Result<TiffCompression> parse_tiff_compression(std::string_view name);
+[[nodiscard]] Result<void> validate_tiff_export_options(const TiffExportOptions &options);
 [[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);

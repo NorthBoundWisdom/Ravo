@@ -98,6 +98,25 @@ gtest_discover_tests(ravo_png_export_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-png-export")
 
+add_executable(ravo_tiff_export_tests tiff_export_test.cpp)
+target_link_libraries(ravo_tiff_export_tests
+  PRIVATE
+    GTest::gtest
+    ravo_services
+    ravo_adapters
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Sql
+    ZLIB::ZLIB)
+target_include_directories(ravo_tiff_export_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(ravo_tiff_export_tests PRIVATE
+  RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
+ravo_configure_target(ravo_tiff_export_tests)
+ravo_copy_windows_runtime_dlls(ravo_tiff_export_tests)
+gtest_discover_tests(ravo_tiff_export_tests
+  DISCOVERY_MODE PRE_TEST
+  PROPERTIES LABELS "ravo-tiff-export")
+
 add_executable(ravo_tiff_adapter_tests tiff_adapter_test.cpp)
 target_link_libraries(ravo_tiff_adapter_tests
   PRIVATE GTest::gtest ravo_adapters Qt6::Core Qt6::Gui ZLIB::ZLIB lcms2)

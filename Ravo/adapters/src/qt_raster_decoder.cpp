@@ -2,6 +2,7 @@
 
 #include "jpeg_encoder.h"
 #include "png_encoder.h"
+#include "tiff_encoder.h"
 
 #include <algorithm>
 #include <array>
@@ -28,7 +29,6 @@
 #include <QtGui/QImage>
 #include <QtGui/QImageIOHandler>
 #include <QtGui/QImageReader>
-#include <QtGui/QImageWriter>
 #include <QtGui/QTransform>
 
 namespace ravo
@@ -3413,6 +3413,16 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
     const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
     const PngExportOptions &png_options) const
 {
+    return encode(width, height, rgb, color_profile, format, jpeg_options, cancellation,
+                  png_options, TiffExportOptions{});
+}
+
+Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
+    const std::uint32_t width, const std::uint32_t height, const std::vector<std::uint8_t> &rgb,
+    const ColorProfileState &color_profile, const ExportFormat format,
+    const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+    const PngExportOptions &png_options, const TiffExportOptions &tiff_options) const
+{
     auto cancelled = cancellation.check();
     if (!cancelled)
     {
@@ -3531,59 +3541,58 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         }
         return detail::encode_png_rgb8(width, height, rgb, metadata, png_options, cancellation);
     }
-    const auto expected =
-        static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;
-    if (width == 0 || height == 0 || rgb.size() != expected)
-    {
-        return make_error(ErrorCode::kValidation, "Export image buffer does not match dimensions",
-                          {{"height", std::to_string(height)},
-                           {"size_bytes", std::to_string(rgb.size())},
-                           {"width", std::to_string(width)}});
-    }
-    if (width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
-        height > static_cast<std::uint32_t>(std::numeric_limits<int>::max()))
-    {
-        return make_error(ErrorCode::kValidation, "Export image is too large to encode");
-    }
-    QByteArray format_id;
     if (format == ExportFormat::kTiff)
     {
-        format_id = QByteArrayLiteral("tiff");
+        auto valid_options = validate_tiff_export_options(tiff_options);
+        if (!valid_options)
+        {
+            return valid_options.error();
+        }
+        if (tiff_options.sample_type != TiffSampleType::kUint8)
+        {
+            return make_error(
+                ErrorCode::kUnsupported,
+                "TIFF high-precision output requires a high-precision source",
+                {{"format", "tiff"},
+                 {"reason", "unsupported_tiff_high_precision_source"},
+                 {"sample_type", std::string(tiff_sample_type_name(tiff_options.sample_type))}});
+        }
+        if (color_profile.model != ColorModel::kRgb)
+        {
+            return make_error(
+                ErrorCode::kUnsupported, "TIFF output ICC is not an RGB profile",
+                {{"format", "tiff"}, {"reason", "unsupported_tiff_output_icc_color_model"}});
+        }
+        auto output_color_space = qt_output_color_space(color_profile);
+        if (!output_color_space)
+        {
+            const bool unsupported = output_color_space.error().code == ErrorCode::kUnsupported;
+            return make_error(output_color_space.error().code, output_color_space.error().message,
+                              {{"format", "tiff"},
+                               {"profile", color_profile.identifier},
+                               {"reason", unsupported ? "unsupported_tiff_output_profile" :
+                                                        "invalid_tiff_output_icc"}});
+        }
+        if (output_color_space.value().colorModel() != QColorSpace::ColorModel::Rgb)
+        {
+            return make_error(
+                ErrorCode::kUnsupported, "TIFF output ICC is not an RGB profile",
+                {{"format", "tiff"}, {"reason", "unsupported_tiff_output_icc_color_model"}});
+        }
+        const QByteArray icc = output_color_space.value().iccProfile();
+        if (icc.isEmpty())
+        {
+            return make_error(ErrorCode::kValidation, "TIFF output ICC could not be resolved",
+                              {{"format", "tiff"}, {"reason", "missing_tiff_output_icc"}});
+        }
+        return detail::encode_tiff_rgb8(width, height, rgb,
+                                        {reinterpret_cast<const std::uint8_t *>(icc.constData()),
+                                         static_cast<std::size_t>(icc.size())},
+                                        tiff_options, cancellation);
     }
-    if (!QImageWriter::supportedImageFormats().contains(format_id))
-    {
-        return make_error(ErrorCode::kUnsupported,
-                          "Export format is not available in this Qt build",
-                          {{"format", std::string(export_format_name(format))}});
-    }
-    QImage image(rgb.data(), static_cast<int>(width), static_cast<int>(height),
-                 static_cast<int>(width * 3U), QImage::Format_RGB888);
-    if (image.isNull())
-    {
-        return make_error(ErrorCode::kIo, "Unable to wrap export pixels");
-    }
-    const QImage owned = image.copy();
-    auto output_color_space = qt_output_color_space(color_profile);
-    if (!output_color_space)
-    {
-        return output_color_space.error();
-    }
-    QImage profiled = owned;
-    profiled.setColorSpace(output_color_space.value());
-    QByteArray encoded;
-    QBuffer buffer(&encoded);
-    if (!buffer.open(QIODevice::WriteOnly))
-    {
-        return make_error(ErrorCode::kIo, "Unable to open export encoder buffer");
-    }
-    QImageWriter writer(&buffer, format_id);
-    if (!writer.write(profiled))
-    {
-        return make_error(ErrorCode::kIo, "Unable to encode export image",
-                          {{"format", std::string(export_format_name(format))},
-                           {"qt_error", writer.errorString().toUtf8().toStdString()}});
-    }
-    return std::vector<std::uint8_t>(encoded.cbegin(), encoded.cend());
+    return make_error(ErrorCode::kUnsupported, "Raster export format is unsupported",
+                      {{"format", std::string(export_format_name(format))},
+                       {"reason", "unsupported_raster_export_format"}});
 }
 
 } // namespace ravo

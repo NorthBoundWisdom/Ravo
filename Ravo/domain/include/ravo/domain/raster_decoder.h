@@ -30,6 +30,24 @@ public:
            const ColorProfileState &color_profile, ExportFormat format,
            const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
            const PngExportOptions &png_options = {}) const = 0;
+    // Source compatibility for existing non-TIFF test doubles: default TIFF
+    // options retain the prior encode path, while explicit TIFF options fail
+    // closed until the concrete encoder overrides this overload.
+    [[nodiscard]] virtual Result<std::vector<std::uint8_t>>
+    encode(std::uint32_t width, std::uint32_t height, const std::vector<std::uint8_t> &rgb,
+           const ColorProfileState &color_profile, ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options) const
+    {
+        if (format == ExportFormat::kTiff && tiff_options != TiffExportOptions{})
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Raster encoder does not own explicit TIFF options",
+                              {{"format", "tiff"}, {"reason", "unsupported_tiff_options_owner"}});
+        }
+        return encode(width, height, rgb, color_profile, format, jpeg_options, cancellation,
+                      png_options);
+    }
 };
 
 } // namespace ravo

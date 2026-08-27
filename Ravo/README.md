@@ -112,6 +112,15 @@ Current implementation status:
   valid but fails structurally for the current RGB8 rendered source rather
   than inventing precision. Explicit PNG options in CLI plus EXIF/XMP and
   resolution metadata remain later I12 work.
+- TIFF export uses one typed sample/compression request from CatalogService
+  through the raster port. It defaults to unsigned 8-bit, Deflate with the
+  horizontal predictor, level 6, and RGB output. A private static LibTIFF owner
+  from the pinned source root writes bounded classic little-endian, top-left,
+  opaque contiguous strips with 300 dpi and the exact resolved RGB ICC;
+  optional grayscale retains the frozen interior-channel threshold. Valid
+  uint16/float16/float32 requests fail structurally against the current RGB8
+  source instead of fabricating precision. EXIF/IPTC/XMP, multipage masks,
+  explicit TIFF CLI/Studio options, and retirement remain later I13 work.
 - Final display packing is an engine-private boundary after Output Color. It
   converts finite profiled float RGB to owned RGB8 by clamping negative values,
   multiplying by 255, rounding, and clamping super-white while retaining the

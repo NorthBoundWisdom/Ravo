@@ -151,6 +151,142 @@ unset(_ravo_libjpeg_turbo_cmake_args)
 unset(_ravo_libjpeg_turbo_install)
 unset(_ravo_libjpeg_turbo_prefix)
 
+# Build the pinned LibTIFF source in a second isolated ExternalProject. Ravo
+# imports only the classic static C library with Deflate enabled; tools,
+# tests, documentation, C++, shared libraries, and unrelated codecs stay out
+# of the product graph. The imported target also links the already-authorized
+# ZLIB owner, so no host-selected TIFF package is consulted.
+set(_ravo_libtiff_prefix
+  "${CMAKE_BINARY_DIR}/_deps/ravo-libtiff")
+set(_ravo_libtiff_install
+  "${_ravo_libtiff_prefix}/install")
+if(MSVC)
+  set(_ravo_libtiff_archive_debug
+    "${_ravo_libtiff_install}/lib/tiffd${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(_ravo_libtiff_archive_release
+    "${_ravo_libtiff_install}/lib/tiff${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  if(CMAKE_CONFIGURATION_TYPES)
+    set(_ravo_libtiff_archive "${_ravo_libtiff_archive_release}")
+    set(_ravo_libtiff_build_byproduct
+      "${_ravo_libtiff_install}/lib/tiff$<$<CONFIG:Debug>:d>${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_ravo_libtiff_archive "${_ravo_libtiff_archive_debug}")
+    set(_ravo_libtiff_build_byproduct "${_ravo_libtiff_archive_debug}")
+  else()
+    set(_ravo_libtiff_archive "${_ravo_libtiff_archive_release}")
+    set(_ravo_libtiff_build_byproduct "${_ravo_libtiff_archive_release}")
+  endif()
+else()
+  set(_ravo_libtiff_archive
+    "${_ravo_libtiff_install}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}tiff${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(_ravo_libtiff_build_byproduct "${_ravo_libtiff_archive}")
+endif()
+set(_ravo_libtiff_cmake_args
+  "-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
+  "-DCMAKE_INSTALL_LIBDIR=lib"
+  "-DCMAKE_INSTALL_INCLUDEDIR=include"
+  "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+  "-DBUILD_SHARED_LIBS=OFF"
+  "-Dtiff-static=ON"
+  "-Dtiff-install=ON"
+  "-Dtiff-tools=OFF"
+  "-Dtiff-tests=OFF"
+  "-Dtiff-contrib=OFF"
+  "-Dtiff-docs=OFF"
+  "-Dtiff-cxx=OFF"
+  "-Dtiff-opengl=OFF"
+  "-Dzlib=ON"
+  "-Dlibdeflate=OFF"
+  "-Dpixarlog=OFF"
+  "-Djpeg=OFF"
+  "-Dold-jpeg=OFF"
+  "-Djbig=OFF"
+  "-Dlerc=OFF"
+  "-Dlzma=OFF"
+  "-Dzstd=OFF"
+  "-Dwebp=OFF"
+  "-Dccitt=OFF"
+  "-Dpackbits=OFF"
+  "-Dlzw=OFF"
+  "-Dthunder=OFF"
+  "-Dnext=OFF"
+  "-Dlogluv=OFF"
+  "-Dmdi=OFF"
+  "-Dld-version-script=OFF"
+  "-Dstrip-chopping=OFF"
+  "-Ddefer-strile-load=OFF"
+  "-Dchunky-strip-read=OFF"
+  "-Dextrasample-as-alpha=OFF"
+  "-Dcheck-ycbcr-subsampling=OFF")
+if(CMAKE_BUILD_TYPE)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+endif()
+if(CMAKE_C_COMPILER)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}")
+endif()
+if(CMAKE_C_COMPILER_LAUNCHER)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}")
+endif()
+if(CMAKE_OSX_ARCHITECTURES)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
+endif()
+if(CMAKE_OSX_DEPLOYMENT_TARGET)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+if(ZLIB_ROOT)
+  list(APPEND _ravo_libtiff_cmake_args "-DZLIB_ROOT=${ZLIB_ROOT}")
+endif()
+if(ZLIB_INCLUDE_DIR)
+  list(APPEND _ravo_libtiff_cmake_args "-DZLIB_INCLUDE_DIR=${ZLIB_INCLUDE_DIR}")
+endif()
+if(ZLIB_LIBRARY_RELEASE)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DZLIB_LIBRARY_RELEASE=${ZLIB_LIBRARY_RELEASE}")
+endif()
+if(ZLIB_LIBRARY_DEBUG)
+  list(APPEND _ravo_libtiff_cmake_args
+    "-DZLIB_LIBRARY_DEBUG=${ZLIB_LIBRARY_DEBUG}")
+endif()
+ExternalProject_Add(ravo_libtiff_external
+  PREFIX "${_ravo_libtiff_prefix}/project"
+  SOURCE_DIR "${RAVO_LIBTIFF_SOURCE_ROOT}"
+  BINARY_DIR "${_ravo_libtiff_prefix}/build"
+  INSTALL_DIR "${_ravo_libtiff_install}"
+  CMAKE_ARGS ${_ravo_libtiff_cmake_args}
+  UPDATE_COMMAND ""
+  PATCH_COMMAND ""
+  TEST_COMMAND ""
+  BUILD_ALWAYS TRUE
+  BUILD_BYPRODUCTS "${_ravo_libtiff_build_byproduct}"
+  EXCLUDE_FROM_ALL TRUE)
+file(MAKE_DIRECTORY "${_ravo_libtiff_install}/include")
+add_library(ravo_libtiff STATIC IMPORTED GLOBAL)
+set_target_properties(ravo_libtiff PROPERTIES
+  IMPORTED_LOCATION "${_ravo_libtiff_archive}"
+  INTERFACE_INCLUDE_DIRECTORIES "${_ravo_libtiff_install}/include"
+  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_ravo_libtiff_install}/include")
+if(MSVC)
+  set_target_properties(ravo_libtiff PROPERTIES
+    IMPORTED_CONFIGURATIONS "DEBUG;RELEASE;RELWITHDEBINFO;MINSIZEREL"
+    IMPORTED_LOCATION_DEBUG "${_ravo_libtiff_archive_debug}"
+    IMPORTED_LOCATION_RELEASE "${_ravo_libtiff_archive_release}"
+    IMPORTED_LOCATION_RELWITHDEBINFO "${_ravo_libtiff_archive_release}"
+    IMPORTED_LOCATION_MINSIZEREL "${_ravo_libtiff_archive_release}")
+endif()
+add_dependencies(ravo_libtiff ravo_libtiff_external)
+unset(_ravo_libtiff_archive)
+unset(_ravo_libtiff_archive_debug)
+unset(_ravo_libtiff_archive_release)
+unset(_ravo_libtiff_build_byproduct)
+unset(_ravo_libtiff_cmake_args)
+unset(_ravo_libtiff_install)
+unset(_ravo_libtiff_prefix)
+
 if(NOT DEFINED ENV{GEOCONTROLS_SOURCE_ROOT})
   message(FATAL_ERROR "GEOCONTROLS_SOURCE_ROOT is required; run the FreeCM source-root update")
 endif()

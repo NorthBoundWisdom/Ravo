@@ -255,6 +255,116 @@ TEST(ExportFormatTest, OwnsTypedPngOptionsAndRejectsInvalidValues)
     EXPECT_EQ(noncanonical.error().context.at("bit_depth"), "8-bit");
 }
 
+TEST(ExportFormatTest, OwnsTypedTiffOptionsAndRejectsInvalidValues)
+{
+    const TiffExportOptions defaults;
+    EXPECT_EQ(defaults.sample_type, TiffSampleType::kUint8);
+    EXPECT_EQ(defaults.compression, TiffCompression::kDeflatePredictor);
+    EXPECT_EQ(defaults.compression_level, 6);
+    EXPECT_FALSE(defaults.grayscale_if_neutral);
+    EXPECT_TRUE(validate_tiff_export_options(defaults));
+
+    struct SampleTypeExpectation
+    {
+        TiffSampleType value = TiffSampleType::kUint8;
+        std::string_view name;
+        std::uint8_t wire_value = 0U;
+    };
+    constexpr std::array<SampleTypeExpectation, 4U> kSampleTypes{{
+        {TiffSampleType::kUint8, "uint8", 0U},
+        {TiffSampleType::kUint16, "uint16", 1U},
+        {TiffSampleType::kFloat16, "float16", 2U},
+        {TiffSampleType::kFloat32, "float32", 3U},
+    }};
+    for (const SampleTypeExpectation &expectation : kSampleTypes)
+    {
+        EXPECT_EQ(static_cast<std::uint8_t>(expectation.value), expectation.wire_value);
+        EXPECT_EQ(tiff_sample_type_name(expectation.value), expectation.name);
+        const auto parsed = parse_tiff_sample_type(expectation.name);
+        ASSERT_TRUE(parsed) << parsed.error().message;
+        EXPECT_EQ(parsed.value(), expectation.value);
+        TiffExportOptions options;
+        options.sample_type = expectation.value;
+        EXPECT_TRUE(validate_tiff_export_options(options));
+    }
+
+    struct CompressionExpectation
+    {
+        TiffCompression value = TiffCompression::kNone;
+        std::string_view name;
+        std::uint8_t wire_value = 0U;
+    };
+    constexpr std::array<CompressionExpectation, 3U> kCompressions{{
+        {TiffCompression::kNone, "none", 0U},
+        {TiffCompression::kDeflate, "deflate", 1U},
+        {TiffCompression::kDeflatePredictor, "deflate_predictor", 2U},
+    }};
+    for (const CompressionExpectation &expectation : kCompressions)
+    {
+        EXPECT_EQ(static_cast<std::uint8_t>(expectation.value), expectation.wire_value);
+        EXPECT_EQ(tiff_compression_name(expectation.value), expectation.name);
+        const auto parsed = parse_tiff_compression(expectation.name);
+        ASSERT_TRUE(parsed) << parsed.error().message;
+        EXPECT_EQ(parsed.value(), expectation.value);
+        TiffExportOptions options;
+        options.compression = expectation.value;
+        EXPECT_TRUE(validate_tiff_export_options(options));
+    }
+
+    TiffExportOptions minimum;
+    minimum.compression_level = 1;
+    EXPECT_TRUE(validate_tiff_export_options(minimum));
+    TiffExportOptions maximum;
+    maximum.compression_level = 9;
+    maximum.grayscale_if_neutral = true;
+    EXPECT_TRUE(validate_tiff_export_options(maximum));
+
+    TiffExportOptions invalid_sample;
+    invalid_sample.sample_type = static_cast<TiffSampleType>(255U);
+    const auto invalid_sample_result = validate_tiff_export_options(invalid_sample);
+    ASSERT_FALSE(invalid_sample_result);
+    EXPECT_EQ(invalid_sample_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_sample_result.error().context.at("format"), "tiff");
+    EXPECT_EQ(invalid_sample_result.error().context.at("reason"), "invalid_tiff_sample_type");
+    EXPECT_EQ(invalid_sample_result.error().context.at("sample_type"), "255");
+    EXPECT_EQ(tiff_sample_type_name(invalid_sample.sample_type), "unknown");
+
+    TiffExportOptions invalid_compression;
+    invalid_compression.compression = static_cast<TiffCompression>(255U);
+    const auto invalid_compression_result = validate_tiff_export_options(invalid_compression);
+    ASSERT_FALSE(invalid_compression_result);
+    EXPECT_EQ(invalid_compression_result.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_compression_result.error().context.at("format"), "tiff");
+    EXPECT_EQ(invalid_compression_result.error().context.at("reason"), "invalid_tiff_compression");
+    EXPECT_EQ(invalid_compression_result.error().context.at("compression"), "255");
+    EXPECT_EQ(tiff_compression_name(invalid_compression.compression), "unknown");
+
+    for (const int level : {0, 10})
+    {
+        TiffExportOptions invalid_level;
+        invalid_level.compression_level = level;
+        const auto result = validate_tiff_export_options(invalid_level);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(result.error().context.at("format"), "tiff");
+        EXPECT_EQ(result.error().context.at("reason"), "invalid_tiff_compression_level");
+        EXPECT_EQ(result.error().context.at("compression_level"), std::to_string(level));
+        EXPECT_EQ(result.error().context.at("minimum"), "1");
+        EXPECT_EQ(result.error().context.at("maximum"), "9");
+    }
+
+    const auto noncanonical_sample = parse_tiff_sample_type("8");
+    ASSERT_FALSE(noncanonical_sample);
+    EXPECT_EQ(noncanonical_sample.error().context.at("format"), "tiff");
+    EXPECT_EQ(noncanonical_sample.error().context.at("reason"), "invalid_tiff_sample_type");
+    EXPECT_EQ(noncanonical_sample.error().context.at("sample_type"), "8");
+    const auto noncanonical_compression = parse_tiff_compression("predictor");
+    ASSERT_FALSE(noncanonical_compression);
+    EXPECT_EQ(noncanonical_compression.error().context.at("format"), "tiff");
+    EXPECT_EQ(noncanonical_compression.error().context.at("reason"), "invalid_tiff_compression");
+    EXPECT_EQ(noncanonical_compression.error().context.at("compression"), "predictor");
+}
+
 TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
 {
     AssetRecord first;

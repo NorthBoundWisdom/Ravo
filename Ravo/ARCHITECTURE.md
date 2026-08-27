@@ -203,9 +203,13 @@ thumbnail dimensions only; loupe creates 1600px on demand.
 
 The raster adapter accepts PNG/JPEG/BMP/GIF/WebP/TIFF and exports
 PNG/JPEG/TIFF. PNG delegates to the adapter-private libpng/ZLIB encoder, JPEG
-delegates to the adapter-private pinned libjpeg-turbo encoder, and TIFF output
-still uses Qt. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE remain
-configure-time requirements for their current input/runtime consumers.
+delegates to the adapter-private pinned libjpeg-turbo encoder, and TIFF
+delegates to an adapter-private static LibTIFF built from its pinned source
+root with only ZLIB Deflate enabled. The TIFF encoder writes bounded classic
+little-endian opaque RGB8 or frozen conditional-grayscale strips and embeds
+the exact resolved RGB ICC. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE remain
+configure-time requirements for their current input/runtime consumers; TIFF
+output no longer uses the Qt plugin.
 TGA/WBMP/ICO and other SQL drivers have no product consumers.
 
 Radiance RGBE tranche 1 remains outside that RGB8 path. A dedicated synchronous
@@ -616,9 +620,11 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   embed the recipe-declared RGB profile. JPEG requests own typed quality
   5–100/default 95 plus automatic or explicit 4:4:4/4:4:0/4:2:2/4:2:0 sampling;
   PNG requests own typed 8/16-bit depth and compression 0–9/default 5, while
-  the current RGB8 source accepts only 8-bit output. Complete metadata,
-  explicit PNG CLI options, path-template and batch/storage policy, and old
-  export presets remain out of scope.
+  TIFF requests own typed uint8/uint16/float16/float32 sample state plus
+  none/Deflate/Deflate-predictor, level 1–9/default 6, and conditional grayscale.
+  The current RGB8 source accepts only PNG 8-bit and TIFF uint8 output. Complete
+  metadata, explicit PNG/TIFF CLI options, TIFF multipage masks, path-template
+  and batch/storage policy, and old export presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

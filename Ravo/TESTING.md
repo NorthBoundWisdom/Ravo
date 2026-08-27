@@ -462,6 +462,23 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   isolation, and no file publication for unsupported/invalid options; PNG input
   and shared encoded-publication regressions keep I6 decode and atomic
   destination ownership separate.
+- TIFF export freezes one typed options value from `ExportRequest` through
+  CatalogService and the raster port to a private static LibTIFF built from the
+  pinned source root with only ZLIB Deflate enabled. Domain tests cover stable
+  uint8/uint16/float16/float32 and none/Deflate/predictor values and names,
+  uint8/predictor/level-6/RGB defaults, levels 1–9, conditional grayscale, and
+  fail-closed option errors. Adapter tests independently parse classic
+  little-endian IFDs, inflate strips, reverse horizontal prediction, and assert
+  exact top-left opaque RGB8 or conditional-grayscale pixels, per-sample bits
+  and sample-format tags, compression/predictor, 300 dpi, and exact ICC bytes.
+  The grayscale matrix freezes the greater-than-four dimension gate, ignored
+  border, and channel-delta threshold of two. Source/output/ICC bounds,
+  legal-but-unsupported high-precision requests, entry/scanline/pre-finalize
+  cancellation, real memory-client write/seek/grow/close/finalize failures,
+  and source/profile immutability return no encoded result. Catalog tests prove
+  default and explicit propagation, JPEG/PNG isolation, no file for invalid or
+  unsupported options, atomic conflict behavior, cancellation, and source-hash
+  preservation. I7 input and ADR-0032 publication remain separate owners.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

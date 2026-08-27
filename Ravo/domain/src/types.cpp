@@ -329,6 +329,122 @@ Result<void> validate_png_export_options(const PngExportOptions &options)
     return {};
 }
 
+std::string_view tiff_sample_type_name(const TiffSampleType sample_type) noexcept
+{
+    switch (sample_type)
+    {
+    case TiffSampleType::kUint8:
+        return "uint8";
+    case TiffSampleType::kUint16:
+        return "uint16";
+    case TiffSampleType::kFloat16:
+        return "float16";
+    case TiffSampleType::kFloat32:
+        return "float32";
+    }
+    return "unknown";
+}
+
+Result<TiffSampleType> parse_tiff_sample_type(const std::string_view name)
+{
+    if (name == "uint8")
+    {
+        return TiffSampleType::kUint8;
+    }
+    if (name == "uint16")
+    {
+        return TiffSampleType::kUint16;
+    }
+    if (name == "float16")
+    {
+        return TiffSampleType::kFloat16;
+    }
+    if (name == "float32")
+    {
+        return TiffSampleType::kFloat32;
+    }
+    return make_error(ErrorCode::kValidation, "Unknown TIFF sample type",
+                      {{"format", "tiff"},
+                       {"reason", "invalid_tiff_sample_type"},
+                       {"sample_type", std::string(name)}});
+}
+
+std::string_view tiff_compression_name(const TiffCompression compression) noexcept
+{
+    switch (compression)
+    {
+    case TiffCompression::kNone:
+        return "none";
+    case TiffCompression::kDeflate:
+        return "deflate";
+    case TiffCompression::kDeflatePredictor:
+        return "deflate_predictor";
+    }
+    return "unknown";
+}
+
+Result<TiffCompression> parse_tiff_compression(const std::string_view name)
+{
+    if (name == "none")
+    {
+        return TiffCompression::kNone;
+    }
+    if (name == "deflate")
+    {
+        return TiffCompression::kDeflate;
+    }
+    if (name == "deflate_predictor")
+    {
+        return TiffCompression::kDeflatePredictor;
+    }
+    return make_error(ErrorCode::kValidation, "Unknown TIFF compression mode",
+                      {{"compression", std::string(name)},
+                       {"format", "tiff"},
+                       {"reason", "invalid_tiff_compression"}});
+}
+
+Result<void> validate_tiff_export_options(const TiffExportOptions &options)
+{
+    switch (options.sample_type)
+    {
+    case TiffSampleType::kUint8:
+    case TiffSampleType::kUint16:
+    case TiffSampleType::kFloat16:
+    case TiffSampleType::kFloat32:
+        break;
+    default:
+        return make_error(
+            ErrorCode::kValidation, "TIFF sample type is invalid",
+            {{"format", "tiff"},
+             {"reason", "invalid_tiff_sample_type"},
+             {"sample_type", std::to_string(static_cast<std::uint8_t>(options.sample_type))}});
+    }
+    switch (options.compression)
+    {
+    case TiffCompression::kNone:
+    case TiffCompression::kDeflate:
+    case TiffCompression::kDeflatePredictor:
+        break;
+    default:
+        return make_error(
+            ErrorCode::kValidation, "TIFF compression mode is invalid",
+            {{"compression", std::to_string(static_cast<std::uint8_t>(options.compression))},
+             {"format", "tiff"},
+             {"reason", "invalid_tiff_compression"}});
+    }
+    if (options.compression_level < kTiffCompressionLevelMin ||
+        options.compression_level > kTiffCompressionLevelMax)
+    {
+        return make_error(ErrorCode::kValidation, "TIFF compression level must be between 1 and 9",
+                          {{"compression_level", std::to_string(options.compression_level)},
+                           {"format", "tiff"},
+                           {"maximum", std::to_string(kTiffCompressionLevelMax)},
+                           {"minimum", std::to_string(kTiffCompressionLevelMin)},
+                           {"reason", "invalid_tiff_compression_level"}});
+    }
+    return {};
+}
+
 std::string asset_display_name(const AssetRecord &asset)
 {
     const auto slash = asset.normalized_uri.find_last_of('/');
@@ -406,16 +522,14 @@ Result<std::string> normalize_tag_name(const std::string_view name)
     std::string trimmed;
     trimmed.reserve(name.size());
     std::size_t start = 0;
-    while (start < name.size() &&
-           (name[start] == ' ' || name[start] == '\t' || name[start] == '\n' ||
-            name[start] == '\r'))
+    while (start < name.size() && (name[start] == ' ' || name[start] == '\t' ||
+                                   name[start] == '\n' || name[start] == '\r'))
     {
         ++start;
     }
     std::size_t end = name.size();
-    while (end > start &&
-           (name[end - 1U] == ' ' || name[end - 1U] == '\t' || name[end - 1U] == '\n' ||
-            name[end - 1U] == '\r'))
+    while (end > start && (name[end - 1U] == ' ' || name[end - 1U] == '\t' ||
+                           name[end - 1U] == '\n' || name[end - 1U] == '\r'))
     {
         --end;
     }
@@ -424,7 +538,8 @@ Result<std::string> normalize_tag_name(const std::string_view name)
         const auto byte = static_cast<unsigned char>(name[index]);
         if (byte == '\0' || byte == '\n' || byte == '\r')
         {
-            return make_error(ErrorCode::kValidation, "Tag name contains an invalid control character");
+            return make_error(ErrorCode::kValidation,
+                              "Tag name contains an invalid control character");
         }
         trimmed.push_back(name[index]);
     }
@@ -492,7 +607,8 @@ Result<void> validate_metadata_field(const std::string_view name, const std::str
     }
     if (value.size() > kMetadataFieldMaxLength)
     {
-        return make_error(ErrorCode::kValidation, "Writable metadata field exceeds the maximum length",
+        return make_error(ErrorCode::kValidation,
+                          "Writable metadata field exceeds the maximum length",
                           {{"field", std::string(name)},
                            {"max_length", std::to_string(kMetadataFieldMaxLength)}});
     }
