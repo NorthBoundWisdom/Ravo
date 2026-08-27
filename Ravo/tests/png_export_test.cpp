@@ -270,9 +270,10 @@ inflate_bounded(const std::span<const std::uint8_t> compressed, const std::size_
 }
 
 [[nodiscard]] std::optional<std::vector<std::uint8_t>>
-png_rgb8_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
+png_rgb_sample_bytes(const std::vector<PngChunk> &chunks, const PngIhdr &header)
 {
-    if (header.bit_depth != 8U || header.color_type != 2U || header.interlace != 0U)
+    if ((header.bit_depth != 8U && header.bit_depth != 16U) || header.color_type != 2U ||
+        header.interlace != 0U)
     {
         return std::nullopt;
     }
@@ -281,7 +282,8 @@ png_rgb8_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
     {
         compressed.insert(compressed.end(), chunk->payload.begin(), chunk->payload.end());
     }
-    const std::size_t stride = static_cast<std::size_t>(header.width) * 3U;
+    const std::size_t bytes_per_pixel = header.bit_depth == 16U ? 6U : 3U;
+    const std::size_t stride = static_cast<std::size_t>(header.width) * bytes_per_pixel;
     const std::size_t packed_size = (stride + 1U) * header.height;
     auto packed = inflate_exact(compressed, packed_size);
     if (!packed)
@@ -301,12 +303,15 @@ png_rgb8_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
         {
             const std::uint8_t encoded = packed.value()[packed_offset + 1U + column];
             const std::uint8_t left =
-                column >= 3U ? result[static_cast<std::size_t>(row) * stride + column - 3U] : 0U;
+                column >= bytes_per_pixel ?
+                    result[static_cast<std::size_t>(row) * stride + column - bytes_per_pixel] :
+                    0U;
             const std::uint8_t above =
                 row > 0U ? result[(static_cast<std::size_t>(row) - 1U) * stride + column] : 0U;
             const std::uint8_t upper_left =
-                row > 0U && column >= 3U ?
-                    result[(static_cast<std::size_t>(row) - 1U) * stride + column - 3U] :
+                row > 0U && column >= bytes_per_pixel ?
+                    result[(static_cast<std::size_t>(row) - 1U) * stride + column -
+                           bytes_per_pixel] :
                     0U;
             std::uint8_t value = encoded;
             switch (filter)
@@ -336,6 +341,38 @@ png_rgb8_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
     return result;
 }
 
+[[nodiscard]] std::optional<std::vector<std::uint8_t>>
+png_rgb8_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
+{
+    if (header.bit_depth != 8U)
+    {
+        return std::nullopt;
+    }
+    return png_rgb_sample_bytes(chunks, header);
+}
+
+[[nodiscard]] std::optional<std::vector<std::uint16_t>>
+png_rgb16_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
+{
+    if (header.bit_depth != 16U)
+    {
+        return std::nullopt;
+    }
+    const auto bytes = png_rgb_sample_bytes(chunks, header);
+    if (!bytes || bytes->size() % 2U != 0U)
+    {
+        return std::nullopt;
+    }
+    std::vector<std::uint16_t> result(bytes->size() / 2U);
+    for (std::size_t index = 0U; index < result.size(); ++index)
+    {
+        result[index] =
+            static_cast<std::uint16_t>((static_cast<std::uint16_t>((*bytes)[index * 2U]) << 8U) |
+                                       static_cast<std::uint16_t>((*bytes)[index * 2U + 1U]));
+    }
+    return result;
+}
+
 [[nodiscard]] std::vector<std::uint8_t> png_test_pixels(const std::uint32_t width,
                                                         const std::uint32_t height)
 {
@@ -350,6 +387,26 @@ png_rgb8_pixels(const std::vector<PngChunk> &chunks, const PngIhdr &header)
                 static_cast<std::uint8_t>((column * 5U + row * 29U + 41U) & 0xFFU);
             pixels[offset + 2U] =
                 static_cast<std::uint8_t>((column * 31U + row * 7U + 113U) & 0xFFU);
+        }
+    }
+    return pixels;
+}
+
+[[nodiscard]] std::vector<std::uint16_t> png_test_pixels16(const std::uint32_t width,
+                                                           const std::uint32_t height)
+{
+    std::vector<std::uint16_t> pixels(static_cast<std::size_t>(width) * height * 3U);
+    for (std::uint32_t row = 0U; row < height; ++row)
+    {
+        for (std::uint32_t column = 0U; column < width; ++column)
+        {
+            const std::size_t offset = (static_cast<std::size_t>(row) * width + column) * 3U;
+            pixels[offset] =
+                static_cast<std::uint16_t>((column * 257U + row * 19U + 0x0102U) & 0xFFFFU);
+            pixels[offset + 1U] =
+                static_cast<std::uint16_t>((column * 131U + row * 409U + 0x20F1U) & 0xFFFFU);
+            pixels[offset + 2U] =
+                static_cast<std::uint16_t>((column * 17U + row * 1021U + 0xF00DU) & 0xFFFFU);
         }
     }
     return pixels;
@@ -523,6 +580,21 @@ TEST(PngExportContractTest, PropagatesTypedConfiguration)
         EXPECT_TRUE(checkpoint.configured);
         EXPECT_EQ(checkpoint.configured_compression, compression);
     }
+
+    for (const int compression : {0, 5, 9})
+    {
+        SCOPED_TRACE(compression);
+        const auto configuration =
+            detail::png_encode_configuration({PngBitDepth::k16, compression});
+        ASSERT_TRUE(configuration) << configuration.error().message;
+        EXPECT_EQ(configuration.value().bit_depth, 16);
+        EXPECT_EQ(configuration.value().color_type, 2);
+        EXPECT_EQ(configuration.value().interlace_type, 0);
+        EXPECT_EQ(configuration.value().compression_level, compression);
+        EXPECT_EQ(configuration.value().compression_mem_level, 8);
+        EXPECT_EQ(configuration.value().compression_strategy, Z_DEFAULT_STRATEGY);
+        EXPECT_EQ(configuration.value().enabled_filters, 0xF8);
+    }
 }
 
 TEST(PngExportContractTest, WritesExactOpaqueRgb8WithIccAndKnownCicp)
@@ -610,6 +682,90 @@ TEST(PngExportContractTest, EmbedsDisplayP3AndCustomFileProfilesWithoutInventedM
         decoder.encode(13U, 7U, pixels, builtin_profile("unknown-profile"), ExportFormat::kPng,
                        JpegExportOptions{}, CancellationToken{}, PngExportOptions{});
     expect_png_error(unknown, ErrorCode::kUnsupported, "unsupported_png_output_profile");
+}
+
+TEST(PngExportContractTest, WritesExactOpaqueRgb16FromRealSixteenBitSource)
+{
+    constexpr std::uint32_t kWidth = 17U;
+    constexpr std::uint32_t kHeight = 9U;
+    const auto pixels = png_test_pixels16(kWidth, kHeight);
+    const auto pixels_before = pixels;
+    ASSERT_NE(pixels[0], static_cast<std::uint16_t>(pixels[0] >> 8U) * 257U);
+    ASSERT_NE(pixels[1] & 0xFFU, pixels[1] >> 8U);
+    const QByteArray icc = QColorSpace(QColorSpace::SRgb).iccProfile();
+    ASSERT_FALSE(icc.isEmpty());
+    const detail::PngEncodeColorMetadata metadata{
+        {reinterpret_cast<const std::uint8_t *>(icc.constData()),
+         static_cast<std::size_t>(icc.size())},
+        true,
+        {1U, 13U, 0U, 1U}};
+
+    PngCheckpointState checkpoint;
+    detail::PngEncodeControl control;
+    control.checkpoint_observer = {&checkpoint, png_checkpoint};
+    const auto encoded = detail::encode_png_rgb16(
+        kWidth, kHeight, pixels, metadata, {PngBitDepth::k16, 5}, CancellationToken{}, control);
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    EXPECT_TRUE(checkpoint.configured);
+    EXPECT_EQ(checkpoint.configured_compression, 5);
+    const auto chunks = png_chunks(encoded.value());
+    ASSERT_TRUE(chunks);
+    const auto header = png_ihdr(chunks.value());
+    ASSERT_TRUE(header);
+    EXPECT_EQ(header->width, kWidth);
+    EXPECT_EQ(header->height, kHeight);
+    EXPECT_EQ(header->bit_depth, 16U);
+    EXPECT_EQ(header->color_type, 2U);
+    EXPECT_EQ(header->compression, 0U);
+    EXPECT_EQ(header->filter, 0U);
+    EXPECT_EQ(header->interlace, 0U);
+    EXPECT_TRUE(chunks_named(chunks.value(), {'t', 'R', 'N', 'S'}).empty());
+    EXPECT_TRUE(chunks_named(chunks.value(), {'s', 'R', 'G', 'B'}).empty());
+    EXPECT_TRUE(chunks_named(chunks.value(), {'e', 'X', 'I', 'f'}).empty());
+    EXPECT_TRUE(chunks_named(chunks.value(), {'i', 'T', 'X', 't'}).empty());
+    EXPECT_TRUE(chunks_named(chunks.value(), {'p', 'H', 'Y', 's'}).empty());
+    const auto cicp = chunks_named(chunks.value(), {'c', 'I', 'C', 'P'});
+    ASSERT_EQ(cicp.size(), 1U);
+    EXPECT_EQ(cicp.front()->payload, (std::vector<std::uint8_t>{1U, 13U, 0U, 1U}));
+    const auto embedded_icc = png_icc(chunks.value());
+    ASSERT_TRUE(embedded_icc);
+    EXPECT_EQ(embedded_icc.value(), qbyte_array_bytes(icc));
+    const auto decoded = png_rgb16_pixels(chunks.value(), header.value());
+    ASSERT_TRUE(decoded);
+    EXPECT_EQ(decoded.value(), pixels);
+    EXPECT_EQ(pixels, pixels_before);
+}
+
+TEST(PngExportContractTest, RejectsEightBitRequestsAndMismatchedRgb16Sources)
+{
+    const auto pixels = png_test_pixels16(8U, 4U);
+    const auto pixels_before = pixels;
+    const QByteArray icc_bytes = QColorSpace(QColorSpace::SRgb).iccProfile();
+    ASSERT_FALSE(icc_bytes.isEmpty());
+    const detail::PngEncodeColorMetadata metadata{
+        {reinterpret_cast<const std::uint8_t *>(icc_bytes.constData()),
+         static_cast<std::size_t>(icc_bytes.size())},
+        true,
+        {1U, 13U, 0U, 1U}};
+
+    expect_png_error(
+        detail::encode_png_rgb16(8U, 4U, pixels, metadata, PngExportOptions{}, CancellationToken{}),
+        ErrorCode::kValidation, "png_16bit_source_requires_16bit_depth");
+    expect_png_error(detail::encode_png_rgb16(8U, 4U,
+                                              std::span<const std::uint16_t>(pixels).first(5U),
+                                              metadata, {PngBitDepth::k16, 5}, CancellationToken{}),
+                     ErrorCode::kValidation, "png_source_size_mismatch");
+    expect_png_error(detail::encode_png_rgb16(detail::kPngMaxDimension, detail::kPngMaxDimension,
+                                              {}, metadata, {PngBitDepth::k16, 5},
+                                              CancellationToken{}),
+                     ErrorCode::kValidation, "png_source_too_large");
+
+    CancellationSource entry;
+    ASSERT_TRUE(entry.cancel("png16-entry-test"));
+    expect_png_error(
+        detail::encode_png_rgb16(8U, 4U, pixels, metadata, {PngBitDepth::k16, 5}, entry.token()),
+        ErrorCode::kCancelled, "png_encode_cancelled");
+    EXPECT_EQ(pixels, pixels_before);
 }
 
 TEST(PngExportContractTest, RejectsSixteenBitRgb8SourcesAndInvalidOrOversizedInputs)

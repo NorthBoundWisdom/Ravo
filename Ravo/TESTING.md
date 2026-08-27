@@ -483,13 +483,26 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   configuration, then parse IHDR/chunks and inflate rows to prove opaque,
   non-interlaced RGB8 pixels. They verify exact sRGB/Display P3/file ICC, known
   built-in cICP, and that a file ICC whose identifier collides with `srgb` does
-  not acquire false cICP. Dimension/source/output/ICC bounds, invalid cICP,
-  legal-but-unsupported RGB16, entry/row cancellation, deterministic
-  libpng/allocation failure, and source/profile immutability return no encoded
-  result. Catalog tests prove default and explicit propagation, non-PNG
-  isolation, and no file publication for unsupported/invalid options; PNG input
-  and shared encoded-publication regressions keep I6 decode and atomic
-  destination ownership separate.
+  not acquire false cICP. A separate RGB16 encoder path accepts host-endian
+  16-bit RGB samples that are not 8-to-16 expansions, writes bit-depth-16 IHDR,
+  applies the frozen `png_set_swap` transform where host byte order requires
+  it, and proves exact reconstructed samples plus ICC/cICP. The current
+  Catalog/Qt RGB8 render still returns `reason=unsupported_png_16bit_source`
+  for `bit_depth=16`; no 8-to-16 expansion is performed.
+  Dimension/source/output/ICC bounds, invalid
+  cICP, mismatched 8/16-bit source/request pairs, entry/row cancellation,
+  deterministic libpng/allocation failure, and source/profile immutability
+  return no encoded result. Catalog tests prove default and explicit
+  propagation, non-PNG isolation, and no file publication for
+  unsupported/invalid options; PNG input and shared encoded-publication
+  regressions keep I6 decode and atomic destination ownership separate.
+  Dedicated CLI tests invoke real Catalog import/export and independently parse
+  PNG chunks. They cover implicit and explicit `png` format, both PNG-qualified
+  flags, canonical values and defaults, argument order, last-value-wins value
+  flags, PNG-only scope, complete JSON errors, source hashes, and zero
+  publication for invalid or legal-but-unsupported 16-bit product renders.
+  Complete EXIF/XMP packets and pHYs resolution remain unclaimed; the frozen
+  PNG owner writes no pHYs and delegates EXIF/XMP to the shared S9/J6 path.
 - TIFF export freezes one typed options value from `ExportRequest` through
   CatalogService and the raster port to a private static LibTIFF built from the
   pinned source root with only ZLIB Deflate enabled. Domain tests cover stable

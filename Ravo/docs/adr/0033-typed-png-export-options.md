@@ -35,9 +35,20 @@ retire the legacy PNG output plugin.
   exact recognized built-in profile state. A valid custom RGB ICC is preserved
   without invented cICP even when its display identifier collides with a
   built-in name; an unknown built-in or non-RGB profile fails closed.
-- The current RGB8 source accepts only `bit_depth=8`. `bit_depth=16` remains a
-  legal request value but returns
-  `reason=unsupported_png_16bit_source`; no 8-to-16 expansion is performed.
+- The current Catalog/Qt RGB8 source accepts only `bit_depth=8`. That path
+  still returns `reason=unsupported_png_16bit_source` for `bit_depth=16`; no
+  8-to-16 expansion is performed.
+- A separate private `encode_png_rgb16` path accepts a real host-endian RGB16
+  source (three `uint16_t` samples per pixel). It requires `bit_depth=16`,
+  writes non-interlaced RGB16, and applies the frozen `png_set_swap`
+  transform on little-endian hosts so PNG samples are network-order. Native
+  big-endian samples already have network order. Tests reconstruct exact
+  16-bit values that are not 8-bit expansions.
+- `catalog export` owns `--png-bit-depth` (`8`/`16`) and `--png-compression`
+  (`0`–`9`). Defaults remain 8-bit/compression 5 when the flags are omitted.
+  Value flags are last-value-wins, PNG-only, and fail closed with structured
+  JSON errors. Product 16-bit export still hits the RGB8 unsupported boundary
+  until an engine-owned 16-bit rendered source exists.
 - Dimensions, RGB source bytes, ICC bytes, and encoded output are bounded
   before publication. The synchronous call borrows pixels, profile bytes,
   options, cancellation state, and the private test observer only for the
@@ -59,15 +70,18 @@ retire the legacy PNG output plugin.
 
 PNG defaults and compression now match the frozen owner, service callers have
 one typed immutable request, and PNG output no longer depends on Qt writer
-defaults. The adapter emits exact RGB8 pixels, a resolved ICC profile, and only
-evidenced cICP declarations while preserving explicit failure and cancellation
-state.
+defaults. The adapter emits exact RGB8 or RGB16 pixels from matching real
+sources, a resolved ICC profile, and only evidenced cICP declarations while
+preserving explicit failure and cancellation state.
 
-I12 remains incomplete. Ravo has no 16-bit rendered source contract, and this
-tranche does not construct EXIF/IPTC/XMP, resolution metadata, sidecars, path
-templates, batch presets, or parent-directory durability. The input wrapper
-owned by I6 is separate. `legacy/src/imageio/format/png.c`, its registration,
-and shared dynamic image-I/O/storage/job consumers therefore remain.
+I12 remains incomplete. The private encoder now owns a real RGB16 source
+path, and CLI options exist, but Catalog/Qt product export still has only an
+RGB8 rendered source. This tranche does not construct EXIF/XMP or pHYs
+resolution: the frozen PNG owner writes no pHYs and receives EXIF/XMP from
+the shared S9/J6 path. Sidecars, path templates, batch presets, and
+parent-directory durability remain separate. The input wrapper owned by I6 is
+separate. `legacy/src/imageio/format/png.c`, its registration, and shared
+dynamic image-I/O/storage/job consumers therefore remain.
 
 ## Rejected alternatives
 

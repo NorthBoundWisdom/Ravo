@@ -52,7 +52,7 @@ Studio exports the active photo only. Multi-selection can update review state
 and catalog metadata, but it is not an implicit batch-export job.
 
 Studio currently selects the output format but does not expose JPEG quality or
-the typed TIFF controls. Use `ravo catalog export` for those CLI options.
+the typed PNG/TIFF controls. Use `ravo catalog export` for those CLI options.
 
 ### Output precision and metadata
 

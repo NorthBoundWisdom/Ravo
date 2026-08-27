@@ -292,6 +292,14 @@ ravo catalog export --catalog "/work/Ravo Library.sqlite" \
   --format original --json
 ```
 
+PNG example:
+
+```text
+ravo catalog export --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --output "/exports/photo.png" --format png \
+  --png-bit-depth 8 --png-compression 5 --json
+```
+
 TIFF example:
 
 ```text

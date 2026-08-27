@@ -36,7 +36,7 @@ struct PngEncodeConfiguration
 
 struct PngEncodeColorMetadata
 {
-    // Both views are borrowed only for the synchronous encode_png_rgb8() call.
+    // Both views are borrowed only for a synchronous PNG encode call.
     std::span<const std::uint8_t> resolved_rgb_icc;
     bool has_cicp = false;
     std::array<std::uint8_t, 4U> cicp{};
@@ -61,8 +61,8 @@ using PngEncodeCheckpointCallback =
 
 struct PngEncodeCheckpointObserver
 {
-    // Synchronously borrowed by encode_png_rgb8(); the caller owns context
-    // and keeps it alive for the complete call.
+    // Synchronously borrowed by the encoder; the caller owns context and keeps
+    // it alive for the complete call.
     void *context = nullptr;
     PngEncodeCheckpointCallback callback = nullptr;
 };
@@ -80,5 +80,12 @@ png_encode_configuration(const PngExportOptions &options);
 encode_png_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgb,
                 const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
                 const CancellationToken &cancellation, PngEncodeControl control = {});
+
+// Host-endian RGB16 samples are borrowed only for this synchronous call.
+// Success returns a separately owned PNG with 16-bit network-order samples.
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_png_rgb16(std::uint32_t width, std::uint32_t height, std::span<const std::uint16_t> rgb,
+                 const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                 const CancellationToken &cancellation, PngEncodeControl control = {});
 
 } // namespace ravo::detail

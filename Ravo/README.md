@@ -108,10 +108,12 @@ Current implementation status:
   through the raster port. It defaults to 8-bit and compression 5, accepts
   compression 0–9, and delegates current RGB8 output to a private libpng owner
   with frozen zlib/filter settings, opaque non-interlaced RGB, resolved ICC,
-  and cICP only for recognized built-in profile state. A 16-bit request is
-  valid but fails structurally for the current RGB8 rendered source rather
-  than inventing precision. Explicit PNG options in CLI plus EXIF/XMP and
-  resolution metadata remain later I12 work.
+  and cICP only for recognized built-in profile state. A separate private
+  encoder consumes real host-endian RGB16 without expanding 8-bit samples;
+  the current Catalog/Qt RGB8 rendered source still rejects a 16-bit product
+  request structurally. CLI exposes `--png-bit-depth 8|16` and
+  `--png-compression 0..9`; EXIF/XMP and pHYs metadata plus an engine-owned
+  RGB16 rendered source remain later I12 work.
 - TIFF export uses one typed sample/compression/resolution request from
   CatalogService through the raster port. It defaults to unsigned 8-bit,
   Deflate with the horizontal predictor, level 6, RGB output, and 300 dpi;
@@ -386,6 +388,7 @@ ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|tif|original [--quality 95] \
+  [--png-bit-depth 8|16] [--png-compression 0..9] \
   [--tiff-sample-type uint8|uint16|float16|float32] [--tiff-compression none|deflate|deflate_predictor] \
   [--tiff-compression-level 1..9] [--tiff-grayscale-if-neutral] --json
 ```

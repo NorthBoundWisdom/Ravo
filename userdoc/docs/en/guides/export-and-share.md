@@ -70,6 +70,11 @@ Common options:
 - `--quality 5..100` for JPEG; default `95`.
 - `--max-edge N` to fit a rendered result within a positive maximum edge.
 
+PNG-only options:
+
+- `--png-bit-depth 8|16`; default `8`.
+- `--png-compression 0..9`; default `5`.
+
 TIFF-only options:
 
 - `--tiff-sample-type uint8|uint16|float16|float32`.
@@ -77,10 +82,10 @@ TIFF-only options:
 - `--tiff-compression-level 1..9`.
 - `--tiff-grayscale-if-neutral`.
 
-The current engine source is RGB8. `uint16`, `float16`, and `float32` TIFF
-requests are validated but return a structured unsupported result instead of
-claiming higher precision. TIFF-qualified flags are rejected for PNG, JPEG, and
-original-copy exports.
+The current product render source is RGB8. A PNG `16` request and TIFF
+`uint16`, `float16`, or `float32` requests are validated but return a
+structured unsupported result instead of claiming higher precision. PNG- and
+TIFF-qualified flags are rejected outside their matching export format.
 
 ## Destination conflict behavior
 

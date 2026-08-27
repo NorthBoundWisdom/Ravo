@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <csetjmp>
 #include <cstddef>
 #include <cstdint>
@@ -241,52 +242,17 @@ void png_flush_callback(png_structp) noexcept
     }
 }
 
-} // namespace
-
-Result<PngEncodeConfiguration> png_encode_configuration(const PngExportOptions &options)
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_png_samples(const std::uint32_t width, const std::uint32_t height,
+                   const std::span<const std::uint8_t> samples, const std::size_t bytes_per_sample,
+                   const bool swap_sixteen_bit, const PngEncodeColorMetadata &color_metadata,
+                   const PngEncodeConfiguration &configuration,
+                   const CancellationToken &cancellation, const PngEncodeControl control)
 {
-    auto valid = validate_png_export_options(options);
-    if (!valid)
+    if (bytes_per_sample != 1U && bytes_per_sample != 2U)
     {
-        return valid.error();
-    }
-    PngEncodeConfiguration configuration;
-    configuration.bit_depth = static_cast<int>(options.bit_depth);
-    configuration.color_type = PNG_COLOR_TYPE_RGB;
-    configuration.interlace_type = PNG_INTERLACE_NONE;
-    configuration.compression_type = PNG_COMPRESSION_TYPE_DEFAULT;
-    configuration.filter_method = PNG_FILTER_TYPE_DEFAULT;
-    configuration.compression_level = options.compression;
-    configuration.compression_mem_level = 8;
-    configuration.compression_strategy = Z_DEFAULT_STRATEGY;
-    configuration.compression_window_bits = 15;
-    configuration.compression_method = 8;
-    configuration.compression_buffer_size = 8192U;
-    configuration.enabled_filters = PNG_ALL_FILTERS;
-    return configuration;
-}
-
-Result<std::vector<std::uint8_t>>
-encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
-                const std::span<const std::uint8_t> rgb,
-                const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
-                const CancellationToken &cancellation, const PngEncodeControl control)
-{
-    if (cancellation.is_cancellation_requested())
-    {
-        return png_cancellation_error(cancellation);
-    }
-    auto configuration = png_encode_configuration(options);
-    if (!configuration)
-    {
-        return configuration.error();
-    }
-    if (options.bit_depth == PngBitDepth::k16)
-    {
-        return png_encode_error(ErrorCode::kUnsupported,
-                                "PNG 16-bit output requires a 16-bit rendered source",
-                                "unsupported_png_16bit_source",
-                                {{"source_pixel_format", "rgb8"}, {"requested_bit_depth", "16"}});
+        return png_encode_error(ErrorCode::kValidation, "PNG sample width is invalid",
+                                "invalid_png_sample_width");
     }
     if (width == 0U || height == 0U || width > kPngMaxDimension || height > kPngMaxDimension)
     {
@@ -296,8 +262,16 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
                                  {"maximum_dimension", std::to_string(kPngMaxDimension)},
                                  {"width", std::to_string(width)}});
     }
-    const std::uint64_t source_bytes =
-        static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 3U;
+    const std::uint64_t pixel_count =
+        static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height);
+    const std::uint64_t bytes_per_pixel = 3U * static_cast<std::uint64_t>(bytes_per_sample);
+    if (pixel_count > std::numeric_limits<std::uint64_t>::max() / bytes_per_pixel)
+    {
+        return png_encode_error(
+            ErrorCode::kValidation, "PNG RGB source exceeds the safe bound", "png_source_too_large",
+            {{"maximum_bytes", std::to_string(kPngMaxSourceBytes)}, {"size_bytes", "overflow"}});
+    }
+    const std::uint64_t source_bytes = pixel_count * bytes_per_pixel;
     if (source_bytes > kPngMaxSourceBytes)
     {
         return png_encode_error(ErrorCode::kValidation, "PNG RGB source exceeds the safe bound",
@@ -305,12 +279,12 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
                                 {{"maximum_bytes", std::to_string(kPngMaxSourceBytes)},
                                  {"size_bytes", std::to_string(source_bytes)}});
     }
-    if (rgb.size() != source_bytes)
+    if (samples.size() != source_bytes)
     {
         return png_encode_error(ErrorCode::kValidation,
                                 "PNG RGB source does not match its dimensions",
                                 "png_source_size_mismatch",
-                                {{"actual_bytes", std::to_string(rgb.size())},
+                                {{"actual_bytes", std::to_string(samples.size())},
                                  {"expected_bytes", std::to_string(source_bytes)}});
     }
     if (color_metadata.resolved_rgb_icc.empty())
@@ -374,16 +348,15 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
     }
     png_set_write_fn(state->writer, state.get(), png_write_callback, png_flush_callback);
     png_set_user_limits(state->writer, kPngMaxDimension, kPngMaxDimension);
-    png_set_compression_level(state->writer, configuration.value().compression_level);
-    png_set_compression_mem_level(state->writer, configuration.value().compression_mem_level);
-    png_set_compression_strategy(state->writer, configuration.value().compression_strategy);
-    png_set_compression_window_bits(state->writer, configuration.value().compression_window_bits);
-    png_set_compression_method(state->writer, configuration.value().compression_method);
-    png_set_compression_buffer_size(state->writer, configuration.value().compression_buffer_size);
-    png_set_filter(state->writer, configuration.value().filter_method,
-                   configuration.value().enabled_filters);
+    png_set_compression_level(state->writer, configuration.compression_level);
+    png_set_compression_mem_level(state->writer, configuration.compression_mem_level);
+    png_set_compression_strategy(state->writer, configuration.compression_strategy);
+    png_set_compression_window_bits(state->writer, configuration.compression_window_bits);
+    png_set_compression_method(state->writer, configuration.compression_method);
+    png_set_compression_buffer_size(state->writer, configuration.compression_buffer_size);
+    png_set_filter(state->writer, configuration.filter_method, configuration.enabled_filters);
     const PngEncodeInjectedFailure configured_failure = notify_checkpoint(
-        control, PngEncodeCheckpoint::kConfigured, 0U, configuration.value().compression_level);
+        control, PngEncodeCheckpoint::kConfigured, 0U, configuration.compression_level);
     if (cancellation.is_cancellation_requested())
     {
         fail_png(*state, PngFailureKind::kCancelled, "PNG encoding cancelled");
@@ -397,9 +370,9 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
                  "injected PNG encoder failure");
     }
 
-    png_set_IHDR(state->writer, state->info, width, height, configuration.value().bit_depth,
-                 configuration.value().color_type, configuration.value().interlace_type,
-                 configuration.value().compression_type, configuration.value().filter_method);
+    png_set_IHDR(state->writer, state->info, width, height, configuration.bit_depth,
+                 configuration.color_type, configuration.interlace_type,
+                 configuration.compression_type, configuration.filter_method);
     png_set_iCCP(state->writer, state->info, "icc", PNG_COMPRESSION_TYPE_BASE,
                  color_metadata.resolved_rgb_icc.data(),
                  static_cast<png_uint_32>(color_metadata.resolved_rgb_icc.size()));
@@ -409,12 +382,16 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
         png_write_chunk(state->writer, kCicpChunkName.data(), color_metadata.cicp.data(),
                         color_metadata.cicp.size());
     }
+    if (swap_sixteen_bit)
+    {
+        png_set_swap(state->writer);
+    }
 
-    const std::size_t stride = static_cast<std::size_t>(width) * 3U;
+    const std::size_t stride = static_cast<std::size_t>(width) * 3U * bytes_per_sample;
     for (std::uint32_t row = 0U; row < height; ++row)
     {
         const PngEncodeInjectedFailure row_failure = notify_checkpoint(
-            control, PngEncodeCheckpoint::kScanline, row, configuration.value().compression_level);
+            control, PngEncodeCheckpoint::kScanline, row, configuration.compression_level);
         if (cancellation.is_cancellation_requested())
         {
             fail_png(*state, PngFailureKind::kCancelled, "PNG encoding cancelled");
@@ -427,11 +404,11 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
                          PngFailureKind::kInjected,
                      "injected PNG encoder failure");
         }
-        png_write_row(state->writer,
-                      const_cast<png_bytep>(rgb.data() + static_cast<std::size_t>(row) * stride));
+        png_write_row(state->writer, const_cast<png_bytep>(samples.data() +
+                                                           static_cast<std::size_t>(row) * stride));
     }
     const PngEncodeInjectedFailure finish_failure = notify_checkpoint(
-        control, PngEncodeCheckpoint::kScanline, height, configuration.value().compression_level);
+        control, PngEncodeCheckpoint::kScanline, height, configuration.compression_level);
     if (cancellation.is_cancellation_requested())
     {
         fail_png(*state, PngFailureKind::kCancelled, "PNG encoding cancelled");
@@ -447,6 +424,96 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
     png_write_end(state->writer, state->info);
     destroy_writer(*state);
     return copy_encoded_output(state->destination);
+}
+
+} // namespace
+
+Result<PngEncodeConfiguration> png_encode_configuration(const PngExportOptions &options)
+{
+    auto valid = validate_png_export_options(options);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    PngEncodeConfiguration configuration;
+    configuration.bit_depth = static_cast<int>(options.bit_depth);
+    configuration.color_type = PNG_COLOR_TYPE_RGB;
+    configuration.interlace_type = PNG_INTERLACE_NONE;
+    configuration.compression_type = PNG_COMPRESSION_TYPE_DEFAULT;
+    configuration.filter_method = PNG_FILTER_TYPE_DEFAULT;
+    configuration.compression_level = options.compression;
+    configuration.compression_mem_level = 8;
+    configuration.compression_strategy = Z_DEFAULT_STRATEGY;
+    configuration.compression_window_bits = 15;
+    configuration.compression_method = 8;
+    configuration.compression_buffer_size = 8192U;
+    configuration.enabled_filters = PNG_ALL_FILTERS;
+    return configuration;
+}
+
+Result<std::vector<std::uint8_t>>
+encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
+                const std::span<const std::uint8_t> rgb,
+                const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                const CancellationToken &cancellation, const PngEncodeControl control)
+{
+    if (cancellation.is_cancellation_requested())
+    {
+        return png_cancellation_error(cancellation);
+    }
+    auto configuration = png_encode_configuration(options);
+    if (!configuration)
+    {
+        return configuration.error();
+    }
+    if (options.bit_depth == PngBitDepth::k16)
+    {
+        return png_encode_error(ErrorCode::kUnsupported,
+                                "PNG 16-bit output requires a 16-bit rendered source",
+                                "unsupported_png_16bit_source",
+                                {{"source_pixel_format", "rgb8"}, {"requested_bit_depth", "16"}});
+    }
+    return encode_png_samples(width, height, rgb, 1U, false, color_metadata, configuration.value(),
+                              cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_png_rgb16(const std::uint32_t width, const std::uint32_t height,
+                 const std::span<const std::uint16_t> rgb,
+                 const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                 const CancellationToken &cancellation, const PngEncodeControl control)
+{
+    if (cancellation.is_cancellation_requested())
+    {
+        return png_cancellation_error(cancellation);
+    }
+    auto configuration = png_encode_configuration(options);
+    if (!configuration)
+    {
+        return configuration.error();
+    }
+    if (options.bit_depth != PngBitDepth::k16)
+    {
+        return png_encode_error(
+            ErrorCode::kValidation, "PNG 16-bit encoding requires a 16-bit request",
+            "png_16bit_source_requires_16bit_depth",
+            {{"requested_bit_depth", std::string(png_bit_depth_name(options.bit_depth))},
+             {"source_pixel_format", "rgb16"}});
+    }
+    if (rgb.size() > std::numeric_limits<std::size_t>::max() / sizeof(std::uint16_t))
+    {
+        return png_encode_error(
+            ErrorCode::kValidation, "PNG RGB source exceeds the safe bound", "png_source_too_large",
+            {{"maximum_bytes", std::to_string(kPngMaxSourceBytes)}, {"size_bytes", "overflow"}});
+    }
+    static_assert(std::endian::native == std::endian::little ||
+                      std::endian::native == std::endian::big,
+                  "PNG RGB16 encoding requires a uniform host byte order");
+    const auto samples = std::span<const std::uint8_t>(
+        reinterpret_cast<const std::uint8_t *>(rgb.data()), rgb.size() * sizeof(std::uint16_t));
+    constexpr bool kSwapSixteenBit = std::endian::native == std::endian::little;
+    return encode_png_samples(width, height, samples, 2U, kSwapSixteenBit, color_metadata,
+                              configuration.value(), cancellation, control);
 }
 
 } // namespace ravo::detail
