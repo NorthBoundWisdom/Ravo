@@ -50,9 +50,10 @@ in their owning architecture/ADR/code/test truth source.
 
 ## Export workflow expansion
 
-- Metadata/ICC embedding, batch job persistence and presets/styles.
-- Define allowed fields, profile ownership, overwrite/conflict policy,
-  cancellation, crash recovery and reproducible output evidence.
+- Batch job persistence, presets/styles, and still-undecided export workflow.
+- Bounded Catalog-owned embedded JPEG/PNG/TIFF metadata is accepted under
+  [ADR-0038](../Ravo/docs/adr/0038-embedded-export-metadata.md). Capture
+  timezone/GPS and sidecar/history policy remain later S9/J6 work.
 
 ## Catalog and source-file lifecycle
 

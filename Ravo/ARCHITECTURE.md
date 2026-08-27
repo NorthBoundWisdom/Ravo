@@ -213,13 +213,15 @@ delegates to the adapter-private pinned libjpeg-turbo encoder, and TIFF
 delegates to an adapter-private static LibTIFF built from its pinned source
 root with only ZLIB Deflate enabled. The TIFF encoder writes bounded classic
 little-endian opaque RGB8 or frozen conditional-grayscale strips and embeds
-the exact resolved RGB ICC. For TIFF only, Catalog snapshots the already
-normalized destination string and current writable metadata once after asset
-lookup. The encoder writes 72–9600 dpi in inches plus bounded UTF-8
-`DocumentName`, `ImageDescription`, `Artist`, and `Copyright` main-IFD values;
-title is not mapped, absent values are omitted, and present-empty values retain
-their single terminating NUL. It emits no EXIFIFD, IPTC, XMP, or sidecar and
-does not perform a second realpath lookup. JPEG/GIF/WebP/TIFF plugin targets and
+the exact resolved RGB ICC. Catalog snapshots writable metadata, capture
+values, and sorted unique tags once after asset lookup for every rendered
+JPEG/PNG/TIFF export. TIFF also
+keeps the normalized destination as `DocumentName`. JPEG writes Exif APP1, XMP
+APP1, ICC APP2, and optional IPTC APP13; PNG writes one `eXIf` and one
+uncompressed XMP `iTXt` and still writes no `pHYs`; TIFF keeps the 72–9600 dpi
+baseline plus EXIFIFD, XMP 700, and optional IPTC 33723. Title is not an Exif
+field. The encoder does not reopen the destination or mutate a sidecar.
+JPEG/GIF/WebP/TIFF plugin targets and
 QSQLITE remain configure-time requirements for their current input/runtime
 consumers; TIFF output no longer uses the Qt plugin.
 TGA/WBMP/ICO and other SQL drivers have no product consumers.
@@ -680,8 +682,8 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   `catalog export --format tiff|tif` projects those values through four
   TIFF-qualified CLI flags. Catalog maps PNG16 and matching TIFF sample
   requests to engine-owned RGB16 or finite RGB float; JPEG/PNG8/TIFF uint8
-  stay on RGB8. TIFF baseline directory metadata is an encode-time owned
-  snapshot, but complete EXIF/IPTC/XMP packets, capture/timezone/GPS and XMP
+  stay on RGB8. Rendered JPEG/PNG/TIFF embed the ADR-0038 Catalog-owned public
+  metadata snapshot before publication. Capture timezone/GPS, XMP
   attach/history/sidecar policy, explicit PNG/TIFF Studio options, TIFF
   multipage masks, path-template and batch/storage policy, and old export
   presets remain out of scope.

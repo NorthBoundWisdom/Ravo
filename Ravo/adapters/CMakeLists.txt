@@ -2,6 +2,7 @@ add_library(ravo_adapters STATIC)
 
 target_sources(ravo_adapters
   PRIVATE
+    src/export_metadata_encoder.cpp
     src/filesystem_preview_cache.cpp
     src/jpeg_encoder.cpp
     src/legacy_xmp.cpp

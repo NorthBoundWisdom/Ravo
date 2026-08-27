@@ -20,6 +20,16 @@ ravo_configure_target(ravo_unit_tests)
 ravo_copy_windows_runtime_dlls(ravo_unit_tests)
 gtest_discover_tests(ravo_unit_tests PROPERTIES LABELS "ravo-unit")
 
+add_executable(ravo_export_metadata_encoder_tests export_metadata_encoder_test.cpp)
+target_link_libraries(ravo_export_metadata_encoder_tests
+  PRIVATE GTest::gtest_main ravo_adapters)
+target_include_directories(ravo_export_metadata_encoder_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/Ravo/adapters/src)
+ravo_configure_target(ravo_export_metadata_encoder_tests)
+ravo_copy_windows_runtime_dlls(ravo_export_metadata_encoder_tests)
+gtest_discover_tests(ravo_export_metadata_encoder_tests PROPERTIES LABELS "ravo-unit")
+
 add_executable(ravo_contract_tests
   cli_test.cpp
   color_correction_test.cpp

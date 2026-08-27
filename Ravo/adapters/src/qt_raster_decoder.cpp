@@ -3534,7 +3534,8 @@ encode_export_pixels(const std::uint32_t width, const std::uint32_t height,
         return detail::encode_jpeg_rgb8(width, height, *rgb8,
                                         {reinterpret_cast<const std::uint8_t *>(icc.constData()),
                                          static_cast<std::size_t>(icc.size())},
-                                        jpeg_options, cancellation);
+                                        jpeg_options, metadata,
+                                        export_color_space_is_srgb(color_profile), cancellation);
     }
     if (format == ExportFormat::kPng)
     {
@@ -3602,10 +3603,11 @@ encode_export_pixels(const std::uint32_t width, const std::uint32_t height,
         if (png_options.bit_depth == PngBitDepth::k16)
         {
             return detail::encode_png_rgb16(width, height, *rgb16, png_metadata, png_options,
+                                            metadata, export_color_space_is_srgb(color_profile),
                                             cancellation);
         }
-        return detail::encode_png_rgb8(width, height, *rgb8, png_metadata, png_options,
-                                       cancellation);
+        return detail::encode_png_rgb8(width, height, *rgb8, png_metadata, png_options, metadata,
+                                       export_color_space_is_srgb(color_profile), cancellation);
     }
     if (format == ExportFormat::kTiff)
     {
@@ -3685,15 +3687,18 @@ encode_export_pixels(const std::uint32_t width, const std::uint32_t height,
         if (tiff_options.sample_type == TiffSampleType::kUint8)
         {
             return detail::encode_tiff_rgb8(width, height, *rgb8, icc_bytes, tiff_options, metadata,
+                                            export_color_space_is_srgb(color_profile),
                                             cancellation);
         }
         if (tiff_options.sample_type == TiffSampleType::kUint16)
         {
             return detail::encode_tiff_rgb16(width, height, *rgb16, icc_bytes, tiff_options,
-                                             metadata, cancellation);
+                                             metadata, export_color_space_is_srgb(color_profile),
+                                             cancellation);
         }
         return detail::encode_tiff_rgb_float(width, height, *rgb_float, icc_bytes, tiff_options,
-                                             metadata, cancellation);
+                                             metadata, export_color_space_is_srgb(color_profile),
+                                             cancellation);
     }
     return make_error(ErrorCode::kUnsupported, "Raster export format is unsupported",
                       {{"format", std::string(export_format_name(format))},

@@ -48,25 +48,15 @@ public:
         return encode(width, height, rgb, color_profile, format, jpeg_options, cancellation,
                       png_options);
     }
-    // Metadata is synchronously borrowed for this call. Existing test doubles
-    // fail closed when TIFF metadata is nonempty until they explicitly own it;
-    // unrelated output formats preserve their existing encode path.
+    // Metadata is synchronously borrowed for this call. Every implementation
+    // must explicitly own the rendered-export metadata contract; even an empty
+    // Catalog snapshot still requires the baseline Exif/XMP packets.
     [[nodiscard]] virtual Result<std::vector<std::uint8_t>>
     encode(std::uint32_t width, std::uint32_t height, const std::vector<std::uint8_t> &rgb,
            const ColorProfileState &color_profile, ExportFormat format,
            const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
            const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
-           const ExportMetadataSnapshot &metadata) const
-    {
-        if (format == ExportFormat::kTiff && metadata != ExportMetadataSnapshot{})
-        {
-            return make_error(ErrorCode::kUnsupported,
-                              "Raster encoder does not own TIFF export metadata",
-                              {{"format", "tiff"}, {"reason", "unsupported_tiff_metadata_owner"}});
-        }
-        return encode(width, height, rgb, color_profile, format, jpeg_options, cancellation,
-                      png_options, tiff_options);
-    }
+           const ExportMetadataSnapshot &metadata) const = 0;
     // Tagged source is borrowed only for this synchronous call. Implementations
     // must handle every alternative explicitly; there is no default fallback.
     [[nodiscard]] virtual Result<std::vector<std::uint8_t>>

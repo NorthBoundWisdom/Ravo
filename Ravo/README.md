@@ -101,9 +101,10 @@ Current implementation status:
   quality/subsampling request. Quality defaults to 95 within the frozen 5–100
   range; automatic sampling follows the frozen quality thresholds, while
   service callers may select 4:4:4, 4:4:0, 4:2:2, or 4:2:0 explicitly. The CLI
-  currently exposes quality only. EXIF/XMP policy remains later JPEG work;
-  final bytes use the shared ADR-0032 atomic no-replace publication boundary
-  without completing batch/storage retirement.
+  currently exposes quality only. Rendered JPEG embeds Catalog-owned Exif APP1,
+  standard XMP APP1, and optional IPTC Photoshop APP13 from one snapshot before
+  ADR-0032 publication; capture timezone/GPS and sidecar/history policy remain
+  later S9/J6 work.
 - PNG export uses one typed bit-depth/compression request from CatalogService
   through the raster port. It defaults to 8-bit and compression 5, accepts
   compression 0–9, and delegates RGB8 output to a private libpng owner
@@ -111,19 +112,21 @@ Current implementation status:
   and cICP only for recognized built-in profile state. Product PNG16 requests
   render engine-owned RGB16 into that encoder; an RGB8 source still rejects
   16-bit structurally instead of expanding 8-bit samples. CLI exposes
-  `--png-bit-depth 8|16` and `--png-compression 0..9`; EXIF/XMP and pHYs
-  metadata remain later I12/S9/J6 work.
+  `--png-bit-depth 8|16` and `--png-compression 0..9`. Rendered PNG embeds one
+  `eXIf` TIFF profile and one uncompressed XMP `iTXt`; it still writes no pHYs
+  or IPTC. Capture timezone/GPS and sidecar/history policy remain later S9/J6.
 - TIFF export uses one typed sample/compression/resolution request from
   CatalogService through the raster port. It defaults to unsigned 8-bit,
   Deflate with the horizontal predictor, level 6, RGB output, and 300 dpi;
   resolution accepts 72–9600 dpi in inches. A private static LibTIFF owner from
   the pinned source root writes bounded classic little-endian, top-left, opaque
   contiguous strips and the exact resolved RGB ICC; optional grayscale retains
-  the frozen interior-channel threshold. For TIFF only, Catalog snapshots the
-  normalized destination string and current writable metadata once after asset
-  lookup. The main IFD writes bounded UTF-8 `DocumentName`, description,
-  creator, and copyright; title is deliberately unmapped, absent values omit
-  their tags, and present-empty values write one NUL. CLI
+  the frozen interior-channel threshold. Catalog snapshots writable metadata,
+  capture values, and sorted tags once for every rendered export after asset
+  lookup. TIFF also keeps the normalized destination as `DocumentName`. The main
+  IFD writes bounded UTF-8 `DocumentName`, description, creator, copyright,
+  Make/Model, EXIFIFD, XMP 700, and optional IPTC 33723; title stays out of Exif,
+  and `DocumentName` remains the destination rather than the title. CLI
   `catalog export --format tiff|tif` exposes `--tiff-sample-type` with
   `uint8|uint16|float16|float32`, `--tiff-compression` with
   `none|deflate|deflate_predictor`, `--tiff-compression-level` from 1 through 9,
@@ -131,8 +134,7 @@ Current implementation status:
   last-value-wins CLI rule, while the boolean flag rejects duplicates; every
   TIFF flag is rejected outside a TIFF export. Product uint16/float16/float32
   requests render engine-owned RGB16 or finite RGB float; an RGB8 source still
-  fails structurally instead of fabricating precision. Complete EXIF/IPTC/XMP
-  packets, capture/timezone/GPS,
+  fails structurally instead of fabricating precision. Capture timezone/GPS,
   sidecar/history policy, multipage masks, explicit TIFF Studio options, shared
   consumers, and retirement remain later I13/S9/J6 work. TIFF bytes complete in
   memory before the shared ADR-0032 atomic no-replace publication; source and

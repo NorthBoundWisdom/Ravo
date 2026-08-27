@@ -5,10 +5,15 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
+#include <cstdint>
+#include <limits>
 #include <map>
+#include <new>
 #include <random>
 #include <set>
 #include <sstream>
+#include <tuple>
 
 namespace ravo
 {
@@ -31,7 +36,15 @@ namespace
     return id;
 }
 
-[[nodiscard]] bool is_valid_utf8(const std::string_view text) noexcept
+[[nodiscard]] bool is_xml_1_0_character(const std::uint32_t scalar) noexcept
+{
+    return scalar == 0x09U || scalar == 0x0AU || scalar == 0x0DU ||
+           (scalar >= 0x20U && scalar <= 0xD7FFU) || (scalar >= 0xE000U && scalar <= 0xFFFDU) ||
+           (scalar >= 0x10000U && scalar <= 0x10FFFFU);
+}
+
+[[nodiscard]] bool is_valid_utf8(const std::string_view text,
+                                 const bool require_xml_1_0 = false) noexcept
 {
     std::size_t offset = 0U;
     while (offset < text.size())
@@ -39,6 +52,10 @@ namespace
         const auto first = static_cast<std::uint8_t>(text[offset]);
         if (first <= 0x7FU)
         {
+            if (require_xml_1_0 && !is_xml_1_0_character(first))
+            {
+                return false;
+            }
             ++offset;
             continue;
         }
@@ -81,13 +98,58 @@ namespace
             }
             scalar = (scalar << 6U) | (continuation & 0x3FU);
         }
-        if (scalar < minimum || scalar > 0x10FFFFU || (scalar >= 0xD800U && scalar <= 0xDFFFU))
+        if (scalar < minimum || scalar > 0x10FFFFU || (scalar >= 0xD800U && scalar <= 0xDFFFU) ||
+            (require_xml_1_0 && !is_xml_1_0_character(scalar)))
         {
             return false;
         }
         offset += length;
     }
     return true;
+}
+
+[[nodiscard]] bool has_iptc_control_character(const std::string_view text,
+                                              const bool allow_line_breaks) noexcept
+{
+    std::size_t offset = 0U;
+    while (offset < text.size())
+    {
+        const auto first = static_cast<std::uint8_t>(text[offset]);
+        if (first <= 0x7FU)
+        {
+            if (first < 0x20U && !(allow_line_breaks && (first == '\r' || first == '\n')))
+            {
+                return true;
+            }
+            if (first == 0x7FU)
+            {
+                return true;
+            }
+            ++offset;
+            continue;
+        }
+        if (first == 0xC2U && offset + 1U < text.size())
+        {
+            const auto second = static_cast<std::uint8_t>(text[offset + 1U]);
+            if (second >= 0x80U && second <= 0x9FU)
+            {
+                return true;
+            }
+        }
+        if ((first & 0xE0U) == 0xC0U)
+        {
+            offset += 2U;
+        }
+        else if ((first & 0xF0U) == 0xE0U)
+        {
+            offset += 3U;
+        }
+        else
+        {
+            offset += 4U;
+        }
+    }
+    return false;
 }
 
 } // namespace
@@ -515,46 +577,471 @@ Result<void> validate_tiff_export_options(const TiffExportOptions &options)
     return {};
 }
 
-Result<void> validate_tiff_export_metadata(const ExportMetadataSnapshot &metadata)
+Result<void> validate_tiff_export_document_name(const std::string_view name)
 {
-    if (metadata.destination_document_name.size() > kExportDocumentNameMaxBytes ||
-        metadata.destination_document_name.find('\0') != std::string::npos ||
-        !is_valid_utf8(metadata.destination_document_name))
+    if (name.size() > kExportDocumentNameMaxBytes || name.find('\0') != std::string_view::npos ||
+        !is_valid_utf8(name))
     {
-        return make_error(
-            ErrorCode::kValidation, "TIFF document name is not a bounded UTF-8 path",
-            {{"field", "document_name"},
-             {"format", "tiff"},
-             {"maximum_bytes", std::to_string(kExportDocumentNameMaxBytes)},
-             {"reason", "invalid_tiff_document_name"},
-             {"size_bytes", std::to_string(metadata.destination_document_name.size())}});
+        return make_error(ErrorCode::kValidation, "TIFF document name is not a bounded UTF-8 path",
+                          {{"field", "document_name"},
+                           {"format", "tiff"},
+                           {"maximum_bytes", std::to_string(kExportDocumentNameMaxBytes)},
+                           {"reason", "invalid_tiff_document_name"},
+                           {"size_bytes", std::to_string(name.size())}});
+    }
+    return {};
+}
+
+namespace
+{
+
+[[nodiscard]] Result<void> validate_optional_utf8_field(const std::string_view name,
+                                                        const std::optional<std::string> &value,
+                                                        const std::string_view reason,
+                                                        const std::size_t maximum)
+{
+    if (!value)
+    {
+        return {};
+    }
+    const bool valid_utf8 = is_valid_utf8(*value);
+    const bool valid_xml = valid_utf8 && is_valid_utf8(*value, true);
+    if (value->size() > maximum || value->find('\0') != std::string::npos || !valid_xml)
+    {
+        std::string detail = valid_utf8 ? "invalid_xml_character" : "invalid_utf8";
+        if (value->size() > maximum)
+        {
+            detail = "field_too_long";
+        }
+        else if (value->find('\0') != std::string::npos)
+        {
+            detail = "contains_nul";
+        }
+        return make_error(ErrorCode::kValidation,
+                          "Export metadata field is not bounded XML-compatible UTF-8 text",
+                          {{"detail", std::move(detail)},
+                           {"field", std::string(name)},
+                           {"maximum_bytes", std::to_string(maximum)},
+                           {"reason", std::string(reason)},
+                           {"size_bytes", std::to_string(value->size())}});
+    }
+    return {};
+}
+
+[[nodiscard]] Result<void> validate_iptc_text_value(const std::string_view name,
+                                                    const std::string_view value,
+                                                    const std::size_t maximum,
+                                                    const bool allow_line_breaks)
+{
+    if (value.size() > maximum)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export metadata exceeds the IPTC-IIM dataset bound",
+                          {{"field", std::string(name)},
+                           {"maximum_bytes", std::to_string(maximum)},
+                           {"reason", "export_iptc_dataset_too_large"},
+                           {"size_bytes", std::to_string(value.size())}});
+    }
+    if (has_iptc_control_character(value, allow_line_breaks))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export metadata contains text unsupported by IPTC-IIM",
+                          {{"field", std::string(name)}, {"reason", "invalid_export_iptc_text"}});
+    }
+    return {};
+}
+
+[[nodiscard]] Result<void> validate_iptc_text_field(const std::string_view name,
+                                                    const std::optional<std::string> &value,
+                                                    const std::size_t maximum,
+                                                    const bool allow_line_breaks = false)
+{
+    return value ? validate_iptc_text_value(name, *value, maximum, allow_line_breaks) :
+                   Result<void>{};
+}
+
+[[nodiscard]] Result<void> validate_capture_number(const std::string_view name,
+                                                   const std::optional<double> &value)
+{
+    if (!value)
+    {
+        return {};
+    }
+    if (name == "iso")
+    {
+        auto iso = export_photographic_sensitivity(*value);
+        if (!iso)
+        {
+            return iso.error();
+        }
+        return {};
+    }
+    auto rational = export_positive_rational(*value);
+    if (!rational)
+    {
+        auto error = rational.error();
+        error.context.insert_or_assign("field", std::string(name));
+        return error;
+    }
+    return {};
+}
+
+} // namespace
+
+std::size_t xml_escaped_utf8_size(const std::string_view text) noexcept
+{
+    std::size_t size = 0U;
+    for (const char byte : text)
+    {
+        std::size_t addition = 1U;
+        switch (byte)
+        {
+        case '&':
+            addition = 5U;
+            break;
+        case '<':
+        case '>':
+            addition = 4U;
+            break;
+        case '"':
+        case '\'':
+            addition = 6U;
+            break;
+        case '\r':
+            addition = 5U; // &#xD; preserves CR through XML end-of-line normalization.
+            break;
+        default:
+            break;
+        }
+        if (size > std::numeric_limits<std::size_t>::max() - addition)
+        {
+            return std::numeric_limits<std::size_t>::max();
+        }
+        size += addition;
+    }
+    return size;
+}
+
+bool export_color_space_is_srgb(const ColorProfileState &profile) noexcept
+{
+    return profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "srgb";
+}
+
+bool export_iptc_should_omit(const ExportMetadataSnapshot &metadata) noexcept
+{
+    return !metadata.writable.title && !metadata.writable.description &&
+           !metadata.writable.creator && !metadata.writable.copyright && metadata.tags.empty();
+}
+
+std::string export_rational_xmp_text(const ExportUnsignedRational value)
+{
+    return std::to_string(value.numerator) + "/" + std::to_string(value.denominator);
+}
+
+Result<std::uint16_t> export_photographic_sensitivity(const double iso)
+{
+    if (!std::isfinite(iso) || iso <= 0.0)
+    {
+        return make_error(ErrorCode::kValidation, "Export ISO must be a positive finite integer",
+                          {{"field", "iso"}, {"reason", "invalid_export_capture_number"}});
+    }
+    if (std::trunc(iso) != iso)
+    {
+        return make_error(ErrorCode::kValidation, "Export ISO must be exactly an integer",
+                          {{"field", "iso"}, {"reason", "invalid_export_iso_fractional"}});
+    }
+    if (iso > static_cast<double>(std::numeric_limits<std::uint16_t>::max()))
+    {
+        return make_error(ErrorCode::kValidation, "Export ISO exceeds the Exif SHORT range",
+                          {{"field", "iso"},
+                           {"maximum", std::to_string(std::numeric_limits<std::uint16_t>::max())},
+                           {"reason", "invalid_export_iso_range"}});
+    }
+    return static_cast<std::uint16_t>(iso);
+}
+
+Result<ExportUnsignedRational> export_positive_rational(const double value)
+{
+    if (!std::isfinite(value) || value <= 0.0)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export capture number must be a positive finite value",
+                          {{"reason", "invalid_export_capture_number"}});
+    }
+    if (value > static_cast<double>(std::numeric_limits<std::uint32_t>::max()))
+    {
+        return make_error(ErrorCode::kValidation, "Export rational exceeds the 32-bit range",
+                          {{"reason", "export_rational_overflow"}});
     }
 
-    const auto validate_field = [](const std::string_view name,
-                                   const std::optional<std::string> &value) -> Result<void>
+    const auto fits32 = [](const std::uint64_t numerator, const std::uint64_t denominator) noexcept
+    {
+        return denominator > 0U && numerator <= std::numeric_limits<std::uint32_t>::max() &&
+               denominator <= std::numeric_limits<std::uint32_t>::max();
+    };
+
+    // Standard continued-fraction convergents. Intermediate 0/1 is required so
+    // values in (0, 1) such as 1/125 can be represented exactly.
+    std::uint64_t older_numerator = 0U;
+    std::uint64_t older_denominator = 1U;
+    std::uint64_t numerator = 1U;
+    std::uint64_t denominator = 0U;
+    double remaining = value;
+    bool have_convergent = false;
+    for (int step = 0; step < 64; ++step)
+    {
+        if (!std::isfinite(remaining) || remaining < 0.0)
+        {
+            break;
+        }
+        const auto integer = static_cast<std::uint64_t>(std::floor(remaining));
+        if (integer > 0U &&
+            (numerator > (std::numeric_limits<std::uint64_t>::max() - older_numerator) / integer ||
+             denominator >
+                 (std::numeric_limits<std::uint64_t>::max() - older_denominator) / integer))
+        {
+            break;
+        }
+        const std::uint64_t next_numerator = integer * numerator + older_numerator;
+        const std::uint64_t next_denominator = integer * denominator + older_denominator;
+        if (!fits32(next_numerator, next_denominator))
+        {
+            break;
+        }
+        older_numerator = numerator;
+        older_denominator = denominator;
+        numerator = next_numerator;
+        denominator = next_denominator;
+        have_convergent = numerator > 0U && denominator > 0U;
+        const double fraction = remaining - static_cast<double>(integer);
+        if (fraction <= 0.0 || fraction < 1.0e-12)
+        {
+            break;
+        }
+        remaining = 1.0 / fraction;
+    }
+    if (!have_convergent)
+    {
+        return make_error(ErrorCode::kValidation, "Export rational exceeds the 32-bit range",
+                          {{"reason", "export_rational_overflow"}});
+    }
+    return ExportUnsignedRational{static_cast<std::uint32_t>(numerator),
+                                  static_cast<std::uint32_t>(denominator)};
+}
+
+Result<std::vector<std::string>> canonicalize_export_tags(const std::vector<std::string> &tags,
+                                                          const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    if (tags.size() > kExportTagMaxCount)
+    {
+        return make_error(ErrorCode::kValidation, "Export tag count exceeds the packet bound",
+                          {{"maximum", std::to_string(kExportTagMaxCount)},
+                           {"reason", "export_tag_count_too_large"},
+                           {"size", std::to_string(tags.size())}});
+    }
+    try
+    {
+        std::vector<std::string> canonical;
+        canonical.reserve(tags.size());
+        for (const auto &tag : tags)
+        {
+            active = cancellation.check();
+            if (!active)
+            {
+                return active.error();
+            }
+            auto normalized = normalize_tag_name(tag);
+            if (!normalized)
+            {
+                return normalized.error();
+            }
+            if (!is_valid_utf8(normalized.value()))
+            {
+                return make_error(ErrorCode::kValidation, "Export tag is not valid UTF-8",
+                                  {{"reason", "invalid_export_tag_utf8"}});
+            }
+            if (!is_valid_utf8(normalized.value(), true))
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Export tag contains a character unsupported by XML 1.0",
+                                  {{"reason", "invalid_export_tag_xml_character"}});
+            }
+            canonical.push_back(std::move(normalized).value());
+        }
+        std::sort(canonical.begin(), canonical.end());
+        for (std::size_t index = 1U; index < canonical.size(); ++index)
+        {
+            if (canonical[index] == canonical[index - 1U])
+            {
+                return make_error(ErrorCode::kValidation, "Export tags must be unique",
+                                  {{"reason", "duplicate_export_tag"}, {"tag", canonical[index]}});
+            }
+        }
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        return canonical;
+    }
+    catch (const std::bad_alloc &)
+    {
+        return make_error(ErrorCode::kIo, "Unable to allocate canonical export tags",
+                          {{"reason", "export_metadata_allocation_failed"}});
+    }
+}
+
+Result<ExportMetadataPacketSizes>
+estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
+{
+    ExportMetadataPacketSizes sizes;
+    const auto bounded_add =
+        [](std::size_t &total, const std::size_t addition, const std::size_t maximum) noexcept
+    {
+        if (total > maximum || addition > maximum - total)
+        {
+            total = maximum + 1U;
+            return;
+        }
+        total += addition;
+    };
+
+    // Exact TIFF-profile upper bound. Every out-of-line value is padded to the
+    // required word boundary; padding is not part of the IFD entry count.
+    sizes.exif_tiff_profile_bytes = 80U;
+    const auto add_exif_ascii = [&](const std::optional<std::string> &value)
     {
         if (!value)
         {
-            return {};
+            return;
         }
-        const auto valid = validate_metadata_field(name, *value);
-        if (!valid || !is_valid_utf8(*value))
+        bounded_add(sizes.exif_tiff_profile_bytes, 12U, kExportExifTiffProfileMaxBytes);
+        if (value->size() >= 4U)
         {
-            std::string detail = "invalid_utf8";
-            if (!valid)
+            bounded_add(sizes.exif_tiff_profile_bytes, value->size(),
+                        kExportExifTiffProfileMaxBytes);
+            bounded_add(sizes.exif_tiff_profile_bytes, 1U, kExportExifTiffProfileMaxBytes);
+            if ((value->size() % 2U) == 0U)
             {
-                detail = valid.error().message;
+                bounded_add(sizes.exif_tiff_profile_bytes, 1U, kExportExifTiffProfileMaxBytes);
             }
-            return make_error(ErrorCode::kValidation,
-                              "TIFF writable metadata is not bounded UTF-8 text",
-                              {{"detail", std::move(detail)},
-                               {"field", std::string(name)},
-                               {"format", "tiff"},
-                               {"reason", "invalid_tiff_export_metadata"},
-                               {"size_bytes", std::to_string(value->size())}});
         }
-        return {};
     };
+    add_exif_ascii(metadata.writable.description);
+    add_exif_ascii(metadata.writable.creator);
+    add_exif_ascii(metadata.writable.copyright);
+    add_exif_ascii(metadata.capture.camera_make);
+    add_exif_ascii(metadata.capture.camera_model);
+    if (metadata.capture.iso)
+    {
+        bounded_add(sizes.exif_tiff_profile_bytes, 12U, kExportExifTiffProfileMaxBytes);
+    }
+    if (metadata.capture.aperture)
+    {
+        bounded_add(sizes.exif_tiff_profile_bytes, 20U, kExportExifTiffProfileMaxBytes);
+    }
+    if (metadata.capture.focal_length_mm)
+    {
+        bounded_add(sizes.exif_tiff_profile_bytes, 20U, kExportExifTiffProfileMaxBytes);
+    }
+    if (metadata.capture.shutter_s)
+    {
+        bounded_add(sizes.exif_tiff_profile_bytes, 20U, kExportExifTiffProfileMaxBytes);
+    }
+
+    // Conservative XMP upper bound. The fixed allowance covers the packet
+    // wrapper, namespaces, CreatorTool, every optional capture number, and
+    // worst-case uint32 dimensions. Variable text uses the serializer's exact
+    // escaping expansion and bounded wrapper allowances.
+    sizes.xmp_packet_bytes = 1536U;
+    const auto add_xmp_text = [&](const std::optional<std::string> &value, const std::size_t wrap)
+    {
+        if (value)
+        {
+            bounded_add(sizes.xmp_packet_bytes, wrap, kExportXmpPacketMaxBytes);
+            bounded_add(sizes.xmp_packet_bytes, xml_escaped_utf8_size(*value),
+                        kExportXmpPacketMaxBytes);
+        }
+    };
+    add_xmp_text(metadata.writable.title, 128U);
+    add_xmp_text(metadata.writable.description, 144U);
+    add_xmp_text(metadata.writable.creator, 112U);
+    add_xmp_text(metadata.writable.copyright, 128U);
+    add_xmp_text(metadata.capture.camera_make, 64U);
+    add_xmp_text(metadata.capture.camera_model, 64U);
+    if (!metadata.tags.empty())
+    {
+        bounded_add(sizes.xmp_packet_bytes, 64U, kExportXmpPacketMaxBytes);
+        for (const auto &tag : metadata.tags)
+        {
+            bounded_add(sizes.xmp_packet_bytes, 24U, kExportXmpPacketMaxBytes);
+            bounded_add(sizes.xmp_packet_bytes, xml_escaped_utf8_size(tag),
+                        kExportXmpPacketMaxBytes);
+        }
+    }
+
+    if (!export_iptc_should_omit(metadata))
+    {
+        // 1:90 UTF-8 coded-character-set marker plus mandatory 2:00 version 4.
+        sizes.iptc_iim_bytes = 15U;
+        const auto add_iptc = [&](const std::optional<std::string> &value)
+        {
+            if (value)
+            {
+                bounded_add(sizes.iptc_iim_bytes, 5U, kExportIptcIimMaxBytes);
+                bounded_add(sizes.iptc_iim_bytes, value->size(), kExportIptcIimMaxBytes);
+            }
+        };
+        add_iptc(metadata.writable.title);
+        add_iptc(metadata.writable.creator);
+        add_iptc(metadata.writable.copyright);
+        add_iptc(metadata.writable.description);
+        for (const auto &tag : metadata.tags)
+        {
+            bounded_add(sizes.iptc_iim_bytes, 5U, kExportIptcIimMaxBytes);
+            bounded_add(sizes.iptc_iim_bytes, tag.size(), kExportIptcIimMaxBytes);
+        }
+    }
+
+    if (sizes.exif_tiff_profile_bytes > kExportExifTiffProfileMaxBytes)
+    {
+        return make_error(ErrorCode::kValidation, "Export Exif packet exceeds the JPEG APP1 bound",
+                          {{"maximum_bytes", std::to_string(kExportExifTiffProfileMaxBytes)},
+                           {"reason", "export_exif_packet_too_large"},
+                           {"size_bytes", std::to_string(sizes.exif_tiff_profile_bytes)}});
+    }
+    if (sizes.xmp_packet_bytes > kExportXmpPacketMaxBytes)
+    {
+        return make_error(ErrorCode::kValidation, "Export XMP packet exceeds the JPEG APP1 bound",
+                          {{"maximum_bytes", std::to_string(kExportXmpPacketMaxBytes)},
+                           {"reason", "export_xmp_packet_too_large"},
+                           {"size_bytes", std::to_string(sizes.xmp_packet_bytes)}});
+    }
+    if (sizes.iptc_iim_bytes > kExportIptcIimMaxBytes)
+    {
+        return make_error(ErrorCode::kValidation, "Export IPTC packet exceeds the JPEG APP13 bound",
+                          {{"maximum_bytes", std::to_string(kExportIptcIimMaxBytes)},
+                           {"reason", "export_iptc_packet_too_large"},
+                           {"size_bytes", std::to_string(sizes.iptc_iim_bytes)}});
+    }
+    return sizes;
+}
+
+Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
+                                      const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+
+    const auto writable_reason = "invalid_export_metadata";
     for (const auto &[name, value] :
          std::array<std::pair<std::string_view, const std::optional<std::string> *>, 4U>{{
              {"title", &metadata.writable.title},
@@ -563,13 +1050,120 @@ Result<void> validate_tiff_export_metadata(const ExportMetadataSnapshot &metadat
              {"copyright", &metadata.writable.copyright},
          }})
     {
-        auto valid = validate_field(name, *value);
+        if (value->has_value())
+        {
+            auto bounded = validate_metadata_field(name, **value);
+            if (!bounded)
+            {
+                return bounded.error();
+            }
+        }
+        auto valid =
+            validate_optional_utf8_field(name, *value, writable_reason, kMetadataFieldMaxLength);
         if (!valid)
         {
             return valid.error();
         }
     }
+    for (const auto &[name, value, maximum, allow_line_breaks] : std::array<
+             std::tuple<std::string_view, const std::optional<std::string> *, std::size_t, bool>,
+             4U>{{
+             {"title", &metadata.writable.title, kExportIptcTitleMaxBytes, false},
+             {"description", &metadata.writable.description, kExportIptcDescriptionMaxBytes, true},
+             {"creator", &metadata.writable.creator, kExportIptcCreatorMaxBytes, false},
+             {"copyright", &metadata.writable.copyright, kExportIptcCopyrightMaxBytes, false},
+         }})
+    {
+        auto valid = validate_iptc_text_field(name, *value, maximum, allow_line_breaks);
+        if (!valid)
+        {
+            return valid.error();
+        }
+    }
+
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+
+    auto make =
+        validate_optional_utf8_field("camera_make", metadata.capture.camera_make,
+                                     "invalid_export_capture_text", kExportCaptureFieldMaxLength);
+    if (!make)
+    {
+        return make.error();
+    }
+    auto model =
+        validate_optional_utf8_field("camera_model", metadata.capture.camera_model,
+                                     "invalid_export_capture_text", kExportCaptureFieldMaxLength);
+    if (!model)
+    {
+        return model.error();
+    }
+    for (const auto &[name, value] :
+         std::array<std::pair<std::string_view, const std::optional<double> *>, 4U>{{
+             {"iso", &metadata.capture.iso},
+             {"aperture", &metadata.capture.aperture},
+             {"focal_length_mm", &metadata.capture.focal_length_mm},
+             {"shutter_s", &metadata.capture.shutter_s},
+         }})
+    {
+        auto valid = validate_capture_number(name, *value);
+        if (!valid)
+        {
+            return valid.error();
+        }
+    }
+
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+
+    auto tags = canonicalize_export_tags(metadata.tags, cancellation);
+    if (!tags)
+    {
+        return tags.error();
+    }
+    if (tags.value() != metadata.tags)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export tags must be unique, normalized, and sorted",
+                          {{"reason", "invalid_export_tag_order"}});
+    }
+    for (const auto &tag : metadata.tags)
+    {
+        auto valid = validate_iptc_text_value("tag", tag, kExportIptcKeywordMaxBytes, false);
+        if (!valid)
+        {
+            return valid.error();
+        }
+    }
+
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    auto packets = estimate_export_metadata_packets(metadata);
+    if (!packets)
+    {
+        return packets.error();
+    }
     return {};
+}
+
+Result<void> validate_tiff_export_metadata(const ExportMetadataSnapshot &metadata,
+                                           const CancellationToken &cancellation)
+{
+    auto document = validate_tiff_export_document_name(metadata.destination_document_name);
+    if (!document)
+    {
+        return document.error();
+    }
+    return validate_export_metadata(metadata, cancellation);
 }
 
 std::string asset_display_name(const AssetRecord &asset)

@@ -1226,5 +1226,121 @@ TEST(JpegCatalogTest, CorruptJpegNeverPublishesAnAssetOrPreview)
     EXPECT_TRUE(service.close());
 }
 
+TEST(JpegExportContractTest, EmbedsExifXmpAndIptcMarkersBeforeIcc)
+{
+    const auto pixels = jpeg_test_pixels(16U, 12U);
+    const auto profile = display_p3_icc();
+    ASSERT_FALSE(profile.empty());
+    ExportMetadataSnapshot metadata;
+    metadata.writable.title = "Title";
+    metadata.writable.description = "Desc";
+    metadata.writable.creator = "Alice";
+    metadata.writable.copyright = "©";
+    metadata.capture.camera_make = "RavoCam";
+    metadata.capture.iso = 200.0;
+    metadata.capture.aperture = 2.8;
+    metadata.tags = {"alpha", "zeta"};
+    const auto first = detail::encode_jpeg_rgb8(16U, 12U, pixels, profile, jpeg_options(95),
+                                                metadata, false, CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    const auto second = detail::encode_jpeg_rgb8(16U, 12U, pixels, profile, jpeg_options(95),
+                                                 metadata, false, CancellationToken{});
+    ASSERT_TRUE(second);
+    EXPECT_EQ(first.value(), second.value());
+    const auto segments = jpeg_header_segments(first.value());
+    ASSERT_TRUE(segments);
+    std::vector<std::uint8_t> ids;
+    std::string exif;
+    std::string xmp;
+    bool saw_iptc = false;
+    bool saw_icc = false;
+    for (const auto &segment : *segments)
+    {
+        if (segment.id == 0xE0U)
+        {
+            continue;
+        }
+        ids.push_back(segment.id);
+        const auto payload =
+            std::string(first.value().begin() + static_cast<std::ptrdiff_t>(segment.payload_offset),
+                        first.value().begin() + static_cast<std::ptrdiff_t>(segment.payload_offset +
+                                                                            segment.payload_size));
+        if (segment.id == 0xE1U && payload.rfind(std::string("Exif", 4), 0) == 0)
+        {
+            exif = payload;
+        }
+        if (segment.id == 0xE1U && payload.find("http://ns.adobe.com/xap/1.0/") == 0)
+        {
+            xmp = payload;
+        }
+        if (segment.id == 0xEDU)
+        {
+            saw_iptc = payload.find("Photoshop 3.0") == 0;
+        }
+        if (segment.id == 0xE2U)
+        {
+            saw_icc = payload.find("ICC_PROFILE") == 0;
+        }
+    }
+    ASSERT_GE(ids.size(), 4U);
+    EXPECT_EQ(ids[0], 0xE1U);
+    EXPECT_EQ(ids[1], 0xE1U);
+    EXPECT_EQ(ids[2], 0xE2U);
+    EXPECT_EQ(ids[3], 0xEDU);
+    EXPECT_EQ(exif.find(std::string("Exif", 4)), 0U);
+    EXPECT_NE(xmp.find("<xmp:CreatorTool>Ravo</xmp:CreatorTool>"), std::string::npos);
+    EXPECT_NE(xmp.find("<exif:FNumber>14/5</exif:FNumber>"), std::string::npos);
+    EXPECT_EQ(xmp.find("DateTimeOriginal"), std::string::npos);
+    EXPECT_TRUE(saw_iptc);
+    EXPECT_TRUE(saw_icc);
+    const auto frame = jpeg_frame_contract(first.value());
+    ASSERT_TRUE(frame);
+    EXPECT_EQ(frame->width, 16U);
+    EXPECT_EQ(frame->height, 12U);
+}
+
+TEST(JpegExportContractTest, PresentEmptyTitleStillEmitsPhotoshopIptc)
+{
+    const auto pixels = jpeg_test_pixels(8U, 8U);
+    const auto profile = display_p3_icc();
+    ASSERT_FALSE(profile.empty());
+    ExportMetadataSnapshot metadata;
+    metadata.writable.title = "";
+    const auto encoded = detail::encode_jpeg_rgb8(8U, 8U, pixels, profile, jpeg_options(90),
+                                                  metadata, false, CancellationToken{});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    const auto absent =
+        detail::encode_jpeg_rgb8(8U, 8U, pixels, profile, jpeg_options(90),
+                                 ExportMetadataSnapshot{}, false, CancellationToken{});
+    ASSERT_TRUE(absent) << absent.error().message;
+    const auto segments = jpeg_header_segments(encoded.value());
+    ASSERT_TRUE(segments);
+    bool saw_iptc = false;
+    for (const auto &segment : *segments)
+    {
+        if (segment.id != 0xEDU)
+        {
+            continue;
+        }
+        const auto payload = std::string(
+            encoded.value().begin() + static_cast<std::ptrdiff_t>(segment.payload_offset),
+            encoded.value().begin() +
+                static_cast<std::ptrdiff_t>(segment.payload_offset + segment.payload_size));
+        saw_iptc = payload.find("Photoshop 3.0") == 0;
+    }
+    EXPECT_TRUE(saw_iptc);
+    const auto absent_segments = jpeg_header_segments(absent.value());
+    ASSERT_TRUE(absent_segments);
+    bool absent_iptc = false;
+    for (const auto &segment : *absent_segments)
+    {
+        if (segment.id == 0xEDU)
+        {
+            absent_iptc = true;
+        }
+    }
+    EXPECT_FALSE(absent_iptc);
+}
+
 } // namespace
 } // namespace ravo

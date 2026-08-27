@@ -473,8 +473,9 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   and explicit propagation, unrelated-format isolation, no partial output on
   validation failure, and source immutability. Existing ICC APP2, 300 dpi,
   65,500-dimension, resource, and entry/scanline cancellation gates remain.
-  Final bytes use the shared encoded-publication contract; EXIF/XMP construction
-  remains a later JPEG contract.
+  Final bytes use the shared encoded-publication contract. Catalog/CLI JPEG
+  exports independently parse one Exif APP1, one standard XMP APP1, ICC APP2,
+  and optional Photoshop APP13, plus unchanged quantization/subsampling.
 - PNG export freezes one typed options value from `ExportRequest` through
   CatalogService and the raster port to the private libpng encoder. Domain
   tests cover stable 8/16-bit values and names, the 8-bit/compression-5 default,
@@ -503,8 +504,12 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   flags, PNG-only scope, complete JSON errors, source hashes, and zero
   publication for invalid options, and successful 16-bit product renders that
   are not 8-bit expansions.
-  Complete EXIF/XMP packets and pHYs resolution remain unclaimed; the frozen
-  PNG owner writes no pHYs and delegates EXIF/XMP to the shared S9/J6 path.
+  Rendered PNG independently parses one `eXIf` TIFF profile without an
+  `Exif\0\0` prefix and one uncompressed XMP `iTXt`; pHYs remains absent.
+- Shared export-metadata tests cover XML 1.0 character rejection and
+  carriage-return preservation, IPTC-IIM RecordVersion 4 plus dataset-specific
+  byte limits, canonical tag count/order, conservative pre-render packet
+  estimates, word-aligned Exif TIFF offsets, and deterministic owned packets.
 - TIFF export freezes one typed options value from `ExportRequest` through
   CatalogService and the raster port to a private static LibTIFF built from the
   pinned source root with only ZLIB Deflate enabled. Domain tests cover stable
@@ -519,8 +524,9 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   and sample-format tags, compression/predictor, requested inch resolution, and
   exact ICC bytes. The same parser proves exact NUL-terminated DocumentName 269,
   ImageDescription 270, Artist 315, and Copyright 33432 values; absent fields
-  omit tags, present-empty emits one NUL, title is unmapped, and EXIFIFD 34665,
-  IPTC 33723, and XMP 700 are absent.
+  omit tags, present-empty emits one NUL, and title remains unmapped in Exif.
+  The same parser follows EXIFIFD 34665 and reconstructs XMP 700 plus optional
+  IPTC 33723.
   The grayscale matrix freezes the greater-than-four dimension gate, ignored
   border, uint8/uint16 channel-delta thresholds of two/165, and the float 1.01
   ratio with a 0.001 floor. Source/output/ICC bounds, non-finite float sources,
@@ -530,10 +536,11 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   default and explicit propagation, JPEG/PNG isolation, no file for invalid or
   invalid options, successful high-precision product renders, atomic conflict
   behavior, cancellation, and source-hash
-  preservation. Metadata Catalog tests prove one normalized destination/current
-  writable snapshot after lookup, TIFF-only propagation, exact baseline tags,
-  metadata-stage cancellation and injected tag failure, and unchanged source
-  plus sidecar hashes, sizes, and modification times with no generated sidecar.
+  preservation. Metadata Catalog tests prove one public snapshot after lookup
+  for every rendered JPEG/PNG/TIFF export, TIFF DocumentName only, exact
+  baseline plus packet tags, metadata-stage cancellation and injected tag
+  failure, and unchanged source plus sidecar hashes, sizes, and modification
+  times with no generated sidecar.
   Dedicated CLI tests invoke real Catalog import/export and
   independently parse TIFF tags, Deflate strips, horizontal prediction, and
   exact RGB/grayscale pixels. They cover the `tiff`/`tif` format spellings, all
@@ -542,9 +549,8 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   complete JSON errors, source hashes, successful uint16/float16/float32
   product renders, and zero publication for invalid requests. I7 input and
   ADR-0032
-  publication remain separate owners. Complete EXIF/IPTC/XMP packets and
-  capture/timezone/GPS plus XMP attach/history/sidecar policy remain unclaimed
-  S9/J6 work.
+  publication remain separate owners. Capture timezone/GPS plus XMP
+  attach/history/sidecar policy remain unclaimed S9/J6 work.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

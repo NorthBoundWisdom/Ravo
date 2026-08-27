@@ -1,4 +1,5 @@
 #include "png_encoder.h"
+#include "export_metadata_encoder.h"
 
 #include <algorithm>
 #include <array>
@@ -247,6 +248,7 @@ encode_png_samples(const std::uint32_t width, const std::uint32_t height,
                    const std::span<const std::uint8_t> samples, const std::size_t bytes_per_sample,
                    const bool swap_sixteen_bit, const PngEncodeColorMetadata &color_metadata,
                    const PngEncodeConfiguration &configuration,
+                   const PreparedExportMetadata *const prepared,
                    const CancellationToken &cancellation, const PngEncodeControl control)
 {
     if (bytes_per_sample != 1U && bytes_per_sample != 2U)
@@ -323,6 +325,22 @@ encode_png_samples(const std::uint32_t width, const std::uint32_t height,
                                 "png_encoder_allocation_failed");
     }
     state->destination.maximum_bytes = control.max_output_bytes;
+    std::vector<png_byte> exif_bytes;
+    std::string xmp_bytes;
+    if (prepared != nullptr)
+    {
+        try
+        {
+            exif_bytes.assign(prepared->exif_tiff_profile.begin(),
+                              prepared->exif_tiff_profile.end());
+            xmp_bytes.assign(prepared->xmp_packet.begin(), prepared->xmp_packet.end());
+        }
+        catch (const std::bad_alloc &)
+        {
+            return png_encode_error(ErrorCode::kIo, "Unable to allocate PNG metadata state",
+                                    "png_encoder_allocation_failed");
+        }
+    }
     state->writer = png_create_write_struct(PNG_LIBPNG_VER_STRING, state.get(), png_error_callback,
                                             png_warning_callback);
     if (state->writer == nullptr)
@@ -376,6 +394,28 @@ encode_png_samples(const std::uint32_t width, const std::uint32_t height,
     png_set_iCCP(state->writer, state->info, "icc", PNG_COMPRESSION_TYPE_BASE,
                  color_metadata.resolved_rgb_icc.data(),
                  static_cast<png_uint_32>(color_metadata.resolved_rgb_icc.size()));
+    if (prepared != nullptr)
+    {
+        if (cancellation.is_cancellation_requested())
+        {
+            fail_png(*state, PngFailureKind::kCancelled, "PNG encoding cancelled");
+        }
+        png_set_eXIf_1(state->writer, state->info, static_cast<png_uint_32>(exif_bytes.size()),
+                       exif_bytes.data());
+        if (cancellation.is_cancellation_requested())
+        {
+            fail_png(*state, PngFailureKind::kCancelled, "PNG encoding cancelled");
+        }
+        png_text xmp_text{};
+        xmp_text.compression = PNG_ITXT_COMPRESSION_NONE;
+        xmp_text.key = const_cast<png_charp>(kPngXmpItxtKeyword.data());
+        xmp_text.text = xmp_bytes.data();
+        xmp_text.text_length = xmp_bytes.size();
+        xmp_text.itxt_length = xmp_bytes.size();
+        xmp_text.lang = const_cast<png_charp>("");
+        xmp_text.lang_key = const_cast<png_charp>("");
+        png_set_text(state->writer, state->info, &xmp_text, 1);
+    }
     png_write_info(state->writer, state->info);
     if (color_metadata.has_cicp)
     {
@@ -474,7 +514,7 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
                                 {{"source_pixel_format", "rgb8"}, {"requested_bit_depth", "16"}});
     }
     return encode_png_samples(width, height, rgb, 1U, false, color_metadata, configuration.value(),
-                              cancellation, control);
+                              nullptr, cancellation, control);
 }
 
 Result<std::vector<std::uint8_t>>
@@ -513,7 +553,84 @@ encode_png_rgb16(const std::uint32_t width, const std::uint32_t height,
         reinterpret_cast<const std::uint8_t *>(rgb.data()), rgb.size() * sizeof(std::uint16_t));
     constexpr bool kSwapSixteenBit = std::endian::native == std::endian::little;
     return encode_png_samples(width, height, samples, 2U, kSwapSixteenBit, color_metadata,
-                              configuration.value(), cancellation, control);
+                              configuration.value(), nullptr, cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
+                const std::span<const std::uint8_t> rgb,
+                const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+                const CancellationToken &cancellation, const PngEncodeControl control)
+{
+    if (cancellation.is_cancellation_requested())
+    {
+        return png_cancellation_error(cancellation);
+    }
+    auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
+    if (!prepared)
+    {
+        return prepared.error();
+    }
+    auto configuration = png_encode_configuration(options);
+    if (!configuration)
+    {
+        return configuration.error();
+    }
+    if (options.bit_depth == PngBitDepth::k16)
+    {
+        return png_encode_error(ErrorCode::kUnsupported,
+                                "PNG 16-bit output requires a 16-bit rendered source",
+                                "unsupported_png_16bit_source",
+                                {{"source_pixel_format", "rgb8"}, {"requested_bit_depth", "16"}});
+    }
+    return encode_png_samples(width, height, rgb, 1U, false, color_metadata, configuration.value(),
+                              &prepared.value(), cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_png_rgb16(const std::uint32_t width, const std::uint32_t height,
+                 const std::span<const std::uint16_t> rgb,
+                 const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                 const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+                 const CancellationToken &cancellation, const PngEncodeControl control)
+{
+    if (cancellation.is_cancellation_requested())
+    {
+        return png_cancellation_error(cancellation);
+    }
+    auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
+    if (!prepared)
+    {
+        return prepared.error();
+    }
+    auto configuration = png_encode_configuration(options);
+    if (!configuration)
+    {
+        return configuration.error();
+    }
+    if (options.bit_depth != PngBitDepth::k16)
+    {
+        return png_encode_error(
+            ErrorCode::kValidation, "PNG 16-bit encoding requires a 16-bit request",
+            "png_16bit_source_requires_16bit_depth",
+            {{"requested_bit_depth", std::string(png_bit_depth_name(options.bit_depth))},
+             {"source_pixel_format", "rgb16"}});
+    }
+    if (rgb.size() > std::numeric_limits<std::size_t>::max() / sizeof(std::uint16_t))
+    {
+        return png_encode_error(
+            ErrorCode::kValidation, "PNG RGB source exceeds the safe bound", "png_source_too_large",
+            {{"maximum_bytes", std::to_string(kPngMaxSourceBytes)}, {"size_bytes", "overflow"}});
+    }
+    static_assert(std::endian::native == std::endian::little ||
+                      std::endian::native == std::endian::big,
+                  "PNG RGB16 encoding requires a uniform host byte order");
+    const auto samples = std::span<const std::uint8_t>(
+        reinterpret_cast<const std::uint8_t *>(rgb.data()), rgb.size() * sizeof(std::uint16_t));
+    constexpr bool kSwapSixteenBit = std::endian::native == std::endian::little;
+    return encode_png_samples(width, height, samples, 2U, kSwapSixteenBit, color_metadata,
+                              configuration.value(), &prepared.value(), cancellation, control);
 }
 
 } // namespace ravo::detail

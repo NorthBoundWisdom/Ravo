@@ -53,6 +53,13 @@ inline constexpr std::uint16_t kTagXmp = 700U;
 inline constexpr std::uint16_t kTagIptc = 33723U;
 inline constexpr std::uint16_t kTagExifIfd = 34665U;
 inline constexpr std::uint16_t kTagIccProfile = 34675U;
+inline constexpr std::uint16_t kExifExposureTime = 33434U;
+inline constexpr std::uint16_t kExifFNumber = 33437U;
+inline constexpr std::uint16_t kExifIso = 34855U;
+inline constexpr std::uint16_t kExifFocalLength = 37386U;
+inline constexpr std::uint16_t kExifColorSpace = 40961U;
+inline constexpr std::uint16_t kExifPixelX = 40962U;
+inline constexpr std::uint16_t kExifPixelY = 40963U;
 
 class MetadataTempDirectory
 {
@@ -135,13 +142,9 @@ struct ClassicTiffDirectory
 }
 
 [[nodiscard]] std::optional<ClassicTiffDirectory>
-parse_classic_little_endian_directory(const std::span<const std::uint8_t> bytes)
+parse_classic_little_endian_ifd(const std::span<const std::uint8_t> bytes,
+                                const std::size_t ifd_offset)
 {
-    if (bytes.size() < 8U || bytes[0] != 'I' || bytes[1] != 'I' || read_u16_le(bytes, 2U) != 42U)
-    {
-        return std::nullopt;
-    }
-    const std::size_t ifd_offset = read_u32_le(bytes, 4U);
     if (ifd_offset > bytes.size() || bytes.size() - ifd_offset < 2U)
     {
         return std::nullopt;
@@ -184,6 +187,59 @@ parse_classic_little_endian_directory(const std::span<const std::uint8_t> bytes)
     }
     result.next_ifd = read_u32_le(bytes, ifd_offset + directory_bytes - 4U);
     return result;
+}
+
+[[nodiscard]] std::optional<ClassicTiffDirectory>
+parse_classic_little_endian_directory(const std::span<const std::uint8_t> bytes)
+{
+    if (bytes.size() < 8U || bytes[0] != 'I' || bytes[1] != 'I' || read_u16_le(bytes, 2U) != 42U)
+    {
+        return std::nullopt;
+    }
+    return parse_classic_little_endian_ifd(bytes, read_u32_le(bytes, 4U));
+}
+
+[[nodiscard]] std::optional<std::uint32_t> directory_offset(const DirectoryField *const field)
+{
+    if (field == nullptr || field->count != 1U)
+    {
+        return std::nullopt;
+    }
+    if (field->type == 4U && field->payload.size() == 4U)
+    {
+        return read_u32_le(field->payload, 0U);
+    }
+    if (field->type == 16U && field->payload.size() == 8U)
+    {
+        if (read_u32_le(field->payload, 4U) != 0U)
+        {
+            return std::nullopt;
+        }
+        return read_u32_le(field->payload, 0U);
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::optional<std::uint32_t> unsigned_long(const DirectoryField *const field)
+{
+    if (field == nullptr || field->count != 1U)
+    {
+        return std::nullopt;
+    }
+    if (field->type == 4U && field->payload.size() == 4U)
+    {
+        return read_u32_le(field->payload, 0U);
+    }
+    if (field->type == 3U && field->payload.size() == 2U)
+    {
+        return read_u16_le(field->payload, 0U);
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] bool contains_text(const QByteArray &bytes, const std::string_view needle)
+{
+    return bytes.indexOf(QByteArray(needle.data(), static_cast<int>(needle.size()))) >= 0;
 }
 
 [[nodiscard]] const DirectoryField *unique_field(const ClassicTiffDirectory &directory,
@@ -270,12 +326,16 @@ parse_classic_little_endian_directory(const std::span<const std::uint8_t> bytes)
 }
 
 template <typename T>
-void expect_error(const Result<T> &result, const ErrorCode code, const std::string_view reason)
+void expect_error(const Result<T> &result, const ErrorCode code, const std::string_view reason,
+                  const std::optional<std::string_view> format = "tiff")
 {
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().code, code);
-    ASSERT_TRUE(result.error().context.contains("format"));
-    EXPECT_EQ(result.error().context.at("format"), "tiff");
+    if (format)
+    {
+        ASSERT_TRUE(result.error().context.contains("format"));
+        EXPECT_EQ(result.error().context.at("format"), *format);
+    }
     ASSERT_TRUE(result.error().context.contains("reason"));
     EXPECT_EQ(result.error().context.at("reason"), reason);
 }
@@ -341,6 +401,18 @@ public:
     }
 
     [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(std::uint32_t, std::uint32_t, const std::vector<std::uint8_t> &,
+           const ColorProfileState &, const ExportFormat format, const JpegExportOptions &,
+           const CancellationToken &, const PngExportOptions &, const TiffExportOptions &,
+           const ExportMetadataSnapshot &) const override
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy raster double does not own export metadata",
+                          {{"format", std::string(export_format_name(format))},
+                           {"reason", "unsupported_export_metadata_owner"}});
+    }
+
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
     encode(const ExportPixelBuffer &source, const ExportFormat format,
            const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
            const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
@@ -353,9 +425,8 @@ public:
                               "Legacy raster double does not own high-precision sources",
                               {{"reason", "unsupported_tiff_high_precision_source"}});
         }
-        return RasterDecoder::encode(source.width, source.height, *rgb8, source.color_profile,
-                                     format, jpeg_options, cancellation, png_options, tiff_options,
-                                     metadata);
+        return encode(source.width, source.height, *rgb8, source.color_profile, format,
+                      jpeg_options, cancellation, png_options, tiff_options, metadata);
     }
 
     mutable std::size_t calls = 0U;
@@ -485,12 +556,12 @@ TEST(TiffMetadataDomainTest, ValidatesResolutionDocumentNameAndWritableUtf8)
     metadata = {};
     metadata.writable.title = std::string("\xE2\x28\xA1", 3U);
     const auto invalid_writable = validate_tiff_export_metadata(metadata);
-    expect_error(invalid_writable, ErrorCode::kValidation, "invalid_tiff_export_metadata");
+    expect_error(invalid_writable, ErrorCode::kValidation, "invalid_export_metadata", std::nullopt);
     ASSERT_TRUE(invalid_writable.error().context.contains("field"));
     EXPECT_EQ(invalid_writable.error().context.at("field"), "title");
 }
 
-TEST(TiffMetadataAdapterTest, WritesExactBaselineDirectoryTagsAndOmitsExtendedOwners)
+TEST(TiffMetadataAdapterTest, WritesBaselineAndExtendedMetadataDirectories)
 {
     const auto pixels = test_pixels(17U, 9U);
     const auto pixels_before = pixels;
@@ -506,6 +577,10 @@ TEST(TiffMetadataAdapterTest, WritesExactBaselineDirectoryTagsAndOmitsExtendedOw
     metadata.writable.description = "Edited description";
     metadata.writable.creator = "Creator Ω";
     metadata.writable.copyright = "Copyright © 2026";
+    metadata.capture.iso = 200.0;
+    metadata.capture.aperture = 2.8;
+    metadata.capture.focal_length_mm = 50.0;
+    metadata.capture.shutter_s = 0.008;
 
     const auto encoded =
         detail::encode_tiff_rgb8(17U, 9U, pixels, icc, options, metadata, CancellationToken{});
@@ -536,9 +611,28 @@ TEST(TiffMetadataAdapterTest, WritesExactBaselineDirectoryTagsAndOmitsExtendedOw
     ASSERT_NE(icc_field, nullptr);
     EXPECT_EQ(icc_field->type, kTypeUndefined);
     EXPECT_EQ(icc_field->payload, icc);
-    EXPECT_EQ(unique_field(*directory, kTagXmp), nullptr);
-    EXPECT_EQ(unique_field(*directory, kTagIptc), nullptr);
-    EXPECT_EQ(unique_field(*directory, kTagExifIfd), nullptr);
+    EXPECT_NE(unique_field(*directory, kTagXmp), nullptr);
+    EXPECT_NE(unique_field(*directory, kTagIptc), nullptr);
+    const auto exif_offset = directory_offset(unique_field(*directory, kTagExifIfd));
+    ASSERT_TRUE(exif_offset);
+    const auto exif = parse_classic_little_endian_ifd(encoded.value(), *exif_offset);
+    ASSERT_TRUE(exif);
+    EXPECT_EQ(exif->next_ifd, 0U);
+    EXPECT_EQ(short_value(unique_field(*exif, kExifColorSpace)), 0xFFFFU);
+    EXPECT_EQ(unsigned_long(unique_field(*exif, kExifPixelX)), 17U);
+    EXPECT_EQ(unsigned_long(unique_field(*exif, kExifPixelY)), 9U);
+    EXPECT_EQ(short_value(unique_field(*exif, kExifIso)), 200U);
+    ASSERT_TRUE(rational_value(unique_field(*exif, kExifExposureTime)));
+    EXPECT_NEAR(*rational_value(unique_field(*exif, kExifExposureTime)), 0.008, 1e-6);
+    ASSERT_TRUE(rational_value(unique_field(*exif, kExifFNumber)));
+    EXPECT_NEAR(*rational_value(unique_field(*exif, kExifFNumber)), 2.8, 1e-5);
+    ASSERT_TRUE(rational_value(unique_field(*exif, kExifFocalLength)));
+    EXPECT_NEAR(*rational_value(unique_field(*exif, kExifFocalLength)), 50.0, 1e-5);
+    const auto xmp = std::string(unique_field(*directory, kTagXmp)->payload.begin(),
+                                 unique_field(*directory, kTagXmp)->payload.end());
+    EXPECT_NE(xmp.find("<xmp:CreatorTool>Ravo</xmp:CreatorTool>"), std::string::npos);
+    EXPECT_NE(xmp.find("<dc:title>"), std::string::npos);
+    EXPECT_EQ(xmp.find("DateTimeOriginal"), std::string::npos);
     EXPECT_EQ(pixels, pixels_before);
     EXPECT_EQ(icc, icc_before);
     EXPECT_EQ(metadata.writable.title, "Title stays out of baseline TIFF tags");
@@ -613,7 +707,7 @@ TEST(TiffMetadataAdapterTest, CancelsAndFailsMetadataTagsWithoutReturningBytesOr
     EXPECT_EQ(metadata, metadata_before);
 }
 
-TEST(TiffMetadataPortTest, LegacyDoubleFailsClosedForTiffAndIgnoresMetadataForOtherFormats)
+TEST(TiffMetadataPortTest, LegacyDoubleExplicitlyRejectsEveryMetadataSnapshot)
 {
     LegacyRasterDouble concrete;
     const RasterDecoder &decoder = concrete;
@@ -622,19 +716,31 @@ TEST(TiffMetadataPortTest, LegacyDoubleFailsClosedForTiffAndIgnoresMetadataForOt
     const auto rejected = decoder.encode(
         1U, 1U, {1U, 2U, 3U}, ColorProfileState{}, ExportFormat::kTiff, JpegExportOptions{},
         CancellationToken{}, PngExportOptions{}, TiffExportOptions{}, metadata);
-    expect_error(rejected, ErrorCode::kUnsupported, "unsupported_tiff_metadata_owner");
+    expect_error(rejected, ErrorCode::kUnsupported, "unsupported_export_metadata_owner");
     EXPECT_EQ(concrete.calls, 0U);
 
     metadata.destination_document_name = std::string("bad\0ignored", 11U);
     const auto unrelated = decoder.encode(
         1U, 1U, {1U, 2U, 3U}, ColorProfileState{}, ExportFormat::kPng, JpegExportOptions{},
         CancellationToken{}, PngExportOptions{}, TiffExportOptions{}, metadata);
-    ASSERT_TRUE(unrelated) << unrelated.error().message;
-    EXPECT_EQ(unrelated.value(), std::vector<std::uint8_t>{0x42U});
+    expect_error(unrelated, ErrorCode::kUnsupported, "unsupported_export_metadata_owner", "png");
+    EXPECT_EQ(concrete.calls, 0U);
+
+    const auto empty = decoder.encode(1U, 1U, {1U, 2U, 3U}, ColorProfileState{}, ExportFormat::kPng,
+                                      JpegExportOptions{}, CancellationToken{}, PngExportOptions{},
+                                      TiffExportOptions{}, ExportMetadataSnapshot{});
+    expect_error(empty, ErrorCode::kUnsupported, "unsupported_export_metadata_owner", "png");
+    EXPECT_EQ(concrete.calls, 0U);
+
+    const auto metadata_free =
+        decoder.encode(1U, 1U, {1U, 2U, 3U}, ColorProfileState{}, ExportFormat::kPng,
+                       JpegExportOptions{}, CancellationToken{}, PngExportOptions{});
+    ASSERT_TRUE(metadata_free) << metadata_free.error().message;
+    EXPECT_EQ(metadata_free.value(), std::vector<std::uint8_t>{0x42U});
     EXPECT_EQ(concrete.calls, 1U);
 }
 
-TEST(TiffMetadataCatalogTest, SnapshotsNormalizedDestinationAndWritableMetadataOnlyForTiff)
+TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
 {
     MetadataTempDirectory temporary;
     const auto input_path = temporary.path() / "source.png";
@@ -688,6 +794,8 @@ TEST(TiffMetadataCatalogTest, SnapshotsNormalizedDestinationAndWritableMetadataO
     writable.copyright = "Catalog copyright";
     const auto updated = service.set_writable_metadata(imported.value().asset->id, writable);
     ASSERT_TRUE(updated) << updated.error().message;
+    const auto tagged = service.set_tags(imported.value().asset->id, {"zeta", "alpha"});
+    ASSERT_TRUE(tagged) << tagged.error().message;
 
     ExportRequest request;
     request.asset_id = imported.value().asset->id;
@@ -702,6 +810,7 @@ TEST(TiffMetadataCatalogTest, SnapshotsNormalizedDestinationAndWritableMetadataO
     EXPECT_EQ(capturing->last_format, ExportFormat::kTiff);
     EXPECT_EQ(capturing->last_metadata.destination_document_name, normalized_output.value().path);
     EXPECT_EQ(capturing->last_metadata.writable, writable);
+    EXPECT_EQ(capturing->last_metadata.tags, (std::vector<std::string>{"alpha", "zeta"}));
     EXPECT_TRUE(std::filesystem::is_regular_file(normalized_output.value().path));
 
     const auto directory = parse_classic_little_endian_directory(
@@ -715,6 +824,20 @@ TEST(TiffMetadataCatalogTest, SnapshotsNormalizedDestinationAndWritableMetadataO
     EXPECT_EQ(description->payload, nul_terminated_bytes(*writable.description));
     EXPECT_DOUBLE_EQ(rational_value(unique_field(*directory, kTagXResolution)).value_or(0.0),
                      600.0);
+    const auto catalog_exif_offset = directory_offset(unique_field(*directory, kTagExifIfd));
+    ASSERT_TRUE(catalog_exif_offset);
+    const auto catalog_exif = parse_classic_little_endian_ifd(
+        byte_vector(read_file(normalized_output.value().path)), *catalog_exif_offset);
+    ASSERT_TRUE(catalog_exif);
+    EXPECT_EQ(short_value(unique_field(*catalog_exif, kExifColorSpace)), 1U);
+    EXPECT_NE(unique_field(*directory, kTagXmp), nullptr);
+    const auto catalog_xmp = std::string(unique_field(*directory, kTagXmp)->payload.begin(),
+                                         unique_field(*directory, kTagXmp)->payload.end());
+    EXPECT_NE(catalog_xmp.find("Catalog title"), std::string::npos);
+    EXPECT_NE(catalog_xmp.find("<rdf:li>alpha</rdf:li>"), std::string::npos);
+    EXPECT_LT(catalog_xmp.find("<rdf:li>alpha</rdf:li>"),
+              catalog_xmp.find("<rdf:li>zeta</rdf:li>"));
+    EXPECT_NE(unique_field(*directory, kTagIptc), nullptr);
 
     ExportRequest unrelated = request;
     unrelated.format = ExportFormat::kPng;
@@ -722,7 +845,63 @@ TEST(TiffMetadataCatalogTest, SnapshotsNormalizedDestinationAndWritableMetadataO
     const auto png = service.export_asset(unrelated);
     ASSERT_TRUE(png) << png.error().message;
     EXPECT_EQ(capturing->last_format, ExportFormat::kPng);
-    EXPECT_EQ(capturing->last_metadata, ExportMetadataSnapshot{});
+    EXPECT_TRUE(capturing->last_metadata.destination_document_name.empty());
+    EXPECT_EQ(capturing->last_metadata.writable, writable);
+    EXPECT_EQ(capturing->last_metadata.tags, (std::vector<std::string>{"alpha", "zeta"}));
+
+    const auto png_bytes = read_file(unrelated.output_path);
+    EXPECT_TRUE(contains_text(png_bytes, "eXIf"));
+    EXPECT_TRUE(contains_text(png_bytes, "XML:com.adobe.xmp"));
+    EXPECT_TRUE(contains_text(png_bytes, "<xmp:CreatorTool>Ravo</xmp:CreatorTool>"));
+    EXPECT_TRUE(contains_text(png_bytes, "Catalog title"));
+    EXPECT_TRUE(contains_text(png_bytes, "<rdf:li>alpha</rdf:li>"));
+    EXPECT_FALSE(contains_text(png_bytes, "pHYs"));
+    EXPECT_FALSE(contains_text(png_bytes, "DateTimeOriginal"));
+
+    ExportRequest png_repeat = unrelated;
+    png_repeat.output_path = (temporary.path() / "unrelated-b.png").string();
+    const auto png_again = service.export_asset(png_repeat);
+    ASSERT_TRUE(png_again) << png_again.error().message;
+    EXPECT_EQ(read_file(unrelated.output_path), read_file(png_repeat.output_path));
+
+    ExportRequest jpeg = request;
+    jpeg.format = ExportFormat::kJpeg;
+    jpeg.output_path = (temporary.path() / "metadata.jpg").string();
+    const auto jpeg_export = service.export_asset(jpeg);
+    ASSERT_TRUE(jpeg_export) << jpeg_export.error().message;
+    EXPECT_EQ(capturing->last_format, ExportFormat::kJpeg);
+    EXPECT_TRUE(capturing->last_metadata.destination_document_name.empty());
+    EXPECT_EQ(capturing->last_metadata.writable, writable);
+    EXPECT_EQ(capturing->last_metadata.tags, (std::vector<std::string>{"alpha", "zeta"}));
+    const auto jpeg_bytes = read_file(jpeg.output_path);
+    EXPECT_TRUE(contains_text(jpeg_bytes, std::string("Exif\0\0", 6)));
+    EXPECT_TRUE(contains_text(jpeg_bytes, "http://ns.adobe.com/xap/1.0/"));
+    EXPECT_TRUE(contains_text(jpeg_bytes, "Photoshop 3.0"));
+    EXPECT_TRUE(contains_text(jpeg_bytes, "Catalog title"));
+    EXPECT_FALSE(contains_text(jpeg_bytes, "DateTimeOriginal"));
+    ExportRequest jpeg_repeat = jpeg;
+    jpeg_repeat.output_path = (temporary.path() / "metadata-b.jpg").string();
+    const auto jpeg_again = service.export_asset(jpeg_repeat);
+    ASSERT_TRUE(jpeg_again) << jpeg_again.error().message;
+    EXPECT_EQ(read_file(jpeg.output_path), read_file(jpeg_repeat.output_path));
+
+    ExportRequest tiff_repeat = request;
+    tiff_repeat.output_path = (temporary.path() / "metadata-b.tif").string();
+    const auto normalized_repeat = normalize_local_input(tiff_repeat.output_path);
+    ASSERT_TRUE(normalized_repeat) << normalized_repeat.error().message;
+    const auto tiff_again = service.export_asset(tiff_repeat);
+    ASSERT_TRUE(tiff_again) << tiff_again.error().message;
+    const auto repeat_directory = parse_classic_little_endian_directory(
+        byte_vector(read_file(normalized_repeat.value().path)));
+    ASSERT_TRUE(repeat_directory);
+    const DirectoryField *const repeat_name = unique_field(*repeat_directory, kTagDocumentName);
+    ASSERT_NE(repeat_name, nullptr);
+    EXPECT_EQ(repeat_name->payload, nul_terminated_bytes(normalized_repeat.value().path));
+    EXPECT_NE(read_file(normalized_output.value().path), read_file(normalized_repeat.value().path));
+
+    const auto conflict = service.export_asset(request);
+    EXPECT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
 
     EXPECT_EQ(QCryptographicHash::hash(read_file(input_path), QCryptographicHash::Sha256),
               source_hash);
@@ -733,6 +912,8 @@ TEST(TiffMetadataCatalogTest, SnapshotsNormalizedDestinationAndWritableMetadataO
     EXPECT_EQ(std::filesystem::last_write_time(input_path), source_mtime);
     EXPECT_EQ(std::filesystem::last_write_time(sidecar_path), sidecar_mtime);
     EXPECT_FALSE(std::filesystem::exists(normalized_output.value().path + ".xmp"));
+    EXPECT_FALSE(std::filesystem::exists(unrelated.output_path + ".xmp"));
+    EXPECT_FALSE(std::filesystem::exists(jpeg.output_path + ".xmp"));
     EXPECT_TRUE(service.close());
 }
 

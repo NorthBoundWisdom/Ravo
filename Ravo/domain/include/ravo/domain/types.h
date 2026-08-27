@@ -38,6 +38,28 @@ inline constexpr int kDefaultTiffResolutionDpi = 300;
 inline constexpr int kTiffResolutionDpiMin = 72;
 inline constexpr int kTiffResolutionDpiMax = 9600;
 inline constexpr std::size_t kExportDocumentNameMaxBytes = 16U * 1024U;
+inline constexpr std::size_t kExportCaptureFieldMaxLength = kMetadataFieldMaxLength;
+inline constexpr std::size_t kJpegAppMarkerMaxPayloadBytes = 65533U;
+inline constexpr std::size_t kJpegExifApp1IdentifierBytes = 6U;
+inline constexpr std::size_t kJpegXmpApp1IdentifierBytes = 29U;
+inline constexpr std::size_t kJpegPhotoshopApp13IdentifierBytes = 14U;
+inline constexpr std::size_t kJpegPhotoshopIrbHeaderBytes = 12U;
+inline constexpr std::size_t kExportExifTiffProfileMaxBytes =
+    kJpegAppMarkerMaxPayloadBytes - kJpegExifApp1IdentifierBytes;
+inline constexpr std::size_t kExportXmpPacketMaxBytes =
+    kJpegAppMarkerMaxPayloadBytes - kJpegXmpApp1IdentifierBytes;
+inline constexpr std::size_t kExportIptcIimMaxBytes = kJpegAppMarkerMaxPayloadBytes -
+                                                      kJpegPhotoshopApp13IdentifierBytes -
+                                                      kJpegPhotoshopIrbHeaderBytes - 1U;
+inline constexpr std::size_t kExportIptcTitleMaxBytes = 64U;
+inline constexpr std::size_t kExportIptcDescriptionMaxBytes = 2000U;
+inline constexpr std::size_t kExportIptcCreatorMaxBytes = 32U;
+inline constexpr std::size_t kExportIptcCopyrightMaxBytes = 128U;
+inline constexpr std::size_t kExportIptcKeywordMaxBytes = 64U;
+// Even a one-byte tag needs 24 bytes in the canonical dc:subject item. Reject
+// impossible counts before copying or sorting the snapshot.
+inline constexpr std::size_t kExportTagMaxCount = kExportXmpPacketMaxBytes / 24U;
+inline constexpr std::string_view kExportXmpCreatorTool = "Ravo";
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
 inline constexpr std::string_view kMediaTypeJpeg = "image/jpeg";
@@ -227,12 +249,29 @@ struct WritableMetadata
     [[nodiscard]] bool operator==(const WritableMetadata &) const noexcept = default;
 };
 
+struct ExportUnsignedRational
+{
+    std::uint32_t numerator = 0U;
+    std::uint32_t denominator = 1U;
+
+    [[nodiscard]] bool operator==(const ExportUnsignedRational &) const noexcept = default;
+};
+
 struct ExportMetadataSnapshot
 {
     std::string destination_document_name;
     WritableMetadata writable;
+    CaptureMetadata capture;
+    std::vector<std::string> tags;
 
     [[nodiscard]] bool operator==(const ExportMetadataSnapshot &) const noexcept = default;
+};
+
+struct ExportMetadataPacketSizes
+{
+    std::size_t exif_tiff_profile_bytes = 0U;
+    std::size_t xmp_packet_bytes = 0U;
+    std::size_t iptc_iim_bytes = 0U;
 };
 
 // Tagged product-export pixels. Exactly one alternative is valid. The raster
@@ -419,7 +458,23 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] std::string_view tiff_compression_name(TiffCompression compression) noexcept;
 [[nodiscard]] Result<TiffCompression> parse_tiff_compression(std::string_view name);
 [[nodiscard]] Result<void> validate_tiff_export_options(const TiffExportOptions &options);
-[[nodiscard]] Result<void> validate_tiff_export_metadata(const ExportMetadataSnapshot &metadata);
+[[nodiscard]] Result<void> validate_tiff_export_document_name(std::string_view name);
+[[nodiscard]] Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
+                                                    const CancellationToken &cancellation = {});
+[[nodiscard]] Result<void>
+validate_tiff_export_metadata(const ExportMetadataSnapshot &metadata,
+                              const CancellationToken &cancellation = {});
+[[nodiscard]] Result<std::vector<std::string>>
+canonicalize_export_tags(const std::vector<std::string> &tags,
+                         const CancellationToken &cancellation = {});
+[[nodiscard]] Result<std::uint16_t> export_photographic_sensitivity(double iso);
+[[nodiscard]] Result<ExportUnsignedRational> export_positive_rational(double value);
+[[nodiscard]] std::string export_rational_xmp_text(ExportUnsignedRational value);
+[[nodiscard]] bool export_color_space_is_srgb(const ColorProfileState &profile) noexcept;
+[[nodiscard]] bool export_iptc_should_omit(const ExportMetadataSnapshot &metadata) noexcept;
+[[nodiscard]] std::size_t xml_escaped_utf8_size(std::string_view text) noexcept;
+[[nodiscard]] Result<ExportMetadataPacketSizes>
+estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);

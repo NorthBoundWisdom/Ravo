@@ -1,6 +1,8 @@
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <string_view>
 
@@ -507,6 +509,235 @@ TEST(DomainTypesTest, NormalizesUnicodeTagsAndFiltersAssets)
     EXPECT_TRUE(asset_matches_query(tagged, query));
     query.tag = "archive";
     EXPECT_FALSE(asset_matches_query(tagged, query));
+}
+
+TEST(ExportMetadataDomainTest, CanonicalizesAndRejectsInvalidTags)
+{
+    auto sorted = canonicalize_export_tags({"zeta", "  alpha  ", "mu"});
+    ASSERT_TRUE(sorted) << sorted.error().message;
+    ASSERT_EQ(sorted.value().size(), 3U);
+    EXPECT_EQ(sorted.value()[0], "alpha");
+    EXPECT_EQ(sorted.value()[1], "mu");
+    EXPECT_EQ(sorted.value()[2], "zeta");
+
+    auto unicode = canonicalize_export_tags({utf8_text(u8"摄影"), "archive", utf8_text(u8"café")});
+    ASSERT_TRUE(unicode) << unicode.error().message;
+    ASSERT_EQ(unicode.value().size(), 3U);
+    EXPECT_EQ(unicode.value()[0], "archive");
+    EXPECT_EQ(unicode.value()[1], utf8_text(u8"café"));
+    EXPECT_EQ(unicode.value()[2], utf8_text(u8"摄影"));
+
+    auto duplicate = canonicalize_export_tags({"alpha", "alpha"});
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_export_tag");
+}
+
+TEST(ExportMetadataDomainTest, ApproximatesPositiveRationalsDeterministically)
+{
+    const auto exact = export_positive_rational(50.0);
+    ASSERT_TRUE(exact) << exact.error().message;
+    EXPECT_EQ(exact.value(), (ExportUnsignedRational{50U, 1U}));
+    EXPECT_EQ(export_rational_xmp_text(exact.value()), "50/1");
+
+    const auto aperture = export_positive_rational(2.8);
+    ASSERT_TRUE(aperture) << aperture.error().message;
+    EXPECT_EQ(aperture.value(), (ExportUnsignedRational{14U, 5U}));
+    EXPECT_EQ(export_rational_xmp_text(aperture.value()), "14/5");
+
+    const auto shutter = export_positive_rational(0.008);
+    ASSERT_TRUE(shutter) << shutter.error().message;
+    EXPECT_EQ(shutter.value(), (ExportUnsignedRational{1U, 125U}));
+    EXPECT_EQ(export_rational_xmp_text(shutter.value()), "1/125");
+
+    const auto third = export_positive_rational(1.0 / 3.0);
+    ASSERT_TRUE(third) << third.error().message;
+    EXPECT_EQ(third.value(), (ExportUnsignedRational{1U, 3U}));
+
+    const auto again = export_positive_rational(2.8);
+    ASSERT_TRUE(again);
+    EXPECT_EQ(again.value(), aperture.value());
+
+    EXPECT_FALSE(export_positive_rational(0.0));
+    EXPECT_FALSE(export_positive_rational(-1.5));
+    EXPECT_FALSE(export_positive_rational(std::numeric_limits<double>::infinity()));
+    EXPECT_FALSE(export_positive_rational(std::numeric_limits<double>::quiet_NaN()));
+    auto overflow = export_positive_rational(
+        static_cast<double>(std::numeric_limits<std::uint32_t>::max()) + 1.0);
+    ASSERT_FALSE(overflow);
+    EXPECT_EQ(overflow.error().context.at("reason"), "export_rational_overflow");
+}
+
+TEST(ExportMetadataDomainTest, RejectsInvalidIsoAndAcceptsExactShortIntegers)
+{
+    const auto iso = export_photographic_sensitivity(100.0);
+    ASSERT_TRUE(iso) << iso.error().message;
+    EXPECT_EQ(iso.value(), 100U);
+    const auto max_iso = export_photographic_sensitivity(65535.0);
+    ASSERT_TRUE(max_iso) << max_iso.error().message;
+    EXPECT_EQ(max_iso.value(), 65535U);
+
+    EXPECT_EQ(export_photographic_sensitivity(0.0).error().context.at("reason"),
+              "invalid_export_capture_number");
+    EXPECT_EQ(export_photographic_sensitivity(-50.0).error().context.at("reason"),
+              "invalid_export_capture_number");
+    EXPECT_EQ(export_photographic_sensitivity(100.5).error().context.at("reason"),
+              "invalid_export_iso_fractional");
+    EXPECT_EQ(export_photographic_sensitivity(65536.0).error().context.at("reason"),
+              "invalid_export_iso_range");
+}
+
+TEST(ExportMetadataDomainTest, ValidatesSnapshotFieldsBoundsAndOmitsIptcWhenAbsent)
+{
+    ExportMetadataSnapshot metadata;
+    EXPECT_TRUE(validate_export_metadata(metadata));
+    EXPECT_TRUE(export_iptc_should_omit(metadata));
+
+    metadata.writable.title = "";
+    EXPECT_TRUE(validate_export_metadata(metadata));
+    EXPECT_FALSE(export_iptc_should_omit(metadata));
+
+    metadata.writable.title.reset();
+    metadata.tags = {"beta", "alpha"};
+    auto unsorted = validate_export_metadata(metadata);
+    ASSERT_FALSE(unsorted);
+    EXPECT_EQ(unsorted.error().context.at("reason"), "invalid_export_tag_order");
+
+    metadata.tags = canonicalize_export_tags({"beta", "alpha"}).value();
+    EXPECT_TRUE(validate_export_metadata(metadata));
+    EXPECT_FALSE(export_iptc_should_omit(metadata));
+
+    metadata.writable.description = std::string("\xE2\x28\xA1", 3U);
+    auto bad_utf8 = validate_export_metadata(metadata);
+    ASSERT_FALSE(bad_utf8);
+    EXPECT_EQ(bad_utf8.error().context.at("reason"), "invalid_export_metadata");
+    EXPECT_EQ(bad_utf8.error().context.at("field"), "description");
+
+    metadata = {};
+    metadata.capture.iso = 0.0;
+    EXPECT_EQ(validate_export_metadata(metadata).error().context.at("reason"),
+              "invalid_export_capture_number");
+    metadata.capture.iso = 80.0;
+    metadata.capture.aperture = 2.8;
+    metadata.capture.focal_length_mm = 50.0;
+    metadata.capture.shutter_s = 0.008;
+    metadata.capture.camera_make = "RavoCam";
+    EXPECT_TRUE(validate_export_metadata(metadata));
+
+    ColorProfileState srgb;
+    srgb.kind = ColorProfileKind::kBuiltin;
+    srgb.identifier = "srgb";
+    EXPECT_TRUE(export_color_space_is_srgb(srgb));
+    srgb.identifier = "display_p3";
+    EXPECT_FALSE(export_color_space_is_srgb(srgb));
+
+    metadata = {};
+    metadata.destination_document_name.assign(kExportDocumentNameMaxBytes + 1U, 'p');
+    EXPECT_TRUE(validate_export_metadata(metadata));
+    EXPECT_EQ(validate_tiff_export_metadata(metadata).error().context.at("reason"),
+              "invalid_tiff_document_name");
+    EXPECT_EQ(validate_tiff_export_document_name(metadata.destination_document_name)
+                  .error()
+                  .context.at("reason"),
+              "invalid_tiff_document_name");
+}
+
+TEST(ExportMetadataDomainTest, EstimatesPacketsAgainstJpegSafeBounds)
+{
+    ExportMetadataSnapshot metadata;
+    metadata.writable.title = "Title";
+    metadata.writable.description = "Description";
+    metadata.writable.creator = "Creator";
+    metadata.writable.copyright = "Copyright";
+    metadata.tags = {"alpha"};
+    const auto sizes = estimate_export_metadata_packets(metadata);
+    ASSERT_TRUE(sizes) << sizes.error().message;
+    EXPECT_GT(sizes.value().exif_tiff_profile_bytes, 0U);
+    EXPECT_GT(sizes.value().xmp_packet_bytes, 0U);
+    EXPECT_GT(sizes.value().iptc_iim_bytes, 0U);
+    EXPECT_LE(sizes.value().exif_tiff_profile_bytes, kExportExifTiffProfileMaxBytes);
+    EXPECT_LE(sizes.value().xmp_packet_bytes, kExportXmpPacketMaxBytes);
+    EXPECT_LE(sizes.value().iptc_iim_bytes, kExportIptcIimMaxBytes);
+
+    ExportMetadataSnapshot oversized;
+    oversized.writable.title = std::string(kMetadataFieldMaxLength, '&');
+    oversized.writable.description = std::string(kMetadataFieldMaxLength, '&');
+    oversized.writable.creator = std::string(kMetadataFieldMaxLength, '&');
+    oversized.writable.copyright = std::string(kMetadataFieldMaxLength, '&');
+    oversized.tags.assign(32U, std::string(kTagMaxLength, '&'));
+    for (std::size_t index = 0U; index < oversized.tags.size(); ++index)
+    {
+        oversized.tags[index].back() = static_cast<char>('A' + static_cast<int>(index));
+    }
+    auto packets = estimate_export_metadata_packets(oversized);
+    ASSERT_FALSE(packets);
+    EXPECT_TRUE(packets.error().context.at("reason") == "export_xmp_packet_too_large" ||
+                packets.error().context.at("reason") == "export_iptc_packet_too_large");
+}
+
+TEST(ExportMetadataDomainTest, EnforcesXmlAndIptcTextContractsBeforeEncoding)
+{
+    ExportMetadataSnapshot metadata;
+    metadata.writable.title = std::string(kExportIptcTitleMaxBytes, 't');
+    EXPECT_TRUE(validate_export_metadata(metadata));
+    metadata.writable.title->push_back('x');
+    auto oversized = validate_export_metadata(metadata);
+    ASSERT_FALSE(oversized);
+    EXPECT_EQ(oversized.error().context.at("reason"), "export_iptc_dataset_too_large");
+    EXPECT_EQ(oversized.error().context.at("field"), "title");
+
+    metadata = {};
+    metadata.writable.creator = std::string(kExportIptcCreatorMaxBytes + 1U, 'c');
+    EXPECT_EQ(validate_export_metadata(metadata).error().context.at("reason"),
+              "export_iptc_dataset_too_large");
+    metadata = {};
+    metadata.writable.copyright = std::string(kExportIptcCopyrightMaxBytes + 1U, 'c');
+    EXPECT_EQ(validate_export_metadata(metadata).error().context.at("reason"),
+              "export_iptc_dataset_too_large");
+    metadata = {};
+    metadata.writable.description = std::string(kExportIptcDescriptionMaxBytes + 1U, 'd');
+    EXPECT_EQ(validate_export_metadata(metadata).error().context.at("reason"),
+              "export_iptc_dataset_too_large");
+
+    metadata = {};
+    metadata.writable.title = "line\nbreak";
+    EXPECT_EQ(validate_export_metadata(metadata).error().context.at("reason"),
+              "invalid_export_iptc_text");
+    metadata.writable.title.reset();
+    metadata.writable.description = "line\r\nbreak";
+    EXPECT_TRUE(validate_export_metadata(metadata));
+
+    metadata = {};
+    metadata.writable.title = std::string(1U, '\x01');
+    const auto control = validate_export_metadata(metadata);
+    ASSERT_FALSE(control);
+    EXPECT_EQ(control.error().context.at("detail"), "invalid_xml_character");
+    metadata.writable.title = std::string("\xEF\xBF\xBE", 3U); // U+FFFE
+    const auto noncharacter = validate_export_metadata(metadata);
+    ASSERT_FALSE(noncharacter);
+    EXPECT_EQ(noncharacter.error().context.at("detail"), "invalid_xml_character");
+
+    metadata = {};
+    metadata.tags = {std::string(kExportIptcKeywordMaxBytes, 'k')};
+    EXPECT_TRUE(validate_export_metadata(metadata));
+    metadata.tags.front().push_back('x');
+    EXPECT_EQ(validate_export_metadata(metadata).error().context.at("reason"),
+              "export_iptc_dataset_too_large");
+
+    std::vector<std::string> too_many(kExportTagMaxCount + 1U, "tag");
+    const auto count = canonicalize_export_tags(too_many);
+    ASSERT_FALSE(count);
+    EXPECT_EQ(count.error().context.at("reason"), "export_tag_count_too_large");
+}
+
+TEST(ExportMetadataDomainTest, CancelsDuringSnapshotValidation)
+{
+    CancellationSource source;
+    ASSERT_TRUE(source.cancel("export-metadata-test"));
+    ExportMetadataSnapshot metadata;
+    metadata.writable.title = "Title";
+    const auto cancelled = validate_export_metadata(metadata, source.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
 }
 
 } // namespace

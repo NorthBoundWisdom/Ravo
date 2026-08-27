@@ -130,6 +130,24 @@ png_chunks(const std::span<const std::uint8_t> bytes)
     return result;
 }
 
+void expect_product_embedded_metadata(const DecodedPng &decoded)
+{
+    ASSERT_EQ(chunks_named(decoded.chunks, {'e', 'X', 'I', 'f'}).size(), 1U);
+    ASSERT_EQ(chunks_named(decoded.chunks, {'i', 'T', 'X', 't'}).size(), 1U);
+    EXPECT_TRUE(chunks_named(decoded.chunks, {'p', 'H', 'Y', 's'}).empty());
+    const auto *exif = chunks_named(decoded.chunks, {'e', 'X', 'I', 'f'}).front();
+    ASSERT_GE(exif->payload.size(), 8U);
+    EXPECT_EQ(exif->payload[0], 'I');
+    EXPECT_EQ(exif->payload[1], 'I');
+    EXPECT_FALSE(exif->payload.size() >= 6U && exif->payload[0] == 'E' && exif->payload[1] == 'x' &&
+                 exif->payload[2] == 'i' && exif->payload[3] == 'f' && exif->payload[4] == 0 &&
+                 exif->payload[5] == 0);
+    const auto *xmp = chunks_named(decoded.chunks, {'i', 'T', 'X', 't'}).front();
+    const auto xmp_text = std::string(xmp->payload.begin(), xmp->payload.end());
+    EXPECT_NE(xmp_text.find("XML:com.adobe.xmp"), std::string::npos);
+    EXPECT_NE(xmp_text.find("<xmp:CreatorTool>Ravo</xmp:CreatorTool>"), std::string::npos);
+}
+
 [[nodiscard]] std::optional<PngIhdr> png_ihdr(const std::vector<PngChunk> &chunks)
 {
     const auto headers = chunks_named(chunks, {'I', 'H', 'D', 'R'});
@@ -469,8 +487,7 @@ TEST_F(PngCliTest, DefaultsAndExplicitEightBitPreserveCanonicalRgb8)
         EXPECT_EQ(decoded->header.bit_depth, 8U);
         EXPECT_EQ(decoded->header.color_type, 2U);
         EXPECT_EQ(decoded->header.interlace, 0U);
-        EXPECT_TRUE(chunks_named(decoded->chunks, {'e', 'X', 'I', 'f'}).empty());
-        EXPECT_TRUE(chunks_named(decoded->chunks, {'p', 'H', 'Y', 's'}).empty());
+        expect_product_embedded_metadata(*decoded);
         EXPECT_EQ(decoded->pixels, pixels_);
     }
 }
@@ -518,8 +535,7 @@ TEST_F(PngCliTest, SixteenBitNamePublishesRealRgb16Product)
     EXPECT_EQ(decoded->header.bit_depth, 16U);
     EXPECT_EQ(decoded->header.color_type, 2U);
     EXPECT_EQ(decoded->header.interlace, 0U);
-    EXPECT_TRUE(chunks_named(decoded->chunks, {'e', 'X', 'I', 'f'}).empty());
-    EXPECT_TRUE(chunks_named(decoded->chunks, {'p', 'H', 'Y', 's'}).empty());
+    expect_product_embedded_metadata(*decoded);
     ASSERT_EQ(decoded->pixels.size() % 2U, 0U);
     ASSERT_EQ(decoded->pixels.size() / 2U, eight_png->pixels.size());
     bool found_non_expansion = false;
@@ -535,6 +551,46 @@ TEST_F(PngCliTest, SixteenBitNamePublishesRealRgb16Product)
         }
     }
     EXPECT_TRUE(found_non_expansion);
+    EXPECT_EQ(source_hash_, file_hash(source_));
+}
+
+TEST_F(PngCliTest, CatalogMetadataAndTagsEmbedDeterministicallyWithoutSidecar)
+{
+    const auto metadata = run({"catalog", "metadata", "--catalog", catalog_, "--asset-id", asset_,
+                               "--title", "CLI Title", "--description", "CLI Desc", "--creator",
+                               "CLI Creator", "--copyright", "CLI Copyright"});
+    ASSERT_EQ(metadata.exit_code, 0) << stdout_stream_.str();
+    const auto tagged =
+        run({"catalog", "tag", "--catalog", catalog_, "--asset-id", asset_, "--add", "zeta,alpha"});
+    ASSERT_EQ(tagged.exit_code, 0) << stdout_stream_.str();
+
+    const auto first_path = root_ / "meta-a.png";
+    const auto second_path = root_ / "meta-b.png";
+    const auto first = run(export_arguments(first_path, {"--format", "png"}));
+    ASSERT_EQ(first.exit_code, 0) << stdout_stream_.str();
+    const auto second = run(export_arguments(second_path, {"--format", "png"}));
+    ASSERT_EQ(second.exit_code, 0) << stdout_stream_.str();
+
+    const auto first_png = read_png(first_path);
+    const auto second_png = read_png(second_path);
+    ASSERT_TRUE(first_png);
+    ASSERT_TRUE(second_png);
+    expect_product_embedded_metadata(*first_png);
+    expect_product_embedded_metadata(*second_png);
+    EXPECT_EQ(first_png->pixels, pixels_);
+    EXPECT_EQ(second_png->pixels, first_png->pixels);
+    EXPECT_EQ(file_hash(first_path), file_hash(second_path));
+
+    const auto *xmp_chunk = chunks_named(first_png->chunks, {'i', 'T', 'X', 't'}).front();
+    const auto xmp = std::string(xmp_chunk->payload.begin(), xmp_chunk->payload.end());
+    EXPECT_NE(xmp.find("CLI Title"), std::string::npos);
+    EXPECT_NE(xmp.find("CLI Desc"), std::string::npos);
+    EXPECT_NE(xmp.find("<rdf:li>alpha</rdf:li>"), std::string::npos);
+    EXPECT_LT(xmp.find("<rdf:li>alpha</rdf:li>"), xmp.find("<rdf:li>zeta</rdf:li>"));
+    EXPECT_EQ(xmp.find("DateTimeOriginal"), std::string::npos);
+    EXPECT_EQ(xmp.find("GPS"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(first_path.string() + ".xmp"));
+    EXPECT_FALSE(std::filesystem::exists(second_path.string() + ".xmp"));
     EXPECT_EQ(source_hash_, file_hash(source_));
 }
 

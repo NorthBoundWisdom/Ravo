@@ -1,4 +1,5 @@
 #include "jpeg_encoder.h"
+#include "export_metadata_encoder.h"
 
 #include <algorithm>
 #include <array>
@@ -12,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <new>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -274,10 +276,14 @@ Result<JpegEncodeConfiguration> jpeg_encode_configuration(const JpegExportOption
     return result;
 }
 
-Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
+Result<std::vector<std::uint8_t>> encode_jpeg_rgb8_impl(
     const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
     const std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
-    const CancellationToken &cancellation, const JpegEncodeControl control)
+    const PreparedExportMetadata *const prepared,
+    const std::vector<std::uint8_t> *const framed_exif,
+    const std::vector<std::uint8_t> *const framed_xmp,
+    const std::vector<std::uint8_t> *const framed_iptc, const CancellationToken &cancellation,
+    const JpegEncodeControl control)
 {
     auto active = cancellation.check();
     if (!active)
@@ -396,8 +402,52 @@ Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
     state->compressor.Y_density = 300U;
 
     jpeg_start_compress(&state->compressor, TRUE);
+    if (prepared != nullptr)
+    {
+        {
+            auto embed_active = cancellation.check();
+            if (!embed_active)
+            {
+                destroy_compressor(*state);
+                return embed_active.error();
+            }
+        }
+        jpeg_write_marker(&state->compressor, JPEG_APP0 + 1, framed_exif->data(),
+                          static_cast<unsigned int>(framed_exif->size()));
+        {
+            auto embed_active = cancellation.check();
+            if (!embed_active)
+            {
+                destroy_compressor(*state);
+                return embed_active.error();
+            }
+        }
+        jpeg_write_marker(&state->compressor, JPEG_APP0 + 1, framed_xmp->data(),
+                          static_cast<unsigned int>(framed_xmp->size()));
+        {
+            auto embed_active = cancellation.check();
+            if (!embed_active)
+            {
+                destroy_compressor(*state);
+                return embed_active.error();
+            }
+        }
+    }
     jpeg_write_icc_profile(&state->compressor, resolved_rgb_icc.data(),
                            static_cast<unsigned int>(resolved_rgb_icc.size()));
+    if (framed_iptc != nullptr)
+    {
+        {
+            auto embed_active = cancellation.check();
+            if (!embed_active)
+            {
+                destroy_compressor(*state);
+                return embed_active.error();
+            }
+        }
+        jpeg_write_marker(&state->compressor, JPEG_APP0 + 13, framed_iptc->data(),
+                          static_cast<unsigned int>(framed_iptc->size()));
+    }
     const std::size_t stride = static_cast<std::size_t>(width) * 3U;
     while (state->compressor.next_scanline < state->compressor.image_height)
     {
@@ -433,6 +483,51 @@ Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
     jpeg_finish_compress(&state->compressor);
     destroy_compressor(*state);
     return copy_encoded_output(state->destination);
+}
+
+Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
+    const CancellationToken &cancellation, const JpegEncodeControl control)
+{
+    return encode_jpeg_rgb8_impl(width, height, rgb, resolved_rgb_icc, options, nullptr, nullptr,
+                                 nullptr, nullptr, cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
+    const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+    const CancellationToken &cancellation, const JpegEncodeControl control)
+{
+    auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
+    if (!prepared)
+    {
+        return prepared.error();
+    }
+    auto exif = build_jpeg_exif_app1_payload(prepared.value().exif_tiff_profile);
+    if (!exif)
+    {
+        return exif.error();
+    }
+    auto xmp = build_jpeg_xmp_app1_payload(prepared.value().xmp_packet);
+    if (!xmp)
+    {
+        return xmp.error();
+    }
+    std::optional<std::vector<std::uint8_t>> iptc;
+    if (prepared.value().iptc_iim)
+    {
+        auto framed = build_jpeg_iptc_app13_payload(*prepared.value().iptc_iim);
+        if (!framed)
+        {
+            return framed.error();
+        }
+        iptc = std::move(framed).value();
+    }
+    return encode_jpeg_rgb8_impl(width, height, rgb, resolved_rgb_icc, options, &prepared.value(),
+                                 &exif.value(), &xmp.value(), iptc ? &*iptc : nullptr, cancellation,
+                                 control);
 }
 
 } // namespace ravo::detail

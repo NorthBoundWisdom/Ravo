@@ -1086,11 +1086,24 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
                           {{"asset_id", request.asset_id}});
     }
     ExportMetadataSnapshot export_metadata;
-    if (request.format == ExportFormat::kTiff)
+    if (request.format != ExportFormat::kOriginalCopy)
     {
-        export_metadata.destination_document_name = output.value().path;
+        if (request.format == ExportFormat::kTiff)
+        {
+            export_metadata.destination_document_name = output.value().path;
+        }
         export_metadata.writable = asset.value()->metadata;
-        auto valid_metadata = validate_tiff_export_metadata(export_metadata);
+        export_metadata.capture = asset.value()->capture;
+        auto tags = canonicalize_export_tags(asset.value()->tags, request.cancellation);
+        if (!tags)
+        {
+            return tags.error();
+        }
+        export_metadata.tags = std::move(tags).value();
+        auto valid_metadata =
+            request.format == ExportFormat::kTiff ?
+                validate_tiff_export_metadata(export_metadata, request.cancellation) :
+                validate_export_metadata(export_metadata, request.cancellation);
         if (!valid_metadata)
         {
             return valid_metadata.error();

@@ -640,9 +640,20 @@ TEST(PngExportContractTest, WritesExactOpaqueRgb8WithIccAndKnownCicp)
     EXPECT_EQ(header->interlace, 0U);
     EXPECT_TRUE(chunks_named(chunks.value(), {'t', 'R', 'N', 'S'}).empty());
     EXPECT_TRUE(chunks_named(chunks.value(), {'s', 'R', 'G', 'B'}).empty());
-    EXPECT_TRUE(chunks_named(chunks.value(), {'e', 'X', 'I', 'f'}).empty());
-    EXPECT_TRUE(chunks_named(chunks.value(), {'i', 'T', 'X', 't'}).empty());
+    ASSERT_EQ(chunks_named(chunks.value(), {'e', 'X', 'I', 'f'}).size(), 1U);
+    ASSERT_EQ(chunks_named(chunks.value(), {'i', 'T', 'X', 't'}).size(), 1U);
     EXPECT_TRUE(chunks_named(chunks.value(), {'p', 'H', 'Y', 's'}).empty());
+    const auto *exif = chunks_named(chunks.value(), {'e', 'X', 'I', 'f'}).front();
+    ASSERT_GE(exif->payload.size(), 8U);
+    EXPECT_EQ(exif->payload[0], 'I');
+    EXPECT_EQ(exif->payload[1], 'I');
+    EXPECT_FALSE(exif->payload.size() >= 6U && exif->payload[0] == 'E' && exif->payload[1] == 'x' &&
+                 exif->payload[2] == 'i' && exif->payload[3] == 'f' && exif->payload[4] == 0 &&
+                 exif->payload[5] == 0);
+    const auto *xmp = chunks_named(chunks.value(), {'i', 'T', 'X', 't'}).front();
+    const auto xmp_text = std::string(xmp->payload.begin(), xmp->payload.end());
+    EXPECT_NE(xmp_text.find("XML:com.adobe.xmp"), std::string::npos);
+    EXPECT_NE(xmp_text.find("<xmp:CreatorTool>Ravo</xmp:CreatorTool>"), std::string::npos);
     const auto cicp = chunks_named(chunks.value(), {'c', 'I', 'C', 'P'});
     ASSERT_EQ(cicp.size(), 1U);
     EXPECT_EQ(cicp.front()->payload, (std::vector<std::uint8_t>{1U, 13U, 0U, 1U}));
@@ -992,7 +1003,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     EXPECT_EQ(sixteen_header->bit_depth, 16U);
     EXPECT_EQ(sixteen_header->color_type, 2U);
     EXPECT_EQ(sixteen_header->interlace, 0U);
-    EXPECT_TRUE(chunks_named(sixteen_chunks.value(), {'e', 'X', 'I', 'f'}).empty());
+    ASSERT_EQ(chunks_named(sixteen_chunks.value(), {'e', 'X', 'I', 'f'}).size(), 1U);
     EXPECT_TRUE(chunks_named(sixteen_chunks.value(), {'p', 'H', 'Y', 's'}).empty());
     const auto cicp = chunks_named(sixteen_chunks.value(), {'c', 'I', 'C', 'P'});
     ASSERT_EQ(cicp.size(), 1U);

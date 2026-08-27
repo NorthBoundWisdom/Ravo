@@ -796,12 +796,13 @@ TEST(TiffExportContractTest, WritesClassicLittleEndianOpaqueRgb8TagsPixelsAndExa
     ASSERT_NE(embedded_icc, nullptr);
     EXPECT_EQ(embedded_icc->type, 7U);
     EXPECT_EQ(embedded_icc->payload, profile.icc_bytes);
-    for (const std::uint16_t absent_tag :
-         {kTagDocumentName, kTagPageName, kTagPageNumber, kTagTileWidth, kTagSubIfd,
-          kTagExtraSamples, kTagXmp, kTagIptc, kTagExifIfd})
+    for (const std::uint16_t absent_tag : {kTagDocumentName, kTagPageName, kTagPageNumber,
+                                           kTagTileWidth, kTagSubIfd, kTagExtraSamples, kTagIptc})
     {
         EXPECT_EQ(unique_field(*document, absent_tag), nullptr);
     }
+    EXPECT_NE(unique_field(*document, kTagExifIfd), nullptr);
+    EXPECT_NE(unique_field(*document, kTagXmp), nullptr);
     const auto decoded = tiff_pixels(encoded.value(), *document);
     ASSERT_TRUE(decoded);
     EXPECT_EQ(decoded.value(), pixels);

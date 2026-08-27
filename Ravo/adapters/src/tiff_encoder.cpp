@@ -1,4 +1,5 @@
 #include "tiff_encoder.h"
+#include "export_metadata_encoder.h"
 
 #include <algorithm>
 #include <array>
@@ -730,8 +731,8 @@ namespace
 [[nodiscard]] Result<std::vector<std::uint8_t>>
 encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSampleSource &source,
             const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
-            const ExportMetadataSnapshot &metadata, const CancellationToken &cancellation,
-            const TiffEncodeControl control)
+            const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+            const CancellationToken &cancellation, const TiffEncodeControl control)
 {
     if (cancellation.is_cancellation_requested())
     {
@@ -742,10 +743,15 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
     {
         return configuration.error();
     }
-    auto valid_metadata = validate_tiff_export_metadata(metadata);
+    auto valid_metadata = validate_tiff_export_metadata(metadata, cancellation);
     if (!valid_metadata)
     {
         return valid_metadata.error();
+    }
+    auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
+    if (!prepared)
+    {
+        return prepared.error();
     }
     if (!source_matches_options(source.kind, options.sample_type))
     {
@@ -991,6 +997,51 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
     {
         set_metadata_ascii(TIFFTAG_COPYRIGHT, *metadata.writable.copyright);
     }
+    if (prepared.value().make)
+    {
+        set_metadata_ascii(TIFFTAG_MAKE, *prepared.value().make);
+    }
+    if (prepared.value().model)
+    {
+        set_metadata_ascii(TIFFTAG_MODEL, *prepared.value().model);
+    }
+
+    const auto set_metadata_bytes =
+        [&](const std::uint32_t tag, const std::vector<std::uint8_t> &value)
+    {
+        if (primary_error)
+        {
+            return;
+        }
+        const TiffEncodeInjectedFailure injected =
+            notify_checkpoint(control, TiffEncodeCheckpoint::kMetadata, tag, configuration.value());
+        if (cancellation.is_cancellation_requested())
+        {
+            primary_error = tiff_cancellation_error(cancellation);
+            return;
+        }
+        if (injected == TiffEncodeInjectedFailure::kMetadataTagFailure)
+        {
+            fail_metadata_tag(tag, "injected_tiff_metadata_tag_failure");
+            return;
+        }
+        if (auto injected_error = arm_injected_failure(destination, injected))
+        {
+            primary_error = std::move(injected_error).value();
+            return;
+        }
+        if (TIFFSetField(writer, tag, static_cast<std::uint32_t>(value.size()), value.data()) != 1)
+        {
+            fail_metadata_tag(tag, destination.detail[0] == '\0' ?
+                                       std::string{} :
+                                       std::string(destination.detail.data()));
+        }
+    };
+    set_metadata_bytes(TIFFTAG_XMLPACKET, prepared.value().xmp_packet);
+    if (prepared.value().iptc_iim)
+    {
+        set_metadata_bytes(TIFFTAG_RICHTIFFIPTC, *prepared.value().iptc_iim);
+    }
 
     if (!primary_error)
     {
@@ -1121,7 +1172,95 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
     {
         fail_encoder();
     }
+    if (!primary_error)
+    {
+        if (cancellation.is_cancellation_requested())
+        {
+            primary_error = tiff_cancellation_error(cancellation);
+        }
+        else if (TIFFCreateEXIFDirectory(writer) != 0)
+        {
+            fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_create_exif_directory_failed");
+        }
+        else
+        {
+            const auto set_exif = [&](const std::uint32_t tag, const auto &...values) -> bool
+            {
+                if (primary_error)
+                {
+                    return false;
+                }
+                const TiffEncodeInjectedFailure injected = notify_checkpoint(
+                    control, TiffEncodeCheckpoint::kMetadata, tag, configuration.value());
+                if (cancellation.is_cancellation_requested())
+                {
+                    primary_error = tiff_cancellation_error(cancellation);
+                    return false;
+                }
+                if (injected == TiffEncodeInjectedFailure::kMetadataTagFailure)
+                {
+                    fail_metadata_tag(tag, "injected_tiff_metadata_tag_failure");
+                    return false;
+                }
+                if (auto injected_error = arm_injected_failure(destination, injected))
+                {
+                    primary_error = std::move(injected_error).value();
+                    return false;
+                }
+                if (TIFFSetField(writer, tag, values...) != 1)
+                {
+                    fail_metadata_tag(tag, destination.detail[0] == '\0' ?
+                                               std::string{} :
+                                               std::string(destination.detail.data()));
+                    return false;
+                }
+                return true;
+            };
+            const auto rational_as_float = [](const ExportUnsignedRational value) -> float
+            {
+                return static_cast<float>(static_cast<double>(value.numerator) /
+                                          static_cast<double>(value.denominator));
+            };
+            if (prepared.value().shutter)
+            {
+                set_exif(EXIFTAG_EXPOSURETIME, rational_as_float(*prepared.value().shutter));
+            }
+            if (prepared.value().aperture)
+            {
+                set_exif(EXIFTAG_FNUMBER, rational_as_float(*prepared.value().aperture));
+            }
+            if (prepared.value().iso)
+            {
+                const std::uint16_t iso = *prepared.value().iso;
+                set_exif(EXIFTAG_ISOSPEEDRATINGS, 1, &iso);
+            }
+            if (prepared.value().focal_length)
+            {
+                set_exif(EXIFTAG_FOCALLENGTH, rational_as_float(*prepared.value().focal_length));
+            }
+            set_exif(EXIFTAG_COLORSPACE, prepared.value().color_space);
+            set_exif(EXIFTAG_PIXELXDIMENSION, prepared.value().pixel_width);
+            set_exif(EXIFTAG_PIXELYDIMENSION, prepared.value().pixel_height);
+            std::uint64_t exif_offset = 0U;
+            if (!primary_error && TIFFWriteCustomDirectory(writer, &exif_offset) != 1)
+            {
+                fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_write_exif_directory_failed");
+            }
+            else if (!primary_error && TIFFSetDirectory(writer, 0) != 1)
+            {
+                fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_reload_main_directory_failed");
+            }
+            else if (!primary_error && TIFFSetField(writer, TIFFTAG_EXIFIFD, exif_offset) != 1)
+            {
+                fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_set_exififd_failed");
+            }
+        }
+    }
 
+    if (!primary_error && cancellation.is_cancellation_requested())
+    {
+        primary_error = tiff_cancellation_error(cancellation);
+    }
     TIFFClose(writer);
     writer = nullptr;
     if (!primary_error &&
@@ -1161,8 +1300,8 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
     TiffSampleSource source;
     source.kind = TiffSourceKind::kRgb8;
     source.rgb8 = rgb;
-    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, cancellation,
-                       control);
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, false,
+                       cancellation, control);
 }
 
 Result<std::vector<std::uint8_t>>
@@ -1175,8 +1314,8 @@ encode_tiff_rgb16(const std::uint32_t width, const std::uint32_t height,
     TiffSampleSource source;
     source.kind = TiffSourceKind::kRgb16;
     source.rgb16 = rgb;
-    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, cancellation,
-                       control);
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, false,
+                       cancellation, control);
 }
 
 Result<std::vector<std::uint8_t>>
@@ -1189,8 +1328,47 @@ encode_tiff_rgb_float(const std::uint32_t width, const std::uint32_t height,
     TiffSampleSource source;
     source.kind = TiffSourceKind::kRgbFloat;
     source.rgb_float = rgb;
-    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, cancellation,
-                       control);
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, false,
+                       cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+    const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+    const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    TiffSampleSource source;
+    source.kind = TiffSourceKind::kRgb8;
+    source.rgb8 = rgb;
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, builtin_srgb,
+                       cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>> encode_tiff_rgb16(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint16_t> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+    const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+    const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    TiffSampleSource source;
+    source.kind = TiffSourceKind::kRgb16;
+    source.rgb16 = rgb;
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, builtin_srgb,
+                       cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>> encode_tiff_rgb_float(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const float> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+    const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
+    const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    TiffSampleSource source;
+    source.kind = TiffSourceKind::kRgbFloat;
+    source.rgb_float = rgb;
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, builtin_srgb,
+                       cancellation, control);
 }
 
 } // namespace ravo::detail

@@ -72,4 +72,10 @@ encode_jpeg_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std:
                  std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
                  const CancellationToken &cancellation, JpegEncodeControl control = {});
 
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_jpeg_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgb,
+                 std::span<const std::uint8_t> resolved_rgb_icc, const JpegExportOptions &options,
+                 const ExportMetadataSnapshot &metadata, bool builtin_srgb,
+                 const CancellationToken &cancellation, JpegEncodeControl control = {});
+
 } // namespace ravo::detail

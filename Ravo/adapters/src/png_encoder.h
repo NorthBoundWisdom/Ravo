@@ -81,11 +81,23 @@ encode_png_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::
                 const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
                 const CancellationToken &cancellation, PngEncodeControl control = {});
 
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_png_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgb,
+                const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                const ExportMetadataSnapshot &metadata, bool builtin_srgb,
+                const CancellationToken &cancellation, PngEncodeControl control = {});
+
 // Host-endian RGB16 samples are borrowed only for this synchronous call.
 // Success returns a separately owned PNG with 16-bit network-order samples.
 [[nodiscard]] Result<std::vector<std::uint8_t>>
 encode_png_rgb16(std::uint32_t width, std::uint32_t height, std::span<const std::uint16_t> rgb,
                  const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                 const CancellationToken &cancellation, PngEncodeControl control = {});
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_png_rgb16(std::uint32_t width, std::uint32_t height, std::span<const std::uint16_t> rgb,
+                 const PngEncodeColorMetadata &color_metadata, const PngExportOptions &options,
+                 const ExportMetadataSnapshot &metadata, bool builtin_srgb,
                  const CancellationToken &cancellation, PngEncodeControl control = {});
 
 } // namespace ravo::detail
