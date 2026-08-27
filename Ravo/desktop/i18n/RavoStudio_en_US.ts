@@ -905,6 +905,165 @@
     </message>
 </context>
 <context>
+    <name>ExportOptionsDialog</name>
+    <message>
+        <source>Export Photo</source>
+        <translation>Export Photo</translation>
+    </message>
+    <message>
+        <source>Format</source>
+        <translation>Format</translation>
+    </message>
+    <message>
+        <source>Quality</source>
+        <translation>Quality</translation>
+    </message>
+    <message>
+        <source>JPEG quality</source>
+        <translation>JPEG quality</translation>
+    </message>
+    <message>
+        <source>Subsampling</source>
+        <translation>Subsampling</translation>
+    </message>
+    <message>
+        <source>JPEG subsampling</source>
+        <translation>JPEG subsampling</translation>
+    </message>
+    <message>
+        <source>Bit depth</source>
+        <translation>Bit depth</translation>
+    </message>
+    <message>
+        <source>PNG bit depth</source>
+        <translation>PNG bit depth</translation>
+    </message>
+    <message>
+        <source>Compression</source>
+        <translation>Compression</translation>
+    </message>
+    <message>
+        <source>PNG compression</source>
+        <translation>PNG compression</translation>
+    </message>
+    <message>
+        <source>Sample type</source>
+        <translation>Sample type</translation>
+    </message>
+    <message>
+        <source>TIFF sample type</source>
+        <translation>TIFF sample type</translation>
+    </message>
+    <message>
+        <source>TIFF compression</source>
+        <translation>TIFF compression</translation>
+    </message>
+    <message>
+        <source>Compression level</source>
+        <translation>Compression level</translation>
+    </message>
+    <message>
+        <source>TIFF compression level</source>
+        <translation>TIFF compression level</translation>
+    </message>
+    <message>
+        <source>Write grayscale when the image is neutral</source>
+        <translation>Write grayscale when the image is neutral</translation>
+    </message>
+    <message>
+        <source>Resolution (dpi)</source>
+        <translation>Resolution (dpi)</translation>
+    </message>
+    <message>
+        <source>TIFF resolution</source>
+        <translation>TIFF resolution</translation>
+    </message>
+    <message>
+        <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
+        <translation>Original copy writes the exact source bytes. Rendered format options are not used.</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Continue</translation>
+    </message>
+    <message>
+        <source>JPEG</source>
+        <translation>JPEG</translation>
+    </message>
+    <message>
+        <source>PNG</source>
+        <translation>PNG</translation>
+    </message>
+    <message>
+        <source>TIFF</source>
+        <translation>TIFF</translation>
+    </message>
+    <message>
+        <source>Original copy</source>
+        <translation>Original copy</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Automatic</translation>
+    </message>
+    <message>
+        <source>4:4:4</source>
+        <translation>4:4:4</translation>
+    </message>
+    <message>
+        <source>4:4:0</source>
+        <translation>4:4:0</translation>
+    </message>
+    <message>
+        <source>4:2:2</source>
+        <translation>4:2:2</translation>
+    </message>
+    <message>
+        <source>4:2:0</source>
+        <translation>4:2:0</translation>
+    </message>
+    <message>
+        <source>8-bit</source>
+        <translation>8-bit</translation>
+    </message>
+    <message>
+        <source>16-bit</source>
+        <translation>16-bit</translation>
+    </message>
+    <message>
+        <source>Unsigned 8-bit</source>
+        <translation>Unsigned 8-bit</translation>
+    </message>
+    <message>
+        <source>Unsigned 16-bit</source>
+        <translation>Unsigned 16-bit</translation>
+    </message>
+    <message>
+        <source>16-bit float</source>
+        <translation>16-bit float</translation>
+    </message>
+    <message>
+        <source>32-bit float</source>
+        <translation>32-bit float</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>Deflate</source>
+        <translation>Deflate</translation>
+    </message>
+    <message>
+        <source>Deflate + predictor</source>
+        <translation>Deflate + predictor</translation>
+    </message>
+</context>
+<context>
     <name>FolderDialogPage</name>
     <message>
         <source>Select Folder</source>
@@ -998,6 +1157,22 @@
     <message>
         <source>Ravo Studio</source>
         <translation>Ravo Studio</translation>
+    </message>
+    <message>
+        <source>JPEG (*.jpg *.jpeg)</source>
+        <translation>JPEG (*.jpg *.jpeg)</translation>
+    </message>
+    <message>
+        <source>PNG (*.png)</source>
+        <translation>PNG (*.png)</translation>
+    </message>
+    <message>
+        <source>TIFF (*.tif *.tiff)</source>
+        <translation>TIFF (*.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Original copy (*)</source>
+        <translation>Original copy (*)</translation>
     </message>
     <message>
         <source>Remove %1 photos from the library? Original files on disk will not be deleted.</source>
@@ -1204,8 +1379,8 @@
         <translation>Import Folder</translation>
     </message>
     <message>
-        <source>Export Photo</source>
-        <translation>Export Photo</translation>
+        <source>Save Export</source>
+        <translation>Save Export</translation>
     </message>
 </context>
 <context>
@@ -1701,6 +1876,101 @@
         <source>Window</source>
         <translation>Window</translation>
     </message>
+    <message>
+        <source>Unknown command argument field: %1.</source>
+        <translation>Unknown command argument field: %1.</translation>
+    </message>
+    <message>
+        <source>Export path must be a string.</source>
+        <translation>Export path must be a string.</translation>
+    </message>
+    <message>
+        <source>Export options must be an object.</source>
+        <translation>Export options must be an object.</translation>
+    </message>
+</context>
+<context>
+    <name>StudioExport</name>
+    <message>
+        <source>Unknown JPEG subsampling mode</source>
+        <translation>Unknown JPEG subsampling mode</translation>
+    </message>
+    <message>
+        <source>JPEG quality must be between 5 and 100</source>
+        <translation>JPEG quality must be between 5 and 100</translation>
+    </message>
+    <message>
+        <source>Unknown PNG bit depth</source>
+        <translation>Unknown PNG bit depth</translation>
+    </message>
+    <message>
+        <source>PNG compression must be between 0 and 9</source>
+        <translation>PNG compression must be between 0 and 9</translation>
+    </message>
+    <message>
+        <source>Unknown TIFF sample type</source>
+        <translation>Unknown TIFF sample type</translation>
+    </message>
+    <message>
+        <source>Unknown TIFF compression mode</source>
+        <translation>Unknown TIFF compression mode</translation>
+    </message>
+    <message>
+        <source>TIFF compression level must be between 1 and 9</source>
+        <translation>TIFF compression level must be between 1 and 9</translation>
+    </message>
+    <message>
+        <source>TIFF resolution must be between 72 and 9600 DPI</source>
+        <translation>TIFF resolution must be between 72 and 9600 DPI</translation>
+    </message>
+    <message>
+        <source>Export option must be an integer</source>
+        <translation>Export option must be an integer</translation>
+    </message>
+    <message>
+        <source>Export option is outside the integer range</source>
+        <translation>Export option is outside the integer range</translation>
+    </message>
+    <message>
+        <source>Export option must be a whole number</source>
+        <translation>Export option must be a whole number</translation>
+    </message>
+    <message>
+        <source>Export option has an unsupported value type</source>
+        <translation>Export option has an unsupported value type</translation>
+    </message>
+    <message>
+        <source>Export option must be a boolean</source>
+        <translation>Export option must be a boolean</translation>
+    </message>
+    <message>
+        <source>Export option must be a canonical name</source>
+        <translation>Export option must be a canonical name</translation>
+    </message>
+    <message>
+        <source>Export option is not valid for the selected format</source>
+        <translation>Export option is not valid for the selected format</translation>
+    </message>
+    <message>
+        <source>Export option is required for the selected format</source>
+        <translation>Export option is required for the selected format</translation>
+    </message>
+    <message>
+        <source>Unknown export format</source>
+        <translation>Unknown export format</translation>
+    </message>
+    <message>
+        <source>Export options map was mutated during conversion</source>
+        <translation>Export options map was mutated during conversion</translation>
+    </message>
+    <message>
+        <source>Export path must not be empty</source>
+        <translation>Export path must not be empty</translation>
+    </message>
+    <message>
+        <source>Export path suffix does not match the selected format</source>
+        <translation>Export path suffix does not match the selected format</translation>
+    </message>
 </context>
 <context>
     <name>StudioLanguageManager</name>
@@ -1785,10 +2055,6 @@
     <message>
         <source>Library opened.</source>
         <translation>Library opened.</translation>
-    </message>
-    <message>
-        <source>Export path must not be empty.</source>
-        <translation>Export path must not be empty.</translation>
     </message>
     <message>
         <source>Exporting…</source>

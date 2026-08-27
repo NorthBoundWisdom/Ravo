@@ -476,6 +476,12 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   Final bytes use the shared encoded-publication contract. Catalog/CLI JPEG
   exports independently parse one Exif APP1, one standard XMP APP1, ICC APP2,
   and optional Photoshop APP13, plus unchanged quantization/subsampling.
+  Dedicated JPEG CLI tests independently parse SOF sampling factors and the first
+  luminance quantizer for defaults and every `auto|444|440|422|420` mode, prove
+  last-value-wins, and reject JPEG flags on PNG/TIFF/original/list before the
+  Catalog opens. Desktop conversion tests freeze the strict Studio payload keys,
+  path/extension policy, and immutable typed `ExportRequest` snapshot; command and
+  QML contracts cover the two-step options dialog without localized-filter parsing.
 - PNG export freezes one typed options value from `ExportRequest` through
   CatalogService and the raster port to the private libpng encoder. Domain
   tests cover stable 8/16-bit values and names, the 8-bit/compression-5 default,
@@ -501,7 +507,7 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   Dedicated CLI tests invoke real Catalog import/export and independently parse
   PNG chunks. They cover implicit and explicit `png` format, both PNG-qualified
   flags, canonical values and defaults, argument order, last-value-wins value
-  flags, PNG-only scope, complete JSON errors, source hashes, and zero
+  flags, PNG-only scope, JPEG-option isolation, complete JSON errors, source hashes, and zero
   publication for invalid options, and successful 16-bit product renders that
   are not 8-bit expansions.
   Rendered PNG independently parses one `eXIf` TIFF profile without an
@@ -544,8 +550,8 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   Dedicated CLI tests invoke real Catalog import/export and
   independently parse TIFF tags, Deflate strips, horizontal prediction, and
   exact RGB/grayscale pixels. They cover the `tiff`/`tif` format spellings, all
-  four TIFF-qualified flags, canonical values and defaults, argument order,
-  last-value-wins value flags, duplicate-grayscale rejection, TIFF-only scope,
+  TIFF-qualified flags including `--tiff-resolution-dpi` 72/300/9600, canonical values and defaults, argument order,
+  last-value-wins value flags, duplicate-grayscale rejection, TIFF-only and JPEG-option scope,
   complete JSON errors, source hashes, successful uint16/float16/float32
   product renders, and zero publication for invalid requests. I7 input and
   ADR-0032

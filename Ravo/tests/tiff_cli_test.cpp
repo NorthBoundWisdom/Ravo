@@ -46,7 +46,10 @@ inline constexpr std::uint16_t kTagOrientation = 274U;
 inline constexpr std::uint16_t kTagSamplesPerPixel = 277U;
 inline constexpr std::uint16_t kTagRowsPerStrip = 278U;
 inline constexpr std::uint16_t kTagStripByteCounts = 279U;
+inline constexpr std::uint16_t kTagXResolution = 282U;
+inline constexpr std::uint16_t kTagYResolution = 283U;
 inline constexpr std::uint16_t kTagPlanarConfiguration = 284U;
+inline constexpr std::uint16_t kTagResolutionUnit = 296U;
 inline constexpr std::uint16_t kTagPredictor = 317U;
 inline constexpr std::uint16_t kTagSampleFormat = 339U;
 
@@ -230,6 +233,23 @@ unsigned_values(const TiffField *const field)
         return std::nullopt;
     }
     return values->front();
+}
+
+[[nodiscard]] std::optional<double> rational_scalar(const TiffDocument &document,
+                                                    const std::uint16_t tag)
+{
+    const TiffField *const field = unique_field(document, tag);
+    if (field == nullptr || field->type != 5U || field->count != 1U || field->payload.size() != 8U)
+    {
+        return std::nullopt;
+    }
+    const std::uint32_t numerator = read_u32_le(field->payload, 0U);
+    const std::uint32_t denominator = read_u32_le(field->payload, 4U);
+    if (denominator == 0U)
+    {
+        return std::nullopt;
+    }
+    return static_cast<double>(numerator) / denominator;
 }
 
 [[nodiscard]] std::optional<std::uint32_t> uniform_unsigned(const TiffDocument &document,
@@ -684,6 +704,9 @@ TEST_F(TiffCliTest, DefaultsAndBothFormatSpellingsProduceCanonicalTagsAndPixels)
                   std::optional<std::vector<std::uint32_t>>({1U, 1U, 1U}));
         EXPECT_EQ(unsigned_scalar(decoded->document, kTagOrientation), 1U);
         EXPECT_EQ(unsigned_scalar(decoded->document, kTagPlanarConfiguration), 1U);
+        EXPECT_DOUBLE_EQ(rational_scalar(decoded->document, kTagXResolution).value_or(0.0), 300.0);
+        EXPECT_DOUBLE_EQ(rational_scalar(decoded->document, kTagYResolution).value_or(0.0), 300.0);
+        EXPECT_EQ(unsigned_scalar(decoded->document, kTagResolutionUnit), 2U);
         EXPECT_EQ(decoded->pixels, color_pixels_);
     }
 }
@@ -926,6 +949,62 @@ TEST_F(TiffCliTest, ExplicitTiffFlagsRequireATiffExportRegardlessOfOrder)
     const auto list =
         run({"catalog", "list", "--catalog", catalog_, "--tiff-grayscale-if-neutral"});
     expect_error(list, 2, "invalid_argument", "tiff_options_require_tiff_export");
+
+    const auto jpeg_quality = run(export_arguments(color_asset_, root_ / "jpeg-quality.out",
+                                                   {"--format", "tiff", "--quality", "90"}));
+    expect_error(jpeg_quality, 2, "invalid_argument", "jpeg_options_require_jpeg_export");
+}
+
+TEST_F(TiffCliTest, ResolutionFlagWritesIndependentDpiTags)
+{
+    struct Case
+    {
+        std::string suffix;
+        std::vector<std::string> options;
+        double dpi = 0.0;
+    };
+    const std::array cases{
+        Case{"72", {"--format", "tiff", "--tiff-resolution-dpi", "72"}, 72.0},
+        Case{"300",
+             {"--tiff-resolution-dpi", "72", "--tiff-resolution-dpi", "300", "--format", "tiff"},
+             300.0},
+        Case{"9600", {"--format", "tiff", "--tiff-resolution-dpi", "9600"}, 9600.0},
+    };
+    for (const Case &test_case : cases)
+    {
+        const auto output = root_ / ("dpi-" + test_case.suffix + ".tif");
+        const auto result = run(export_arguments(color_asset_, output, test_case.options));
+        ASSERT_EQ(result.exit_code, 0) << test_case.suffix << " " << stdout_stream_.str();
+        const auto decoded = read_tiff(output);
+        ASSERT_TRUE(decoded);
+        EXPECT_DOUBLE_EQ(rational_scalar(decoded->document, kTagXResolution).value_or(0.0),
+                         test_case.dpi);
+        EXPECT_DOUBLE_EQ(rational_scalar(decoded->document, kTagYResolution).value_or(0.0),
+                         test_case.dpi);
+        EXPECT_EQ(unsigned_scalar(decoded->document, kTagResolutionUnit), 2U);
+    }
+
+    const auto low_output = root_ / "dpi-low.tif";
+    const auto low = run(export_arguments(color_asset_, low_output,
+                                          {"--format", "tiff", "--tiff-resolution-dpi", "71"}));
+    expect_error(low, 4, "validation", "invalid_tiff_resolution");
+    EXPECT_FALSE(std::filesystem::exists(low_output));
+
+    const auto high_output = root_ / "dpi-high.tif";
+    const auto high = run(export_arguments(color_asset_, high_output,
+                                           {"--format", "tiff", "--tiff-resolution-dpi", "9601"}));
+    expect_error(high, 4, "validation", "invalid_tiff_resolution");
+    EXPECT_FALSE(std::filesystem::exists(high_output));
+
+    const auto integer_output = root_ / "dpi-integer.tif";
+    const auto integer = run(export_arguments(
+        color_asset_, integer_output, {"--format", "tiff", "--tiff-resolution-dpi", "300.5"}));
+    expect_error(integer, 2, "invalid_argument", "invalid_tiff_resolution");
+    const auto &context = required_child(required_child(integer.body.value(), "error"), "context");
+    EXPECT_EQ(*required_child(context, "format").string_if(), "tiff");
+    EXPECT_EQ(*required_child(context, "option").string_if(), "--tiff-resolution-dpi");
+    EXPECT_EQ(*required_child(context, "value").string_if(), "300.5");
+    EXPECT_FALSE(std::filesystem::exists(integer_output));
 }
 
 } // namespace

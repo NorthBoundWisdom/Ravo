@@ -679,14 +679,15 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   PNG requests own typed 8/16-bit depth and compression 0–9/default 5, while
   TIFF requests own typed uint8/uint16/float16/float32 sample state plus
   none/Deflate/Deflate-predictor, level 1–9/default 6, and conditional grayscale.
-  `catalog export --format tiff|tif` projects those values through four
-  TIFF-qualified CLI flags. Catalog maps PNG16 and matching TIFF sample
+  `catalog export` projects those values through JPEG-only quality/subsampling
+  flags, PNG-qualified flags, and TIFF-qualified flags including resolution. Catalog maps PNG16 and matching TIFF sample
   requests to engine-owned RGB16 or finite RGB float; JPEG/PNG8/TIFF uint8
   stay on RGB8. Rendered JPEG/PNG/TIFF embed the ADR-0038 Catalog-owned public
   metadata snapshot before publication. Capture timezone/GPS, XMP
-  attach/history/sidecar policy, explicit PNG/TIFF Studio options, TIFF
-  multipage masks, path-template and batch/storage policy, and old export
-  presets remain out of scope.
+  attach/history/sidecar policy, TIFF multipage masks, path-template and
+  batch/storage policy, and old export presets remain out of scope. Studio
+  now collects one explicit format plus the matching typed options before the
+  native save dialog; it does not infer format from a localized filter.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

@@ -211,10 +211,12 @@ struct CatalogCliArguments
     std::vector<std::pair<std::string, double>> develop_sets;
     std::string_view output;
     std::string_view format;
-    std::optional<int> quality;
+    std::string_view quality;
+    std::string_view jpeg_subsampling;
     std::string_view tiff_sample_type;
     std::string_view tiff_compression;
     std::string_view tiff_compression_level;
+    std::string_view tiff_resolution_dpi;
     bool tiff_grayscale_if_neutral = false;
     std::string_view png_bit_depth;
     std::string_view png_compression;
@@ -239,6 +241,31 @@ struct CatalogCliArguments
                           {{"option", std::string(option)}, {"value", std::string(text)}});
     }
     return value;
+}
+
+[[nodiscard]] TaskError annotate_export_option_error(TaskError error, const std::string_view option,
+                                                     const std::string_view value,
+                                                     const std::string_view format,
+                                                     const std::string_view reason)
+{
+    error.context.insert_or_assign("format", std::string(format));
+    error.context.insert_or_assign("option", std::string(option));
+    error.context.insert_or_assign("reason", std::string(reason));
+    error.context.insert_or_assign("value", std::string(value));
+    return error;
+}
+
+[[nodiscard]] Result<int> parse_export_int_flag(const std::string_view text,
+                                                const std::string_view option,
+                                                const std::string_view format,
+                                                const std::string_view reason)
+{
+    auto parsed = parse_int_flag(text, option);
+    if (!parsed)
+    {
+        return annotate_export_option_error(parsed.error(), option, text, format, reason);
+    }
+    return parsed.value();
 }
 
 [[nodiscard]] Result<double> parse_double_flag(const std::string_view text,
@@ -387,12 +414,11 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--quality")
         {
-            auto quality = parse_int_flag(value, option);
-            if (!quality)
-            {
-                return quality.error();
-            }
-            result.quality = quality.value();
+            result.quality = value;
+        }
+        else if (option == "--jpeg-subsampling")
+        {
+            result.jpeg_subsampling = value;
         }
         else if (option == "--tiff-sample-type")
         {
@@ -405,6 +431,10 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         else if (option == "--tiff-compression-level")
         {
             result.tiff_compression_level = value;
+        }
+        else if (option == "--tiff-resolution-dpi")
+        {
+            result.tiff_resolution_dpi = value;
         }
         else if (option == "--png-bit-depth")
         {
@@ -467,12 +497,140 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
 [[nodiscard]] bool has_explicit_tiff_options(const CatalogCliArguments &flags) noexcept
 {
     return !flags.tiff_sample_type.empty() || !flags.tiff_compression.empty() ||
-           !flags.tiff_compression_level.empty() || flags.tiff_grayscale_if_neutral;
+           !flags.tiff_compression_level.empty() || !flags.tiff_resolution_dpi.empty() ||
+           flags.tiff_grayscale_if_neutral;
 }
 
 [[nodiscard]] bool has_explicit_png_options(const CatalogCliArguments &flags) noexcept
 {
     return !flags.png_bit_depth.empty() || !flags.png_compression.empty();
+}
+
+[[nodiscard]] bool has_explicit_jpeg_options(const CatalogCliArguments &flags) noexcept
+{
+    return !flags.quality.empty() || !flags.jpeg_subsampling.empty();
+}
+
+[[nodiscard]] Result<void> validate_cli_export_options(const ExportRequest &request,
+                                                       const CatalogCliArguments &flags)
+{
+    Result<void> valid;
+    switch (request.format)
+    {
+    case ExportFormat::kJpeg:
+        valid = validate_jpeg_export_options(request.jpeg_options);
+        break;
+    case ExportFormat::kPng:
+        valid = validate_png_export_options(request.png_options);
+        break;
+    case ExportFormat::kTiff:
+        valid = validate_tiff_export_options(request.tiff_options);
+        break;
+    case ExportFormat::kOriginalCopy:
+        return {};
+    }
+    if (valid)
+    {
+        return {};
+    }
+
+    TaskError error = valid.error();
+    const auto found = error.context.find("reason");
+    if (found == error.context.end())
+    {
+        return error;
+    }
+    const std::string reason = found->second;
+    const auto annotate = [&](const std::string_view option, const std::string_view value,
+                              const std::string_view format)
+    {
+        return Result<void>{
+            annotate_export_option_error(std::move(error), option, value, format, reason)};
+    };
+    if (reason == "invalid_jpeg_quality" && !flags.quality.empty())
+    {
+        return annotate("--quality", flags.quality, "jpeg");
+    }
+    if (reason == "invalid_png_compression" && !flags.png_compression.empty())
+    {
+        return annotate("--png-compression", flags.png_compression, "png");
+    }
+    if (reason == "invalid_tiff_compression_level" && !flags.tiff_compression_level.empty())
+    {
+        return annotate("--tiff-compression-level", flags.tiff_compression_level, "tiff");
+    }
+    if (reason == "invalid_tiff_resolution" && !flags.tiff_resolution_dpi.empty())
+    {
+        return annotate("--tiff-resolution-dpi", flags.tiff_resolution_dpi, "tiff");
+    }
+    return error;
+}
+
+[[nodiscard]] Result<ExportFormat> resolved_export_format(const CatalogCliArguments &flags)
+{
+    if (flags.format.empty())
+    {
+        return ExportFormat::kPng;
+    }
+    return parse_export_format(flags.format);
+}
+
+[[nodiscard]] Result<void> reject_scoped_export_options(const CatalogCliArguments &flags,
+                                                        const std::string_view subcommand)
+{
+    const bool is_export = subcommand == "export";
+    if (is_export)
+    {
+        auto format = resolved_export_format(flags);
+        if (!format)
+        {
+            return format.error();
+        }
+        if (has_explicit_jpeg_options(flags) && format.value() != ExportFormat::kJpeg)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "JPEG options require catalog export with --format jpeg",
+                              {{"format", std::string(export_format_name(format.value()))},
+                               {"reason", "jpeg_options_require_jpeg_export"}});
+        }
+        if (has_explicit_png_options(flags) && format.value() != ExportFormat::kPng)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "PNG options require catalog export with --format png",
+                              {{"format", std::string(export_format_name(format.value()))},
+                               {"reason", "png_options_require_png_export"}});
+        }
+        if (has_explicit_tiff_options(flags) && format.value() != ExportFormat::kTiff)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "TIFF options require catalog export with --format tiff",
+                              {{"format", std::string(export_format_name(format.value()))},
+                               {"reason", "tiff_options_require_tiff_export"}});
+        }
+        return {};
+    }
+    if (has_explicit_jpeg_options(flags))
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "JPEG options require catalog export with --format jpeg",
+                          {{"reason", "jpeg_options_require_jpeg_export"},
+                           {"subcommand", std::string(subcommand)}});
+    }
+    if (has_explicit_png_options(flags))
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "PNG options require catalog export with --format png",
+                          {{"reason", "png_options_require_png_export"},
+                           {"subcommand", std::string(subcommand)}});
+    }
+    if (has_explicit_tiff_options(flags))
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "TIFF options require catalog export with --format tiff",
+                          {{"reason", "tiff_options_require_tiff_export"},
+                           {"subcommand", std::string(subcommand)}});
+    }
+    return {};
 }
 
 struct AppliedDevelopOverride
@@ -717,19 +875,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "--baseline is only valid for catalog probe");
     }
-    if (has_explicit_tiff_options(flags.value()) && subcommand != "export")
+    auto scoped = reject_scoped_export_options(flags.value(), subcommand);
+    if (!scoped)
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "TIFF options require catalog export with --format tiff",
-                          {{"reason", "tiff_options_require_tiff_export"},
-                           {"subcommand", std::string(subcommand)}});
-    }
-    if (has_explicit_png_options(flags.value()) && subcommand != "export")
-    {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "PNG options require catalog export with --format png",
-                          {{"reason", "png_options_require_png_export"},
-                           {"subcommand", std::string(subcommand)}});
+        return scoped.error();
     }
 
     if (subcommand == "create")
@@ -1045,39 +1194,41 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         ExportRequest request;
         request.asset_id = std::string(flags.value().asset_id);
         request.output_path = std::string(flags.value().output);
-        if (!flags.value().format.empty())
+        auto format = resolved_export_format(flags.value());
+        if (!format)
         {
-            auto format = parse_export_format(flags.value().format);
-            if (!format)
+            return format.error();
+        }
+        request.format = format.value();
+        if (!flags.value().quality.empty())
+        {
+            auto quality = parse_export_int_flag(flags.value().quality, "--quality", "jpeg",
+                                                 "invalid_jpeg_quality");
+            if (!quality)
             {
-                return format.error();
+                return quality.error();
             }
-            request.format = format.value();
+            request.jpeg_options.quality = quality.value();
         }
-        if (has_explicit_tiff_options(flags.value()) && request.format != ExportFormat::kTiff)
+        if (!flags.value().jpeg_subsampling.empty())
         {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "TIFF options require catalog export with --format tiff",
-                              {{"format", std::string(export_format_name(request.format))},
-                               {"reason", "tiff_options_require_tiff_export"}});
-        }
-        if (has_explicit_png_options(flags.value()) && request.format != ExportFormat::kPng)
-        {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "PNG options require catalog export with --format png",
-                              {{"format", std::string(export_format_name(request.format))},
-                               {"reason", "png_options_require_png_export"}});
-        }
-        if (flags.value().quality)
-        {
-            request.jpeg_options.quality = *flags.value().quality;
+            auto subsampling = parse_jpeg_subsampling(flags.value().jpeg_subsampling);
+            if (!subsampling)
+            {
+                return annotate_export_option_error(subsampling.error(), "--jpeg-subsampling",
+                                                    flags.value().jpeg_subsampling, "jpeg",
+                                                    "invalid_jpeg_subsampling");
+            }
+            request.jpeg_options.subsampling = subsampling.value();
         }
         if (!flags.value().tiff_sample_type.empty())
         {
             auto sample_type = parse_tiff_sample_type(flags.value().tiff_sample_type);
             if (!sample_type)
             {
-                return sample_type.error();
+                return annotate_export_option_error(sample_type.error(), "--tiff-sample-type",
+                                                    flags.value().tiff_sample_type, "tiff",
+                                                    "invalid_tiff_sample_type");
             }
             request.tiff_options.sample_type = sample_type.value();
         }
@@ -1086,19 +1237,33 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             auto compression = parse_tiff_compression(flags.value().tiff_compression);
             if (!compression)
             {
-                return compression.error();
+                return annotate_export_option_error(compression.error(), "--tiff-compression",
+                                                    flags.value().tiff_compression, "tiff",
+                                                    "invalid_tiff_compression");
             }
             request.tiff_options.compression = compression.value();
         }
         if (!flags.value().tiff_compression_level.empty())
         {
-            auto compression_level =
-                parse_int_flag(flags.value().tiff_compression_level, "--tiff-compression-level");
+            auto compression_level = parse_export_int_flag(flags.value().tiff_compression_level,
+                                                           "--tiff-compression-level", "tiff",
+                                                           "invalid_tiff_compression_level");
             if (!compression_level)
             {
                 return compression_level.error();
             }
             request.tiff_options.compression_level = compression_level.value();
+        }
+        if (!flags.value().tiff_resolution_dpi.empty())
+        {
+            auto resolution =
+                parse_export_int_flag(flags.value().tiff_resolution_dpi, "--tiff-resolution-dpi",
+                                      "tiff", "invalid_tiff_resolution");
+            if (!resolution)
+            {
+                return resolution.error();
+            }
+            request.tiff_options.resolution_dpi = resolution.value();
         }
         request.tiff_options.grayscale_if_neutral = flags.value().tiff_grayscale_if_neutral;
         if (!flags.value().png_bit_depth.empty())
@@ -1106,13 +1271,17 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             auto bit_depth = parse_png_bit_depth(flags.value().png_bit_depth);
             if (!bit_depth)
             {
-                return bit_depth.error();
+                return annotate_export_option_error(bit_depth.error(), "--png-bit-depth",
+                                                    flags.value().png_bit_depth, "png",
+                                                    "invalid_png_bit_depth");
             }
             request.png_options.bit_depth = bit_depth.value();
         }
         if (!flags.value().png_compression.empty())
         {
-            auto compression = parse_int_flag(flags.value().png_compression, "--png-compression");
+            auto compression =
+                parse_export_int_flag(flags.value().png_compression, "--png-compression", "png",
+                                      "invalid_png_compression");
             if (!compression)
             {
                 return compression.error();
@@ -1122,6 +1291,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         if (flags.value().max_edge)
         {
             request.max_edge = *flags.value().max_edge;
+        }
+        auto valid_options = validate_cli_export_options(request, flags.value());
+        if (!valid_options)
+        {
+            return valid_options.error();
         }
         auto exported = service.export_asset(request);
         if (!exported)

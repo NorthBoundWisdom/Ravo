@@ -23,24 +23,23 @@ CLI options.
 
 1. Open a library and select the photo to export.
 2. Choose **File → Export Photo**, or use **Export…** in the left panel.
-3. Choose a destination and one of the current filters:
-   **JPEG**, **PNG**, **TIFF**, or **Original copy**.
-4. Confirm the save dialog and wait for the status bar to report completion.
+3. Choose **JPEG**, **PNG**, **TIFF**, or **Original copy** and the matching
+   encoder options. The dialog always starts from the domain defaults.
+4. Confirm the native save dialog and wait for the status bar to report
+   completion.
 
-The file suffix is used when it is recognizable. If the selected destination
-has no suffix, the chosen filter determines the format and Ravo adds `.jpg`,
-`.png`, or `.tif` for rendered formats. Original copy has no forced suffix.
-
-Studio currently exposes format selection, not every typed encoder option. Use
-the CLI when you need JPEG quality or TIFF-specific options.
+The selected format is authoritative. If the destination has no suffix, Ravo
+adds `.jpg`, `.png`, or `.tif` for rendered formats. JPEG also accepts
+`.jpeg`, and TIFF also accepts `.tiff`. A conflicting suffix is rejected.
+Original copy keeps the chosen filename and any suffix.
 
 ## Output formats
 
 | Format | What Ravo writes | Current options and boundary |
 | --- | --- | --- |
-| PNG | Opaque rendered RGB pixels with resolved color metadata when supported. | Default is 8-bit compression 5. `--png-bit-depth 16` writes engine-owned 16-bit samples. An 8-bit source is rejected rather than padded with invented precision. |
-| JPEG | Opaque rendered RGB pixels through the pinned JPEG encoder. | Quality defaults to 95 and is valid from 5–100. Studio does not expose quality; the CLI does. |
-| TIFF | Classic little-endian, top-left, contiguous rendered output. | Default is unsigned 8-bit, Deflate with horizontal predictor, level 6, RGB, and 300 DPI. CLI can request uint16, float16, or float32 from the same rendered recipe. Conditional grayscale is a CLI option. |
+| PNG | Opaque rendered RGB pixels with resolved color metadata when supported. | Default is 8-bit compression 5. Studio and CLI expose bit depth 8|16 and compression 0–9. `--png-bit-depth 16` writes engine-owned 16-bit samples. An 8-bit source is rejected rather than padded with invented precision. |
+| JPEG | Opaque rendered RGB pixels through the pinned JPEG encoder. | Quality 5–100, default 95. Subsampling `auto`, `444`, `440`, `422`, or `420`. Studio and CLI expose both. |
+| TIFF | Classic little-endian, top-left, contiguous rendered output. | Default is unsigned 8-bit, Deflate with horizontal predictor, level 6, RGB, and 300 DPI. Studio and CLI can request uint16, float16, or float32, compression, level, conditional grayscale, and 72–9600 DPI. |
 | Original copy | The original source bytes copied to a new destination. | No Develop rendering or re-encoding occurs. The source is never rewritten. |
 
 Rendered export uses the active catalog recipe. A RAW export uses the processed
@@ -62,12 +61,19 @@ The CLI form is:
 
 ```text
 ravo catalog export --catalog <library.sqlite> --asset-id <id> \
-  --output <file> --format png|jpeg|tiff|tif|original --json
+  --output <file> --format png|jpeg|tiff|tif|original \
+  [--quality 5..100] [--jpeg-subsampling auto|444|440|422|420] \
+  [--png-bit-depth 8|16] [--png-compression 0..9] \
+  [--tiff-sample-type uint8|uint16|float16|float32] \
+  [--tiff-compression none|deflate|deflate_predictor] \
+  [--tiff-compression-level 1..9] \
+  [--tiff-grayscale-if-neutral] [--tiff-resolution-dpi 72..9600] --json
 ```
 
 Common options:
 
-- `--quality 5..100` for JPEG; default `95`.
+- `--quality 5..100` for JPEG only; default `95`.
+- `--jpeg-subsampling auto|444|440|422|420` for JPEG only; default `auto`.
 - `--max-edge N` to fit a rendered result within a positive maximum edge.
 
 PNG-only options:
@@ -81,11 +87,13 @@ TIFF-only options:
 - `--tiff-compression none|deflate|deflate_predictor`.
 - `--tiff-compression-level 1..9`.
 - `--tiff-grayscale-if-neutral`.
+- `--tiff-resolution-dpi 72..9600`; default `300`.
 
 PNG `16` and TIFF `uint16` / `float16` / `float32` requests render
 engine-owned higher-precision samples from the active recipe. An 8-bit source
-still fails closed instead of inventing precision. PNG- and TIFF-qualified
-flags are rejected outside their matching export format.
+still fails closed instead of inventing precision. JPEG-, PNG-, and
+TIFF-qualified flags are rejected outside their matching export format and
+outside `catalog export`.
 
 ## Destination conflict behavior
 

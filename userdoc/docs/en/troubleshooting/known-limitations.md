@@ -51,8 +51,9 @@ has no relink-by-search workflow. Restore the original at its recorded path.
 Studio exports the active photo only. Multi-selection can update review state
 and catalog metadata, but it is not an implicit batch-export job.
 
-Studio currently selects the output format but does not expose JPEG quality or
-the typed PNG/TIFF controls. Use `ravo catalog export` for those CLI options.
+Studio and CLI expose the same typed JPEG, PNG, and TIFF options for a single
+active photo. There is still no remembered last value, preset, or batch-export
+job.
 
 ### Output precision and metadata
 

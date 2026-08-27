@@ -37,6 +37,8 @@ ApplicationWindow {
                                                    (activeFocusItem instanceof TextInput ||
                                                     activeFocusItem instanceof TextEdit)
     property string lastGalleryMode: "grid"
+    property string pendingExportFormat: ""
+    property var pendingExportOptions: ({})
     readonly property rect navigatorVisible: {
         if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
             return Qt.rect(0, 0, 1, 1);
@@ -93,12 +95,26 @@ ApplicationWindow {
         importFolderDialog.openDialog();
     }
 
+    function exportNameFilter(format) {
+        if (format === "jpeg")
+            return qsTr("JPEG (*.jpg *.jpeg)");
+        if (format === "png")
+            return qsTr("PNG (*.png)");
+        if (format === "tiff")
+            return qsTr("TIFF (*.tif *.tiff)");
+        return qsTr("Original copy (*)");
+    }
+
+    function clearPendingExport() {
+        window.pendingExportFormat = "";
+        window.pendingExportOptions = ({});
+    }
+
     function openExportDialog() {
         if (!studio.selectedAssetId.length)
             return;
-        exportDialog.currentFolder = studio.defaultCatalogFolder;
-        exportDialog.initialSelectedFile = studio.selectedDisplayName;
-        exportDialog.openDialog();
+        window.clearPendingExport();
+        exportOptionsDialog.openForExport();
     }
 
     function startLibrarySession() {
@@ -178,7 +194,8 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible ||
+               exportOptionsDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -847,16 +864,36 @@ ApplicationWindow {
         }
     }
 
+    ExportOptionsDialog {
+        id: exportOptionsDialog
+        parentItem: window.contentItem
+        presenter: studio
+        onExportAccepted: function (format, options) {
+            window.pendingExportFormat = format;
+            window.pendingExportOptions = options;
+            exportDialog.nameFilters = [window.exportNameFilter(format)];
+            exportDialog.currentFolder = studio.defaultCatalogFolder;
+            exportDialog.initialSelectedFile = studio.selectedDisplayName;
+            exportDialog.openDialog();
+        }
+        onExportCanceled: window.clearPendingExport()
+    }
+
     QmlFileDialogPage {
         id: exportDialog
-        dialogTitle: qsTr("Export Photo")
+        dialogTitle: qsTr("Save Export")
         dialogMode: "save"
-        nameFilters: ["JPEG (*.jpg *.jpeg)", "PNG (*.png)", "TIFF (*.tif *.tiff)", "Original copy (*)"]
-        onFileAccepted: function (filePath, selectedFilter) {
+        nameFilters: [qsTr("PNG (*.png)")]
+        onFileAccepted: function (filePath) {
+            const format = window.pendingExportFormat;
+            const options = window.pendingExportOptions;
+            window.clearPendingExport();
             studioActions.run(studioActions.ids.libraryExportWrite, {
                     "path": filePath,
-                    "filter": selectedFilter
+                    "format": format,
+                    "options": options
                 });
         }
+        onFileRejected: window.clearPendingExport()
     }
 }

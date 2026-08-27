@@ -905,6 +905,165 @@
     </message>
 </context>
 <context>
+    <name>ExportOptionsDialog</name>
+    <message>
+        <source>Export Photo</source>
+        <translation>导出照片</translation>
+    </message>
+    <message>
+        <source>Format</source>
+        <translation>格式</translation>
+    </message>
+    <message>
+        <source>Quality</source>
+        <translation>质量</translation>
+    </message>
+    <message>
+        <source>JPEG quality</source>
+        <translation>JPEG 质量</translation>
+    </message>
+    <message>
+        <source>Subsampling</source>
+        <translation>子采样</translation>
+    </message>
+    <message>
+        <source>JPEG subsampling</source>
+        <translation>JPEG 子采样</translation>
+    </message>
+    <message>
+        <source>Bit depth</source>
+        <translation>位深度</translation>
+    </message>
+    <message>
+        <source>PNG bit depth</source>
+        <translation>PNG 位深度</translation>
+    </message>
+    <message>
+        <source>Compression</source>
+        <translation>压缩</translation>
+    </message>
+    <message>
+        <source>PNG compression</source>
+        <translation>PNG 压缩</translation>
+    </message>
+    <message>
+        <source>Sample type</source>
+        <translation>采样类型</translation>
+    </message>
+    <message>
+        <source>TIFF sample type</source>
+        <translation>TIFF 采样类型</translation>
+    </message>
+    <message>
+        <source>TIFF compression</source>
+        <translation>TIFF 压缩</translation>
+    </message>
+    <message>
+        <source>Compression level</source>
+        <translation>压缩级别</translation>
+    </message>
+    <message>
+        <source>TIFF compression level</source>
+        <translation>TIFF 压缩级别</translation>
+    </message>
+    <message>
+        <source>Write grayscale when the image is neutral</source>
+        <translation>图像为中性时写入灰度</translation>
+    </message>
+    <message>
+        <source>Resolution (dpi)</source>
+        <translation>分辨率（dpi）</translation>
+    </message>
+    <message>
+        <source>TIFF resolution</source>
+        <translation>TIFF 分辨率</translation>
+    </message>
+    <message>
+        <source>Original copy writes the exact source bytes. Rendered format options are not used.</source>
+        <translation>原始副本写入完全相同的源字节。不会使用渲染格式选项。</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>继续</translation>
+    </message>
+    <message>
+        <source>JPEG</source>
+        <translation>JPEG</translation>
+    </message>
+    <message>
+        <source>PNG</source>
+        <translation>PNG</translation>
+    </message>
+    <message>
+        <source>TIFF</source>
+        <translation>TIFF</translation>
+    </message>
+    <message>
+        <source>Original copy</source>
+        <translation>原始副本</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <source>4:4:4</source>
+        <translation>4:4:4</translation>
+    </message>
+    <message>
+        <source>4:4:0</source>
+        <translation>4:4:0</translation>
+    </message>
+    <message>
+        <source>4:2:2</source>
+        <translation>4:2:2</translation>
+    </message>
+    <message>
+        <source>4:2:0</source>
+        <translation>4:2:0</translation>
+    </message>
+    <message>
+        <source>8-bit</source>
+        <translation>8 位</translation>
+    </message>
+    <message>
+        <source>16-bit</source>
+        <translation>16 位</translation>
+    </message>
+    <message>
+        <source>Unsigned 8-bit</source>
+        <translation>无符号 8 位</translation>
+    </message>
+    <message>
+        <source>Unsigned 16-bit</source>
+        <translation>无符号 16 位</translation>
+    </message>
+    <message>
+        <source>16-bit float</source>
+        <translation>16 位浮点</translation>
+    </message>
+    <message>
+        <source>32-bit float</source>
+        <translation>32 位浮点</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>无</translation>
+    </message>
+    <message>
+        <source>Deflate</source>
+        <translation>Deflate</translation>
+    </message>
+    <message>
+        <source>Deflate + predictor</source>
+        <translation>Deflate + 预测器</translation>
+    </message>
+</context>
+<context>
     <name>FolderDialogPage</name>
     <message>
         <source>Select Folder</source>
@@ -998,6 +1157,22 @@
     <message>
         <source>Ravo Studio</source>
         <translation>Ravo Studio</translation>
+    </message>
+    <message>
+        <source>JPEG (*.jpg *.jpeg)</source>
+        <translation>JPEG (*.jpg *.jpeg)</translation>
+    </message>
+    <message>
+        <source>PNG (*.png)</source>
+        <translation>PNG (*.png)</translation>
+    </message>
+    <message>
+        <source>TIFF (*.tif *.tiff)</source>
+        <translation>TIFF (*.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Original copy (*)</source>
+        <translation>原始副本 (*)</translation>
     </message>
     <message>
         <source>Remove %1 photos from the library? Original files on disk will not be deleted.</source>
@@ -1204,8 +1379,8 @@
         <translation>导入文件夹</translation>
     </message>
     <message>
-        <source>Export Photo</source>
-        <translation>导出照片</translation>
+        <source>Save Export</source>
+        <translation>保存导出</translation>
     </message>
 </context>
 <context>
@@ -1701,6 +1876,101 @@
         <source>Window</source>
         <translation>窗口</translation>
     </message>
+    <message>
+        <source>Unknown command argument field: %1.</source>
+        <translation>未知的命令参数字段：%1。</translation>
+    </message>
+    <message>
+        <source>Export path must be a string.</source>
+        <translation>导出路径必须是字符串。</translation>
+    </message>
+    <message>
+        <source>Export options must be an object.</source>
+        <translation>导出选项必须是对象。</translation>
+    </message>
+</context>
+<context>
+    <name>StudioExport</name>
+    <message>
+        <source>Unknown JPEG subsampling mode</source>
+        <translation>未知的 JPEG 色度抽样模式</translation>
+    </message>
+    <message>
+        <source>JPEG quality must be between 5 and 100</source>
+        <translation>JPEG 质量必须在 5 到 100 之间</translation>
+    </message>
+    <message>
+        <source>Unknown PNG bit depth</source>
+        <translation>未知的 PNG 位深度</translation>
+    </message>
+    <message>
+        <source>PNG compression must be between 0 and 9</source>
+        <translation>PNG 压缩级别必须在 0 到 9 之间</translation>
+    </message>
+    <message>
+        <source>Unknown TIFF sample type</source>
+        <translation>未知的 TIFF 采样类型</translation>
+    </message>
+    <message>
+        <source>Unknown TIFF compression mode</source>
+        <translation>未知的 TIFF 压缩模式</translation>
+    </message>
+    <message>
+        <source>TIFF compression level must be between 1 and 9</source>
+        <translation>TIFF 压缩级别必须在 1 到 9 之间</translation>
+    </message>
+    <message>
+        <source>TIFF resolution must be between 72 and 9600 DPI</source>
+        <translation>TIFF 分辨率必须在 72 到 9600 DPI 之间</translation>
+    </message>
+    <message>
+        <source>Export option must be an integer</source>
+        <translation>导出选项必须是整数</translation>
+    </message>
+    <message>
+        <source>Export option is outside the integer range</source>
+        <translation>导出选项超出整数范围</translation>
+    </message>
+    <message>
+        <source>Export option must be a whole number</source>
+        <translation>导出选项必须是整数</translation>
+    </message>
+    <message>
+        <source>Export option has an unsupported value type</source>
+        <translation>导出选项的值类型不受支持</translation>
+    </message>
+    <message>
+        <source>Export option must be a boolean</source>
+        <translation>导出选项必须是布尔值</translation>
+    </message>
+    <message>
+        <source>Export option must be a canonical name</source>
+        <translation>导出选项必须是规范名称</translation>
+    </message>
+    <message>
+        <source>Export option is not valid for the selected format</source>
+        <translation>导出选项不适用于所选格式</translation>
+    </message>
+    <message>
+        <source>Export option is required for the selected format</source>
+        <translation>所选格式缺少必需的导出选项</translation>
+    </message>
+    <message>
+        <source>Unknown export format</source>
+        <translation>未知的导出格式</translation>
+    </message>
+    <message>
+        <source>Export options map was mutated during conversion</source>
+        <translation>转换过程中导出选项映射发生了变化</translation>
+    </message>
+    <message>
+        <source>Export path must not be empty</source>
+        <translation>导出路径不能为空</translation>
+    </message>
+    <message>
+        <source>Export path suffix does not match the selected format</source>
+        <translation>文件扩展名与所选导出格式不匹配。</translation>
+    </message>
 </context>
 <context>
     <name>StudioLanguageManager</name>
@@ -1785,10 +2055,6 @@
     <message>
         <source>Library opened.</source>
         <translation>图库已打开。</translation>
-    </message>
-    <message>
-        <source>Export path must not be empty.</source>
-        <translation>导出路径不能为空。</translation>
     </message>
     <message>
         <source>Exporting…</source>

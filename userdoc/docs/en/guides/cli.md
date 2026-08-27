@@ -281,7 +281,7 @@ Render a selected asset:
 ```text
 ravo catalog export --catalog "/work/Ravo Library.sqlite" \
   --asset-id asset-123 --output "/exports/photo.jpg" \
-  --format jpeg --quality 92 --json
+  --format jpeg --quality 92 --jpeg-subsampling auto --json
 ```
 
 Export an exact original copy:
@@ -307,7 +307,7 @@ ravo catalog export --catalog "/work/Ravo Library.sqlite" \
   --asset-id asset-123 --output "/exports/photo.tif" --format tiff \
   --tiff-compression deflate_predictor \
   --tiff-compression-level 6 --tiff-sample-type uint8 \
-  --tiff-grayscale-if-neutral --json
+  --tiff-grayscale-if-neutral --tiff-resolution-dpi 300 --json
 ```
 
 Accepted format spellings are `png`, `jpeg`/`jpg`, `tiff`/`tif`, and

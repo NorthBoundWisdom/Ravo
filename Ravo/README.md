@@ -101,7 +101,7 @@ Current implementation status:
   quality/subsampling request. Quality defaults to 95 within the frozen 5–100
   range; automatic sampling follows the frozen quality thresholds, while
   service callers may select 4:4:4, 4:4:0, 4:2:2, or 4:2:0 explicitly. The CLI
-  currently exposes quality only. Rendered JPEG embeds Catalog-owned Exif APP1,
+  exposes quality and `auto|444|440|422|420` subsampling. Studio and CLI share those typed values. Rendered JPEG embeds Catalog-owned Exif APP1,
   standard XMP APP1, and optional IPTC Photoshop APP13 from one snapshot before
   ADR-0032 publication; capture timezone/GPS and sidecar/history policy remain
   later S9/J6 work.
@@ -112,7 +112,7 @@ Current implementation status:
   and cICP only for recognized built-in profile state. Product PNG16 requests
   render engine-owned RGB16 into that encoder; an RGB8 source still rejects
   16-bit structurally instead of expanding 8-bit samples. CLI exposes
-  `--png-bit-depth 8|16` and `--png-compression 0..9`. Rendered PNG embeds one
+  `--png-bit-depth 8|16` and `--png-compression 0..9`; Studio exposes the same typed PNG options. Rendered PNG embeds one
   `eXIf` TIFF profile and one uncompressed XMP `iTXt`; it still writes no pHYs
   or IPTC. Capture timezone/GPS and sidecar/history policy remain later S9/J6.
 - TIFF export uses one typed sample/compression/resolution request from
@@ -130,12 +130,13 @@ Current implementation status:
   `catalog export --format tiff|tif` exposes `--tiff-sample-type` with
   `uint8|uint16|float16|float32`, `--tiff-compression` with
   `none|deflate|deflate_predictor`, `--tiff-compression-level` from 1 through 9,
-  and `--tiff-grayscale-if-neutral`. Value-bearing TIFF flags use the existing
-  last-value-wins CLI rule, while the boolean flag rejects duplicates; every
-  TIFF flag is rejected outside a TIFF export. Product uint16/float16/float32
+  `--tiff-grayscale-if-neutral`, and `--tiff-resolution-dpi` from 72 through 9600.
+  Value-bearing TIFF flags use the existing last-value-wins CLI rule, while the
+  boolean flag rejects duplicates; every TIFF flag is rejected outside a TIFF export.
+  Studio exposes the same typed TIFF options. Product uint16/float16/float32
   requests render engine-owned RGB16 or finite RGB float; an RGB8 source still
   fails structurally instead of fabricating precision. Capture timezone/GPS,
-  sidecar/history policy, multipage masks, explicit TIFF Studio options, shared
+  sidecar/history policy, multipage masks, shared
   consumers, and retirement remain later I13/S9/J6 work. TIFF bytes complete in
   memory before the shared ADR-0032 atomic no-replace publication; source and
   sidecar files are never rewritten.
@@ -389,10 +390,10 @@ ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--se
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|tif|original [--quality 95] \
+ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|tif|original [--quality 5..100] [--jpeg-subsampling auto|444|440|422|420] \
   [--png-bit-depth 8|16] [--png-compression 0..9] \
   [--tiff-sample-type uint8|uint16|float16|float32] [--tiff-compression none|deflate|deflate_predictor] \
-  [--tiff-compression-level 1..9] [--tiff-grayscale-if-neutral] --json
+  [--tiff-compression-level 1..9] [--tiff-grayscale-if-neutral] [--tiff-resolution-dpi 72..9600] --json
 ```
 
 An existing output path returns structured `conflict`; it is never overwritten

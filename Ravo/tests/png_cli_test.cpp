@@ -676,6 +676,13 @@ TEST_F(PngCliTest, ExplicitPngFlagsRequireAPngExportRegardlessOfOrder)
 
     const auto list = run({"catalog", "list", "--catalog", catalog_, "--png-bit-depth", "8"});
     expect_error(list, 2, "invalid_argument", "png_options_require_png_export");
+
+    const auto jpeg_quality =
+        run(export_arguments(root_ / "jpeg-quality.out", {"--format", "png", "--quality", "90"}));
+    expect_error(jpeg_quality, 2, "invalid_argument", "jpeg_options_require_jpeg_export");
+    const auto jpeg_subsampling = run(export_arguments(
+        root_ / "jpeg-subsampling.out", {"--format", "png", "--jpeg-subsampling", "420"}));
+    expect_error(jpeg_subsampling, 2, "invalid_argument", "jpeg_options_require_jpeg_export");
 }
 
 } // namespace

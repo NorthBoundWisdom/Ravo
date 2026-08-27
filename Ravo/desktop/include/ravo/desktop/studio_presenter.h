@@ -19,6 +19,7 @@
 #include <QUrl>
 #include <QVariant>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/folder_list_model.h"
@@ -367,7 +368,15 @@ public:
     Q_INVOKABLE void openCatalogFromPath(const QString &path);
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
     Q_INVOKABLE void importFolderFromPath(const QString &path);
-    Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &filter = {});
+    Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &format,
+                                          const QVariantMap &options);
+    Q_INVOKABLE QVariantList exportFormatChoices() const;
+    Q_INVOKABLE QVariantList jpegSubsamplingChoices() const;
+    Q_INVOKABLE QVariantList pngBitDepthChoices() const;
+    Q_INVOKABLE QVariantList tiffSampleTypeChoices() const;
+    Q_INVOKABLE QVariantList tiffCompressionChoices() const;
+    Q_INVOKABLE QVariantMap exportDefaultOptions() const;
+    Q_INVOKABLE QVariantMap exportOptionBounds() const;
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectAssetRange(const QString &asset_id);
     Q_INVOKABLE void toggleAssetSelected(const QString &asset_id);

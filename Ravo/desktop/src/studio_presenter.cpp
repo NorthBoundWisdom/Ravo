@@ -1,5 +1,7 @@
 #include "ravo/desktop/studio_presenter.h"
 
+#include "ravo/desktop/export_option_conversion.h"
+
 #include <algorithm>
 #include <memory>
 #include <optional>
@@ -992,50 +994,67 @@ void StudioPresenter::importFolderFromPath(const QString &path)
     importFolder(url_from_dialog_path(path));
 }
 
-void StudioPresenter::exportSelectedToPath(const QString &path, const QString &filter)
+QVariantList StudioPresenter::exportFormatChoices() const
+{
+    return studio_export_format_choices();
+}
+
+QVariantList StudioPresenter::jpegSubsamplingChoices() const
+{
+    return studio_jpeg_subsampling_choices();
+}
+
+QVariantList StudioPresenter::pngBitDepthChoices() const
+{
+    return studio_png_bit_depth_choices();
+}
+
+QVariantList StudioPresenter::tiffSampleTypeChoices() const
+{
+    return studio_tiff_sample_type_choices();
+}
+
+QVariantList StudioPresenter::tiffCompressionChoices() const
+{
+    return studio_tiff_compression_choices();
+}
+
+QVariantMap StudioPresenter::exportDefaultOptions() const
+{
+    return studio_export_default_options();
+}
+
+QVariantMap StudioPresenter::exportOptionBounds() const
+{
+    return studio_export_option_bounds();
+}
+
+void StudioPresenter::exportSelectedToPath(const QString &path, const QString &format,
+                                           const QVariantMap &options)
 {
     if (busy_ || catalog_path_.isEmpty() || selected_asset_id_.isEmpty())
     {
         return;
     }
-    QString output = path.trimmed();
-    if (output.startsWith(QStringLiteral("file:")))
+    auto request =
+        make_studio_export_request(utf8_from_qstring(selected_asset_id_), path, format, options);
+    if (!request)
     {
-        output = QUrl(output).toLocalFile();
-    }
-    if (output.isEmpty())
-    {
-        setError(QCoreApplication::translate("StudioPresenter", "Export path must not be empty."));
+        setError(QCoreApplication::translate("StudioExport", request.error().message.c_str()));
         return;
     }
-    auto format = export_format_from_ui(output, filter);
-    if (!format)
-    {
-        setError(qstring_from_utf8(format.error().message));
-        return;
-    }
-    if (QFileInfo(output).suffix().isEmpty() && format.value() != ExportFormat::kOriginalCopy)
-    {
-        output += QString::fromUtf8(
-            export_format_extension(format.value()).data(),
-            static_cast<qsizetype>(export_format_extension(format.value()).size()));
-    }
+    ExportRequest snapshot = std::move(request).value();
+    snapshot.cancellation = shutdown_.token();
     setBusy(true);
     setError({});
     setStatus(QCoreApplication::translate("StudioPresenter", "Exporting…"));
     executor_.post(
-        [this, asset_id = utf8_from_qstring(selected_asset_id_),
-         output_path = utf8_from_qstring(output), export_format = format.value()]()
+        [this, snapshot]()
         {
             Result<ExportResult> exported = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
-                ExportRequest request;
-                request.asset_id = asset_id;
-                request.output_path = output_path;
-                request.format = export_format;
-                request.cancellation = shutdown_.token();
-                exported = service_->export_asset(request);
+                exported = service_->export_asset(snapshot);
             }
             QMetaObject::invokeMethod(
                 this,

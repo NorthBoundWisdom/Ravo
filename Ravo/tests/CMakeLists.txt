@@ -39,7 +39,7 @@ add_executable(ravo_contract_tests
   output_color_test.cpp
   profile_gamma_test.cpp
   primaries_test.cpp)
-target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli)
+target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli Qt6::Gui)
 target_include_directories(ravo_contract_tests PRIVATE
   $<TARGET_PROPERTY:lcms2,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>
@@ -283,13 +283,17 @@ gtest_discover_tests(ravo_original_copy_cli_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-original-copy-cli")
 
-add_executable(ravo_desktop_command_tests studio_command_test.cpp)
+add_executable(ravo_desktop_command_tests
+  studio_command_test.cpp
+  export_option_conversion_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)
 target_include_directories(ravo_desktop_command_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n"
-  RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml")
+  RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml"
+  RAVO_STUDIO_EXPORT_OPTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ExportOptionsDialog.qml"
+  RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
 add_dependencies(ravo_desktop_command_tests ravo_studio_translations)
 ravo_configure_target(ravo_desktop_command_tests)
 ravo_copy_windows_runtime_dlls(ravo_desktop_command_tests)

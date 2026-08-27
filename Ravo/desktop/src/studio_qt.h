@@ -6,7 +6,6 @@
 #include <vector>
 
 #include <QCoreApplication>
-#include <QFileInfo>
 #include <QStandardPaths>
 #include <QString>
 #include <QUrl>
@@ -104,47 +103,6 @@ namespace ravo
         return QUrl(trimmed);
     }
     return QUrl::fromLocalFile(trimmed);
-}
-
-[[nodiscard]] inline Result<ExportFormat> export_format_from_ui(const QString &path,
-                                                                const QString &filter)
-{
-    const QString suffix = QFileInfo(path).suffix().toLower();
-    if (suffix == QLatin1String("png"))
-    {
-        return ExportFormat::kPng;
-    }
-    if (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg"))
-    {
-        return ExportFormat::kJpeg;
-    }
-    if (suffix == QLatin1String("tif") || suffix == QLatin1String("tiff"))
-    {
-        return ExportFormat::kTiff;
-    }
-    const QString lowered = filter.toLower();
-    if (lowered.contains(QLatin1String("original")))
-    {
-        return ExportFormat::kOriginalCopy;
-    }
-    if (lowered.contains(QLatin1String("jpeg")) || lowered.contains(QLatin1String("jpg")))
-    {
-        return ExportFormat::kJpeg;
-    }
-    if (lowered.contains(QLatin1String("png")))
-    {
-        return ExportFormat::kPng;
-    }
-    if (lowered.contains(QLatin1String("tif")))
-    {
-        return ExportFormat::kTiff;
-    }
-    if (suffix.isEmpty())
-    {
-        return ExportFormat::kPng;
-    }
-    return make_error(ErrorCode::kValidation, "Unable to infer export format",
-                      {{"path", utf8_from_qstring(path)}, {"filter", utf8_from_qstring(filter)}});
 }
 
 [[nodiscard]] inline QString describe_import(const std::vector<ImportItemResult> &results)

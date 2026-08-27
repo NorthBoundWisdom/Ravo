@@ -2,6 +2,8 @@
 
 #include <array>
 
+#include <QVariantMap>
+
 #include <QCoreApplication>
 #include <QFile>
 #include <QKeySequence>
@@ -364,6 +366,21 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("色彩校正 · D50 Lab"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Allow extended chroma"),
               QStringLiteral("允许扩展色度"));
+    EXPECT_EQ(QCoreApplication::translate("ExportOptionsDialog", "Format"), QStringLiteral("格式"));
+    EXPECT_EQ(QCoreApplication::translate("ExportOptionsDialog", "Continue"),
+              QStringLiteral("继续"));
+    EXPECT_EQ(QCoreApplication::translate("ExportOptionsDialog", "Automatic"),
+              QStringLiteral("自动"));
+    EXPECT_EQ(QCoreApplication::translate("ExportOptionsDialog",
+                                          "Write grayscale when the image is neutral"),
+              QStringLiteral("图像为中性时写入灰度"));
+    EXPECT_EQ(QCoreApplication::translate("StudioCommands", "Export path must be a string."),
+              QStringLiteral("导出路径必须是字符串。"));
+    EXPECT_EQ(QCoreApplication::translate("StudioExport",
+                                          "Export path suffix does not match the selected format"),
+              QStringLiteral("文件扩展名与所选导出格式不匹配。"));
+    EXPECT_EQ(QCoreApplication::translate("StudioExport", "JPEG quality must be between 5 and 100"),
+              QStringLiteral("JPEG 质量必须在 5 到 100 之间"));
 
     QCoreApplication::removeTranslator(&translator);
 }
@@ -461,6 +478,132 @@ TEST(StudioCommands, ControllerRevalidatesStateAndRejectsInvalidDispatch)
         EXPECT_TRUE(entry.value(QStringLiteral("enabled")).toBool());
     }
     EXPECT_TRUE(found_palette_shortcut);
+}
+
+TEST(StudioCommands, ExportWriteRevalidatesCatalogAndRejectsLegacyFilterPayload)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto ids = controller.ids();
+    const auto export_write = ids.value(QStringLiteral("libraryExportWrite")).toString();
+    const auto export_open = ids.value(QStringLiteral("libraryExport")).toString();
+
+    const auto open_action = controller.action(export_open);
+    EXPECT_FALSE(open_action.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(open_action.value(QStringLiteral("disabledReason")).toString().isEmpty());
+
+    const auto unavailable = controller.executeCommand(
+        export_write,
+        QVariantMap{{QStringLiteral("path"), QStringLiteral("/tmp/out.jpg")},
+                    {QStringLiteral("format"), QStringLiteral("jpeg")},
+                    {QStringLiteral("options"),
+                     QVariantMap{{QStringLiteral("quality"), 95},
+                                 {QStringLiteral("jpegSubsampling"), QStringLiteral("auto")}}}},
+        QStringLiteral("control"));
+    EXPECT_FALSE(unavailable.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(unavailable.value(QStringLiteral("code")).toString(), QStringLiteral("unavailable"));
+
+    const auto legacy_filter = controller.executeCommand(
+        export_write,
+        QVariantMap{{QStringLiteral("path"), QStringLiteral("/tmp/out.jpg")},
+                    {QStringLiteral("filter"), QStringLiteral("JPEG (*.jpg *.jpeg)")}},
+        QStringLiteral("control"));
+    EXPECT_FALSE(legacy_filter.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(legacy_filter.value(QStringLiteral("code")).toString(),
+              QStringLiteral("unavailable"));
+}
+
+TEST(StudioPresenterTest, ExportPresentationCatalogExposesCanonicalDefaults)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    const auto formats = presenter.exportFormatChoices();
+    ASSERT_EQ(formats.size(), 4);
+    EXPECT_EQ(formats.at(0).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("jpeg"));
+    EXPECT_EQ(formats.at(3).toMap().value(QStringLiteral("id")).toString(),
+              QStringLiteral("original"));
+    const auto defaults = presenter.exportDefaultOptions();
+    EXPECT_EQ(defaults.value(QStringLiteral("format")).toString(), QStringLiteral("jpeg"));
+    EXPECT_EQ(defaults.value(QStringLiteral("quality")).toInt(), 95);
+    EXPECT_EQ(defaults.value(QStringLiteral("jpegSubsampling")).toString(), QStringLiteral("auto"));
+    EXPECT_EQ(defaults.value(QStringLiteral("pngBitDepth")).toString(), QStringLiteral("8"));
+    EXPECT_EQ(defaults.value(QStringLiteral("pngCompression")).toInt(), 5);
+    EXPECT_EQ(defaults.value(QStringLiteral("tiffSampleType")).toString(), QStringLiteral("uint8"));
+    EXPECT_EQ(defaults.value(QStringLiteral("tiffCompression")).toString(),
+              QStringLiteral("deflate_predictor"));
+    EXPECT_EQ(defaults.value(QStringLiteral("tiffCompressionLevel")).toInt(), 6);
+    EXPECT_FALSE(defaults.value(QStringLiteral("tiffGrayscaleIfNeutral")).toBool());
+    EXPECT_EQ(defaults.value(QStringLiteral("tiffResolutionDpi")).toInt(), 300);
+    const auto bounds = presenter.exportOptionBounds();
+    EXPECT_EQ(bounds.value(QStringLiteral("jpegQualityMin")).toInt(), 5);
+    EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMax")).toInt(), 9600);
+}
+
+TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing)
+{
+    QFile dialog(QStringLiteral(RAVO_STUDIO_EXPORT_OPTIONS_QML));
+    ASSERT_TRUE(dialog.open(QIODevice::ReadOnly | QIODevice::Text))
+        << dialog.errorString().toStdString();
+    const auto source = QString::fromUtf8(dialog.readAll());
+
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"ExportOptionsDialog\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Format\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Quality\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Subsampling\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Bit depth\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Compression\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Sample type\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Compression level\")")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("qsTr(\"Write grayscale when the image is neutral\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Resolution (dpi)\")")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("qsTr(\"Original copy writes the exact source bytes")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Cancel\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Continue\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exportFormatChoices()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exportDefaultOptions()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.exportOptionBounds()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetFromPresenter()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("exportAccepted")));
+    EXPECT_TRUE(source.contains(QStringLiteral("exportCanceled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Accessible.name")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Keys.onEscapePressed")));
+    EXPECT_TRUE(source.contains(QStringLiteral("tiffCompressionId !== \"none\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"jpegQuality\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"jpegSubsampling\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"pngBitDepth\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"pngCompression\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffSampleType\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffCompression\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffCompressionLevel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffGrayscaleIfNeutral\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffResolutionDpi\"")));
+    EXPECT_FALSE(source.contains(QStringLiteral("parse_export")));
+    EXPECT_FALSE(source.contains(QStringLiteral("export_format_from_ui")));
+    EXPECT_FALSE(source.contains(QStringLiteral("JpegExportOptions")));
+    EXPECT_FALSE(source.contains(QStringLiteral("toLowerCase()")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Math.round")));
+    EXPECT_FALSE(source.contains(QStringLiteral("property double jpegQuality: 95")));
+    EXPECT_FALSE(source.contains(QStringLiteral("property double tiffResolutionDpi: 300")));
+}
+
+TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("ExportOptionsDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("pendingExportFormat")));
+    EXPECT_TRUE(source.contains(QStringLiteral("pendingExportOptions")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"format\": format")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"options\": options")));
+    EXPECT_TRUE(source.contains(QStringLiteral("onFileRejected: window.clearPendingExport()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("exportOptionsDialog.visible")));
+    EXPECT_FALSE(source.contains(QStringLiteral("\"filter\": selectedFilter")));
+    EXPECT_FALSE(source.contains(QStringLiteral("JPEG (*.jpg *.jpeg)\", \"PNG (*.png)\"")));
 }
 
 } // namespace

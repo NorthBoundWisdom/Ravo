@@ -13,7 +13,9 @@ target_sources(ravo_desktop
     src/studio_presenter.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
+    src/export_option_conversion.cpp
     include/ravo/desktop/asset_list_model.h
+    include/ravo/desktop/export_option_conversion.h
     include/ravo/desktop/folder_list_model.h
     include/ravo/desktop/preview_request_owner.h
     include/ravo/desktop/studio_command_controller.h
@@ -123,6 +125,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/ToneCurveEditor.qml
     qml/inspect/ScopePanel.qml
     qml/chrome/FolderDialogPage.qml
+    qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
     qml/chrome/StudioActions.qml
     qml/chrome/StudioCommandMenuItems.qml
