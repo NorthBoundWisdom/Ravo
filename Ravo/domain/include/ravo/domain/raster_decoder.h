@@ -67,6 +67,13 @@ public:
         return encode(width, height, rgb, color_profile, format, jpeg_options, cancellation,
                       png_options, tiff_options);
     }
+    // Tagged source is borrowed only for this synchronous call. Implementations
+    // must handle every alternative explicitly; there is no default fallback.
+    [[nodiscard]] virtual Result<std::vector<std::uint8_t>>
+    encode(const ExportPixelBuffer &source, ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const = 0;
 };
 
 } // namespace ravo

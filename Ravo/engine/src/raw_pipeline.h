@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -36,9 +37,9 @@ resolve_legacy_exposure_metadata(const LegacyExposureMetadataTags &tags);
                                             const CancellationToken &cancellation);
 [[nodiscard]] Result<std::shared_ptr<const ExposureAnalysisContext>>
 build_exposure_analysis_context(const DecodedRaw &raw, const CancellationToken &cancellation);
-[[nodiscard]] std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe,
-                                                       std::uint32_t width,
-                                                       std::uint32_t height) noexcept;
+[[nodiscard]] std::uint64_t
+estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe, std::uint32_t width,
+                           std::uint32_t height, std::size_t output_bytes_per_pixel = 3U) noexcept;
 [[nodiscard]] Result<void> write_png_atomically(std::string_view output_uri,
                                                 const RenderedImage &image);
 

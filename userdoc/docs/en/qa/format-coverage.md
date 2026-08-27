@@ -30,14 +30,14 @@ supported by copying or renaming them.
 
 | Output | Current behavior | User-facing options |
 | --- | --- | --- |
-| PNG | Opaque RGB8 output with resolved supported ICC state. | Studio format selection; CLI uses the typed default compression 5. The current CLI does not expose a PNG bit-depth flag. A 16-bit request is structurally unsupported from the RGB8 source. |
+| PNG | Opaque 8-bit or 16-bit output with resolved supported ICC state. | Studio format selection; CLI `--png-bit-depth 8|16` and `--png-compression 0..9`, defaults 8/5. A 16-bit request from an 8-bit source is structurally unsupported. |
 | JPEG | Opaque rendered output with resolved supported ICC state. | Studio format selection; CLI `--quality 5..100`, default 95. |
 | TIFF | Classic little-endian, top-left, contiguous output with baseline directory metadata and supported ICC state. | Studio format selection; CLI sample type, compression, level, and optional grayscale. Default is uint8 / Deflate predictor / level 6 / RGB / 300 DPI. |
 | Original copy | Exact source bytes copied to a new destination. | Studio filter or CLI `--format original`, `copy`, or `original-copy`. No Develop rendering. |
 
-TIFF accepts typed `uint16`, `float16`, and `float32` requests for validation but
-the current RGB8 rendered source returns unsupported for those requests. TIFF
-qualified flags are valid only with TIFF export.
+TIFF product export accepts typed `uint16`, `float16`, and `float32` from
+engine-owned samples. An 8-bit source still returns unsupported for those
+requests. TIFF-qualified flags are valid only with TIFF export.
 
 ## Profile and metadata boundary
 

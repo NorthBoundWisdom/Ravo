@@ -38,9 +38,9 @@ the CLI when you need JPEG quality or TIFF-specific options.
 
 | Format | What Ravo writes | Current options and boundary |
 | --- | --- | --- |
-| PNG | Opaque RGB8 rendered pixels with resolved color metadata when supported. | Default compression is 5. The current rendered source is RGB8; a legal 16-bit request is rejected rather than padded with invented precision. |
+| PNG | Opaque rendered RGB pixels with resolved color metadata when supported. | Default is 8-bit compression 5. `--png-bit-depth 16` writes engine-owned 16-bit samples. An 8-bit source is rejected rather than padded with invented precision. |
 | JPEG | Opaque rendered RGB pixels through the pinned JPEG encoder. | Quality defaults to 95 and is valid from 5–100. Studio does not expose quality; the CLI does. |
-| TIFF | Classic little-endian, top-left, contiguous rendered output. | Default is unsigned 8-bit, Deflate with horizontal predictor, level 6, RGB, and 300 DPI. Conditional grayscale and typed TIFF settings are CLI options. |
+| TIFF | Classic little-endian, top-left, contiguous rendered output. | Default is unsigned 8-bit, Deflate with horizontal predictor, level 6, RGB, and 300 DPI. CLI can request uint16, float16, or float32 from the same rendered recipe. Conditional grayscale is a CLI option. |
 | Original copy | The original source bytes copied to a new destination. | No Develop rendering or re-encoding occurs. The source is never rewritten. |
 
 Rendered export uses the active catalog recipe. A RAW export uses the processed
@@ -82,10 +82,10 @@ TIFF-only options:
 - `--tiff-compression-level 1..9`.
 - `--tiff-grayscale-if-neutral`.
 
-The current product render source is RGB8. A PNG `16` request and TIFF
-`uint16`, `float16`, or `float32` requests are validated but return a
-structured unsupported result instead of claiming higher precision. PNG- and
-TIFF-qualified flags are rejected outside their matching export format.
+PNG `16` and TIFF `uint16` / `float16` / `float32` requests render
+engine-owned higher-precision samples from the active recipe. An 8-bit source
+still fails closed instead of inventing precision. PNG- and TIFF-qualified
+flags are rejected outside their matching export format.
 
 ## Destination conflict behavior
 

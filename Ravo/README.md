@@ -106,14 +106,13 @@ Current implementation status:
   without completing batch/storage retirement.
 - PNG export uses one typed bit-depth/compression request from CatalogService
   through the raster port. It defaults to 8-bit and compression 5, accepts
-  compression 0–9, and delegates current RGB8 output to a private libpng owner
+  compression 0–9, and delegates RGB8 output to a private libpng owner
   with frozen zlib/filter settings, opaque non-interlaced RGB, resolved ICC,
-  and cICP only for recognized built-in profile state. A separate private
-  encoder consumes real host-endian RGB16 without expanding 8-bit samples;
-  the current Catalog/Qt RGB8 rendered source still rejects a 16-bit product
-  request structurally. CLI exposes `--png-bit-depth 8|16` and
-  `--png-compression 0..9`; EXIF/XMP and pHYs metadata plus an engine-owned
-  RGB16 rendered source remain later I12 work.
+  and cICP only for recognized built-in profile state. Product PNG16 requests
+  render engine-owned RGB16 into that encoder; an RGB8 source still rejects
+  16-bit structurally instead of expanding 8-bit samples. CLI exposes
+  `--png-bit-depth 8|16` and `--png-compression 0..9`; EXIF/XMP and pHYs
+  metadata remain later I12/S9/J6 work.
 - TIFF export uses one typed sample/compression/resolution request from
   CatalogService through the raster port. It defaults to unsigned 8-bit,
   Deflate with the horizontal predictor, level 6, RGB output, and 300 dpi;
@@ -130,9 +129,10 @@ Current implementation status:
   `none|deflate|deflate_predictor`, `--tiff-compression-level` from 1 through 9,
   and `--tiff-grayscale-if-neutral`. Value-bearing TIFF flags use the existing
   last-value-wins CLI rule, while the boolean flag rejects duplicates; every
-  TIFF flag is rejected outside a TIFF export. Valid uint16/float16/float32
-  requests fail structurally against the current RGB8 source instead of
-  fabricating precision. Complete EXIF/IPTC/XMP packets, capture/timezone/GPS,
+  TIFF flag is rejected outside a TIFF export. Product uint16/float16/float32
+  requests render engine-owned RGB16 or finite RGB float; an RGB8 source still
+  fails structurally instead of fabricating precision. Complete EXIF/IPTC/XMP
+  packets, capture/timezone/GPS,
   sidecar/history policy, multipage masks, explicit TIFF Studio options, shared
   consumers, and retirement remain later I13/S9/J6 work. TIFF bytes complete in
   memory before the shared ADR-0032 atomic no-replace publication; source and

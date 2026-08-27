@@ -486,9 +486,10 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   not acquire false cICP. A separate RGB16 encoder path accepts host-endian
   16-bit RGB samples that are not 8-to-16 expansions, writes bit-depth-16 IHDR,
   applies the frozen `png_set_swap` transform where host byte order requires
-  it, and proves exact reconstructed samples plus ICC/cICP. The current
-  Catalog/Qt RGB8 render still returns `reason=unsupported_png_16bit_source`
-  for `bit_depth=16`; no 8-to-16 expansion is performed.
+  it, and proves exact reconstructed samples plus ICC/cICP. Product PNG16
+  export renders engine-owned RGB16 and independently parses IHDR/chunks/rows;
+  an RGB8 source still returns `reason=unsupported_png_16bit_source` and
+  never expands 8-bit samples.
   Dimension/source/output/ICC bounds, invalid
   cICP, mismatched 8/16-bit source/request pairs, entry/row cancellation,
   deterministic libpng/allocation failure, and source/profile immutability
@@ -500,7 +501,8 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   PNG chunks. They cover implicit and explicit `png` format, both PNG-qualified
   flags, canonical values and defaults, argument order, last-value-wins value
   flags, PNG-only scope, complete JSON errors, source hashes, and zero
-  publication for invalid or legal-but-unsupported 16-bit product renders.
+  publication for invalid options, and successful 16-bit product renders that
+  are not 8-bit expansions.
   Complete EXIF/XMP packets and pHYs resolution remain unclaimed; the frozen
   PNG owner writes no pHYs and delegates EXIF/XMP to the shared S9/J6 path.
 - TIFF export freezes one typed options value from `ExportRequest` through
@@ -520,12 +522,14 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   omit tags, present-empty emits one NUL, title is unmapped, and EXIFIFD 34665,
   IPTC 33723, and XMP 700 are absent.
   The grayscale matrix freezes the greater-than-four dimension gate, ignored
-  border, and channel-delta threshold of two. Source/output/ICC bounds,
-  legal-but-unsupported high-precision requests, entry/scanline/pre-finalize
+  border, uint8/uint16 channel-delta thresholds of two/165, and the float 1.01
+  ratio with a 0.001 floor. Source/output/ICC bounds, non-finite float sources,
+  mismatched RGB8/high-precision pairs, entry/scanline/pre-finalize
   cancellation, real memory-client write/seek/grow/close/finalize failures,
   and source/profile immutability return no encoded result. Catalog tests prove
   default and explicit propagation, JPEG/PNG isolation, no file for invalid or
-  unsupported options, atomic conflict behavior, cancellation, and source-hash
+  invalid options, successful high-precision product renders, atomic conflict
+  behavior, cancellation, and source-hash
   preservation. Metadata Catalog tests prove one normalized destination/current
   writable snapshot after lookup, TIFF-only propagation, exact baseline tags,
   metadata-stage cancellation and injected tag failure, and unchanged source
@@ -535,8 +539,9 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   exact RGB/grayscale pixels. They cover the `tiff`/`tif` format spellings, all
   four TIFF-qualified flags, canonical values and defaults, argument order,
   last-value-wins value flags, duplicate-grayscale rejection, TIFF-only scope,
-  complete JSON errors, source hashes, and zero publication for invalid or
-  legal-but-unsupported high-precision requests. I7 input and ADR-0032
+  complete JSON errors, source hashes, successful uint16/float16/float32
+  product renders, and zero publication for invalid requests. I7 input and
+  ADR-0032
   publication remain separate owners. Complete EXIF/IPTC/XMP packets and
   capture/timezone/GPS plus XMP attach/history/sidecar policy remain unclaimed
   S9/J6 work.

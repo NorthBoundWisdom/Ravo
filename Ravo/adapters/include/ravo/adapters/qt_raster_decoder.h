@@ -33,6 +33,11 @@ public:
            const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
            const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
            const ExportMetadataSnapshot &metadata) const override;
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const ExportPixelBuffer &source, ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override;
 };
 
 } // namespace ravo

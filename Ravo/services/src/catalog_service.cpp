@@ -1158,16 +1158,42 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         }
         edit_recipe = std::move(parsed).value();
     }
+    const RenderSampleKind sample_kind = [&request]()
+    {
+        if (request.format == ExportFormat::kPng &&
+            request.png_options.bit_depth == PngBitDepth::k16)
+        {
+            return RenderSampleKind::kRgb16;
+        }
+        if (request.format == ExportFormat::kTiff)
+        {
+            switch (request.tiff_options.sample_type)
+            {
+            case TiffSampleType::kUint16:
+                return RenderSampleKind::kRgb16;
+            case TiffSampleType::kFloat16:
+            case TiffSampleType::kFloat32:
+                return RenderSampleKind::kRgbFloat;
+            case TiffSampleType::kUint8:
+                break;
+            }
+        }
+        return RenderSampleKind::kRgb8;
+    }();
     auto rendered = render_for_export(*asset.value(), location.value().path, edit_recipe,
-                                      request.max_edge, request.cancellation);
+                                      request.max_edge, request.cancellation, sample_kind);
     if (!rendered)
     {
         return rendered.error();
     }
-    auto encoded = raster_->encode(rendered.value().width, rendered.value().height,
-                                   rendered.value().rgb, rendered.value().color_profile,
-                                   request.format, request.jpeg_options, request.cancellation,
-                                   request.png_options, request.tiff_options, export_metadata);
+    ExportPixelBuffer pixels;
+    pixels.width = rendered.value().width;
+    pixels.height = rendered.value().height;
+    pixels.color_profile = std::move(rendered.value().color_profile);
+    pixels.samples = std::move(rendered.value().samples);
+    auto encoded =
+        raster_->encode(pixels, request.format, request.jpeg_options, request.cancellation,
+                        request.png_options, request.tiff_options, export_metadata);
     if (!encoded)
     {
         return encoded.error();
@@ -1178,8 +1204,8 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return written.error();
     }
-    result.width = rendered.value().width;
-    result.height = rendered.value().height;
+    result.width = pixels.width;
+    result.height = pixels.height;
     result.bytes_written = encoded.value().size();
     LOG_INFO(ravo::logger(), "export asset={} format={} output={} {}x{} bytes={}", request.asset_id,
              export_format_name(request.format), output.value().path, result.width, result.height,

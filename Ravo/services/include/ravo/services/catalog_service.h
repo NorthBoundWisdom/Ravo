@@ -114,9 +114,10 @@ private:
     cached_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                           std::uint32_t width, std::uint32_t height, std::uint32_t max_edge,
                           const CancellationToken &cancellation);
-    [[nodiscard]] Result<RenderedImage>
+    [[nodiscard]] Result<RenderedExportImage>
     render_for_export(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
-                      std::uint32_t max_edge, const CancellationToken &cancellation);
+                      std::uint32_t max_edge, const CancellationToken &cancellation,
+                      RenderSampleKind sample_kind);
 
     const EngineFacade *engine_ = nullptr;
     std::unique_ptr<CatalogRepository> repository_;

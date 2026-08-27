@@ -35,9 +35,10 @@ retire the legacy PNG output plugin.
   exact recognized built-in profile state. A valid custom RGB ICC is preserved
   without invented cICP even when its display identifier collides with a
   built-in name; an unknown built-in or non-RGB profile fails closed.
-- The current Catalog/Qt RGB8 source accepts only `bit_depth=8`. That path
-  still returns `reason=unsupported_png_16bit_source` for `bit_depth=16`; no
-  8-to-16 expansion is performed.
+- An RGB8 source still accepts only `bit_depth=8` and returns
+  `reason=unsupported_png_16bit_source` for `bit_depth=16`; no 8-to-16
+  expansion is performed. ADR-0037 maps a product PNG16 request to an
+  engine-owned RGB16 source and the existing `encode_png_rgb16` path.
 - A separate private `encode_png_rgb16` path accepts a real host-endian RGB16
   source (three `uint16_t` samples per pixel). It requires `bit_depth=16`,
   writes non-interlaced RGB16, and applies the frozen `png_set_swap`
@@ -47,8 +48,7 @@ retire the legacy PNG output plugin.
 - `catalog export` owns `--png-bit-depth` (`8`/`16`) and `--png-compression`
   (`0`–`9`). Defaults remain 8-bit/compression 5 when the flags are omitted.
   Value flags are last-value-wins, PNG-only, and fail closed with structured
-  JSON errors. Product 16-bit export still hits the RGB8 unsupported boundary
-  until an engine-owned 16-bit rendered source exists.
+  JSON errors. Product 16-bit export now consumes the ADR-0037 RGB16 source.
 - Dimensions, RGB source bytes, ICC bytes, and encoded output are bounded
   before publication. The synchronous call borrows pixels, profile bytes,
   options, cancellation state, and the private test observer only for the
@@ -74,9 +74,9 @@ defaults. The adapter emits exact RGB8 or RGB16 pixels from matching real
 sources, a resolved ICC profile, and only evidenced cICP declarations while
 preserving explicit failure and cancellation state.
 
-I12 remains incomplete. The private encoder now owns a real RGB16 source
-path, and CLI options exist, but Catalog/Qt product export still has only an
-RGB8 rendered source. This tranche does not construct EXIF/XMP or pHYs
+I12 remains incomplete. The private encoder and Catalog/Qt product path now
+own a real RGB16 source, and CLI options exist. This tranche does not
+construct EXIF/XMP or pHYs
 resolution: the frozen PNG owner writes no pHYs and receives EXIF/XMP from
 the shared S9/J6 path. Sidecars, path templates, batch presets, and
 parent-directory durability remain separate. The input wrapper owned by I6 is

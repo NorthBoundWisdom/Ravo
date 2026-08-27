@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "ravo/foundation/cancellation.h"
@@ -53,6 +54,38 @@ struct RenderedImage
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
 };
+
+enum class RenderSampleKind : std::uint8_t
+{
+    kRgb8 = 0,
+    kRgb16 = 1,
+    kRgbFloat = 2,
+};
+
+// Tagged export pixels. Exactly one alternative is valid. Preview/cache keep
+// RenderedImage so high precision never enters QML or browse PNG paths.
+struct RenderedExportImage
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    ColorProfileState color_profile;
+    std::variant<std::vector<std::uint8_t>, std::vector<std::uint16_t>, std::vector<float>> samples;
+};
+
+[[nodiscard]] constexpr std::size_t
+render_sample_bytes_per_pixel(const RenderSampleKind kind) noexcept
+{
+    switch (kind)
+    {
+    case RenderSampleKind::kRgb8:
+        return 3U;
+    case RenderSampleKind::kRgb16:
+        return 6U;
+    case RenderSampleKind::kRgbFloat:
+        return 12U;
+    }
+    return 0U;
+}
 
 struct RasterBuffer
 {
@@ -247,6 +280,16 @@ public:
     [[nodiscard]] Result<RenderedImage>
     render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
                           const CancellationToken &cancellation) const;
+    // Same recipe/output-colour stage as render_linear_working; packs the owned
+    // ProfiledOutputBuffer to the requested sample kind. Preview callers stay on
+    // the RGB8 APIs above.
+    [[nodiscard]] Result<RenderedExportImage>
+    render_linear_working_export(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                 RenderSampleKind sample_kind,
+                                 const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<RenderedExportImage>
+    render_to_export_image(const RenderRequest &request, RenderSampleKind sample_kind,
+                           const RasterBuffer *raster = nullptr) const;
     [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
 
 private:

@@ -784,6 +784,30 @@ TEST(ColorCheckerTest, MemoryEstimateIncludesTypedParamsFitAndLinearSolveScratch
     EXPECT_EQ(estimated - baseline, expected_scratch);
 }
 
+TEST(EngineMemoryEstimateTest, OutputSampleWidthAddsThreeSixOrTwelveBytesPerPixel)
+{
+    DecodedRaw raw;
+    raw.width = 2U;
+    raw.height = 2U;
+    raw.pixels.assign(4U, 0U);
+    Recipe recipe;
+    const std::uint64_t rgb8 = estimate_raw_render_memory(raw, recipe, 2U, 2U, 3U);
+    const std::uint64_t rgb16 = estimate_raw_render_memory(raw, recipe, 2U, 2U, 6U);
+    const std::uint64_t rgb_float = estimate_raw_render_memory(raw, recipe, 2U, 2U, 12U);
+    EXPECT_EQ(rgb16 - rgb8, 2U * 2U * 3U);
+    EXPECT_EQ(rgb_float - rgb8, 2U * 2U * 9U);
+    EXPECT_EQ(estimate_raw_render_memory(raw, recipe, 2U, 2U), rgb8);
+}
+
+TEST(EngineMemoryEstimateTest, ExtremeOutputDimensionsSaturateInsteadOfWrapping)
+{
+    DecodedRaw raw;
+    Recipe recipe;
+    EXPECT_EQ(estimate_raw_render_memory(raw, recipe, std::numeric_limits<std::uint32_t>::max(),
+                                         std::numeric_limits<std::uint32_t>::max(), 12U),
+              std::numeric_limits<std::uint64_t>::max());
+}
+
 TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)
 {
     std::uint32_t width = 9504;

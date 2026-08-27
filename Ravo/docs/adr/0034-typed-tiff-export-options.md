@@ -47,9 +47,11 @@ storage, or legacy-owner retirement work.
   keeps RGB when any interior pair of channels differs by more than two. A
   grayscale file stores the source red sample and `MINISBLACK`; it does not
   invent a luminance conversion.
-- `uint16`, `float16`, and `float32` remain legal request states, but the current
-  RGB8 source returns `reason=unsupported_tiff_high_precision_source`. No
-  8-to-16 expansion or integer-to-float conversion is performed.
+- An RGB8 source still returns `reason=unsupported_tiff_high_precision_source`
+  for `uint16`, `float16`, and `float32`. No 8-to-16 expansion or
+  integer-to-float conversion is performed. ADR-0037 maps matching product
+  requests to engine-owned RGB16 or finite RGB float and a shared TIFF sample
+  encoder, including owned IEEE binary16 conversion.
 - Dimensions, checked RGB products, source bytes, ICC bytes, LibTIFF
   allocations, and encoded output are bounded. `TIFFClientOpenExt` owns one
   checked in-memory read/write/seek/size/close client and per-handle
@@ -72,10 +74,11 @@ tests independently parse tags, inflate strips, and compare exact pixels and
 ICC bytes while covering propagation, cancellation, failure, bounds, and
 source immutability.
 
-I13 remains incomplete. Ravo has no unsigned-16 or floating rendered-source
-contract. This tranche does not construct EXIF, IPTC, or XMP, write multipage
-mask IFDs, expose typed TIFF options in CLI or Studio, own path templates or
-batch presets, or retire shared image-I/O/storage/job consumers. The
+I13 remains incomplete. ADR-0037 now supplies unsigned-16 and floating
+rendered sources for matching product requests. This tranche does not
+construct EXIF, IPTC, or XMP, write multipage mask IFDs, expose typed TIFF
+options in Studio, own path templates or batch presets, or retire shared
+image-I/O/storage/job consumers. The
 `QTiffPlugin` remains required for the separate I7 input owner.
 `legacy/src/imageio/format/tiff.c` and its registration therefore remain.
 

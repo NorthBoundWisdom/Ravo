@@ -56,10 +56,11 @@ the typed PNG/TIFF controls. Use `ravo catalog export` for those CLI options.
 
 ### Output precision and metadata
 
-The current rendered source is RGB8. PNG 16-bit and TIFF high-precision sample
-requests are validated but fail as unsupported rather than fabricating
-precision. General EXIF/IPTC/XMP packet writing, GPS/timezone policy, generated
-sidecars, and full history attachment are not current general export contracts.
+PNG 16-bit and TIFF uint16/float16/float32 product export use engine-owned
+samples from the active recipe. An 8-bit source still fails closed rather than
+fabricating precision. General EXIF/IPTC/XMP packet writing, GPS/timezone
+policy, generated sidecars, and full history attachment are not current
+general export contracts.
 
 ### Format-specific input layouts
 

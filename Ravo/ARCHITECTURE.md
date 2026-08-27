@@ -60,9 +60,9 @@ calibration, or encoded bytes rather than third-party handles. Existing
 QSQLITE, zlib/libpng PNG input, and Qt JPEG/TIFF input runtime ownership is
 unchanged. The adapter-private libpng/ZLIB encoder owns PNG output bit depth
 and compression, opaque non-interlaced RGB8/RGB16, ICC/recognized built-in
-cICP, bounds, and cancellation. Its RGB16 path consumes real host-endian
-samples, while the current Catalog/Qt RGB8 product source still rejects a
-16-bit request until the engine can render real RGB16. The adapter-private
+cICP, bounds, and cancellation. Product PNG16 requests consume engine-owned
+host-endian RGB16; an RGB8 source still rejects a 16-bit request rather than
+expanding packed samples. The adapter-private
 pinned libjpeg-turbo encoder owns JPEG output quality, explicit chroma
 subsampling, ICC APP2,
 bounds, and cancellation. The adapter-private pinned LibTIFF/ZLIB encoder owns
@@ -678,8 +678,9 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   TIFF requests own typed uint8/uint16/float16/float32 sample state plus
   none/Deflate/Deflate-predictor, level 1–9/default 6, and conditional grayscale.
   `catalog export --format tiff|tif` projects those values through four
-  TIFF-qualified CLI flags; the current RGB8 source accepts only PNG 8-bit and
-  TIFF uint8 output. TIFF baseline directory metadata is an encode-time owned
+  TIFF-qualified CLI flags. Catalog maps PNG16 and matching TIFF sample
+  requests to engine-owned RGB16 or finite RGB float; JPEG/PNG8/TIFF uint8
+  stay on RGB8. TIFF baseline directory metadata is an encode-time owned
   snapshot, but complete EXIF/IPTC/XMP packets, capture/timezone/GPS and XMP
   attach/history/sidecar policy, explicit PNG/TIFF Studio options, TIFF
   multipage masks, path-template and batch/storage policy, and old export

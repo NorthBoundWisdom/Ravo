@@ -59,7 +59,7 @@ using TiffEncodeCheckpointCallback = TiffEncodeInjectedFailure (*)(
 
 struct TiffEncodeCheckpointObserver
 {
-    // Synchronously borrowed by encode_tiff_rgb8(); the caller owns context
+    // Synchronously borrowed by encode_tiff_*(); the caller owns context
     // and keeps it alive for the complete call.
     void *context = nullptr;
     TiffEncodeCheckpointCallback callback = nullptr;
@@ -84,5 +84,21 @@ encode_tiff_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std:
                  std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
                  const ExportMetadataSnapshot &metadata, const CancellationToken &cancellation,
                  TiffEncodeControl control = {});
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_tiff_rgb16(std::uint32_t width, std::uint32_t height, std::span<const std::uint16_t> rgb,
+                  std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+                  const ExportMetadataSnapshot &metadata, const CancellationToken &cancellation,
+                  TiffEncodeControl control = {});
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_tiff_rgb_float(std::uint32_t width, std::uint32_t height, std::span<const float> rgb,
+                      std::span<const std::uint8_t> resolved_rgb_icc,
+                      const TiffExportOptions &options, const ExportMetadataSnapshot &metadata,
+                      const CancellationToken &cancellation, TiffEncodeControl control = {});
+
+// Owned IEEE-754 binary16 conversion. Finite values that would become Inf/NaN
+// fail structurally. Preserves signed zero and uses round-to-nearest-even.
+[[nodiscard]] Result<std::uint16_t> float32_to_binary16(float value);
 
 } // namespace ravo::detail

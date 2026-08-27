@@ -360,7 +360,8 @@ Develop fields are versioned and validated. Discover the current registered
 operations with `ravo operations --json`, and use the field names documented by
 the current recipe contract; Ravo does not ignore a typo.
 
-### Why did a valid TIFF option still return unsupported?
+### Can the CLI export high-precision PNG and TIFF files?
 
-The current rendered source is RGB8. High-precision TIFF values are represented
-in the typed request but are not fabricated from RGB8 output.
+Yes. PNG 16-bit and TIFF uint16/float16/float32 requests use engine-owned
+higher-precision samples from the active recipe. Mismatched low-level RGB8
+sources still fail closed instead of fabricating precision.

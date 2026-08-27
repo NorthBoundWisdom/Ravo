@@ -48,7 +48,7 @@ contracts.
 - [ ] Confirm rendered export uses the saved recipe.
 - [ ] Confirm original copy does not render or rewrite the source.
 - [ ] Test JPEG quality bounds and TIFF option validation through CLI.
-- [ ] Test unsupported high-precision output returns structured unsupported.
+- [ ] Test PNG 16-bit and TIFF uint16/float16/float32 product export succeed, and mismatched 8-bit sources still fail closed.
 - [ ] Run `--json` commands and parse the single `ravo.cli.result` object.
 - [ ] Check exit status for invalid argument, not found, unsupported, conflict,
       cancellation, and I/O failures where the test harness can induce them.

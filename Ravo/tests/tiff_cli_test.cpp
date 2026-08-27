@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -231,6 +232,19 @@ unsigned_values(const TiffField *const field)
     return values->front();
 }
 
+[[nodiscard]] std::optional<std::uint32_t> uniform_unsigned(const TiffDocument &document,
+                                                            const std::uint16_t tag)
+{
+    const auto values = unsigned_values(unique_field(document, tag));
+    if (!values || values->empty() ||
+        !std::all_of(values->begin(), values->end(),
+                     [&](const std::uint32_t value) { return value == values->front(); }))
+    {
+        return std::nullopt;
+    }
+    return values->front();
+}
+
 [[nodiscard]] std::optional<std::vector<std::uint8_t>>
 inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t expected_size)
 {
@@ -250,6 +264,86 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
     return result;
 }
 
+[[nodiscard]] bool undo_horizontal_predictor(std::vector<std::uint8_t> &pixels,
+                                             const std::uint32_t width, const std::uint32_t height,
+                                             const std::uint32_t samples,
+                                             const std::uint32_t bytes_per_sample)
+{
+    const std::size_t samples_per_row = static_cast<std::size_t>(width) * samples;
+    const std::size_t row_bytes = samples_per_row * bytes_per_sample;
+    if (pixels.size() != row_bytes * height)
+    {
+        return false;
+    }
+    if (bytes_per_sample == 1U)
+    {
+        for (std::uint32_t row = 0U; row < height; ++row)
+        {
+            const std::size_t row_offset = static_cast<std::size_t>(row) * row_bytes;
+            for (std::size_t byte = samples; byte < row_bytes; ++byte)
+            {
+                pixels[row_offset + byte] = static_cast<std::uint8_t>(
+                    pixels[row_offset + byte] + pixels[row_offset + byte - samples]);
+            }
+        }
+        return true;
+    }
+    if (bytes_per_sample == 2U)
+    {
+        for (std::uint32_t row = 0U; row < height; ++row)
+        {
+            const std::size_t row_offset = static_cast<std::size_t>(row) * row_bytes;
+            for (std::size_t sample = samples; sample < samples_per_row; ++sample)
+            {
+                const std::size_t current = row_offset + sample * 2U;
+                const std::size_t previous = row_offset + (sample - samples) * 2U;
+                const std::uint16_t left = static_cast<std::uint16_t>(
+                    pixels[previous] | (static_cast<std::uint16_t>(pixels[previous + 1U]) << 8U));
+                const std::uint16_t value = static_cast<std::uint16_t>(
+                    static_cast<std::uint16_t>(
+                        pixels[current] |
+                        (static_cast<std::uint16_t>(pixels[current + 1U]) << 8U)) +
+                    left);
+                pixels[current] = static_cast<std::uint8_t>(value & 0xFFU);
+                pixels[current + 1U] = static_cast<std::uint8_t>(value >> 8U);
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool undo_floating_predictor(std::vector<std::uint8_t> &pixels,
+                                           const std::uint32_t width, const std::uint32_t height,
+                                           const std::uint32_t samples,
+                                           const std::uint32_t bytes_per_sample)
+{
+    const std::size_t wc = static_cast<std::size_t>(width) * samples;
+    const std::size_t row_bytes = wc * bytes_per_sample;
+    if (bytes_per_sample == 0U || pixels.size() != row_bytes * height)
+    {
+        return false;
+    }
+    for (std::uint32_t row = 0U; row < height; ++row)
+    {
+        std::uint8_t *const cp = pixels.data() + static_cast<std::size_t>(row) * row_bytes;
+        for (std::size_t byte = samples; byte < row_bytes; ++byte)
+        {
+            cp[byte] = static_cast<std::uint8_t>(cp[byte] + cp[byte - samples]);
+        }
+        const std::vector<std::uint8_t> tmp(cp, cp + row_bytes);
+        for (std::size_t count = 0U; count < wc; ++count)
+        {
+            for (std::uint32_t byte = 0U; byte < bytes_per_sample; ++byte)
+            {
+                cp[bytes_per_sample * count + byte] =
+                    tmp[(bytes_per_sample - byte - 1U) * wc + count];
+            }
+        }
+    }
+    return true;
+}
+
 [[nodiscard]] std::optional<DecodedTiff> decode_tiff(TiffDocument document)
 {
     const auto width = unsigned_scalar(document, kTagImageWidth);
@@ -261,15 +355,26 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
     const auto bits = unsigned_values(unique_field(document, kTagBitsPerSample));
     const auto offsets = unsigned_values(unique_field(document, kTagStripOffsets));
     const auto byte_counts = unsigned_values(unique_field(document, kTagStripByteCounts));
+    const auto sample_format = uniform_unsigned(document, kTagSampleFormat).value_or(1U);
     if (!width || !height || !samples || !rows_per_strip || !compression || !bits || !offsets ||
         !byte_counts || width.value() == 0U || height.value() == 0U || samples.value() == 0U ||
-        rows_per_strip.value() == 0U || offsets->size() != byte_counts->size() ||
+        rows_per_strip.value() == 0U || offsets->size() != byte_counts->size() || bits->empty() ||
         !std::all_of(bits->begin(), bits->end(),
-                     [](const std::uint32_t value) { return value == 8U; }))
+                     [&](const std::uint32_t value) { return value == bits->front(); }))
     {
         return std::nullopt;
     }
-    const std::uint64_t row_bytes64 = static_cast<std::uint64_t>(width.value()) * samples.value();
+    const std::uint32_t bit_depth = bits->front();
+    if ((bit_depth != 8U && bit_depth != 16U && bit_depth != 32U) ||
+        (bit_depth == 8U && sample_format != 1U) ||
+        (bit_depth == 16U && sample_format != 1U && sample_format != 3U) ||
+        (bit_depth == 32U && sample_format != 3U))
+    {
+        return std::nullopt;
+    }
+    const std::uint32_t bytes_per_sample = bit_depth / 8U;
+    const std::uint64_t row_bytes64 =
+        static_cast<std::uint64_t>(width.value()) * samples.value() * bytes_per_sample;
     const std::uint64_t total_bytes64 = row_bytes64 * height.value();
     if (row_bytes64 > std::numeric_limits<std::size_t>::max() ||
         total_bytes64 > std::numeric_limits<std::size_t>::max())
@@ -328,15 +433,20 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
     }
     if (predictor == 2U)
     {
-        for (std::uint32_t row = 0U; row < height.value(); ++row)
+        if (sample_format != 1U ||
+            !undo_horizontal_predictor(decoded.pixels, width.value(), height.value(),
+                                       samples.value(), bytes_per_sample))
         {
-            const std::size_t row_offset = static_cast<std::size_t>(row) * row_bytes;
-            for (std::size_t byte = samples.value(); byte < row_bytes; ++byte)
-            {
-                decoded.pixels[row_offset + byte] =
-                    static_cast<std::uint8_t>(decoded.pixels[row_offset + byte] +
-                                              decoded.pixels[row_offset + byte - samples.value()]);
-            }
+            return std::nullopt;
+        }
+    }
+    else if (predictor == 3U)
+    {
+        if (sample_format != 3U ||
+            !undo_floating_predictor(decoded.pixels, width.value(), height.value(), samples.value(),
+                                     bytes_per_sample))
+        {
+            return std::nullopt;
         }
     }
     else if (predictor != 1U)
@@ -673,23 +783,59 @@ TEST_F(TiffCliTest, ConditionalGrayscaleIsExplicitAndDuplicateToggleFails)
     EXPECT_FALSE(std::filesystem::exists(duplicate_output));
 }
 
-TEST_F(TiffCliTest, HighPrecisionNamesReachExistingStructuredUnsupportedBoundary)
+TEST_F(TiffCliTest, HighPrecisionNamesPublishRealProductSamples)
 {
-    for (const std::string_view sample_type :
-         std::array<std::string_view, 3U>{"uint16", "float16", "float32"})
+    const auto develop = run({"catalog", "develop", "--catalog", catalog_, "--asset-id",
+                              color_asset_, "--exposure-ev", "0.37"});
+    ASSERT_EQ(develop.exit_code, 0) << stdout_stream_.str();
+
+    const auto eight_output = root_ / "edited-8.tif";
+    const auto eight = run(export_arguments(color_asset_, eight_output,
+                                            {"--format", "tiff", "--tiff-sample-type", "uint8"}));
+    ASSERT_EQ(eight.exit_code, 0) << stdout_stream_.str();
+    const auto eight_tiff = read_tiff(eight_output);
+    ASSERT_TRUE(eight_tiff);
+    EXPECT_EQ(uniform_unsigned(eight_tiff->document, kTagBitsPerSample), 8U);
+
+    struct Case
     {
-        const auto output = root_ / (std::string(sample_type) + ".tif");
-        const auto result = run(
-            export_arguments(color_asset_, output,
-                             {"--tiff-sample-type", std::string(sample_type), "--format", "tiff"}));
-        expect_error(result, 5, "unsupported", "unsupported_tiff_high_precision_source");
-        const auto &context =
-            required_child(required_child(result.body.value(), "error"), "context");
-        const auto &actual_sample_type = required_child(context, "sample_type");
-        ASSERT_NE(actual_sample_type.string_if(), nullptr);
-        EXPECT_EQ(*actual_sample_type.string_if(), sample_type);
-        EXPECT_FALSE(std::filesystem::exists(output));
+        std::string_view sample_type;
+        std::uint32_t bits = 0U;
+        std::uint32_t sample_format = 0U;
+    };
+    for (const auto &entry :
+         std::array<Case, 3U>{{{"uint16", 16U, 1U}, {"float16", 16U, 3U}, {"float32", 32U, 3U}}})
+    {
+        const auto output = root_ / (std::string(entry.sample_type) + ".tif");
+        const auto result = run(export_arguments(
+            color_asset_, output,
+            {"--tiff-sample-type", std::string(entry.sample_type), "--format", "tiff"}));
+        ASSERT_EQ(result.exit_code, 0) << stdout_stream_.str() << " " << entry.sample_type;
+        const auto decoded = read_tiff(output);
+        ASSERT_TRUE(decoded) << entry.sample_type;
+        EXPECT_EQ(uniform_unsigned(decoded->document, kTagBitsPerSample), entry.bits);
+        EXPECT_EQ(uniform_unsigned(decoded->document, kTagSampleFormat).value_or(1U),
+                  entry.sample_format);
+        EXPECT_EQ(unsigned_scalar(decoded->document, kTagSamplesPerPixel), 3U);
+        if (entry.sample_type == "uint16")
+        {
+            ASSERT_EQ(decoded->pixels.size(), eight_tiff->pixels.size() * 2U);
+            bool found_non_expansion = false;
+            for (std::size_t index = 0U; index < eight_tiff->pixels.size(); ++index)
+            {
+                const std::uint16_t sample = static_cast<std::uint16_t>(
+                    decoded->pixels[index * 2U] |
+                    (static_cast<std::uint16_t>(decoded->pixels[index * 2U + 1U]) << 8U));
+                if (sample != static_cast<std::uint16_t>(eight_tiff->pixels[index]) * 257U)
+                {
+                    found_non_expansion = true;
+                    break;
+                }
+            }
+            EXPECT_TRUE(found_non_expansion);
+        }
     }
+    EXPECT_EQ(file_hash(color_source_), color_hash_);
 }
 
 TEST_F(TiffCliTest, InvalidValuesPreserveCanonicalValidationAndPublishNothing)

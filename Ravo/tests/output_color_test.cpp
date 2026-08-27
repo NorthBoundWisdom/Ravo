@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <QFile>
@@ -425,6 +426,180 @@ TEST(OutputColorTest, FinalRgb8PackerChecksCancellationBeforeAllocationAndBetwee
     EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
     EXPECT_EQ(large.channels.front(), 0.5F);
     EXPECT_EQ(large.channels.back(), 0.5F);
+}
+
+TEST(OutputColorTest, FinalRgb16PackerUsesClampRoundAndRejectsEightBitExpansion)
+{
+    // 1000/65535, 32768/65535, and 40000/65535 are not n*257 expansions.
+    auto input =
+        profiled_output(1, 1, {1000.0F / 65535.0F, 32768.0F / 65535.0F, 40000.0F / 65535.0F});
+    const auto original_channels = input.channels;
+    const auto original_profile = input.color_profile;
+
+    auto packed = encode_profiled_output(input, RenderSampleKind::kRgb16, CancellationToken{});
+    ASSERT_TRUE(packed) << packed.error().message;
+    EXPECT_EQ(packed.value().width, 1U);
+    EXPECT_EQ(packed.value().height, 1U);
+    const auto *rgb16 = std::get_if<std::vector<std::uint16_t>>(&packed.value().samples);
+    ASSERT_NE(rgb16, nullptr);
+    EXPECT_EQ(*rgb16, (std::vector<std::uint16_t>{1000U, 32768U, 40000U}));
+    EXPECT_NE((*rgb16)[0], static_cast<std::uint16_t>(((*rgb16)[0] / 257U) * 257U));
+    EXPECT_NE((*rgb16)[2], static_cast<std::uint16_t>(((*rgb16)[2] / 257U) * 257U));
+    EXPECT_EQ(packed.value().color_profile, original_profile);
+    EXPECT_EQ(input.channels, original_channels);
+
+    auto clamped = encode_profiled_output(profiled_output(1, 1, {-0.25F, 0.499999F, 1.5F}),
+                                          RenderSampleKind::kRgb16, CancellationToken{});
+    ASSERT_TRUE(clamped) << clamped.error().message;
+    const auto *clamped_rgb = std::get_if<std::vector<std::uint16_t>>(&clamped.value().samples);
+    ASSERT_NE(clamped_rgb, nullptr);
+    EXPECT_EQ(*clamped_rgb, (std::vector<std::uint16_t>{0U, 32767U, 65535U}));
+
+    input.channels.assign(input.channels.size(), 0.0F);
+    input.color_profile.identifier = "mutated";
+    EXPECT_EQ(*rgb16, (std::vector<std::uint16_t>{1000U, 32768U, 40000U}));
+    EXPECT_EQ(packed.value().color_profile, original_profile);
+}
+
+TEST(OutputColorTest, FinalFloatPackerPreservesFiniteValuesWithoutIntegerClamp)
+{
+    auto input = profiled_output(1, 1, {-0.25F, 0.12345678F, 1.5F});
+    const auto original_channels = input.channels;
+    const auto original_profile = input.color_profile;
+    auto packed = encode_profiled_output(input, RenderSampleKind::kRgbFloat, CancellationToken{});
+    ASSERT_TRUE(packed) << packed.error().message;
+    const auto *rgb = std::get_if<std::vector<float>>(&packed.value().samples);
+    ASSERT_NE(rgb, nullptr);
+    EXPECT_EQ(*rgb, original_channels);
+    EXPECT_LT((*rgb)[0], 0.0F);
+    EXPECT_GT((*rgb)[2], 1.0F);
+    EXPECT_EQ(packed.value().color_profile, original_profile);
+
+    input.channels.assign(3U, 0.0F);
+    EXPECT_EQ(*rgb, original_channels);
+    EXPECT_EQ(std::holds_alternative<std::vector<std::uint8_t>>(packed.value().samples), false);
+    EXPECT_EQ(std::holds_alternative<std::vector<std::uint16_t>>(packed.value().samples), false);
+}
+
+TEST(OutputColorTest, HighPrecisionPackersShareValidationMismatchOverflowAndModel)
+{
+    for (const auto kind : {RenderSampleKind::kRgb16, RenderSampleKind::kRgbFloat})
+    {
+        SCOPED_TRACE(static_cast<int>(kind));
+        for (auto input : {profiled_output(0, 1, {}), profiled_output(1, 0, {})})
+        {
+            auto rejected = encode_profiled_output(input, kind, CancellationToken{});
+            ASSERT_FALSE(rejected);
+            EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+            EXPECT_EQ(rejected.error().context.at("reason"), "invalid_dimensions");
+        }
+
+        auto overflow = profiled_output(std::numeric_limits<std::uint32_t>::max(),
+                                        std::numeric_limits<std::uint32_t>::max(), {});
+        auto overflow_rejected = encode_profiled_output(overflow, kind, CancellationToken{});
+        ASSERT_FALSE(overflow_rejected);
+        EXPECT_EQ(overflow_rejected.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(overflow_rejected.error().context.at("reason"), "dimensions_overflow");
+
+        auto wrong_size = profiled_output(1, 1, {0.0F, 0.0F});
+        const auto original_channels = wrong_size.channels;
+        auto size_rejected = encode_profiled_output(wrong_size, kind, CancellationToken{});
+        ASSERT_FALSE(size_rejected);
+        EXPECT_EQ(size_rejected.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(size_rejected.error().context.at("reason"), "channel_count_mismatch");
+        EXPECT_EQ(wrong_size.channels, original_channels);
+
+        auto lab = profiled_output(1, 1, {0.0F, 0.0F, 0.0F});
+        lab.color_profile.model = ColorModel::kLab;
+        auto model_rejected = encode_profiled_output(lab, kind, CancellationToken{});
+        ASSERT_FALSE(model_rejected);
+        EXPECT_EQ(model_rejected.error().code, ErrorCode::kUnsupported);
+        EXPECT_EQ(model_rejected.error().context.at("reason"), "unsupported_color_model");
+    }
+
+    auto invalid_width =
+        validate_profiled_output_for_pack(profiled_output(1, 1, {0.0F, 0.0F, 0.0F}), 4U);
+    ASSERT_FALSE(invalid_width);
+    EXPECT_EQ(invalid_width.error().context.at("reason"), "unsupported_sample_width");
+}
+
+TEST(OutputColorTest, HighPrecisionPackersRejectNonFiniteAndHonorRowCancellation)
+{
+    for (const auto kind : {RenderSampleKind::kRgb16, RenderSampleKind::kRgbFloat})
+    {
+        SCOPED_TRACE(static_cast<int>(kind));
+        auto input = profiled_output(1, 1, {0.25F, std::numeric_limits<float>::infinity(), 0.75F});
+        const auto original = input.channels;
+        auto rejected = encode_profiled_output(input, kind, CancellationToken{});
+        ASSERT_FALSE(rejected);
+        EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(rejected.error().context.at("reason"), "non_finite_sample");
+        EXPECT_EQ(input.channels, original);
+
+        CancellationSource cancelled;
+        ASSERT_TRUE(cancelled.cancel("before_high_precision_pack"));
+        auto pre_cancelled = encode_profiled_output(input, kind, cancelled.token());
+        ASSERT_FALSE(pre_cancelled);
+        EXPECT_EQ(pre_cancelled.error().code, ErrorCode::kCancelled);
+
+        auto large = profiled_output(1024, 4096, {});
+        large.channels.assign(static_cast<std::size_t>(large.width) * large.height * 3U, 0.5F);
+        const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                                std::chrono::milliseconds{1});
+        auto row_cancelled = encode_profiled_output(large, kind, deadline.token());
+        ASSERT_FALSE(row_cancelled);
+        EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
+        EXPECT_EQ(large.channels.front(), 0.5F);
+        EXPECT_EQ(large.channels.back(), 0.5F);
+    }
+}
+
+TEST(OutputColorTest, RenderExportApisShareRecipeStageAndKeepPreviewRgb8)
+{
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    RasterBuffer raster;
+    raster.width = 1;
+    raster.height = 1;
+    raster.srgb = {64, 96, 160};
+    raster.color_profile.kind = ColorProfileKind::kBuiltin;
+    raster.color_profile.model = ColorModel::kRgb;
+    raster.color_profile.identifier = "srgb";
+
+    DevelopParams develop;
+    auto recipe = recipe_from_develop({"raster", "memory:raster", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    RenderRequest request;
+    request.asset = recipe.value().asset;
+    request.recipe = recipe.value();
+
+    auto preview = engine.value().render_to_image(request, &raster);
+    ASSERT_TRUE(preview) << preview.error().message;
+    auto exported8 =
+        engine.value().render_to_export_image(request, RenderSampleKind::kRgb8, &raster);
+    ASSERT_TRUE(exported8) << exported8.error().message;
+    const auto *rgb8 = std::get_if<std::vector<std::uint8_t>>(&exported8.value().samples);
+    ASSERT_NE(rgb8, nullptr);
+    EXPECT_EQ(*rgb8, preview.value().rgb);
+
+    auto exported16 =
+        engine.value().render_to_export_image(request, RenderSampleKind::kRgb16, &raster);
+    ASSERT_TRUE(exported16) << exported16.error().message;
+    const auto *rgb16 = std::get_if<std::vector<std::uint16_t>>(&exported16.value().samples);
+    ASSERT_NE(rgb16, nullptr);
+    ASSERT_EQ(rgb16->size(), 3U);
+    EXPECT_EQ(exported16.value().width, preview.value().width);
+    EXPECT_EQ(exported16.value().color_profile.identifier,
+              preview.value().color_profile.identifier);
+
+    auto exported_float =
+        engine.value().render_to_export_image(request, RenderSampleKind::kRgbFloat, &raster);
+    ASSERT_TRUE(exported_float) << exported_float.error().message;
+    const auto *rgb_float = std::get_if<std::vector<float>>(&exported_float.value().samples);
+    ASSERT_NE(rgb_float, nullptr);
+    ASSERT_EQ(rgb_float->size(), 3U);
+    EXPECT_TRUE(std::all_of(rgb_float->begin(), rgb_float->end(),
+                            [](const float value) { return std::isfinite(value); }));
 }
 
 TEST(OutputColorTest, EveryFrozenSchemaFivePayloadMapsToSrgbPerceptual)

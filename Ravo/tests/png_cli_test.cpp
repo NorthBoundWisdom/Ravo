@@ -192,7 +192,8 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
         return std::nullopt;
     }
     const auto header = png_ihdr(chunks.value());
-    if (!header || header->bit_depth != 8U || header->color_type != 2U || header->interlace != 0U)
+    if (!header || (header->bit_depth != 8U && header->bit_depth != 16U) ||
+        header->color_type != 2U || header->interlace != 0U)
     {
         return std::nullopt;
     }
@@ -201,7 +202,8 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
     {
         compressed.insert(compressed.end(), chunk->payload.begin(), chunk->payload.end());
     }
-    const std::size_t stride = static_cast<std::size_t>(header->width) * 3U;
+    const std::size_t bytes_per_pixel = 3U * (static_cast<std::size_t>(header->bit_depth) / 8U);
+    const std::size_t stride = static_cast<std::size_t>(header->width) * bytes_per_pixel;
     const std::size_t packed_size = (stride + 1U) * header->height;
     auto packed = inflate_exact(compressed, packed_size);
     if (!packed)
@@ -225,15 +227,17 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
         {
             const std::uint8_t encoded = packed.value()[packed_offset + 1U + column];
             const std::uint8_t left =
-                column >= 3U ?
-                    decoded.pixels[static_cast<std::size_t>(row) * stride + column - 3U] :
+                column >= bytes_per_pixel ?
+                    decoded
+                        .pixels[static_cast<std::size_t>(row) * stride + column - bytes_per_pixel] :
                     0U;
             const std::uint8_t above =
                 row > 0U ? decoded.pixels[(static_cast<std::size_t>(row) - 1U) * stride + column] :
                            0U;
             const std::uint8_t upper_left =
-                row > 0U && column >= 3U ?
-                    decoded.pixels[(static_cast<std::size_t>(row) - 1U) * stride + column - 3U] :
+                row > 0U && column >= bytes_per_pixel ?
+                    decoded.pixels[(static_cast<std::size_t>(row) - 1U) * stride + column -
+                                   bytes_per_pixel] :
                     0U;
             std::uint8_t value = encoded;
             switch (filter)
@@ -492,16 +496,46 @@ TEST_F(PngCliTest, CompressionLevelsOrderAndValueDuplicatesReachTheEncoder)
     EXPECT_NE(uncompressed_png->idat, compressed_png->idat);
 }
 
-TEST_F(PngCliTest, SixteenBitNameReachesExistingStructuredUnsupportedBoundary)
+TEST_F(PngCliTest, SixteenBitNamePublishesRealRgb16Product)
 {
+    const auto develop = run({"catalog", "develop", "--catalog", catalog_, "--asset-id", asset_,
+                              "--exposure-ev", "0.37"});
+    ASSERT_EQ(develop.exit_code, 0) << stdout_stream_.str();
+
+    const auto eight_output = root_ / "edited-8.png";
+    const auto eight =
+        run(export_arguments(eight_output, {"--format", "png", "--png-bit-depth", "8"}));
+    ASSERT_EQ(eight.exit_code, 0) << stdout_stream_.str();
+    const auto eight_png = read_png(eight_output);
+    ASSERT_TRUE(eight_png);
+    EXPECT_EQ(eight_png->header.bit_depth, 8U);
+
     const auto output = root_ / "sixteen.png";
     const auto result = run(export_arguments(output, {"--png-bit-depth", "16", "--format", "png"}));
-    expect_error(result, 5, "unsupported", "unsupported_png_16bit_source");
-    const auto &context = required_child(required_child(result.body.value(), "error"), "context");
-    const auto &requested = required_child(context, "requested_bit_depth");
-    ASSERT_NE(requested.string_if(), nullptr);
-    EXPECT_EQ(*requested.string_if(), "16");
-    EXPECT_FALSE(std::filesystem::exists(output));
+    ASSERT_EQ(result.exit_code, 0) << stdout_stream_.str();
+    const auto decoded = read_png(output);
+    ASSERT_TRUE(decoded);
+    EXPECT_EQ(decoded->header.bit_depth, 16U);
+    EXPECT_EQ(decoded->header.color_type, 2U);
+    EXPECT_EQ(decoded->header.interlace, 0U);
+    EXPECT_TRUE(chunks_named(decoded->chunks, {'e', 'X', 'I', 'f'}).empty());
+    EXPECT_TRUE(chunks_named(decoded->chunks, {'p', 'H', 'Y', 's'}).empty());
+    ASSERT_EQ(decoded->pixels.size() % 2U, 0U);
+    ASSERT_EQ(decoded->pixels.size() / 2U, eight_png->pixels.size());
+    bool found_non_expansion = false;
+    for (std::size_t index = 0U; index < eight_png->pixels.size(); ++index)
+    {
+        const std::uint16_t sample = static_cast<std::uint16_t>(
+            (static_cast<std::uint16_t>(decoded->pixels[index * 2U]) << 8U) |
+            static_cast<std::uint16_t>(decoded->pixels[index * 2U + 1U]));
+        if (sample != static_cast<std::uint16_t>(eight_png->pixels[index]) * 257U)
+        {
+            found_non_expansion = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found_non_expansion);
+    EXPECT_EQ(source_hash_, file_hash(source_));
 }
 
 TEST_F(PngCliTest, InvalidValuesPreserveCanonicalValidationAndPublishNothing)

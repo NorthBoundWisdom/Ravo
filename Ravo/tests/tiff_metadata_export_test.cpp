@@ -10,6 +10,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <QByteArray>
@@ -339,6 +340,24 @@ public:
         return std::vector<std::uint8_t>{0x42U};
     }
 
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const ExportPixelBuffer &source, const ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override
+    {
+        const auto *const rgb8 = std::get_if<std::vector<std::uint8_t>>(&source.samples);
+        if (rgb8 == nullptr)
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy raster double does not own high-precision sources",
+                              {{"reason", "unsupported_tiff_high_precision_source"}});
+        }
+        return RasterDecoder::encode(source.width, source.height, *rgb8, source.color_profile,
+                                     format, jpeg_options, cancellation, png_options, tiff_options,
+                                     metadata);
+    }
+
     mutable std::size_t calls = 0U;
 };
 
@@ -400,6 +419,19 @@ public:
         last_metadata = metadata;
         return delegate_.encode(width, height, rgb, profile, format, jpeg_options, cancellation,
                                 png_options, tiff_options, metadata);
+    }
+
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const ExportPixelBuffer &source, const ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override
+    {
+        ++calls;
+        last_format = format;
+        last_metadata = metadata;
+        return delegate_.encode(source, format, jpeg_options, cancellation, png_options,
+                                tiff_options, metadata);
     }
 
     mutable std::size_t calls = 0U;

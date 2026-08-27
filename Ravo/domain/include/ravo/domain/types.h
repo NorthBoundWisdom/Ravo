@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "ravo/foundation/cancellation.h"
@@ -232,6 +233,16 @@ struct ExportMetadataSnapshot
     WritableMetadata writable;
 
     [[nodiscard]] bool operator==(const ExportMetadataSnapshot &) const noexcept = default;
+};
+
+// Tagged product-export pixels. Exactly one alternative is valid. The raster
+// port borrows this value only for a synchronous encode call.
+struct ExportPixelBuffer
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    ColorProfileState color_profile;
+    std::variant<std::vector<std::uint8_t>, std::vector<std::uint16_t>, std::vector<float>> samples;
 };
 
 struct RecipeHistoryEntry

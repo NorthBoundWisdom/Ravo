@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <limits>
 #include <memory>
@@ -11,6 +13,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <zlib.h>
@@ -33,6 +36,7 @@
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -267,6 +271,19 @@ unsigned_values(const TiffField *const field)
     return values->front();
 }
 
+[[nodiscard]] std::optional<std::uint32_t> uniform_unsigned(const TiffDocument &document,
+                                                            const std::uint16_t tag)
+{
+    const auto values = unsigned_values(unique_field(document, tag));
+    if (!values || values->empty() ||
+        !std::all_of(values->begin(), values->end(),
+                     [&](const std::uint32_t value) { return value == values->front(); }))
+    {
+        return std::nullopt;
+    }
+    return values->front();
+}
+
 [[nodiscard]] std::optional<double> rational_scalar(const TiffDocument &document,
                                                     const std::uint16_t tag)
 {
@@ -303,6 +320,86 @@ inflate_exact(const std::span<const std::uint8_t> compressed, const std::size_t 
     return result;
 }
 
+[[nodiscard]] bool undo_horizontal_predictor(std::vector<std::uint8_t> &pixels,
+                                             const std::uint32_t width, const std::uint32_t height,
+                                             const std::uint32_t samples,
+                                             const std::uint32_t bytes_per_sample)
+{
+    const std::size_t samples_per_row = static_cast<std::size_t>(width) * samples;
+    const std::size_t row_bytes = samples_per_row * bytes_per_sample;
+    if (pixels.size() != row_bytes * height)
+    {
+        return false;
+    }
+    if (bytes_per_sample == 1U)
+    {
+        for (std::uint32_t row = 0U; row < height; ++row)
+        {
+            const std::size_t row_offset = static_cast<std::size_t>(row) * row_bytes;
+            for (std::size_t byte = samples; byte < row_bytes; ++byte)
+            {
+                pixels[row_offset + byte] = static_cast<std::uint8_t>(
+                    pixels[row_offset + byte] + pixels[row_offset + byte - samples]);
+            }
+        }
+        return true;
+    }
+    if (bytes_per_sample == 2U)
+    {
+        for (std::uint32_t row = 0U; row < height; ++row)
+        {
+            const std::size_t row_offset = static_cast<std::size_t>(row) * row_bytes;
+            for (std::size_t sample = samples; sample < samples_per_row; ++sample)
+            {
+                const std::size_t current = row_offset + sample * 2U;
+                const std::size_t previous = row_offset + (sample - samples) * 2U;
+                const std::uint16_t left = static_cast<std::uint16_t>(
+                    pixels[previous] | (static_cast<std::uint16_t>(pixels[previous + 1U]) << 8U));
+                const std::uint16_t value = static_cast<std::uint16_t>(
+                    static_cast<std::uint16_t>(
+                        pixels[current] |
+                        (static_cast<std::uint16_t>(pixels[current + 1U]) << 8U)) +
+                    left);
+                pixels[current] = static_cast<std::uint8_t>(value & 0xFFU);
+                pixels[current + 1U] = static_cast<std::uint8_t>(value >> 8U);
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool undo_floating_predictor(std::vector<std::uint8_t> &pixels,
+                                           const std::uint32_t width, const std::uint32_t height,
+                                           const std::uint32_t samples,
+                                           const std::uint32_t bytes_per_sample)
+{
+    const std::size_t wc = static_cast<std::size_t>(width) * samples;
+    const std::size_t row_bytes = wc * bytes_per_sample;
+    if (bytes_per_sample == 0U || pixels.size() != row_bytes * height)
+    {
+        return false;
+    }
+    for (std::uint32_t row = 0U; row < height; ++row)
+    {
+        std::uint8_t *const cp = pixels.data() + static_cast<std::size_t>(row) * row_bytes;
+        for (std::size_t byte = samples; byte < row_bytes; ++byte)
+        {
+            cp[byte] = static_cast<std::uint8_t>(cp[byte] + cp[byte - samples]);
+        }
+        const std::vector<std::uint8_t> tmp(cp, cp + row_bytes);
+        for (std::size_t count = 0U; count < wc; ++count)
+        {
+            for (std::uint32_t byte = 0U; byte < bytes_per_sample; ++byte)
+            {
+                cp[bytes_per_sample * count + byte] =
+                    tmp[(bytes_per_sample - byte - 1U) * wc + count];
+            }
+        }
+    }
+    return true;
+}
+
 [[nodiscard]] std::optional<std::vector<std::uint8_t>>
 tiff_pixels(const std::span<const std::uint8_t> bytes, const TiffDocument &document)
 {
@@ -312,18 +409,29 @@ tiff_pixels(const std::span<const std::uint8_t> bytes, const TiffDocument &docum
     const auto rows_per_strip = unsigned_scalar(document, kTagRowsPerStrip);
     const auto compression = unsigned_scalar(document, kTagCompression);
     const auto predictor = unsigned_scalar(document, kTagPredictor);
+    const auto sample_format = uniform_unsigned(document, kTagSampleFormat).value_or(1U);
     const auto bits = unsigned_values(unique_field(document, kTagBitsPerSample));
     const auto offsets = unsigned_values(unique_field(document, kTagStripOffsets));
     const auto byte_counts = unsigned_values(unique_field(document, kTagStripByteCounts));
     if (!width || !height || !samples || !rows_per_strip || !compression || !bits || !offsets ||
         !byte_counts || width.value() == 0U || height.value() == 0U || samples.value() == 0U ||
-        rows_per_strip.value() == 0U || offsets->size() != byte_counts->size() ||
+        rows_per_strip.value() == 0U || offsets->size() != byte_counts->size() || bits->empty() ||
         !std::all_of(bits->begin(), bits->end(),
-                     [](const std::uint32_t value) { return value == 8U; }))
+                     [&](const std::uint32_t value) { return value == bits->front(); }))
     {
         return std::nullopt;
     }
-    const std::uint64_t row_bytes64 = static_cast<std::uint64_t>(width.value()) * samples.value();
+    const std::uint32_t bit_depth = bits->front();
+    if ((bit_depth != 8U && bit_depth != 16U && bit_depth != 32U) ||
+        (bit_depth == 8U && sample_format != 1U) ||
+        (bit_depth == 16U && sample_format != 1U && sample_format != 3U) ||
+        (bit_depth == 32U && sample_format != 3U))
+    {
+        return std::nullopt;
+    }
+    const std::uint32_t bytes_per_sample = bit_depth / 8U;
+    const std::uint64_t row_bytes64 =
+        static_cast<std::uint64_t>(width.value()) * samples.value() * bytes_per_sample;
     const std::uint64_t total_bytes64 = row_bytes64 * height.value();
     if (row_bytes64 > std::numeric_limits<std::size_t>::max() ||
         total_bytes64 > std::numeric_limits<std::size_t>::max())
@@ -379,14 +487,18 @@ tiff_pixels(const std::span<const std::uint8_t> bytes, const TiffDocument &docum
     const std::uint32_t predictor_value = predictor.value_or(1U);
     if (predictor_value == 2U)
     {
-        for (std::uint32_t row = 0U; row < height.value(); ++row)
+        if (sample_format != 1U || !undo_horizontal_predictor(result, width.value(), height.value(),
+                                                              samples.value(), bytes_per_sample))
         {
-            const std::size_t row_offset = static_cast<std::size_t>(row) * row_bytes;
-            for (std::size_t byte = samples.value(); byte < row_bytes; ++byte)
-            {
-                result[row_offset + byte] = static_cast<std::uint8_t>(
-                    result[row_offset + byte] + result[row_offset + byte - samples.value()]);
-            }
+            return std::nullopt;
+        }
+    }
+    else if (predictor_value == 3U)
+    {
+        if (sample_format != 3U || !undo_floating_predictor(result, width.value(), height.value(),
+                                                            samples.value(), bytes_per_sample))
+        {
+            return std::nullopt;
         }
     }
     else if (predictor_value != 1U)
@@ -413,6 +525,27 @@ tiff_pixels(const std::span<const std::uint8_t> bytes, const TiffDocument &docum
         }
     }
     return pixels;
+}
+
+[[nodiscard]] std::vector<std::uint16_t> as_uint16_le(const std::vector<std::uint8_t> &bytes)
+{
+    std::vector<std::uint16_t> result(bytes.size() / 2U);
+    for (std::size_t index = 0U; index < result.size(); ++index)
+    {
+        result[index] = static_cast<std::uint16_t>(
+            bytes[index * 2U] | (static_cast<std::uint16_t>(bytes[index * 2U + 1U]) << 8U));
+    }
+    return result;
+}
+
+[[nodiscard]] std::vector<float> as_float32_le(const std::vector<std::uint8_t> &bytes)
+{
+    std::vector<float> result(bytes.size() / sizeof(float));
+    if (!result.empty())
+    {
+        std::memcpy(result.data(), bytes.data(), result.size() * sizeof(float));
+    }
+    return result;
 }
 
 [[nodiscard]] std::vector<std::uint8_t> qbyte_array_bytes(const QByteArray &bytes)
@@ -540,6 +673,20 @@ public:
         last_metadata = metadata;
         return delegate_.encode(width, height, rgb, color_profile, format, jpeg_options,
                                 cancellation, png_options, tiff_options, metadata);
+    }
+
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const ExportPixelBuffer &source, const ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override
+    {
+        ++encode_calls;
+        last_format = format;
+        last_tiff_options = tiff_options;
+        last_metadata = metadata;
+        return delegate_.encode(source, format, jpeg_options, cancellation, png_options,
+                                tiff_options, metadata);
     }
 
     mutable std::size_t encode_calls = 0U;
@@ -843,6 +990,232 @@ TEST(TiffExportContractTest, CancellationAndInjectedFailurePublishNoBytesOrMutat
     EXPECT_EQ(icc, icc_before);
 }
 
+TEST(TiffExportContractTest, ConvertsFiniteFloatToOwnedBinary16Bits)
+{
+    const auto zero = detail::float32_to_binary16(0.0F);
+    ASSERT_TRUE(zero) << zero.error().message;
+    EXPECT_EQ(zero.value(), 0x0000U);
+    const auto negative_zero = detail::float32_to_binary16(-0.0F);
+    ASSERT_TRUE(negative_zero) << negative_zero.error().message;
+    EXPECT_EQ(negative_zero.value(), 0x8000U);
+    const auto one = detail::float32_to_binary16(1.0F);
+    ASSERT_TRUE(one) << one.error().message;
+    EXPECT_EQ(one.value(), 0x3C00U);
+    const auto two = detail::float32_to_binary16(2.0F);
+    ASSERT_TRUE(two) << two.error().message;
+    EXPECT_EQ(two.value(), 0x4000U);
+    const auto half = detail::float32_to_binary16(0.5F);
+    ASSERT_TRUE(half) << half.error().message;
+    EXPECT_EQ(half.value(), 0x3800U);
+    const auto max_finite = detail::float32_to_binary16(65504.0F);
+    ASSERT_TRUE(max_finite) << max_finite.error().message;
+    EXPECT_EQ(max_finite.value(), 0x7BFFU);
+    expect_tiff_error(detail::float32_to_binary16(65520.0F), ErrorCode::kValidation,
+                      "half_overflow");
+    expect_tiff_error(detail::float32_to_binary16(std::numeric_limits<float>::infinity()),
+                      ErrorCode::kValidation, "non_finite_half_source");
+    const auto min_subnormal = detail::float32_to_binary16(0x1p-24F);
+    ASSERT_TRUE(min_subnormal) << min_subnormal.error().message;
+    EXPECT_EQ(min_subnormal.value(), 0x0001U);
+    const auto tie_even = detail::float32_to_binary16(1.0F + 0x1p-11F);
+    ASSERT_TRUE(tie_even) << tie_even.error().message;
+    EXPECT_EQ(tie_even.value(), 0x3C00U);
+    const auto tie_odd = detail::float32_to_binary16(1.0F + 0x1p-10F + 0x1p-11F);
+    ASSERT_TRUE(tie_odd) << tie_odd.error().message;
+    EXPECT_EQ(tie_odd.value(), 0x3C02U);
+}
+
+TEST(TiffExportContractTest, WritesExactHighPrecisionSamplesAndPrecisionSpecificGrayscale)
+{
+    const auto icc = qbyte_array_bytes(QColorSpace(QColorSpace::SRgb).iccProfile());
+    ASSERT_FALSE(icc.empty());
+
+    const std::vector<std::uint16_t> rgb16{1000U, 32768U, 40000U, 165U, 0U, 330U};
+    TiffExportOptions options16;
+    options16.sample_type = TiffSampleType::kUint16;
+    const auto encoded16 = detail::encode_tiff_rgb16(2U, 1U, rgb16, icc, options16,
+                                                     ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(encoded16) << encoded16.error().message;
+    const auto document16 = parse_classic_little_endian_tiff(encoded16.value());
+    ASSERT_TRUE(document16);
+    EXPECT_EQ(uniform_unsigned(*document16, kTagBitsPerSample), 16U);
+    EXPECT_EQ(uniform_unsigned(*document16, kTagSampleFormat).value_or(1U), 1U);
+    const auto pixels16 = tiff_pixels(encoded16.value(), *document16);
+    ASSERT_TRUE(pixels16);
+    EXPECT_EQ(as_uint16_le(*pixels16), rgb16);
+
+    std::vector<std::uint16_t> gray16(8U * 6U * 3U, 1000U);
+    for (std::size_t index = 0U; index < gray16.size(); index += 3U)
+    {
+        gray16[index + 1U] = 1100U;
+        gray16[index + 2U] = 1050U;
+    }
+    TiffExportOptions gray_options;
+    gray_options.sample_type = TiffSampleType::kUint16;
+    gray_options.grayscale_if_neutral = true;
+    const auto encoded_gray = detail::encode_tiff_rgb16(
+        8U, 6U, gray16, icc, gray_options, ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(encoded_gray) << encoded_gray.error().message;
+    const auto gray_document = parse_classic_little_endian_tiff(encoded_gray.value());
+    ASSERT_TRUE(gray_document);
+    EXPECT_EQ(unsigned_scalar(*gray_document, kTagSamplesPerPixel), 1U);
+    EXPECT_EQ(unsigned_scalar(*gray_document, kTagPhotometric), 1U);
+    const auto gray_pixels = tiff_pixels(encoded_gray.value(), *gray_document);
+    ASSERT_TRUE(gray_pixels);
+    const auto gray_samples = as_uint16_le(*gray_pixels);
+    ASSERT_EQ(gray_samples.size(), 8U * 6U);
+    EXPECT_EQ(gray_samples.front(), 1000U);
+
+    gray16[(3U * 8U + 3U) * 3U + 1U] = 1166U;
+    const auto non_gray16 = detail::encode_tiff_rgb16(
+        8U, 6U, gray16, icc, gray_options, ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(non_gray16) << non_gray16.error().message;
+    const auto non_gray16_document = parse_classic_little_endian_tiff(non_gray16.value());
+    ASSERT_TRUE(non_gray16_document);
+    EXPECT_EQ(unsigned_scalar(*non_gray16_document, kTagSamplesPerPixel), 3U);
+
+    const std::vector<float> rgb_float{-0.25F, 0.5F, 1.25F};
+    TiffExportOptions options32;
+    options32.sample_type = TiffSampleType::kFloat32;
+    const auto encoded32 = detail::encode_tiff_rgb_float(
+        1U, 1U, rgb_float, icc, options32, ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(encoded32) << encoded32.error().message;
+    const auto document32 = parse_classic_little_endian_tiff(encoded32.value());
+    ASSERT_TRUE(document32);
+    EXPECT_EQ(uniform_unsigned(*document32, kTagBitsPerSample), 32U);
+    EXPECT_EQ(uniform_unsigned(*document32, kTagSampleFormat).value_or(1U), 3U);
+    const auto pixels32 = tiff_pixels(encoded32.value(), *document32);
+    ASSERT_TRUE(pixels32);
+    const auto decoded32 = as_float32_le(*pixels32);
+    ASSERT_EQ(decoded32.size(), 3U);
+    EXPECT_FLOAT_EQ(decoded32[0], -0.25F);
+    EXPECT_FLOAT_EQ(decoded32[1], 0.5F);
+    EXPECT_FLOAT_EQ(decoded32[2], 1.25F);
+
+    std::vector<float> gray_float(7U * 7U * 3U, 1.0F);
+    for (std::size_t index = 0U; index < gray_float.size(); index += 3U)
+    {
+        gray_float[index] = 1.009F;
+    }
+    gray_float[2U] = 4.0F;
+    TiffExportOptions gray_float_options;
+    gray_float_options.sample_type = TiffSampleType::kFloat32;
+    gray_float_options.grayscale_if_neutral = true;
+    const auto encoded_gray_float = detail::encode_tiff_rgb_float(
+        7U, 7U, gray_float, icc, gray_float_options, ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(encoded_gray_float) << encoded_gray_float.error().message;
+    const auto gray_float_document = parse_classic_little_endian_tiff(encoded_gray_float.value());
+    ASSERT_TRUE(gray_float_document);
+    EXPECT_EQ(unsigned_scalar(*gray_float_document, kTagSamplesPerPixel), 1U);
+
+    gray_float[(3U * 7U + 3U) * 3U + 2U] = 0.98F;
+    const auto encoded_non_gray_float = detail::encode_tiff_rgb_float(
+        7U, 7U, gray_float, icc, gray_float_options, ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(encoded_non_gray_float) << encoded_non_gray_float.error().message;
+    const auto non_gray_float_document =
+        parse_classic_little_endian_tiff(encoded_non_gray_float.value());
+    ASSERT_TRUE(non_gray_float_document);
+    EXPECT_EQ(unsigned_scalar(*non_gray_float_document, kTagSamplesPerPixel), 3U);
+
+    TiffExportOptions options16f;
+    options16f.sample_type = TiffSampleType::kFloat16;
+    const auto encoded16f =
+        detail::encode_tiff_rgb_float(1U, 1U, std::vector<float>{1.0F, 2.0F, 0.5F}, icc, options16f,
+                                      ExportMetadataSnapshot{}, CancellationToken{});
+    ASSERT_TRUE(encoded16f) << encoded16f.error().message;
+    const auto document16f = parse_classic_little_endian_tiff(encoded16f.value());
+    ASSERT_TRUE(document16f);
+    EXPECT_EQ(uniform_unsigned(*document16f, kTagBitsPerSample), 16U);
+    EXPECT_EQ(uniform_unsigned(*document16f, kTagSampleFormat).value_or(1U), 3U);
+    const auto pixels16f = tiff_pixels(encoded16f.value(), *document16f);
+    ASSERT_TRUE(pixels16f);
+    EXPECT_EQ(as_uint16_le(*pixels16f), (std::vector<std::uint16_t>{0x3C00U, 0x4000U, 0x3800U}));
+
+    expect_tiff_error(detail::encode_tiff_rgb16(1U, 1U, rgb16, icc, TiffExportOptions{},
+                                                ExportMetadataSnapshot{}, CancellationToken{}),
+                      ErrorCode::kValidation, "tiff_source_sample_mismatch");
+    expect_tiff_error(
+        detail::encode_tiff_rgb_float(1U, 1U, std::vector<float>{65520.0F, 0.0F, 0.0F}, icc,
+                                      options16f, ExportMetadataSnapshot{}, CancellationToken{}),
+        ErrorCode::kValidation, "half_overflow");
+
+    for (const TiffSampleType sample_type : {TiffSampleType::kFloat16, TiffSampleType::kFloat32})
+    {
+        TiffExportOptions non_finite_options;
+        non_finite_options.sample_type = sample_type;
+        const std::vector<float> non_finite{0.0F, std::numeric_limits<float>::quiet_NaN(), 1.0F};
+        expect_tiff_error(detail::encode_tiff_rgb_float(1U, 1U, non_finite, icc, non_finite_options,
+                                                        ExportMetadataSnapshot{},
+                                                        CancellationToken{}),
+                          ErrorCode::kValidation, "non_finite_tiff_source");
+        EXPECT_TRUE(std::isnan(non_finite[1]));
+    }
+}
+
+TEST(TiffExportContractTest, HighPrecisionRowsShareCancellationAndFailureCleanup)
+{
+    constexpr std::uint32_t width = 128U;
+    constexpr std::uint32_t height = 32U;
+    const auto icc = qbyte_array_bytes(QColorSpace(QColorSpace::SRgb).iccProfile());
+    const std::vector<std::uint16_t> rgb16(static_cast<std::size_t>(width) * height * 3U, 12345U);
+    const std::vector<float> rgb_float(static_cast<std::size_t>(width) * height * 3U, 0.25F);
+
+    for (const TiffSampleType sample_type :
+         {TiffSampleType::kUint16, TiffSampleType::kFloat16, TiffSampleType::kFloat32})
+    {
+        SCOPED_TRACE(std::string(tiff_sample_type_name(sample_type)));
+        TiffExportOptions options;
+        options.sample_type = sample_type;
+        const auto encode =
+            [&](const CancellationToken &cancellation, const detail::TiffEncodeControl control)
+        {
+            return sample_type == TiffSampleType::kUint16 ?
+                       detail::encode_tiff_rgb16(width, height, rgb16, icc, options,
+                                                 ExportMetadataSnapshot{}, cancellation, control) :
+                       detail::encode_tiff_rgb_float(width, height, rgb_float, icc, options,
+                                                     ExportMetadataSnapshot{}, cancellation,
+                                                     control);
+        };
+
+        CancellationSource entry;
+        ASSERT_TRUE(entry.cancel("tiff-high-precision-entry"));
+        expect_tiff_error(encode(entry.token(), {}), ErrorCode::kCancelled,
+                          "tiff_encode_cancelled");
+
+        TiffCheckpointState cancelled_state;
+        cancelled_state.cancel_checkpoint = detail::TiffEncodeCheckpoint::kScanline;
+        cancelled_state.cancel_progress = 5U;
+        detail::TiffEncodeControl cancelled_control;
+        cancelled_control.checkpoint_observer = {&cancelled_state, tiff_checkpoint};
+        expect_tiff_error(encode(cancelled_state.cancellation.token(), cancelled_control),
+                          ErrorCode::kCancelled, "tiff_encode_cancelled");
+        EXPECT_TRUE(cancelled_state.cancelled);
+
+        for (const detail::TiffEncodeInjectedFailure failure :
+             {detail::TiffEncodeInjectedFailure::kClientWriteFailure,
+              detail::TiffEncodeInjectedFailure::kFinalizeFailure})
+        {
+            TiffCheckpointState failed_state;
+            failed_state.fail_checkpoint =
+                failure == detail::TiffEncodeInjectedFailure::kFinalizeFailure ?
+                    detail::TiffEncodeCheckpoint::kBeforeFinish :
+                    detail::TiffEncodeCheckpoint::kScanline;
+            failed_state.fail_progress =
+                failure == detail::TiffEncodeInjectedFailure::kFinalizeFailure ? height : 7U;
+            failed_state.injected_failure = failure;
+            detail::TiffEncodeControl failed_control;
+            failed_control.checkpoint_observer = {&failed_state, tiff_checkpoint};
+            expect_tiff_error(encode(CancellationToken{}, failed_control), ErrorCode::kIo,
+                              failure == detail::TiffEncodeInjectedFailure::kClientWriteFailure ?
+                                  "tiff_client_write_failed" :
+                                  "tiff_encoder_failure");
+            EXPECT_TRUE(failed_state.failed);
+        }
+    }
+    EXPECT_EQ(rgb16.front(), 12345U);
+    EXPECT_FLOAT_EQ(rgb_float.front(), 0.25F);
+}
+
 TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
 {
     TiffExportTempDirectory temporary;
@@ -901,21 +1274,85 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     EXPECT_EQ(capturing->last_tiff_options, explicit_options.tiff_options);
     EXPECT_TRUE(std::filesystem::is_regular_file(explicit_options.output_path));
 
-    const std::size_t calls_before_rejection = capturing->encode_calls;
-    ExportRequest high_precision = defaults;
-    high_precision.output_path = (temporary.path() / "unsupported-16.tif").string();
-    high_precision.tiff_options.sample_type = TiffSampleType::kUint16;
-    expect_tiff_error(service.export_asset(high_precision), ErrorCode::kUnsupported,
-                      "unsupported_tiff_high_precision_source");
-    EXPECT_EQ(capturing->encode_calls, calls_before_rejection + 1U);
-    EXPECT_FALSE(std::filesystem::exists(high_precision.output_path));
+    DevelopParams develop;
+    develop.exposure_ev = 0.37;
+    const auto saved = service.save_develop(imported.value().asset->id, develop);
+    ASSERT_TRUE(saved) << saved.error().message;
 
+    ExportRequest eight_bit = defaults;
+    eight_bit.output_path = (temporary.path() / "edited-8.tif").string();
+    const auto eight_export = service.export_asset(eight_bit);
+    ASSERT_TRUE(eight_export) << eight_export.error().message;
+    const auto eight_bytes = qbyte_array_bytes(read_file(eight_bit.output_path));
+    const auto eight_document = parse_classic_little_endian_tiff(eight_bytes);
+    ASSERT_TRUE(eight_document);
+    const auto eight_pixels = tiff_pixels(eight_bytes, *eight_document);
+    ASSERT_TRUE(eight_pixels);
+
+    const std::size_t calls_before_high_precision = capturing->encode_calls;
+    struct HighPrecisionCase
+    {
+        TiffSampleType sample_type = TiffSampleType::kUint16;
+        std::string suffix;
+        std::uint32_t bits = 0U;
+        std::uint32_t sample_format = 0U;
+    };
+    for (const auto &entry : {
+             HighPrecisionCase{TiffSampleType::kUint16, "uint16", 16U, 1U},
+             HighPrecisionCase{TiffSampleType::kFloat16, "float16", 16U, 3U},
+             HighPrecisionCase{TiffSampleType::kFloat32, "float32", 32U, 3U},
+         })
+    {
+        ExportRequest request = defaults;
+        request.output_path = (temporary.path() / (entry.suffix + ".tif")).string();
+        request.tiff_options.sample_type = entry.sample_type;
+        const auto exported = service.export_asset(request);
+        ASSERT_TRUE(exported) << exported.error().message << " " << entry.suffix;
+        EXPECT_EQ(capturing->last_tiff_options.sample_type, entry.sample_type);
+        const auto encoded = qbyte_array_bytes(read_file(request.output_path));
+        const auto document = parse_classic_little_endian_tiff(encoded);
+        ASSERT_TRUE(document) << entry.suffix;
+        EXPECT_EQ(uniform_unsigned(*document, kTagBitsPerSample), entry.bits);
+        EXPECT_EQ(uniform_unsigned(*document, kTagSampleFormat).value_or(1U), entry.sample_format);
+        EXPECT_EQ(unsigned_scalar(*document, kTagSamplesPerPixel), 3U);
+        const auto pixels = tiff_pixels(encoded, *document);
+        ASSERT_TRUE(pixels) << entry.suffix;
+        if (entry.sample_type == TiffSampleType::kUint16)
+        {
+            const auto samples16 = as_uint16_le(*pixels);
+            ASSERT_EQ(samples16.size(), eight_pixels->size());
+            bool found_non_expansion = false;
+            for (std::size_t index = 0U; index < samples16.size(); ++index)
+            {
+                if (samples16[index] != static_cast<std::uint16_t>((*eight_pixels)[index]) * 257U)
+                {
+                    found_non_expansion = true;
+                    break;
+                }
+            }
+            EXPECT_TRUE(found_non_expansion);
+        }
+        else if (entry.sample_type == TiffSampleType::kFloat32)
+        {
+            const auto samples32 = as_float32_le(*pixels);
+            ASSERT_EQ(samples32.size(), eight_pixels->size());
+            EXPECT_TRUE(std::all_of(samples32.begin(), samples32.end(),
+                                    [](const float value) { return std::isfinite(value); }));
+        }
+        else
+        {
+            ASSERT_EQ(pixels->size(), eight_pixels->size() * 2U);
+        }
+    }
+    EXPECT_EQ(capturing->encode_calls, calls_before_high_precision + 3U);
+
+    const std::size_t calls_before_invalid = capturing->encode_calls;
     ExportRequest invalid = defaults;
     invalid.output_path = (temporary.path() / "invalid.tif").string();
     invalid.tiff_options.compression_level = 10;
     expect_tiff_error(service.export_asset(invalid), ErrorCode::kValidation,
                       "invalid_tiff_compression_level");
-    EXPECT_EQ(capturing->encode_calls, calls_before_rejection + 1U);
+    EXPECT_EQ(capturing->encode_calls, calls_before_invalid);
     EXPECT_FALSE(std::filesystem::exists(invalid.output_path));
 
     TiffExportOptions deliberately_invalid;

@@ -65,12 +65,13 @@ Catalog tests prove that the normalized destination and current writable
 values are copied once, non-TIFF formats receive an empty snapshot, and source
 plus sidecar hashes, sizes, and modification times remain unchanged.
 
-This is still an I13 tranche, not I13 completion. Real uint16/float16/float32
-rendered sources, complete EXIF/IPTC/XMP packets, capture/timezone/GPS mapping,
-XMP attach/history and sidecar policy, multipage masks, Studio options, shared
-imageio/storage/job consumers, and legacy plugin retirement remain open. The
-work adds no Exiv2 or other dependency, and it does not authorize another
-algorithm-migration tranche during the feature-convergence pause.
+This is still an I13 tranche, not I13 completion. ADR-0037 now owns real
+uint16/float16/float32 rendered sources. Complete EXIF/IPTC/XMP packets,
+capture/timezone/GPS mapping, XMP attach/history and sidecar policy, multipage
+masks, Studio options, shared imageio/storage/job consumers, and legacy plugin
+retirement remain open. The work adds no Exiv2 or other dependency, and it
+does not authorize another algorithm-migration tranche during the
+feature-convergence pause.
 
 ## Rejected alternatives
 
@@ -82,5 +83,4 @@ algorithm-migration tranche during the feature-convergence pause.
 - Serialize every capture field into ad-hoc TIFF tags: S9/J6 must define exact
   packet ownership, namespaces, precedence, bounds, and sidecar behavior first.
 - Treat this baseline IFD as full metadata migration or retire the old plugin:
-  high precision, packets, multipage output, consumers, and retirement gates
-  remain unresolved.
+  packets, multipage output, consumers, and retirement gates remain unresolved.

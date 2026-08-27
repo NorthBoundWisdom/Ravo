@@ -1,11 +1,13 @@
 #include "ravo/engine/engine.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
 #include <new>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "capability_ops.h"
 #include "image_ops.h"
@@ -21,14 +23,14 @@
 namespace ravo
 {
 
-Result<RenderedImage> encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
-                                                  const CancellationToken &cancellation)
-try
+Result<std::size_t> validate_profiled_output_for_pack(const ProfiledOutputBuffer &input,
+                                                      const std::size_t bytes_per_pixel)
 {
-    auto cancelled = cancellation.check();
-    if (!cancelled)
+    if (bytes_per_pixel != 3U && bytes_per_pixel != 6U && bytes_per_pixel != 12U)
     {
-        return cancelled.error();
+        return make_error(ErrorCode::kValidation, "Profiled output sample width is unsupported",
+                          {{"reason", "unsupported_sample_width"},
+                           {"bytes_per_pixel", std::to_string(bytes_per_pixel)}});
     }
     if (input.width == 0 || input.height == 0)
     {
@@ -38,11 +40,17 @@ try
                            {"height", std::to_string(input.height)}});
     }
     const std::uint64_t pixels = static_cast<std::uint64_t>(input.width) * input.height;
-    if (pixels > std::numeric_limits<std::size_t>::max() / 3U)
+    const std::size_t maximum_channels =
+        bytes_per_pixel == 3U ? std::vector<std::uint8_t>{}.max_size() :
+        bytes_per_pixel == 6U ? std::vector<std::uint16_t>{}.max_size() :
+                                std::vector<float>{}.max_size();
+    if (pixels > std::numeric_limits<std::size_t>::max() / bytes_per_pixel ||
+        pixels > static_cast<std::uint64_t>(maximum_channels / 3U))
     {
         return make_error(ErrorCode::kValidation,
-                          "Profiled output dimensions exceed the RGB8 buffer limit",
-                          {{"reason", "dimensions_overflow"}});
+                          "Profiled output dimensions exceed the export buffer limit",
+                          {{"reason", "dimensions_overflow"},
+                           {"bytes_per_pixel", std::to_string(bytes_per_pixel)}});
     }
     const std::size_t expected_channels = static_cast<std::size_t>(pixels) * 3U;
     if (input.channels.size() != expected_channels)
@@ -59,12 +67,97 @@ try
             ErrorCode::kUnsupported, "Profiled output must use an RGB colour model",
             {{"reason", "unsupported_color_model"}, {"profile", input.color_profile.identifier}});
     }
+    return expected_channels;
+}
 
-    RenderedImage result;
+namespace
+{
+
+[[nodiscard]] Result<void> pack_profiled_row(const ProfiledOutputBuffer &input,
+                                             const std::uint32_t row,
+                                             const RenderSampleKind sample_kind,
+                                             RenderedExportImage &result)
+{
+    const std::size_t begin = static_cast<std::size_t>(row) * input.width * 3U;
+    const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
+    for (std::size_t index = begin; index < end; ++index)
+    {
+        const float sample = input.channels[index];
+        if (!std::isfinite(sample))
+        {
+            return make_error(
+                ErrorCode::kValidation, "Profiled output contains NaN or infinity",
+                {{"reason", "non_finite_sample"}, {"sample_index", std::to_string(index)}});
+        }
+        switch (sample_kind)
+        {
+        case RenderSampleKind::kRgb8:
+        {
+            // Output colour already owns transfer encoding. Preserve the frozen
+            // _copy_output arithmetic here while keeping Ravo's RGB byte order.
+            const float nonnegative = std::fmax(sample, 0.0F);
+            const float rounded = std::round(255.0F * nonnegative);
+            std::get<std::vector<std::uint8_t>>(result.samples)[index] =
+                static_cast<std::uint8_t>(std::fmin(rounded, 255.0F));
+            break;
+        }
+        case RenderSampleKind::kRgb16:
+        {
+            const float clamped = std::clamp(sample, 0.0F, 1.0F);
+            const float rounded = std::round(clamped * 65535.0F);
+            std::get<std::vector<std::uint16_t>>(result.samples)[index] =
+                static_cast<std::uint16_t>(rounded);
+            break;
+        }
+        case RenderSampleKind::kRgbFloat:
+        {
+            std::get<std::vector<float>>(result.samples)[index] = sample;
+            break;
+        }
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+Result<RenderedExportImage> encode_profiled_output(const ProfiledOutputBuffer &input,
+                                                   const RenderSampleKind sample_kind,
+                                                   const CancellationToken &cancellation)
+try
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    const std::size_t bytes_per_pixel = render_sample_bytes_per_pixel(sample_kind);
+    auto expected = validate_profiled_output_for_pack(input, bytes_per_pixel);
+    if (!expected)
+    {
+        return expected.error();
+    }
+
+    RenderedExportImage result;
     result.width = input.width;
     result.height = input.height;
     result.color_profile = input.color_profile;
-    result.rgb.resize(expected_channels);
+    switch (sample_kind)
+    {
+    case RenderSampleKind::kRgb8:
+        result.samples = std::vector<std::uint8_t>(expected.value());
+        break;
+    case RenderSampleKind::kRgb16:
+        result.samples = std::vector<std::uint16_t>(expected.value());
+        break;
+    case RenderSampleKind::kRgbFloat:
+        result.samples = std::vector<float>(expected.value());
+        break;
+    default:
+        return make_error(ErrorCode::kValidation, "Profiled output sample kind is unsupported",
+                          {{"reason", "unsupported_sample_kind"}});
+    }
+
     for (std::uint32_t row = 0; row < input.height; ++row)
     {
         cancelled = cancellation.check();
@@ -72,30 +165,34 @@ try
         {
             return cancelled.error();
         }
-        const std::size_t begin = static_cast<std::size_t>(row) * input.width * 3U;
-        const std::size_t end = begin + static_cast<std::size_t>(input.width) * 3U;
-        for (std::size_t index = begin; index < end; ++index)
+        auto packed = pack_profiled_row(input, row, sample_kind, result);
+        if (!packed)
         {
-            const float sample = input.channels[index];
-            if (!std::isfinite(sample))
-            {
-                return make_error(
-                    ErrorCode::kValidation, "Profiled output contains NaN or infinity",
-                    {{"reason", "non_finite_sample"}, {"sample_index", std::to_string(index)}});
-            }
-            // Output colour already owns transfer encoding. Preserve the frozen
-            // _copy_output arithmetic here while keeping Ravo's RGB byte order.
-            const float nonnegative = std::fmax(sample, 0.0F);
-            const float rounded = std::round(255.0F * nonnegative);
-            result.rgb[index] = static_cast<std::uint8_t>(std::fmin(rounded, 255.0F));
+            return packed.error();
         }
     }
     return result;
 }
 catch (const std::bad_alloc &)
 {
-    return make_error(ErrorCode::kIo, "Final RGB8 output allocation failed",
+    return make_error(ErrorCode::kIo, "Final export output allocation failed",
                       {{"reason", "allocation_failed"}});
+}
+
+Result<RenderedImage> encode_profiled_output_rgb8(const ProfiledOutputBuffer &input,
+                                                  const CancellationToken &cancellation)
+{
+    auto packed = encode_profiled_output(input, RenderSampleKind::kRgb8, cancellation);
+    if (!packed)
+    {
+        return packed.error();
+    }
+    RenderedImage result;
+    result.width = packed.value().width;
+    result.height = packed.value().height;
+    result.color_profile = std::move(packed.value().color_profile);
+    result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
+    return result;
 }
 
 EngineFacade::EngineFacade(OperationRegistry registry)
@@ -412,20 +509,17 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
     return apply_input_color(profiled, input_color.value(), cancellation);
 }
 
-Result<RenderedImage>
-EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
-                                    const CancellationToken &cancellation) const
-try
+namespace
+{
+
+[[nodiscard]] Result<ProfiledOutputBuffer>
+render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                 const CancellationToken &cancellation)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
     {
         return cancelled.error();
-    }
-    auto valid = validate(recipe);
-    if (!valid)
-    {
-        return valid.error();
     }
     auto output_color = resolve_output_color(recipe);
     if (!output_color)
@@ -463,12 +557,70 @@ try
     {
         return adjusted.error();
     }
-    auto output = apply_output_color(adjusted.value(), output_color.value(), cancellation);
+    return apply_output_color(adjusted.value(), output_color.value(), cancellation);
+}
+
+[[nodiscard]] Recipe rgb_recipe_after_raw_preprocess(Recipe recipe)
+{
+    for (auto &operation : recipe.operations)
+    {
+        if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
+            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
+            operation.id == kProfileGammaOperationId)
+        {
+            operation.enabled = false;
+        }
+    }
+    return recipe;
+}
+
+} // namespace
+
+Result<RenderedImage>
+EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                    const CancellationToken &cancellation) const
+{
+    auto packed =
+        render_linear_working_export(working, recipe, RenderSampleKind::kRgb8, cancellation);
+    if (!packed)
+    {
+        return packed.error();
+    }
+    RenderedImage result;
+    result.width = packed.value().width;
+    result.height = packed.value().height;
+    result.color_profile = std::move(packed.value().color_profile);
+    result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
+    return result;
+}
+
+Result<RenderedExportImage>
+EngineFacade::render_linear_working_export(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                           const RenderSampleKind sample_kind,
+                                           const CancellationToken &cancellation) const
+try
+{
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    if (render_sample_bytes_per_pixel(sample_kind) == 0U)
+    {
+        return make_error(ErrorCode::kValidation, "Render sample kind is unsupported",
+                          {{"reason", "unsupported_sample_kind"}});
+    }
+    auto output = render_recipe_to_profiled_output(working, recipe, cancellation);
     if (!output)
     {
         return output.error();
     }
-    return encode_profiled_output_rgb8(output.value(), cancellation);
+    return encode_profiled_output(output.value(), sample_kind, cancellation);
 }
 catch (const std::bad_alloc &)
 {
@@ -478,6 +630,23 @@ catch (const std::bad_alloc &)
 
 Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request,
                                                     const RasterBuffer *raster) const
+{
+    auto packed = render_to_export_image(request, RenderSampleKind::kRgb8, raster);
+    if (!packed)
+    {
+        return packed.error();
+    }
+    RenderedImage result;
+    result.width = packed.value().width;
+    result.height = packed.value().height;
+    result.color_profile = std::move(packed.value().color_profile);
+    result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
+    return result;
+}
+
+Result<RenderedExportImage> EngineFacade::render_to_export_image(const RenderRequest &request,
+                                                                 const RenderSampleKind sample_kind,
+                                                                 const RasterBuffer *raster) const
 {
     auto cancelled = request.cancellation.check();
     if (!cancelled)
@@ -489,6 +658,12 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     {
         return valid.error();
     }
+    const std::size_t bytes_per_pixel = render_sample_bytes_per_pixel(sample_kind);
+    if (bytes_per_pixel == 0U)
+    {
+        return make_error(ErrorCode::kValidation, "Render sample kind is unsupported",
+                          {{"reason", "unsupported_sample_kind"}});
+    }
     if (raster != nullptr)
     {
         auto working = linear_working_from_raster(*raster, request.recipe, request.cancellation);
@@ -496,7 +671,8 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
         {
             return working.error();
         }
-        return render_linear_working(working.value(), request.recipe, request.cancellation);
+        return render_linear_working_export(working.value(), request.recipe, sample_kind,
+                                            request.cancellation);
     }
     auto decoded = decode_raw_frame(request.asset.input_uri, request.cancellation);
     if (!decoded)
@@ -509,7 +685,7 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     const std::uint32_t width = request.output_width.value_or(default_width);
     const std::uint32_t height = request.output_height.value_or(default_height);
     const std::uint64_t working_bytes =
-        estimate_raw_render_memory(decoded.value(), request.recipe, width, height);
+        estimate_raw_render_memory(decoded.value(), request.recipe, width, height, bytes_per_pixel);
     if (request.memory_budget_bytes != 0 && working_bytes > request.memory_budget_bytes)
     {
         return make_error(ErrorCode::kValidation, "Render memory budget is too small",
@@ -521,17 +697,9 @@ Result<RenderedImage> EngineFacade::render_to_image(const RenderRequest &request
     {
         return working.error();
     }
-    Recipe rgb_recipe = request.recipe;
-    for (auto &operation : rgb_recipe.operations)
-    {
-        if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
-            operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
-            operation.id == kProfileGammaOperationId)
-        {
-            operation.enabled = false;
-        }
-    }
-    return render_linear_working(working.value(), rgb_recipe, request.cancellation);
+    return render_linear_working_export(working.value(),
+                                        rgb_recipe_after_raw_preprocess(request.recipe),
+                                        sample_kind, request.cancellation);
 }
 
 Result<std::vector<std::uint8_t>> EngineFacade::encode_png(const RenderedImage &image) const

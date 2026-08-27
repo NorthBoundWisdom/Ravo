@@ -494,11 +494,12 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     return result;
 }
 
-Result<RenderedImage> CatalogService::render_for_export(const AssetRecord &asset,
-                                                        const std::string_view path,
-                                                        const Recipe &recipe,
-                                                        const std::uint32_t max_edge,
-                                                        const CancellationToken &cancellation)
+Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord &asset,
+                                                              const std::string_view path,
+                                                              const Recipe &recipe,
+                                                              const std::uint32_t max_edge,
+                                                              const CancellationToken &cancellation,
+                                                              const RenderSampleKind sample_kind)
 {
     RenderRequest render;
     render.asset = {asset.id, std::string(path), asset.content_fingerprint};
@@ -521,11 +522,11 @@ Result<RenderedImage> CatalogService::render_for_export(const AssetRecord &asset
         {
             return source.error();
         }
-        return engine_->render_to_image(render, &source.value());
+        return engine_->render_to_export_image(render, sample_kind, &source.value());
     }
     if (is_raw_media_type(asset.media_type))
     {
-        return engine_->render_to_image(render, nullptr);
+        return engine_->render_to_export_image(render, sample_kind, nullptr);
     }
     return make_error(ErrorCode::kUnsupported, "Asset media type cannot be exported",
                       {{"media_type", asset.media_type}, {"asset_id", asset.id}});

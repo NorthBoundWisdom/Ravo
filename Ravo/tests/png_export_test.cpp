@@ -12,6 +12,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <zlib.h>
@@ -34,6 +35,7 @@
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -532,6 +534,20 @@ public:
                                 cancellation, png_options, tiff_options, metadata);
     }
 
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const ExportPixelBuffer &source, const ExportFormat format,
+           const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+           const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override
+    {
+        ++encode_calls;
+        last_format = format;
+        last_png_options = png_options;
+        last_metadata = metadata;
+        return delegate_.encode(source, format, jpeg_options, cancellation, png_options,
+                                tiff_options, metadata);
+    }
+
     mutable std::size_t encode_calls = 0U;
     mutable ExportFormat last_format = ExportFormat::kPng;
     mutable PngExportOptions last_png_options;
@@ -942,21 +958,68 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     EXPECT_EQ(capturing->last_png_options, explicit_options.png_options);
     EXPECT_TRUE(std::filesystem::is_regular_file(explicit_options.output_path));
 
-    const std::size_t calls_before_invalid = capturing->encode_calls;
+    DevelopParams develop;
+    develop.exposure_ev = 0.37;
+    const auto saved = service.save_develop(imported.value().asset->id, develop);
+    ASSERT_TRUE(saved) << saved.error().message;
+
+    ExportRequest eight_bit_after_edit = defaults;
+    eight_bit_after_edit.output_path = (temporary.path() / "edited-8.png").string();
+    const auto eight_bit_export = service.export_asset(eight_bit_after_edit);
+    ASSERT_TRUE(eight_bit_export) << eight_bit_export.error().message;
+
+    const std::size_t calls_before_sixteen = capturing->encode_calls;
     ExportRequest sixteen_bit = defaults;
-    sixteen_bit.output_path = (temporary.path() / "unsupported-16.png").string();
+    sixteen_bit.output_path = (temporary.path() / "edited-16.png").string();
     sixteen_bit.png_options = {PngBitDepth::k16, 5};
-    const auto unsupported = service.export_asset(sixteen_bit);
-    expect_png_error(unsupported, ErrorCode::kUnsupported, "unsupported_png_16bit_source");
-    EXPECT_EQ(capturing->encode_calls, calls_before_invalid + 1U);
-    EXPECT_FALSE(std::filesystem::exists(sixteen_bit.output_path));
+    const auto sixteen = service.export_asset(sixteen_bit);
+    ASSERT_TRUE(sixteen) << sixteen.error().message;
+    EXPECT_EQ(capturing->encode_calls, calls_before_sixteen + 1U);
+    EXPECT_EQ(capturing->last_png_options, sixteen_bit.png_options);
+    EXPECT_TRUE(std::filesystem::is_regular_file(sixteen_bit.output_path));
+
+    const auto eight_chunks =
+        png_chunks(qbyte_array_bytes(read_file(eight_bit_after_edit.output_path)));
+    ASSERT_TRUE(eight_chunks);
+    const auto eight_header = png_ihdr(eight_chunks.value());
+    ASSERT_TRUE(eight_header);
+    const auto eight_pixels = png_rgb8_pixels(eight_chunks.value(), eight_header.value());
+    ASSERT_TRUE(eight_pixels);
+    const auto sixteen_chunks = png_chunks(qbyte_array_bytes(read_file(sixteen_bit.output_path)));
+    ASSERT_TRUE(sixteen_chunks);
+    const auto sixteen_header = png_ihdr(sixteen_chunks.value());
+    ASSERT_TRUE(sixteen_header);
+    EXPECT_EQ(sixteen_header->bit_depth, 16U);
+    EXPECT_EQ(sixteen_header->color_type, 2U);
+    EXPECT_EQ(sixteen_header->interlace, 0U);
+    EXPECT_TRUE(chunks_named(sixteen_chunks.value(), {'e', 'X', 'I', 'f'}).empty());
+    EXPECT_TRUE(chunks_named(sixteen_chunks.value(), {'p', 'H', 'Y', 's'}).empty());
+    const auto cicp = chunks_named(sixteen_chunks.value(), {'c', 'I', 'C', 'P'});
+    ASSERT_EQ(cicp.size(), 1U);
+    EXPECT_EQ(cicp.front()->payload, (std::vector<std::uint8_t>{1U, 13U, 0U, 1U}));
+    ASSERT_TRUE(png_icc(sixteen_chunks.value()));
+    const auto sixteen_pixels = png_rgb16_pixels(sixteen_chunks.value(), sixteen_header.value());
+    ASSERT_TRUE(sixteen_pixels);
+    ASSERT_EQ(sixteen_pixels->size(), eight_pixels->size());
+    bool found_non_expansion = false;
+    for (std::size_t index = 0U; index < sixteen_pixels->size(); ++index)
+    {
+        if ((*sixteen_pixels)[index] != static_cast<std::uint16_t>((*eight_pixels)[index]) * 257U)
+        {
+            found_non_expansion = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found_non_expansion);
+
+    const std::size_t calls_before_invalid = capturing->encode_calls;
 
     ExportRequest invalid = defaults;
     invalid.output_path = (temporary.path() / "invalid.png").string();
     invalid.png_options.compression = 10;
     const auto invalid_result = service.export_asset(invalid);
     expect_png_error(invalid_result, ErrorCode::kValidation, "invalid_png_compression");
-    EXPECT_EQ(capturing->encode_calls, calls_before_invalid + 1U);
+    EXPECT_EQ(capturing->encode_calls, calls_before_invalid);
     EXPECT_FALSE(std::filesystem::exists(invalid.output_path));
 
     ExportRequest invalid_depth = defaults;
@@ -964,7 +1027,7 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     invalid_depth.png_options.bit_depth = static_cast<PngBitDepth>(255U);
     const auto invalid_depth_result = service.export_asset(invalid_depth);
     expect_png_error(invalid_depth_result, ErrorCode::kValidation, "invalid_png_bit_depth");
-    EXPECT_EQ(capturing->encode_calls, calls_before_invalid + 1U);
+    EXPECT_EQ(capturing->encode_calls, calls_before_invalid);
     EXPECT_FALSE(std::filesystem::exists(invalid_depth.output_path));
 
     const PngExportOptions deliberately_invalid{static_cast<PngBitDepth>(255U), -1};

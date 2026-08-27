@@ -41,6 +41,20 @@ namespace
     return parsed.isLocalFile() ? parsed.toLocalFile() : text;
 }
 
+[[nodiscard]] constexpr std::uint64_t saturating_add(const std::uint64_t left,
+                                                     const std::uint64_t right) noexcept
+{
+    constexpr std::uint64_t maximum = std::numeric_limits<std::uint64_t>::max();
+    return right > maximum - left ? maximum : left + right;
+}
+
+[[nodiscard]] constexpr std::uint64_t saturating_multiply(const std::uint64_t left,
+                                                          const std::uint64_t right) noexcept
+{
+    constexpr std::uint64_t maximum = std::numeric_limits<std::uint64_t>::max();
+    return left != 0U && right > maximum / left ? maximum : left * right;
+}
+
 [[nodiscard]] Result<std::uint8_t> channel_for(const int color)
 {
     switch (color)
@@ -795,25 +809,35 @@ catch (const std::bad_alloc &)
 }
 
 std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe,
-                                         const std::uint32_t width,
-                                         const std::uint32_t height) noexcept
+                                         const std::uint32_t width, const std::uint32_t height,
+                                         const std::size_t output_bytes_per_pixel) noexcept
 {
     const std::uint64_t output_pixels = static_cast<std::uint64_t>(width) * height;
-    const std::uint64_t output_bytes = output_pixels * 3U;
+    const std::uint64_t output_bytes =
+        saturating_multiply(output_pixels, static_cast<std::uint64_t>(output_bytes_per_pixel));
     const std::uint64_t raw_pixels = raw.pixels.size();
-    const std::uint64_t raw_bytes = raw_pixels * sizeof(std::uint16_t);
+    const std::uint64_t raw_bytes = saturating_multiply(raw_pixels, sizeof(std::uint16_t));
     // Worst case: source, working, normalization, output, and proof profiles
     // each own three input and three output shaper curves.
     constexpr std::uint64_t color_lut_bytes = 30U * 0x10000U * sizeof(float);
-    const std::uint64_t failure_detail_bytes =
-        static_cast<std::uint64_t>(raw.exposure_metadata.failure_detail.capacity()) + 1U;
-    const std::uint64_t exposure_analysis_bytes =
-        sizeof(ExposureAnalysisContext) +
-        2U * sizeof(std::shared_ptr<const ExposureAnalysisContext>) +
-        kExposureRawHistogramBins * sizeof(std::uint32_t) + 2U * failure_detail_bytes;
-    const std::uint64_t float_rgb_bytes = output_pixels * 3U * sizeof(float);
-    std::uint64_t working_bytes =
-        output_bytes + 2U * float_rgb_bytes + color_lut_bytes + raw_bytes + exposure_analysis_bytes;
+    const std::uint64_t failure_detail_bytes = saturating_add(
+        static_cast<std::uint64_t>(raw.exposure_metadata.failure_detail.capacity()), 1U);
+    std::uint64_t exposure_analysis_bytes = sizeof(ExposureAnalysisContext);
+    exposure_analysis_bytes = saturating_add(
+        exposure_analysis_bytes, 2U * sizeof(std::shared_ptr<const ExposureAnalysisContext>));
+    exposure_analysis_bytes =
+        saturating_add(exposure_analysis_bytes, kExposureRawHistogramBins * sizeof(std::uint32_t));
+    exposure_analysis_bytes =
+        saturating_add(exposure_analysis_bytes, saturating_multiply(2U, failure_detail_bytes));
+    const std::uint64_t float_rgb_bytes = saturating_multiply(output_pixels, 3U * sizeof(float));
+    std::uint64_t working_bytes = 0U;
+    const auto add_working_bytes = [&working_bytes](const std::uint64_t bytes) noexcept
+    { working_bytes = saturating_add(working_bytes, bytes); };
+    add_working_bytes(output_bytes);
+    add_working_bytes(saturating_multiply(2U, float_rgb_bytes));
+    add_working_bytes(color_lut_bytes);
+    add_working_bytes(raw_bytes);
+    add_working_bytes(exposure_analysis_bytes);
     bool owns_raw_copy = false;
     for (const auto &operation : recipe.operations)
     {
@@ -828,28 +852,30 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         }
         if (operation.id == "ravo.raw.hotpixels")
         {
-            working_bytes += raw_bytes;
+            add_working_bytes(raw_bytes);
         }
         if (operation.id == "ravo.raw.cacorrect")
         {
-            working_bytes += raw_pixels * (3U * sizeof(float) + sizeof(std::uint16_t));
+            add_working_bytes(
+                saturating_multiply(raw_pixels, 3U * sizeof(float) + sizeof(std::uint16_t)));
             const auto avoid = operation.parameters.find("avoid_color_shift");
             if (avoid != operation.parameters.end())
             {
                 if (const auto *flag = std::get_if<bool>(&avoid->second.value);
                     flag != nullptr && *flag)
                 {
-                    working_bytes += raw_pixels * sizeof(float);
+                    add_working_bytes(saturating_multiply(raw_pixels, sizeof(float)));
                 }
             }
         }
         if (operation.id == kPrimariesOperationId)
         {
-            working_bytes += float_rgb_bytes;
+            add_working_bytes(float_rgb_bytes);
         }
         if (operation.id == kProfileGammaOperationId)
         {
-            working_bytes += float_rgb_bytes + 0x10000U * sizeof(float);
+            add_working_bytes(float_rgb_bytes);
+            add_working_bytes(0x10000U * sizeof(float));
         }
         if (operation.id == kColorCheckerOperationId)
         {
@@ -864,27 +890,34 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
                 }
             }
             const std::uint64_t fit_size = patch_count + 4U;
-            working_bytes += patch_count * sizeof(ColorCheckerPatch);
-            working_bytes += patch_count * sizeof(std::array<float, 3>);
-            working_bytes += 3U * fit_size * sizeof(float);
+            add_working_bytes(saturating_multiply(patch_count, sizeof(ColorCheckerPatch)));
+            add_working_bytes(saturating_multiply(patch_count, sizeof(std::array<float, 3>)));
+            add_working_bytes(saturating_multiply(3U * sizeof(float), fit_size));
             if (patch_count >= 2U && patch_count <= 4U)
             {
                 const std::uint64_t solve_size = patch_count;
-                working_bytes += solve_size * solve_size * sizeof(double);
-                working_bytes += solve_size * sizeof(int);
-                working_bytes += solve_size * sizeof(double);
+                add_working_bytes(saturating_multiply(saturating_multiply(solve_size, solve_size),
+                                                      sizeof(double)));
+                add_working_bytes(saturating_multiply(solve_size, sizeof(int)));
+                add_working_bytes(saturating_multiply(solve_size, sizeof(double)));
             }
             else if (patch_count > 4U)
             {
-                working_bytes += fit_size * fit_size * sizeof(double);
-                working_bytes += fit_size * sizeof(int);
-                working_bytes += fit_size * sizeof(double);
+                add_working_bytes(
+                    saturating_multiply(saturating_multiply(fit_size, fit_size), sizeof(double)));
+                add_working_bytes(saturating_multiply(fit_size, sizeof(int)));
+                add_working_bytes(saturating_multiply(fit_size, sizeof(double)));
             }
         }
     }
     // A RAW repair operation copies the decoded frame before mutation. Its
     // metadata string allocation coexists with the source and analysis copy.
-    return owns_raw_copy ? working_bytes + raw_bytes + failure_detail_bytes : working_bytes;
+    if (owns_raw_copy)
+    {
+        add_working_bytes(raw_bytes);
+        add_working_bytes(failure_detail_bytes);
+    }
+    return working_bytes;
 }
 
 Result<void> write_png_atomically(const std::string_view output_uri, const RenderedImage &image)

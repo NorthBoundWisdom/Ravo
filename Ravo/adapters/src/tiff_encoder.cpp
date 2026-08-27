@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
@@ -429,9 +430,44 @@ notify_checkpoint(const TiffEncodeControl &control, const TiffEncodeCheckpoint c
     return injected_failure_error(failure);
 }
 
-[[nodiscard]] bool use_grayscale(const std::uint32_t width, const std::uint32_t height,
-                                 const std::span<const std::uint8_t> rgb,
-                                 const TiffExportOptions &options) noexcept
+enum class TiffSourceKind
+{
+    kRgb8,
+    kRgb16,
+    kRgbFloat,
+};
+
+struct TiffSampleSource
+{
+    TiffSourceKind kind = TiffSourceKind::kRgb8;
+    std::span<const std::uint8_t> rgb8;
+    std::span<const std::uint16_t> rgb16;
+    std::span<const float> rgb_float;
+};
+
+[[nodiscard]] bool channels_differ_uint8(const int red, const int green, const int blue) noexcept
+{
+    return std::abs(red - green) > 2 || std::abs(red - blue) > 2 || std::abs(green - blue) > 2;
+}
+
+[[nodiscard]] bool channels_differ_uint16(const int red, const int green, const int blue) noexcept
+{
+    return std::abs(red - green) > 165 || std::abs(red - blue) > 165 ||
+           std::abs(green - blue) > 165;
+}
+
+[[nodiscard]] bool channels_differ_float(const float red, const float green,
+                                         const float blue) noexcept
+{
+    const auto ratio = [](const float left, const float right) noexcept
+    { return std::fabs(std::fmax(left, 0.001F) / std::fmax(right, 0.001F)) > 1.01F; };
+    return ratio(red, green) || ratio(red, blue) || ratio(green, blue);
+}
+
+[[nodiscard]] Result<bool> use_grayscale(const std::uint32_t width, const std::uint32_t height,
+                                         const TiffSampleSource &source,
+                                         const TiffExportOptions &options,
+                                         const CancellationToken &cancellation)
 {
     if (!options.grayscale_if_neutral || width <= 4U || height <= 4U)
     {
@@ -439,19 +475,100 @@ notify_checkpoint(const TiffEncodeControl &control, const TiffEncodeCheckpoint c
     }
     for (std::uint32_t row = 1U; row + 1U < height; ++row)
     {
+        if (cancellation.is_cancellation_requested())
+        {
+            return tiff_cancellation_error(cancellation);
+        }
         for (std::uint32_t column = 1U; column + 1U < width; ++column)
         {
             const std::size_t offset = (static_cast<std::size_t>(row) * width + column) * 3U;
-            const int red = rgb[offset];
-            const int green = rgb[offset + 1U];
-            const int blue = rgb[offset + 2U];
-            if (std::abs(red - green) > 2 || std::abs(red - blue) > 2 || std::abs(green - blue) > 2)
+            switch (source.kind)
             {
-                return false;
+            case TiffSourceKind::kRgb8:
+                if (channels_differ_uint8(source.rgb8[offset], source.rgb8[offset + 1U],
+                                          source.rgb8[offset + 2U]))
+                {
+                    return false;
+                }
+                break;
+            case TiffSourceKind::kRgb16:
+                if (channels_differ_uint16(source.rgb16[offset], source.rgb16[offset + 1U],
+                                           source.rgb16[offset + 2U]))
+                {
+                    return false;
+                }
+                break;
+            case TiffSourceKind::kRgbFloat:
+                if (channels_differ_float(source.rgb_float[offset], source.rgb_float[offset + 1U],
+                                          source.rgb_float[offset + 2U]))
+                {
+                    return false;
+                }
+                break;
             }
         }
     }
     return true;
+}
+
+[[nodiscard]] std::size_t source_bytes_per_pixel(const TiffSourceKind kind) noexcept
+{
+    switch (kind)
+    {
+    case TiffSourceKind::kRgb8:
+        return 3U;
+    case TiffSourceKind::kRgb16:
+        return 6U;
+    case TiffSourceKind::kRgbFloat:
+        return 12U;
+    }
+    return 0U;
+}
+
+[[nodiscard]] bool source_matches_options(const TiffSourceKind kind,
+                                          const TiffSampleType sample_type) noexcept
+{
+    switch (sample_type)
+    {
+    case TiffSampleType::kUint8:
+        return kind == TiffSourceKind::kRgb8;
+    case TiffSampleType::kUint16:
+        return kind == TiffSourceKind::kRgb16;
+    case TiffSampleType::kFloat16:
+    case TiffSampleType::kFloat32:
+        return kind == TiffSourceKind::kRgbFloat;
+    }
+    return false;
+}
+
+[[nodiscard]] Result<void> validate_finite_float_source(const std::uint32_t width,
+                                                        const std::uint32_t height,
+                                                        const TiffSampleSource &source,
+                                                        const CancellationToken &cancellation)
+{
+    if (source.kind != TiffSourceKind::kRgbFloat)
+    {
+        return {};
+    }
+    for (std::uint32_t row = 0U; row < height; ++row)
+    {
+        if (cancellation.is_cancellation_requested())
+        {
+            return tiff_cancellation_error(cancellation);
+        }
+        const std::size_t begin = static_cast<std::size_t>(row) * width * 3U;
+        const std::size_t end = begin + static_cast<std::size_t>(width) * 3U;
+        for (std::size_t index = begin; index < end; ++index)
+        {
+            if (!std::isfinite(source.rgb_float[index]))
+            {
+                return tiff_encode_error(
+                    ErrorCode::kValidation, "TIFF float source contains NaN or infinity",
+                    "non_finite_tiff_source", {{"sample_index", std::to_string(index)}});
+            }
+        }
+    }
+    return {};
 }
 
 [[nodiscard]] Result<std::vector<std::uint8_t>>
@@ -525,21 +642,96 @@ Result<TiffEncodeConfiguration> tiff_encode_configuration(const TiffExportOption
     return result;
 }
 
-Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
-    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
-    const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
-    const CancellationToken &cancellation, const TiffEncodeControl control)
+Result<std::uint16_t> float32_to_binary16(const float value)
 {
-    return encode_tiff_rgb8(width, height, rgb, resolved_rgb_icc, options, ExportMetadataSnapshot{},
-                            cancellation, control);
+    static_assert(sizeof(float) == 4U, "TIFF binary16 conversion requires 32-bit float");
+    static_assert(std::numeric_limits<float>::is_iec559,
+                  "TIFF binary16 conversion requires IEC 559 binary32");
+
+    if (!std::isfinite(value))
+    {
+        return tiff_encode_error(ErrorCode::kValidation,
+                                 "TIFF float16 conversion requires a finite source",
+                                 "non_finite_half_source");
+    }
+
+    std::uint32_t bits = 0U;
+    std::memcpy(&bits, &value, sizeof(bits));
+    const std::uint16_t sign = static_cast<std::uint16_t>((bits >> 16U) & 0x8000U);
+    const std::uint32_t abs_bits = bits & 0x7fffffffU;
+    if (abs_bits == 0U)
+    {
+        return sign;
+    }
+
+    // 65520 is the RNE midpoint between max finite half (65504) and +inf.
+    constexpr std::uint32_t kOverflowBits = 0x477ff000U;
+    if (abs_bits >= kOverflowBits)
+    {
+        return tiff_encode_error(ErrorCode::kValidation,
+                                 "TIFF float16 conversion overflowed a finite half",
+                                 "half_overflow");
+    }
+
+    const int exp32 = static_cast<int>((abs_bits >> 23U) & 0xffU) - 127;
+    const std::uint32_t frac32 = abs_bits & 0x7fffffU;
+    if (exp32 >= -14)
+    {
+        std::uint32_t frac10 = frac32 >> 13U;
+        const std::uint32_t remainder = frac32 & 0x1fffU;
+        if (remainder > 0x1000U || (remainder == 0x1000U && (frac10 & 1U) != 0U))
+        {
+            ++frac10;
+        }
+        int exp16 = exp32 + 15;
+        if (frac10 >= 0x400U)
+        {
+            frac10 = 0U;
+            ++exp16;
+        }
+        if (exp16 >= 31)
+        {
+            return tiff_encode_error(ErrorCode::kValidation,
+                                     "TIFF float16 conversion overflowed a finite half",
+                                     "half_overflow");
+        }
+        return static_cast<std::uint16_t>(sign | (static_cast<std::uint16_t>(exp16) << 10U) |
+                                          static_cast<std::uint16_t>(frac10));
+    }
+    if (exp32 < -25)
+    {
+        return sign;
+    }
+    if (exp32 == -25)
+    {
+        return frac32 == 0U ? sign : static_cast<std::uint16_t>(sign | 1U);
+    }
+
+    const std::uint32_t significand = 0x800000U | frac32;
+    const int align = 23 - (exp32 + 24);
+    std::uint32_t packed = significand >> align;
+    const std::uint32_t mask = (1U << align) - 1U;
+    const std::uint32_t remainder = significand & mask;
+    const std::uint32_t halfway = 1U << (align - 1);
+    if (remainder > halfway || (remainder == halfway && (packed & 1U) != 0U))
+    {
+        ++packed;
+    }
+    if (packed >= 0x400U)
+    {
+        return static_cast<std::uint16_t>(sign | (1U << 10U));
+    }
+    return static_cast<std::uint16_t>(sign | packed);
 }
 
-Result<std::vector<std::uint8_t>>
-encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
-                 const std::span<const std::uint8_t> rgb,
-                 const std::span<const std::uint8_t> resolved_rgb_icc,
-                 const TiffExportOptions &options, const ExportMetadataSnapshot &metadata,
-                 const CancellationToken &cancellation, const TiffEncodeControl control)
+namespace
+{
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSampleSource &source,
+            const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+            const ExportMetadataSnapshot &metadata, const CancellationToken &cancellation,
+            const TiffEncodeControl control)
 {
     if (cancellation.is_cancellation_requested())
     {
@@ -555,11 +747,19 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
     {
         return valid_metadata.error();
     }
-    if (options.sample_type != TiffSampleType::kUint8)
+    if (!source_matches_options(source.kind, options.sample_type))
     {
+        if (source.kind == TiffSourceKind::kRgb8)
+        {
+            return tiff_encode_error(
+                ErrorCode::kUnsupported,
+                "TIFF high-precision output requires a high-precision source",
+                "unsupported_tiff_high_precision_source",
+                {{"sample_type", std::string(tiff_sample_type_name(options.sample_type))}});
+        }
         return tiff_encode_error(
-            ErrorCode::kUnsupported, "TIFF high-precision output requires a high-precision source",
-            "unsupported_tiff_high_precision_source",
+            ErrorCode::kValidation, "TIFF source samples do not match the requested sample type",
+            "tiff_source_sample_mismatch",
             {{"sample_type", std::string(tiff_sample_type_name(options.sample_type))}});
     }
     if (width == 0U || height == 0U)
@@ -568,23 +768,38 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
             ErrorCode::kValidation, "TIFF dimensions must be nonzero", "invalid_tiff_dimensions",
             {{"height", std::to_string(height)}, {"width", std::to_string(width)}});
     }
+    const std::size_t bytes_per_pixel = source_bytes_per_pixel(source.kind);
+    if (bytes_per_pixel == 0U)
+    {
+        return tiff_encode_error(ErrorCode::kValidation, "TIFF source sample kind is invalid",
+                                 "tiff_source_sample_mismatch");
+    }
     const std::uint64_t pixel_count =
         static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height);
-    if (pixel_count > kTiffMaxSourceBytes / 3U)
+    if (pixel_count > kTiffMaxSourceBytes / bytes_per_pixel)
     {
         return tiff_encode_error(ErrorCode::kValidation, "TIFF RGB source exceeds the safe bound",
                                  "tiff_source_too_large",
                                  {{"maximum_bytes", std::to_string(kTiffMaxSourceBytes)},
                                   {"pixel_count", std::to_string(pixel_count)}});
     }
-    const std::size_t source_bytes = static_cast<std::size_t>(pixel_count * 3U);
-    if (rgb.size() != source_bytes)
+    const std::size_t expected_samples = static_cast<std::size_t>(pixel_count * 3U);
+    const std::size_t actual_samples =
+        source.kind == TiffSourceKind::kRgb8  ? source.rgb8.size() :
+        source.kind == TiffSourceKind::kRgb16 ? source.rgb16.size() :
+                                                source.rgb_float.size();
+    if (actual_samples != expected_samples)
     {
-        return tiff_encode_error(ErrorCode::kValidation,
-                                 "TIFF RGB source does not match its dimensions",
-                                 "tiff_source_size_mismatch",
-                                 {{"actual_bytes", std::to_string(rgb.size())},
-                                  {"expected_bytes", std::to_string(source_bytes)}});
+        return tiff_encode_error(
+            ErrorCode::kValidation, "TIFF RGB source does not match its dimensions",
+            "tiff_source_size_mismatch",
+            {{"actual_bytes", std::to_string(actual_samples * (bytes_per_pixel / 3U))},
+             {"expected_bytes", std::to_string(expected_samples * (bytes_per_pixel / 3U))}});
+    }
+    auto finite_source = validate_finite_float_source(width, height, source, cancellation);
+    if (!finite_source)
+    {
+        return finite_source.error();
     }
     if (resolved_rgb_icc.empty())
     {
@@ -606,14 +821,30 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
                                   {"requested_bytes", std::to_string(control.max_output_bytes)}});
     }
 
-    const bool grayscale = use_grayscale(width, height, rgb, options);
+    auto grayscale_result = use_grayscale(width, height, source, options, cancellation);
+    if (!grayscale_result)
+    {
+        return grayscale_result.error();
+    }
+    const bool grayscale = grayscale_result.value();
     if (grayscale)
     {
         configuration.value().samples_per_pixel = 1U;
         configuration.value().photometric = PHOTOMETRIC_MINISBLACK;
     }
-    const std::size_t row_bytes =
-        static_cast<std::size_t>(width) * configuration.value().samples_per_pixel;
+    const std::size_t bytes_per_sample =
+        static_cast<std::size_t>(configuration.value().bits_per_sample / 8U);
+    if (bytes_per_sample == 0U ||
+        static_cast<std::uint64_t>(width) >
+            std::numeric_limits<std::size_t>::max() /
+                (static_cast<std::uint64_t>(configuration.value().samples_per_pixel) *
+                 bytes_per_sample))
+    {
+        return tiff_encode_error(ErrorCode::kValidation, "TIFF scanline exceeds the safe bound",
+                                 "tiff_source_too_large");
+    }
+    const std::size_t row_bytes = static_cast<std::size_t>(width) *
+                                  configuration.value().samples_per_pixel * bytes_per_sample;
     auto row = std::unique_ptr<std::uint8_t, decltype(&std::free)>(
         static_cast<std::uint8_t *>(std::malloc(row_bytes)), &std::free);
     if (!row)
@@ -775,6 +1006,79 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
         }
     }
 
+    const auto pack_row = [&](const std::uint32_t scanline) -> std::optional<TaskError>
+    {
+        const std::size_t pixel_offset = static_cast<std::size_t>(scanline) * width * 3U;
+        if (options.sample_type == TiffSampleType::kUint8)
+        {
+            if (grayscale)
+            {
+                for (std::uint32_t column = 0U; column < width; ++column)
+                {
+                    row.get()[column] =
+                        source.rgb8[pixel_offset + static_cast<std::size_t>(column) * 3U];
+                }
+            }
+            else
+            {
+                std::memcpy(row.get(), source.rgb8.data() + pixel_offset, row_bytes);
+            }
+            return std::nullopt;
+        }
+        if (options.sample_type == TiffSampleType::kUint16)
+        {
+            auto *const out = reinterpret_cast<std::uint16_t *>(row.get());
+            if (grayscale)
+            {
+                for (std::uint32_t column = 0U; column < width; ++column)
+                {
+                    out[column] =
+                        source.rgb16[pixel_offset + static_cast<std::size_t>(column) * 3U];
+                }
+            }
+            else
+            {
+                std::memcpy(out, source.rgb16.data() + pixel_offset, row_bytes);
+            }
+            return std::nullopt;
+        }
+        if (options.sample_type == TiffSampleType::kFloat32)
+        {
+            auto *const out = reinterpret_cast<float *>(row.get());
+            if (grayscale)
+            {
+                for (std::uint32_t column = 0U; column < width; ++column)
+                {
+                    out[column] =
+                        source.rgb_float[pixel_offset + static_cast<std::size_t>(column) * 3U];
+                }
+            }
+            else
+            {
+                std::memcpy(out, source.rgb_float.data() + pixel_offset, row_bytes);
+            }
+            return std::nullopt;
+        }
+        auto *const out = reinterpret_cast<std::uint16_t *>(row.get());
+        const std::uint16_t samples_per_pixel = configuration.value().samples_per_pixel;
+        for (std::uint32_t column = 0U; column < width; ++column)
+        {
+            const std::size_t source_pixel = pixel_offset + static_cast<std::size_t>(column) * 3U;
+            const std::size_t channels = grayscale ? 1U : 3U;
+            for (std::size_t channel = 0U; channel < channels; ++channel)
+            {
+                auto converted = float32_to_binary16(source.rgb_float[source_pixel + channel]);
+                if (!converted)
+                {
+                    return converted.error();
+                }
+                out[static_cast<std::size_t>(column) * samples_per_pixel + channel] =
+                    converted.value();
+            }
+        }
+        return std::nullopt;
+    };
+
     for (std::uint32_t scanline = 0U; scanline < height && !primary_error; ++scanline)
     {
         const TiffEncodeInjectedFailure injected = notify_checkpoint(
@@ -789,17 +1093,10 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
             primary_error = std::move(injected_error).value();
             break;
         }
-        const std::size_t source_offset = static_cast<std::size_t>(scanline) * width * 3U;
-        if (grayscale)
+        if (auto pack_error = pack_row(scanline))
         {
-            for (std::uint32_t column = 0U; column < width; ++column)
-            {
-                row.get()[column] = rgb[source_offset + static_cast<std::size_t>(column) * 3U];
-            }
-        }
-        else
-        {
-            std::memcpy(row.get(), rgb.data() + source_offset, row_bytes);
+            primary_error = std::move(pack_error).value();
+            break;
         }
         if (TIFFWriteScanline(writer, row.get(), scanline, 0U) < 0)
         {
@@ -841,6 +1138,59 @@ encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
         return std::move(primary_error).value();
     }
     return copy_encoded_output(destination);
+}
+
+} // namespace
+
+Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
+    const std::uint32_t width, const std::uint32_t height, const std::span<const std::uint8_t> rgb,
+    const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+    const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    return encode_tiff_rgb8(width, height, rgb, resolved_rgb_icc, options, ExportMetadataSnapshot{},
+                            cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
+                 const std::span<const std::uint8_t> rgb,
+                 const std::span<const std::uint8_t> resolved_rgb_icc,
+                 const TiffExportOptions &options, const ExportMetadataSnapshot &metadata,
+                 const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    TiffSampleSource source;
+    source.kind = TiffSourceKind::kRgb8;
+    source.rgb8 = rgb;
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, cancellation,
+                       control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_tiff_rgb16(const std::uint32_t width, const std::uint32_t height,
+                  const std::span<const std::uint16_t> rgb,
+                  const std::span<const std::uint8_t> resolved_rgb_icc,
+                  const TiffExportOptions &options, const ExportMetadataSnapshot &metadata,
+                  const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    TiffSampleSource source;
+    source.kind = TiffSourceKind::kRgb16;
+    source.rgb16 = rgb;
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, cancellation,
+                       control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_tiff_rgb_float(const std::uint32_t width, const std::uint32_t height,
+                      const std::span<const float> rgb,
+                      const std::span<const std::uint8_t> resolved_rgb_icc,
+                      const TiffExportOptions &options, const ExportMetadataSnapshot &metadata,
+                      const CancellationToken &cancellation, const TiffEncodeControl control)
+{
+    TiffSampleSource source;
+    source.kind = TiffSourceKind::kRgbFloat;
+    source.rgb_float = rgb;
+    return encode_tiff(width, height, source, resolved_rgb_icc, options, metadata, cancellation,
+                       control);
 }
 
 } // namespace ravo::detail

@@ -15,6 +15,7 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <zlib.h>
@@ -59,6 +60,16 @@ inline constexpr std::size_t kCancellationCheckBytes = 64U * 1024U;
 // for the frozen matching encoding. Keep the bound below one eighth of an RGB8
 // code so a redundant cICP declaration cannot change the published pixels.
 inline constexpr std::uint16_t kPngProfileCompatibilityTolerance = 32U;
+
+using ExportSampleView = std::variant<std::span<const std::uint8_t>, std::span<const std::uint16_t>,
+                                      std::span<const float>>;
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_export_pixels(std::uint32_t width, std::uint32_t height,
+                     const ColorProfileState &color_profile, const ExportSampleView &samples,
+                     ExportFormat format, const JpegExportOptions &jpeg_options,
+                     const CancellationToken &cancellation, const PngExportOptions &png_options,
+                     const TiffExportOptions &tiff_options, const ExportMetadataSnapshot &metadata);
 
 struct JpegContract
 {
@@ -3434,6 +3445,24 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
     const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
     const ExportMetadataSnapshot &metadata) const
 {
+    return encode_export_pixels(width, height, color_profile,
+                                ExportSampleView{std::span<const std::uint8_t>{rgb}}, format,
+                                jpeg_options, cancellation, png_options, tiff_options, metadata);
+}
+
+namespace
+{
+
+Result<std::vector<std::uint8_t>>
+encode_export_pixels(const std::uint32_t width, const std::uint32_t height,
+                     const ColorProfileState &color_profile, const ExportSampleView &samples,
+                     const ExportFormat format, const JpegExportOptions &jpeg_options,
+                     const CancellationToken &cancellation, const PngExportOptions &png_options,
+                     const TiffExportOptions &tiff_options, const ExportMetadataSnapshot &metadata)
+{
+    const auto *const rgb8 = std::get_if<std::span<const std::uint8_t>>(&samples);
+    const auto *const rgb16 = std::get_if<std::span<const std::uint16_t>>(&samples);
+    const auto *const rgb_float = std::get_if<std::span<const float>>(&samples);
     auto cancelled = cancellation.check();
     if (!cancelled)
     {
@@ -3446,6 +3475,11 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
     }
     if (format == ExportFormat::kJpeg)
     {
+        if (rgb8 == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "JPEG export requires an 8-bit RGB source",
+                              {{"format", "jpeg"}, {"reason", "jpeg_source_sample_mismatch"}});
+        }
         if (width == 0U || height == 0U || width > detail::kJpegMaxDimension ||
             height > detail::kJpegMaxDimension)
         {
@@ -3466,11 +3500,11 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
                                {"reason", "jpeg_source_too_large"},
                                {"size_bytes", std::to_string(source_bytes)}});
         }
-        if (rgb.size() != source_bytes)
+        if (rgb8->size() != source_bytes)
         {
             return make_error(ErrorCode::kValidation,
                               "JPEG RGB source does not match its dimensions",
-                              {{"actual_bytes", std::to_string(rgb.size())},
+                              {{"actual_bytes", std::to_string(rgb8->size())},
                                {"expected_bytes", std::to_string(source_bytes)},
                                {"format", "jpeg"},
                                {"reason", "jpeg_source_size_mismatch"}});
@@ -3497,7 +3531,7 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
             return make_error(ErrorCode::kValidation, "JPEG output ICC could not be resolved",
                               {{"format", "jpeg"}, {"reason", "missing_jpeg_output_icc"}});
         }
-        return detail::encode_jpeg_rgb8(width, height, rgb,
+        return detail::encode_jpeg_rgb8(width, height, *rgb8,
                                         {reinterpret_cast<const std::uint8_t *>(icc.constData()),
                                          static_cast<std::size_t>(icc.size())},
                                         jpeg_options, cancellation);
@@ -3511,7 +3545,22 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         }
         if (png_options.bit_depth == PngBitDepth::k16)
         {
-            return detail::encode_png_rgb8(width, height, rgb, {}, png_options, cancellation);
+            if (rgb8 != nullptr)
+            {
+                return detail::encode_png_rgb8(width, height, *rgb8, {}, png_options, cancellation);
+            }
+            if (rgb16 == nullptr)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "PNG 16-bit export requires a 16-bit RGB source",
+                                  {{"format", "png"}, {"reason", "png_source_sample_mismatch"}});
+            }
+        }
+        else if (rgb8 == nullptr)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "PNG 8-bit export requires an 8-bit RGB source",
+                              {{"format", "png"}, {"reason", "png_source_sample_mismatch"}});
         }
         if (color_profile.model != ColorModel::kRgb)
         {
@@ -3550,7 +3599,13 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
             png_metadata.has_cicp = true;
             png_metadata.cicp = *cicp;
         }
-        return detail::encode_png_rgb8(width, height, rgb, png_metadata, png_options, cancellation);
+        if (png_options.bit_depth == PngBitDepth::k16)
+        {
+            return detail::encode_png_rgb16(width, height, *rgb16, png_metadata, png_options,
+                                            cancellation);
+        }
+        return detail::encode_png_rgb8(width, height, *rgb8, png_metadata, png_options,
+                                       cancellation);
     }
     if (format == ExportFormat::kTiff)
     {
@@ -3564,7 +3619,16 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         {
             return valid_metadata.error();
         }
-        if (tiff_options.sample_type != TiffSampleType::kUint8)
+        if (tiff_options.sample_type == TiffSampleType::kUint8)
+        {
+            if (rgb8 == nullptr)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "TIFF uint8 export requires an 8-bit RGB source",
+                                  {{"format", "tiff"}, {"reason", "tiff_source_sample_mismatch"}});
+            }
+        }
+        else if (rgb8 != nullptr)
         {
             return make_error(
                 ErrorCode::kUnsupported,
@@ -3572,6 +3636,20 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
                 {{"format", "tiff"},
                  {"reason", "unsupported_tiff_high_precision_source"},
                  {"sample_type", std::string(tiff_sample_type_name(tiff_options.sample_type))}});
+        }
+        else if (tiff_options.sample_type == TiffSampleType::kUint16 && rgb16 == nullptr)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "TIFF uint16 export requires a 16-bit RGB source",
+                              {{"format", "tiff"}, {"reason", "tiff_source_sample_mismatch"}});
+        }
+        else if ((tiff_options.sample_type == TiffSampleType::kFloat16 ||
+                  tiff_options.sample_type == TiffSampleType::kFloat32) &&
+                 rgb_float == nullptr)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "TIFF float export requires a finite float RGB source",
+                              {{"format", "tiff"}, {"reason", "tiff_source_sample_mismatch"}});
         }
         if (color_profile.model != ColorModel::kRgb)
         {
@@ -3601,14 +3679,41 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
             return make_error(ErrorCode::kValidation, "TIFF output ICC could not be resolved",
                               {{"format", "tiff"}, {"reason", "missing_tiff_output_icc"}});
         }
-        return detail::encode_tiff_rgb8(width, height, rgb,
-                                        {reinterpret_cast<const std::uint8_t *>(icc.constData()),
-                                         static_cast<std::size_t>(icc.size())},
-                                        tiff_options, metadata, cancellation);
+        const std::span<const std::uint8_t> icc_bytes{
+            reinterpret_cast<const std::uint8_t *>(icc.constData()),
+            static_cast<std::size_t>(icc.size())};
+        if (tiff_options.sample_type == TiffSampleType::kUint8)
+        {
+            return detail::encode_tiff_rgb8(width, height, *rgb8, icc_bytes, tiff_options, metadata,
+                                            cancellation);
+        }
+        if (tiff_options.sample_type == TiffSampleType::kUint16)
+        {
+            return detail::encode_tiff_rgb16(width, height, *rgb16, icc_bytes, tiff_options,
+                                             metadata, cancellation);
+        }
+        return detail::encode_tiff_rgb_float(width, height, *rgb_float, icc_bytes, tiff_options,
+                                             metadata, cancellation);
     }
     return make_error(ErrorCode::kUnsupported, "Raster export format is unsupported",
                       {{"format", std::string(export_format_name(format))},
                        {"reason", "unsupported_raster_export_format"}});
+}
+
+} // namespace
+
+Result<std::vector<std::uint8_t>>
+QtRasterDecoder::encode(const ExportPixelBuffer &source, const ExportFormat format,
+                        const JpegExportOptions &jpeg_options,
+                        const CancellationToken &cancellation, const PngExportOptions &png_options,
+                        const TiffExportOptions &tiff_options,
+                        const ExportMetadataSnapshot &metadata) const
+{
+    const ExportSampleView samples =
+        std::visit([](const auto &owned_samples) -> ExportSampleView
+                   { return std::span{owned_samples}; }, source.samples);
+    return encode_export_pixels(source.width, source.height, source.color_profile, samples, format,
+                                jpeg_options, cancellation, png_options, tiff_options, metadata);
 }
 
 } // namespace ravo
