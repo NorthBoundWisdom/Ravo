@@ -401,6 +401,28 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   generic intents, compiled Chinese strings, and offscreen QML smoke all use
   the same canonical recipe/engine path. GTK sliders, OpenCL, and the general
   mask graph are not claimed by these tests.
+- Color Harmonizer recipe tests lock schema v1's exact 17 required flat fields,
+  hard bounds, float representability, all nine predefined rule names plus
+  custom, registry metadata, JSON round-trip, and structured mask/presentation
+  rejection. Exact little-endian parameter decodes from frozen 0176 history
+  records 12 and 13 cover the post-initialization default and an edited split-
+  complementary state; they are fixture evidence, not a strict-import claim.
+- Its independent source-order scalar oracle and fixed bit goldens cover both
+  0176 parameter states through the declared profile matrix, private D50/dt-UCS
+  bridge, S2.1 geometry, frozen negative `fmaxf` clipping, cubic neutral
+  protection, attraction, saturation, and inverse matrix. Production and the
+  oracle must both hit each golden; deliberate no-clip and linear-neutral
+  perturbations prove the oracle detects drift. All nine predefined rules and
+  custom node counts two through four also match canonical dispatch. An O3
+  assembly check verifies contraction-disabled production contains no FMA.
+- Engine negatives cover dimensions, RGB length/overflow, missing/non-RGB/
+  matrixless/non-finite/singular profiles, every non-finite input class,
+  non-finite geometry/output, wrong ID/schema, mask state, positive smoothing,
+  pre-cancel, and row-deadline cancellation. Success owns RGB and deep profile
+  storage, retains the shared immutable analysis snapshot, and leaves the
+  source unchanged; failure publishes nothing. There are deliberately no C14
+  legacy-import, Develop, CLI, Catalog, Studio, nonzero-smoothing, canonical
+  ROI-scale, S2.2 Gaussian, or retirement test claims yet.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

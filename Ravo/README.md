@@ -205,6 +205,21 @@ Current implementation status:
   those adjacent Color Correction presentation assets. Shared `extended.cl`,
   order/modulegroup/usermanual names, the example style, and frozen fixtures
   remain D0.3/D0.4/S14/E1 owners.
+- Color Harmonizer provides the bounded `ravo.color.colorharmonizer` v1 core
+  with exactly 17 flat fields, including
+  `working_space=profile_linear_rgb_d50`,
+  `algorithm=dt_ucs_harmony_v1`, nine predefined rules plus custom nodes,
+  pull/neutral/width controls, four node saturations, and smoothing. The
+  accepted CPU path is enabled, unmasked, and `smoothing=0` only: it clips
+  negative RGB with frozen `fmaxf`, uses the declared profile matrix and the
+  private source-order dt-UCS/RYB geometry, cubes neutral protection, and
+  disables float contraction. Fixed bit goldens independently cover the
+  default and edited records 12/13 from frozen fixture 0176. Successful output
+  owns RGB/profile storage and retains immutable analysis state; invalid,
+  non-finite, allocation, mask, smoothing, and cancellation paths publish
+  nothing. Strict XMP import, Develop/CLI/Catalog/Studio, canonical ROI scale,
+  recursive-Gaussian smoothing, presentation/masks, and old-owner retirement
+  remain unfinished and are not implied by this core.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

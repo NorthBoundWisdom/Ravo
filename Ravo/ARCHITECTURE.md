@@ -515,6 +515,45 @@ contracts. Shared `extended.cl`, order/modulegroup/usermanual names, the sepia
 style, and frozen fixtures remain D0.3/D0.4/S14/E1 cleanup or evidence owners.
 [ADR-0031](docs/adr/0031-colorcontrast-contract.md) freezes this boundary.
 
+`ravo.color.colorharmonizer` v1 is a bounded profile-aware colour operation,
+not an alias for Color Equalizer, Color Balance RGB, or an HSL nearest-hue
+control. Its exact 17-field flat schema fixes
+`working_space=profile_linear_rgb_d50`,
+`algorithm=dt_ucs_harmony_v1`, one of nine predefined rules or `custom`, the
+anchor/pull/neutral/width values, four custom hues, custom node count, four node
+saturations, and smoothing. The two real version-1 records at history positions
+12 and 13 in frozen fixture 0176 provide default and edited parameter evidence;
+they do not establish a strict-import contract.
+
+The current engine boundary accepts only enabled, unmasked,
+`smoothing == 0` operations. It clips each finite working RGB channel with
+source-order `fmaxf(value, 0)`, applies the declared profile matrix to XYZ D50,
+and reuses the private S1.2 D50/CAT16-D65/dt-UCS bridge. S2.1 supplies immutable
+720-step UCS↔RYB lookup, all nine predefined node geometries, custom-node
+lookup, circular attraction, and strict winner behavior. Neutral protection is
+cubed before the `0.03F` cutoff; denominator, pull, wrap, saturation, inverse
+dt-UCS, and inverse profile-matrix expressions retain their frozen float order.
+The source compiles with float contraction disabled and adds no transfer curve,
+FMA, reassociation, fallback profile, clamp beyond the frozen negative input
+clip, or non-finite repair.
+
+Validation covers schema bounds and float narrowing, dimensions, RGB buffer
+length/overflow, declared RGB matrix profile, matrix finiteness/invertibility,
+and every input/output sample. Cancellation is checked before work, by input
+and output row, and before return. Publication owns separate RGB and deep
+profile storage, shares the immutable exposure-analysis snapshot, and needs no
+operation-specific analysis or mutable global state. Any failure leaves the
+borrowed input unchanged. Masks reject structurally; positive smoothing rejects
+as `unsupported_smoothing_requires_recursive_gaussian` rather than falling
+back to the accepted core.
+
+Strict legacy import, explicit Develop presence, CLI/Catalog/Studio consumers,
+cache persistence, canonical ROI scale, the S2.2 two-channel recursive
+Gaussian, general masks/presentation, and retirement of the frozen owner remain
+separate C14 tranches. The current feature-convergence pause authorizes none of
+them and does not authorize C15. [ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md)
+freezes only this core boundary.
+
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked
 buffer must not implicitly select colour strategy. See

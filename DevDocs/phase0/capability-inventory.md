@@ -37,6 +37,7 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.color.temperature` | `temperature` | pre-demosaic/RGB four-channel scaling with explicit as-shot, camera-reference, late-reference and manual ownership |
 | `ravo.color.channelmixerrgb` | `channelmixerrgb` | frozen V3 matrix normalization, explicit adaptation, XYZ gamut and LMS/RGB saturation-lightness calibration |
 | `ravo.color.colorchecker` | `colorchecker` | explicit 0–49 ordered D50 Lab patch pairs, exact polynomial/thin-plate RBF fitting, eight frozen presets, and strict enabled default-unmasked v2 plus synthetic-v1 import boundary |
+| `ravo.color.colorharmonizer` | `colorharmonizer` | exact 17-field profile-aware dt-UCS/RYB smoothing-zero CPU core; frozen 0176 records 12/13 are parameter evidence, while import, consumers, recursive-Gaussian smoothing, masks, and retirement remain later |
 | `ravo.color.colorcorrection` | `colorcorrection` | explicit-presence affine D50 Lab highlight/shadow a*/b* correction with strict enabled-v1 default-unmasked 0029/0092 import envelope |
 | `ravo.core.contrast` | `filmicrgb` / `colisa` | P1 raster-input contrast and old-recipe compatibility; RAW Studio uses Sigmoid contrast |
 | `ravo.core.highlights` | `filmicrgb` | P1 highlight compression |
@@ -97,7 +98,7 @@ struct bytes or call the old dynamic module ABI.
 | `borders` | yes | queued by ADR-0015; requires canvas/export geometry contract |
 | `cacorrectrgb` | no | defer with RAW geometry capability |
 | `censorize` | yes | queued by ADR-0015; requires mask/ROI graph |
-| `colorharmonizer` | yes | queued by ADR-0015; requires explicit color-space and overlap contract |
+| `colorharmonizer` | yes | bounded smoothing-zero core accepted by ADR-0035; strict import, product consumers, S2.2/ROI smoothing, masks/presentation, and old-owner retirement remain later |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
 | `colorreconstruct` | yes | defer with RAW reconstruction capability |
