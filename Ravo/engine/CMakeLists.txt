@@ -34,14 +34,6 @@ target_sources(ravo_engine
     src/raw_temperature.h
     src/scopes.cpp)
 
-set_property(SOURCE src/harmony_geometry.cpp APPEND PROPERTY COMPILE_OPTIONS
-  "$<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-ffp-contract=off>"
-  "$<$<CXX_COMPILER_ID:MSVC>:/fp:strict>")
-
-set_property(SOURCE src/color_harmonizer.cpp APPEND PROPERTY COMPILE_OPTIONS
-  "$<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-ffp-contract=off>"
-  "$<$<CXX_COMPILER_ID:MSVC>:/fp:strict>")
-
 target_include_directories(ravo_engine
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

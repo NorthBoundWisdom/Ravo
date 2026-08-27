@@ -85,7 +85,10 @@ the Color Contrast per-axis float affine/clamp order, and the non-jumping hidden
 defaults for Bloom and negative Dehaze. The unified
 engine-private RGB↔XYZ D50↔Lab owner has source-derived bit goldens for matrix
 order, D50 white/black, both piecewise thresholds, multiply/divide-distinguishing
-vectors, negative/extended values, round trips, and NaN/Inf propagation.
+vectors, negative/extended values, and NaN/Inf propagation. `cbrtf`-dependent
+round trips require bit-exact production/scalar-oracle agreement on each host
+plus a recorded 1e-6 component reference tolerance for supported-platform libm
+variation.
 Parameter response sweeps use a committed RAW or raster input and compare exact
 channel sums plus display-luma movement; a qualitative “looks less strong”
 result is not an acceptance value.
@@ -358,9 +361,10 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   Balance RGB → Color Correction → Color Contrast order. An explicit default
   survives recipe-to-Develop-to-recipe and remains distinct from absence.
 - Its independent scalar/D50 oracle and fixed bit goldens lock commit-time float
-  narrowing and `saturation * (input + L * scale + base)` evaluation order,
-  including negative/extended values and the observable explicit-default Lab
-  bridge. Engine tests cover canonical dispatch, dimensions/buffer/profile,
+  narrowing and `saturation * (input + L * scale + base)` evaluation order.
+  `cbrtf`-dependent RGB bridge references use the shared 1e-6 platform-libm
+  tolerance while requiring bit-exact production/scalar-oracle agreement on
+  each host. Engine tests cover canonical dispatch, dimensions/buffer/profile,
   non-finite input/output/parameters, disabled and mask states, owned profile
   plus analysis propagation, source immutability, and pre/row cancellation
   with no partial publication. Allocation failure maps to a structured engine

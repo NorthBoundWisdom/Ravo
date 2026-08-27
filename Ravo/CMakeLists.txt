@@ -433,7 +433,11 @@ function(ravo_configure_target target)
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wextra>
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wpedantic>
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wconversion>
-    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wshadow>)
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wshadow>
+    # Source-derived colour and codec goldens pin expression order. Apply the
+    # same no-contraction rule to production owners and their test oracles.
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-ffp-contract=off>
+    $<$<CXX_COMPILER_ID:MSVC>:/fp:strict>)
 endfunction()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/RavoWindowsRuntime.cmake")

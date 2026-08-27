@@ -424,12 +424,14 @@ freezes these boundaries.
 
 The RGB↔XYZ D50↔Lab conversion is one engine-private, value-only owner shared
 by Color Checker, Legacy Color Balance, Tone Curve, and the Lab basic controls.
-It freezes the transposed matrix expression order, pre-rounded D50 reciprocal,
+It freezes the transposed matrix expression order, D50 reciprocal,
 epsilon/kappa branches, Lab scale/add order, negative zero, and non-finite
-propagation with bit-exact source-derived goldens. It adds no clamp, finite
-repair, profile selection, or publication policy. This bounded S1.1 owner is
-complete, while the wider S1 colour-science workspace/LUT migration remains
-unfinished.
+propagation with source-derived goldens. Algebraic steps are bit-exact;
+`cbrtf`-dependent round trips retain exact host-local scalar-oracle agreement
+and a recorded 1e-6 component tolerance for supported platform libm variation.
+It adds no clamp, finite repair, profile selection, or publication policy. This
+bounded S1.1 owner is complete, while the wider S1 colour-science workspace/LUT
+migration remains unfinished.
 
 `ravo.color.colorbalancergb` v1 also explicitly declares
 `linear_srgb_d50`. It stores four Y/C/H zones, three falloff/fulcrum values,

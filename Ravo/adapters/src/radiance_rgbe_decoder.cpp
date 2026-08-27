@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <map>
 #include <new>
@@ -198,15 +200,27 @@ struct HeaderCursor
     {
         return std::nullopt;
     }
-    float value = 0.0F;
-    const char *const begin = text.data() + static_cast<std::ptrdiff_t>(offset);
-    const char *const end = text.data() + static_cast<std::ptrdiff_t>(text.size());
-    const auto parsed = std::from_chars(begin, end, value, std::chars_format::general);
-    if (parsed.ptr == begin || parsed.ec != std::errc{})
+    const std::size_t remaining = text.size() - offset;
+    if (remaining > kHardMaxHeaderLineBytes)
     {
         return std::nullopt;
     }
-    return ParsedFloat{value, offset + static_cast<std::size_t>(parsed.ptr - begin)};
+
+    // Apple libc++ has no floating-point from_chars overload. Header lines are
+    // bounded, so parse a terminated local ASCII buffer instead of retaining a
+    // borrowed view or depending on an unavailable standard-library feature.
+    std::array<char, kHardMaxHeaderLineBytes + 1U> buffer{};
+    std::copy_n(text.data() + static_cast<std::ptrdiff_t>(offset),
+                static_cast<std::ptrdiff_t>(remaining), buffer.data());
+    char *end = nullptr;
+    errno = 0;
+    const double parsed_value = std::strtod(buffer.data(), &end);
+    if (end == buffer.data() || errno == ERANGE)
+    {
+        return std::nullopt;
+    }
+    const float value = static_cast<float>(parsed_value);
+    return ParsedFloat{value, offset + static_cast<std::size_t>(end - buffer.data())};
 }
 
 [[nodiscard]] std::optional<std::array<float, 8>>
@@ -341,7 +355,9 @@ parse_positive_dimension(const std::string_view text) noexcept
         return rgbe_error(ErrorCode::kValidation, "Radiance RGBE matrix is degenerate", source,
                           "invalid_rgbe_primaries");
     }
-    const float inverse_determinant = 1.0F / determinant;
+    // mat3inv() evaluates 1.0 / det as double before narrowing back to its
+    // float temporary. Preserve that legacy conversion boundary explicitly.
+    const float inverse_determinant = static_cast<float>(1.0 / static_cast<double>(determinant));
     metadata.xyz_to_rgb = {
         inverse_determinant * (a[8] * a[4] - a[7] * a[5]),
         -inverse_determinant * (a[8] * a[1] - a[7] * a[2]),

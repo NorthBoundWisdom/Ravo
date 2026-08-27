@@ -1346,6 +1346,19 @@ void expect_frozen_d50_bits(const FrozenD50Triplet &actual, const FrozenD50Tripl
     EXPECT_EQ(d50_triplet_bits(actual), golden);
 }
 
+void expect_frozen_d50_cbrt_reference(const FrozenD50Triplet &actual,
+                                      const FrozenD50Triplet &oracle,
+                                      const std::array<std::uint32_t, 3> &reference)
+{
+    EXPECT_EQ(d50_triplet_bits(actual), d50_triplet_bits(oracle));
+    for (std::size_t channel = 0U; channel < reference.size(); ++channel)
+    {
+        // cbrtf is platform libm code. Preserve exact host-local source-order
+        // agreement while retaining a tight, recorded cross-platform envelope.
+        EXPECT_NEAR(actual[channel], std::bit_cast<float>(reference[channel]), 1.0e-6F);
+    }
+}
+
 [[nodiscard]] float frozen_dt_ucs_matrix_row(const float coefficient0, const float value0,
                                              const float coefficient1, const float value1,
                                              const float coefficient2, const float value2) noexcept
@@ -3019,19 +3032,21 @@ TEST(ColorCheckerTest, Real0098PayloadMatchesIndependentRbfOracleAndFixedLabGold
     params.patches[19].target_lab = {72.97999572753906, 43.90998840332031, 35.799983978271484};
     params.patches[22].target_lab = {45.439998626708984, -0.41999998688697815, 59.32999801635742};
     const std::array<float, 3> input{50.0F, 0.0F, 0.0F};
-    // Fixed by compiling a standalone transcription of frozen kernel(),
-    // gaussian_elimination.h, commit_params(), and process() against the
-    // verbatim 0098 v2 payload; no production Ravo helper generated these bits.
-    const std::array<float, 3> golden{std::bit_cast<float>(0x4249cbddU),
-                                      std::bit_cast<float>(0x3eb8dc37U),
-                                      std::bit_cast<float>(0x40409a08U)};
+    // Fixed source-order results for the verbatim 0098 v2 payload. The
+    // independent scalar oracle below protects the frozen kernel and solver
+    // order without calling a production Ravo helper.
+    const std::array<float, 3> golden{std::bit_cast<float>(0x4249cbc8U),
+                                      std::bit_cast<float>(0x3eb8d900U),
+                                      std::bit_cast<float>(0x404095c0U)};
 
     const auto oracle = frozen_color_checker_lab_reference(params, input);
     const auto libm_perturbation = frozen_color_checker_lab_reference(params, input, true);
     bool oracle_detects_libm = false;
     for (std::size_t channel = 0U; channel < golden.size(); ++channel)
     {
-        EXPECT_NEAR(oracle[channel], golden[channel], 2.0e-5F) << channel;
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(oracle[channel]),
+                  std::bit_cast<std::uint32_t>(golden[channel]))
+            << channel;
         oracle_detects_libm |= std::abs(oracle[channel] - libm_perturbation[channel]) > 1.0e-5F;
     }
     EXPECT_TRUE(oracle_detects_libm)
@@ -3041,8 +3056,12 @@ TEST(ColorCheckerTest, Real0098PayloadMatchesIndependentRbfOracleAndFixedLabGold
     ASSERT_TRUE(actual) << actual.error().message;
     for (std::size_t channel = 0U; channel < golden.size(); ++channel)
     {
-        EXPECT_NEAR(actual.value()[channel], golden[channel], 2.0e-5F) << channel;
-        EXPECT_NEAR(actual.value()[channel], oracle[channel], 2.0e-5F) << channel;
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.value()[channel]),
+                  std::bit_cast<std::uint32_t>(golden[channel]))
+            << channel;
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.value()[channel]),
+                  std::bit_cast<std::uint32_t>(oracle[channel]))
+            << channel;
     }
 }
 
@@ -3295,11 +3314,11 @@ TEST(D50LabBridgeTest, MatricesAndD50WhiteBlackMatchFrozenBitGoldens)
     constexpr FrozenD50Triplet black_lab{0.0F, 0.0F, 0.0F};
     constexpr FrozenD50Triplet white_lab{100.0F, 0.0F, 0.0F};
     expect_frozen_d50_bits(d50_lab::xyz_to_lab(black_xyz), frozen_xyz_d50_to_lab(black_xyz),
-                           {0xb3800000U, 0x00000000U, 0x80000000U});
+                           {0x00000000U, 0x00000000U, 0x80000000U});
     expect_frozen_d50_bits(d50_lab::xyz_to_lab(d50_white), frozen_xyz_d50_to_lab(d50_white),
                            {0x42c80000U, 0x00000000U, 0x80000000U});
     expect_frozen_d50_bits(d50_lab::lab_to_xyz(black_lab), frozen_lab_to_xyz_d50(black_lab),
-                           {0xae8be8cdU, 0xae911aa6U, 0xae6f648aU});
+                           {0x00000000U, 0x00000000U, 0x00000000U});
     expect_frozen_d50_bits(d50_lab::lab_to_xyz(white_lab), frozen_lab_to_xyz_d50(white_lab),
                            {0x3f76d5d0U, 0x3f800000U, 0x3f532ca5U});
 }
@@ -3313,8 +3332,8 @@ TEST(D50LabBridgeTest, XyzToLabFreezesEpsilonAndReciprocalMultiplyOrder)
         std::array<std::uint32_t, 3> expected;
     };
     const std::array cases{
-        BranchCase{epsilon * 0.99F, {0x40fd70a5U, 0xc2088d3fU, 0x415a7b98U}},
-        BranchCase{epsilon, {0x41000001U, 0xc209ee59U, 0x415cb08fU}},
+        BranchCase{epsilon * 0.99F, {0x40fd70a8U, 0xc2088d41U, 0x415a7b9bU}},
+        BranchCase{epsilon, {0x41000000U, 0xc209ee59U, 0x415cb08fU}},
         BranchCase{epsilon * 1.01F, {0x41014698U, 0xc20b4e47U, 0x415ee3a5U}},
     };
     for (const auto &[y, expected] : cases)
@@ -3355,7 +3374,7 @@ TEST(D50LabBridgeTest, LabToXyzFreezesInverseThresholdAndScaleMultiplyOrder)
     };
     const std::array cases{
         BranchCase{7.99F, {0x3c0bbc07U, 0x3c10ec37U, 0x3bef17efU}},
-        BranchCase{8.0F, {0x3c0be8ccU, 0x3c111aa5U, 0x3bef6488U}},
+        BranchCase{8.0F, {0x3c0be8cdU, 0x3c111aa6U, 0x3bef648aU}},
         BranchCase{8.01F, {0x3c0c1598U, 0x3c11491bU, 0x3befb12fU}},
     };
     for (const auto &[lightness, expected] : cases)
@@ -3396,7 +3415,7 @@ TEST(D50LabBridgeTest, ExtendedRoundTripsAndNonFiniteValuesPreserveFrozenClassif
 
     constexpr FrozenD50Triplet extended_lab{-25.0F, 120.0F, -90.0F};
     expect_frozen_d50_bits(d50_lab::lab_to_xyz(extended_lab), frozen_lab_to_xyz_d50(extended_lab),
-                           {0x3b46abe3U, 0xbce2b9a4U, 0x3d2e846eU});
+                           {0x3b46abe5U, 0xbce2b9a4U, 0x3d2e846eU});
 
     struct RoundTripCase
     {
@@ -3413,7 +3432,7 @@ TEST(D50LabBridgeTest, ExtendedRoundTripsAndNonFiniteValuesPreserveFrozenClassif
             frozen_lab_to_xyz_d50(frozen_xyz_d50_to_lab(frozen_linear_rec709_to_xyz_d50(input))));
         const auto actual = d50_lab::xyz_to_linear_rec709(
             d50_lab::lab_to_xyz(d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(input))));
-        expect_frozen_d50_bits(actual, oracle, expected);
+        expect_frozen_d50_cbrt_reference(actual, oracle, expected);
     }
 
     const std::array nonfinite{std::numeric_limits<float>::quiet_NaN(),

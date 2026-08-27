@@ -1735,7 +1735,7 @@ parse_png_contract(const std::span<const std::uint8_t> bytes, const std::string_
             }
             const auto keyword = payload.first(std::min<std::size_t>(payload.size(), 80U));
             const auto separator = std::find(keyword.begin(), keyword.end(), 0U);
-            const std::size_t keyword_size = static_cast<std::size_t>(separator - payload.begin());
+            const std::size_t keyword_size = static_cast<std::size_t>(separator - keyword.begin());
             if (keyword_size == 0U || keyword_size > 79U || separator == keyword.end() ||
                 payload.size() < keyword_size + 3U || payload[keyword_size + 1U] != 0U)
             {

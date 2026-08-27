@@ -355,11 +355,11 @@ TEST(RgbeAdapterTest, ReproducesDefaultAndCustomPrimariesMatrices)
                                                  0.150F, 0.060F, 0.333F, 0.333F};
     EXPECT_EQ(defaults.value().radiance.primaries_xy, expected_defaults);
     const std::array<std::uint32_t, 9> default_rgb_to_xyz_bits{
-        0x3F0376AAU, 0x3EA5D9C5U, 0x3E2671CEU, 0x3E879260U, 0x3F2B91D6U,
-        0x3D8527D7U, 0x3CC53200U, 0x3DFBA2B2U, 0x3F5B26E8U};
+        0x3F0376ABU, 0x3EA5D9C5U, 0x3E2671CEU, 0x3E879261U, 0x3F2B91D6U,
+        0x3D8527D7U, 0x3CC53202U, 0x3DFBA2B2U, 0x3F5B26E8U};
     const std::array<std::uint32_t, 9> default_xyz_to_rgb_bits{
-        0x4024606FU, 0xBF958920U, 0xBECC41F2U, 0xBF82D009U, 0x3FFD2FF6U,
-        0x3D337839U, 0x3D987F17U, 0xBE8089E5U, 0x3F962719U};
+        0x4024606EU, 0xBF95891FU, 0xBECC41EFU, 0xBF82D009U, 0x3FFD2FF7U,
+        0x3D337836U, 0x3D987F16U, 0xBE8089E5U, 0x3F96271AU};
     for (std::size_t index = 0U; index < 9U; ++index)
     {
         EXPECT_EQ(std::bit_cast<std::uint32_t>(defaults.value().radiance.rgb_to_xyz[index]),
