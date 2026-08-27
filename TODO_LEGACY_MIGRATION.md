@@ -4,10 +4,11 @@
 >
 > **Updated: 2026-08-27**
 >
-> **Current execution focus: C14 colorharmonizer static owner/dependency audit only.**
-> Production implementation is not authorized. First freeze its exact S1 colour-
-> science and M1 mask/ROI dependencies, parameters, CPU owner, consumers, and
-> fixture boundary. Do not start C14 code, C15, or cacorrectrgb in parallel.
+> **Current execution focus: C14 colorharmonizer test-first default-unmasked,
+> smoothing-zero CPU core.** The owner/dependency audit is accepted; S1.1 D50
+> Lab, S1.2 dt-UCS, and S2.1 harmony geometry are complete prerequisites.
+> Nonzero smoothing remains gated on S2.2 recursive Gaussian and canonical ROI-
+> scale semantics. Do not start C15 or cacorrectrgb in parallel.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -40,15 +41,17 @@ ready for execution.
 
 ## 2. Migration queue
 
-C14 colorharmonizer is current for a read-only static owner/dependency audit.
-Before any implementation proposal, inventory its frozen parameter versions,
-presets, CPU mathematics and colour workspace, ROI/mask/blend behavior, OpenCL
-and GTK presentation branches, direct/shared owners, consumers, and all 158 XMP
-fixtures. The audit must separate the smallest independently owned S1 colour-
-science prerequisite from the M1/general-mask graph and report a test-first
-tranche plan with structured unsupported boundaries. Production code, schema,
-UI, retirement, and C15 remain unauthorized until that audit receives a
-separate review.
+C14 colorharmonizer's owner/dependency audit is accepted. S1.1 owns the frozen
+D50 Lab bridge, S1.2 owns the source-order dt-UCS bridge, and S2.1 owns immutable
+RYB lookup and harmony-node geometry. The current authorized tranche is a
+test-first canonical recipe and CPU core for the evidenced default-unmasked,
+`smoothing == 0` boundary. Nonzero smoothing remains unsupported until S2.2
+freezes the two-channel recursive Gaussian and C14 has canonical ROI-scale
+semantics. M1 and the general mask graph do not block the evidenced exact
+default-unmasked envelope; every other mask/blend state remains structurally
+unsupported. Strict legacy import, Develop/CLI/Catalog/Studio consumers,
+nonzero smoothing, stable authority, and atomic legacy retirement remain
+separately reviewed later tranches. C15 remains unauthorized.
 
 Independent adapter or reliability work may run only when its dependencies are
 met and its owners and files do not overlap.
@@ -69,11 +72,12 @@ long-term capability authority. Snapshot baseline:
 - The 158 fixture sets and five source images in legacy/tests remain read-only
   throughout algorithm migration; old runners never run.
 
-Status terms: **current** means the authorized C14 static audit only; it does not
-authorize production implementation. **Queued** waits for dependencies and all
-earlier rows. **Delete** means no UI/ABI port. **Keep evidence** means do not
-move it before migration completes. When a module meets its gate, first update
-stable truth, then remove its row. Do not leave historical checked marks here.
+Status terms: **current** means only the explicitly authorized C14 tranche named
+above; it does not authorize later C14 tranches or the next queue row. **Queued**
+waits for dependencies and all earlier rows. **Delete** means no UI/ABI port.
+**Keep evidence** means do not move it before migration completes. When a module
+meets its gate, first update stable truth, then remove its row. Do not leave
+historical checked marks here.
 
 General completion gates:
 
@@ -109,7 +113,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C14 | colorharmonizer — iop/colorharmonizer.c | yes | **Current / static owner-dependency audit only; production implementation not authorized**; depends on S1/M1; freeze colour harmony, workspace, ROI/mask, parameters, consumers, and fixture envelope before proposing tranches |
+| C14 | colorharmonizer — iop/colorharmonizer.c | yes | **Current / test-first default-unmasked, smoothing-zero CPU core authorized**; audit accepted and S1.1/S1.2/S2.1 complete; smoothing above zero waits for S2.2 plus canonical ROI scale; mask/presentation, strict import, consumers, and retirement remain later structured gates; C15 is forbidden |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
 | C17 | colorzones — iop/colorzones.c | yes | Queued / ALG; colorequal stays default; migrate complete optional HSL/Lab partitions and curves |
@@ -192,8 +196,8 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | Owner paths | Action | Dependency and acceptance gate |
 | --- | --- | --- | --- |
-| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 unifies the frozen D50 Lab bridge behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
-| S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept per F/G/M/diagnostic consumer; do not port OpenCL twins |
+| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 frozen D50 Lab and S1.2 source-order dt-UCS bridges are complete behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
+| S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | S2.1 immutable harmony geometry is complete; S2.2 must freeze the two-channel recursive Gaussian before C14 nonzero smoothing; accept remaining primitives per F/G/M/diagnostic consumer and do not port OpenCL twins |
 | S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: create canonical mask/blend graph | Shape/group/coordinate/parametric blend/ROI/schema/cancellation tests; prerequisite for M1 |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
 | S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all remaining IOPs retire; built-in versioned operation registry remains |
@@ -319,8 +323,9 @@ are stable, and end-to-end measurements prove benefit.
 
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
-constraints; it cannot be used to hide modules from this TODO. Do not implement
-C14 or begin C15 audit/implementation while the C14 static audit is current.
+constraints; it cannot be used to hide modules from this TODO. Implement only
+the explicitly authorized current C14 tranche, and do not begin C15 audit or
+implementation while C14 remains current.
 Independent adapter or reliability work requires satisfied dependencies and
 explicitly non-overlapping owners and files.
 
@@ -328,8 +333,9 @@ explicitly non-overlapping owners and files.
 
 Delete this document only when all are true:
 
-- [ ] C14 and every later raised algorithm are accepted and removed from this
-  document, with accepted old owner retired in the same change.
+- [ ] C14 completes its staged migration gate, and C14 and every later raised
+  algorithm are accepted and removed from this document, with each accepted old
+  owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
   maps to leftovers in Ravo/MIGRATION.md.
 - [ ] Cross-cutting reliability and promised platform-install loops meet release
