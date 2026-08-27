@@ -30,6 +30,7 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
+#include "ravo/domain/uri.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
@@ -458,9 +459,26 @@ public:
                                 cancellation, png_options);
     }
 
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const std::uint32_t width, const std::uint32_t height,
+           const std::vector<std::uint8_t> &rgb, const ColorProfileState &color_profile,
+           const ExportFormat format, const JpegExportOptions &jpeg_options,
+           const CancellationToken &cancellation, const PngExportOptions &png_options,
+           const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override
+    {
+        ++encode_calls;
+        last_format = format;
+        last_png_options = png_options;
+        last_metadata = metadata;
+        return delegate_.encode(width, height, rgb, color_profile, format, jpeg_options,
+                                cancellation, png_options, tiff_options, metadata);
+    }
+
     mutable std::size_t encode_calls = 0U;
     mutable ExportFormat last_format = ExportFormat::kPng;
     mutable PngExportOptions last_png_options;
+    mutable ExportMetadataSnapshot last_metadata;
 
 private:
     QtRasterDecoder delegate_;
@@ -805,6 +823,18 @@ TEST(PngCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
         ASSERT_TRUE(exported) << exported.error().message;
         EXPECT_EQ(capturing->last_format, format);
         EXPECT_EQ(capturing->last_png_options, deliberately_invalid);
+        if (format == ExportFormat::kTiff)
+        {
+            const auto normalized_output = normalize_local_input(unrelated.output_path);
+            ASSERT_TRUE(normalized_output) << normalized_output.error().message;
+            EXPECT_EQ(capturing->last_metadata.destination_document_name,
+                      normalized_output.value().path);
+            EXPECT_EQ(capturing->last_metadata.writable, WritableMetadata{});
+        }
+        else
+        {
+            EXPECT_EQ(capturing->last_metadata, ExportMetadataSnapshot{});
+        }
         EXPECT_TRUE(std::filesystem::is_regular_file(unrelated.output_path));
     }
 

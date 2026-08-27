@@ -36,6 +36,7 @@ struct TiffEncodeConfiguration
 enum class TiffEncodeCheckpoint
 {
     kConfigured,
+    kMetadata,
     kScanline,
     kBeforeFinish,
 };
@@ -49,6 +50,7 @@ enum class TiffEncodeInjectedFailure
     kAllocationFailure,
     kClientCloseFailure,
     kFinalizeFailure,
+    kMetadataTagFailure,
 };
 
 using TiffEncodeCheckpointCallback = TiffEncodeInjectedFailure (*)(
@@ -76,5 +78,11 @@ tiff_encode_configuration(const TiffExportOptions &options);
 encode_tiff_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgb,
                  std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
                  const CancellationToken &cancellation, TiffEncodeControl control = {});
+
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+encode_tiff_rgb8(std::uint32_t width, std::uint32_t height, std::span<const std::uint8_t> rgb,
+                 std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
+                 const ExportMetadataSnapshot &metadata, const CancellationToken &cancellation,
+                 TiffEncodeControl control = {});
 
 } // namespace ravo::detail

@@ -33,6 +33,10 @@ inline constexpr int kPngCompressionMax = 9;
 inline constexpr int kDefaultTiffCompressionLevel = 6;
 inline constexpr int kTiffCompressionLevelMin = 1;
 inline constexpr int kTiffCompressionLevelMax = 9;
+inline constexpr int kDefaultTiffResolutionDpi = 300;
+inline constexpr int kTiffResolutionDpiMin = 72;
+inline constexpr int kTiffResolutionDpiMax = 9600;
+inline constexpr std::size_t kExportDocumentNameMaxBytes = 16U * 1024U;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
 inline constexpr std::string_view kMediaTypeJpeg = "image/jpeg";
@@ -165,6 +169,7 @@ struct TiffExportOptions
     TiffCompression compression = TiffCompression::kDeflatePredictor;
     int compression_level = kDefaultTiffCompressionLevel;
     bool grayscale_if_neutral = false;
+    int resolution_dpi = kDefaultTiffResolutionDpi;
 
     [[nodiscard]] bool operator==(const TiffExportOptions &) const = default;
 };
@@ -219,6 +224,14 @@ struct WritableMetadata
     std::optional<std::string> copyright;
 
     [[nodiscard]] bool operator==(const WritableMetadata &) const noexcept = default;
+};
+
+struct ExportMetadataSnapshot
+{
+    std::string destination_document_name;
+    WritableMetadata writable;
+
+    [[nodiscard]] bool operator==(const ExportMetadataSnapshot &) const noexcept = default;
 };
 
 struct RecipeHistoryEntry
@@ -395,6 +408,7 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] std::string_view tiff_compression_name(TiffCompression compression) noexcept;
 [[nodiscard]] Result<TiffCompression> parse_tiff_compression(std::string_view name);
 [[nodiscard]] Result<void> validate_tiff_export_options(const TiffExportOptions &options);
+[[nodiscard]] Result<void> validate_tiff_export_metadata(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] Result<std::string> normalize_tag_name(std::string_view name);
 [[nodiscard]] Result<std::vector<std::string>> parse_tag_list(std::string_view text);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);

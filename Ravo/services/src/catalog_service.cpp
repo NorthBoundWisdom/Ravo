@@ -1085,6 +1085,17 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", request.asset_id}});
     }
+    ExportMetadataSnapshot export_metadata;
+    if (request.format == ExportFormat::kTiff)
+    {
+        export_metadata.destination_document_name = output.value().path;
+        export_metadata.writable = asset.value()->metadata;
+        auto valid_metadata = validate_tiff_export_metadata(export_metadata);
+        if (!valid_metadata)
+        {
+            return valid_metadata.error();
+        }
+    }
     auto location = normalize_local_input(asset.value()->normalized_uri);
     if (!location)
     {
@@ -1153,10 +1164,10 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     {
         return rendered.error();
     }
-    auto encoded =
-        raster_->encode(rendered.value().width, rendered.value().height, rendered.value().rgb,
-                        rendered.value().color_profile, request.format, request.jpeg_options,
-                        request.cancellation, request.png_options, request.tiff_options);
+    auto encoded = raster_->encode(rendered.value().width, rendered.value().height,
+                                   rendered.value().rgb, rendered.value().color_profile,
+                                   request.format, request.jpeg_options, request.cancellation,
+                                   request.png_options, request.tiff_options, export_metadata);
     if (!encoded)
     {
         return encoded.error();

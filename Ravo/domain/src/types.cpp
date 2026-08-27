@@ -3,6 +3,7 @@
 #include "ravo/domain/uri.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <map>
 #include <random>
@@ -28,6 +29,65 @@ namespace
         id.push_back(hex[value & 0x0fU]);
     }
     return id;
+}
+
+[[nodiscard]] bool is_valid_utf8(const std::string_view text) noexcept
+{
+    std::size_t offset = 0U;
+    while (offset < text.size())
+    {
+        const auto first = static_cast<std::uint8_t>(text[offset]);
+        if (first <= 0x7FU)
+        {
+            ++offset;
+            continue;
+        }
+
+        std::size_t length = 0U;
+        std::uint32_t scalar = 0U;
+        std::uint32_t minimum = 0U;
+        if ((first & 0xE0U) == 0xC0U)
+        {
+            length = 2U;
+            scalar = first & 0x1FU;
+            minimum = 0x80U;
+        }
+        else if ((first & 0xF0U) == 0xE0U)
+        {
+            length = 3U;
+            scalar = first & 0x0FU;
+            minimum = 0x800U;
+        }
+        else if ((first & 0xF8U) == 0xF0U)
+        {
+            length = 4U;
+            scalar = first & 0x07U;
+            minimum = 0x10000U;
+        }
+        else
+        {
+            return false;
+        }
+        if (length > text.size() - offset)
+        {
+            return false;
+        }
+        for (std::size_t index = 1U; index < length; ++index)
+        {
+            const auto continuation = static_cast<std::uint8_t>(text[offset + index]);
+            if ((continuation & 0xC0U) != 0x80U)
+            {
+                return false;
+            }
+            scalar = (scalar << 6U) | (continuation & 0x3FU);
+        }
+        if (scalar < minimum || scalar > 0x10FFFFU || (scalar >= 0xD800U && scalar <= 0xDFFFU))
+        {
+            return false;
+        }
+        offset += length;
+    }
+    return true;
 }
 
 } // namespace
@@ -441,6 +501,73 @@ Result<void> validate_tiff_export_options(const TiffExportOptions &options)
                            {"maximum", std::to_string(kTiffCompressionLevelMax)},
                            {"minimum", std::to_string(kTiffCompressionLevelMin)},
                            {"reason", "invalid_tiff_compression_level"}});
+    }
+    if (options.resolution_dpi < kTiffResolutionDpiMin ||
+        options.resolution_dpi > kTiffResolutionDpiMax)
+    {
+        return make_error(ErrorCode::kValidation, "TIFF resolution must be between 72 and 9600 DPI",
+                          {{"format", "tiff"},
+                           {"maximum", std::to_string(kTiffResolutionDpiMax)},
+                           {"minimum", std::to_string(kTiffResolutionDpiMin)},
+                           {"reason", "invalid_tiff_resolution"},
+                           {"resolution_dpi", std::to_string(options.resolution_dpi)}});
+    }
+    return {};
+}
+
+Result<void> validate_tiff_export_metadata(const ExportMetadataSnapshot &metadata)
+{
+    if (metadata.destination_document_name.size() > kExportDocumentNameMaxBytes ||
+        metadata.destination_document_name.find('\0') != std::string::npos ||
+        !is_valid_utf8(metadata.destination_document_name))
+    {
+        return make_error(
+            ErrorCode::kValidation, "TIFF document name is not a bounded UTF-8 path",
+            {{"field", "document_name"},
+             {"format", "tiff"},
+             {"maximum_bytes", std::to_string(kExportDocumentNameMaxBytes)},
+             {"reason", "invalid_tiff_document_name"},
+             {"size_bytes", std::to_string(metadata.destination_document_name.size())}});
+    }
+
+    const auto validate_field = [](const std::string_view name,
+                                   const std::optional<std::string> &value) -> Result<void>
+    {
+        if (!value)
+        {
+            return {};
+        }
+        const auto valid = validate_metadata_field(name, *value);
+        if (!valid || !is_valid_utf8(*value))
+        {
+            std::string detail = "invalid_utf8";
+            if (!valid)
+            {
+                detail = valid.error().message;
+            }
+            return make_error(ErrorCode::kValidation,
+                              "TIFF writable metadata is not bounded UTF-8 text",
+                              {{"detail", std::move(detail)},
+                               {"field", std::string(name)},
+                               {"format", "tiff"},
+                               {"reason", "invalid_tiff_export_metadata"},
+                               {"size_bytes", std::to_string(value->size())}});
+        }
+        return {};
+    };
+    for (const auto &[name, value] :
+         std::array<std::pair<std::string_view, const std::optional<std::string> *>, 4U>{{
+             {"title", &metadata.writable.title},
+             {"description", &metadata.writable.description},
+             {"creator", &metadata.writable.creator},
+             {"copyright", &metadata.writable.copyright},
+         }})
+    {
+        auto valid = validate_field(name, *value);
+        if (!valid)
+        {
+            return valid.error();
+        }
     }
     return {};
 }

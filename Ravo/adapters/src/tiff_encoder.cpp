@@ -385,6 +385,10 @@ notify_checkpoint(const TiffEncodeControl &control, const TiffEncodeCheckpoint c
         return tiff_encode_error(ErrorCode::kIo, "Unable to finalize TIFF output",
                                  "tiff_encoder_failure",
                                  {{"detail", "injected_tiff_finalize_failure"}});
+    case TiffEncodeInjectedFailure::kMetadataTagFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to write TIFF metadata tag",
+                                 "tiff_metadata_tag_failed",
+                                 {{"detail", "injected_tiff_metadata_tag_failure"}});
     case TiffEncodeInjectedFailure::kNone:
     case TiffEncodeInjectedFailure::kEncoderFailure:
         return tiff_encode_error(ErrorCode::kIo, "Unable to encode TIFF image",
@@ -419,6 +423,8 @@ notify_checkpoint(const TiffEncodeControl &control, const TiffEncodeCheckpoint c
     case TiffEncodeInjectedFailure::kFinalizeFailure:
         destination.fail_finalize = true;
         return std::nullopt;
+    case TiffEncodeInjectedFailure::kMetadataTagFailure:
+        return injected_failure_error(failure);
     }
     return injected_failure_error(failure);
 }
@@ -512,7 +518,7 @@ Result<TiffEncodeConfiguration> tiff_encode_configuration(const TiffExportOption
                                                                          PREDICTOR_HORIZONTAL;
     }
     result.compression_level = options.compression_level;
-    result.resolution_dpi = 300.0F;
+    result.resolution_dpi = static_cast<float>(options.resolution_dpi);
     result.resolution_unit = RESUNIT_INCH;
     result.little_endian = true;
     result.tiled = false;
@@ -524,6 +530,17 @@ Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
     const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
     const CancellationToken &cancellation, const TiffEncodeControl control)
 {
+    return encode_tiff_rgb8(width, height, rgb, resolved_rgb_icc, options, ExportMetadataSnapshot{},
+                            cancellation, control);
+}
+
+Result<std::vector<std::uint8_t>>
+encode_tiff_rgb8(const std::uint32_t width, const std::uint32_t height,
+                 const std::span<const std::uint8_t> rgb,
+                 const std::span<const std::uint8_t> resolved_rgb_icc,
+                 const TiffExportOptions &options, const ExportMetadataSnapshot &metadata,
+                 const CancellationToken &cancellation, const TiffEncodeControl control)
+{
     if (cancellation.is_cancellation_requested())
     {
         return tiff_cancellation_error(cancellation);
@@ -532,6 +549,11 @@ Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
     if (!configuration)
     {
         return configuration.error();
+    }
+    auto valid_metadata = validate_tiff_export_metadata(metadata);
+    if (!valid_metadata)
+    {
+        return valid_metadata.error();
     }
     if (options.sample_type != TiffSampleType::kUint8)
     {
@@ -645,6 +667,49 @@ Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
             fail_encoder();
         }
     };
+    const auto fail_metadata_tag = [&](const std::uint32_t tag, std::string detail = {})
+    {
+        if (!primary_error)
+        {
+            std::map<std::string, std::string, std::less<>> context{{"tag", std::to_string(tag)}};
+            if (!detail.empty())
+            {
+                context.emplace("detail", std::move(detail));
+            }
+            primary_error = tiff_encode_error(ErrorCode::kIo, "Unable to write TIFF metadata tag",
+                                              "tiff_metadata_tag_failed", std::move(context));
+        }
+    };
+    const auto set_metadata_ascii = [&](const std::uint32_t tag, const std::string &value)
+    {
+        if (primary_error)
+        {
+            return;
+        }
+        const TiffEncodeInjectedFailure injected =
+            notify_checkpoint(control, TiffEncodeCheckpoint::kMetadata, tag, configuration.value());
+        if (cancellation.is_cancellation_requested())
+        {
+            primary_error = tiff_cancellation_error(cancellation);
+            return;
+        }
+        if (injected == TiffEncodeInjectedFailure::kMetadataTagFailure)
+        {
+            fail_metadata_tag(tag, "injected_tiff_metadata_tag_failure");
+            return;
+        }
+        if (auto injected_error = arm_injected_failure(destination, injected))
+        {
+            primary_error = std::move(injected_error).value();
+            return;
+        }
+        if (TIFFSetField(writer, tag, value.c_str()) != 1)
+        {
+            fail_metadata_tag(tag, destination.detail[0] == '\0' ?
+                                       std::string{} :
+                                       std::string(destination.detail.data()));
+        }
+    };
 
     set_field(TIFFTAG_IMAGEWIDTH, width);
     set_field(TIFFTAG_IMAGELENGTH, height);
@@ -677,6 +742,23 @@ Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
         {
             set_field(TIFFTAG_ROWSPERSTRIP, rows_per_strip);
         }
+    }
+
+    if (!metadata.destination_document_name.empty())
+    {
+        set_metadata_ascii(TIFFTAG_DOCUMENTNAME, metadata.destination_document_name);
+    }
+    if (metadata.writable.description)
+    {
+        set_metadata_ascii(TIFFTAG_IMAGEDESCRIPTION, *metadata.writable.description);
+    }
+    if (metadata.writable.creator)
+    {
+        set_metadata_ascii(TIFFTAG_ARTIST, *metadata.writable.creator);
+    }
+    if (metadata.writable.copyright)
+    {
+        set_metadata_ascii(TIFFTAG_COPYRIGHT, *metadata.writable.copyright);
     }
 
     if (!primary_error)

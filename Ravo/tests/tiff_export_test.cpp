@@ -29,6 +29,7 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
+#include "ravo/domain/uri.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
@@ -525,9 +526,26 @@ public:
                                 cancellation, png_options, tiff_options);
     }
 
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode(const std::uint32_t width, const std::uint32_t height,
+           const std::vector<std::uint8_t> &rgb, const ColorProfileState &color_profile,
+           const ExportFormat format, const JpegExportOptions &jpeg_options,
+           const CancellationToken &cancellation, const PngExportOptions &png_options,
+           const TiffExportOptions &tiff_options,
+           const ExportMetadataSnapshot &metadata) const override
+    {
+        ++encode_calls;
+        last_format = format;
+        last_tiff_options = tiff_options;
+        last_metadata = metadata;
+        return delegate_.encode(width, height, rgb, color_profile, format, jpeg_options,
+                                cancellation, png_options, tiff_options, metadata);
+    }
+
     mutable std::size_t encode_calls = 0U;
     mutable ExportFormat last_format = ExportFormat::kPng;
     mutable TiffExportOptions last_tiff_options;
+    mutable ExportMetadataSnapshot last_metadata;
 
 private:
     QtRasterDecoder delegate_;
@@ -869,6 +887,10 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
     ASSERT_TRUE(default_export) << default_export.error().message;
     EXPECT_EQ(capturing->last_format, ExportFormat::kTiff);
     EXPECT_EQ(capturing->last_tiff_options, TiffExportOptions());
+    const auto normalized_default = normalize_local_input(defaults.output_path);
+    ASSERT_TRUE(normalized_default) << normalized_default.error().message;
+    EXPECT_EQ(capturing->last_metadata.destination_document_name, normalized_default.value().path);
+    EXPECT_EQ(capturing->last_metadata.writable, WritableMetadata{});
     EXPECT_TRUE(std::filesystem::is_regular_file(defaults.output_path));
 
     ExportRequest explicit_options = defaults;
@@ -912,6 +934,7 @@ TEST(TiffCatalogTest, ForwardsDefaultsAndExplicitOptionsWithFormatIsolation)
         ASSERT_TRUE(exported) << exported.error().message;
         EXPECT_EQ(capturing->last_format, format);
         EXPECT_EQ(capturing->last_tiff_options, deliberately_invalid);
+        EXPECT_EQ(capturing->last_metadata, ExportMetadataSnapshot{});
         EXPECT_TRUE(std::filesystem::is_regular_file(unrelated.output_path));
     }
 

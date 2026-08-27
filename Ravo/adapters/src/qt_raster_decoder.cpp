@@ -3423,6 +3423,17 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
     const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
     const PngExportOptions &png_options, const TiffExportOptions &tiff_options) const
 {
+    return encode(width, height, rgb, color_profile, format, jpeg_options, cancellation,
+                  png_options, tiff_options, ExportMetadataSnapshot{});
+}
+
+Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
+    const std::uint32_t width, const std::uint32_t height, const std::vector<std::uint8_t> &rgb,
+    const ColorProfileState &color_profile, const ExportFormat format,
+    const JpegExportOptions &jpeg_options, const CancellationToken &cancellation,
+    const PngExportOptions &png_options, const TiffExportOptions &tiff_options,
+    const ExportMetadataSnapshot &metadata) const
+{
     auto cancelled = cancellation.check();
     if (!cancelled)
     {
@@ -3530,16 +3541,16 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
             return make_error(ErrorCode::kValidation, "PNG output ICC could not be resolved",
                               {{"format", "png"}, {"reason", "missing_png_output_icc"}});
         }
-        detail::PngEncodeColorMetadata metadata;
-        metadata.resolved_rgb_icc = {reinterpret_cast<const std::uint8_t *>(icc.constData()),
-                                     static_cast<std::size_t>(icc.size())};
+        detail::PngEncodeColorMetadata png_metadata;
+        png_metadata.resolved_rgb_icc = {reinterpret_cast<const std::uint8_t *>(icc.constData()),
+                                         static_cast<std::size_t>(icc.size())};
         const auto cicp = png_cicp_for_profile(color_profile);
         if (cicp)
         {
-            metadata.has_cicp = true;
-            metadata.cicp = *cicp;
+            png_metadata.has_cicp = true;
+            png_metadata.cicp = *cicp;
         }
-        return detail::encode_png_rgb8(width, height, rgb, metadata, png_options, cancellation);
+        return detail::encode_png_rgb8(width, height, rgb, png_metadata, png_options, cancellation);
     }
     if (format == ExportFormat::kTiff)
     {
@@ -3547,6 +3558,11 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         if (!valid_options)
         {
             return valid_options.error();
+        }
+        auto valid_metadata = validate_tiff_export_metadata(metadata);
+        if (!valid_metadata)
+        {
+            return valid_metadata.error();
         }
         if (tiff_options.sample_type != TiffSampleType::kUint8)
         {
@@ -3588,7 +3604,7 @@ Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(
         return detail::encode_tiff_rgb8(width, height, rgb,
                                         {reinterpret_cast<const std::uint8_t *>(icc.constData()),
                                          static_cast<std::size_t>(icc.size())},
-                                        tiff_options, cancellation);
+                                        tiff_options, metadata, cancellation);
     }
     return make_error(ErrorCode::kUnsupported, "Raster export format is unsupported",
                       {{"format", std::string(export_format_name(format))},
