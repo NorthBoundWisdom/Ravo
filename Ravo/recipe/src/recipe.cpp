@@ -15,6 +15,7 @@
 
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/develop.h"
@@ -1014,6 +1015,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             if (!color_checker)
             {
                 auto error = color_checker.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kColorHarmonizerOperationId)
+        {
+            auto color_harmonizer = validate_color_harmonizer_parameters(operation.parameters);
+            if (!color_harmonizer)
+            {
+                auto error = color_harmonizer.error();
                 error.context.emplace("operation_id", operation.id);
                 return error;
             }

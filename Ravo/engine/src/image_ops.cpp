@@ -22,6 +22,7 @@
 #include "color_contrast.h"
 #include "color_correction.h"
 #include "color_checker.h"
+#include "color_harmonizer.h"
 #include "d50_lab.h"
 #include "output_color.h"
 #include "primaries.h"
@@ -2717,6 +2718,16 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 return corrected.error();
             }
             image = std::move(corrected).value();
+            continue;
+        }
+        if (operation.id == kColorHarmonizerOperationId)
+        {
+            auto harmonized = apply_color_harmonizer(image, operation, cancellation);
+            if (!harmonized)
+            {
+                return harmonized.error();
+            }
+            image = std::move(harmonized).value();
             continue;
         }
         if (operation.id == kColorCorrectionOperationId)

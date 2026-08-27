@@ -6,11 +6,13 @@
 #include <limits>
 #include <numbers>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include <gtest/gtest.h>
 
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/develop.h"
@@ -277,6 +279,175 @@ TEST(RecipeTest, ColorContrastSchemaV2AndExistingV1RecipesNormalizeDeterministic
     invalid = encoded.value();
     invalid["unbound"] = ParameterValue{std::int64_t{1}};
     expect_invalid(invalid);
+}
+
+TEST(RecipeTest, ColorHarmonizerSchemaRoundTripsTheTwoReal0176ParameterStates)
+{
+    // Exact little-endian decode of records 12 and 13 in the frozen 0176 XMP.
+    // Record 12 is the post-init default, including the four custom hue knots.
+    const ColorHarmonizerParams record12;
+    auto encoded = color_harmonizer_to_parameters(record12);
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    EXPECT_EQ(encoded.value().size(), 17U);
+    auto decoded = color_harmonizer_from_parameters(encoded.value());
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), record12);
+
+    ColorHarmonizerParams record13;
+    record13.rule = ColorHarmonizerRule::kSplitComplementary;
+    record13.anchor_hue = 0.55000001192092896;
+    record13.pull_strength = 0.81999999284744263;
+    record13.pull_width = 1.8400000333786011;
+    record13.node_saturation = {1.2599999904632568, 0.18000000715255737, 1.5199999809265137, 1.0};
+    encoded = color_harmonizer_to_parameters(record13);
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    decoded = color_harmonizer_from_parameters(encoded.value());
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), record13);
+
+    const auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    EXPECT_EQ(registry.value().descriptors().size(), kPhase1OperationCount);
+    const auto *descriptor = registry.value().find(kColorHarmonizerOperationId);
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_EQ(descriptor->parameter_schema_version, kColorHarmonizerOperationSchemaVersion);
+    ASSERT_EQ(descriptor->parameters.size(), 17U);
+    EXPECT_TRUE(std::ranges::all_of(descriptor->parameters,
+                                    [](const ParameterRule &rule) { return rule.required; }));
+    EXPECT_FALSE(descriptor->supports_mask);
+    EXPECT_TRUE(descriptor->cpu_reference_available);
+
+    const std::array<std::string_view, 17> expected_names{
+        "working_space",     "algorithm",         "rule",
+        "anchor_hue",        "pull_strength",     "neutral_protection",
+        "pull_width",        "custom_hue_0",      "custom_hue_1",
+        "custom_hue_2",      "custom_hue_3",      "num_custom_nodes",
+        "node_saturation_0", "node_saturation_1", "node_saturation_2",
+        "node_saturation_3", "smoothing"};
+    for (std::size_t index = 0U; index < expected_names.size(); ++index)
+    {
+        EXPECT_EQ(descriptor->parameters[index].name, expected_names[index]);
+    }
+
+    auto checker = color_checker_to_parameters(ColorCheckerParams{});
+    ASSERT_TRUE(checker) << checker.error().message;
+    Recipe canonical;
+    canonical.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    canonical.operations.push_back({std::string(kColorCheckerOperationId),
+                                    kColorCheckerOperationSchemaVersion, "colorchecker-1", true,
+                                    std::move(checker).value(), std::nullopt});
+    canonical.operations.push_back({std::string(kColorHarmonizerOperationId),
+                                    kColorHarmonizerOperationSchemaVersion, "colorharmonizer-1",
+                                    true, encoded.value(), std::nullopt});
+    canonical.operations.push_back(
+        {std::string(kColorBalanceOperationId), kColorBalanceOperationSchemaVersion,
+         "colorbalance-1", true, color_balance_to_parameters(ColorBalanceParams{}), std::nullopt});
+    ASSERT_TRUE(validate_recipe(canonical, registry.value()));
+    const auto serialized = serialize_recipe(canonical);
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    const auto restored = parse_recipe_json(serialized.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    ASSERT_EQ(restored.value().operations.size(), 3U);
+    EXPECT_EQ(restored.value().operations[0].id, kColorCheckerOperationId);
+    EXPECT_EQ(restored.value().operations[1].id, kColorHarmonizerOperationId);
+    EXPECT_EQ(restored.value().operations[2].id, kColorBalanceOperationId);
+}
+
+TEST(RecipeTest, ColorHarmonizerRejectsEveryUnfrozenSchemaAndPresentationState)
+{
+    const std::array<std::pair<ColorHarmonizerRule, std::string_view>, 10> rules{
+        std::pair{ColorHarmonizerRule::kMonochromatic, "monochromatic"},
+        std::pair{ColorHarmonizerRule::kAnalogous, "analogous"},
+        std::pair{ColorHarmonizerRule::kAnalogousComplementary, "analogous_complementary"},
+        std::pair{ColorHarmonizerRule::kComplementary, "complementary"},
+        std::pair{ColorHarmonizerRule::kSplitComplementary, "split_complementary"},
+        std::pair{ColorHarmonizerRule::kDyad, "dyad"},
+        std::pair{ColorHarmonizerRule::kTriad, "triad"},
+        std::pair{ColorHarmonizerRule::kTetrad, "tetrad"},
+        std::pair{ColorHarmonizerRule::kSquare, "square"},
+        std::pair{ColorHarmonizerRule::kCustom, "custom"},
+    };
+    for (const auto &[rule, name] : rules)
+    {
+        ColorHarmonizerParams params;
+        params.rule = rule;
+        const auto encoded = color_harmonizer_to_parameters(params);
+        ASSERT_TRUE(encoded) << encoded.error().message;
+        EXPECT_EQ(std::get<std::string>(encoded.value().at("rule").value), name);
+        const auto decoded = color_harmonizer_from_parameters(encoded.value());
+        ASSERT_TRUE(decoded) << decoded.error().message;
+        EXPECT_EQ(decoded.value(), params);
+    }
+
+    auto canonical = color_harmonizer_to_parameters(ColorHarmonizerParams{});
+    ASSERT_TRUE(canonical) << canonical.error().message;
+    const auto expect_invalid = [](const auto &parameters, const std::string_view parameter = {})
+    {
+        const auto result = color_harmonizer_from_parameters(parameters);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(result.error().context.at("reason"), "invalid_colorharmonizer_parameters");
+        if (!parameter.empty())
+        {
+            EXPECT_EQ(result.error().context.at("parameter"), parameter);
+        }
+    };
+
+    auto invalid = canonical.value();
+    invalid.erase("anchor_hue");
+    expect_invalid(invalid);
+    invalid = canonical.value();
+    invalid["multi_priority"] = ParameterValue{std::int64_t{0}};
+    expect_invalid(invalid, "multi_priority");
+    invalid = canonical.value();
+    invalid["working_space"] = ParameterValue{"linear_rec709"};
+    expect_invalid(invalid, "working_space");
+    invalid = canonical.value();
+    invalid["algorithm"] = ParameterValue{"nearest_hue"};
+    expect_invalid(invalid, "algorithm");
+    invalid = canonical.value();
+    invalid["rule"] = ParameterValue{"automatic"};
+    expect_invalid(invalid, "rule");
+
+    const std::array bounds{
+        std::tuple{"anchor_hue", -0.01, 1.01},         std::tuple{"pull_strength", -0.01, 1.01},
+        std::tuple{"neutral_protection", -0.01, 1.01}, std::tuple{"pull_width", 0.24, 4.01},
+        std::tuple{"custom_hue_0", -0.01, 1.01},       std::tuple{"custom_hue_1", -0.01, 1.01},
+        std::tuple{"custom_hue_2", -0.01, 1.01},       std::tuple{"custom_hue_3", -0.01, 1.01},
+        std::tuple{"node_saturation_0", -0.01, 2.01},  std::tuple{"node_saturation_1", -0.01, 2.01},
+        std::tuple{"node_saturation_2", -0.01, 2.01},  std::tuple{"node_saturation_3", -0.01, 2.01},
+        std::tuple{"smoothing", -0.01, 2.01},
+    };
+    for (const auto &[name, below, above] : bounds)
+    {
+        invalid = canonical.value();
+        invalid[name] = ParameterValue{below};
+        expect_invalid(invalid, name);
+        invalid[name] = ParameterValue{above};
+        expect_invalid(invalid, name);
+        invalid[name] = ParameterValue{std::numeric_limits<double>::quiet_NaN()};
+        expect_invalid(invalid, name);
+    }
+    invalid = canonical.value();
+    invalid["num_custom_nodes"] = ParameterValue{std::int64_t{1}};
+    expect_invalid(invalid, "num_custom_nodes");
+    invalid["num_custom_nodes"] = ParameterValue{std::int64_t{5}};
+    expect_invalid(invalid, "num_custom_nodes");
+    invalid["num_custom_nodes"] = ParameterValue{4.0};
+    expect_invalid(invalid, "num_custom_nodes");
+
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    Recipe masked;
+    masked.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    masked.masks.push_back({"mask-1", 1, MaskKind::kAll});
+    masked.operations.push_back({std::string(kColorHarmonizerOperationId),
+                                 kColorHarmonizerOperationSchemaVersion, "colorharmonizer-mask",
+                                 true, canonical.value(), "mask-1"});
+    const auto rejected = validate_recipe(masked, registry.value());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected.error().context.at("operation_id"), kColorHarmonizerOperationId);
 }
 
 TEST(RecipeTest, RejectsUnknownFieldsRatherThanGuessingCompatibility)

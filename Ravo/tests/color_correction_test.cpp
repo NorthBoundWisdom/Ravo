@@ -238,7 +238,7 @@ TEST(ColorCorrectionRecipeTest, V1SchemaRoundTripsAllFiveFieldsAndRejectsInvalid
 
     const auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
-    EXPECT_EQ(kPhase1OperationCount, 48U);
+    EXPECT_EQ(kPhase1OperationCount, 49U);
     EXPECT_EQ(registry.value().descriptors().size(), kPhase1OperationCount);
     const auto *descriptor = registry.value().find(kColorCorrectionOperationId);
     ASSERT_NE(descriptor, nullptr);

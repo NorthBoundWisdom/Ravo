@@ -7,6 +7,8 @@ target_sources(ravo_engine
     src/color_balance_rgb.h
     src/color_checker.cpp
     src/color_checker.h
+    src/color_harmonizer.cpp
+    src/color_harmonizer.h
     src/color_contrast.cpp
     src/color_contrast.h
     src/color_correction.cpp
@@ -33,6 +35,10 @@ target_sources(ravo_engine
     src/scopes.cpp)
 
 set_property(SOURCE src/harmony_geometry.cpp APPEND PROPERTY COMPILE_OPTIONS
+  "$<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-ffp-contract=off>"
+  "$<$<CXX_COMPILER_ID:MSVC>:/fp:strict>")
+
+set_property(SOURCE src/color_harmonizer.cpp APPEND PROPERTY COMPILE_OPTIONS
   "$<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-ffp-contract=off>"
   "$<$<CXX_COMPILER_ID:MSVC>:/fp:strict>")
 

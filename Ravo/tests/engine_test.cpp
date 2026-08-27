@@ -29,6 +29,7 @@
 #include "color_balance_fixture.h"
 #include "color_balance_rgb.h"
 #include "color_checker.h"
+#include "color_harmonizer.h"
 #include "color_contrast.h"
 #include "d50_lab.h"
 #include "dt_ucs.h"
@@ -1886,6 +1887,168 @@ frozen_predefined_harmony_nodes(const harmony_geometry::StandardRule rule, const
     return hash;
 }
 
+[[nodiscard]] std::array<float, 9>
+frozen_color_harmonizer_inverse(const std::array<float, 9> &matrix) noexcept
+{
+    const double a = matrix[0];
+    const double b = matrix[1];
+    const double c = matrix[2];
+    const double d = matrix[3];
+    const double e = matrix[4];
+    const double f = matrix[5];
+    const double g = matrix[6];
+    const double h = matrix[7];
+    const double i = matrix[8];
+    const volatile double ei = e * i;
+    const volatile double fh = f * h;
+    const volatile double di = d * i;
+    const volatile double fg = f * g;
+    const volatile double dh = d * h;
+    const volatile double eg = e * g;
+    const double minor0 = ei - fh;
+    const double minor1 = di - fg;
+    const double minor2 = dh - eg;
+    const volatile double first = a * minor0;
+    const volatile double second = b * minor1;
+    const volatile double third = c * minor2;
+    const double determinant = (first - second) + third;
+    const double inverse = 1.0 / determinant;
+    const auto difference =
+        [](const double lhs0, const double lhs1, const double rhs0, const double rhs1)
+    {
+        const volatile double lhs = lhs0 * lhs1;
+        const volatile double rhs = rhs0 * rhs1;
+        return lhs - rhs;
+    };
+    return {static_cast<float>(minor0 * inverse),
+            static_cast<float>(difference(c, h, b, i) * inverse),
+            static_cast<float>(difference(b, f, c, e) * inverse),
+            static_cast<float>(difference(f, g, d, i) * inverse),
+            static_cast<float>(difference(a, i, c, g) * inverse),
+            static_cast<float>(difference(c, d, a, f) * inverse),
+            static_cast<float>(difference(d, h, e, g) * inverse),
+            static_cast<float>(difference(b, g, a, h) * inverse),
+            static_cast<float>(difference(a, e, b, d) * inverse)};
+}
+
+[[nodiscard]] FrozenD50Triplet frozen_color_harmonizer_matrix(const std::array<float, 9> &matrix,
+                                                              const FrozenD50Triplet value) noexcept
+{
+    const auto row = [](const float coefficient0, const float value0, const float coefficient1,
+                        const float value1, const float coefficient2, const float value2)
+    {
+        const volatile float product0 = coefficient0 * value0;
+        const volatile float product1 = coefficient1 * value1;
+        const volatile float first_sum = product0 + product1;
+        const volatile float product2 = coefficient2 * value2;
+        return first_sum + product2;
+    };
+    return {row(matrix[0], value[0], matrix[1], value[1], matrix[2], value[2]),
+            row(matrix[3], value[0], matrix[4], value[1], matrix[5], value[2]),
+            row(matrix[6], value[0], matrix[7], value[1], matrix[8], value[2])};
+}
+
+[[nodiscard]] FrozenHarmonyNodes
+frozen_color_harmonizer_nodes(const ColorHarmonizerParams &params,
+                              const FrozenHarmonyHueTables &tables) noexcept
+{
+    FrozenHarmonyNodes nodes;
+    if (params.rule == ColorHarmonizerRule::kCustom)
+    {
+        nodes.count = static_cast<std::size_t>(params.num_custom_nodes);
+        for (std::size_t index = 0U; index < nodes.count; ++index)
+        {
+            nodes.hues[index] = static_cast<float>(params.custom_hue[index]);
+        }
+        return nodes;
+    }
+    return frozen_predefined_harmony_nodes(static_cast<harmony_geometry::StandardRule>(params.rule),
+                                           static_cast<float>(params.anchor_hue), tables);
+}
+
+// Independent scalar composition of the frozen smoothing-zero process. The
+// conversion, geometry, matrix, and correction stages call only the source
+// transcriptions above, never apply_color_harmonizer or a production bridge.
+[[nodiscard]] FrozenD50Triplet frozen_color_harmonizer_rgb(
+    const ColorHarmonizerParams &params, const FrozenD50Triplet input,
+    const std::array<float, 9> &working_to_xyz_d50, const FrozenHarmonyHueTables &tables,
+    const bool skip_negative_clip = false, const bool linear_neutral_protection = false) noexcept
+{
+    const auto inverse = frozen_color_harmonizer_inverse(working_to_xyz_d50);
+    const FrozenD50Triplet nonnegative{skip_negative_clip ? input[0] : std::fmax(input[0], 0.0F),
+                                       skip_negative_clip ? input[1] : std::fmax(input[1], 0.0F),
+                                       skip_negative_clip ? input[2] : std::fmax(input[2], 0.0F)};
+    const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
+    auto jch = frozen_dt_ucs_xyz_d50_to_jch(
+        frozen_color_harmonizer_matrix(working_to_xyz_d50, nonnegative), white_lightness);
+    constexpr float pi = 3.14159265358979323846F;
+    constexpr float two_pi = 6.28318530717958647693F;
+    const float hue = (jch[2] + pi) / two_pi;
+    const float chroma = jch[1];
+    const auto nodes = frozen_color_harmonizer_nodes(params, tables);
+    const auto attraction =
+        frozen_harmony_attraction(hue, std::span<const float>(nodes.hues.data(), nodes.count),
+                                  static_cast<float>(params.pull_width));
+    const volatile float saturation_delta =
+        (static_cast<float>(params.node_saturation[attraction.winning_index]) - 1.0F) *
+        attraction.weight;
+    const float neutral = static_cast<float>(params.neutral_protection);
+    const volatile float neutral_squared = neutral * neutral;
+    const volatile float neutral_cubed = neutral_squared * neutral;
+    const volatile float cutoff = (linear_neutral_protection ? neutral : neutral_cubed) * 0.03F;
+    const volatile float chroma_plus_cutoff = chroma + cutoff;
+    const volatile float denominator = chroma_plus_cutoff + 1.0e-5F;
+    const volatile float chroma_weight = chroma / denominator;
+    const volatile float strength_shift =
+        attraction.shift * static_cast<float>(params.pull_strength);
+    const volatile float weighted_shift = strength_shift * chroma_weight;
+    const volatile float shifted_hue = hue + weighted_shift;
+    float corrected_hue = std::fmod(shifted_hue, 1.0F);
+    if (corrected_hue < 0.0F)
+    {
+        corrected_hue += 1.0F;
+    }
+    const volatile float scaled_hue = corrected_hue * two_pi;
+    jch[2] = scaled_hue - pi;
+    const volatile float weighted_saturation = saturation_delta * chroma_weight;
+    const volatile float saturation_scale = 1.0F + weighted_saturation;
+    const volatile float corrected_chroma = chroma * saturation_scale;
+    jch[1] = std::fmax(corrected_chroma, 0.0F);
+    return frozen_color_harmonizer_matrix(inverse,
+                                          frozen_dt_ucs_jch_to_xyz_d50(jch, white_lightness));
+}
+
+[[nodiscard]] ColorHarmonizerParams frozen_color_harmonizer_0176_record13() noexcept
+{
+    ColorHarmonizerParams params;
+    params.rule = ColorHarmonizerRule::kSplitComplementary;
+    params.anchor_hue = 0.55000001192092896;
+    params.pull_strength = 0.81999999284744263;
+    params.pull_width = 1.8400000333786011;
+    params.node_saturation = {1.2599999904632568, 0.18000000715255737, 1.5199999809265137, 1.0};
+    return params;
+}
+
+[[nodiscard]] WorkingImage color_harmonizer_working_fixture()
+{
+    WorkingImage input;
+    input.width = 4U;
+    input.height = 1U;
+    input.rgb = {0.03F, 0.18F, 0.72F, 0.91F, 0.42F, 0.07F, -0.25F, 0.5F, 1.7F, 0.0F, 0.0F, 0.0F};
+    input.color_profile.kind = ColorProfileKind::kIcc;
+    input.color_profile.model = ColorModel::kRgb;
+    input.color_profile.identifier = std::string(kInputProfileLinearRec709);
+    input.color_profile.icc_bytes = {1U, 2U, 3U, 4U};
+    input.color_profile.matrix_to_xyz_d50 = {0.4360747F, 0.3850649F, 0.1430804F,
+                                             0.2225045F, 0.7168786F, 0.0606169F,
+                                             0.0139322F, 0.0971045F, 0.7141733F};
+    input.color_profile.has_matrix = true;
+    auto analysis = std::make_shared<ExposureAnalysisContext>();
+    analysis->raw_pixel_count = 4U;
+    input.exposure_analysis = std::move(analysis);
+    return input;
+}
+
 // Independent scalar oracle transcribed from the frozen colorbalance.c
 // commit_params(), _process_sop(), and _process_lgg() paths. It deliberately
 // calls no production Color Balance helper, so the fixed goldens below do not
@@ -3630,6 +3793,321 @@ TEST(HarmonyGeometryTest, FullTablesMatchIndependentOracleAndFixedBitHashes)
     const float transfer_input = 0.045F;
     EXPECT_NE(std::bit_cast<std::uint32_t>(frozen_harmony_srgb_to_linear(transfer_input)),
               std::bit_cast<std::uint32_t>(frozen_harmony_srgb_to_linear(transfer_input, 0.05F)));
+}
+
+TEST(ColorHarmonizerTest, Real0176StatesMatchIndependentSourceOrderBitGoldens)
+{
+    const auto tables = frozen_harmony_tables();
+    const WorkingImage input = color_harmonizer_working_fixture();
+    const WorkingImage original = input;
+    const std::array cases{ColorHarmonizerParams{}, frozen_color_harmonizer_0176_record13()};
+    const std::array<std::array<std::array<std::uint32_t, 3>, 4>, 2> goldens{{
+        {{{1022738880U, 1043878391U, 1060655590U},
+          {1063843274U, 1054280255U, 1032805390U},
+          {3039821824U, 1056964611U, 1071225240U},
+          {0U, 0U, 0U}}},
+        {{{3202216542U, 1051481554U, 1057828450U},
+          {1066933552U, 1051086807U, 1044202570U},
+          {3212784549U, 1062758668U, 1067310102U},
+          {0U, 0U, 0U}}},
+    }};
+    for (std::size_t case_index = 0U; case_index < cases.size(); ++case_index)
+    {
+        auto actual = apply_color_harmonizer(input, cases[case_index], CancellationToken{});
+        ASSERT_TRUE(actual) << actual.error().message;
+        ASSERT_EQ(actual.value().rgb.size(), input.rgb.size());
+        for (std::size_t pixel = 0U; pixel < input.rgb.size() / 3U; ++pixel)
+        {
+            const std::size_t index = pixel * 3U;
+            const FrozenD50Triplet source{input.rgb[index], input.rgb[index + 1U],
+                                          input.rgb[index + 2U]};
+            const auto oracle = frozen_color_harmonizer_rgb(
+                cases[case_index], source, input.color_profile.matrix_to_xyz_d50, tables);
+            const FrozenD50Triplet produced{actual.value().rgb[index],
+                                            actual.value().rgb[index + 1U],
+                                            actual.value().rgb[index + 2U]};
+            EXPECT_EQ(d50_triplet_bits(oracle), goldens[case_index][pixel]);
+            EXPECT_EQ(d50_triplet_bits(produced), goldens[case_index][pixel]);
+        }
+        EXPECT_EQ(actual.value().color_profile, input.color_profile);
+        EXPECT_EQ(actual.value().exposure_analysis, input.exposure_analysis);
+        EXPECT_NE(actual.value().rgb.data(), input.rgb.data());
+        EXPECT_NE(actual.value().color_profile.icc_bytes.data(),
+                  input.color_profile.icc_bytes.data());
+        actual.value().rgb.front() = 99.0F;
+        actual.value().color_profile.icc_bytes.front() = 99U;
+        EXPECT_EQ(input.rgb, original.rgb);
+        EXPECT_EQ(input.color_profile, original.color_profile);
+    }
+    const auto no_clip = frozen_color_harmonizer_rgb(
+        cases.back(), {-0.25F, 0.5F, 1.7F}, input.color_profile.matrix_to_xyz_d50, tables, true);
+    EXPECT_NE(d50_triplet_bits(no_clip), goldens.back()[2])
+        << "the extended fixture must detect omission of frozen fmaxf clipping";
+    const auto linear_neutral =
+        frozen_color_harmonizer_rgb(cases.back(), {0.03F, 0.18F, 0.72F},
+                                    input.color_profile.matrix_to_xyz_d50, tables, false, true);
+    EXPECT_NE(d50_triplet_bits(linear_neutral), goldens.back()[0])
+        << "the fixture must detect changing the frozen cubic neutral protection";
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ColorHarmonizerTest, EveryPredefinedRuleAndCustomNodeCountUseCanonicalDispatch)
+{
+    const auto tables = frozen_harmony_tables();
+    const auto production_tables = harmony_geometry::build_harmony_hue_tables();
+    auto input = color_harmonizer_working_fixture();
+    input.width = 1U;
+    input.rgb.resize(3U);
+    for (std::size_t rule_index = 0U; rule_index <= 9U; ++rule_index)
+    {
+        ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
+        params.rule = static_cast<ColorHarmonizerRule>(rule_index);
+        if (params.rule == ColorHarmonizerRule::kCustom)
+        {
+            params.custom_hue = {0.03, 0.29, 0.61, 0.87};
+        }
+        const std::array node_counts = params.rule == ColorHarmonizerRule::kCustom ?
+                                           std::array<std::int64_t, 3>{2, 3, 4} :
+                                           std::array<std::int64_t, 3>{4, 4, 4};
+        const std::size_t count = params.rule == ColorHarmonizerRule::kCustom ? 3U : 1U;
+        for (std::size_t node_case = 0U; node_case < count; ++node_case)
+        {
+            params.num_custom_nodes = node_counts[node_case];
+            const auto oracle_nodes = frozen_color_harmonizer_nodes(params, tables);
+            std::array<float, 4> production_nodes{};
+            std::size_t production_count = 0U;
+            if (params.rule == ColorHarmonizerRule::kCustom)
+            {
+                production_count = static_cast<std::size_t>(params.num_custom_nodes);
+                for (std::size_t index = 0U; index < production_count; ++index)
+                {
+                    production_nodes[index] = static_cast<float>(params.custom_hue[index]);
+                }
+            }
+            else
+            {
+                const auto nodes = harmony_geometry::predefined_harmony_nodes(
+                    static_cast<harmony_geometry::StandardRule>(params.rule),
+                    static_cast<float>(params.anchor_hue), production_tables);
+                ASSERT_TRUE(nodes) << nodes.error().message;
+                production_nodes = nodes.value().hues;
+                production_count = nodes.value().count;
+            }
+            EXPECT_EQ(production_count, oracle_nodes.count);
+            for (std::size_t index = 0U; index < production_count; ++index)
+            {
+                EXPECT_EQ(std::bit_cast<std::uint32_t>(production_nodes[index]),
+                          std::bit_cast<std::uint32_t>(oracle_nodes.hues[index]));
+            }
+            const FrozenD50Triplet clipped{std::fmax(input.rgb[0], 0.0F),
+                                           std::fmax(input.rgb[1], 0.0F),
+                                           std::fmax(input.rgb[2], 0.0F)};
+            const auto xyz =
+                frozen_color_harmonizer_matrix(input.color_profile.matrix_to_xyz_d50, clipped);
+            const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
+            const auto production_jch = dt_ucs::xyz_d50_to_jch(xyz, white_lightness);
+            const auto oracle_jch = frozen_dt_ucs_xyz_d50_to_jch(xyz, white_lightness);
+            EXPECT_EQ(d50_triplet_bits(production_jch), d50_triplet_bits(oracle_jch));
+            constexpr float pi = 3.14159265358979323846F;
+            constexpr float two_pi = 6.28318530717958647693F;
+            const float hue = (oracle_jch[2] + pi) / two_pi;
+            const auto production_attraction = harmony_geometry::harmony_attraction(
+                hue, std::span<const float>(production_nodes.data(), production_count),
+                static_cast<float>(params.pull_width));
+            ASSERT_TRUE(production_attraction) << production_attraction.error().message;
+            const auto oracle_attraction = frozen_harmony_attraction(
+                hue, std::span<const float>(oracle_nodes.hues.data(), oracle_nodes.count),
+                static_cast<float>(params.pull_width));
+            EXPECT_EQ(production_attraction.value().winning_index, oracle_attraction.winning_index);
+            EXPECT_EQ(std::bit_cast<std::uint32_t>(production_attraction.value().weight),
+                      std::bit_cast<std::uint32_t>(oracle_attraction.weight));
+            EXPECT_EQ(std::bit_cast<std::uint32_t>(production_attraction.value().shift),
+                      std::bit_cast<std::uint32_t>(oracle_attraction.shift));
+            const float neutral = static_cast<float>(params.neutral_protection);
+            const float neutral_squared = neutral * neutral;
+            const float neutral_cubed = neutral_squared * neutral;
+            const float cutoff = neutral_cubed * 0.03F;
+            const float denominator = (production_jch[1] + cutoff) + 1.0e-5F;
+            const float chroma_weight = production_jch[1] / denominator;
+            const float saturation_delta =
+                (static_cast<float>(
+                     params.node_saturation[production_attraction.value().winning_index]) -
+                 1.0F) *
+                production_attraction.value().weight;
+            auto corrected_jch = production_jch;
+            float corrected_hue =
+                std::fmod(hue + production_attraction.value().shift *
+                                    static_cast<float>(params.pull_strength) * chroma_weight,
+                          1.0F);
+            if (corrected_hue < 0.0F)
+            {
+                corrected_hue += 1.0F;
+            }
+            corrected_jch[2] = corrected_hue * two_pi - pi;
+            corrected_jch[1] =
+                std::fmax(production_jch[1] * (1.0F + saturation_delta * chroma_weight), 0.0F);
+            const auto production_xyz = dt_ucs::jch_to_xyz_d50(corrected_jch, white_lightness);
+            const auto oracle_xyz = frozen_dt_ucs_jch_to_xyz_d50(corrected_jch, white_lightness);
+            EXPECT_EQ(d50_triplet_bits(production_xyz), d50_triplet_bits(oracle_xyz));
+            const auto direct = apply_color_harmonizer(input, params, CancellationToken{});
+            ASSERT_TRUE(direct) << direct.error().message;
+            const auto oracle =
+                frozen_color_harmonizer_rgb(params, {input.rgb[0], input.rgb[1], input.rgb[2]},
+                                            input.color_profile.matrix_to_xyz_d50, tables);
+            EXPECT_EQ(d50_triplet_bits(
+                          {direct.value().rgb[0], direct.value().rgb[1], direct.value().rgb[2]}),
+                      d50_triplet_bits(oracle));
+            const auto parameters = color_harmonizer_to_parameters(params);
+            ASSERT_TRUE(parameters) << parameters.error().message;
+            Recipe recipe;
+            recipe.operations.push_back(
+                {std::string(kColorHarmonizerOperationId), kColorHarmonizerOperationSchemaVersion,
+                 "colorharmonizer-dispatch", true, parameters.value(), std::nullopt});
+            const auto dispatched = apply_recipe_ops(input, recipe, CancellationToken{});
+            ASSERT_TRUE(dispatched) << dispatched.error().message;
+            EXPECT_EQ(dispatched.value().rgb, direct.value().rgb);
+        }
+    }
+}
+
+TEST(ColorHarmonizerTest, UnsupportedAndInvalidStatesFailAtomicallyBeforePublication)
+{
+    const WorkingImage input = color_harmonizer_working_fixture();
+    const WorkingImage original = input;
+    ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
+    params.smoothing = 0.01;
+    auto rejected = apply_color_harmonizer(input, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected.error().context.at("reason"),
+              "unsupported_smoothing_requires_recursive_gaussian");
+
+    params.smoothing = 0.0;
+    auto parameters = color_harmonizer_to_parameters(params);
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    OperationInstance operation{std::string(kColorHarmonizerOperationId),
+                                kColorHarmonizerOperationSchemaVersion,
+                                "colorharmonizer-mask",
+                                true,
+                                parameters.value(),
+                                "mask-1"};
+    rejected = apply_color_harmonizer(input, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected.error().context.at("reason"), "colorharmonizer_mask_graph_unavailable");
+    operation.mask_id.reset();
+    operation.schema_version += 1;
+    rejected = apply_color_harmonizer(input, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    operation.schema_version = kColorHarmonizerOperationSchemaVersion;
+    operation.id = "ravo.color.colorcontrast";
+    rejected = apply_color_harmonizer(input, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+
+    const auto expect_reason = [&](WorkingImage invalid, const std::string_view reason)
+    {
+        const auto result = apply_color_harmonizer(invalid, params, CancellationToken{});
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().context.at("reason"), reason);
+    };
+    auto invalid = input;
+    invalid.width = 0U;
+    expect_reason(invalid, "invalid_colorharmonizer_dimensions");
+    invalid = input;
+    invalid.rgb.pop_back();
+    expect_reason(invalid, "invalid_colorharmonizer_buffer");
+    invalid = input;
+    invalid.width = std::numeric_limits<std::uint32_t>::max();
+    invalid.height = std::numeric_limits<std::uint32_t>::max();
+    invalid.rgb.clear();
+    expect_reason(invalid, "invalid_colorharmonizer_buffer");
+    invalid = input;
+    invalid.color_profile.kind = ColorProfileKind::kMissing;
+    expect_reason(invalid, "unsupported_colorharmonizer_working_space");
+    invalid = input;
+    invalid.color_profile.model = ColorModel::kLab;
+    expect_reason(invalid, "unsupported_colorharmonizer_working_space");
+    invalid = input;
+    invalid.color_profile.has_matrix = false;
+    expect_reason(invalid, "unsupported_colorharmonizer_working_space");
+    invalid = input;
+    invalid.color_profile.matrix_to_xyz_d50[0] = std::numeric_limits<float>::quiet_NaN();
+    expect_reason(invalid, "invalid_colorharmonizer_profile_matrix");
+    invalid = input;
+    invalid.color_profile.matrix_to_xyz_d50.fill(0.0F);
+    expect_reason(invalid, "invalid_colorharmonizer_profile_matrix");
+    for (const float sample :
+         {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+          -std::numeric_limits<float>::infinity()})
+    {
+        invalid = input;
+        invalid.rgb[1] = sample;
+        expect_reason(invalid, "nonfinite_colorharmonizer_input");
+    }
+    invalid = input;
+    invalid.rgb = {std::numeric_limits<float>::max(),
+                   std::numeric_limits<float>::max(),
+                   std::numeric_limits<float>::max(),
+                   0.91F,
+                   0.42F,
+                   0.07F,
+                   -0.25F,
+                   0.5F,
+                   1.7F,
+                   0.0F,
+                   0.0F,
+                   0.0F};
+    rejected = apply_color_harmonizer(invalid, params, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorharmonizer_geometry");
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("colorharmonizer-pre"));
+    rejected = apply_color_harmonizer(input, params, cancelled.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(input.rgb, original.rgb);
+    EXPECT_EQ(input.color_profile, original.color_profile);
+    EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ColorHarmonizerTest, RowCancellationAndDisabledCopyPreserveSourceOwnership)
+{
+    auto input = color_harmonizer_working_fixture();
+    input.width = 1024U;
+    input.height = 4096U;
+    input.rgb.assign(static_cast<std::size_t>(input.width) * input.height * 3U, 0.25F);
+    const float first = input.rgb.front();
+    const float last = input.rgb.back();
+    ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
+    params.rule = ColorHarmonizerRule::kCustom;
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+    const auto cancelled = apply_color_harmonizer(input, params, deadline.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_FLOAT_EQ(input.rgb.front(), first);
+    EXPECT_FLOAT_EQ(input.rgb.back(), last);
+
+    const auto parameters = color_harmonizer_to_parameters(params);
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    OperationInstance disabled{std::string(kColorHarmonizerOperationId),
+                               kColorHarmonizerOperationSchemaVersion,
+                               "colorharmonizer-disabled",
+                               false,
+                               parameters.value(),
+                               std::nullopt};
+    auto small = color_harmonizer_working_fixture();
+    const auto copied = apply_color_harmonizer(small, disabled, CancellationToken{});
+    ASSERT_TRUE(copied) << copied.error().message;
+    EXPECT_EQ(copied.value().rgb, small.rgb);
+    EXPECT_NE(copied.value().rgb.data(), small.rgb.data());
+    EXPECT_EQ(copied.value().color_profile, small.color_profile);
+    EXPECT_NE(copied.value().color_profile.icc_bytes.data(), small.color_profile.icc_bytes.data());
 }
 
 TEST(HarmonyGeometryTest, ValidatedLookupsCoverCircularSeamsAndRejectInvalidHues)
