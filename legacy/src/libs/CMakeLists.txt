@@ -11,7 +11,7 @@ else()
 endif()
 
 # The modules
-set(MODULES import export copy_history styles tagging image select recentcollect filtering metadata metadata_view navigation histogram history snapshots modulegroups backgroundjobs masks ioporder)
+set(MODULES import styles image select recentcollect filtering navigation histogram modulegroups backgroundjobs masks ioporder)
 
 # The tools
 set(MODULES ${MODULES} viewswitcher)
@@ -34,16 +34,28 @@ file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/liblog_history${CMAKE_SHARED_MODULE_SUF
 file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libcollect${CMAKE_SHARED_MODULE_SUFFIX}")
 file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libcolorpicker${CMAKE_SHARED_MODULE_SUFFIX}")
 file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libduplicate${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libexport${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libcopy_history${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libtagging${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libmetadata${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libmetadata_view${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libhistory${CMAKE_SHARED_MODULE_SUFFIX}")
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/libsnapshots${CMAKE_SHARED_MODULE_SUFFIX}")
 if(APPLE)
   file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libcollect${CMAKE_SHARED_MODULE_SUFFIX}")
   file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libcolorpicker${CMAKE_SHARED_MODULE_SUFFIX}")
   file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libduplicate${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libexport${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libcopy_history${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libtagging${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libmetadata${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libmetadata_view${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libhistory${CMAKE_SHARED_MODULE_SUFFIX}")
+  file(REMOVE "${DARKTABLE_BINDIR}/darktable.app/Contents/Resources/lib/darktable/plugins/lighttable/libsnapshots${CMAKE_SHARED_MODULE_SUFFIX}")
 endif()
 
 # modules
 add_library(import MODULE "import.c")
-add_library(export MODULE "export.c" "export_metadata.c")
-
 add_library(styles MODULE "styles.c")
 add_library(image MODULE "image.c")
 

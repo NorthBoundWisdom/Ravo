@@ -61,8 +61,8 @@ long-term capability authority. Snapshot baseline:
 
 - legacy/src/iop/CMakeLists.txt has 51 unconditional IOP registrations plus two
   conditional owners (`liquify`, `watermark`); all 53 have a row in section 3.2.
-- legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools plus stale
-  registrations whose source has retired.
+- legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools; retired
+  export/copy_history/tagging/metadata/history/snapshots registrations are gone.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
   storage owner, and nine dispatcher/decoder owner groups.
 - common, control, develop, GUI, and host resources are divided into ownership
@@ -97,7 +97,6 @@ General completion gates:
 | ID | Module / owner | Action | Dependency and gate |
 | --- | --- | --- | --- |
 | D0.1 | iop/hlreconstruct/* | Delete | highlights.c retired; prove no consumer, add retired list, pass freeze check |
-| D0.2 | stale export/copy_history/tagging/metadata/history/snapshots entries in libs/CMakeLists.txt | Delete registrations | Do not modify other frozen modules; prove corresponding sources are on retired list |
 | D0.3 | host/data/kernels exclusive kernels/entries for retired IOPs | Delete | Distinguish shared extended.cl/colour helpers; remove only entries/program registrations with no remaining consumer |
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry, including shared exposure order/module-group/manual names; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
