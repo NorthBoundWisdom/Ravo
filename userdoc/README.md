@@ -36,6 +36,19 @@ python3 -m mkdocs build -f userdoc/mkdocs.yml --strict
 The generated handbook is written to `userdoc/site/` and is local build output;
 it is intentionally not part of the source documentation.
 
+## GitHub Pages publication
+
+The repository publishes the handbook through
+`.github/workflows/userdoc-pages.yml`. Pull requests run the strict MkDocs
+build without deploying. A push to `main` that changes `userdoc/**` or the
+workflow builds `userdoc/site/` and deploys it to:
+
+<https://northboundwisdom.github.io/Ravo/>
+
+The generated site is uploaded as a Pages artifact and is not committed to a
+branch. Keep secrets and private material out of the handbook because the
+published site is public.
+
 ## Authoring rules
 
 - Write user-facing behavior, not internal target or class descriptions.

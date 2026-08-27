@@ -1,5 +1,6 @@
 site_name: Ravo User Handbook
 site_description: User guide and QA appendix for Ravo Studio and the ravo CLI
+site_url: https://northboundwisdom.github.io/Ravo/
 docs_dir: docs/en
 site_dir: site
 use_directory_urls: true
