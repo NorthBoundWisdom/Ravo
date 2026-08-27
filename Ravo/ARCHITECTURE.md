@@ -64,8 +64,11 @@ bounds, and cancellation; a 16-bit request remains unsupported until the
 rendered source can carry real RGB16. The adapter-private pinned libjpeg-turbo
 encoder owns JPEG output quality, explicit chroma subsampling, ICC APP2,
 bounds, and cancellation. The adapter-private pinned LibTIFF/ZLIB encoder owns
-TIFF output sample/compression/level, conditional grayscale, ICC, bounds, and
-cancellation; multipage output remains a separate later contract.
+TIFF output sample/compression/level, 72–9600 inch resolution, conditional
+grayscale, exact ICC, bounded baseline main-directory metadata, and
+cancellation; multipage output and complete metadata packets remain separate
+later contracts. Domain `ExportMetadataSnapshot` carries only owned destination
+and writable values, never third-party handles.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
 services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
@@ -208,9 +211,15 @@ delegates to the adapter-private pinned libjpeg-turbo encoder, and TIFF
 delegates to an adapter-private static LibTIFF built from its pinned source
 root with only ZLIB Deflate enabled. The TIFF encoder writes bounded classic
 little-endian opaque RGB8 or frozen conditional-grayscale strips and embeds
-the exact resolved RGB ICC. JPEG/GIF/WebP/TIFF plugin targets and QSQLITE remain
-configure-time requirements for their current input/runtime consumers; TIFF
-output no longer uses the Qt plugin.
+the exact resolved RGB ICC. For TIFF only, Catalog snapshots the already
+normalized destination string and current writable metadata once after asset
+lookup. The encoder writes 72–9600 dpi in inches plus bounded UTF-8
+`DocumentName`, `ImageDescription`, `Artist`, and `Copyright` main-IFD values;
+title is not mapped, absent values are omitted, and present-empty values retain
+their single terminating NUL. It emits no EXIFIFD, IPTC, XMP, or sidecar and
+does not perform a second realpath lookup. JPEG/GIF/WebP/TIFF plugin targets and
+QSQLITE remain configure-time requirements for their current input/runtime
+consumers; TIFF output no longer uses the Qt plugin.
 TGA/WBMP/ICO and other SQL drivers have no product consumers.
 
 Radiance RGBE tranche 1 remains outside that RGB8 path. A dedicated synchronous
@@ -664,9 +673,11 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   none/Deflate/Deflate-predictor, level 1–9/default 6, and conditional grayscale.
   `catalog export --format tiff|tif` projects those values through four
   TIFF-qualified CLI flags; the current RGB8 source accepts only PNG 8-bit and
-  TIFF uint8 output. Complete metadata, explicit PNG CLI and TIFF Studio
-  options, TIFF multipage masks, path-template and batch/storage policy, and old
-  export presets remain out of scope.
+  TIFF uint8 output. TIFF baseline directory metadata is an encode-time owned
+  snapshot, but complete EXIF/IPTC/XMP packets, capture/timezone/GPS and XMP
+  attach/history/sidecar policy, explicit PNG CLI and TIFF Studio options, TIFF
+  multipage masks, path-template and batch/storage policy, and old export
+  presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

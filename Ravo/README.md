@@ -112,12 +112,17 @@ Current implementation status:
   valid but fails structurally for the current RGB8 rendered source rather
   than inventing precision. Explicit PNG options in CLI plus EXIF/XMP and
   resolution metadata remain later I12 work.
-- TIFF export uses one typed sample/compression request from CatalogService
-  through the raster port. It defaults to unsigned 8-bit, Deflate with the
-  horizontal predictor, level 6, and RGB output. A private static LibTIFF owner
-  from the pinned source root writes bounded classic little-endian, top-left,
-  opaque contiguous strips with 300 dpi and the exact resolved RGB ICC;
-  optional grayscale retains the frozen interior-channel threshold. CLI
+- TIFF export uses one typed sample/compression/resolution request from
+  CatalogService through the raster port. It defaults to unsigned 8-bit,
+  Deflate with the horizontal predictor, level 6, RGB output, and 300 dpi;
+  resolution accepts 72–9600 dpi in inches. A private static LibTIFF owner from
+  the pinned source root writes bounded classic little-endian, top-left, opaque
+  contiguous strips and the exact resolved RGB ICC; optional grayscale retains
+  the frozen interior-channel threshold. For TIFF only, Catalog snapshots the
+  normalized destination string and current writable metadata once after asset
+  lookup. The main IFD writes bounded UTF-8 `DocumentName`, description,
+  creator, and copyright; title is deliberately unmapped, absent values omit
+  their tags, and present-empty values write one NUL. CLI
   `catalog export --format tiff|tif` exposes `--tiff-sample-type` with
   `uint8|uint16|float16|float32`, `--tiff-compression` with
   `none|deflate|deflate_predictor`, `--tiff-compression-level` from 1 through 9,
@@ -125,8 +130,11 @@ Current implementation status:
   last-value-wins CLI rule, while the boolean flag rejects duplicates; every
   TIFF flag is rejected outside a TIFF export. Valid uint16/float16/float32
   requests fail structurally against the current RGB8 source instead of
-  fabricating precision. EXIF/IPTC/XMP, multipage masks, explicit TIFF Studio
-  options, and retirement remain later I13 work.
+  fabricating precision. Complete EXIF/IPTC/XMP packets, capture/timezone/GPS,
+  sidecar/history policy, multipage masks, explicit TIFF Studio options, shared
+  consumers, and retirement remain later I13/S9/J6 work. TIFF bytes complete in
+  memory before the shared ADR-0032 atomic no-replace publication; source and
+  sidecar files are never rewritten.
 - Final display packing is an engine-private boundary after Output Color. It
   converts finite profiled float RGB to owned RGB8 by clamping negative values,
   multiplying by 255, rounding, and clamping super-white while retaining the

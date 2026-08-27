@@ -489,10 +489,17 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   pinned source root with only ZLIB Deflate enabled. Domain tests cover stable
   uint8/uint16/float16/float32 and none/Deflate/predictor values and names,
   uint8/predictor/level-6/RGB defaults, levels 1–9, conditional grayscale, and
-  fail-closed option errors. Adapter tests independently parse classic
+  fail-closed option errors. Baseline-directory tests additionally freeze
+  resolution default 300 and inclusive 72–9600 bounds, the 16 KiB NUL-free
+  well-formed-UTF-8 document-name boundary, bounded writable UTF-8 values, and
+  fail-closed legacy raster doubles. Adapter tests independently parse classic
   little-endian IFDs, inflate strips, reverse horizontal prediction, and assert
   exact top-left opaque RGB8 or conditional-grayscale pixels, per-sample bits
-  and sample-format tags, compression/predictor, 300 dpi, and exact ICC bytes.
+  and sample-format tags, compression/predictor, requested inch resolution, and
+  exact ICC bytes. The same parser proves exact NUL-terminated DocumentName 269,
+  ImageDescription 270, Artist 315, and Copyright 33432 values; absent fields
+  omit tags, present-empty emits one NUL, title is unmapped, and EXIFIFD 34665,
+  IPTC 33723, and XMP 700 are absent.
   The grayscale matrix freezes the greater-than-four dimension gate, ignored
   border, and channel-delta threshold of two. Source/output/ICC bounds,
   legal-but-unsupported high-precision requests, entry/scanline/pre-finalize
@@ -500,14 +507,20 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   and source/profile immutability return no encoded result. Catalog tests prove
   default and explicit propagation, JPEG/PNG isolation, no file for invalid or
   unsupported options, atomic conflict behavior, cancellation, and source-hash
-  preservation. Dedicated CLI tests invoke real Catalog import/export and
+  preservation. Metadata Catalog tests prove one normalized destination/current
+  writable snapshot after lookup, TIFF-only propagation, exact baseline tags,
+  metadata-stage cancellation and injected tag failure, and unchanged source
+  plus sidecar hashes, sizes, and modification times with no generated sidecar.
+  Dedicated CLI tests invoke real Catalog import/export and
   independently parse TIFF tags, Deflate strips, horizontal prediction, and
   exact RGB/grayscale pixels. They cover the `tiff`/`tif` format spellings, all
   four TIFF-qualified flags, canonical values and defaults, argument order,
   last-value-wins value flags, duplicate-grayscale rejection, TIFF-only scope,
   complete JSON errors, source hashes, and zero publication for invalid or
   legal-but-unsupported high-precision requests. I7 input and ADR-0032
-  publication remain separate owners.
+  publication remain separate owners. Complete EXIF/IPTC/XMP packets and
+  capture/timezone/GPS plus XMP attach/history/sidecar policy remain unclaimed
+  S9/J6 work.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero
