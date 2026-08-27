@@ -117,10 +117,16 @@ Current implementation status:
   horizontal predictor, level 6, and RGB output. A private static LibTIFF owner
   from the pinned source root writes bounded classic little-endian, top-left,
   opaque contiguous strips with 300 dpi and the exact resolved RGB ICC;
-  optional grayscale retains the frozen interior-channel threshold. Valid
-  uint16/float16/float32 requests fail structurally against the current RGB8
-  source instead of fabricating precision. EXIF/IPTC/XMP, multipage masks,
-  explicit TIFF CLI/Studio options, and retirement remain later I13 work.
+  optional grayscale retains the frozen interior-channel threshold. CLI
+  `catalog export --format tiff|tif` exposes `--tiff-sample-type` with
+  `uint8|uint16|float16|float32`, `--tiff-compression` with
+  `none|deflate|deflate_predictor`, `--tiff-compression-level` from 1 through 9,
+  and `--tiff-grayscale-if-neutral`. Value-bearing TIFF flags use the existing
+  last-value-wins CLI rule, while the boolean flag rejects duplicates; every
+  TIFF flag is rejected outside a TIFF export. Valid uint16/float16/float32
+  requests fail structurally against the current RGB8 source instead of
+  fabricating precision. EXIF/IPTC/XMP, multipage masks, explicit TIFF Studio
+  options, and retirement remain later I13 work.
 - Final display packing is an engine-private boundary after Output Color. It
   converts finite profiled float RGB to owned RGB8 by clamping negative values,
   multiplying by 255, rounding, and clamping super-white while retaining the
@@ -354,7 +360,9 @@ ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--se
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|original [--quality 95] --json
+ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|tif|original [--quality 95] \
+  [--tiff-sample-type uint8|uint16|float16|float32] [--tiff-compression none|deflate|deflate_predictor] \
+  [--tiff-compression-level 1..9] [--tiff-grayscale-if-neutral] --json
 ```
 
 An existing output path returns structured `conflict`; it is never overwritten

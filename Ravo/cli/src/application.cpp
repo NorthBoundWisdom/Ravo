@@ -212,6 +212,10 @@ struct CatalogCliArguments
     std::string_view output;
     std::string_view format;
     std::optional<int> quality;
+    std::string_view tiff_sample_type;
+    std::string_view tiff_compression;
+    std::string_view tiff_compression_level;
+    bool tiff_grayscale_if_neutral = false;
     std::string_view tag;
     std::string_view add;
     std::string_view remove;
@@ -264,6 +268,16 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                                   "--baseline can only be specified once");
             }
             result.baseline = true;
+            continue;
+        }
+        if (option == "--tiff-grayscale-if-neutral")
+        {
+            if (result.tiff_grayscale_if_neutral)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--tiff-grayscale-if-neutral can only be specified once");
+            }
+            result.tiff_grayscale_if_neutral = true;
             continue;
         }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
@@ -378,6 +392,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.quality = quality.value();
         }
+        else if (option == "--tiff-sample-type")
+        {
+            result.tiff_sample_type = value;
+        }
+        else if (option == "--tiff-compression")
+        {
+            result.tiff_compression = value;
+        }
+        else if (option == "--tiff-compression-level")
+        {
+            result.tiff_compression_level = value;
+        }
         else if (option == "--tag")
         {
             result.tag = value;
@@ -426,6 +452,12 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
     }
     return result;
+}
+
+[[nodiscard]] bool has_explicit_tiff_options(const CatalogCliArguments &flags) noexcept
+{
+    return !flags.tiff_sample_type.empty() || !flags.tiff_compression.empty() ||
+           !flags.tiff_compression_level.empty() || flags.tiff_grayscale_if_neutral;
 }
 
 struct AppliedDevelopOverride
@@ -669,6 +701,13 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "--baseline is only valid for catalog probe");
+    }
+    if (has_explicit_tiff_options(flags.value()) && subcommand != "export")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "TIFF options require catalog export with --format tiff",
+                          {{"reason", "tiff_options_require_tiff_export"},
+                           {"subcommand", std::string(subcommand)}});
     }
 
     if (subcommand == "create")
@@ -993,10 +1032,46 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             }
             request.format = format.value();
         }
+        if (has_explicit_tiff_options(flags.value()) && request.format != ExportFormat::kTiff)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "TIFF options require catalog export with --format tiff",
+                              {{"format", std::string(export_format_name(request.format))},
+                               {"reason", "tiff_options_require_tiff_export"}});
+        }
         if (flags.value().quality)
         {
             request.jpeg_options.quality = *flags.value().quality;
         }
+        if (!flags.value().tiff_sample_type.empty())
+        {
+            auto sample_type = parse_tiff_sample_type(flags.value().tiff_sample_type);
+            if (!sample_type)
+            {
+                return sample_type.error();
+            }
+            request.tiff_options.sample_type = sample_type.value();
+        }
+        if (!flags.value().tiff_compression.empty())
+        {
+            auto compression = parse_tiff_compression(flags.value().tiff_compression);
+            if (!compression)
+            {
+                return compression.error();
+            }
+            request.tiff_options.compression = compression.value();
+        }
+        if (!flags.value().tiff_compression_level.empty())
+        {
+            auto compression_level =
+                parse_int_flag(flags.value().tiff_compression_level, "--tiff-compression-level");
+            if (!compression_level)
+            {
+                return compression_level.error();
+            }
+            request.tiff_options.compression_level = compression_level.value();
+        }
+        request.tiff_options.grayscale_if_neutral = flags.value().tiff_grayscale_if_neutral;
         if (flags.value().max_edge)
         {
             request.max_edge = *flags.value().max_edge;

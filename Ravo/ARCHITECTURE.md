@@ -63,8 +63,9 @@ and compression, opaque non-interlaced RGB8, ICC/recognized built-in cICP,
 bounds, and cancellation; a 16-bit request remains unsupported until the
 rendered source can carry real RGB16. The adapter-private pinned libjpeg-turbo
 encoder owns JPEG output quality, explicit chroma subsampling, ICC APP2,
-bounds, and cancellation; Qt TIFF output remains until an adapter owns its
-Deflate/predictor/level and multi-page contracts.
+bounds, and cancellation. The adapter-private pinned LibTIFF/ZLIB encoder owns
+TIFF output sample/compression/level, conditional grayscale, ICC, bounds, and
+cancellation; multipage output remains a separate later contract.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
 services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
@@ -622,9 +623,11 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   PNG requests own typed 8/16-bit depth and compression 0–9/default 5, while
   TIFF requests own typed uint8/uint16/float16/float32 sample state plus
   none/Deflate/Deflate-predictor, level 1–9/default 6, and conditional grayscale.
-  The current RGB8 source accepts only PNG 8-bit and TIFF uint8 output. Complete
-  metadata, explicit PNG/TIFF CLI options, TIFF multipage masks, path-template
-  and batch/storage policy, and old export presets remain out of scope.
+  `catalog export --format tiff|tif` projects those values through four
+  TIFF-qualified CLI flags; the current RGB8 source accepts only PNG 8-bit and
+  TIFF uint8 output. Complete metadata, explicit PNG CLI and TIFF Studio
+  options, TIFF multipage masks, path-template and batch/storage policy, and old
+  export presets remain out of scope.
 - The first version does not implement full history/styles, mask/blend, every
   operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.

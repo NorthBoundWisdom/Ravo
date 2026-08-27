@@ -478,7 +478,14 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   and source/profile immutability return no encoded result. Catalog tests prove
   default and explicit propagation, JPEG/PNG isolation, no file for invalid or
   unsupported options, atomic conflict behavior, cancellation, and source-hash
-  preservation. I7 input and ADR-0032 publication remain separate owners.
+  preservation. Dedicated CLI tests invoke real Catalog import/export and
+  independently parse TIFF tags, Deflate strips, horizontal prediction, and
+  exact RGB/grayscale pixels. They cover the `tiff`/`tif` format spellings, all
+  four TIFF-qualified flags, canonical values and defaults, argument order,
+  last-value-wins value flags, duplicate-grayscale rejection, TIFF-only scope,
+  complete JSON errors, source hashes, and zero publication for invalid or
+  legal-but-unsupported high-precision requests. I7 input and ADR-0032
+  publication remain separate owners.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero
