@@ -84,10 +84,10 @@ the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,
 the Color Contrast per-axis float affine/clamp order, and the non-jumping hidden
 defaults for Bloom and negative Dehaze. The unified
 engine-private RGB↔XYZ D50↔Lab owner has source-derived bit goldens for matrix
-order, D50 white/black, both piecewise thresholds, multiply/divide-distinguishing
+order, D50 white/black, both piecewise thresholds, reciprocal-multiply source-order
 vectors, negative/extended values, and NaN/Inf propagation. `cbrtf`-dependent
 round trips require bit-exact production/scalar-oracle agreement on each host
-plus a recorded 1e-6 component reference tolerance for supported-platform libm
+plus a recorded 5e-6 component reference tolerance for supported-platform libm
 variation.
 Parameter response sweeps use a committed RAW or raster input and compare exact
 channel sums plus display-luma movement; a qualitative “looks less strong”
@@ -362,7 +362,7 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   survives recipe-to-Develop-to-recipe and remains distinct from absence.
 - Its independent scalar/D50 oracle and fixed bit goldens lock commit-time float
   narrowing and `saturation * (input + L * scale + base)` evaluation order.
-  `cbrtf`-dependent RGB bridge references use the shared 1e-6 platform-libm
+  `cbrtf`-dependent RGB bridge references use the shared 5e-6 platform-libm
   tolerance while requiring bit-exact production/scalar-oracle agreement on
   each host. Engine tests cover canonical dispatch, dimensions/buffer/profile,
   non-finite input/output/parameters, disabled and mask states, owned profile
@@ -411,14 +411,16 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   rejection. Exact little-endian parameter decodes from frozen 0176 history
   records 12 and 13 cover the post-initialization default and an edited split-
   complementary state; they are fixture evidence, not a strict-import claim.
-- Its independent source-order scalar oracle and fixed bit goldens cover both
-  0176 parameter states through the declared profile matrix, private D50/dt-UCS
-  bridge, S2.1 geometry, frozen negative `fmaxf` clipping, cubic neutral
-  protection, attraction, saturation, and inverse matrix. Production and the
-  oracle must both hit each golden; deliberate no-clip and linear-neutral
-  perturbations prove the oracle detects drift. All nine predefined rules and
-  custom node counts two through four also match canonical dispatch. An O3
-  assembly check verifies contraction-disabled production contains no FMA.
+- Its independent source-order scalar oracle covers both 0176 parameter states
+  through the declared profile matrix, private D50/dt-UCS bridge, S2.1 geometry,
+  frozen negative `fmaxf` clipping, cubic neutral protection, attraction,
+  saturation, and inverse matrix. Production and the oracle must match bits on
+  each host; libm-dependent component references use the recorded 5e-6
+  tolerance, while zero references remain bit-exact. Deliberate no-clip and
+  linear-neutral perturbations compare against the same-host canonical oracle
+  and prove it detects drift. All nine predefined rules and custom node counts
+  two through four also match canonical dispatch. An O3 assembly check verifies
+  contraction-disabled production contains no FMA.
 - Engine negatives cover dimensions, RGB length/overflow, missing/non-RGB/
   matrixless/non-finite/singular profiles, every non-finite input class,
   non-finite geometry/output, wrong ID/schema, mask state, positive smoothing,

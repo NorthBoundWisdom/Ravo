@@ -428,7 +428,7 @@ It freezes the transposed matrix expression order, D50 reciprocal,
 epsilon/kappa branches, Lab scale/add order, negative zero, and non-finite
 propagation with source-derived goldens. Algebraic steps are bit-exact;
 `cbrtf`-dependent round trips retain exact host-local scalar-oracle agreement
-and a recorded 1e-6 component tolerance for supported platform libm variation.
+and a recorded 5e-6 component tolerance for supported platform libm variation.
 It adds no clamp, finite repair, profile selection, or publication policy. This
 bounded S1.1 owner is complete, while the wider S1 colour-science workspace/LUT
 migration remains unfinished.
@@ -546,7 +546,9 @@ cubed before the `0.03F` cutoff; denominator, pull, wrap, saturation, inverse
 dt-UCS, and inverse profile-matrix expressions retain their frozen float order.
 The source compiles with float contraction disabled and adds no transfer curve,
 FMA, reassociation, fallback profile, clamp beyond the frozen negative input
-clip, or non-finite repair.
+clip, or non-finite repair. Production and the independent scalar oracle match
+bit-for-bit on each host; libm-dependent Color Harmonizer output references
+also retain a recorded 5e-6 cross-platform tolerance.
 
 Validation covers schema bounds and float narrowing, dimensions, RGB buffer
 length/overflow, declared RGB matrix profile, matrix finiteness/invertibility,

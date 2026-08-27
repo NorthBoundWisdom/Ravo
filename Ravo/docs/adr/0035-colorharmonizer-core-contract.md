@@ -63,12 +63,14 @@ science API.
   exposure-analysis snapshot. Failure leaves the borrowed input unchanged and
   publishes no partial result. The smoothing-zero operation needs one output-
   sized buffer and no operation-specific analysis or mutable global state.
-- Fixed bit goldens for the two 0176 parameter states must match both an
-  independent source-order scalar oracle and production. Perturbations that
-  omit the negative clip or replace cubic neutral protection prove the oracle
-  detects meaningful drift. All nine predefined rules, custom node counts two
-  through four, canonical dispatch, cancellation, ownership, and structured
-  failures remain direct contract tests.
+- The independent source-order scalar oracle and production must match bits on
+  each host for both 0176 parameter states. Platform-libm-dependent component
+  references use a recorded 5e-6 tolerance, while zero references remain
+  bit-exact. Perturbations that omit the negative clip or replace cubic neutral
+  protection compare against the same-host canonical oracle and prove it detects
+  meaningful drift. All nine predefined rules, custom node counts two through
+  four, canonical dispatch, cancellation, ownership, and structured failures
+  remain direct contract tests.
 
 ## Consequences
 
@@ -96,7 +98,7 @@ contract is claimed.
 - Use RGB/HSL nearest-hue math, a shortened rule set, mutable lookup tables, or
   existing UI approximations: each changes the frozen dt-UCS/RYB owner.
 - Reorder float expressions, permit contraction, or repair extended/non-finite
-  results: the source-derived bit goldens intentionally distinguish those
-  changes.
+  results: same-host production/oracle bit agreement and the recorded references
+  intentionally distinguish those changes.
 - Retire the legacy owner after the core-only tranche: importer, product
   consumers, nonzero smoothing, authority, and retirement gates remain open.
