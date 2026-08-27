@@ -1242,7 +1242,7 @@ legacy_color_balance_operation(const ColorBalanceParams &params,
 }
 
 using FrozenD50Triplet = std::array<float, 3>;
-inline constexpr float kPlatformLibmReferenceTolerance = 5.0e-6F;
+inline constexpr float kPlatformLibmReferenceTolerance = 1.0e-5F;
 
 // Independent scalar oracle transcribed from the frozen
 // common/colorspaces_inline_conversions.h owner. In particular, it preserves

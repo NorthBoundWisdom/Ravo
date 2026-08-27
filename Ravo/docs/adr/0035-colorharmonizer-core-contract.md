@@ -65,7 +65,7 @@ science API.
   sized buffer and no operation-specific analysis or mutable global state.
 - The independent source-order scalar oracle and production must match bits on
   each host for both 0176 parameter states. Platform-libm-dependent component
-  references use a recorded 5e-6 tolerance, while zero references remain
+  references use a recorded 1e-5 tolerance, while zero references remain
   bit-exact. Perturbations that omit the negative clip or replace cubic neutral
   protection compare against the same-host canonical oracle and prove it detects
   meaningful drift. All nine predefined rules, custom node counts two through

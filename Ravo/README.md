@@ -223,7 +223,7 @@ Current implementation status:
   private source-order dt-UCS/RYB geometry, cubes neutral protection, and
   disables float contraction. The independent source-order oracle matches
   production bits on each host, while libm-dependent references for the default
-  and edited records 12/13 use a 5e-6 component tolerance across supported
+  and edited records 12/13 use a 1e-5 component tolerance across supported
   platforms. Successful output owns RGB/profile storage and retains immutable
   analysis state; invalid, non-finite, allocation, mask, smoothing, and
   cancellation paths publish nothing. Strict XMP import, Develop/CLI/Catalog/

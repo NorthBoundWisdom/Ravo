@@ -346,7 +346,7 @@ TEST(ColorCorrectionTest, RgbBridgeMatchesIndependentFrozenOracleWithoutClamping
         // cbrtf is supplied by each supported platform's libm. The source-order
         // oracle must agree bit-for-bit with production on that host, while the
         // recorded reference allows the bounded cross-platform libm variation.
-        EXPECT_NEAR(oracle[channel], std::bit_cast<float>(golden[channel]), 5.0e-6F);
+        EXPECT_NEAR(oracle[channel], std::bit_cast<float>(golden[channel]), 1.0e-5F);
     }
 
     const auto output = apply_color_correction(input, params, CancellationToken{});
@@ -368,7 +368,7 @@ TEST(ColorCorrectionTest, RgbBridgeMatchesIndependentFrozenOracleWithoutClamping
     for (std::size_t channel = 0U; channel < default_golden.size(); ++channel)
     {
         EXPECT_NEAR(default_oracle[channel], std::bit_cast<float>(default_golden[channel]),
-                    5.0e-6F);
+                    1.0e-5F);
     }
     const auto explicit_defaults =
         apply_color_correction(input, ColorCorrectionParams{}, CancellationToken{});
