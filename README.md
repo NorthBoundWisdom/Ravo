@@ -61,6 +61,7 @@ Use `win_msvc_debug` / `win_msvc_release` on Windows and `linux_clang_*` on Linu
 
 ## Learn more
 
+- [User handbook](userdoc/README.md)
 - [Ravo capabilities and CLI](Ravo/README.md)
 - [Architecture and data lifetimes](Ravo/ARCHITECTURE.md)
 - [Testing and validation strategy](Ravo/TESTING.md)

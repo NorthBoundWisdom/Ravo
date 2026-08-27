@@ -1,0 +1,70 @@
+site_name: Ravo User Handbook
+site_description: User guide and QA appendix for Ravo Studio and the ravo CLI
+docs_dir: docs/en
+site_dir: site
+use_directory_urls: true
+strict: true
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Quick Start:
+      - Install and launch: quick-start/install-and-launch.md
+      - First launch and import: quick-start/first-launch-and-import.md
+      - Five-minute tour: quick-start/five-minute-tour.md
+  - Guides:
+      - Library and review: guides/library-and-review.md
+      - Viewer and scopes: guides/viewer-and-scopes.md
+      - Develop: guides/develop.md
+      - Export and sharing: guides/export-and-share.md
+      - Shortcuts and command palette: guides/shortcuts.md
+      - Settings: guides/settings.md
+      - Command-line client: guides/cli.md
+  - Troubleshooting:
+      - Import failures: troubleshooting/import-failures.md
+      - File paths and recovery: troubleshooting/file-paths-and-recovery.md
+      - Known limitations: troubleshooting/known-limitations.md
+      - Glossary: troubleshooting/glossary.md
+  - QA Appendix:
+      - Smoke test: qa/smoke-test.md
+      - Format coverage: qa/format-coverage.md
+      - Regression checklist: qa/regression-checklist.md
