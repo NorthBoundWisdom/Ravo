@@ -12,6 +12,8 @@ target_sources(ravo_engine
     src/color_correction.cpp
     src/color_correction.h
     src/d50_lab.h
+    src/dt_ucs.cpp
+    src/dt_ucs.h
     src/engine.cpp
     src/image_ops.cpp
     src/input_color.cpp
