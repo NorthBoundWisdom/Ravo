@@ -42,5 +42,7 @@ estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &recipe, std::uin
                            std::uint32_t height, std::size_t output_bytes_per_pixel = 3U) noexcept;
 [[nodiscard]] Result<void> write_png_atomically(std::string_view output_uri,
                                                 const RenderedImage &image);
+[[nodiscard]] Result<EngineCaptureMetadata>
+read_embedded_capture_metadata(std::string_view input_uri, const CancellationToken &cancellation);
 
 } // namespace ravo

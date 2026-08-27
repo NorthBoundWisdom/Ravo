@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <initializer_list>
 #include <limits>
@@ -22,11 +23,19 @@
 
 #include <png.h>
 
+#include <QBuffer>
+#include <QColor>
+#include <QFile>
+#include <QImage>
+#include <zlib.h>
+
+#include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 
 #include "color_balance_fixture.h"
+#include "capture_metadata_test_support.h"
 #include "color_balance_rgb.h"
 #include "color_checker.h"
 #include "color_harmonizer.h"
@@ -821,6 +830,527 @@ TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)
     apply_display_rotation_to_size(width, height, 2);
     EXPECT_EQ(width, 6336U);
     EXPECT_EQ(height, 9504U);
+}
+
+TEST(EngineFacadeTest, ReadsMire1EmbeddedCaptureAsLocalTimeWithoutOffset)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto before = source_file_snapshot(mire1_path());
+    ASSERT_TRUE(before);
+    auto extracted =
+        engine.value().read_embedded_capture_metadata(mire1_path(), CancellationToken{});
+    ASSERT_TRUE(extracted) << extracted.error().message;
+    ASSERT_TRUE(extracted.value().captured_datetime);
+    EXPECT_EQ(extracted.value().captured_datetime->local_exif, "2007:09:11 13:53:33");
+    ASSERT_TRUE(extracted.value().captured_datetime->subsecond_digits);
+    EXPECT_EQ(*extracted.value().captured_datetime->subsecond_digits, "18");
+    EXPECT_FALSE(extracted.value().captured_datetime->utc_offset_minutes);
+    EXPECT_FALSE(extracted.value().location);
+    EXPECT_EQ(source_file_snapshot(mire1_path()), before);
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("capture-pre-cancel"));
+    auto stopped = engine.value().read_embedded_capture_metadata(mire1_path(), cancelled.token());
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+}
+
+TEST(EngineFacadeTest, ConvertsUnsignedExifRationalsExactlyAtTheReaderBoundary)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-engine-exif-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto read = [&](const std::string &name, const test_support::CaptureExifProfile &profile)
+    {
+        const auto path = root / name;
+        const auto bytes = test_support::make_capture_exif_tiff(profile);
+        std::ofstream output(path, std::ios::binary);
+        output.write(reinterpret_cast<const char *>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+        output.close();
+        return engine.value().read_embedded_capture_metadata(path.string(), CancellationToken{});
+    };
+
+    test_support::CaptureExifProfile large;
+    large.latitude = {{{4294967291U, 4294967291U}, {0U, 4294967279U}, {1U, 4294967231U}}};
+    large.longitude = large.latitude;
+    large.altitude = {4294967295U, 4294967295U};
+    auto converted = read("large-coprime.tif", large);
+    ASSERT_TRUE(converted) << converted.error().message;
+    ASSERT_TRUE(converted.value().location);
+    EXPECT_EQ(converted.value().location->latitude_e6, 1000000);
+    EXPECT_EQ(converted.value().location->longitude_e6, 1000000);
+    ASSERT_TRUE(converted.value().location->altitude);
+    EXPECT_EQ(converted.value().location->altitude->magnitude_mm, 1000U);
+
+    test_support::CaptureExifProfile north_tie;
+    north_tie.latitude = {{{1U, 2000000U}, {0U, 1U}, {0U, 1U}}};
+    converted = read("north-tie.tif", north_tie);
+    ASSERT_TRUE(converted) << converted.error().message;
+    EXPECT_EQ(converted.value().location->latitude_e6, 1);
+    north_tie.latitude_ref = 'S';
+    converted = read("south-tie.tif", north_tie);
+    ASSERT_TRUE(converted) << converted.error().message;
+    EXPECT_EQ(converted.value().location->latitude_e6, -1);
+
+    test_support::CaptureExifProfile boundaries;
+    boundaries.latitude = {{{90U, 1U}, {0U, 1U}, {0U, 1U}}};
+    boundaries.longitude = {{{180U, 1U}, {0U, 1U}, {0U, 1U}}};
+    boundaries.altitude_ref = 1U;
+    boundaries.altitude = {12000U, 1U};
+    converted = read("boundaries.tif", boundaries);
+    ASSERT_TRUE(converted) << converted.error().message;
+    EXPECT_EQ(converted.value().location->latitude_e6, 90000000);
+    EXPECT_EQ(converted.value().location->longitude_e6, 180000000);
+    EXPECT_EQ(converted.value().location->altitude->magnitude_mm, 12000000U);
+    EXPECT_EQ(converted.value().location->altitude->reference,
+              EngineCaptureAltitudeReference::kBelowSeaLevel);
+
+    test_support::CaptureExifProfile over = boundaries;
+    over.latitude = {{{90U, 1U}, {0U, 1U}, {36U, 25000U}}};
+    auto rejected = read("latitude-over.tif", over);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_capture_gps_bounds");
+    over = boundaries;
+    over.longitude = {{{180U, 1U}, {0U, 1U}, {36U, 25000U}}};
+    rejected = read("longitude-over.tif", over);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_capture_gps_bounds");
+
+    test_support::CaptureExifProfile zero_denominator;
+    zero_denominator.latitude[0].denominator = 0U;
+    rejected = read("zero-denominator.tif", zero_denominator);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_capture_gps_rational");
+
+    test_support::CaptureExifProfile altitude_over;
+    altitude_over.altitude = {500000002U, 5000U};
+    rejected = read("altitude-over.tif", altitude_over);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_capture_altitude");
+    altitude_over.altitude = {1U, 0U};
+    rejected = read("altitude-zero-denominator.tif", altitude_over);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_capture_gps_rational");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST(EngineFacadeTest, RejectsMalformedPresentExifFieldsWithoutSilentOmission)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-engine-tags-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto read_bytes = [&](const std::string &name, const std::vector<std::uint8_t> &bytes)
+    {
+        const auto path = root / name;
+        std::ofstream output(path, std::ios::binary);
+        output.write(reinterpret_cast<const char *>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+        output.close();
+        return engine.value().read_embedded_capture_metadata(path.string(), CancellationToken{});
+    };
+    const auto expect_reason = [&](const std::string &name,
+                                   const test_support::CaptureExifProfile &profile,
+                                   const std::string_view reason)
+    {
+        const auto result = read_bytes(name, test_support::make_capture_exif_tiff(profile));
+        ASSERT_FALSE(result) << name;
+        EXPECT_EQ(result.error().context.at("reason"), reason) << name;
+    };
+
+    test_support::CaptureExifProfile profile;
+    profile.datetime = "2007:02:29 13:53:33";
+    expect_reason("invalid-calendar.tif", profile, "invalid_capture_datetime");
+    profile = {};
+    profile.datetime[10] = '\0';
+    expect_reason("embedded-nul.tif", profile, "contains_nul");
+    profile = {};
+    profile.subsecond = "1234567890";
+    expect_reason("oversized-subsecond.tif", profile, "invalid_capture_tag_count");
+    profile = {};
+    profile.offset = "-00:00";
+    expect_reason("negative-zero-offset.tif", profile, "invalid_capture_utc_offset");
+    profile = {};
+    profile.latitude_ref = 'Q';
+    auto invalid_ref = read_bytes("invalid-ref.tif", test_support::make_capture_exif_tiff(profile));
+    ASSERT_FALSE(invalid_ref);
+    EXPECT_EQ(invalid_ref.error().context.at("reason"), "invalid_capture_gps_ref");
+    EXPECT_EQ(invalid_ref.error().context.at("field"), "gps_latitude_ref");
+    EXPECT_EQ(invalid_ref.error().context.at("path"), "Exif.GPSInfo.GPSLatitudeRef");
+    profile = {};
+    profile.altitude_ref = 2U;
+    expect_reason("invalid-altitude-ref.tif", profile, "invalid_capture_altitude_ref");
+
+    auto partial = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(partial, 34853U, 1U, 0xC001U));
+    auto rejected = read_bytes("partial-location.tif", partial);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "incomplete_capture_location");
+
+    auto orphan_altitude = test_support::make_capture_exif_tiff();
+    for (std::uint16_t tag = 1U; tag <= 4U; ++tag)
+    {
+        ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(
+            orphan_altitude, 34853U, tag, static_cast<std::uint16_t>(0xC010U + tag)));
+    }
+    rejected = read_bytes("orphan-altitude.tif", orphan_altitude);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "orphan_capture_altitude");
+
+    auto version_only = test_support::make_capture_exif_tiff();
+    for (std::uint16_t tag = 1U; tag <= 6U; ++tag)
+    {
+        ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(
+            version_only, 34853U, tag, static_cast<std::uint16_t>(0xC020U + tag)));
+    }
+    auto absent = read_bytes("version-only.tif", version_only);
+    ASSERT_TRUE(absent) << absent.error().message;
+    EXPECT_FALSE(absent.value().location);
+
+    auto wrong_type = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(
+        test_support::rewrite_linked_ifd_entry(wrong_type, 34665U, 0x9003U, std::nullopt, 3U, 1U));
+    rejected = read_bytes("wrong-datetime-type.tif", wrong_type);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "wrong_type");
+    EXPECT_EQ(rejected.error().context.at("field"), "captured_datetime");
+
+    auto wrong_count = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(wrong_count, 34853U, 2U, std::nullopt,
+                                                       std::nullopt, 2U));
+    rejected = read_bytes("wrong-gps-count.tif", wrong_count);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "multi_value");
+    EXPECT_EQ(rejected.error().context.at("field"), "gps_latitude_e6");
+
+    auto orphan_time = test_support::make_capture_exif_tiff();
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(orphan_time, 34665U, 0x9003U, 0x9004U));
+    rejected = read_bytes("orphan-time.tif", orphan_time);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "orphan_capture_datetime_component");
+
+    for (const std::string offset : {"+14:00", "-14:00"})
+    {
+        profile = {};
+        profile.offset = offset;
+        auto accepted = read_bytes("offset-" + offset.substr(1U, 2U) +
+                                       (offset.front() == '+' ? "-plus.tif" : "-minus.tif"),
+                                   test_support::make_capture_exif_tiff(profile));
+        ASSERT_TRUE(accepted) << accepted.error().message;
+        EXPECT_EQ(accepted.value().captured_datetime->utc_offset_minutes,
+                  offset.front() == '+' ? 840 : -840);
+    }
+    profile = {};
+    profile.latitude_ref = 'S';
+    profile.longitude_ref = 'W';
+    auto southwest = read_bytes("southwest.tif", test_support::make_capture_exif_tiff(profile));
+    ASSERT_TRUE(southwest) << southwest.error().message;
+    EXPECT_EQ(southwest.value().location->latitude_e6, -49253239);
+    EXPECT_EQ(southwest.value().location->longitude_e6, -3050766);
+
+    profile = {};
+    profile.image_datetime = profile.datetime;
+    auto matching_precedence = read_bytes("matching-datetime-precedence.tif",
+                                          test_support::make_capture_exif_tiff(profile));
+    ASSERT_TRUE(matching_precedence) << matching_precedence.error().message;
+    EXPECT_EQ(matching_precedence.value().captured_datetime->local_exif, profile.datetime);
+
+    profile.image_datetime = "2007:09:11 13:53:34";
+    rejected =
+        read_bytes("conflicting-datetime.tif", test_support::make_capture_exif_tiff(profile));
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "conflicting_capture_datetime");
+
+    profile = {};
+    profile.image_datetime = "2007:09:11 13:53:34";
+    auto image_fallback = test_support::make_capture_exif_tiff(profile);
+    ASSERT_TRUE(test_support::rewrite_linked_ifd_entry(image_fallback, 34665U, 0x9003U, 0x9004U));
+    auto fallback = read_bytes("image-datetime-fallback.tif", image_fallback);
+    ASSERT_TRUE(fallback) << fallback.error().message;
+    EXPECT_EQ(fallback.value().captured_datetime->local_exif, *profile.image_datetime);
+
+    profile = {};
+    profile.duplicate_photo_datetime = profile.datetime;
+    rejected =
+        read_bytes("duplicate-photo-datetime.tif", test_support::make_capture_exif_tiff(profile));
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "duplicate_capture_tag");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST(EngineFacadeTest, ReportsMissingNonRegularAndMalformedCaptureSourcesWithBoundedContext)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-engine-source-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    auto missing = engine.value().read_embedded_capture_metadata((root / "missing.tif").string(),
+                                                                 CancellationToken{});
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
+    auto directory =
+        engine.value().read_embedded_capture_metadata(root.string(), CancellationToken{});
+    ASSERT_FALSE(directory);
+    EXPECT_EQ(directory.error().context.at("reason"), "non_regular_capture_source");
+    const auto malformed_path = root / "malformed.tif";
+    {
+        std::ofstream malformed(malformed_path, std::ios::binary);
+        malformed << "not a tiff";
+    }
+    auto malformed =
+        engine.value().read_embedded_capture_metadata(malformed_path.string(), CancellationToken{});
+    ASSERT_FALSE(malformed);
+    for (const auto &[key, value] : malformed.error().context)
+    {
+        EXPECT_LE(value.size(), key == "input_uri" ? 512U : 256U);
+        EXPECT_TRUE(std::all_of(value.begin(), value.end(),
+                                [](const unsigned char ch) { return ch >= 0x20U && ch <= 0x7EU; }));
+    }
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST(EngineFacadeTest, RejectsMalformedPngExifChunks)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-engine-png-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto write_png =
+        [&](const std::string &name, const std::function<void(QByteArray &)> &mutate)
+    {
+        QImage image(8, 8, QImage::Format_RGB888);
+        image.fill(QColor(1, 2, 3));
+        QByteArray png;
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        EXPECT_TRUE(image.save(&buffer, "PNG"));
+        mutate(png);
+        const auto path = (root / name).string();
+        QFile file(QString::fromStdString(path));
+        EXPECT_TRUE(file.open(QIODevice::WriteOnly));
+        EXPECT_EQ(file.write(png), png.size());
+        file.close();
+        return path;
+    };
+    const auto insert_exif = [](QByteArray &png, const QByteArray &payload, const bool bad_crc)
+    {
+        QByteArray rebuilt = png.left(8);
+        qsizetype offset = 8;
+        bool inserted = false;
+        while (offset + 12 <= png.size())
+        {
+            const auto length =
+                (static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset])) << 24U) |
+                (static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset + 1])) << 16U) |
+                (static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset + 2])) << 8U) |
+                static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset + 3]));
+            const QByteArray type = png.mid(offset + 4, 4);
+            if (!inserted && type == "IDAT")
+            {
+                const auto len = static_cast<std::uint32_t>(payload.size());
+                unsigned char header[8] = {static_cast<unsigned char>(len >> 24U),
+                                           static_cast<unsigned char>(len >> 16U),
+                                           static_cast<unsigned char>(len >> 8U),
+                                           static_cast<unsigned char>(len),
+                                           'e',
+                                           'X',
+                                           'I',
+                                           'f'};
+                rebuilt.append(reinterpret_cast<const char *>(header), 8);
+                rebuilt.append(payload);
+                uLong crc = crc32(0L, Z_NULL, 0);
+                crc = crc32(crc, reinterpret_cast<const Bytef *>("eXIf"), 4);
+                if (!payload.isEmpty())
+                {
+                    crc = crc32(crc, reinterpret_cast<const Bytef *>(payload.constData()),
+                                static_cast<uInt>(payload.size()));
+                }
+                auto stored = static_cast<std::uint32_t>(crc);
+                if (bad_crc)
+                {
+                    stored ^= 1U;
+                }
+                const unsigned char crc_bytes[4] = {static_cast<unsigned char>(stored >> 24U),
+                                                    static_cast<unsigned char>(stored >> 16U),
+                                                    static_cast<unsigned char>(stored >> 8U),
+                                                    static_cast<unsigned char>(stored)};
+                rebuilt.append(reinterpret_cast<const char *>(crc_bytes), 4);
+                inserted = true;
+            }
+            rebuilt.append(png.mid(offset, 12 + static_cast<qsizetype>(length)));
+            offset += 12 + static_cast<qsizetype>(length);
+        }
+        png = rebuilt;
+    };
+    auto bad = write_png("bad-crc.png",
+                         [&](QByteArray &png) { insert_exif(png, QByteArray("II"), true); });
+    auto extracted = engine.value().read_embedded_capture_metadata(bad, CancellationToken{});
+    ASSERT_FALSE(extracted);
+    EXPECT_EQ(extracted.error().context.at("reason"), "png_chunk_crc_mismatch");
+
+    auto empty =
+        write_png("empty.png", [&](QByteArray &png) { insert_exif(png, QByteArray(), false); });
+    extracted = engine.value().read_embedded_capture_metadata(empty, CancellationToken{});
+    ASSERT_FALSE(extracted);
+    EXPECT_EQ(extracted.error().context.at("reason"), "empty_png_exif_chunk");
+
+    auto prefixed = write_png("prefix.png", [&](QByteArray &png)
+                              { insert_exif(png, QByteArray("Exif\0\0II", 8), false); });
+    extracted = engine.value().read_embedded_capture_metadata(prefixed, CancellationToken{});
+    ASSERT_FALSE(extracted);
+    EXPECT_EQ(extracted.error().context.at("reason"), "jpeg_exif_prefix_in_png");
+
+    const auto append_chunk = [](QByteArray &png, const char type[5], const QByteArray &data,
+                                 const std::optional<std::uint32_t> declared_length = {})
+    {
+        const std::uint32_t length =
+            declared_length.value_or(static_cast<std::uint32_t>(data.size()));
+        const unsigned char header[8] = {
+            static_cast<unsigned char>(length >> 24U), static_cast<unsigned char>(length >> 16U),
+            static_cast<unsigned char>(length >> 8U),  static_cast<unsigned char>(length),
+            static_cast<unsigned char>(type[0]),       static_cast<unsigned char>(type[1]),
+            static_cast<unsigned char>(type[2]),       static_cast<unsigned char>(type[3]),
+        };
+        png.append(reinterpret_cast<const char *>(header), 8);
+        png.append(data);
+        if (declared_length && *declared_length != static_cast<std::uint32_t>(data.size()))
+        {
+            return;
+        }
+        uLong crc = crc32(0L, Z_NULL, 0);
+        crc = crc32(crc, reinterpret_cast<const Bytef *>(type), 4U);
+        if (!data.isEmpty())
+        {
+            crc = crc32(crc, reinterpret_cast<const Bytef *>(data.constData()),
+                        static_cast<uInt>(data.size()));
+        }
+        const auto stored = static_cast<std::uint32_t>(crc);
+        const unsigned char crc_bytes[4] = {
+            static_cast<unsigned char>(stored >> 24U),
+            static_cast<unsigned char>(stored >> 16U),
+            static_cast<unsigned char>(stored >> 8U),
+            static_cast<unsigned char>(stored),
+        };
+        png.append(reinterpret_cast<const char *>(crc_bytes), 4);
+    };
+    const auto structural_png =
+        [&](const std::string &name, const std::function<void(QByteArray &)> &chunks)
+    {
+        QByteArray bytes("\x89PNG\r\n\x1a\n", 8);
+        chunks(bytes);
+        const auto path = (root / name).string();
+        QFile file(QString::fromStdString(path));
+        EXPECT_TRUE(file.open(QIODevice::WriteOnly));
+        EXPECT_EQ(file.write(bytes), bytes.size());
+        file.close();
+        return path;
+    };
+    const QByteArray ihdr("\0\0\0\1\0\0\0\1\x08\x02\0\0\0", 13);
+    const auto expect_reason = [&](const std::string &path, const std::string_view reason)
+    {
+        auto result = engine.value().read_embedded_capture_metadata(path, CancellationToken{});
+        ASSERT_FALSE(result) << path;
+        ASSERT_TRUE(result.error().context.contains("reason"));
+        EXPECT_EQ(result.error().context.at("reason"), reason);
+    };
+
+    auto bounded_truncated =
+        structural_png("bounded-truncated.png",
+                       [&](QByteArray &png)
+                       {
+                           append_chunk(png, "IHDR", ihdr);
+                           append_chunk(png, "ruSt", QByteArray(), 0xffffffffU);
+                       });
+    expect_reason(bounded_truncated, "truncated_png_chunk_payload");
+
+    auto oversized_exif =
+        structural_png("oversized-exif.png",
+                       [&](QByteArray &png)
+                       {
+                           append_chunk(png, "IHDR", ihdr);
+                           append_chunk(png, "eXIf", QByteArray(), 16U * 1024U * 1024U + 1U);
+                       });
+    expect_reason(oversized_exif, "png_exif_payload_too_large");
+
+    auto duplicate_exif = structural_png("duplicate-exif.png",
+                                         [&](QByteArray &png)
+                                         {
+                                             append_chunk(png, "IHDR", ihdr);
+                                             append_chunk(png, "eXIf", QByteArray("II", 2));
+                                             append_chunk(png, "eXIf", QByteArray("II", 2));
+                                         });
+    expect_reason(duplicate_exif, "duplicate_png_exif_chunk");
+
+    auto exif_after_idat = structural_png("exif-after-idat.png",
+                                          [&](QByteArray &png)
+                                          {
+                                              append_chunk(png, "IHDR", ihdr);
+                                              append_chunk(png, "IDAT", QByteArray());
+                                              append_chunk(png, "eXIf", QByteArray("II", 2));
+                                          });
+    expect_reason(exif_after_idat, "png_exif_after_idat");
+
+    auto bad_ihdr = structural_png("bad-ihdr.png", [&](QByteArray &png)
+                                   { append_chunk(png, "IHDR", QByteArray(12, '\0')); });
+    expect_reason(bad_ihdr, "invalid_png_ihdr_length");
+
+    auto bad_type = structural_png("bad-type.png",
+                                   [&](QByteArray &png)
+                                   {
+                                       append_chunk(png, "IHDR", ihdr);
+                                       append_chunk(png, "abct", QByteArray());
+                                   });
+    expect_reason(bad_type, "invalid_png_chunk_type");
+
+    auto no_idat = structural_png("no-idat.png",
+                                  [&](QByteArray &png)
+                                  {
+                                      append_chunk(png, "IHDR", ihdr);
+                                      append_chunk(png, "IEND", QByteArray());
+                                  });
+    expect_reason(no_idat, "png_iend_before_idat");
+
+    auto split_idat = structural_png("split-idat.png",
+                                     [&](QByteArray &png)
+                                     {
+                                         append_chunk(png, "IHDR", ihdr);
+                                         append_chunk(png, "IDAT", QByteArray());
+                                         append_chunk(png, "tEXt", QByteArray());
+                                         append_chunk(png, "IDAT", QByteArray());
+                                     });
+    expect_reason(split_idat, "nonconsecutive_png_idat");
+
+    auto bad_iend = structural_png("bad-iend.png",
+                                   [&](QByteArray &png)
+                                   {
+                                       append_chunk(png, "IHDR", ihdr);
+                                       append_chunk(png, "IDAT", QByteArray());
+                                       append_chunk(png, "IEND", QByteArray(1, '\0'));
+                                   });
+    expect_reason(bad_iend, "invalid_png_iend_length");
+
+    auto trailing = write_png("trailing.png", [](QByteArray &png) { png.append('x'); });
+    expect_reason(trailing, "png_trailing_data");
+    auto metadata_free = write_png("metadata-free.png", [](QByteArray &) {});
+    extracted = engine.value().read_embedded_capture_metadata(metadata_free, CancellationToken{});
+    ASSERT_TRUE(extracted) << extracted.error().message;
+    EXPECT_FALSE(extracted.value().captured_datetime);
+    EXPECT_FALSE(extracted.value().location);
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
 }
 
 TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)

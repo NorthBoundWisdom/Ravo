@@ -68,3 +68,9 @@ ownership that CatalogService and the private encoders already settle.
 - Capture timezone/GPS, sidecars/history, batch presets/path templates, TIFF
   multipage masks, shared consumers, and legacy JPEG/PNG/TIFF owner retirement
   remain later I11/I12/I13/S9/J6 work. This ADR does not complete those rows.
+
+## Subsequent decision
+
+[ADR-0040](0040-capture-time-gps-metadata.md) later extends the shared export
+metadata snapshot with validated capture time/offset/GPS. It does not change
+this ADR's explicit format/options intent or add a metadata control surface.

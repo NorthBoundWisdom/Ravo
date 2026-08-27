@@ -2,6 +2,7 @@ add_library(ravo_domain STATIC)
 
 target_sources(ravo_domain
   PRIVATE
+    src/capture.cpp
     src/types.cpp
     src/uri.cpp)
 

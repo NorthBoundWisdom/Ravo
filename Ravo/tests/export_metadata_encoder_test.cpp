@@ -280,7 +280,12 @@ TEST(ExportMetadataEncoderTest, XmlEscapeMatchesDomainEstimator)
 
 TEST(ExportMetadataEncoderTest, DomainPacketEstimateIsAConservativePreflight)
 {
-    const auto snapshot = sample_snapshot();
+    auto snapshot = sample_snapshot();
+    snapshot.capture.captured_datetime = CaptureDateTime{"9999:12:31 23:59:59", "123456789", 840};
+    snapshot.capture.location =
+        CaptureLocation{kCaptureLatitudeE6Max, kCaptureLongitudeE6Max,
+                        CaptureAltitude{kCaptureAltitudeAboveSeaLevelMmMax,
+                                        CaptureAltitudeReference::kAboveSeaLevel}};
     const auto sizes = estimate_export_metadata_packets(snapshot);
     ASSERT_TRUE(sizes) << sizes.error().message;
     const auto prepared = detail::prepare_export_metadata(snapshot, 0xFFFFFFFFU, 0xFFFFFFFFU, false,
@@ -290,6 +295,101 @@ TEST(ExportMetadataEncoderTest, DomainPacketEstimateIsAConservativePreflight)
     EXPECT_LE(prepared.value().xmp_packet.size(), sizes.value().xmp_packet_bytes);
     ASSERT_TRUE(prepared.value().iptc_iim);
     EXPECT_LE(prepared.value().iptc_iim->size(), sizes.value().iptc_iim_bytes);
+    const auto exif = detail::build_jpeg_exif_app1_payload(prepared.value().exif_tiff_profile);
+    const auto xmp = detail::build_jpeg_xmp_app1_payload(prepared.value().xmp_packet);
+    ASSERT_TRUE(exif) << exif.error().message;
+    ASSERT_TRUE(xmp) << xmp.error().message;
+    EXPECT_LE(exif.value().size(), kJpegAppMarkerMaxPayloadBytes);
+    EXPECT_LE(xmp.value().size(), kJpegAppMarkerMaxPayloadBytes);
+}
+
+TEST(ExportMetadataEncoderTest, EmbedsCaptureTimeAndGpsOnceForAllFormats)
+{
+    auto snapshot = sample_snapshot();
+    snapshot.capture.captured_datetime = CaptureDateTime{"2007:09:11 13:53:33", "18", 120};
+    snapshot.capture.location = CaptureLocation{
+        49253239, 3050766, CaptureAltitude{123456U, CaptureAltitudeReference::kAboveSeaLevel}};
+    const auto prepared = detail::prepare_export_metadata(snapshot, 12U, 8U, true, {});
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    EXPECT_EQ(prepared.value().datetime_original, "2007:09:11 13:53:33");
+    EXPECT_EQ(prepared.value().offset_time_original, "+02:00");
+    EXPECT_EQ(prepared.value().subsec_time_original, "18");
+    EXPECT_TRUE(prepared.value().has_gps);
+    EXPECT_EQ(prepared.value().xmp_datetime_original, "2007-09-11T13:53:33.18+02:00");
+    EXPECT_EQ(prepared.value().xmp_gps_latitude, "49,15.19434N");
+    EXPECT_EQ(prepared.value().xmp_gps_longitude, "3,3.04596E");
+    EXPECT_EQ(prepared.value().xmp_gps_altitude_ref, "0");
+    EXPECT_EQ(prepared.value().xmp_gps_altitude, "15432/125");
+
+    const auto &profile = prepared.value().exif_tiff_profile;
+    const auto ifd0_count = read_u16_le(profile, 8U);
+    std::uint32_t exif_offset = 0U;
+    std::uint32_t gps_offset = 0U;
+    for (std::uint16_t index = 0U; index < ifd0_count; ++index)
+    {
+        const auto field = 10U + (index * 12U);
+        const auto tag = read_u16_le(profile, field);
+        if (tag == 34665U)
+        {
+            exif_offset = read_u32_le(profile, field + 8U);
+        }
+        if (tag == 34853U)
+        {
+            gps_offset = read_u32_le(profile, field + 8U);
+        }
+    }
+    ASSERT_NE(exif_offset, 0U);
+    ASSERT_NE(gps_offset, 0U);
+    bool saw_datetime = false;
+    bool saw_offset = false;
+    bool saw_subsec = false;
+    const auto exif_count = read_u16_le(profile, exif_offset);
+    for (std::uint16_t index = 0U; index < exif_count; ++index)
+    {
+        const auto field = exif_offset + 2U + (index * 12U);
+        const auto tag = read_u16_le(profile, field);
+        if (tag == 36867U)
+        {
+            saw_datetime = true;
+            EXPECT_EQ(read_u16_le(profile, field + 2U), 2U);
+        }
+        if (tag == 36881U)
+        {
+            saw_offset = true;
+        }
+        if (tag == 37521U)
+        {
+            saw_subsec = true;
+        }
+    }
+    EXPECT_TRUE(saw_datetime);
+    EXPECT_TRUE(saw_offset);
+    EXPECT_TRUE(saw_subsec);
+    const auto gps_count = read_u16_le(profile, gps_offset);
+    EXPECT_GE(gps_count, 7U);
+    EXPECT_EQ(profile[gps_offset + 2U + 8U], 2U);
+    EXPECT_EQ(profile[gps_offset + 2U + 9U], 3U);
+
+    const auto xml = as_text(prepared.value().xmp_packet);
+    EXPECT_NE(
+        xml.find("<exif:DateTimeOriginal>2007-09-11T13:53:33.18+02:00</exif:DateTimeOriginal>"),
+        std::string::npos);
+    EXPECT_NE(xml.find("<exif:GPSLatitude>49,15.19434N</exif:GPSLatitude>"), std::string::npos);
+    EXPECT_EQ(xml.find("xmp:CreateDate"), std::string::npos);
+    EXPECT_EQ(xml.find("xmp:ModifyDate"), std::string::npos);
+}
+
+TEST(ExportMetadataEncoderTest, OmitsCapturePacketsWhenTimeAndGpsAreAbsent)
+{
+    const auto prepared = detail::prepare_export_metadata(sample_snapshot(), 12U, 8U, false, {});
+    ASSERT_TRUE(prepared) << prepared.error().message;
+    EXPECT_FALSE(prepared.value().has_gps);
+    EXPECT_FALSE(prepared.value().datetime_original);
+    const auto xml = as_text(prepared.value().xmp_packet);
+    EXPECT_EQ(xml.find("DateTimeOriginal"), std::string::npos);
+    EXPECT_EQ(xml.find("GPSLatitude"), std::string::npos);
+    const auto ifd0_count = read_u16_le(prepared.value().exif_tiff_profile, 8U);
+    EXPECT_EQ(ifd0_count, 7U);
 }
 
 } // namespace

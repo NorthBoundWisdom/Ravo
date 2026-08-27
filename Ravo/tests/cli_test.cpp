@@ -37,6 +37,7 @@
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 
+#include "capture_metadata_test_support.h"
 #include "test_support.h"
 
 namespace ravo
@@ -2666,6 +2667,137 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "conflict");
 
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogListJsonIncludesCapturedAtAndGps)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-capture-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto raw =
+        (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" / "mire1.cr2")
+            .generic_u8string();
+    const std::string raw_path(raw.begin(), raw.end());
+    const auto located_path = root / "located.tif";
+    const auto below_zero_path = root / "below-zero.tif";
+    {
+        const auto bytes = test_support::make_capture_exif_tiff();
+        std::ofstream output(located_path, std::ios::binary);
+        output.write(reinterpret_cast<const char *>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+    }
+    {
+        test_support::CaptureExifProfile profile;
+        profile.latitude_ref = 'S';
+        profile.longitude_ref = 'W';
+        profile.altitude_ref = 1U;
+        profile.altitude = {0U, 1U};
+        const auto bytes = test_support::make_capture_exif_tiff(profile);
+        std::ofstream output(below_zero_path, std::ios::binary);
+        output.write(reinterpret_cast<const char *>(bytes.data()),
+                     static_cast<std::streamsize>(bytes.size()));
+    }
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", raw_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    for (const auto &path : {located_path, below_zero_path})
+    {
+        stdout_stream.str({});
+        stdout_stream.clear();
+        const auto text = path.string();
+        EXPECT_EQ(application.run(std::vector<std::string_view>{
+                      "catalog", "import", "--catalog", catalog, "--input", text, "--json"}),
+                  0)
+            << stdout_stream.str();
+    }
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "list", "--catalog", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    const std::string first_list = stdout_stream.str();
+    auto listed = parse_json(first_list);
+    ASSERT_TRUE(listed) << listed.error().message;
+    const auto *data = listed.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *assets = data->find("assets");
+    ASSERT_NE(assets, nullptr);
+    ASSERT_EQ(assets->array_if()->size(), 3U);
+    const auto find_asset = [&](const std::string_view filename) -> const JsonValue *
+    {
+        for (const auto &asset : *assets->array_if())
+        {
+            const auto *uri = asset.find("uri");
+            if (uri != nullptr && uri->string_if() != nullptr &&
+                uri->string_if()->find(filename) != std::string::npos)
+            {
+                return &asset;
+            }
+        }
+        return nullptr;
+    };
+    const auto *raw_asset = find_asset("mire1.cr2");
+    ASSERT_NE(raw_asset, nullptr);
+    const auto *capture = raw_asset->find("capture");
+    ASSERT_NE(capture, nullptr);
+    const auto *captured_at = capture->find("captured_at");
+    ASSERT_NE(captured_at, nullptr);
+    ASSERT_NE(captured_at->string_if(), nullptr);
+    EXPECT_EQ(*captured_at->string_if(), "2007-09-11T13:53:33.18");
+    const auto *gps = capture->find("gps");
+    ASSERT_NE(gps, nullptr);
+    EXPECT_TRUE(gps->is_null());
+
+    const auto verify_gps = [](const JsonValue &asset, const std::string_view latitude,
+                               const std::string_view longitude, const std::string_view altitude)
+    {
+        const auto *capture_value = asset.find("capture");
+        ASSERT_NE(capture_value, nullptr);
+        const auto *captured_at_value = capture_value->find("captured_at");
+        ASSERT_NE(captured_at_value, nullptr);
+        ASSERT_NE(captured_at_value->string_if(), nullptr);
+        EXPECT_EQ(*captured_at_value->string_if(), "2007-09-11T13:53:33.18+02:00");
+        const auto *gps_value = capture_value->find("gps");
+        ASSERT_NE(gps_value, nullptr);
+        const auto *lat = gps_value->find("latitude");
+        const auto *lon = gps_value->find("longitude");
+        const auto *alt = gps_value->find("altitude_m");
+        ASSERT_NE(lat, nullptr);
+        ASSERT_NE(lon, nullptr);
+        ASSERT_NE(alt, nullptr);
+        ASSERT_NE(lat->number_if(), nullptr);
+        ASSERT_NE(lon->number_if(), nullptr);
+        ASSERT_NE(alt->number_if(), nullptr);
+        EXPECT_EQ(lat->number_if()->text, latitude);
+        EXPECT_EQ(lon->number_if()->text, longitude);
+        EXPECT_EQ(alt->number_if()->text, altitude);
+    };
+    const auto *located = find_asset("located.tif");
+    const auto *below_zero = find_asset("below-zero.tif");
+    ASSERT_NE(located, nullptr);
+    ASSERT_NE(below_zero, nullptr);
+    verify_gps(*located, "49.253239", "3.050766", "123.456");
+    verify_gps(*below_zero, "-49.253239", "-3.050766", "0");
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "list", "--catalog", catalog, "--json"}),
+              0);
+    EXPECT_EQ(stdout_stream.str(), first_list);
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);
 }

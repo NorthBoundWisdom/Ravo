@@ -1,6 +1,9 @@
 #include "ravo/adapters/sqlite_catalog.h"
 
+#include "catalog_repository_test_control.h"
+
 #include <chrono>
+#include <limits>
 #include <map>
 #include <utility>
 #include <vector>
@@ -8,6 +11,7 @@
 #include <QtCore/QFileInfo>
 #include <QtCore/QString>
 #include <QtCore/QStringList>
+#include <QtCore/QMetaType>
 #include <QtCore/QVariant>
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlError>
@@ -80,7 +84,14 @@ const char *kSchemaStatements[] = {
     "  aperture REAL,"
     "  focal_length_mm REAL,"
     "  shutter_s REAL,"
-    "  captured_unix_s INTEGER"
+    "  captured_unix_s INTEGER,"
+    "  captured_local_exif TEXT,"
+    "  captured_subsecond_digits TEXT,"
+    "  captured_utc_offset_minutes INTEGER,"
+    "  gps_latitude_e6 INTEGER,"
+    "  gps_longitude_e6 INTEGER,"
+    "  gps_altitude_magnitude_mm INTEGER,"
+    "  gps_altitude_ref INTEGER"
     ")",
     "CREATE TABLE asset_recipe_history ("
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -169,6 +180,105 @@ constexpr const char *kSchemaV4Statements[] = {
         return QVariant();
     }
     return static_cast<qlonglong>(*value);
+}
+
+[[nodiscard]] QVariant optional_i32(const std::optional<std::int32_t> &value)
+{
+    if (!value)
+    {
+        return QVariant();
+    }
+    return static_cast<qlonglong>(*value);
+}
+
+[[nodiscard]] Result<void> require_integer_storage(const QSqlQuery &query, const int index,
+                                                   const std::string_view field)
+{
+    const QVariant value = query.value(index);
+    const auto type = value.typeId();
+    if (type != QMetaType::LongLong && type != QMetaType::Int && type != QMetaType::ULongLong &&
+        type != QMetaType::UInt)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Catalog capture integer has the wrong storage class",
+            {{"field", std::string(field)}, {"reason", "invalid_persisted_capture_storage_class"}});
+    }
+    return {};
+}
+
+[[nodiscard]] Result<void> require_text_storage(const QSqlQuery &query, const int index,
+                                                const std::string_view field)
+{
+    const QVariant value = query.value(index);
+    if (value.typeId() != QMetaType::QString)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Catalog capture text has the wrong storage class",
+            {{"field", std::string(field)}, {"reason", "invalid_persisted_capture_storage_class"}});
+    }
+    return {};
+}
+
+[[nodiscard]] Result<std::optional<std::int32_t>>
+i32_column(const QSqlQuery &query, const int index, const std::string_view field)
+{
+    if (query.isNull(index))
+    {
+        return std::optional<std::int32_t>{};
+    }
+    auto storage = require_integer_storage(query, index, field);
+    if (!storage)
+    {
+        return storage.error();
+    }
+    bool converted = false;
+    const qlonglong value = query.value(index).toLongLong(&converted);
+    if (!converted || value < std::numeric_limits<std::int32_t>::min() ||
+        value > std::numeric_limits<std::int32_t>::max())
+    {
+        return make_error(
+            ErrorCode::kValidation, "Catalog capture integer is invalid",
+            {{"field", std::string(field)}, {"reason", "invalid_persisted_capture_integer"}});
+    }
+    return std::optional<std::int32_t>{static_cast<std::int32_t>(value)};
+}
+
+[[nodiscard]] Result<std::optional<std::uint32_t>>
+u32_column_checked(const QSqlQuery &query, const int index, const std::string_view field)
+{
+    if (query.isNull(index))
+    {
+        return std::optional<std::uint32_t>{};
+    }
+    auto storage = require_integer_storage(query, index, field);
+    if (!storage)
+    {
+        return storage.error();
+    }
+    bool converted = false;
+    const qulonglong value = query.value(index).toULongLong(&converted);
+    if (!converted || value > std::numeric_limits<std::uint32_t>::max())
+    {
+        return make_error(
+            ErrorCode::kValidation, "Catalog capture integer is invalid",
+            {{"field", std::string(field)}, {"reason", "invalid_persisted_capture_integer"}});
+    }
+    return std::optional<std::uint32_t>{static_cast<std::uint32_t>(value)};
+}
+
+[[nodiscard]] Result<std::optional<std::string>>
+text_column(const QSqlQuery &query, const int index, const std::string_view field)
+{
+    if (query.isNull(index))
+    {
+        return std::optional<std::string>{};
+    }
+    auto storage = require_text_storage(query, index, field);
+    if (!storage)
+    {
+        return storage.error();
+    }
+    return std::optional<std::string>{utf8_from_qstring(query.value(index).toString())};
 }
 
 [[nodiscard]] std::optional<std::string> string_column(const QSqlQuery &query, const int index)
@@ -270,7 +380,9 @@ constexpr const char *kSchemaV4Statements[] = {
     QSqlQuery metadata(database);
     if (!metadata.exec(QStringLiteral(
             "SELECT asset_id, title, description, creator, copyright, camera_make, camera_model, "
-            "iso, aperture, focal_length_mm, shutter_s, captured_unix_s FROM asset_metadata")))
+            "iso, aperture, focal_length_mm, shutter_s, captured_unix_s, captured_local_exif, "
+            "captured_subsecond_digits, captured_utc_offset_minutes, gps_latitude_e6, "
+            "gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref FROM asset_metadata")))
     {
         return map_sql_error(metadata, "list_asset_metadata");
     }
@@ -294,6 +406,102 @@ constexpr const char *kSchemaV4Statements[] = {
         asset.capture.focal_length_mm = double_column(metadata, 9);
         asset.capture.shutter_s = double_column(metadata, 10);
         asset.capture.captured_unix_s = i64_column(metadata, 11);
+        auto local_exif_value = text_column(metadata, 12, "captured_local_exif");
+        if (!local_exif_value)
+        {
+            return local_exif_value.error();
+        }
+        auto subsecond_value = text_column(metadata, 13, "captured_subsecond_digits");
+        if (!subsecond_value)
+        {
+            return subsecond_value.error();
+        }
+        auto offset_value = i32_column(metadata, 14, "captured_utc_offset_minutes");
+        if (!offset_value)
+        {
+            return offset_value.error();
+        }
+        const auto local_exif = std::move(local_exif_value).value();
+        const auto subsecond = std::move(subsecond_value).value();
+        const auto offset = std::move(offset_value).value();
+        if (local_exif || subsecond || offset)
+        {
+            if (!local_exif)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Catalog capture time components require a local time",
+                                  {{"reason", "invalid_persisted_capture_datetime"}});
+            }
+            CaptureDateTime captured;
+            captured.local_exif = *local_exif;
+            captured.subsecond_digits = subsecond;
+            captured.utc_offset_minutes = offset;
+            asset.capture.captured_datetime = std::move(captured);
+        }
+        auto latitude_value = i32_column(metadata, 15, "gps_latitude_e6");
+        if (!latitude_value)
+        {
+            return latitude_value.error();
+        }
+        auto longitude_value = i32_column(metadata, 16, "gps_longitude_e6");
+        if (!longitude_value)
+        {
+            return longitude_value.error();
+        }
+        auto altitude_magnitude_value =
+            u32_column_checked(metadata, 17, "gps_altitude_magnitude_mm");
+        if (!altitude_magnitude_value)
+        {
+            return altitude_magnitude_value.error();
+        }
+        auto altitude_ref_value = i32_column(metadata, 18, "gps_altitude_ref");
+        if (!altitude_ref_value)
+        {
+            return altitude_ref_value.error();
+        }
+        const auto latitude = std::move(latitude_value).value();
+        const auto longitude = std::move(longitude_value).value();
+        const auto altitude_magnitude = std::move(altitude_magnitude_value).value();
+        const auto altitude_ref = std::move(altitude_ref_value).value();
+        if (latitude || longitude || altitude_magnitude || altitude_ref)
+        {
+            if (!latitude || !longitude)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Catalog capture location requires both coordinates",
+                                  {{"reason", "invalid_persisted_capture_location"}});
+            }
+            CaptureLocation location;
+            location.latitude_e6 = *latitude;
+            location.longitude_e6 = *longitude;
+            if (altitude_magnitude || altitude_ref)
+            {
+                if (!altitude_magnitude || !altitude_ref)
+                {
+                    return make_error(
+                        ErrorCode::kValidation,
+                        "Catalog capture altitude requires both magnitude and reference",
+                        {{"reason", "invalid_persisted_capture_altitude"}});
+                }
+                if (*altitude_ref != 0 && *altitude_ref != 1)
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "Catalog capture altitude reference must be 0 or 1",
+                                      {{"reason", "invalid_persisted_capture_altitude_ref"}});
+                }
+                CaptureAltitude altitude;
+                altitude.magnitude_mm = *altitude_magnitude;
+                altitude.reference = *altitude_ref == 1 ? CaptureAltitudeReference::kBelowSeaLevel :
+                                                          CaptureAltitudeReference::kAboveSeaLevel;
+                location.altitude = altitude;
+            }
+            asset.capture.location = location;
+        }
+        auto valid_capture = validate_capture_metadata(asset.capture);
+        if (!valid_capture)
+        {
+            return valid_capture.error();
+        }
     }
     return {};
 }
@@ -361,6 +569,43 @@ struct SqliteCatalogRepository::Impl
     QSqlDatabase database;
     std::string database_path;
     CatalogSnapshot snapshot;
+    testing::SqliteImportFailure import_failure = testing::SqliteImportFailure::kNone;
+
+    [[nodiscard]] bool consume_import_failure(const testing::SqliteImportFailure expected) noexcept
+    {
+        if (import_failure != expected)
+        {
+            return false;
+        }
+        import_failure = testing::SqliteImportFailure::kNone;
+        return true;
+    }
+
+    [[nodiscard]] TaskError abort_transaction(TaskError primary)
+    {
+        const bool inject_rollback_failure =
+            consume_import_failure(testing::SqliteImportFailure::kRollback);
+        bool prepared_injected_failure = false;
+        if (inject_rollback_failure)
+        {
+            // End the real transaction first, then make the Qt transaction API
+            // take its genuine no-active-transaction failure branch. This keeps
+            // the database reusable while still exercising rollback-failure
+            // context instead of merely pretending rollback failed.
+            QSqlQuery rollback(database);
+            prepared_injected_failure = rollback.exec(QStringLiteral("ROLLBACK"));
+        }
+        const bool rolled_back = database.rollback();
+        if (!rolled_back)
+        {
+            primary.context.insert_or_assign("rollback_failed", "true");
+            primary.context.insert_or_assign(
+                "rollback_error", prepared_injected_failure ?
+                                      "injected_import_rollback" :
+                                      utf8_from_qstring(database.lastError().text().left(128)));
+        }
+        return primary;
+    }
 
     [[nodiscard]] Result<void> exec(const QString &sql, const std::string_view action)
     {
@@ -372,6 +617,15 @@ struct SqliteCatalogRepository::Impl
         return {};
     }
 };
+
+void testing::SqliteCatalogTestControl::inject(SqliteCatalogRepository &repository,
+                                               const SqliteImportFailure failure) noexcept
+{
+    if (repository.impl_ != nullptr)
+    {
+        repository.impl_->import_failure = failure;
+    }
+}
 
 SqliteCatalogRepository::SqliteCatalogRepository(std::unique_ptr<Impl> impl)
     : impl_(std::move(impl))
@@ -483,8 +737,7 @@ SqliteCatalogRepository::create(const std::string_view database_path)
         const auto created = impl->exec(QString::fromUtf8(statement), "create_schema");
         if (!created)
         {
-            impl->database.rollback();
-            return created.error();
+            return impl->abort_transaction(created.error());
         }
     }
 
@@ -506,14 +759,13 @@ SqliteCatalogRepository::create(const std::string_view database_path)
     insert.addBindValue(static_cast<qlonglong>(now));
     if (!insert.exec())
     {
-        impl->database.rollback();
-        return map_sql_error(insert, "insert_schema_info");
+        return impl->abort_transaction(map_sql_error(insert, "insert_schema_info"));
     }
     if (!impl->database.commit())
     {
-        impl->database.rollback();
-        return make_error(ErrorCode::kIo, "Unable to commit catalog schema",
-                          {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}});
+        return impl->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit catalog schema",
+                       {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}}));
     }
     return std::unique_ptr<SqliteCatalogRepository>(new SqliteCatalogRepository(std::move(impl)));
 }
@@ -572,8 +824,9 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 "migrate_v2_rejected");
             if (!rating || !color || !rejected)
             {
-                impl->database.rollback();
-                return !rating ? rating.error() : !color ? color.error() : rejected.error();
+                return impl->abort_transaction(!rating ? rating.error() :
+                                               !color  ? color.error() :
+                                                         rejected.error());
             }
             version = 2;
         }
@@ -588,8 +841,7 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 "migrate_v3_asset_recipe");
             if (!recipes)
             {
-                impl->database.rollback();
-                return recipes.error();
+                return impl->abort_transaction(recipes.error());
             }
             version = 3;
         }
@@ -597,21 +849,42 @@ SqliteCatalogRepository::open(const std::string_view database_path)
         {
             for (const char *sql : kSchemaV4Statements)
             {
-                const auto created = impl->exec(QString::fromUtf8(sql), "migrate_v4_catalog_fields");
+                const auto created =
+                    impl->exec(QString::fromUtf8(sql), "migrate_v4_catalog_fields");
                 if (!created)
                 {
-                    impl->database.rollback();
-                    return created.error();
+                    return impl->abort_transaction(created.error());
                 }
             }
             version = 4;
         }
+        if (version == 4)
+        {
+            static constexpr const char *kSchemaV5Columns[] = {
+                "ALTER TABLE asset_metadata ADD COLUMN captured_local_exif TEXT",
+                "ALTER TABLE asset_metadata ADD COLUMN captured_subsecond_digits TEXT",
+                "ALTER TABLE asset_metadata ADD COLUMN captured_utc_offset_minutes INTEGER",
+                "ALTER TABLE asset_metadata ADD COLUMN gps_latitude_e6 INTEGER",
+                "ALTER TABLE asset_metadata ADD COLUMN gps_longitude_e6 INTEGER",
+                "ALTER TABLE asset_metadata ADD COLUMN gps_altitude_magnitude_mm INTEGER",
+                "ALTER TABLE asset_metadata ADD COLUMN gps_altitude_ref INTEGER",
+            };
+            for (const char *sql : kSchemaV5Columns)
+            {
+                const auto added = impl->exec(QString::fromUtf8(sql), "migrate_v5_capture_fields");
+                if (!added)
+                {
+                    return impl->abort_transaction(added.error());
+                }
+            }
+            version = 5;
+        }
         if (version != kCatalogSchemaVersion)
         {
-            impl->database.rollback();
-            return make_error(ErrorCode::kValidation, "Catalog schema version cannot be upgraded",
-                              {{"path", std::string(database_path)},
-                               {"schema_version", std::to_string(version)}});
+            return impl->abort_transaction(
+                make_error(ErrorCode::kValidation, "Catalog schema version cannot be upgraded",
+                           {{"path", std::string(database_path)},
+                            {"schema_version", std::to_string(version)}}));
         }
         const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                              std::chrono::system_clock::now().time_since_epoch())
@@ -623,14 +896,13 @@ SqliteCatalogRepository::open(const std::string_view database_path)
         update.addBindValue(static_cast<qlonglong>(now));
         if (!update.exec())
         {
-            impl->database.rollback();
-            return map_sql_error(update, "migrate_schema_info");
+            return impl->abort_transaction(map_sql_error(update, "migrate_schema_info"));
         }
         if (!impl->database.commit())
         {
-            impl->database.rollback();
-            return make_error(ErrorCode::kIo, "Unable to commit catalog migration",
-                              {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}});
+            return impl->abort_transaction(
+                make_error(ErrorCode::kIo, "Unable to commit catalog migration",
+                           {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}}));
         }
     }
     impl->snapshot.schema_version = kCatalogSchemaVersion;
@@ -1008,8 +1280,7 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
                              clear_recipe(asset_id);
     if (!written)
     {
-        impl_->database.rollback();
-        return written.error();
+        return impl_->abort_transaction(written.error());
     }
 
     QSqlQuery latest(impl_->database);
@@ -1019,8 +1290,7 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
     latest.addBindValue(qstring_from_utf8(asset_id));
     if (!latest.exec())
     {
-        impl_->database.rollback();
-        return map_sql_error(latest, "latest_recipe_history");
+        return impl_->abort_transaction(map_sql_error(latest, "latest_recipe_history"));
     }
     const bool duplicate =
         latest.next() &&
@@ -1032,8 +1302,7 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
             append_recipe_history(asset_id, kRecipeHistoryKindHistory, std::nullopt, history_json);
         if (!recorded)
         {
-            impl_->database.rollback();
-            return recorded.error();
+            return impl_->abort_transaction(recorded.error());
         }
     }
 
@@ -1041,21 +1310,19 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
     if (!revision_query.exec(
             QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
     {
-        impl_->database.rollback();
-        return map_sql_error(revision_query, "bump_recipe_revision");
+        return impl_->abort_transaction(map_sql_error(revision_query, "bump_recipe_revision"));
     }
     if (!revision_query.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
         !revision_query.next())
     {
-        impl_->database.rollback();
-        return map_sql_error(revision_query, "read_recipe_revision");
+        return impl_->abort_transaction(map_sql_error(revision_query, "read_recipe_revision"));
     }
     const auto revision = revision_query.value(0).toLongLong();
     if (!impl_->database.commit())
     {
-        impl_->database.rollback();
-        return make_error(ErrorCode::kIo, "Unable to commit recipe transaction",
-                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit recipe transaction",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
     impl_->snapshot.revision = revision;
     return revision;
@@ -1078,8 +1345,7 @@ Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view 
     clear.addBindValue(qstring_from_utf8(asset_id));
     if (!clear.exec())
     {
-        impl_->database.rollback();
-        return map_sql_error(clear, "clear_asset_tags");
+        return impl_->abort_transaction(map_sql_error(clear, "clear_asset_tags"));
     }
     QSqlQuery insert(impl_->database);
     insert.prepare(QStringLiteral("INSERT INTO asset_tag(asset_id, name) VALUES (?, ?)"));
@@ -1089,16 +1355,15 @@ Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view 
         insert.addBindValue(qstring_from_utf8(tag));
         if (!insert.exec())
         {
-            impl_->database.rollback();
-            return map_sql_error(insert, "insert_asset_tag");
+            return impl_->abort_transaction(map_sql_error(insert, "insert_asset_tag"));
         }
         insert.finish();
     }
     if (!impl_->database.commit())
     {
-        impl_->database.rollback();
-        return make_error(ErrorCode::kIo, "Unable to commit tag replacement",
-                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit tag replacement",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
     return {};
 }
@@ -1136,14 +1401,55 @@ Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
+    auto valid = validate_capture_metadata(capture);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    std::optional<std::string> local_exif;
+    std::optional<std::string> subsecond;
+    std::optional<std::int32_t> offset;
+    std::optional<std::int32_t> latitude;
+    std::optional<std::int32_t> longitude;
+    std::optional<std::uint32_t> altitude_magnitude;
+    std::optional<std::int32_t> altitude_ref;
+    if (capture.captured_datetime)
+    {
+        local_exif = capture.captured_datetime->local_exif;
+        subsecond = capture.captured_datetime->subsecond_digits;
+        offset = capture.captured_datetime->utc_offset_minutes;
+    }
+    if (capture.location)
+    {
+        latitude = capture.location->latitude_e6;
+        longitude = capture.location->longitude_e6;
+        if (capture.location->altitude)
+        {
+            altitude_magnitude = capture.location->altitude->magnitude_mm;
+            altitude_ref =
+                capture.location->altitude->reference == CaptureAltitudeReference::kBelowSeaLevel ?
+                    1 :
+                    0;
+        }
+    }
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral(
         "INSERT INTO asset_metadata(asset_id, camera_make, camera_model, iso, aperture, "
-        "focal_length_mm, shutter_s, captured_unix_s) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+        "focal_length_mm, shutter_s, captured_unix_s, captured_local_exif, "
+        "captured_subsecond_digits, captured_utc_offset_minutes, gps_latitude_e6, "
+        "gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref) VALUES "
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(asset_id) DO UPDATE SET camera_make = excluded.camera_make, "
         "camera_model = excluded.camera_model, iso = excluded.iso, aperture = excluded.aperture, "
         "focal_length_mm = excluded.focal_length_mm, shutter_s = excluded.shutter_s, "
-        "captured_unix_s = excluded.captured_unix_s"));
+        "captured_unix_s = excluded.captured_unix_s, "
+        "captured_local_exif = excluded.captured_local_exif, "
+        "captured_subsecond_digits = excluded.captured_subsecond_digits, "
+        "captured_utc_offset_minutes = excluded.captured_utc_offset_minutes, "
+        "gps_latitude_e6 = excluded.gps_latitude_e6, "
+        "gps_longitude_e6 = excluded.gps_longitude_e6, "
+        "gps_altitude_magnitude_mm = excluded.gps_altitude_magnitude_mm, "
+        "gps_altitude_ref = excluded.gps_altitude_ref"));
     query.addBindValue(qstring_from_utf8(asset_id));
     query.addBindValue(optional_string(capture.camera_make));
     query.addBindValue(optional_string(capture.camera_model));
@@ -1152,10 +1458,131 @@ Result<void> SqliteCatalogRepository::upsert_capture_metadata(const std::string_
     query.addBindValue(optional_double(capture.focal_length_mm));
     query.addBindValue(optional_double(capture.shutter_s));
     query.addBindValue(optional_i64(capture.captured_unix_s));
+    query.addBindValue(optional_string(local_exif));
+    query.addBindValue(optional_string(subsecond));
+    query.addBindValue(optional_i32(offset));
+    query.addBindValue(optional_i32(latitude));
+    query.addBindValue(optional_i32(longitude));
+    if (altitude_magnitude)
+    {
+        query.addBindValue(static_cast<qlonglong>(*altitude_magnitude));
+    }
+    else
+    {
+        query.addBindValue(QVariant());
+    }
+    query.addBindValue(optional_i32(altitude_ref));
     if (!query.exec())
     {
         return map_sql_error(query, "upsert_capture_metadata");
     }
+    return {};
+}
+
+Result<void> SqliteCatalogRepository::commit_imported_asset(const AssetRecord &asset)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (capture_metadata_has_values(asset.capture))
+    {
+        auto valid = validate_capture_metadata(asset.capture);
+        if (!valid)
+        {
+            return valid.error();
+        }
+    }
+    if (impl_->consume_import_failure(testing::SqliteImportFailure::kTransactionBegin))
+    {
+        return make_error(ErrorCode::kIo, "Injected catalog import failure",
+                          {{"reason", "injected_import_transaction_begin"}});
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to start import publication transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    if (impl_->consume_import_failure(testing::SqliteImportFailure::kAssetBind))
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kIo,
+                                                   "Injected catalog import failure",
+                                                   {{"reason", "injected_import_asset_bind"}}));
+    }
+    const auto inserted = insert_asset(asset);
+    if (!inserted)
+    {
+        return impl_->abort_transaction(inserted.error());
+    }
+    if (impl_->consume_import_failure(testing::SqliteImportFailure::kAssetWrite))
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kIo,
+                                                   "Injected catalog import failure",
+                                                   {{"reason", "injected_import_asset_write"}}));
+    }
+    if (capture_metadata_has_values(asset.capture))
+    {
+        if (impl_->consume_import_failure(testing::SqliteImportFailure::kCaptureBind))
+        {
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kIo, "Injected catalog import failure",
+                           {{"reason", "injected_import_capture_bind"}}));
+        }
+        const auto captured = upsert_capture_metadata(asset.id, asset.capture);
+        if (!captured)
+        {
+            return impl_->abort_transaction(captured.error());
+        }
+        if (impl_->consume_import_failure(testing::SqliteImportFailure::kCaptureWrite))
+        {
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kIo, "Injected catalog import failure",
+                           {{"reason", "injected_import_capture_write"}}));
+        }
+    }
+    if (impl_->consume_import_failure(testing::SqliteImportFailure::kRevisionUpdate))
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Injected catalog import failure",
+                       {{"reason", "injected_import_revision_update"}}));
+    }
+    QSqlQuery revision_query(impl_->database);
+    if (!revision_query.exec(
+            QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+    {
+        return impl_->abort_transaction(map_sql_error(revision_query, "bump_import_revision"));
+    }
+    if (impl_->consume_import_failure(testing::SqliteImportFailure::kRevisionRead))
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kIo,
+                                                   "Injected catalog import failure",
+                                                   {{"reason", "injected_import_revision_read"}}));
+    }
+    if (!revision_query.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision_query.next())
+    {
+        return impl_->abort_transaction(map_sql_error(revision_query, "read_import_revision"));
+    }
+    const auto revision = revision_query.value(0).toLongLong();
+    if (impl_->consume_import_failure(testing::SqliteImportFailure::kCommit))
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kIo,
+                                                   "Injected catalog import failure",
+                                                   {{"reason", "injected_import_commit"}}));
+    }
+    if (impl_->import_failure == testing::SqliteImportFailure::kRollback)
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Injected catalog import failure",
+                       {{"reason", "injected_import_before_rollback"}}));
+    }
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit import publication",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = revision;
     return {};
 }
 
@@ -1167,9 +1594,9 @@ SqliteCatalogRepository::list_recipe_history(const std::string_view asset_id) co
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
     QSqlQuery query(impl_->database);
-    query.prepare(QStringLiteral(
-        "SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
-        "FROM asset_recipe_history WHERE asset_id = ? ORDER BY seq DESC, id DESC"));
+    query.prepare(
+        QStringLiteral("SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
+                       "FROM asset_recipe_history WHERE asset_id = ? ORDER BY seq DESC, id DESC"));
     query.addBindValue(qstring_from_utf8(asset_id));
     if (!query.exec())
     {
@@ -1191,9 +1618,9 @@ SqliteCatalogRepository::find_recipe_history(const std::int64_t history_id) cons
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
     QSqlQuery query(impl_->database);
-    query.prepare(QStringLiteral(
-        "SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
-        "FROM asset_recipe_history WHERE id = ?"));
+    query.prepare(
+        QStringLiteral("SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
+                       "FROM asset_recipe_history WHERE id = ?"));
     query.addBindValue(static_cast<qlonglong>(history_id));
     if (!query.exec())
     {
@@ -1206,11 +1633,9 @@ SqliteCatalogRepository::find_recipe_history(const std::int64_t history_id) cons
     return std::optional<RecipeHistoryEntry>{read_history(query)};
 }
 
-Result<RecipeHistoryEntry>
-SqliteCatalogRepository::append_recipe_history(const std::string_view asset_id,
-                                               const std::string_view kind,
-                                               const std::optional<std::string_view> label,
-                                               const std::string_view recipe_json)
+Result<RecipeHistoryEntry> SqliteCatalogRepository::append_recipe_history(
+    const std::string_view asset_id, const std::string_view kind,
+    const std::optional<std::string_view> label, const std::string_view recipe_json)
 {
     if (impl_ == nullptr)
     {
@@ -1222,8 +1647,8 @@ SqliteCatalogRepository::append_recipe_history(const std::string_view asset_id,
                           {{"kind", std::string(kind)}});
     }
     QSqlQuery max_seq(impl_->database);
-    max_seq.prepare(
-        QStringLiteral("SELECT COALESCE(MAX(seq), 0) FROM asset_recipe_history WHERE asset_id = ?"));
+    max_seq.prepare(QStringLiteral(
+        "SELECT COALESCE(MAX(seq), 0) FROM asset_recipe_history WHERE asset_id = ?"));
     max_seq.addBindValue(qstring_from_utf8(asset_id));
     if (!max_seq.exec() || !max_seq.next())
     {

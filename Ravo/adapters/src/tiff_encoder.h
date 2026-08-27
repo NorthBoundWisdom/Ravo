@@ -39,6 +39,10 @@ enum class TiffEncodeCheckpoint
     kMetadata,
     kScanline,
     kBeforeFinish,
+    kExifDirectory,
+    kGpsDirectory,
+    kRestoreMainDirectory,
+    kLinkDirectories,
 };
 
 enum class TiffEncodeInjectedFailure
@@ -51,6 +55,13 @@ enum class TiffEncodeInjectedFailure
     kClientCloseFailure,
     kFinalizeFailure,
     kMetadataTagFailure,
+    kExifCreateDirectoryFailure,
+    kExifWriteDirectoryFailure,
+    kGpsCreateDirectoryFailure,
+    kGpsWriteDirectoryFailure,
+    kRestoreDirectoryFailure,
+    kLinkExifIfdFailure,
+    kGpsLinkIfdFailure,
 };
 
 using TiffEncodeCheckpointCallback = TiffEncodeInjectedFailure (*)(

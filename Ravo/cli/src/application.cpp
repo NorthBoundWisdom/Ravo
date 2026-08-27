@@ -740,15 +740,44 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"description", optional_string_json(asset.metadata.description)},
         {"title", optional_string_json(asset.metadata.title)},
     };
+    JsonValue captured_at{nullptr};
+    if (asset.capture.captured_datetime)
+    {
+        captured_at = format_capture_datetime_iso(*asset.capture.captured_datetime);
+    }
+    JsonValue gps{nullptr};
+    if (asset.capture.location)
+    {
+        JsonValue::Object gps_object{
+            {"latitude",
+             JsonValue::number(format_scaled_decimal(asset.capture.location->latitude_e6, 6))},
+            {"longitude",
+             JsonValue::number(format_scaled_decimal(asset.capture.location->longitude_e6, 6))},
+        };
+        if (asset.capture.location->altitude)
+        {
+            const auto &altitude = *asset.capture.location->altitude;
+            std::int64_t signed_mm = static_cast<std::int64_t>(altitude.magnitude_mm);
+            if (altitude.reference == CaptureAltitudeReference::kBelowSeaLevel)
+            {
+                signed_mm = -signed_mm;
+            }
+            gps_object.emplace("altitude_m",
+                               JsonValue::number(format_scaled_decimal(signed_mm, 3)));
+        }
+        gps = std::move(gps_object);
+    }
     JsonValue::Object capture{
         {"aperture", asset.capture.aperture ?
                          JsonValue::number(std::to_string(*asset.capture.aperture)) :
                          JsonValue{nullptr}},
         {"camera_make", optional_string_json(asset.capture.camera_make)},
         {"camera_model", optional_string_json(asset.capture.camera_model)},
+        {"captured_at", std::move(captured_at)},
         {"focal_length_mm", asset.capture.focal_length_mm ?
                                 JsonValue::number(std::to_string(*asset.capture.focal_length_mm)) :
                                 JsonValue{nullptr}},
+        {"gps", std::move(gps)},
         {"iso", asset.capture.iso ? JsonValue::number(std::to_string(*asset.capture.iso)) :
                                     JsonValue{nullptr}},
         {"shutter_s", asset.capture.shutter_s ?

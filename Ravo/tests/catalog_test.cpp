@@ -1,10 +1,13 @@
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <system_error>
 #include <vector>
+
+#include <zlib.h>
 
 #include <QBuffer>
 #include <QByteArray>
@@ -33,7 +36,10 @@
 #include "ravo/recipe/primaries.h"
 #include "ravo/services/catalog_service.h"
 
+#include "capture_metadata_test_support.h"
+#include "catalog_service_test_support.h"
 #include "color_balance_fixture.h"
+#include "catalog_repository_test_control.h"
 #include "temperature_fixture.h"
 
 namespace ravo
@@ -90,6 +96,7 @@ protected:
     void TearDown() override
     {
         service.reset();
+        sqlite_repository = nullptr;
         std::error_code ignored;
         std::filesystem::remove_all(root, ignored);
     }
@@ -107,7 +114,9 @@ protected:
         {
             return cache.error();
         }
-        service = std::make_unique<CatalogService>(engine, std::move(repository).value(),
+        auto owned_repository = std::move(repository).value();
+        sqlite_repository = owned_repository.get();
+        service = std::make_unique<CatalogService>(engine, std::move(owned_repository),
                                                    std::make_unique<QtRasterDecoder>(),
                                                    std::move(cache).value());
         return {};
@@ -121,6 +130,7 @@ protected:
     std::filesystem::path root;
     std::string database_path;
     std::unique_ptr<CatalogService> service;
+    SqliteCatalogRepository *sqlite_repository = nullptr;
 };
 
 TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
@@ -435,7 +445,8 @@ TEST_F(CatalogServiceTest, MissingOriginalIsAssetStateNotPreviewFailureWhenCache
     ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
     auto imported = service->import_one(jpeg_path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
-    ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(imported.value().asset)
+        << (imported.value().error ? imported.value().error->message : std::string("no asset"));
     const auto asset_id = imported.value().asset->id;
     ASSERT_TRUE(std::filesystem::remove(jpeg_path));
 
@@ -2214,6 +2225,874 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     ASSERT_FALSE(missing_result);
     EXPECT_EQ(missing_result.error().code, ErrorCode::kIo);
     EXPECT_FALSE(std::filesystem::exists(missing_directory.output_path));
+}
+
+[[nodiscard]] std::vector<std::uint8_t> make_synthetic_capture_exif_tiff()
+{
+    return {
+        0x49U, 0x49U, 0x2AU, 0x00U, 0x08U, 0x00U, 0x00U, 0x00U, 0x02U, 0x00U, 0x69U, 0x87U, 0x04U,
+        0x00U, 0x01U, 0x00U, 0x00U, 0x00U, 0x26U, 0x00U, 0x00U, 0x00U, 0x25U, 0x88U, 0x04U, 0x00U,
+        0x01U, 0x00U, 0x00U, 0x00U, 0x6CU, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x03U,
+        0x00U, 0x03U, 0x90U, 0x02U, 0x00U, 0x14U, 0x00U, 0x00U, 0x00U, 0x50U, 0x00U, 0x00U, 0x00U,
+        0x11U, 0x90U, 0x02U, 0x00U, 0x07U, 0x00U, 0x00U, 0x00U, 0x64U, 0x00U, 0x00U, 0x00U, 0x91U,
+        0x92U, 0x02U, 0x00U, 0x03U, 0x00U, 0x00U, 0x00U, 0x31U, 0x38U, 0x00U, 0x00U, 0x00U, 0x00U,
+        0x00U, 0x00U, 0x32U, 0x30U, 0x30U, 0x37U, 0x3AU, 0x30U, 0x39U, 0x3AU, 0x31U, 0x31U, 0x20U,
+        0x31U, 0x33U, 0x3AU, 0x35U, 0x33U, 0x3AU, 0x33U, 0x33U, 0x00U, 0x2BU, 0x30U, 0x32U, 0x3AU,
+        0x30U, 0x30U, 0x00U, 0x00U, 0x07U, 0x00U, 0x00U, 0x00U, 0x01U, 0x00U, 0x04U, 0x00U, 0x00U,
+        0x00U, 0x02U, 0x03U, 0x00U, 0x00U, 0x01U, 0x00U, 0x02U, 0x00U, 0x02U, 0x00U, 0x00U, 0x00U,
+        0x4EU, 0x00U, 0x00U, 0x00U, 0x02U, 0x00U, 0x05U, 0x00U, 0x03U, 0x00U, 0x00U, 0x00U, 0xC6U,
+        0x00U, 0x00U, 0x00U, 0x03U, 0x00U, 0x02U, 0x00U, 0x02U, 0x00U, 0x00U, 0x00U, 0x45U, 0x00U,
+        0x00U, 0x00U, 0x04U, 0x00U, 0x05U, 0x00U, 0x03U, 0x00U, 0x00U, 0x00U, 0xDEU, 0x00U, 0x00U,
+        0x00U, 0x05U, 0x00U, 0x01U, 0x00U, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U,
+        0x06U, 0x00U, 0x05U, 0x00U, 0x01U, 0x00U, 0x00U, 0x00U, 0xF6U, 0x00U, 0x00U, 0x00U, 0x00U,
+        0x00U, 0x00U, 0x00U, 0x31U, 0x00U, 0x00U, 0x00U, 0x01U, 0x00U, 0x00U, 0x00U, 0x0FU, 0x00U,
+        0x00U, 0x00U, 0x01U, 0x00U, 0x00U, 0x00U, 0xDFU, 0x71U, 0x00U, 0x00U, 0xC4U, 0x09U, 0x00U,
+        0x00U, 0x03U, 0x00U, 0x00U, 0x00U, 0x01U, 0x00U, 0x00U, 0x00U, 0x03U, 0x00U, 0x00U, 0x00U,
+        0x01U, 0x00U, 0x00U, 0x00U, 0xEEU, 0x1AU, 0x00U, 0x00U, 0xC4U, 0x09U, 0x00U, 0x00U, 0x48U,
+        0x3CU, 0x00U, 0x00U, 0x7DU, 0x00U, 0x00U, 0x00U};
+}
+
+[[nodiscard]] std::string write_synthetic_jpeg_with_capture(const std::filesystem::path &path)
+{
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(20, 40, 60));
+    QByteArray jpeg;
+    QBuffer buffer(&jpeg);
+    buffer.open(QIODevice::WriteOnly);
+    EXPECT_TRUE(image.save(&buffer, "JPEG", 90));
+    EXPECT_GE(jpeg.size(), 2);
+    EXPECT_EQ(static_cast<unsigned char>(jpeg[0]), 0xFF);
+    EXPECT_EQ(static_cast<unsigned char>(jpeg[1]), 0xD8);
+    const auto tiff = make_synthetic_capture_exif_tiff();
+    QByteArray app1;
+    app1.append(static_cast<char>(0xFF));
+    app1.append(static_cast<char>(0xE1));
+    const auto payload = 2 + 6 + static_cast<int>(tiff.size());
+    app1.append(static_cast<char>((payload >> 8) & 0xFF));
+    app1.append(static_cast<char>(payload & 0xFF));
+    app1.append("Exif", 4);
+    app1.append('\0');
+    app1.append('\0');
+    app1.append(reinterpret_cast<const char *>(tiff.data()), static_cast<int>(tiff.size()));
+    jpeg.insert(2, app1);
+    QFile file(QString::fromStdString(path.string()));
+    EXPECT_TRUE(file.open(QIODevice::WriteOnly));
+    EXPECT_EQ(file.write(jpeg), jpeg.size());
+    file.close();
+    return path.string();
+}
+
+TEST_F(CatalogServiceTest, ImportsMire1AsLocalCaptureWithoutOffsetOrGps)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto source_hash = file_sha256(raw_fixture_path());
+    const auto source_mtime = std::filesystem::last_write_time(raw_fixture_path());
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(imported.value().asset->capture.captured_datetime);
+    EXPECT_EQ(imported.value().asset->capture.captured_datetime->local_exif, "2007:09:11 13:53:33");
+    ASSERT_TRUE(imported.value().asset->capture.captured_datetime->subsecond_digits);
+    EXPECT_EQ(*imported.value().asset->capture.captured_datetime->subsecond_digits, "18");
+    EXPECT_FALSE(imported.value().asset->capture.captured_datetime->utc_offset_minutes);
+    EXPECT_FALSE(imported.value().asset->capture.location);
+    EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
+    EXPECT_EQ(std::filesystem::last_write_time(raw_fixture_path()), source_mtime);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    ASSERT_TRUE(listed.value().front().capture.captured_datetime);
+    EXPECT_EQ(listed.value().front().capture.captured_datetime->local_exif, "2007:09:11 13:53:33");
+    EXPECT_EQ(*listed.value().front().capture.captured_datetime->subsecond_digits, "18");
+    EXPECT_FALSE(listed.value().front().capture.captured_datetime->utc_offset_minutes);
+    EXPECT_FALSE(listed.value().front().capture.location);
+
+    auto before_duplicate = service->snapshot();
+    ASSERT_TRUE(before_duplicate);
+    auto duplicate = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(duplicate) << duplicate.error().message;
+    EXPECT_EQ(duplicate.value().status, ImportItemStatus::kDuplicate);
+    EXPECT_EQ(duplicate.value().asset->id, imported.value().asset->id);
+    EXPECT_EQ(duplicate.value().asset->capture.captured_datetime,
+              imported.value().asset->capture.captured_datetime);
+    EXPECT_EQ(duplicate.value().asset->capture.location, imported.value().asset->capture.location);
+    auto after_duplicate = service->snapshot();
+    ASSERT_TRUE(after_duplicate);
+    EXPECT_EQ(after_duplicate.value().revision, before_duplicate.value().revision);
+}
+
+TEST_F(CatalogServiceTest, ImportsSyntheticJpegCaptureTimeAndGps)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "zoned.jpg");
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(imported.value().asset->capture.captured_datetime);
+    EXPECT_EQ(imported.value().asset->capture.captured_datetime->local_exif, "2007:09:11 13:53:33");
+    EXPECT_EQ(*imported.value().asset->capture.captured_datetime->subsecond_digits, "18");
+    ASSERT_TRUE(imported.value().asset->capture.captured_datetime->utc_offset_minutes);
+    EXPECT_EQ(*imported.value().asset->capture.captured_datetime->utc_offset_minutes, 120);
+    ASSERT_TRUE(imported.value().asset->capture.location);
+    EXPECT_EQ(imported.value().asset->capture.location->latitude_e6, 49253239);
+    EXPECT_EQ(imported.value().asset->capture.location->longitude_e6, 3050766);
+    ASSERT_TRUE(imported.value().asset->capture.location->altitude);
+    EXPECT_EQ(imported.value().asset->capture.location->altitude->magnitude_mm, 123456U);
+    EXPECT_EQ(imported.value().asset->capture.location->altitude->reference,
+              CaptureAltitudeReference::kAboveSeaLevel);
+}
+
+TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
+{
+    {
+        const auto connection = QStringLiteral("ravo_v4_seed");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset (id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, mtime_unix_ms INTEGER NOT NULL, "
+            "content_fingerprint TEXT, width INTEGER, height INTEGER, import_state TEXT NOT NULL, "
+            "error_code TEXT, error_message TEXT, created_unix_ms INTEGER NOT NULL, "
+            "rating INTEGER NOT NULL DEFAULT 0, color_label TEXT NOT NULL DEFAULT 'none', "
+            "rejected INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("CREATE TABLE asset_recipe ("
+                           "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+                           "  recipe_schema_version INTEGER NOT NULL,"
+                           "  recipe_json TEXT NOT NULL,"
+                           "  updated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("CREATE TABLE asset_tag ("
+                           "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+                           "  name TEXT NOT NULL, PRIMARY KEY (asset_id, name))")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "title TEXT, description TEXT, creator TEXT, copyright TEXT, camera_make TEXT, "
+            "camera_model TEXT, iso REAL, aperture REAL, focal_length_mm REAL, shutter_s REAL, "
+            "captured_unix_s INTEGER)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+            "migrated_unix_ms) VALUES (1, 4, 'cat_v4', 3, 1, 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset(id, normalized_uri, media_type, size_bytes, mtime_unix_ms, "
+            "import_state, created_unix_ms) VALUES ('ast_old', 'file:///tmp/old.png', "
+            "'image/png', 12, 1, 'imported', 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset_metadata(asset_id, captured_unix_s) VALUES ('ast_old', 1189514013)")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto opened = open_service(false);
+    ASSERT_TRUE(opened) << opened.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, 5);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().capture.captured_unix_s, 1189514013);
+    EXPECT_FALSE(listed.value().front().capture.captured_datetime);
+    EXPECT_FALSE(listed.value().front().capture.location);
+}
+
+TEST_F(CatalogServiceTest, V5MigrationFailureRollsBackUnchangedV4)
+{
+    {
+        const auto connection = QStringLiteral("ravo_v4_conflict");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset (id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, mtime_unix_ms INTEGER NOT NULL, "
+            "content_fingerprint TEXT, width INTEGER, height INTEGER, import_state TEXT NOT NULL, "
+            "error_code TEXT, error_message TEXT, created_unix_ms INTEGER NOT NULL, "
+            "rating INTEGER NOT NULL DEFAULT 0, color_label TEXT NOT NULL DEFAULT 'none', "
+            "rejected INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY, captured_unix_s INTEGER, "
+            "captured_local_exif TEXT)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+            "migrated_unix_ms) VALUES (1, 4, 'cat_v4_conflict', 2, 1, 1)")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto opened = open_service(false);
+    ASSERT_FALSE(opened);
+    EXPECT_EQ(opened.error().code, ErrorCode::kIo);
+
+    const auto connection = QStringLiteral("ravo_v4_conflict_check");
+    auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+    database.setDatabaseName(QString::fromStdString(database_path));
+    ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+    QSqlQuery query(database);
+    ASSERT_TRUE(query.exec(
+        QStringLiteral("SELECT schema_version, revision FROM schema_info WHERE id = 1")));
+    ASSERT_TRUE(query.next());
+    EXPECT_EQ(query.value(0).toLongLong(), 4);
+    EXPECT_EQ(query.value(1).toLongLong(), 2);
+    database.close();
+    database = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connection);
+}
+
+TEST_F(CatalogServiceTest, EveryV5MigrationPublicationFailureRestoresTheV4Catalog)
+{
+    enum class FailureKind
+    {
+        kAlter,
+        kSchemaInfo,
+        kCommit,
+    };
+    struct FailureCase
+    {
+        const char *name;
+        FailureKind kind;
+        const char *conflicting_column;
+        const char *conflicting_type;
+    };
+    const std::array<FailureCase, 9> cases{{
+        {"captured-local", FailureKind::kAlter, "captured_local_exif", "TEXT"},
+        {"captured-subsecond", FailureKind::kAlter, "captured_subsecond_digits", "TEXT"},
+        {"captured-offset", FailureKind::kAlter, "captured_utc_offset_minutes", "INTEGER"},
+        {"gps-latitude", FailureKind::kAlter, "gps_latitude_e6", "INTEGER"},
+        {"gps-longitude", FailureKind::kAlter, "gps_longitude_e6", "INTEGER"},
+        {"gps-altitude", FailureKind::kAlter, "gps_altitude_magnitude_mm", "INTEGER"},
+        {"gps-altitude-ref", FailureKind::kAlter, "gps_altitude_ref", "INTEGER"},
+        {"schema-info", FailureKind::kSchemaInfo, nullptr, nullptr},
+        {"commit", FailureKind::kCommit, nullptr, nullptr},
+    }};
+    const std::array<std::string, 7> capture_columns{
+        "captured_local_exif", "captured_subsecond_digits", "captured_utc_offset_minutes",
+        "gps_latitude_e6",     "gps_longitude_e6",          "gps_altitude_magnitude_mm",
+        "gps_altitude_ref",
+    };
+
+    for (std::size_t index = 0; index < cases.size(); ++index)
+    {
+        const auto &test_case = cases[index];
+        const auto path =
+            (root / (std::string("migration-") + test_case.name + ".sqlite")).string();
+        const QString seed_connection = QStringLiteral("ravo_v5_failure_seed_%1").arg(index);
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), seed_connection);
+            database.setDatabaseName(QString::fromStdString(path));
+            ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+            QSqlQuery query(database);
+            ASSERT_TRUE(query.exec(QStringLiteral(
+                "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+                "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+                "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+            QString metadata = QStringLiteral(
+                "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY, captured_unix_s INTEGER");
+            if (test_case.kind == FailureKind::kAlter)
+            {
+                metadata +=
+                    QStringLiteral(", %1 %2").arg(QString::fromLatin1(test_case.conflicting_column),
+                                                  QString::fromLatin1(test_case.conflicting_type));
+            }
+            metadata += QLatin1Char(')');
+            ASSERT_TRUE(query.exec(metadata)) << query.lastError().text().toStdString();
+            ASSERT_TRUE(query.exec(QStringLiteral(
+                "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+                "migrated_unix_ms) VALUES (1, 4, 'cat_v4_failure', 7, 11, 13)")));
+            ASSERT_TRUE(query.exec(QStringLiteral(
+                "INSERT INTO asset_metadata(asset_id, captured_unix_s) VALUES ('ast_old', 123)")));
+            if (test_case.kind == FailureKind::kSchemaInfo)
+            {
+                ASSERT_TRUE(query.exec(QStringLiteral(
+                    "CREATE TRIGGER reject_schema_info BEFORE UPDATE OF schema_version ON schema_info "
+                    "BEGIN SELECT RAISE(ABORT, 'forced schema-info failure'); END")));
+            }
+            if (test_case.kind == FailureKind::kCommit)
+            {
+                ASSERT_TRUE(query.exec(
+                    QStringLiteral("CREATE TABLE migration_parent(id INTEGER PRIMARY KEY)")));
+                ASSERT_TRUE(query.exec(QStringLiteral(
+                    "CREATE TABLE migration_child(parent_id INTEGER, FOREIGN KEY(parent_id) "
+                    "REFERENCES migration_parent(id) DEFERRABLE INITIALLY DEFERRED)")));
+                ASSERT_TRUE(query.exec(QStringLiteral(
+                    "CREATE TRIGGER reject_migration_commit AFTER UPDATE OF schema_version ON "
+                    "schema_info BEGIN INSERT INTO migration_child(parent_id) VALUES (99); END")));
+            }
+            database.close();
+            database = QSqlDatabase();
+        }
+        QSqlDatabase::removeDatabase(seed_connection);
+
+        auto opened = SqliteCatalogRepository::open(path);
+        ASSERT_FALSE(opened) << test_case.name;
+        EXPECT_EQ(opened.error().code, ErrorCode::kIo) << test_case.name;
+
+        const QString check_connection = QStringLiteral("ravo_v5_failure_check_%1").arg(index);
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), check_connection);
+            database.setDatabaseName(QString::fromStdString(path));
+            ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+            QSqlQuery query(database);
+            ASSERT_TRUE(query.exec(QStringLiteral(
+                "SELECT schema_version, revision, created_unix_ms, migrated_unix_ms FROM "
+                "schema_info WHERE id = 1")));
+            ASSERT_TRUE(query.next());
+            EXPECT_EQ(query.value(0).toLongLong(), 4) << test_case.name;
+            EXPECT_EQ(query.value(1).toLongLong(), 7) << test_case.name;
+            EXPECT_EQ(query.value(2).toLongLong(), 11) << test_case.name;
+            EXPECT_EQ(query.value(3).toLongLong(), 13) << test_case.name;
+            ASSERT_TRUE(query.exec(QStringLiteral("SELECT captured_unix_s FROM asset_metadata "
+                                                  "WHERE asset_id = 'ast_old'")));
+            ASSERT_TRUE(query.next());
+            EXPECT_EQ(query.value(0).toLongLong(), 123) << test_case.name;
+            ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA table_info(asset_metadata)")));
+            std::vector<std::string> columns;
+            while (query.next())
+            {
+                columns.push_back(query.value(1).toString().toStdString());
+            }
+            for (const auto &column : capture_columns)
+            {
+                const bool existed_before =
+                    test_case.kind == FailureKind::kAlter && column == test_case.conflicting_column;
+                EXPECT_EQ(std::find(columns.begin(), columns.end(), column) != columns.end(),
+                          existed_before)
+                    << test_case.name << ": " << column;
+            }
+            if (test_case.kind == FailureKind::kCommit)
+            {
+                ASSERT_TRUE(query.exec(QStringLiteral("SELECT COUNT(*) FROM migration_child")));
+                ASSERT_TRUE(query.next());
+                EXPECT_EQ(query.value(0).toLongLong(), 0) << test_case.name;
+            }
+            database.close();
+            database = QSqlDatabase();
+        }
+        QSqlDatabase::removeDatabase(check_connection);
+    }
+}
+
+TEST_F(CatalogServiceTest, CaptureRowFailureRollsBackInvisibleAsset)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
+    {
+        const auto connection = QStringLiteral("ravo_capture_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("CREATE TRIGGER fail_capture BEFORE INSERT ON asset_metadata "
+                                      "BEGIN SELECT RAISE(ABORT, 'forced capture failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported);
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
+    EXPECT_FALSE(imported.value().asset);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    EXPECT_TRUE(listed.value().empty());
+    auto snapshot_after = service->snapshot();
+    ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
+    EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
+}
+
+TEST_F(CatalogServiceTest, RejectsPartialAndOutOfRangePersistedCaptureCoordinates)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(png_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    const auto write_capture_sql = [&](const QString &connection, const QString &statement)
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        EXPECT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        query.prepare(statement);
+        query.addBindValue(QString::fromStdString(asset_id));
+        EXPECT_TRUE(query.exec()) << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    };
+
+    write_capture_sql(
+        QStringLiteral("ravo_partial_capture_state"),
+        QStringLiteral(
+            "UPDATE asset_metadata SET gps_latitude_e6 = 1, gps_longitude_e6 = NULL, "
+            "gps_altitude_magnitude_mm = NULL, gps_altitude_ref = NULL WHERE asset_id = ?"));
+    ASSERT_TRUE(open_service(false));
+    auto listed = service->list_assets();
+    ASSERT_FALSE(listed);
+    EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_location");
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    write_capture_sql(
+        QStringLiteral("ravo_oversized_capture_state"),
+        QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = 9223372036854775807, "
+                       "gps_longitude_e6 = 0 WHERE asset_id = ?"));
+    ASSERT_TRUE(open_service(false));
+    listed = service->list_assets();
+    ASSERT_FALSE(listed);
+    EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_integer");
+    EXPECT_EQ(listed.error().context.at("field"), "gps_latitude_e6");
+}
+
+TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(png_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    const auto write_sql = [&](const QString &connection, const QString &statement)
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        EXPECT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery ensure(database);
+        ensure.prepare(QStringLiteral("INSERT OR IGNORE INTO asset_metadata(asset_id) VALUES (?)"));
+        ensure.addBindValue(QString::fromStdString(asset_id));
+        EXPECT_TRUE(ensure.exec()) << ensure.lastError().text().toStdString();
+        QSqlQuery reset(database);
+        reset.prepare(QStringLiteral(
+            "UPDATE asset_metadata SET captured_local_exif = NULL, "
+            "captured_subsecond_digits = NULL, captured_utc_offset_minutes = NULL, "
+            "gps_latitude_e6 = NULL, gps_longitude_e6 = NULL, "
+            "gps_altitude_magnitude_mm = NULL, gps_altitude_ref = NULL WHERE asset_id = ?"));
+        reset.addBindValue(QString::fromStdString(asset_id));
+        EXPECT_TRUE(reset.exec()) << reset.lastError().text().toStdString();
+        QSqlQuery query(database);
+        query.prepare(statement);
+        query.addBindValue(QString::fromStdString(asset_id));
+        EXPECT_TRUE(query.exec()) << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    };
+
+    struct WrongStorageCase
+    {
+        const char *connection;
+        const char *field;
+        const char *statement;
+    };
+    const std::array<WrongStorageCase, 7U> wrong_storage{{
+        {"ravo_blob_in_local", "captured_local_exif",
+         "UPDATE asset_metadata SET captured_local_exif = X'31' WHERE asset_id = ?"},
+        {"ravo_blob_in_subsecond", "captured_subsecond_digits",
+         "UPDATE asset_metadata SET captured_subsecond_digits = X'31' WHERE asset_id = ?"},
+        {"ravo_text_in_offset", "captured_utc_offset_minutes",
+         "UPDATE asset_metadata SET captured_utc_offset_minutes = 'bad' WHERE asset_id = ?"},
+        {"ravo_text_in_latitude", "gps_latitude_e6",
+         "UPDATE asset_metadata SET gps_latitude_e6 = 'north' WHERE asset_id = ?"},
+        {"ravo_text_in_longitude", "gps_longitude_e6",
+         "UPDATE asset_metadata SET gps_longitude_e6 = 'east' WHERE asset_id = ?"},
+        {"ravo_text_in_altitude", "gps_altitude_magnitude_mm",
+         "UPDATE asset_metadata SET gps_altitude_magnitude_mm = 'high' WHERE asset_id = ?"},
+        {"ravo_text_in_altitude_ref", "gps_altitude_ref",
+         "UPDATE asset_metadata SET gps_altitude_ref = 'below' WHERE asset_id = ?"},
+    }};
+    for (const auto &test_case : wrong_storage)
+    {
+        write_sql(QString::fromUtf8(test_case.connection), QString::fromUtf8(test_case.statement));
+        ASSERT_TRUE(open_service(false));
+        auto listed = service->list_assets();
+        ASSERT_FALSE(listed) << test_case.field;
+        EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_storage_class")
+            << test_case.field;
+        EXPECT_EQ(listed.error().context.at("field"), test_case.field);
+        ASSERT_TRUE(service->close());
+        service.reset();
+    }
+
+    write_sql(QStringLiteral("ravo_real_in_int"),
+              QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = 1.5 WHERE asset_id = ?"));
+    ASSERT_TRUE(open_service(false));
+    auto listed = service->list_assets();
+    ASSERT_FALSE(listed);
+    EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_storage_class");
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    write_sql(QStringLiteral("ravo_partial_datetime"),
+              QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = NULL, "
+                             "gps_longitude_e6 = NULL, captured_local_exif = NULL, "
+                             "captured_subsecond_digits = '18' WHERE asset_id = ?"));
+    ASSERT_TRUE(open_service(false));
+    listed = service->list_assets();
+    ASSERT_FALSE(listed);
+    EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_datetime");
+    ASSERT_TRUE(service->close());
+    service.reset();
+
+    write_sql(QStringLiteral("ravo_partial_altitude"),
+              QStringLiteral("UPDATE asset_metadata SET captured_subsecond_digits = NULL, "
+                             "gps_latitude_e6 = 1, gps_longitude_e6 = 2, "
+                             "gps_altitude_magnitude_mm = 0, gps_altitude_ref = NULL "
+                             "WHERE asset_id = ?"));
+    ASSERT_TRUE(open_service(false));
+    listed = service->list_assets();
+    ASSERT_FALSE(listed);
+    EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_altitude");
+}
+
+TEST_F(CatalogServiceTest, ReopensZeroOffsetCoordinatesAndBothZeroAltitudeReferencesExactly)
+{
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    for (const auto reference :
+         {CaptureAltitudeReference::kAboveSeaLevel, CaptureAltitudeReference::kBelowSeaLevel})
+    {
+        AssetRecord asset;
+        asset.id = reference == CaptureAltitudeReference::kAboveSeaLevel ? "ast_zero_above" :
+                                                                           "ast_zero_below";
+        asset.normalized_uri = "file:///tmp/" + asset.id + ".tif";
+        asset.media_type = "image/tiff";
+        asset.size_bytes = 3U;
+        asset.mtime_unix_ms = 1;
+        asset.created_unix_ms = 2;
+        asset.capture.captured_datetime = CaptureDateTime{"2007:09:11 13:53:33", std::nullopt, 0};
+        asset.capture.location = CaptureLocation{0, 0, CaptureAltitude{0U, reference}};
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    }
+    auto snapshot = repository.value()->snapshot();
+    ASSERT_TRUE(snapshot);
+    EXPECT_EQ(snapshot.value().revision, 2);
+    ASSERT_TRUE(repository.value()->close());
+    repository = SqliteCatalogRepository::open(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    auto assets = repository.value()->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    ASSERT_EQ(assets.value().size(), 2U);
+    for (const auto &asset : assets.value())
+    {
+        ASSERT_TRUE(asset.capture.captured_datetime);
+        ASSERT_TRUE(asset.capture.captured_datetime->utc_offset_minutes);
+        EXPECT_EQ(*asset.capture.captured_datetime->utc_offset_minutes, 0);
+        ASSERT_TRUE(asset.capture.location);
+        EXPECT_EQ(asset.capture.location->latitude_e6, 0);
+        EXPECT_EQ(asset.capture.location->longitude_e6, 0);
+        ASSERT_TRUE(asset.capture.location->altitude);
+        EXPECT_EQ(asset.capture.location->altitude->magnitude_mm, 0U);
+        const auto expected = asset.id == "ast_zero_above" ?
+                                  CaptureAltitudeReference::kAboveSeaLevel :
+                                  CaptureAltitudeReference::kBelowSeaLevel;
+        EXPECT_EQ(asset.capture.location->altitude->reference, expected);
+    }
+}
+
+TEST_F(CatalogServiceTest, ImportInjectionMatrixLeavesNoVisibleAsset)
+{
+    ASSERT_TRUE(open_service(true));
+    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(snapshot_before);
+    const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "inject.jpg");
+    const std::array<testing::SqliteImportFailure, 10> failures{
+        testing::SqliteImportFailure::kTransactionBegin,
+        testing::SqliteImportFailure::kAssetBind,
+        testing::SqliteImportFailure::kAssetWrite,
+        testing::SqliteImportFailure::kCaptureBind,
+        testing::SqliteImportFailure::kCaptureWrite,
+        testing::SqliteImportFailure::kRevisionUpdate,
+        testing::SqliteImportFailure::kRevisionRead,
+        testing::SqliteImportFailure::kCommit,
+        testing::SqliteImportFailure::kRollback,
+        testing::SqliteImportFailure::kNone,
+    };
+    for (const auto failure : failures)
+    {
+        if (failure == testing::SqliteImportFailure::kNone)
+        {
+            continue;
+        }
+        ASSERT_NE(sqlite_repository, nullptr);
+        testing::SqliteCatalogTestControl::inject(*sqlite_repository, failure);
+        auto imported = service->import_one(jpeg_path, CancellationToken{});
+        ASSERT_TRUE(imported) << static_cast<int>(failure);
+        EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
+        EXPECT_FALSE(imported.value().asset);
+        auto listed = service->list_assets();
+        ASSERT_TRUE(listed) << listed.error().message;
+        EXPECT_TRUE(listed.value().empty());
+        auto snapshot = service->snapshot();
+        ASSERT_TRUE(snapshot);
+        EXPECT_EQ(snapshot.value().revision, snapshot_before.value().revision);
+        if (failure == testing::SqliteImportFailure::kRollback)
+        {
+            ASSERT_TRUE(imported.value().error);
+            EXPECT_EQ(imported.value().error->context.at("rollback_failed"), "true");
+            EXPECT_EQ(imported.value().error->context.at("rollback_error"),
+                      "injected_import_rollback");
+        }
+        ASSERT_TRUE(service->close());
+        service.reset();
+        sqlite_repository = nullptr;
+        ASSERT_TRUE(open_service(false));
+        auto reopened = service->list_assets();
+        ASSERT_TRUE(reopened) << reopened.error().message;
+        EXPECT_TRUE(reopened.value().empty());
+    }
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto reopened = service->list_assets();
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    EXPECT_TRUE(reopened.value().empty());
+}
+
+TEST_F(CatalogServiceTest, CancellationAfterExifReadPreventsPublication)
+{
+    ASSERT_TRUE(open_service(true));
+    auto before = service->snapshot();
+    ASSERT_TRUE(before);
+    const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "cancel-after-exif.jpg");
+    CancellationSource cancellation;
+    testing::CatalogServiceTestControl::set_before_import_publication(
+        *service, [&cancellation] { EXPECT_TRUE(cancellation.cancel("after-exif")); });
+    auto imported = service->import_one(jpeg_path, cancellation.token());
+    ASSERT_TRUE(imported);
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
+    ASSERT_TRUE(imported.value().error);
+    EXPECT_EQ(imported.value().error->code, ErrorCode::kCancelled);
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_TRUE(assets.value().empty());
+    auto after = service->snapshot();
+    ASSERT_TRUE(after);
+    EXPECT_EQ(after.value().revision, before.value().revision);
+}
+
+[[nodiscard]] std::string write_png_with_exif_payload(const std::filesystem::path &path,
+                                                      const std::vector<std::uint8_t> &tiff,
+                                                      const bool bad_crc = false,
+                                                      const bool duplicate = false,
+                                                      const bool empty = false,
+                                                      const bool jpeg_prefix = false)
+{
+    QImage image(8, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(10, 20, 30));
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    EXPECT_TRUE(image.save(&buffer, "PNG"));
+    std::vector<std::uint8_t> payload;
+    if (jpeg_prefix)
+    {
+        payload.insert(payload.end(), {'E', 'x', 'i', 'f', 0, 0});
+    }
+    if (!empty)
+    {
+        payload.insert(payload.end(), tiff.begin(), tiff.end());
+    }
+    const auto append_exif = [&](QByteArray &out)
+    {
+        const auto length = static_cast<std::uint32_t>(payload.size());
+        unsigned char header[8] = {static_cast<unsigned char>(length >> 24U),
+                                   static_cast<unsigned char>(length >> 16U),
+                                   static_cast<unsigned char>(length >> 8U),
+                                   static_cast<unsigned char>(length),
+                                   'e',
+                                   'X',
+                                   'I',
+                                   'f'};
+        out.append(reinterpret_cast<const char *>(header), 8);
+        if (!payload.empty())
+        {
+            out.append(reinterpret_cast<const char *>(payload.data()),
+                       static_cast<int>(payload.size()));
+        }
+        uLong crc = crc32(0L, Z_NULL, 0);
+        crc = crc32(crc, reinterpret_cast<const Bytef *>("eXIf"), 4);
+        if (!payload.empty())
+        {
+            crc = crc32(crc, payload.data(), static_cast<uInt>(payload.size()));
+        }
+        auto stored = static_cast<std::uint32_t>(crc);
+        if (bad_crc)
+        {
+            stored ^= 1U;
+        }
+        const unsigned char crc_bytes[4] = {
+            static_cast<unsigned char>(stored >> 24U), static_cast<unsigned char>(stored >> 16U),
+            static_cast<unsigned char>(stored >> 8U), static_cast<unsigned char>(stored)};
+        out.append(reinterpret_cast<const char *>(crc_bytes), 4);
+    };
+    QByteArray rebuilt;
+    rebuilt.append(png.left(8));
+    qsizetype offset = 8;
+    bool inserted = false;
+    while (offset + 12 <= png.size())
+    {
+        const auto length =
+            (static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset])) << 24U) |
+            (static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset + 1])) << 16U) |
+            (static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset + 2])) << 8U) |
+            static_cast<std::uint32_t>(static_cast<unsigned char>(png[offset + 3]));
+        const QByteArray type = png.mid(offset + 4, 4);
+        if (!inserted && type == "IDAT")
+        {
+            append_exif(rebuilt);
+            if (duplicate)
+            {
+                append_exif(rebuilt);
+            }
+            inserted = true;
+        }
+        rebuilt.append(png.mid(offset, 12 + static_cast<qsizetype>(length)));
+        offset += 12 + static_cast<qsizetype>(length);
+    }
+    QFile file(QString::fromStdString(path.string()));
+    EXPECT_TRUE(file.open(QIODevice::WriteOnly));
+    EXPECT_EQ(file.write(rebuilt), rebuilt.size());
+    file.close();
+    return path.string();
+}
+
+TEST_F(CatalogServiceTest, ImportsPngAndTiffCaptureContainersIndependently)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto tiff = make_synthetic_capture_exif_tiff();
+    const auto png_path = write_png_with_exif_payload(root / "located.png", tiff);
+    const auto png_hash = file_sha256(png_path);
+    auto png_imported = service->import_one(png_path, CancellationToken{});
+    ASSERT_TRUE(png_imported) << png_imported.error().message;
+    ASSERT_TRUE(png_imported.value().asset);
+    ASSERT_TRUE(png_imported.value().asset->capture.location);
+    EXPECT_EQ(png_imported.value().asset->capture.location->latitude_e6, 49253239);
+    ASSERT_TRUE(png_imported.value().asset->capture.location->altitude);
+    EXPECT_EQ(png_imported.value().asset->capture.location->altitude->magnitude_mm, 123456U);
+    EXPECT_EQ(file_sha256(png_path), png_hash);
+
+    const auto standalone_tiff = root / "independent-located.tif";
+    const auto tiff_bytes = test_support::make_capture_exif_tiff();
+    {
+        std::ofstream output(standalone_tiff, std::ios::binary);
+        output.write(reinterpret_cast<const char *>(tiff_bytes.data()),
+                     static_cast<std::streamsize>(tiff_bytes.size()));
+    }
+    const auto tiff_hash = file_sha256(standalone_tiff.string());
+    auto tiff_imported = service->import_one(standalone_tiff.string(), CancellationToken{});
+    ASSERT_TRUE(tiff_imported) << tiff_imported.error().message;
+    ASSERT_TRUE(tiff_imported.value().asset)
+        << (tiff_imported.value().error ? tiff_imported.value().error->message : "");
+    ASSERT_TRUE(tiff_imported.value().asset->capture.location);
+    EXPECT_EQ(tiff_imported.value().asset->capture.location->longitude_e6, 3050766);
+    EXPECT_EQ(file_sha256(standalone_tiff.string()), tiff_hash);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    EXPECT_EQ(listed.value().size(), 2U);
+}
+
+TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministically)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "export-source.jpg");
+    const auto source_hash = file_sha256(jpeg_path);
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto asset_id = imported.value().asset->id;
+
+    const auto parse_has = [](const std::string &path, const char *needle)
+    {
+        QFile file(QString::fromStdString(path));
+        EXPECT_TRUE(file.open(QIODevice::ReadOnly));
+        const auto bytes = file.readAll();
+        return bytes.contains(needle);
+    };
+    const auto verify_embedded_capture = [&](const std::string &path)
+    {
+        auto capture = engine.read_embedded_capture_metadata(path, CancellationToken{});
+        ASSERT_TRUE(capture) << capture.error().message;
+        ASSERT_TRUE(capture.value().captured_datetime);
+        EXPECT_EQ(capture.value().captured_datetime->local_exif, "2007:09:11 13:53:33");
+        EXPECT_EQ(capture.value().captured_datetime->subsecond_digits, "18");
+        EXPECT_EQ(capture.value().captured_datetime->utc_offset_minutes, 120);
+        ASSERT_TRUE(capture.value().location);
+        EXPECT_EQ(capture.value().location->latitude_e6, 49253239);
+        EXPECT_EQ(capture.value().location->longitude_e6, 3050766);
+        ASSERT_TRUE(capture.value().location->altitude);
+        EXPECT_EQ(capture.value().location->altitude->magnitude_mm, 123456U);
+        EXPECT_EQ(capture.value().location->altitude->reference,
+                  EngineCaptureAltitudeReference::kAboveSeaLevel);
+    };
+
+    ExportRequest jpeg;
+    jpeg.asset_id = asset_id;
+    jpeg.output_path = (root / "located-out.jpg").string();
+    jpeg.format = ExportFormat::kJpeg;
+    auto first = service->export_asset(jpeg);
+    ASSERT_TRUE(first) << first.error().message;
+    ExportRequest second_request = jpeg;
+    second_request.output_path = (root / "located-out-2.jpg").string();
+    auto second = service->export_asset(second_request);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_EQ(file_sha256(jpeg.output_path), file_sha256(second.value().output_path));
+    verify_embedded_capture(jpeg.output_path);
+    EXPECT_TRUE(parse_has(jpeg.output_path, "2007:09:11 13:53:33"));
+    EXPECT_TRUE(parse_has(jpeg.output_path, "2007-09-11T13:53:33.18+02:00"));
+
+    ExportRequest png;
+    png.asset_id = asset_id;
+    png.output_path = (root / "located-out.png").string();
+    png.format = ExportFormat::kPng;
+    auto png_out = service->export_asset(png);
+    ASSERT_TRUE(png_out) << png_out.error().message;
+    verify_embedded_capture(png.output_path);
+    EXPECT_TRUE(parse_has(png.output_path, "2007:09:11 13:53:33"));
+
+    ExportRequest tiff;
+    tiff.asset_id = asset_id;
+    tiff.output_path = (root / "located-out.tif").string();
+    tiff.format = ExportFormat::kTiff;
+    auto tiff_out = service->export_asset(tiff);
+    ASSERT_TRUE(tiff_out) << tiff_out.error().message;
+    verify_embedded_capture(tiff.output_path);
+    EXPECT_TRUE(parse_has(tiff.output_path, "2007:09:11 13:53:33"));
+    EXPECT_EQ(file_sha256(jpeg_path), source_hash);
 }
 
 } // namespace

@@ -59,9 +59,10 @@ job.
 
 PNG 16-bit and TIFF uint16/float16/float32 product export use engine-owned
 samples from the active recipe. An 8-bit source still fails closed rather than
-fabricating precision. General EXIF/IPTC/XMP packet writing, GPS/timezone
-policy, generated sidecars, and full history attachment are not current
-general export contracts.
+fabricating precision. Validated capture time and GPS from the Catalog are
+embedded on rendered JPEG/PNG/TIFF; there is no privacy-strip control.
+Sidecar/history interchange, metadata refresh, generated sidecars, and full
+history attachment are not current general export contracts.
 
 ### Format-specific input layouts
 

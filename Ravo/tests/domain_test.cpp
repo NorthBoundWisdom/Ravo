@@ -740,5 +740,175 @@ TEST(ExportMetadataDomainTest, CancelsDuringSnapshotValidation)
     EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
 }
 
+TEST(CaptureDateTimeTest, AcceptsGregorianBoundariesAndRejectsImpossibleDates)
+{
+    const auto accept = [](const std::string &local)
+    {
+        CaptureDateTime value;
+        value.local_exif = local;
+        return validate_capture_datetime(value);
+    };
+    EXPECT_TRUE(accept("0001:01:01 00:00:00"));
+    EXPECT_TRUE(accept("9999:12:31 23:59:59"));
+    EXPECT_TRUE(accept("2000:02:29 12:00:00"));
+    EXPECT_TRUE(accept("2024:02:29 00:00:00"));
+    EXPECT_FALSE(accept("2000:02:30 00:00:00"));
+    EXPECT_FALSE(accept("1900:02:29 00:00:00"));
+    EXPECT_FALSE(accept("2023:02:29 00:00:00"));
+    EXPECT_FALSE(accept("2024:13:01 00:00:00"));
+    EXPECT_FALSE(accept("2024:00:01 00:00:00"));
+    EXPECT_FALSE(accept("2024:01:00 00:00:00"));
+    EXPECT_FALSE(accept("2024:01:32 00:00:00"));
+    EXPECT_FALSE(accept("2024:04:31 00:00:00"));
+    EXPECT_FALSE(accept("2024:01:01 24:00:00"));
+    EXPECT_FALSE(accept("2024:01:01 00:60:00"));
+    EXPECT_FALSE(accept("2024:01:01 00:00:60"));
+    EXPECT_FALSE(accept("0000:01:01 00:00:00"));
+    EXPECT_FALSE(accept("2024-01-01 00:00:00"));
+    EXPECT_FALSE(accept("2024:01:01T00:00:00"));
+    EXPECT_FALSE(accept("2024:01:01 00:00:00Z"));
+    EXPECT_FALSE(accept("2024:01:01 00:00"));
+    EXPECT_EQ(accept("2024:01:01 00:00:60").error().context.at("reason"),
+              "invalid_capture_datetime");
+}
+
+TEST(CaptureDateTimeTest, PreservesSubsecondsAndExactOffsetBounds)
+{
+    CaptureDateTime value;
+    value.local_exif = "2007:09:11 13:53:33";
+    value.subsecond_digits = "18";
+    EXPECT_TRUE(validate_capture_datetime(value));
+    EXPECT_EQ(format_capture_datetime_iso(value), "2007-09-11T13:53:33.18");
+
+    value.utc_offset_minutes = 0;
+    EXPECT_TRUE(validate_capture_datetime(value));
+    EXPECT_EQ(format_capture_datetime_iso(value), "2007-09-11T13:53:33.18+00:00");
+    EXPECT_EQ(format_capture_utc_offset(0), "+00:00");
+    EXPECT_EQ(format_capture_utc_offset(120), "+02:00");
+    EXPECT_EQ(format_capture_utc_offset(-840), "-14:00");
+    EXPECT_EQ(format_capture_utc_offset(840), "+14:00");
+
+    value.utc_offset_minutes = 840;
+    EXPECT_TRUE(validate_capture_datetime(value));
+    value.utc_offset_minutes = -840;
+    EXPECT_TRUE(validate_capture_datetime(value));
+    value.utc_offset_minutes = 841;
+    EXPECT_FALSE(validate_capture_datetime(value));
+    value.utc_offset_minutes = -841;
+    EXPECT_FALSE(validate_capture_datetime(value));
+
+    value.utc_offset_minutes.reset();
+    value.subsecond_digits = "123456789";
+    EXPECT_TRUE(validate_capture_datetime(value));
+    value.subsecond_digits = "";
+    EXPECT_FALSE(validate_capture_datetime(value));
+    value.subsecond_digits = "1234567890";
+    EXPECT_FALSE(validate_capture_datetime(value));
+    value.subsecond_digits = "1a";
+    EXPECT_FALSE(validate_capture_datetime(value));
+    value.subsecond_digits = "18 ";
+    EXPECT_FALSE(validate_capture_datetime(value));
+}
+
+TEST(CaptureLocationTest, RequiresCompleteAltitudeAndPreservesZeroReference)
+{
+    CaptureLocation location;
+    location.latitude_e6 = 1000000;
+    location.longitude_e6 = 2000000;
+    EXPECT_TRUE(validate_capture_location(location));
+
+    CaptureAltitude below;
+    below.magnitude_mm = 123456;
+    below.reference = CaptureAltitudeReference::kBelowSeaLevel;
+    location.altitude = below;
+    EXPECT_TRUE(validate_capture_location(location));
+
+    CaptureAltitude above;
+    above.magnitude_mm = 123456;
+    above.reference = CaptureAltitudeReference::kAboveSeaLevel;
+    location.altitude = above;
+    EXPECT_TRUE(validate_capture_location(location));
+
+    CaptureAltitude zero_below;
+    zero_below.magnitude_mm = 0;
+    zero_below.reference = CaptureAltitudeReference::kBelowSeaLevel;
+    location.altitude = zero_below;
+    EXPECT_TRUE(validate_capture_location(location));
+    CaptureAltitude zero_above;
+    zero_above.magnitude_mm = 0;
+    zero_above.reference = CaptureAltitudeReference::kAboveSeaLevel;
+    location.altitude = zero_above;
+    EXPECT_TRUE(validate_capture_location(location));
+    EXPECT_NE(zero_below, zero_above);
+
+    location.altitude->magnitude_mm = 12000000;
+    location.altitude->reference = CaptureAltitudeReference::kBelowSeaLevel;
+    EXPECT_TRUE(validate_capture_location(location));
+    location.altitude->magnitude_mm = 12000001;
+    EXPECT_FALSE(validate_capture_location(location));
+    location.altitude->magnitude_mm = 100000000;
+    location.altitude->reference = CaptureAltitudeReference::kAboveSeaLevel;
+    EXPECT_TRUE(validate_capture_location(location));
+    location.altitude->magnitude_mm = 100000001;
+    EXPECT_FALSE(validate_capture_location(location));
+
+    location.altitude.reset();
+    location.latitude_e6 = 90000001;
+    EXPECT_FALSE(validate_capture_location(location));
+}
+
+TEST(CaptureLocationTest, FormatsScaledDecimalsAndExactDmsRationalsWithoutFloatingPoint)
+{
+    EXPECT_EQ(format_scaled_decimal(49253239, 6), "49.253239");
+    EXPECT_EQ(format_scaled_decimal(3050766, 6), "3.050766");
+    EXPECT_EQ(format_scaled_decimal(-3050766, 6), "-3.050766");
+    EXPECT_EQ(format_scaled_decimal(0, 6), "0");
+    EXPECT_EQ(format_scaled_decimal(49000000, 6), "49");
+    EXPECT_EQ(format_scaled_decimal(123456, 3), "123.456");
+    EXPECT_EQ(format_scaled_decimal(-12000, 3), "-12");
+
+    const auto dms = capture_microdegrees_to_dms(49253239);
+    EXPECT_EQ(dms[0].numerator, 49U);
+    EXPECT_EQ(dms[0].denominator, 1U);
+    EXPECT_EQ(dms[1].numerator, 15U);
+    EXPECT_EQ(dms[1].denominator, 1U);
+    EXPECT_EQ(dms[2].numerator, 29151U);
+    EXPECT_EQ(dms[2].denominator, 2500U);
+
+    const auto altitude = capture_altitude_mm_to_rational(123456);
+    EXPECT_EQ(altitude.numerator, 15432U);
+    EXPECT_EQ(altitude.denominator, 125U);
+
+    EXPECT_EQ(format_gps_xmp_coordinate(49253239, 'N', 'S'), "49,15.19434N");
+    EXPECT_EQ(format_gps_xmp_coordinate(-3050766, 'E', 'W'), "3,3.04596W");
+    EXPECT_EQ(format_gps_xmp_coordinate(0, 'N', 'S'), "0,0N");
+    EXPECT_EQ(format_gps_xmp_coordinate(90000000, 'N', 'S'), "90,0N");
+}
+
+TEST(CaptureMetadataTest, EqualityIncludesNewFieldsAndRejectsPartialStateOnExport)
+{
+    CaptureMetadata left;
+    CaptureMetadata right;
+    EXPECT_EQ(left, right);
+    EXPECT_FALSE(capture_metadata_has_values(left));
+    left.captured_datetime = CaptureDateTime{"2007:09:11 13:53:33", "18", {}};
+    EXPECT_NE(left, right);
+    EXPECT_TRUE(capture_metadata_has_values(left));
+    EXPECT_TRUE(validate_capture_metadata(left));
+
+    ExportMetadataSnapshot snapshot;
+    snapshot.capture = left;
+    EXPECT_TRUE(validate_export_metadata(snapshot));
+    auto sizes = estimate_export_metadata_packets(snapshot);
+    ASSERT_TRUE(sizes) << sizes.error().message;
+    EXPECT_GT(sizes.value().exif_tiff_profile_bytes, 80U);
+
+    snapshot.capture.location = CaptureLocation{
+        49253239, 3050766, CaptureAltitude{123456U, CaptureAltitudeReference::kAboveSeaLevel}};
+    EXPECT_TRUE(validate_export_metadata(snapshot));
+    snapshot.capture.location->latitude_e6 = 90000001;
+    EXPECT_FALSE(validate_export_metadata(snapshot));
+}
+
 } // namespace
 } // namespace ravo

@@ -20,6 +20,7 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QImage>
+#include <QXmlStreamReader>
 #include <gtest/gtest.h>
 
 #include "../adapters/src/tiff_encoder.h"
@@ -52,6 +53,10 @@ inline constexpr std::uint16_t kTagCopyright = 33432U;
 inline constexpr std::uint16_t kTagXmp = 700U;
 inline constexpr std::uint16_t kTagIptc = 33723U;
 inline constexpr std::uint16_t kTagExifIfd = 34665U;
+inline constexpr std::uint16_t kTagGpsIfd = 34853U;
+inline constexpr std::uint16_t kExifDateTimeOriginal = 36867U;
+inline constexpr std::uint16_t kExifOffsetTimeOriginal = 36881U;
+inline constexpr std::uint16_t kExifSubSecTimeOriginal = 37521U;
 inline constexpr std::uint16_t kTagIccProfile = 34675U;
 inline constexpr std::uint16_t kExifExposureTime = 33434U;
 inline constexpr std::uint16_t kExifFNumber = 33437U;
@@ -282,6 +287,35 @@ parse_classic_little_endian_directory(const std::span<const std::uint8_t> bytes)
         return std::nullopt;
     }
     return static_cast<double>(numerator) / denominator;
+}
+
+[[nodiscard]] std::optional<std::string> ascii_value(const DirectoryField *const field)
+{
+    if (field == nullptr || field->type != kTypeAscii || field->count == 0U ||
+        field->payload.size() != field->count || field->payload.back() != 0U ||
+        std::find(field->payload.begin(), field->payload.end() - 1, 0U) != field->payload.end() - 1)
+    {
+        return std::nullopt;
+    }
+    return std::string(field->payload.begin(), field->payload.end() - 1);
+}
+
+[[nodiscard]] std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>>
+rational_values(const DirectoryField *const field, const std::uint32_t count)
+{
+    if (field == nullptr || field->type != kTypeRational || field->count != count ||
+        field->payload.size() != static_cast<std::size_t>(count) * 8U)
+    {
+        return std::nullopt;
+    }
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> values;
+    values.reserve(count);
+    for (std::uint32_t index = 0U; index < count; ++index)
+    {
+        values.emplace_back(read_u32_le(field->payload, static_cast<std::size_t>(index) * 8U),
+                            read_u32_le(field->payload, static_cast<std::size_t>(index) * 8U + 4U));
+    }
+    return values;
 }
 
 [[nodiscard]] std::optional<std::uint16_t> short_value(const DirectoryField *const field)
@@ -915,6 +949,150 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     EXPECT_FALSE(std::filesystem::exists(unrelated.output_path + ".xmp"));
     EXPECT_FALSE(std::filesystem::exists(jpeg.output_path + ".xmp"));
     EXPECT_TRUE(service.close());
+}
+
+TEST(TiffMetadataAdapterTest, WritesGpsDirectoryAndInjectsLifecycleFailures)
+{
+    const auto pixels = test_pixels(8U, 4U);
+    const auto icc = byte_vector(QColorSpace(QColorSpace::SRgb).iccProfile());
+    ExportMetadataSnapshot metadata;
+    metadata.destination_document_name = "/tmp/gps.tif";
+    metadata.capture.captured_datetime = CaptureDateTime{"2007:09:11 13:53:33", "18", 120};
+    metadata.capture.location = CaptureLocation{
+        49253239, 3050766, CaptureAltitude{123456U, CaptureAltitudeReference::kAboveSeaLevel}};
+
+    const auto encoded = detail::encode_tiff_rgb8(8U, 4U, pixels, icc, TiffExportOptions{},
+                                                  metadata, CancellationToken{});
+    ASSERT_TRUE(encoded) << encoded.error().message;
+    const auto directory = parse_classic_little_endian_directory(encoded.value());
+    ASSERT_TRUE(directory);
+    EXPECT_EQ(directory->next_ifd, 0U);
+    const auto gps_offset = directory_offset(unique_field(*directory, kTagGpsIfd));
+    ASSERT_TRUE(gps_offset);
+    const auto gps = parse_classic_little_endian_ifd(encoded.value(), *gps_offset);
+    ASSERT_TRUE(gps);
+    EXPECT_EQ(gps->next_ifd, 0U);
+    const DirectoryField *const lat_ref = unique_field(*gps, 1U);
+    const DirectoryField *const version = unique_field(*gps, 0U);
+    const DirectoryField *const latitude = unique_field(*gps, 2U);
+    const DirectoryField *const lon_ref = unique_field(*gps, 3U);
+    const DirectoryField *const longitude = unique_field(*gps, 4U);
+    const DirectoryField *const alt_ref = unique_field(*gps, 5U);
+    const DirectoryField *const altitude = unique_field(*gps, 6U);
+    ASSERT_NE(lat_ref, nullptr);
+    ASSERT_NE(version, nullptr);
+    EXPECT_EQ(version->type, 1U);
+    EXPECT_EQ(version->count, 4U);
+    EXPECT_EQ(version->payload, (std::vector<std::uint8_t>{2U, 3U, 0U, 0U}));
+    EXPECT_EQ(lat_ref->type, kTypeAscii);
+    EXPECT_EQ(lat_ref->count, 2U);
+    ASSERT_GE(lat_ref->payload.size(), 1U);
+    EXPECT_EQ(lat_ref->payload[0], static_cast<std::uint8_t>('N'));
+    ASSERT_NE(latitude, nullptr);
+    EXPECT_EQ(latitude->type, kTypeRational);
+    EXPECT_EQ(latitude->count, 3U);
+    EXPECT_EQ(rational_values(latitude, 3U), (std::vector<std::pair<std::uint32_t, std::uint32_t>>{
+                                                 {49U, 1U}, {15U, 1U}, {29151U, 2500U}}));
+    ASSERT_NE(lon_ref, nullptr);
+    EXPECT_EQ(lon_ref->type, kTypeAscii);
+    EXPECT_EQ(lon_ref->count, 2U);
+    ASSERT_GE(lon_ref->payload.size(), 1U);
+    EXPECT_EQ(lon_ref->payload[0], static_cast<std::uint8_t>('E'));
+    ASSERT_NE(longitude, nullptr);
+    EXPECT_EQ(longitude->type, kTypeRational);
+    EXPECT_EQ(longitude->count, 3U);
+    EXPECT_EQ(rational_values(longitude, 3U), (std::vector<std::pair<std::uint32_t, std::uint32_t>>{
+                                                  {3U, 1U}, {3U, 1U}, {3447U, 1250U}}));
+    ASSERT_NE(alt_ref, nullptr);
+    EXPECT_EQ(alt_ref->type, 1U);
+    EXPECT_EQ(alt_ref->count, 1U);
+    ASSERT_FALSE(alt_ref->payload.empty());
+    EXPECT_EQ(alt_ref->payload[0], 0U);
+    ASSERT_NE(altitude, nullptr);
+    EXPECT_EQ(altitude->type, kTypeRational);
+    EXPECT_EQ(altitude->count, 1U);
+    EXPECT_EQ(rational_values(altitude, 1U),
+              (std::vector<std::pair<std::uint32_t, std::uint32_t>>{{15432U, 125U}}));
+    const auto exif_offset = directory_offset(unique_field(*directory, kTagExifIfd));
+    ASSERT_TRUE(exif_offset);
+    const auto exif = parse_classic_little_endian_ifd(encoded.value(), *exif_offset);
+    ASSERT_TRUE(exif);
+    EXPECT_EQ(ascii_value(unique_field(*exif, kExifDateTimeOriginal)), "2007:09:11 13:53:33");
+    EXPECT_EQ(ascii_value(unique_field(*exif, kExifOffsetTimeOriginal)), "+02:00");
+    EXPECT_EQ(ascii_value(unique_field(*exif, kExifSubSecTimeOriginal)), "18");
+    const auto xmp = std::string(unique_field(*directory, kTagXmp)->payload.begin(),
+                                 unique_field(*directory, kTagXmp)->payload.end());
+    EXPECT_NE(xmp.find("2007-09-11T13:53:33.18+02:00"), std::string::npos);
+    EXPECT_NE(xmp.find("49,15.19434N"), std::string::npos);
+    QXmlStreamReader xmp_reader(QByteArray(xmp.data(), static_cast<qsizetype>(xmp.size())));
+    while (!xmp_reader.atEnd())
+    {
+        xmp_reader.readNext();
+    }
+    EXPECT_FALSE(xmp_reader.hasError()) << xmp_reader.errorString().toStdString();
+
+    ExportMetadataSnapshot below_zero = metadata;
+    below_zero.capture.location->altitude =
+        CaptureAltitude{0U, CaptureAltitudeReference::kBelowSeaLevel};
+    const auto encoded_below = detail::encode_tiff_rgb8(8U, 4U, pixels, icc, TiffExportOptions{},
+                                                        below_zero, CancellationToken{});
+    ASSERT_TRUE(encoded_below) << encoded_below.error().message;
+    const auto below_directory = parse_classic_little_endian_directory(encoded_below.value());
+    ASSERT_TRUE(below_directory);
+    const auto below_gps_offset = directory_offset(unique_field(*below_directory, kTagGpsIfd));
+    ASSERT_TRUE(below_gps_offset);
+    const auto below_gps =
+        parse_classic_little_endian_ifd(encoded_below.value(), *below_gps_offset);
+    ASSERT_TRUE(below_gps);
+    ASSERT_NE(unique_field(*below_gps, 5U), nullptr);
+    EXPECT_EQ(unique_field(*below_gps, 5U)->payload, (std::vector<std::uint8_t>{1U}));
+    EXPECT_EQ(rational_values(unique_field(*below_gps, 6U), 1U),
+              (std::vector<std::pair<std::uint32_t, std::uint32_t>>{{0U, 1U}}));
+
+    const std::array<std::pair<detail::TiffEncodeCheckpoint,
+                               std::pair<std::uint32_t, detail::TiffEncodeInjectedFailure>>,
+                     7>
+        failures{{
+            {detail::TiffEncodeCheckpoint::kExifDirectory,
+             {0U, detail::TiffEncodeInjectedFailure::kExifCreateDirectoryFailure}},
+            {detail::TiffEncodeCheckpoint::kExifDirectory,
+             {1U, detail::TiffEncodeInjectedFailure::kExifWriteDirectoryFailure}},
+            {detail::TiffEncodeCheckpoint::kGpsDirectory,
+             {0U, detail::TiffEncodeInjectedFailure::kGpsCreateDirectoryFailure}},
+            {detail::TiffEncodeCheckpoint::kGpsDirectory,
+             {1U, detail::TiffEncodeInjectedFailure::kGpsWriteDirectoryFailure}},
+            {detail::TiffEncodeCheckpoint::kRestoreMainDirectory,
+             {0U, detail::TiffEncodeInjectedFailure::kRestoreDirectoryFailure}},
+            {detail::TiffEncodeCheckpoint::kLinkDirectories,
+             {0U, detail::TiffEncodeInjectedFailure::kLinkExifIfdFailure}},
+            {detail::TiffEncodeCheckpoint::kLinkDirectories,
+             {1U, detail::TiffEncodeInjectedFailure::kGpsLinkIfdFailure}},
+        }};
+    for (std::uint32_t stage = 0U; stage < failures.size(); ++stage)
+    {
+        detail::TiffEncodeCheckpointCallback callback =
+            [](void *context, const detail::TiffEncodeCheckpoint checkpoint,
+               const std::uint32_t progress, const detail::TiffEncodeConfiguration &) noexcept
+            -> detail::TiffEncodeInjectedFailure
+        {
+            const auto *const wanted = static_cast<
+                const std::pair<detail::TiffEncodeCheckpoint,
+                                std::pair<std::uint32_t, detail::TiffEncodeInjectedFailure>> *>(
+                context);
+            if (checkpoint == wanted->first && progress == wanted->second.first)
+            {
+                return wanted->second.second;
+            }
+            return detail::TiffEncodeInjectedFailure::kNone;
+        };
+        auto want = failures[stage];
+        detail::TiffEncodeControl control;
+        control.checkpoint_observer = {&want, callback};
+        const auto failed = detail::encode_tiff_rgb8(8U, 4U, pixels, icc, TiffExportOptions{},
+                                                     metadata, CancellationToken{}, control);
+        ASSERT_FALSE(failed) << static_cast<int>(stage);
+        EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+    }
 }
 
 } // namespace

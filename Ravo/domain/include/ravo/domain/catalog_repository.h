@@ -22,7 +22,9 @@ public:
     find_asset_by_id(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::optional<AssetRecord>>
     find_asset_by_uri(std::string_view normalized_uri) const = 0;
-    [[nodiscard]] virtual Result<void> insert_asset(const AssetRecord &asset) = 0;
+    // One transaction: asset row, optional capture row, revision bump.
+    // Failure leaves no newly visible asset.
+    [[nodiscard]] virtual Result<void> commit_imported_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_review(std::string_view asset_id,
                                                      const ReviewState &review) = 0;
@@ -44,8 +46,6 @@ public:
                                                           const std::vector<std::string> &tags) = 0;
     [[nodiscard]] virtual Result<void>
     upsert_writable_metadata(std::string_view asset_id, const WritableMetadata &metadata) = 0;
-    [[nodiscard]] virtual Result<void> upsert_capture_metadata(std::string_view asset_id,
-                                                               const CaptureMetadata &capture) = 0;
     [[nodiscard]] virtual Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::optional<RecipeHistoryEntry>>

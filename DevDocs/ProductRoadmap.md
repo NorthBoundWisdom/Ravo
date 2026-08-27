@@ -52,8 +52,10 @@ in their owning architecture/ADR/code/test truth source.
 
 - Batch job persistence, presets/styles, and still-undecided export workflow.
 - Bounded Catalog-owned embedded JPEG/PNG/TIFF metadata is accepted under
-  [ADR-0038](../Ravo/docs/adr/0038-embedded-export-metadata.md). Capture
-  timezone/GPS and sidecar/history policy remain later S9/J6 work.
+  [ADR-0038](../Ravo/docs/adr/0038-embedded-export-metadata.md) and
+  [ADR-0040](../Ravo/docs/adr/0040-capture-time-gps-metadata.md).
+  Sidecar/history policy, metadata refresh, and privacy stripping remain later
+  S9/J6 work.
 
 ## Catalog and source-file lifecycle
 

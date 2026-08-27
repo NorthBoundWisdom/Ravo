@@ -7,7 +7,7 @@ format boundary from a regression. A file suffix is only an import candidate;
 the actual container, pixel layout, profile, and decoder support still decide
 the result.
 
-**Last verified:** 2026-08-27 against the current decoder, encoder, and import
+**Last verified:** 2026-08-28 against the current decoder, encoder, and import
 candidate contracts.
 
 ## Input coverage
@@ -47,7 +47,9 @@ requests. TIFF-qualified flags are valid only with TIFF export.
   profile.
 - Supported encoded outputs retain the resolved RGB profile where the format
   contract permits it.
-- Complete EXIF/IPTC/XMP packet writing, GPS/timezone policy, and generated
+- Rendered JPEG/PNG/TIFF write the bounded Catalog-owned Exif/XMP/IPTC subset,
+  including validated capture time/offset/GPS. Arbitrary source-packet copying,
+  metadata refresh, privacy stripping, history interchange, and generated
   sidecars are not part of the current general export contract.
 
 ## Test evidence guidance

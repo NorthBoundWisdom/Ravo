@@ -47,8 +47,9 @@ CPU RAW path; an original copy remains byte-for-byte source content.
 
 Supported output profiles are resolved from the recipe. Ravo retains the
 declared RGB profile in supported PNG, JPEG, and TIFF output paths. It does not
-infer a monitor profile. Complete EXIF/IPTC/XMP packet, GPS, sidecar, and
-history-attachment policy is not a current general export contract.
+infer a monitor profile. Rendered JPEG/PNG/TIFF keep validated capture time and
+GPS from the Catalog. Sidecar and history-attachment policy is not a current
+general export contract.
 
 For TIFF, the current catalog title/description/creator/copyright values can be
 written into bounded baseline directory fields. The title field is deliberately

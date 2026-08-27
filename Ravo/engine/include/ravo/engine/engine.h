@@ -240,6 +240,46 @@ public:
     virtual void on_progress(const ProgressEvent &event) = 0;
 };
 
+struct EngineCaptureDateTime
+{
+    std::string local_exif;
+    std::optional<std::string> subsecond_digits;
+    std::optional<std::int32_t> utc_offset_minutes;
+
+    [[nodiscard]] bool operator==(const EngineCaptureDateTime &) const noexcept = default;
+};
+
+enum class EngineCaptureAltitudeReference : std::uint8_t
+{
+    kAboveSeaLevel = 0,
+    kBelowSeaLevel = 1,
+};
+
+struct EngineCaptureAltitude
+{
+    std::uint32_t magnitude_mm = 0;
+    EngineCaptureAltitudeReference reference = EngineCaptureAltitudeReference::kAboveSeaLevel;
+
+    [[nodiscard]] bool operator==(const EngineCaptureAltitude &) const noexcept = default;
+};
+
+struct EngineCaptureLocation
+{
+    std::int32_t latitude_e6 = 0;
+    std::int32_t longitude_e6 = 0;
+    std::optional<EngineCaptureAltitude> altitude;
+
+    [[nodiscard]] bool operator==(const EngineCaptureLocation &) const noexcept = default;
+};
+
+struct EngineCaptureMetadata
+{
+    std::optional<EngineCaptureDateTime> captured_datetime;
+    std::optional<EngineCaptureLocation> location;
+
+    [[nodiscard]] bool operator==(const EngineCaptureMetadata &) const noexcept = default;
+};
+
 class EngineFacade
 {
 public:
@@ -291,6 +331,11 @@ public:
     render_to_export_image(const RenderRequest &request, RenderSampleKind sample_kind,
                            const RasterBuffer *raster = nullptr) const;
     [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
+    // Engine-private Exiv2: embedded Exif only. No sidecar, XMP, or maker-note copy.
+    // Returns one owned semantic capture value. Exiv2 types die inside the call.
+    [[nodiscard]] Result<EngineCaptureMetadata>
+    read_embedded_capture_metadata(std::string_view input_uri,
+                                   const CancellationToken &cancellation) const;
 
 private:
     explicit EngineFacade(OperationRegistry registry);

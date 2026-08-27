@@ -68,9 +68,10 @@ subsampling, ICC APP2,
 bounds, and cancellation. The adapter-private pinned LibTIFF/ZLIB encoder owns
 TIFF output sample/compression/level, 72–9600 inch resolution, conditional
 grayscale, exact ICC, bounded baseline main-directory metadata, and
-cancellation; multipage output and complete metadata packets remain separate
-later contracts. Domain `ExportMetadataSnapshot` carries only owned destination
-and writable values, never third-party handles.
+cancellation. The shared prepared-metadata path supplies bounded Exif/XMP/IPTC
+plus capture time/offset/GPS; multipage output and sidecar/history/privacy
+policy remain separate later contracts. Domain `ExportMetadataSnapshot`
+carries only owned destination and metadata values, never third-party handles.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
 services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
@@ -150,9 +151,12 @@ codec handles, or database-row addresses. Schema v2 stores rating/color/reject
 on `asset`; v3 stores at most one canonical recipe JSON per image in
 `asset_recipe`; v4 adds `asset_tag`, `asset_metadata` (read-only capture
 EXIF plus catalog-only writable fields), and `asset_recipe_history`
-(history/snapshot). The SQLite adapter enables WAL, `synchronous=NORMAL`, and
-`busy_timeout`. New catalogs and migrations use transactions, and an unknown
-higher schema version fails fast.
+(history/snapshot); v5 adds seven nullable capture-time/GPS columns
+(`captured_local_exif`, `captured_subsecond_digits`,
+`captured_utc_offset_minutes`, `gps_latitude_e6`, `gps_longitude_e6`,
+`gps_altitude_magnitude_mm`, `gps_altitude_ref`). The SQLite adapter enables
+WAL, `synchronous=NORMAL`, and `busy_timeout`. New catalogs and migrations use
+transactions, and an unknown higher schema version fails fast.
 
 The repository adapter atomically publishes the current recipe row (or baseline
 clearing), automatic history, and catalog revision. Any failed step rolls back
@@ -683,9 +687,11 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   flags, PNG-qualified flags, and TIFF-qualified flags including resolution. Catalog maps PNG16 and matching TIFF sample
   requests to engine-owned RGB16 or finite RGB float; JPEG/PNG8/TIFF uint8
   stay on RGB8. Rendered JPEG/PNG/TIFF embed the ADR-0038 Catalog-owned public
-  metadata snapshot before publication. Capture timezone/GPS, XMP
-  attach/history/sidecar policy, TIFF multipage masks, path-template and
-  batch/storage policy, and old export presets remain out of scope. Studio
+  metadata snapshot before publication, including validated capture time,
+  source UTC offset, and GPS from Catalog schema v5. XMP
+  attach/history/sidecar policy, metadata refresh, privacy stripping, TIFF
+  multipage masks, path-template and batch/storage policy, and old export
+  presets remain out of scope. Studio
   now collects one explicit format plus the matching typed options before the
   native save dialog; it does not infer format from a localized filter.
 - The first version does not implement full history/styles, mask/blend, every

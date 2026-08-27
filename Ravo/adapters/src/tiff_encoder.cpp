@@ -391,6 +391,34 @@ notify_checkpoint(const TiffEncodeControl &control, const TiffEncodeCheckpoint c
         return tiff_encode_error(ErrorCode::kIo, "Unable to write TIFF metadata tag",
                                  "tiff_metadata_tag_failed",
                                  {{"detail", "injected_tiff_metadata_tag_failure"}});
+    case TiffEncodeInjectedFailure::kExifCreateDirectoryFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to create TIFF EXIF directory",
+                                 "tiff_create_exif_directory_failed",
+                                 {{"detail", "injected_tiff_exif_create_directory_failure"}});
+    case TiffEncodeInjectedFailure::kExifWriteDirectoryFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to write TIFF EXIF directory",
+                                 "tiff_write_exif_directory_failed",
+                                 {{"detail", "injected_tiff_exif_write_directory_failure"}});
+    case TiffEncodeInjectedFailure::kGpsCreateDirectoryFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to create TIFF GPS directory",
+                                 "tiff_create_gps_directory_failed",
+                                 {{"detail", "injected_tiff_gps_create_directory_failure"}});
+    case TiffEncodeInjectedFailure::kGpsWriteDirectoryFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to write TIFF GPS directory",
+                                 "tiff_write_gps_directory_failed",
+                                 {{"detail", "injected_tiff_gps_write_directory_failure"}});
+    case TiffEncodeInjectedFailure::kRestoreDirectoryFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to restore TIFF main directory",
+                                 "tiff_reload_main_directory_failed",
+                                 {{"detail", "injected_tiff_restore_directory_failure"}});
+    case TiffEncodeInjectedFailure::kLinkExifIfdFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to link TIFF EXIF IFD",
+                                 "tiff_set_exififd_failed",
+                                 {{"detail", "injected_tiff_link_exif_ifd_failure"}});
+    case TiffEncodeInjectedFailure::kGpsLinkIfdFailure:
+        return tiff_encode_error(ErrorCode::kIo, "Unable to link TIFF GPS IFD",
+                                 "tiff_set_gpsifd_failed",
+                                 {{"detail", "injected_tiff_gps_link_ifd_failure"}});
     case TiffEncodeInjectedFailure::kNone:
     case TiffEncodeInjectedFailure::kEncoderFailure:
         return tiff_encode_error(ErrorCode::kIo, "Unable to encode TIFF image",
@@ -426,6 +454,13 @@ notify_checkpoint(const TiffEncodeControl &control, const TiffEncodeCheckpoint c
         destination.fail_finalize = true;
         return std::nullopt;
     case TiffEncodeInjectedFailure::kMetadataTagFailure:
+    case TiffEncodeInjectedFailure::kExifCreateDirectoryFailure:
+    case TiffEncodeInjectedFailure::kExifWriteDirectoryFailure:
+    case TiffEncodeInjectedFailure::kGpsCreateDirectoryFailure:
+    case TiffEncodeInjectedFailure::kGpsWriteDirectoryFailure:
+    case TiffEncodeInjectedFailure::kRestoreDirectoryFailure:
+    case TiffEncodeInjectedFailure::kLinkExifIfdFailure:
+    case TiffEncodeInjectedFailure::kGpsLinkIfdFailure:
         return injected_failure_error(failure);
     }
     return injected_failure_error(failure);
@@ -1168,6 +1203,11 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
             primary_error = std::move(injected_error).value();
         }
     }
+    if (!primary_error && prepared.value().has_gps &&
+        TIFFSetField(writer, TIFFTAG_GPSIFD, static_cast<std::uint64_t>(0)) != 1)
+    {
+        fail_metadata_tag(TIFFTAG_GPSIFD, "tiff_reserve_gpsifd_failed");
+    }
     if (!primary_error && TIFFWriteDirectory(writer) != 1)
     {
         fail_encoder();
@@ -1177,6 +1217,19 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
         if (cancellation.is_cancellation_requested())
         {
             primary_error = tiff_cancellation_error(cancellation);
+        }
+        else if (const auto create_exif = notify_checkpoint(
+                     control, TiffEncodeCheckpoint::kExifDirectory, 0U, configuration.value());
+                 create_exif != TiffEncodeInjectedFailure::kNone)
+        {
+            if (auto injected_error = arm_injected_failure(destination, create_exif))
+            {
+                primary_error = std::move(injected_error).value();
+            }
+            else
+            {
+                fail_metadata_tag(TIFFTAG_EXIFIFD, "injected_tiff_exif_create_directory_failure");
+            }
         }
         else if (TIFFCreateEXIFDirectory(writer) != 0)
         {
@@ -1238,21 +1291,188 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
             {
                 set_exif(EXIFTAG_FOCALLENGTH, rational_as_float(*prepared.value().focal_length));
             }
+            if (prepared.value().datetime_original)
+            {
+                set_exif(EXIFTAG_DATETIMEORIGINAL, prepared.value().datetime_original->c_str());
+            }
+            if (prepared.value().offset_time_original)
+            {
+                set_exif(EXIFTAG_OFFSETTIMEORIGINAL,
+                         prepared.value().offset_time_original->c_str());
+            }
+            if (prepared.value().subsec_time_original)
+            {
+                set_exif(EXIFTAG_SUBSECTIMEORIGINAL,
+                         prepared.value().subsec_time_original->c_str());
+            }
             set_exif(EXIFTAG_COLORSPACE, prepared.value().color_space);
             set_exif(EXIFTAG_PIXELXDIMENSION, prepared.value().pixel_width);
             set_exif(EXIFTAG_PIXELYDIMENSION, prepared.value().pixel_height);
             std::uint64_t exif_offset = 0U;
-            if (!primary_error && TIFFWriteCustomDirectory(writer, &exif_offset) != 1)
+            std::uint64_t gps_offset = 0U;
+            bool wrote_gps = false;
+            if (primary_error)
+            {
+            }
+            else if (const auto write_exif = notify_checkpoint(
+                         control, TiffEncodeCheckpoint::kExifDirectory, 1U, configuration.value());
+                     write_exif != TiffEncodeInjectedFailure::kNone)
+            {
+                if (auto injected_error = arm_injected_failure(destination, write_exif))
+                {
+                    primary_error = std::move(injected_error).value();
+                }
+                else
+                {
+                    fail_metadata_tag(TIFFTAG_EXIFIFD,
+                                      "injected_tiff_exif_write_directory_failure");
+                }
+            }
+            else if (TIFFWriteCustomDirectory(writer, &exif_offset) != 1)
             {
                 fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_write_exif_directory_failed");
             }
-            else if (!primary_error && TIFFSetDirectory(writer, 0) != 1)
+            if (!primary_error && prepared.value().has_gps)
             {
-                fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_reload_main_directory_failed");
+                const auto gps_injected =
+                    [&](const std::uint32_t stage) -> TiffEncodeInjectedFailure
+                {
+                    return notify_checkpoint(control, TiffEncodeCheckpoint::kGpsDirectory, stage,
+                                             configuration.value());
+                };
+                const auto fail_gps =
+                    [&](const TiffEncodeInjectedFailure injected, const char *reason)
+                {
+                    if (injected != TiffEncodeInjectedFailure::kNone)
+                    {
+                        if (auto injected_error = arm_injected_failure(destination, injected))
+                        {
+                            primary_error = std::move(injected_error).value();
+                            return;
+                        }
+                    }
+                    fail_metadata_tag(TIFFTAG_GPSIFD, reason);
+                };
+                if (const auto create_injected = gps_injected(0U);
+                    create_injected != TiffEncodeInjectedFailure::kNone)
+                {
+                    fail_gps(create_injected, "injected_tiff_gps_create_directory_failure");
+                }
+                else if (TIFFCreateGPSDirectory(writer) != 0)
+                {
+                    fail_metadata_tag(TIFFTAG_GPSIFD, "tiff_create_gps_directory_failed");
+                }
+                else
+                {
+                    const unsigned char version[4] = {2U, 3U, 0U, 0U};
+                    const char lat_ref[2] = {prepared.value().gps_latitude_ref, '\0'};
+                    const char lon_ref[2] = {prepared.value().gps_longitude_ref, '\0'};
+                    const auto dms_as_double = [](const std::array<ExportUnsignedRational, 3> &dms)
+                    {
+                        std::array<double, 3> values{};
+                        for (std::size_t index = 0; index < 3U; ++index)
+                        {
+                            values[index] = static_cast<double>(dms[index].numerator) /
+                                            static_cast<double>(dms[index].denominator);
+                        }
+                        return values;
+                    };
+                    const auto latitude = dms_as_double(prepared.value().gps_latitude);
+                    const auto longitude = dms_as_double(prepared.value().gps_longitude);
+                    set_exif(GPSTAG_VERSIONID, version);
+                    set_exif(GPSTAG_LATITUDEREF, lat_ref);
+                    set_exif(GPSTAG_LATITUDE, latitude.data());
+                    set_exif(GPSTAG_LONGITUDEREF, lon_ref);
+                    set_exif(GPSTAG_LONGITUDE, longitude.data());
+                    if (prepared.value().gps_altitude_ref && prepared.value().gps_altitude)
+                    {
+                        set_exif(GPSTAG_ALTITUDEREF, *prepared.value().gps_altitude_ref);
+                        const auto altitude = *prepared.value().gps_altitude;
+                        set_exif(GPSTAG_ALTITUDE, static_cast<double>(altitude.numerator) /
+                                                      static_cast<double>(altitude.denominator));
+                    }
+                    if (primary_error)
+                    {
+                    }
+                    else if (const auto write_injected = gps_injected(1U);
+                             write_injected != TiffEncodeInjectedFailure::kNone)
+                    {
+                        fail_gps(write_injected, "injected_tiff_gps_write_directory_failure");
+                    }
+                    else if (TIFFWriteCustomDirectory(writer, &gps_offset) != 1)
+                    {
+                        fail_metadata_tag(TIFFTAG_GPSIFD, "tiff_write_gps_directory_failed");
+                    }
+                    else
+                    {
+                        wrote_gps = true;
+                    }
+                }
             }
-            else if (!primary_error && TIFFSetField(writer, TIFFTAG_EXIFIFD, exif_offset) != 1)
+            if (!primary_error)
             {
-                fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_set_exififd_failed");
+                const auto restore_injected =
+                    notify_checkpoint(control, TiffEncodeCheckpoint::kRestoreMainDirectory, 0U,
+                                      configuration.value());
+                if (restore_injected != TiffEncodeInjectedFailure::kNone)
+                {
+                    if (auto injected_error = arm_injected_failure(destination, restore_injected))
+                    {
+                        primary_error = std::move(injected_error).value();
+                    }
+                    else
+                    {
+                        fail_metadata_tag(TIFFTAG_EXIFIFD,
+                                          "injected_tiff_restore_directory_failure");
+                    }
+                }
+                else if (TIFFSetDirectory(writer, 0) != 1)
+                {
+                    fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_reload_main_directory_failed");
+                }
+                else
+                {
+                    const auto link_exif = notify_checkpoint(
+                        control, TiffEncodeCheckpoint::kLinkDirectories, 0U, configuration.value());
+                    if (link_exif != TiffEncodeInjectedFailure::kNone)
+                    {
+                        if (auto injected_error = arm_injected_failure(destination, link_exif))
+                        {
+                            primary_error = std::move(injected_error).value();
+                        }
+                        else
+                        {
+                            fail_metadata_tag(TIFFTAG_EXIFIFD,
+                                              "injected_tiff_link_exif_ifd_failure");
+                        }
+                    }
+                    else if (TIFFSetField(writer, TIFFTAG_EXIFIFD, exif_offset) != 1)
+                    {
+                        fail_metadata_tag(TIFFTAG_EXIFIFD, "tiff_set_exififd_failed");
+                    }
+                    else if (wrote_gps)
+                    {
+                        const auto link_gps =
+                            notify_checkpoint(control, TiffEncodeCheckpoint::kLinkDirectories, 1U,
+                                              configuration.value());
+                        if (link_gps != TiffEncodeInjectedFailure::kNone)
+                        {
+                            if (auto injected_error = arm_injected_failure(destination, link_gps))
+                            {
+                                primary_error = std::move(injected_error).value();
+                            }
+                            else
+                            {
+                                fail_metadata_tag(TIFFTAG_GPSIFD,
+                                                  "injected_tiff_gps_link_ifd_failure");
+                            }
+                        }
+                        else if (TIFFSetField(writer, TIFFTAG_GPSIFD, gps_offset) != 1)
+                        {
+                            fail_metadata_tag(TIFFTAG_GPSIFD, "tiff_set_gpsifd_failed");
+                        }
+                    }
+                }
             }
         }
     }

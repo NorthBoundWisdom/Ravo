@@ -123,9 +123,12 @@ panel. The current CLI can also store a catalog **Description**; see [the CLI
 guide](cli.md).
 
 Writable metadata is catalog metadata. It is not written back into the source
-file during review or editing. TIFF export can map the current title-related
-catalog values into its bounded baseline directory metadata; complete metadata
-packet and sidecar policy is not a current export contract.
+file during review or editing. Rendered JPEG/PNG/TIFF write the bounded
+Catalog-owned public metadata snapshot, including validated capture
+time/offset/GPS; TIFF also maps current writable values into its baseline
+directory metadata. Arbitrary source-packet copying, metadata refresh,
+privacy stripping, and sidecar/history policy remain outside the current
+contract.
 
 ## Remove a photo
 

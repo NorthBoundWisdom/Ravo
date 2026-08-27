@@ -1,6 +1,6 @@
 # ADR-0038: Catalog-owned embedded export metadata
 
-- Status: Accepted
+- Status: Partially superseded by ADR-0040
 - Date: 2026-08-27
 
 ## Context
@@ -90,6 +90,13 @@ sidecar read/write/conflict/rollback, history/recipe interchange, Studio/CLI
 metadata flags, batch presets, PNG pHYs, JPEG extended XMP, TIFF multipage
 masks, shared old consumers, and legacy owner retirement remain unfinished.
 S9 and J6 are not complete.
+
+## Subsequent decision
+
+[ADR-0040](0040-capture-time-gps-metadata.md) supersedes only this ADR's
+explicit capture-time/timezone/GPS omission. The Catalog-owned snapshot,
+packet limits, deterministic framing, source immutability, and sidecar/history
+exclusions remain in force.
 
 ## Rejected alternatives
 

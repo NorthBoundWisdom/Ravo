@@ -80,6 +80,7 @@ struct TiffIfdEntry
     std::vector<std::uint8_t> value;
 };
 
+constexpr std::uint16_t kTypeByte = 1U;
 constexpr std::uint16_t kTypeAscii = 2U;
 constexpr std::uint16_t kTypeShort = 3U;
 constexpr std::uint16_t kTypeLong = 4U;
@@ -137,6 +138,30 @@ constexpr std::uint16_t kTypeRational = 5U;
     return {tag, kTypeRational, 1U, rational_bytes(value)};
 }
 
+[[nodiscard]] TiffIfdEntry make_byte_entry(const std::uint16_t tag, const std::uint8_t value)
+{
+    return {tag, kTypeByte, 1U, {value, 0U, 0U, 0U}};
+}
+
+[[nodiscard]] TiffIfdEntry make_bytes_entry(const std::uint16_t tag,
+                                            const std::array<std::uint8_t, 4> &values)
+{
+    return {tag, kTypeByte, 4U, {values[0], values[1], values[2], values[3]}};
+}
+
+[[nodiscard]] TiffIfdEntry make_rational3_entry(const std::uint16_t tag,
+                                                const std::array<ExportUnsignedRational, 3> &values)
+{
+    std::vector<std::uint8_t> bytes;
+    bytes.reserve(24U);
+    for (const auto &value : values)
+    {
+        append_u32_le(bytes, value.numerator);
+        append_u32_le(bytes, value.denominator);
+    }
+    return {tag, kTypeRational, 3U, std::move(bytes)};
+}
+
 void append_ifd(std::vector<std::uint8_t> &out, const std::vector<TiffIfdEntry> &entries)
 {
     append_u16_le(out, static_cast<std::uint16_t>(entries.size()));
@@ -172,7 +197,8 @@ void append_ifd(std::vector<std::uint8_t> &out, const std::vector<TiffIfdEntry> 
 }
 
 [[nodiscard]] std::vector<TiffIfdEntry> ifd0_entries(const PreparedExportMetadata &prepared,
-                                                     const std::uint32_t exif_ifd_offset)
+                                                     const std::uint32_t exif_ifd_offset,
+                                                     const std::uint32_t gps_ifd_offset = 0U)
 {
     std::vector<TiffIfdEntry> entries;
     if (prepared.description)
@@ -197,6 +223,10 @@ void append_ifd(std::vector<std::uint8_t> &out, const std::vector<TiffIfdEntry> 
         entries.push_back(make_ascii_entry(33432U, *prepared.copyright));
     }
     entries.push_back(make_long_entry(34665U, exif_ifd_offset));
+    if (prepared.has_gps)
+    {
+        entries.push_back(make_long_entry(34853U, gps_ifd_offset));
+    }
     return entries;
 }
 
@@ -215,13 +245,41 @@ void append_ifd(std::vector<std::uint8_t> &out, const std::vector<TiffIfdEntry> 
     {
         entries.push_back(make_short_entry(34855U, *prepared.iso));
     }
+    if (prepared.datetime_original)
+    {
+        entries.push_back(make_ascii_entry(36867U, *prepared.datetime_original));
+    }
+    if (prepared.offset_time_original)
+    {
+        entries.push_back(make_ascii_entry(36881U, *prepared.offset_time_original));
+    }
     if (prepared.focal_length)
     {
         entries.push_back(make_rational_entry(37386U, *prepared.focal_length));
     }
+    if (prepared.subsec_time_original)
+    {
+        entries.push_back(make_ascii_entry(37521U, *prepared.subsec_time_original));
+    }
     entries.push_back(make_short_entry(40961U, prepared.color_space));
     entries.push_back(make_long_entry(40962U, prepared.pixel_width));
     entries.push_back(make_long_entry(40963U, prepared.pixel_height));
+    return entries;
+}
+
+[[nodiscard]] std::vector<TiffIfdEntry> gps_ifd_entries(const PreparedExportMetadata &prepared)
+{
+    std::vector<TiffIfdEntry> entries;
+    entries.push_back(make_bytes_entry(0U, {2U, 3U, 0U, 0U}));
+    entries.push_back(make_ascii_entry(1U, std::string(1, prepared.gps_latitude_ref)));
+    entries.push_back(make_rational3_entry(2U, prepared.gps_latitude));
+    entries.push_back(make_ascii_entry(3U, std::string(1, prepared.gps_longitude_ref)));
+    entries.push_back(make_rational3_entry(4U, prepared.gps_longitude));
+    if (prepared.gps_altitude_ref && prepared.gps_altitude)
+    {
+        entries.push_back(make_byte_entry(5U, *prepared.gps_altitude_ref));
+        entries.push_back(make_rational_entry(6U, *prepared.gps_altitude));
+    }
     return entries;
 }
 
@@ -291,15 +349,20 @@ build_export_exif_tiff_profile(const PreparedExportMetadata &prepared)
     try
     {
         const auto exif_entries = exif_ifd_entries(prepared);
+        const auto gps_entries =
+            prepared.has_gps ? gps_ifd_entries(prepared) : std::vector<TiffIfdEntry>{};
         const std::size_t header_bytes = 8U;
-        const auto ifd0_without_exif = ifd0_entries(prepared, 0U);
-        // ExifIFD offset is written after IFD0; compute the final offset first.
+        const auto ifd0_without_offsets = ifd0_entries(prepared, 0U, 0U);
         const std::uint32_t exif_offset =
-            static_cast<std::uint32_t>(header_bytes + ifd_size(ifd0_without_exif));
-        const auto ifd0_entries_final = ifd0_entries(prepared, exif_offset);
+            static_cast<std::uint32_t>(header_bytes + ifd_size(ifd0_without_offsets));
+        const std::uint32_t gps_offset =
+            prepared.has_gps ? static_cast<std::uint32_t>(exif_offset + ifd_size(exif_entries)) :
+                               0U;
+        const auto ifd0_entries_final = ifd0_entries(prepared, exif_offset, gps_offset);
 
         std::vector<std::uint8_t> profile;
-        profile.reserve(header_bytes + ifd_size(ifd0_entries_final) + ifd_size(exif_entries));
+        profile.reserve(header_bytes + ifd_size(ifd0_entries_final) + ifd_size(exif_entries) +
+                        ifd_size(gps_entries));
         profile.push_back('I');
         profile.push_back('I');
         append_u16_le(profile, 42U);
@@ -312,6 +375,16 @@ build_export_exif_tiff_profile(const PreparedExportMetadata &prepared)
                                          "export_exif_offset_mismatch");
         }
         append_ifd(profile, exif_entries);
+        if (prepared.has_gps)
+        {
+            if (profile.size() != gps_offset)
+            {
+                return export_metadata_error(ErrorCode::kInternal,
+                                             "GPS IFD size does not match the computed offset",
+                                             "export_gps_offset_mismatch");
+            }
+            append_ifd(profile, gps_entries);
+        }
         if (profile.size() > kExportExifTiffProfileMaxBytes)
         {
             return export_metadata_error(
@@ -390,6 +463,36 @@ Result<std::vector<std::uint8_t>> build_export_xmp_packet(const PreparedExportMe
             xml += "   <exif:ExposureTime>";
             xml += export_rational_xmp_text(*prepared.shutter);
             xml += "</exif:ExposureTime>\n";
+        }
+        if (prepared.xmp_datetime_original)
+        {
+            xml += "   <exif:DateTimeOriginal>";
+            xml += xml_escape_utf8(*prepared.xmp_datetime_original);
+            xml += "</exif:DateTimeOriginal>\n";
+        }
+        if (prepared.xmp_gps_latitude)
+        {
+            xml += "   <exif:GPSLatitude>";
+            xml += xml_escape_utf8(*prepared.xmp_gps_latitude);
+            xml += "</exif:GPSLatitude>\n";
+        }
+        if (prepared.xmp_gps_longitude)
+        {
+            xml += "   <exif:GPSLongitude>";
+            xml += xml_escape_utf8(*prepared.xmp_gps_longitude);
+            xml += "</exif:GPSLongitude>\n";
+        }
+        if (prepared.xmp_gps_altitude_ref)
+        {
+            xml += "   <exif:GPSAltitudeRef>";
+            xml += xml_escape_utf8(*prepared.xmp_gps_altitude_ref);
+            xml += "</exif:GPSAltitudeRef>\n";
+        }
+        if (prepared.xmp_gps_altitude)
+        {
+            xml += "   <exif:GPSAltitude>";
+            xml += xml_escape_utf8(*prepared.xmp_gps_altitude);
+            xml += "</exif:GPSAltitude>\n";
         }
         const auto append_lang_alt =
             [&](const std::string_view element, const std::optional<std::string> &value)
@@ -653,6 +756,39 @@ Result<PreparedExportMetadata> prepare_export_metadata(const ExportMetadataSnaps
                 return value.error();
             }
             prepared.shutter = value.value();
+        }
+        if (snapshot.capture.captured_datetime)
+        {
+            prepared.datetime_original = snapshot.capture.captured_datetime->local_exif;
+            if (snapshot.capture.captured_datetime->utc_offset_minutes)
+            {
+                prepared.offset_time_original = format_capture_utc_offset(
+                    *snapshot.capture.captured_datetime->utc_offset_minutes);
+            }
+            prepared.subsec_time_original = snapshot.capture.captured_datetime->subsecond_digits;
+            prepared.xmp_datetime_original =
+                format_capture_datetime_iso(*snapshot.capture.captured_datetime);
+        }
+        if (snapshot.capture.location)
+        {
+            prepared.has_gps = true;
+            const auto &location = *snapshot.capture.location;
+            prepared.gps_latitude_ref = location.latitude_e6 < 0 ? 'S' : 'N';
+            prepared.gps_longitude_ref = location.longitude_e6 < 0 ? 'W' : 'E';
+            prepared.gps_latitude = capture_microdegrees_to_dms(location.latitude_e6);
+            prepared.gps_longitude = capture_microdegrees_to_dms(location.longitude_e6);
+            prepared.xmp_gps_latitude = format_gps_xmp_coordinate(location.latitude_e6, 'N', 'S');
+            prepared.xmp_gps_longitude = format_gps_xmp_coordinate(location.longitude_e6, 'E', 'W');
+            if (location.altitude)
+            {
+                const bool below =
+                    location.altitude->reference == CaptureAltitudeReference::kBelowSeaLevel;
+                prepared.gps_altitude_ref = below ? 1U : 0U;
+                prepared.gps_altitude =
+                    capture_altitude_mm_to_rational(location.altitude->magnitude_mm);
+                prepared.xmp_gps_altitude_ref = below ? "1" : "0";
+                prepared.xmp_gps_altitude = export_rational_xmp_text(*prepared.gps_altitude);
+            }
         }
 
         active = cancellation.check();

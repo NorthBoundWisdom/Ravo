@@ -148,7 +148,12 @@ ravo catalog list --catalog "/work/Ravo Library.sqlite" --json
 
 `create` refuses to replace an existing database. `list` returns asset IDs,
 media types, normalized URIs, review state, tags, metadata, capture values, and
-whether an asset has edits. Filter by a catalog tag with:
+whether an asset has edits. `capture.captured_at` is ISO local time with exact
+source subseconds and the source UTC offset only when the file supplied one;
+unzoned times never gain `Z`, and the field is `null` when no local capture
+time exists. `capture.gps` is `null` without a complete latitude/longitude pair;
+coordinates are scaled-decimal numbers with at most six fractional digits, and
+`altitude_m` is omitted when altitude is absent. Filter by a catalog tag with:
 
 ```text
 ravo catalog list --catalog "/work/Ravo Library.sqlite" \

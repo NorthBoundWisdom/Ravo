@@ -953,6 +953,26 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
     {
         bounded_add(sizes.exif_tiff_profile_bytes, 20U, kExportExifTiffProfileMaxBytes);
     }
+    if (metadata.capture.captured_datetime)
+    {
+        bounded_add(sizes.exif_tiff_profile_bytes, 32U, kExportExifTiffProfileMaxBytes);
+        if (metadata.capture.captured_datetime->subsecond_digits)
+        {
+            bounded_add(sizes.exif_tiff_profile_bytes, 24U, kExportExifTiffProfileMaxBytes);
+        }
+        if (metadata.capture.captured_datetime->utc_offset_minutes)
+        {
+            bounded_add(sizes.exif_tiff_profile_bytes, 20U, kExportExifTiffProfileMaxBytes);
+        }
+    }
+    if (metadata.capture.location)
+    {
+        bounded_add(sizes.exif_tiff_profile_bytes, 220U, kExportExifTiffProfileMaxBytes);
+        if (metadata.capture.location->altitude)
+        {
+            bounded_add(sizes.exif_tiff_profile_bytes, 32U, kExportExifTiffProfileMaxBytes);
+        }
+    }
 
     // Conservative XMP upper bound. The fixed allowance covers the packet
     // wrapper, namespaces, CreatorTool, every optional capture number, and
@@ -974,6 +994,24 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata)
     add_xmp_text(metadata.writable.copyright, 128U);
     add_xmp_text(metadata.capture.camera_make, 64U);
     add_xmp_text(metadata.capture.camera_model, 64U);
+    if (metadata.capture.captured_datetime)
+    {
+        bounded_add(sizes.xmp_packet_bytes, 96U, kExportXmpPacketMaxBytes);
+        if (metadata.capture.captured_datetime->subsecond_digits)
+        {
+            bounded_add(sizes.xmp_packet_bytes,
+                        metadata.capture.captured_datetime->subsecond_digits->size(),
+                        kExportXmpPacketMaxBytes);
+        }
+    }
+    if (metadata.capture.location)
+    {
+        bounded_add(sizes.xmp_packet_bytes, 160U, kExportXmpPacketMaxBytes);
+        if (metadata.capture.location->altitude)
+        {
+            bounded_add(sizes.xmp_packet_bytes, 96U, kExportXmpPacketMaxBytes);
+        }
+    }
     if (!metadata.tags.empty())
     {
         bounded_add(sizes.xmp_packet_bytes, 64U, kExportXmpPacketMaxBytes);
@@ -1114,6 +1152,11 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
         {
             return valid.error();
         }
+    }
+    auto capture_state = validate_capture_metadata(metadata.capture);
+    if (!capture_state)
+    {
+        return capture_state.error();
     }
 
     active = cancellation.check();

@@ -39,7 +39,7 @@ add_executable(ravo_contract_tests
   output_color_test.cpp
   profile_gamma_test.cpp
   primaries_test.cpp)
-target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli Qt6::Gui)
+target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli Qt6::Gui ZLIB::ZLIB)
 target_include_directories(ravo_contract_tests PRIVATE
   $<TARGET_PROPERTY:lcms2,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>
@@ -67,8 +67,12 @@ target_link_libraries(ravo_catalog_tests
     ravo_adapters
     Qt6::Core
     Qt6::Gui
-    Qt6::Sql)
-target_include_directories(ravo_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    Qt6::Sql
+    ZLIB::ZLIB)
+target_include_directories(ravo_catalog_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/Ravo/adapters/src
+  ${CMAKE_SOURCE_DIR}/Ravo/services/src)
 target_compile_definitions(ravo_catalog_tests PRIVATE
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_catalog_tests)

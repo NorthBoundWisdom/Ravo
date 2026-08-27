@@ -262,6 +262,13 @@ EngineFacade::inspect_with_embedded_preview(const std::string_view input_uri,
     return inspect_raw_with_embedded_preview(input_uri, max_edge, cancellation);
 }
 
+Result<EngineCaptureMetadata>
+EngineFacade::read_embedded_capture_metadata(const std::string_view input_uri,
+                                             const CancellationToken &cancellation) const
+{
+    return ravo::read_embedded_capture_metadata(input_uri, cancellation);
+}
+
 const std::vector<OperationDescriptor> &EngineFacade::operations() const noexcept
 {
     return registry_.descriptors();

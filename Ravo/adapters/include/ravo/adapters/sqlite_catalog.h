@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -8,6 +9,11 @@
 
 namespace ravo
 {
+
+namespace testing
+{
+class SqliteCatalogTestControl;
+}
 
 class SqliteCatalogRepository final : public CatalogRepository
 {
@@ -25,7 +31,7 @@ public:
     find_asset_by_id(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::optional<AssetRecord>>
     find_asset_by_uri(std::string_view normalized_uri) const override;
-    [[nodiscard]] Result<void> insert_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<void> commit_imported_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_review(std::string_view asset_id,
                                              const ReviewState &review) override;
@@ -42,10 +48,8 @@ public:
                                                      std::string_view history_json) override;
     [[nodiscard]] Result<void> replace_asset_tags(std::string_view asset_id,
                                                   const std::vector<std::string> &tags) override;
-    [[nodiscard]] Result<void>
-    upsert_writable_metadata(std::string_view asset_id, const WritableMetadata &metadata) override;
-    [[nodiscard]] Result<void>
-    upsert_capture_metadata(std::string_view asset_id, const CaptureMetadata &capture) override;
+    [[nodiscard]] Result<void> upsert_writable_metadata(std::string_view asset_id,
+                                                        const WritableMetadata &metadata) override;
     [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::optional<RecipeHistoryEntry>>
@@ -66,8 +70,13 @@ private:
 
     explicit SqliteCatalogRepository(std::unique_ptr<Impl> impl);
     static Result<std::unique_ptr<Impl>> open_database(std::string_view database_path, bool create);
+    [[nodiscard]] Result<void> insert_asset(const AssetRecord &asset);
+    [[nodiscard]] Result<void> upsert_capture_metadata(std::string_view asset_id,
+                                                       const CaptureMetadata &capture);
 
     std::unique_ptr<Impl> impl_;
+
+    friend class testing::SqliteCatalogTestControl;
 };
 
 } // namespace ravo

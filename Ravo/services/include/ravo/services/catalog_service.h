@@ -20,6 +20,11 @@
 namespace ravo
 {
 
+namespace testing
+{
+class CatalogServiceTestControl;
+}
+
 class CatalogService
 {
 public:
@@ -126,6 +131,9 @@ private:
     std::optional<DecodedPreviewSource> decoded_preview_source_;
     std::optional<CachedRawFrame> decoded_raw_;
     std::optional<CachedLinearWorking> linear_working_;
+    std::function<void()> testing_before_import_publication_;
+
+    friend class testing::CatalogServiceTestControl;
 };
 
 } // namespace ravo

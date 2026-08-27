@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -37,6 +38,21 @@ struct PreparedExportMetadata
     std::optional<std::string> creator;
     std::optional<std::string> copyright;
     std::vector<std::string> tags;
+    std::optional<std::string> datetime_original;
+    std::optional<std::string> offset_time_original;
+    std::optional<std::string> subsec_time_original;
+    bool has_gps = false;
+    char gps_latitude_ref = 'N';
+    char gps_longitude_ref = 'E';
+    std::array<ExportUnsignedRational, 3> gps_latitude{};
+    std::array<ExportUnsignedRational, 3> gps_longitude{};
+    std::optional<std::uint8_t> gps_altitude_ref;
+    std::optional<ExportUnsignedRational> gps_altitude;
+    std::optional<std::string> xmp_datetime_original;
+    std::optional<std::string> xmp_gps_latitude;
+    std::optional<std::string> xmp_gps_longitude;
+    std::optional<std::string> xmp_gps_altitude_ref;
+    std::optional<std::string> xmp_gps_altitude;
     std::vector<std::uint8_t> exif_tiff_profile;
     std::vector<std::uint8_t> xmp_packet;
     std::optional<std::vector<std::uint8_t>> iptc_iim;

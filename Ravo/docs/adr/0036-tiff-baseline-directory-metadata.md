@@ -73,6 +73,14 @@ retirement remain open. The work adds no Exiv2 or other dependency, and it
 does not authorize another algorithm-migration tranche during the
 feature-convergence pause.
 
+## Subsequent decisions
+
+[ADR-0038](0038-embedded-export-metadata.md) later supplies the shared bounded
+Exif/XMP/IPTC snapshot, and
+[ADR-0040](0040-capture-time-gps-metadata.md) adds validated capture
+time/offset/GPS. This ADR's baseline main-directory ownership and no-reopen
+publication boundary remain in force.
+
 ## Rejected alternatives
 
 - Reopen the published TIFF with Exiv2: this breaks the complete-byte atomic

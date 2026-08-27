@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "catalog_internal.h"
+#include "catalog_service_test_support.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
@@ -14,6 +15,23 @@
 
 namespace ravo
 {
+
+void testing::CatalogServiceTestControl::set_before_import_publication(
+    CatalogService &service, std::function<void()> callback)
+{
+    service.testing_before_import_publication_ = std::move(callback);
+}
+namespace
+{
+
+[[nodiscard]] bool media_type_has_embedded_capture(const std::string_view media_type) noexcept
+{
+    return is_raw_media_type(media_type) || media_type == kMediaTypeJpeg ||
+           media_type == kMediaTypePng || media_type == kMediaTypeTiff;
+}
+
+} // namespace
+
 CatalogService::CatalogService(const EngineFacade &engine,
                                std::unique_ptr<CatalogRepository> repository,
                                std::unique_ptr<RasterDecoder> raster,
@@ -870,25 +888,60 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         }
     }
 
-    const auto inserted = repository_->insert_asset(asset);
-    if (!inserted)
+    if (media_type_has_embedded_capture(asset.media_type))
     {
-        return failed_item(location.value().path, inserted.error());
-    }
-    if (asset.capture.camera_make || asset.capture.camera_model || asset.capture.iso ||
-        asset.capture.aperture || asset.capture.focal_length_mm || asset.capture.shutter_s ||
-        asset.capture.captured_unix_s)
-    {
-        const auto captured = repository_->upsert_capture_metadata(asset.id, asset.capture);
-        if (!captured)
+        auto extracted =
+            engine_->read_embedded_capture_metadata(location.value().path, cancellation);
+        if (!extracted)
         {
-            return failed_item(location.value().path, captured.error());
+            return failed_item(location.value().path, extracted.error());
+        }
+        if (extracted.value().captured_datetime)
+        {
+            CaptureDateTime captured;
+            captured.local_exif = extracted.value().captured_datetime->local_exif;
+            captured.subsecond_digits = extracted.value().captured_datetime->subsecond_digits;
+            captured.utc_offset_minutes = extracted.value().captured_datetime->utc_offset_minutes;
+            asset.capture.captured_datetime = std::move(captured);
+        }
+        if (extracted.value().location)
+        {
+            CaptureLocation copied;
+            copied.latitude_e6 = extracted.value().location->latitude_e6;
+            copied.longitude_e6 = extracted.value().location->longitude_e6;
+            if (extracted.value().location->altitude)
+            {
+                CaptureAltitude altitude;
+                altitude.magnitude_mm = extracted.value().location->altitude->magnitude_mm;
+                altitude.reference = extracted.value().location->altitude->reference ==
+                                             EngineCaptureAltitudeReference::kBelowSeaLevel ?
+                                         CaptureAltitudeReference::kBelowSeaLevel :
+                                         CaptureAltitudeReference::kAboveSeaLevel;
+                copied.altitude = altitude;
+            }
+            asset.capture.location = copied;
+        }
+        auto valid_capture = validate_capture_metadata(asset.capture);
+        if (!valid_capture)
+        {
+            return failed_item(location.value().path, valid_capture.error());
         }
     }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
+
+    if (testing_before_import_publication_)
     {
-        return failed_item(location.value().path, revision.error());
+        auto callback = std::move(testing_before_import_publication_);
+        callback();
+    }
+    auto ready_to_publish = cancellation.check();
+    if (!ready_to_publish)
+    {
+        return failed_item(location.value().path, ready_to_publish.error());
+    }
+    const auto published = repository_->commit_imported_asset(asset);
+    if (!published)
+    {
+        return failed_item(location.value().path, published.error());
     }
 
     if (validated_raster)

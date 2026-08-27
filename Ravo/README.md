@@ -39,7 +39,7 @@ Current implementation status:
   manager persists the selected UI language, loads only the build-produced Qt
   catalog, and leaves service/engine machine errors outside the catalog
   contract.
-- Basic Develop provides catalog schema v4 with one canonical recipe per image,
+- Basic Develop provides catalog schema v5 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
   lensfun poly3/vignette, dt UCS `colorequal`, graduated filter, and nine-band
@@ -103,8 +103,8 @@ Current implementation status:
   service callers may select 4:4:4, 4:4:0, 4:2:2, or 4:2:0 explicitly. The CLI
   exposes quality and `auto|444|440|422|420` subsampling. Studio and CLI share those typed values. Rendered JPEG embeds Catalog-owned Exif APP1,
   standard XMP APP1, and optional IPTC Photoshop APP13 from one snapshot before
-  ADR-0032 publication; capture timezone/GPS and sidecar/history policy remain
-  later S9/J6 work.
+  ADR-0032 publication, including validated capture time/offset/GPS;
+  sidecar/history policy remains later S9/J6 work.
 - PNG export uses one typed bit-depth/compression request from CatalogService
   through the raster port. It defaults to 8-bit and compression 5, accepts
   compression 0–9, and delegates RGB8 output to a private libpng owner
@@ -114,7 +114,8 @@ Current implementation status:
   16-bit structurally instead of expanding 8-bit samples. CLI exposes
   `--png-bit-depth 8|16` and `--png-compression 0..9`; Studio exposes the same typed PNG options. Rendered PNG embeds one
   `eXIf` TIFF profile and one uncompressed XMP `iTXt`; it still writes no pHYs
-  or IPTC. Capture timezone/GPS and sidecar/history policy remain later S9/J6.
+  or IPTC. Validated capture time/offset/GPS from Catalog schema v5 are
+  included; sidecar/history policy remains later S9/J6.
 - TIFF export uses one typed sample/compression/resolution request from
   CatalogService through the raster port. It defaults to unsigned 8-bit,
   Deflate with the horizontal predictor, level 6, RGB output, and 300 dpi;
@@ -135,8 +136,8 @@ Current implementation status:
   boolean flag rejects duplicates; every TIFF flag is rejected outside a TIFF export.
   Studio exposes the same typed TIFF options. Product uint16/float16/float32
   requests render engine-owned RGB16 or finite RGB float; an RGB8 source still
-  fails structurally instead of fabricating precision. Capture timezone/GPS,
-  sidecar/history policy, multipage masks, shared
+  fails structurally instead of fabricating precision. Sidecar/history
+  interchange, metadata refresh, privacy stripping, multipage masks, shared
   consumers, and retirement remain later I13/S9/J6 work. TIFF bytes complete in
   memory before the shared ADR-0032 atomic no-replace publication; source and
   sidecar files are never rewritten.

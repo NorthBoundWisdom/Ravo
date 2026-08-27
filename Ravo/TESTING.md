@@ -28,13 +28,16 @@ The dependency-boundary checker covers the product target graph:
 check to admit a new dependency.
 
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
-integration. Review contracts include schema v2→v4 migration, review
+integration. Review contracts include schema v2→v5 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
 canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
 CPU Develop operations, edited previews, and
 `ravo catalog` JSON commands going through the same CatalogService. Schema v4
 covers Unicode tag filtering, writable metadata, and history/snapshot save and
-restore. FreeCM Test and `ctest --test-dir build/<preset>` run the same suite
+restore. Schema v5 adds capture local time/offset and GPS magnitude/reference
+columns with strict migration, import-transaction, storage-decoding, and reopen
+contracts. This does not complete I11/I12/I13/S9/J6. FreeCM Test and
+`ctest --test-dir build/<preset>` run the same suite
 from the repository root. GitHub Actions runs the same CTest set on
 `mac_clang_debug`, `linux_clang_debug`, and `win_msvc_debug`, plus static
 freeze/capability/boundary checks. CI runs `--init`, updates Qt/PATH in the
@@ -555,8 +558,20 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   complete JSON errors, source hashes, successful uint16/float16/float32
   product renders, and zero publication for invalid requests. I7 input and
   ADR-0032
-  publication remain separate owners. Capture timezone/GPS plus XMP
-  attach/history/sidecar policy remain unclaimed S9/J6 work.
+  publication remain separate owners. Domain tests freeze `CaptureDateTime`,
+  `CaptureLocation`, and `CaptureMetadata` validation plus exact export DMS
+  conversion. Engine tests read `mire1.cr2` as local
+  `2007:09:11 13:53:33.18` without inventing an offset or GPS, and independently
+  exercise unsigned-rational bounds and ties, tag precedence/conflicts, hostile
+  PNG chunks, and bounded errors. Catalog tests cover schema v5 additive
+  columns, v4-row NULL preservation, every injected v5 migration stage, atomic
+  import rollback, strict new-column storage classes, zero/reference reopen,
+  real RAW plus independently built JPEG/PNG/TIFF Exif import, and
+  duplicate-import metadata/revision freeze. Encoder and TIFF tests prove one
+  `PreparedExportMetadata` derivation, conservative packet estimates,
+  JPEG/PNG/TIFF embed, exact TIFF field values, and injected LibTIFF GPS IFD
+  lifecycle failures. XMP attach/history/sidecar policy, metadata refresh, and
+  privacy stripping remain unclaimed S9/J6 work.
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

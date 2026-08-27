@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -15,7 +16,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 4;
+inline constexpr std::int64_t kCatalogSchemaVersion = 5;
 inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
 inline constexpr std::size_t kTagMaxLength = 128;
@@ -60,6 +61,18 @@ inline constexpr std::size_t kExportIptcKeywordMaxBytes = 64U;
 // impossible counts before copying or sorting the snapshot.
 inline constexpr std::size_t kExportTagMaxCount = kExportXmpPacketMaxBytes / 24U;
 inline constexpr std::string_view kExportXmpCreatorTool = "Ravo";
+
+inline constexpr std::int32_t kCaptureLatitudeE6Min = -90'000'000;
+inline constexpr std::int32_t kCaptureLatitudeE6Max = 90'000'000;
+inline constexpr std::int32_t kCaptureLongitudeE6Min = -180'000'000;
+inline constexpr std::int32_t kCaptureLongitudeE6Max = 180'000'000;
+inline constexpr std::uint32_t kCaptureAltitudeAboveSeaLevelMmMax = 100'000'000U;
+inline constexpr std::uint32_t kCaptureAltitudeBelowSeaLevelMmMax = 12'000'000U;
+inline constexpr std::int32_t kCaptureUtcOffsetMinutesMin = -14 * 60;
+inline constexpr std::int32_t kCaptureUtcOffsetMinutesMax = 14 * 60;
+inline constexpr std::size_t kCaptureLocalExifLength = 19U;
+inline constexpr std::size_t kCaptureSubsecondDigitsMin = 1U;
+inline constexpr std::size_t kCaptureSubsecondDigitsMax = 9U;
 
 inline constexpr std::string_view kMediaTypePng = "image/png";
 inline constexpr std::string_view kMediaTypeJpeg = "image/jpeg";
@@ -226,6 +239,38 @@ struct LibraryQuery
     std::string tag;
 };
 
+struct CaptureDateTime
+{
+    std::string local_exif;
+    std::optional<std::string> subsecond_digits;
+    std::optional<std::int32_t> utc_offset_minutes;
+
+    [[nodiscard]] bool operator==(const CaptureDateTime &) const noexcept = default;
+};
+
+enum class CaptureAltitudeReference : std::uint8_t
+{
+    kAboveSeaLevel = 0,
+    kBelowSeaLevel = 1,
+};
+
+struct CaptureAltitude
+{
+    std::uint32_t magnitude_mm = 0;
+    CaptureAltitudeReference reference = CaptureAltitudeReference::kAboveSeaLevel;
+
+    [[nodiscard]] bool operator==(const CaptureAltitude &) const noexcept = default;
+};
+
+struct CaptureLocation
+{
+    std::int32_t latitude_e6 = 0;
+    std::int32_t longitude_e6 = 0;
+    std::optional<CaptureAltitude> altitude;
+
+    [[nodiscard]] bool operator==(const CaptureLocation &) const noexcept = default;
+};
+
 struct CaptureMetadata
 {
     std::optional<std::string> camera_make;
@@ -235,6 +280,8 @@ struct CaptureMetadata
     std::optional<double> focal_length_mm;
     std::optional<double> shutter_s;
     std::optional<std::int64_t> captured_unix_s;
+    std::optional<CaptureDateTime> captured_datetime;
+    std::optional<CaptureLocation> location;
 
     [[nodiscard]] bool operator==(const CaptureMetadata &) const noexcept = default;
 };
@@ -459,6 +506,20 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] Result<TiffCompression> parse_tiff_compression(std::string_view name);
 [[nodiscard]] Result<void> validate_tiff_export_options(const TiffExportOptions &options);
 [[nodiscard]] Result<void> validate_tiff_export_document_name(std::string_view name);
+
+[[nodiscard]] Result<void> validate_capture_datetime(const CaptureDateTime &value);
+[[nodiscard]] Result<void> validate_capture_location(const CaptureLocation &value);
+[[nodiscard]] Result<void> validate_capture_metadata(const CaptureMetadata &capture);
+[[nodiscard]] bool capture_metadata_has_values(const CaptureMetadata &capture) noexcept;
+[[nodiscard]] std::array<ExportUnsignedRational, 3>
+capture_microdegrees_to_dms(std::int32_t e6) noexcept;
+[[nodiscard]] ExportUnsignedRational
+capture_altitude_mm_to_rational(std::uint32_t magnitude_mm) noexcept;
+[[nodiscard]] std::string format_capture_datetime_iso(const CaptureDateTime &value);
+[[nodiscard]] std::string format_capture_utc_offset(std::int32_t utc_offset_minutes);
+[[nodiscard]] std::string format_scaled_decimal(std::int64_t value, int scale);
+[[nodiscard]] std::string format_gps_xmp_coordinate(std::int32_t e6, char positive_ref,
+                                                    char negative_ref);
 [[nodiscard]] Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
                                                     const CancellationToken &cancellation = {});
 [[nodiscard]] Result<void>
