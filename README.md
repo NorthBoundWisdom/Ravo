@@ -8,6 +8,11 @@ Ravo is a cross-platform local photo library and RAW editor rebuilt from the pho
 
 Ravo Studio brings the library, browsing, filtering, review, and non-destructive editing into one local workspace. The `ravo` CLI exposes the same core capabilities to automated and headless workflows.
 
+## User documentation
+
+Read the [Ravo User Handbook](userdoc/README.md), or visit the
+[online documentation](https://northboundwisdom.github.io/Ravo/).
+
 ## Ravo Studio
 
 ![Ravo Studio gallery view showing a local photo grid, histogram, photo details, and metadata panel.](assets/screenshots/ravo-studio-gallery.png)
@@ -61,7 +66,6 @@ Use `win_msvc_debug` / `win_msvc_release` on Windows and `linux_clang_*` on Linu
 
 ## Learn more
 
-- [User handbook](userdoc/README.md) · [Read online](https://northboundwisdom.github.io/Ravo/)
 - [Ravo capabilities and CLI](Ravo/README.md)
 - [Architecture and data lifetimes](Ravo/ARCHITECTURE.md)
 - [Testing and validation strategy](Ravo/TESTING.md)
