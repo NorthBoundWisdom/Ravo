@@ -14,6 +14,8 @@ target_sources(ravo_engine
     src/d50_lab.h
     src/dt_ucs.cpp
     src/dt_ucs.h
+    src/harmony_geometry.cpp
+    src/harmony_geometry.h
     src/engine.cpp
     src/image_ops.cpp
     src/input_color.cpp
@@ -29,6 +31,10 @@ target_sources(ravo_engine
     src/raw_temperature.cpp
     src/raw_temperature.h
     src/scopes.cpp)
+
+set_property(SOURCE src/harmony_geometry.cpp APPEND PROPERTY COMPILE_OPTIONS
+  "$<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-ffp-contract=off>"
+  "$<$<CXX_COMPILER_ID:MSVC>:/fp:strict>")
 
 target_include_directories(ravo_engine
   PUBLIC

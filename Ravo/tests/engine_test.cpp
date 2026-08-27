@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cfenv>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -31,6 +32,7 @@
 #include "color_contrast.h"
 #include "d50_lab.h"
 #include "dt_ucs.h"
+#include "harmony_geometry.h"
 #include "image_ops.h"
 #include "input_color.h"
 #include "primaries.h"
@@ -1556,6 +1558,332 @@ void expect_dt_ucs_local_oracle(const FrozenD50Triplet actual, const FrozenD50Tr
     // same-platform bit comparison to an independent source-order oracle, not
     // a claim that their decimal results are cross-platform bit-stable.
     EXPECT_EQ(d50_triplet_bits(actual), d50_triplet_bits(oracle));
+}
+
+using FrozenHarmonyHueTable = std::array<float, harmony_geometry::kHueTableSteps>;
+
+struct FrozenHarmonyHueTables
+{
+    FrozenHarmonyHueTable ucs_to_ryb{};
+    FrozenHarmonyHueTable ryb_to_ucs{};
+};
+
+struct FrozenHarmonyNodes
+{
+    std::array<float, harmony_geometry::kMaxHarmonyNodes> hues{};
+    std::size_t count = 0U;
+};
+
+struct FrozenHarmonyAttraction
+{
+    float shift = 0.0F;
+    std::size_t winning_index = 0U;
+    float weight = 0.0F;
+};
+
+[[nodiscard]] float frozen_harmony_clamp01(const float value) noexcept
+{
+    return value >= 0.0F ? (value <= 1.0F ? value : 1.0F) : 0.0F;
+}
+
+[[nodiscard]] FrozenD50Triplet
+frozen_harmony_xyz_d65_to_linear_rec709(const FrozenD50Triplet xyz,
+                                        const bool transpose_discriminator = false) noexcept
+{
+    if (transpose_discriminator)
+    {
+        return {
+            frozen_dt_ucs_matrix_row(3.2404542F, xyz[0], -0.9692660F, xyz[1], 0.0556434F, xyz[2]),
+            frozen_dt_ucs_matrix_row(-1.5371385F, xyz[0], 1.8760108F, xyz[1], -0.2040259F, xyz[2]),
+            frozen_dt_ucs_matrix_row(-0.4985314F, xyz[0], 0.0415560F, xyz[1], 1.0572252F, xyz[2])};
+    }
+    return {frozen_dt_ucs_matrix_row(3.2404542F, xyz[0], -1.5371385F, xyz[1], -0.4985314F, xyz[2]),
+            frozen_dt_ucs_matrix_row(-0.9692660F, xyz[0], 1.8760108F, xyz[1], 0.0415560F, xyz[2]),
+            frozen_dt_ucs_matrix_row(0.0556434F, xyz[0], -0.2040259F, xyz[1], 1.0572252F, xyz[2])};
+}
+
+[[nodiscard]] float frozen_harmony_srgb_to_linear(const float srgb,
+                                                  const float threshold = 0.04045F) noexcept
+{
+    const float toe = srgb / 12.92F;
+    const float offset_srgb = srgb + 0.055F;
+    const float scaled_srgb = offset_srgb / 1.055F;
+    const float linearized = std::pow(scaled_srgb, 2.4F);
+    return srgb <= threshold ? toe : linearized;
+}
+
+[[nodiscard]] FrozenD50Triplet
+frozen_harmony_jch_to_srgb(const FrozenD50Triplet jch, const float white_lightness,
+                           const bool transpose_discriminator = false) noexcept
+{
+    const auto xyy = frozen_dt_ucs_jch_to_xyy(jch, white_lightness);
+    const auto xyz_d65 = frozen_dt_ucs_xyy_to_xyz_d65(xyy);
+    const auto linear = frozen_harmony_xyz_d65_to_linear_rec709(xyz_d65, transpose_discriminator);
+    FrozenD50Triplet srgb{};
+    for (std::size_t channel = 0U; channel < srgb.size(); ++channel)
+    {
+        if (linear[channel] <= 0.0031308F)
+        {
+            srgb[channel] = 12.92F * linear[channel];
+        }
+        else
+        {
+            const float curved = std::pow(linear[channel], 1.0F / 2.4F);
+            const float scaled = 1.055F * curved;
+            srgb[channel] = scaled - 0.055F;
+        }
+    }
+    return srgb;
+}
+
+[[nodiscard]] float frozen_harmony_max_chroma(const float hue, const int iterations = 16,
+                                              const bool transpose_discriminator = false) noexcept
+{
+    const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
+    const float scaled_hue = hue * 6.28318530717958647693F;
+    const float angle = scaled_hue - 3.14159265358979323846F;
+    constexpr float lightness = 0.65F;
+    float lower = 0.0F;
+    float upper = 2.0F;
+    for (int iteration = 0; iteration < iterations; ++iteration)
+    {
+        const float middle = (lower + upper) * 0.5F;
+        const auto srgb = frozen_harmony_jch_to_srgb({lightness, middle, angle}, white_lightness,
+                                                     transpose_discriminator);
+        const bool inside = srgb[0] >= 0.0F && srgb[1] >= 0.0F && srgb[2] >= 0.0F &&
+                            srgb[0] <= 1.0F && srgb[1] <= 1.0F && srgb[2] <= 1.0F;
+        if (inside)
+        {
+            lower = middle;
+        }
+        else
+        {
+            upper = middle;
+        }
+    }
+    return lower;
+}
+
+[[nodiscard]] float frozen_harmony_rgb_hue_to_ryb(const float hue,
+                                                  const float middle_knot = 0.472217F) noexcept
+{
+    constexpr std::array<float, 7> input_knots{0.0F,        1.0F / 6.0F, 2.0F / 6.0F, 3.0F / 6.0F,
+                                               4.0F / 6.0F, 5.0F / 6.0F, 1.0F};
+    const std::array<float, 7> output_knots{0.0F,      1.0F / 3.0F, middle_knot, 0.611105F,
+                                            0.715271F, 5.0F / 6.0F, 1.0F};
+    const float wrapped = hue - std::floor(hue);
+    std::size_t index = 0U;
+    while (index < 5U && wrapped >= input_knots[index + 1U])
+    {
+        ++index;
+    }
+    const float numerator = wrapped - input_knots[index];
+    const float denominator = input_knots[index + 1U] - input_knots[index];
+    const float fraction = numerator / denominator;
+    const float output_delta = output_knots[index + 1U] - output_knots[index];
+    const float scaled_delta = fraction * output_delta;
+    return output_knots[index] + scaled_delta;
+}
+
+[[nodiscard]] float frozen_harmony_ucs_to_ryb(const float hue, const int iterations = 16,
+                                              const bool transpose_discriminator = false,
+                                              const float middle_knot = 0.472217F) noexcept
+{
+    const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
+    const float scaled_hue = hue * 6.28318530717958647693F;
+    const float angle = scaled_hue - 3.14159265358979323846F;
+    const float chroma =
+        frozen_harmony_max_chroma(hue, iterations, transpose_discriminator) * 0.85F;
+    auto srgb = frozen_harmony_jch_to_srgb({0.65F, chroma, angle}, white_lightness,
+                                           transpose_discriminator);
+    for (float &channel : srgb)
+    {
+        channel = frozen_harmony_clamp01(channel);
+        channel = frozen_harmony_srgb_to_linear(channel);
+    }
+    const float minimum = std::fmin(std::fmin(srgb[0], srgb[1]), srgb[2]);
+    const float maximum = std::fmax(std::fmax(srgb[0], srgb[1]), srgb[2]);
+    const float delta = maximum - minimum;
+    float rgb_hue = 0.0F;
+    if (std::fabs(maximum) > 1.0e-6F && std::fabs(delta) > 1.0e-6F)
+    {
+        if (srgb[0] == maximum)
+        {
+            rgb_hue = (srgb[1] - srgb[2]) / delta;
+        }
+        else if (srgb[1] == maximum)
+        {
+            rgb_hue = 2.0F + (srgb[2] - srgb[0]) / delta;
+        }
+        else
+        {
+            rgb_hue = 4.0F + (srgb[0] - srgb[1]) / delta;
+        }
+        rgb_hue /= 6.0F;
+        rgb_hue -= std::floor(rgb_hue);
+    }
+    return frozen_harmony_rgb_hue_to_ryb(rgb_hue, middle_knot);
+}
+
+[[nodiscard]] FrozenHarmonyHueTable
+frozen_harmony_forward_table(const int iterations = 16, const bool transpose_discriminator = false,
+                             const float middle_knot = 0.472217F) noexcept
+{
+    FrozenHarmonyHueTable table{};
+    for (std::size_t index = 0U; index < table.size(); ++index)
+    {
+        table[index] =
+            frozen_harmony_ucs_to_ryb(static_cast<float>(index) / static_cast<float>(table.size()),
+                                      iterations, transpose_discriminator, middle_knot);
+    }
+    return table;
+}
+
+[[nodiscard]] FrozenHarmonyHueTable
+frozen_harmony_inverse_table(const FrozenHarmonyHueTable &forward) noexcept
+{
+    FrozenHarmonyHueTable inverse{};
+    for (std::size_t target_index = 0U; target_index < inverse.size(); ++target_index)
+    {
+        const float target = static_cast<float>(target_index) / static_cast<float>(inverse.size());
+        float best_distance = 1.0F;
+        float best_ucs = 0.0F;
+        for (std::size_t index = 0U; index < forward.size(); ++index)
+        {
+            float distance = std::fabs(forward[index] - target);
+            if (distance > 0.5F)
+            {
+                distance = 1.0F - distance;
+            }
+            if (distance < best_distance)
+            {
+                best_distance = distance;
+                best_ucs = static_cast<float>(index) / static_cast<float>(forward.size());
+            }
+        }
+        inverse[target_index] = best_ucs;
+    }
+    return inverse;
+}
+
+[[nodiscard]] FrozenHarmonyHueTables frozen_harmony_tables() noexcept
+{
+    FrozenHarmonyHueTables tables;
+    tables.ucs_to_ryb = frozen_harmony_forward_table();
+    tables.ryb_to_ucs = frozen_harmony_inverse_table(tables.ucs_to_ryb);
+    return tables;
+}
+
+[[nodiscard]] float frozen_harmony_lerp(float first, float second, const float fraction) noexcept
+{
+    if (second - first > 0.5F)
+    {
+        second -= 1.0F;
+    }
+    else if (first - second > 0.5F)
+    {
+        first -= 1.0F;
+    }
+    const float difference = second - first;
+    const float scaled_difference = fraction * difference;
+    float result = first + scaled_difference;
+    if (result < 0.0F)
+    {
+        result += 1.0F;
+    }
+    return result;
+}
+
+[[nodiscard]] float frozen_harmony_lookup(const FrozenHarmonyHueTable &table,
+                                          const float hue) noexcept
+{
+    const float position = hue * static_cast<float>(table.size());
+    const int integral_position = static_cast<int>(position);
+    const std::size_t first = static_cast<std::size_t>(integral_position) % table.size();
+    const std::size_t second = (first + 1U) % table.size();
+    return frozen_harmony_lerp(table[first], table[second],
+                               position - static_cast<float>(integral_position));
+}
+
+[[nodiscard]] FrozenHarmonyNodes
+frozen_predefined_harmony_nodes(const harmony_geometry::StandardRule rule, const float anchor_hue,
+                                const FrozenHarmonyHueTables &tables) noexcept
+{
+    constexpr std::array<std::size_t, 9> counts{1U, 3U, 4U, 2U, 3U, 2U, 3U, 4U, 4U};
+    constexpr std::array<std::array<float, 4>, 9> offsets{
+        std::array<float, 4>{0.0F / 12.0F, 0.0F, 0.0F, 0.0F},
+        std::array<float, 4>{-1.0F / 12.0F, 0.0F / 12.0F, 1.0F / 12.0F, 0.0F},
+        std::array<float, 4>{-1.0F / 12.0F, 0.0F / 12.0F, 1.0F / 12.0F, 6.0F / 12.0F},
+        std::array<float, 4>{0.0F / 12.0F, 6.0F / 12.0F, 0.0F, 0.0F},
+        std::array<float, 4>{0.0F / 12.0F, 5.0F / 12.0F, 7.0F / 12.0F, 0.0F},
+        std::array<float, 4>{-1.0F / 12.0F, 1.0F / 12.0F, 0.0F, 0.0F},
+        std::array<float, 4>{0.0F / 12.0F, 4.0F / 12.0F, 8.0F / 12.0F, 0.0F},
+        std::array<float, 4>{-1.0F / 12.0F, 1.0F / 12.0F, 5.0F / 12.0F, 7.0F / 12.0F},
+        std::array<float, 4>{0.0F / 12.0F, 3.0F / 12.0F, 6.0F / 12.0F, 9.0F / 12.0F},
+    };
+    const std::size_t rule_index = static_cast<std::size_t>(rule);
+    FrozenHarmonyNodes nodes;
+    nodes.count = counts[rule_index];
+    const float mapped_anchor = frozen_harmony_lookup(tables.ucs_to_ryb, anchor_hue);
+    const int rotation = static_cast<int>(std::round(mapped_anchor * 360.0F)) % 360;
+    const float sector_anchor = static_cast<float>(rotation) / 360.0F;
+    for (std::size_t index = 0U; index < nodes.count; ++index)
+    {
+        float angle = offsets[rule_index][index] + sector_anchor;
+        angle -= std::floor(angle);
+        nodes.hues[index] = frozen_harmony_lookup(tables.ryb_to_ucs, angle);
+    }
+    return nodes;
+}
+
+[[nodiscard]] FrozenHarmonyAttraction frozen_harmony_attraction(const float pixel_hue,
+                                                                const std::span<const float> nodes,
+                                                                const float pull_width) noexcept
+{
+    const float sigma = pull_width * 0.5F / static_cast<float>(nodes.size());
+    const float inverse_two_sigma_squared = 1.0F / (2.0F * sigma * sigma);
+    FrozenHarmonyAttraction result;
+    for (std::size_t index = 0U; index < nodes.size(); ++index)
+    {
+        float distance = std::fabs(pixel_hue - nodes[index]);
+        if (distance > 0.5F)
+        {
+            distance = 1.0F - distance;
+        }
+        const float weight = std::exp(-distance * distance * inverse_two_sigma_squared);
+        float difference = nodes[index] - pixel_hue;
+        if (difference > 0.5F)
+        {
+            difference -= 1.0F;
+        }
+        else if (difference < -0.5F)
+        {
+            difference += 1.0F;
+        }
+        if (weight > result.weight)
+        {
+            result.weight = weight;
+            result.winning_index = index;
+            result.shift = difference;
+        }
+    }
+    result.shift *= result.weight;
+    return result;
+}
+
+[[nodiscard]] std::uint64_t frozen_harmony_table_hash(const FrozenHarmonyHueTable &table) noexcept
+{
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const float value : table)
+    {
+        const std::uint32_t bits = std::bit_cast<std::uint32_t>(value);
+        for (const unsigned int shift : {0U, 8U, 16U, 24U})
+        {
+            hash ^= static_cast<std::uint8_t>(bits >> shift);
+            hash *= 1099511628211ULL;
+        }
+    }
+    return hash;
 }
 
 // Independent scalar oracle transcribed from the frozen colorbalance.c
@@ -3234,6 +3562,282 @@ TEST(DtUcsBridgeTest, CommonXyzBoundaryIsIndependentOfRec709OrRec2020Coordinates
     {
         EXPECT_NEAR(rec2020_jch[channel], rec709_jch[channel], 6.0e-7F);
     }
+}
+
+TEST(HarmonyGeometryTest, FullTablesMatchIndependentOracleAndFixedBitHashes)
+{
+    // The oracle is a scalar transcription of colorharmonizer.c's 16-step
+    // gamut search, D65 sRGB bridge, HCV conversion, Gossett knots, and strict
+    // nearest inverse scan. It never calls a production harmony helper.
+    const auto oracle = frozen_harmony_tables();
+    constexpr std::uint64_t forward_hash = 0xa3388719b13acbebULL;
+    constexpr std::uint64_t inverse_hash = 0x17726ae66a29d651ULL;
+    EXPECT_EQ(frozen_harmony_table_hash(oracle.ucs_to_ryb), forward_hash);
+    EXPECT_EQ(frozen_harmony_table_hash(oracle.ryb_to_ucs), inverse_hash);
+
+    const auto actual = harmony_geometry::build_harmony_hue_tables();
+    EXPECT_EQ(frozen_harmony_table_hash(actual.ucs_to_ryb), forward_hash);
+    EXPECT_EQ(frozen_harmony_table_hash(actual.ryb_to_ucs), inverse_hash);
+    for (std::size_t index = 0U; index < harmony_geometry::kHueTableSteps; ++index)
+    {
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.ucs_to_ryb[index]),
+                  std::bit_cast<std::uint32_t>(oracle.ucs_to_ryb[index]));
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.ryb_to_ucs[index]),
+                  std::bit_cast<std::uint32_t>(oracle.ryb_to_ucs[index]));
+    }
+
+    // These deliberate oracle perturbations prove that the fixed table hash
+    // catches the frozen search count, transposed matrix orientation, and RYB
+    // knot constants rather than merely hashing an arbitrary smooth curve.
+    EXPECT_NE(frozen_harmony_table_hash(frozen_harmony_forward_table(15)), forward_hash);
+    EXPECT_NE(frozen_harmony_table_hash(frozen_harmony_forward_table(16, true)), forward_hash);
+    EXPECT_NE(frozen_harmony_table_hash(
+                  frozen_harmony_forward_table(16, false, std::nextafter(0.472217F, 1.0F))),
+              forward_hash);
+
+    // Frozen CLAMP routes NaN to zero. The alternate comparison order leaks
+    // NaN, so this locks a source-significant branch even though valid table
+    // construction does not normally feed non-finite swatch samples.
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(frozen_harmony_clamp01(nan)), 0x00000000U);
+    const float leaky_clamp = nan < 0.0F ? 0.0F : (nan > 1.0F ? 1.0F : nan);
+    EXPECT_TRUE(std::isnan(leaky_clamp));
+
+    // The legacy conditional transfer curve is lazy: negative linear sRGB
+    // takes the toe and must not evaluate powf on the discarded branch.
+    const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
+    constexpr FrozenD50Triplet extended_jch{0.65F, 2.0F, 0.0F};
+    const auto extended_linear = frozen_harmony_xyz_d65_to_linear_rec709(
+        frozen_dt_ucs_xyy_to_xyz_d65(frozen_dt_ucs_jch_to_xyy(extended_jch, white_lightness)));
+    ASSERT_TRUE(
+        std::ranges::any_of(extended_linear, [](const float value) { return value < 0.0F; }));
+    std::feclearexcept(FE_ALL_EXCEPT);
+    static_cast<void>(frozen_harmony_jch_to_srgb(extended_jch, white_lightness));
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+    std::feclearexcept(FE_ALL_EXCEPT);
+    static_cast<void>(harmony_geometry::build_harmony_hue_tables());
+    EXPECT_EQ(std::fetestexcept(FE_INVALID), 0);
+
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(frozen_harmony_rgb_hue_to_ryb(0.0F)), 0x00000000U);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(frozen_harmony_rgb_hue_to_ryb(1.0F / 6.0F)),
+              std::bit_cast<std::uint32_t>(1.0F / 3.0F));
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(frozen_harmony_rgb_hue_to_ryb(2.0F / 6.0F)),
+              std::bit_cast<std::uint32_t>(0.472217F));
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(frozen_harmony_rgb_hue_to_ryb(5.0F / 6.0F)),
+              std::bit_cast<std::uint32_t>(5.0F / 6.0F));
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(frozen_harmony_rgb_hue_to_ryb(1.0F)), 0x00000000U);
+
+    const float transfer_input = 0.045F;
+    EXPECT_NE(std::bit_cast<std::uint32_t>(frozen_harmony_srgb_to_linear(transfer_input)),
+              std::bit_cast<std::uint32_t>(frozen_harmony_srgb_to_linear(transfer_input, 0.05F)));
+}
+
+TEST(HarmonyGeometryTest, ValidatedLookupsCoverCircularSeamsAndRejectInvalidHues)
+{
+    const auto oracle = frozen_harmony_tables();
+    const auto tables = harmony_geometry::build_harmony_hue_tables();
+    const std::array hues{0.0F, 1.0F / 720.0F, 719.5F / 720.0F, std::nextafter(1.0F, 0.0F), 1.0F};
+    for (const float hue : hues)
+    {
+        const auto forward = harmony_geometry::ucs_to_ryb_hue(tables, hue);
+        ASSERT_TRUE(forward.has_value());
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(forward.value()),
+                  std::bit_cast<std::uint32_t>(frozen_harmony_lookup(oracle.ucs_to_ryb, hue)));
+        const auto inverse = harmony_geometry::ryb_to_ucs_hue(tables, hue);
+        ASSERT_TRUE(inverse.has_value());
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(inverse.value()),
+                  std::bit_cast<std::uint32_t>(frozen_harmony_lookup(oracle.ryb_to_ucs, hue)));
+    }
+
+    FrozenHarmonyHueTable seam{};
+    seam.fill(0.25F);
+    seam[719] = 0.99F;
+    seam[0] = 0.01F;
+    const harmony_geometry::HarmonyHueTables seam_tables{seam, seam};
+    const auto seam_result = harmony_geometry::ucs_to_ryb_hue(seam_tables, 719.5F / 720.0F);
+    ASSERT_TRUE(seam_result.has_value());
+    const float seam_oracle = frozen_harmony_lookup(seam, 719.5F / 720.0F);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(seam_oracle), 0x31a00000U);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(seam_result.value()),
+              std::bit_cast<std::uint32_t>(seam_oracle));
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float infinity = std::numeric_limits<float>::infinity();
+    for (const float invalid : {-std::numeric_limits<float>::min(), std::nextafter(1.0F, infinity),
+                                nan, infinity, -infinity})
+    {
+        const auto forward = harmony_geometry::ucs_to_ryb_hue(tables, invalid);
+        ASSERT_FALSE(forward.has_value());
+        EXPECT_EQ(forward.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(forward.error().message, "invalid_harmony_hue");
+        const auto inverse = harmony_geometry::ryb_to_ucs_hue(tables, invalid);
+        ASSERT_FALSE(inverse.has_value());
+        EXPECT_EQ(inverse.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(inverse.error().message, "invalid_harmony_hue");
+    }
+}
+
+TEST(HarmonyGeometryTest, InverseBuilderUsesCircularDistanceAndStrictFirstTie)
+{
+    FrozenHarmonyHueTable tied{};
+    tied.fill(0.75F);
+    tied[11] = 0.125F;
+    tied[19] = 0.375F;
+    const auto tied_inverse = harmony_geometry::build_ryb_to_ucs_table(tied);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(tied_inverse[180]),
+              std::bit_cast<std::uint32_t>(11.0F / 720.0F));
+
+    FrozenHarmonyHueTable circular{};
+    circular.fill(0.5F);
+    circular[3] = 0.984375F;
+    circular[4] = 0.125F;
+    const auto circular_inverse = harmony_geometry::build_ryb_to_ucs_table(circular);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(circular_inverse[0]),
+              std::bit_cast<std::uint32_t>(3.0F / 720.0F));
+
+    const auto oracle = frozen_harmony_inverse_table(tied);
+    EXPECT_EQ(tied_inverse, oracle);
+}
+
+TEST(HarmonyGeometryTest, PredefinedRulesMatchSectorGeometryWrapAndDegreeRounding)
+{
+    constexpr std::array<std::size_t, 9> counts{1U, 3U, 4U, 2U, 3U, 2U, 3U, 4U, 4U};
+    const auto oracle_tables = frozen_harmony_tables();
+    const auto tables = harmony_geometry::build_harmony_hue_tables();
+    for (std::size_t rule_index = 0U; rule_index < counts.size(); ++rule_index)
+    {
+        const auto rule = static_cast<harmony_geometry::StandardRule>(rule_index);
+        for (const float anchor : {0.0F, 0.1F, 0.499F, 0.55F, 1.0F})
+        {
+            const auto oracle = frozen_predefined_harmony_nodes(rule, anchor, oracle_tables);
+            const auto actual = harmony_geometry::predefined_harmony_nodes(rule, anchor, tables);
+            ASSERT_TRUE(actual.has_value());
+            EXPECT_EQ(actual.value().count, counts[rule_index]);
+            for (std::size_t node = 0U; node < oracle.count; ++node)
+            {
+                EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.value().hues[node]),
+                          std::bit_cast<std::uint32_t>(oracle.hues[node]));
+            }
+        }
+    }
+
+    FrozenHarmonyHueTable identity{};
+    for (std::size_t index = 0U; index < identity.size(); ++index)
+    {
+        identity[index] = static_cast<float>(index) / static_cast<float>(identity.size());
+    }
+    const harmony_geometry::HarmonyHueTables identity_tables{identity, identity};
+    const auto wrapped = harmony_geometry::predefined_harmony_nodes(
+        harmony_geometry::StandardRule::kAnalogous, 0.0F, identity_tables);
+    ASSERT_TRUE(wrapped.has_value());
+    ASSERT_EQ(wrapped.value().count, 3U);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(wrapped.value().hues[0]),
+              std::bit_cast<std::uint32_t>(11.0F / 12.0F));
+
+    const float below_degree = 0.499F / 360.0F;
+    const float above_degree = 0.501F / 360.0F;
+    const auto below = harmony_geometry::predefined_harmony_nodes(
+        harmony_geometry::StandardRule::kMonochromatic, below_degree, identity_tables);
+    const auto above = harmony_geometry::predefined_harmony_nodes(
+        harmony_geometry::StandardRule::kMonochromatic, above_degree, identity_tables);
+    ASSERT_TRUE(below.has_value());
+    ASSERT_TRUE(above.has_value());
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(below.value().hues[0]), 0x00000000U);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(above.value().hues[0]),
+              std::bit_cast<std::uint32_t>(1.0F / 360.0F));
+
+    const auto invalid_rule = harmony_geometry::predefined_harmony_nodes(
+        static_cast<harmony_geometry::StandardRule>(9U), 0.1F, tables);
+    ASSERT_FALSE(invalid_rule.has_value());
+    EXPECT_EQ(invalid_rule.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(invalid_rule.error().message, "invalid_harmony_rule");
+    for (const float invalid_anchor :
+         {-std::numeric_limits<float>::min(),
+          std::nextafter(1.0F, std::numeric_limits<float>::infinity()),
+          std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()})
+    {
+        const auto result = harmony_geometry::predefined_harmony_nodes(
+            harmony_geometry::StandardRule::kComplementary, invalid_anchor, tables);
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(result.error().message, "invalid_harmony_hue");
+    }
+}
+
+TEST(HarmonyGeometryTest, AttractionMatchesWinnerCircularTieUnderflowAndPullWidth)
+{
+    const auto expect_oracle =
+        [](const float pixel_hue, const std::span<const float> nodes, const float pull_width)
+    {
+        const auto oracle = frozen_harmony_attraction(pixel_hue, nodes, pull_width);
+        const auto actual = harmony_geometry::harmony_attraction(pixel_hue, nodes, pull_width);
+        ASSERT_TRUE(actual.has_value());
+        EXPECT_EQ(actual.value().winning_index, oracle.winning_index);
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.value().weight),
+                  std::bit_cast<std::uint32_t>(oracle.weight));
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(actual.value().shift),
+                  std::bit_cast<std::uint32_t>(oracle.shift));
+    };
+
+    const std::array exact{0.25F};
+    expect_oracle(0.25F, exact, 1.0F);
+    const std::array circular{0.01F};
+    expect_oracle(0.99F, circular, 1.0F);
+    const std::array tie{0.25F, 0.75F};
+    const auto tied = harmony_geometry::harmony_attraction(0.0F, tie, 1.0F);
+    ASSERT_TRUE(tied.has_value());
+    EXPECT_EQ(tied.value().winning_index, 0U);
+    EXPECT_GT(tied.value().shift, 0.0F);
+    expect_oracle(0.0F, tie, 1.0F);
+
+    const std::array underflow{0.5F, 0.5F, 0.5F, 0.5F};
+    const auto underflowed = harmony_geometry::harmony_attraction(0.0F, underflow, 0.25F);
+    ASSERT_TRUE(underflowed.has_value());
+    EXPECT_EQ(underflowed.value().winning_index, 0U);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(underflowed.value().weight), 0x00000000U);
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(underflowed.value().shift), 0x00000000U);
+    for (const float width : {0.25F, 1.0F, 1.84F, 4.0F})
+    {
+        const std::array nodes{0.2F, 0.6F, 0.9F};
+        expect_oracle(0.47F, nodes, width);
+    }
+
+    const auto expect_invalid =
+        [](const Result<harmony_geometry::HarmonyAttraction> &result, const std::string_view reason)
+    {
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(result.error().message, reason);
+    };
+    const std::array<float, 0> empty{};
+    const std::array<float, 5> too_many{0.0F, 0.2F, 0.4F, 0.6F, 0.8F};
+    const std::array invalid_node{-std::numeric_limits<float>::min()};
+    const std::array nonfinite_node{std::numeric_limits<float>::quiet_NaN()};
+    expect_invalid(harmony_geometry::harmony_attraction(0.5F, empty, 1.0F),
+                   "invalid_harmony_nodes");
+    expect_invalid(harmony_geometry::harmony_attraction(0.5F, too_many, 1.0F),
+                   "invalid_harmony_nodes");
+    expect_invalid(harmony_geometry::harmony_attraction(0.5F, invalid_node, 1.0F),
+                   "invalid_harmony_nodes");
+    expect_invalid(harmony_geometry::harmony_attraction(0.5F, nonfinite_node, 1.0F),
+                   "invalid_harmony_nodes");
+    expect_invalid(
+        harmony_geometry::harmony_attraction(-std::numeric_limits<float>::min(), exact, 1.0F),
+        "invalid_harmony_hue");
+    expect_invalid(harmony_geometry::harmony_attraction(
+                       std::nextafter(1.0F, std::numeric_limits<float>::infinity()), exact, 1.0F),
+                   "invalid_harmony_hue");
+    expect_invalid(
+        harmony_geometry::harmony_attraction(std::numeric_limits<float>::quiet_NaN(), exact, 1.0F),
+        "invalid_harmony_hue");
+    expect_invalid(harmony_geometry::harmony_attraction(0.5F, exact, std::nextafter(0.25F, 0.0F)),
+                   "invalid_harmony_pull_width");
+    expect_invalid(harmony_geometry::harmony_attraction(
+                       0.5F, exact, std::nextafter(4.0F, std::numeric_limits<float>::infinity())),
+                   "invalid_harmony_pull_width");
+    expect_invalid(
+        harmony_geometry::harmony_attraction(0.5F, exact, std::numeric_limits<float>::infinity()),
+        "invalid_harmony_pull_width");
 }
 
 TEST(ColorContrastTest, LabAffineBranchesMatchFrozenSourceBitGoldens)
