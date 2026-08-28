@@ -57,3 +57,4 @@ supersession relationship when direction changes.
 | [0047](0047-first-frame-raw-cache-lifecycle.md) | Accepted | First-frame Bayer LibRaw/DNG decode, structured RAW errors, corrupt PNG cache miss, and close/reopen preview; leftover wrappers and full demosaic stay later. |
 | [0048](0048-legacy-flip-orientation-contract.md) | Accepted | Leftover flip v2 orientation bits map to canonical rotate-then-flip; NULL/NONE stay identity because EXIF is applied at decode. |
 | [0049](0049-legacy-crop-box-contract.md) | Accepted | Leftover crop v1–v3 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1 is identity. |
+| [0050](0050-ashift-rotation-and-export-scale.md) | Accepted | Leftover ashift rotation-only maps to straighten; Catalog export `max_edge` owns final scale. Perspective ashift stays later G6. |

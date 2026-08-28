@@ -193,6 +193,49 @@ decode_legacy_parameter_blob(const std::string_view encoded, const std::size_t e
     return decoded;
 }
 
+[[nodiscard]] Result<std::vector<std::uint8_t>>
+decode_legacy_parameter_blob_min(const std::string_view encoded, const std::size_t minimum_size,
+                                 const std::string_view operation)
+{
+    if (!encoded.starts_with("gz"))
+    {
+        if (encoded.size() % 2U != 0U || encoded.size() / 2U < minimum_size)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Legacy parameters have an unexpected hexadecimal length",
+                              {{"legacy_operation", std::string(operation)}});
+        }
+        return decode_legacy_parameter_blob(encoded, encoded.size() / 2U, operation);
+    }
+    constexpr std::size_t kMaxDecoded = 64U * 1024U;
+    if (encoded.size() < 5U)
+    {
+        return make_error(ErrorCode::kValidation, "Legacy compressed parameters are truncated",
+                          {{"legacy_operation", std::string(operation)}});
+    }
+    const QByteArray base64(encoded.data() + 4, static_cast<qsizetype>(encoded.size() - 4U));
+    const QByteArray compressed =
+        QByteArray::fromBase64(base64, QByteArray::AbortOnBase64DecodingErrors);
+    if (compressed.isEmpty())
+    {
+        return make_error(ErrorCode::kValidation, "Legacy parameters contain invalid base64",
+                          {{"legacy_operation", std::string(operation)}});
+    }
+    std::vector<std::uint8_t> decoded(kMaxDecoded);
+    uLongf decoded_size = static_cast<uLongf>(decoded.size());
+    const int status = uncompress(decoded.data(), &decoded_size,
+                                  reinterpret_cast<const Bytef *>(compressed.constData()),
+                                  static_cast<uLong>(compressed.size()));
+    if (status != Z_OK || decoded_size < minimum_size)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy compressed parameters have an unexpected payload",
+                          {{"legacy_operation", std::string(operation)}});
+    }
+    decoded.resize(static_cast<std::size_t>(decoded_size));
+    return decoded;
+}
+
 [[nodiscard]] Result<std::string> color_profile_name(const std::int32_t type)
 {
     switch (type)
@@ -1966,6 +2009,86 @@ constexpr std::string_view kLegacyGeometryBlendGz14GuideFive =
         read_f32(decoded.value(), 12U));
 }
 
+[[nodiscard]] Result<double> map_legacy_ashift(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy ashift mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "ashift"},
+                               {"reason", "unsupported_legacy_ashift_mask"}});
+        }
+        if (!is_allowed_geometry_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy ashift contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "ashift"},
+                               {"reason", "unsupported_legacy_ashift_attribute"}});
+        }
+    }
+    const auto version = required_attribute(attributes, u"modversion", "ashift");
+    const auto enabled = required_attribute(attributes, u"enabled", "ashift");
+    const auto encoded = required_attribute(attributes, u"params", "ashift");
+    const auto blend = required_attribute(attributes, u"blendop_params", "ashift");
+    const auto priority = required_attribute(attributes, u"multi_priority", "ashift");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!version || !enabled || !encoded || !blend || !priority || !name)
+    {
+        return !version  ? version.error() :
+               !enabled  ? enabled.error() :
+               !encoded  ? encoded.error() :
+               !blend    ? blend.error() :
+               !priority ? priority.error() :
+                           make_error(ErrorCode::kUnsupported,
+                                      "Legacy ashift singleton name is missing",
+                                      {{"attribute", "multi_name"},
+                                       {"legacy_operation", "ashift"},
+                                       {"reason", "unsupported_legacy_ashift_multi_state"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy ashift instance is not the frozen singleton priority",
+            {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_multi_state"}});
+    }
+    if (version.value() != "4" && version.value() != "5")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy ashift version is outside the frozen evidence",
+                          {{"legacy_operation", "ashift"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_ashift_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy ashift enabled state is outside the frozen fixture evidence",
+                          {{"legacy_operation", "ashift"},
+                           {"reason", "unsupported_legacy_ashift_enabled_state"}});
+    }
+    if (!is_legacy_unmasked_geometry_blend(blend.value()))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy ashift blend is not a frozen unmasked default",
+            {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_blend"}});
+    }
+    auto decoded = decode_legacy_parameter_blob_min(encoded.value(), 16U, "ashift");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return leftover_ashift_rotation_to_straighten(
+        read_f32(decoded.value(), 0U), read_f32(decoded.value(), 4U), read_f32(decoded.value(), 8U),
+        read_f32(decoded.value(), 12U));
+}
+
 [[nodiscard]] Result<void> consume_empty_mask_history(QXmlStreamReader &reader)
 {
     std::size_t depth = 1;
@@ -2169,6 +2292,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::optional<OperationInstance> primaries;
     std::optional<LeftoverFlipGeometry> flip_geometry;
     std::optional<LeftoverCropBox> crop_box;
+    std::optional<double> ashift_straighten;
     bool absorbed_gamma = false;
     std::size_t history_index = 0;
     while (!reader.atEnd())
@@ -2528,6 +2652,17 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "ashift")
+            {
+                auto mapped = map_legacy_ashift(reader.attributes());
+                if (!mapped)
+                {
+                    return mapped.error();
+                }
+                ashift_straighten = mapped.value();
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -2676,6 +2811,15 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                                    {"vertical", ParameterValue{flip_geometry->flip_vertical}}},
                                   std::nullopt});
         }
+    }
+    if (ashift_straighten && std::abs(*ashift_straighten) > 1.0e-4)
+    {
+        operations.push_back(OperationInstance{"ravo.geometry.straighten",
+                                               1,
+                                               "legacy-ashift-straighten",
+                                               true,
+                                               {{"degrees", ParameterValue{*ashift_straighten}}},
+                                               std::nullopt});
     }
     if (crop_box && !crop_box->is_identity())
     {

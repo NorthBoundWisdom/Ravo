@@ -412,6 +412,12 @@ struct LeftoverCropBox
 [[nodiscard]] Result<LeftoverCropBox> leftover_crop_box_to_geometry(float left, float top,
                                                                     float right, float bottom);
 
+// Maps leftover ashift rotation onto canonical straighten when lens shift/shear
+// are identity. Non-zero perspective remains unsupported G6 work.
+[[nodiscard]] Result<double> leftover_ashift_rotation_to_straighten(float rotation,
+                                                                    float lensshift_v,
+                                                                    float lensshift_h, float shear);
+
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);
 [[nodiscard]] Result<void> apply_develop_field_strict(DevelopParams &params, std::string_view name,

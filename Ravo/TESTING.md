@@ -180,7 +180,9 @@ Full RCD/PPG/X-Trans demosaic and DNG GainMap opcodes remain later. Leftover
 flip v2 orientation bits 1–7 map to canonical rotate-then-flip; `NULL`/`NONE`
 stay identity because camera EXIF is applied at decode. Leftover crop v1–v3
 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1
-is identity.
+is identity. Leftover ashift v4/v5 rotation-only maps to straighten; non-zero
+lens shift/shear stay `unsupported_legacy_ashift_perspective`. Export
+`max_edge` is the G7 output-size contract.
 
 - Compare the source image hash/size/mtime before and after import to prove a
   reference-only path does not modify the original.

@@ -635,6 +635,26 @@ TEST(RecipeTest, LeftoverCropBoxMapsLeftTopRightBottomToCanonicalExtent)
     EXPECT_EQ(empty.error().context.at("reason"), "unsupported_legacy_crop_box");
 }
 
+TEST(RecipeTest, LeftoverAshiftRotationOnlyMapsToStraighten)
+{
+    auto identity = leftover_ashift_rotation_to_straighten(0.0F, 0.0F, 0.0F, 0.0F);
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_NEAR(identity.value(), 0.0, 1e-6);
+
+    auto rotated = leftover_ashift_rotation_to_straighten(2.5F, 0.0F, 0.0F, 0.0F);
+    ASSERT_TRUE(rotated) << rotated.error().message;
+    EXPECT_NEAR(rotated.value(), 2.5, 1e-6);
+
+    auto perspective = leftover_ashift_rotation_to_straighten(1.14F, 0.087F, -0.111F, 0.06F);
+    ASSERT_FALSE(perspective);
+    EXPECT_EQ(perspective.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(perspective.error().context.at("reason"), "unsupported_legacy_ashift_perspective");
+
+    auto too_large = leftover_ashift_rotation_to_straighten(90.0F, 0.0F, 0.0F, 0.0F);
+    ASSERT_FALSE(too_large);
+    EXPECT_EQ(too_large.error().context.at("reason"), "unsupported_legacy_ashift_rotation_range");
+}
+
 TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
 {
     auto registry = make_phase1_registry();

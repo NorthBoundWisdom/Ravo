@@ -1237,6 +1237,55 @@ TEST_F(CliTest, LegacyXmpMapsCropBoxOntoCanonicalGeometry)
     EXPECT_EQ(empty.error().context.at("reason"), "unsupported_legacy_crop_box");
 }
 
+[[nodiscard]] std::string legacy_ashift_xmp(const std::string_view parameters,
+                                            const std::string_view version = "4")
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+<rdf:li darktable:num="9" darktable:operation="ashift" darktable:modversion=")";
+    document += version;
+    document += R"(" darktable:enabled="1" darktable:params=")";
+    document += parameters;
+    document +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="9" darktable:blendop_params=")";
+    document += kLegacyGammaBlendV9;
+    document += R"("/>
+</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+TEST_F(CliTest, LegacyXmpMapsRotationOnlyAshiftOntoStraighten)
+{
+    constexpr std::string_view kIdentity =
+        "00000000000000000000000000000000000048420000803f0000c8420000803f0000000000000000000000000000803f000000000000803f00000000";
+    constexpr std::string_view kRotation =
+        "00002040000000000000000000000000000048420000803f0000c8420000803f0000000000000000000000000000803f000000000000803f00000000";
+    constexpr std::string_view kPerspective =
+        "90eb913f102db23df853e3bd8cc2753d0000c8420000803f0000c8420000803f000000000000000000000000000000000000803f000000000000803f";
+
+    auto identity = import_legacy_xmp(
+        {legacy_ashift_xmp(kIdentity), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(identity) << identity.error().message;
+    ASSERT_EQ(identity.value().operations.size(), 2U);
+
+    auto rotated = import_legacy_xmp(
+        {legacy_ashift_xmp(kRotation), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(rotated) << rotated.error().message;
+    ASSERT_EQ(rotated.value().operations.size(), 3U);
+    EXPECT_EQ(rotated.value().operations[1].id, "ravo.geometry.straighten");
+    EXPECT_NEAR(std::get<double>(rotated.value().operations[1].parameters.at("degrees").value), 2.5,
+                1e-5);
+
+    auto perspective = import_legacy_xmp(
+        {legacy_ashift_xmp(kPerspective), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(perspective);
+    EXPECT_EQ(perspective.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(perspective.error().context.at("reason"), "unsupported_legacy_ashift_perspective");
+}
+
 TEST_F(CliTest, LegacyXmpGammaFixtureCensusPinsEveryFrozenMandatoryBoundary)
 {
     const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";

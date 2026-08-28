@@ -5470,4 +5470,33 @@ Result<LeftoverCropBox> leftover_crop_box_to_geometry(const float left, const fl
     return box;
 }
 
+Result<double> leftover_ashift_rotation_to_straighten(const float rotation, const float lensshift_v,
+                                                      const float lensshift_h, const float shear)
+{
+    if (!std::isfinite(rotation) || !std::isfinite(lensshift_v) || !std::isfinite(lensshift_h) ||
+        !std::isfinite(shear))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy ashift head contains a non-finite value",
+            {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_head"}});
+    }
+    constexpr float kNearZero = 1.0e-4F;
+    if (std::fabs(lensshift_v) > kNearZero || std::fabs(lensshift_h) > kNearZero ||
+        std::fabs(shear) > kNearZero)
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy ashift perspective is outside the rotation-only straighten contract",
+            {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_perspective"}});
+    }
+    if (std::fabs(rotation) > static_cast<float>(kDevelopStraightenMax))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy ashift rotation exceeds canonical straighten range",
+                          {{"legacy_operation", "ashift"},
+                           {"reason", "unsupported_legacy_ashift_rotation_range"}});
+    }
+    return static_cast<double>(rotation);
+}
+
 } // namespace ravo
