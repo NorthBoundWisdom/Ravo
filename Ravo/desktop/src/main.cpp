@@ -24,6 +24,127 @@
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
 
+namespace
+{
+
+bool generic_font_family(const QString &family)
+{
+    const QString name = family.trimmed().toLower();
+    return name.isEmpty() || name == QLatin1String("sans serif") ||
+           name == QLatin1String("sans-serif") || name == QLatin1String("serif") ||
+           name == QLatin1String("monospace") || name == QLatin1String("cursive") ||
+           name == QLatin1String("fantasy") || name == QLatin1String("system-ui") ||
+           name == QLatin1String("ui-sans-serif") || name == QLatin1String("ui-serif") ||
+           name == QLatin1String("ui-monospace") || name == QLatin1String("ui-rounded") ||
+           name == QLatin1String("sans");
+}
+
+QString installed_family(const QStringList &installed, const QString &family)
+{
+    if (generic_font_family(family))
+    {
+        return {};
+    }
+    for (const QString &have : installed)
+    {
+        if (have.compare(family, Qt::CaseInsensitive) == 0)
+        {
+            return have;
+        }
+    }
+    return {};
+}
+
+void append_family(QStringList &families, const QString &family)
+{
+    if (!family.isEmpty() && !families.contains(family))
+    {
+        families.push_back(family);
+    }
+}
+
+QString first_public_family(QFontDatabase::WritingSystem writing_system)
+{
+    for (const QString &family : QFontDatabase::families(writing_system))
+    {
+        if (!generic_font_family(family) && !QFontDatabase::isPrivateFamily(family))
+        {
+            return family;
+        }
+    }
+    return {};
+}
+
+// Offscreen QPA and Qt generic families request "Sans Serif", which is not a
+// CoreText face. Never look up missing names; keep the platform system font
+// when it is real, then match fallbacks against QFontDatabase::families().
+QStringList studio_ui_font_families(const QFont &system_font)
+{
+    const QStringList installed = QFontDatabase::families();
+    QStringList families;
+
+    auto append_installed = [&](const QString &family)
+    {
+        append_family(families, installed_family(installed, family));
+    };
+
+    for (const QString &family : system_font.families())
+    {
+        if (generic_font_family(family))
+        {
+            continue;
+        }
+        const QString canonical = installed_family(installed, family);
+        append_family(families, canonical.isEmpty() ? family : canonical);
+    }
+    if (families.isEmpty() && !generic_font_family(system_font.family()))
+    {
+        const QString canonical = installed_family(installed, system_font.family());
+        append_family(families, canonical.isEmpty() ? system_font.family() : canonical);
+    }
+
+    if (families.isEmpty())
+    {
+        for (const auto &family :
+             {QStringLiteral("Segoe UI"), QStringLiteral("Noto Sans"),
+              QStringLiteral("DejaVu Sans"), QStringLiteral("Liberation Sans"),
+              QStringLiteral("Ubuntu"), QStringLiteral("Cantarell"),
+              QStringLiteral("FreeSans"), QStringLiteral("Lucida Grande"),
+              QStringLiteral("Helvetica Neue"), QStringLiteral("Helvetica"),
+              QStringLiteral("Arial")})
+        {
+            append_installed(family);
+            if (!families.isEmpty())
+            {
+                break;
+            }
+        }
+    }
+    if (families.isEmpty())
+    {
+        append_family(families, first_public_family(QFontDatabase::Latin));
+    }
+
+    const qsizetype latin_count = families.size();
+    for (const auto &family :
+         {QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
+          QStringLiteral("Songti SC"), QStringLiteral("Noto Sans CJK SC"),
+          QStringLiteral("Noto Sans SC"), QStringLiteral("Source Han Sans SC"),
+          QStringLiteral("Microsoft YaHei UI"), QStringLiteral("Microsoft YaHei"),
+          QStringLiteral("WenQuanYi Zen Hei"), QStringLiteral("WenQuanYi Micro Hei"),
+          QStringLiteral("Droid Sans Fallback")})
+    {
+        append_installed(family);
+    }
+    if (families.size() == latin_count)
+    {
+        append_family(families, first_public_family(QFontDatabase::SimplifiedChinese));
+    }
+    return families;
+}
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
     // GeoControls is a static NO_PLUGIN QML module under qrc:/GeoControls, not
@@ -82,26 +203,15 @@ int main(int argc, char *argv[])
     QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/ravo/studio/icons/AppIcon.ico")));
 #endif
 
-    QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-    QStringList families = ui_font.families();
-    if (families.isEmpty() && !ui_font.family().isEmpty())
-    {
-        families.push_back(ui_font.family());
-    }
-    for (const auto &family :
-         {QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
-          QStringLiteral("Songti SC"), QStringLiteral("Noto Sans CJK SC"),
-          QStringLiteral("Noto Sans SC"), QStringLiteral("Microsoft YaHei UI"),
-          QStringLiteral("Microsoft YaHei"), QStringLiteral("Source Han Sans SC")})
-    {
-        if (!families.contains(family))
-        {
-            families.push_back(family);
-        }
-    }
-    ui_font.setFamilies(families);
-    QGuiApplication::setFont(ui_font);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
+    QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+    const QStringList families = studio_ui_font_families(ui_font);
+    if (!families.isEmpty())
+    {
+        ui_font.setFamilies(families);
+        ui_font.setStyleHint(QFont::AnyStyle);
+    }
+    QGuiApplication::setFont(ui_font);
     ravo::init_logging("RavoStudio");
     const QStringList arguments = QCoreApplication::arguments();
     const bool smoke = arguments.contains(QStringLiteral("--smoke"));
