@@ -26,6 +26,7 @@
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
 #include "ravo/domain/uri.h"
+#include "ravo/foundation/log.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "studio_qt.h"
@@ -80,6 +81,18 @@ void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
         listing.thumbnail_urls.emplace(asset.id, QUrl::fromLocalFile(path));
         listing.thumbnail_states.emplace(asset.id, QStringLiteral("ready"));
     }
+}
+
+[[nodiscard]] QString catalog_error_text(const TaskError &error)
+{
+    QString text = qstring_from_utf8(error.message);
+    const auto qt_error = error.context.find("qt_error");
+    if (qt_error != error.context.end() && !qt_error->second.empty())
+    {
+        text += QStringLiteral(": ");
+        text += qstring_from_utf8(qt_error->second);
+    }
+    return text;
 }
 
 CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery &query)
@@ -842,18 +855,18 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
             auto built = make_catalog_service(path, true);
             if (!built)
             {
-                failure = qstring_from_utf8(built.error().message);
+                failure = catalog_error_text(built.error());
             }
             else
             {
                 listing = load_catalog_listing(built.value().get(), query_);
                 if (!listing.assets)
                 {
-                    failure = qstring_from_utf8(listing.assets.error().message);
+                    failure = catalog_error_text(listing.assets.error());
                 }
                 else if (!listing.folders)
                 {
-                    failure = qstring_from_utf8(listing.folders.error().message);
+                    failure = catalog_error_text(listing.folders.error());
                 }
                 else
                 {
@@ -911,18 +924,35 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
             auto built = make_catalog_service(path, false);
             if (!built)
             {
-                failure = qstring_from_utf8(built.error().message);
+                LOG_ERROR(logger(), "catalog open failed path={} message={} action={} qt_error={}",
+                          path, built.error().message,
+                          built.error().context.contains("action") ?
+                              built.error().context.at("action") :
+                              "",
+                          built.error().context.contains("qt_error") ?
+                              built.error().context.at("qt_error") :
+                              "");
+                failure = catalog_error_text(built.error());
             }
             else
             {
                 listing = load_catalog_listing(built.value().get(), query_);
                 if (!listing.assets)
                 {
-                    failure = qstring_from_utf8(listing.assets.error().message);
+                    LOG_ERROR(logger(),
+                              "catalog list_assets failed path={} message={} action={} qt_error={}",
+                              path, listing.assets.error().message,
+                              listing.assets.error().context.contains("action") ?
+                                  listing.assets.error().context.at("action") :
+                                  "",
+                              listing.assets.error().context.contains("qt_error") ?
+                                  listing.assets.error().context.at("qt_error") :
+                                  "");
+                    failure = catalog_error_text(listing.assets.error());
                 }
                 else if (!listing.folders)
                 {
-                    failure = qstring_from_utf8(listing.folders.error().message);
+                    failure = catalog_error_text(listing.folders.error());
                 }
                 else
                 {

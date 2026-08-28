@@ -2648,6 +2648,104 @@ TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
     EXPECT_FALSE(listed.value().front().capture.location);
 }
 
+TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
+{
+    {
+        const auto connection = QStringLiteral("ravo_v5_signed_altitude");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info (id INTEGER PRIMARY KEY CHECK (id = 1), "
+            "schema_version INTEGER NOT NULL, catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, "
+            "created_unix_ms INTEGER NOT NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset (id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, mtime_unix_ms INTEGER NOT NULL, "
+            "content_fingerprint TEXT, width INTEGER, height INTEGER, import_state TEXT NOT NULL, "
+            "error_code TEXT, error_message TEXT, created_unix_ms INTEGER NOT NULL, "
+            "rating INTEGER NOT NULL DEFAULT 0, color_label TEXT NOT NULL DEFAULT 'none', "
+            "rejected INTEGER NOT NULL DEFAULT 0)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("CREATE TABLE asset_recipe ("
+                           "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+                           "  recipe_schema_version INTEGER NOT NULL,"
+                           "  recipe_json TEXT NOT NULL,"
+                           "  updated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_tag ("
+            "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+            "  name TEXT NOT NULL, PRIMARY KEY (asset_id, name))")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "title TEXT, description TEXT, creator TEXT, copyright TEXT, camera_make TEXT, "
+            "camera_model TEXT, iso REAL, aperture REAL, focal_length_mm REAL, shutter_s REAL, "
+            "captured_unix_s INTEGER, captured_local_exif TEXT, captured_subsecond_digits TEXT, "
+            "captured_utc_offset_minutes INTEGER, gps_latitude_e6 INTEGER, gps_longitude_e6 INTEGER, "
+            "gps_altitude_mm INTEGER)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
+            "migrated_unix_ms) VALUES (1, 5, 'cat_v5_signed', 8, 1, 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset(id, normalized_uri, media_type, size_bytes, mtime_unix_ms, "
+            "import_state, created_unix_ms) VALUES "
+            "('ast_above', 'file:///tmp/above.png', 'image/png', 12, 1, 'imported', 1), "
+            "('ast_below', 'file:///tmp/below.png', 'image/png', 12, 1, 'imported', 2)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO asset_metadata(asset_id, gps_latitude_e6, gps_longitude_e6, gps_altitude_mm) "
+            "VALUES ('ast_above', 49253239, 3050766, 123456), "
+            "('ast_below', 1000000, 2000000, -2500)")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto opened = open_service(false);
+    ASSERT_TRUE(opened) << opened.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, 5);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message << " action="
+                        << (listed.error().context.contains("action") ?
+                                listed.error().context.at("action") :
+                                "")
+                        << " qt="
+                        << (listed.error().context.contains("qt_error") ?
+                                listed.error().context.at("qt_error") :
+                                "");
+    ASSERT_EQ(listed.value().size(), 2U);
+    const AssetRecord *above = nullptr;
+    const AssetRecord *below = nullptr;
+    for (const auto &asset : listed.value())
+    {
+        if (asset.id == "ast_above")
+            above = &asset;
+        if (asset.id == "ast_below")
+            below = &asset;
+    }
+    ASSERT_NE(above, nullptr);
+    ASSERT_NE(below, nullptr);
+    ASSERT_TRUE(above->capture.location);
+    ASSERT_TRUE(above->capture.location->altitude);
+    EXPECT_EQ(above->capture.location->altitude->magnitude_mm, 123456U);
+    EXPECT_EQ(above->capture.location->altitude->reference, CaptureAltitudeReference::kAboveSeaLevel);
+    ASSERT_TRUE(below->capture.location);
+    ASSERT_TRUE(below->capture.location->altitude);
+    EXPECT_EQ(below->capture.location->altitude->magnitude_mm, 2500U);
+    EXPECT_EQ(below->capture.location->altitude->reference, CaptureAltitudeReference::kBelowSeaLevel);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 2U);
+}
+
 TEST_F(CatalogServiceTest, V5MigrationFailureRollsBackUnchangedV4)
 {
     {

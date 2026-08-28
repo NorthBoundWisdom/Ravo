@@ -5,6 +5,7 @@
 #include <chrono>
 #include <limits>
 #include <map>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -154,6 +155,32 @@ constexpr const char *kSchemaV4Statements[] = {
                       {{"action", std::string(action)},
                        {"qt_error", utf8_from_qstring(query.lastError().text())}});
 }
+
+[[nodiscard]] Result<std::set<std::string, std::less<>>>
+asset_metadata_columns(QSqlDatabase &database)
+{
+    QSqlQuery query(database);
+    if (!query.exec(QStringLiteral("PRAGMA table_info(asset_metadata)")))
+    {
+        return map_sql_error(query, "read_asset_metadata_columns");
+    }
+    std::set<std::string, std::less<>> columns;
+    while (query.next())
+    {
+        columns.insert(utf8_from_qstring(query.value(1).toString()));
+    }
+    return columns;
+}
+
+constexpr const char *kV5CaptureColumns[][2] = {
+    {"captured_local_exif", "TEXT"},
+    {"captured_subsecond_digits", "TEXT"},
+    {"captured_utc_offset_minutes", "INTEGER"},
+    {"gps_latitude_e6", "INTEGER"},
+    {"gps_longitude_e6", "INTEGER"},
+    {"gps_altitude_magnitude_mm", "INTEGER"},
+    {"gps_altitude_ref", "INTEGER"},
+};
 
 [[nodiscard]] QVariant optional_string(const std::optional<std::string> &value)
 {
@@ -616,6 +643,76 @@ struct SqliteCatalogRepository::Impl
         }
         return {};
     }
+
+    // Catalogs written before ADR-0040 claimed schema v5 with signed
+    // gps_altitude_mm. Repair the on-disk layout without bumping the schema.
+    [[nodiscard]] Result<void> repair_v5_capture_columns()
+    {
+        auto columns = asset_metadata_columns(database);
+        if (!columns)
+        {
+            return columns.error();
+        }
+        std::vector<std::string> missing;
+        for (const auto &[name, type] : kV5CaptureColumns)
+        {
+            if (!columns.value().contains(name))
+            {
+                missing.emplace_back(std::string("ALTER TABLE asset_metadata ADD COLUMN ") + name +
+                                     " " + type);
+            }
+        }
+        const bool copy_signed_altitude =
+            columns.value().contains("gps_altitude_mm") &&
+            (!columns.value().contains("gps_altitude_magnitude_mm") ||
+             !columns.value().contains("gps_altitude_ref"));
+        if (missing.empty() && !copy_signed_altitude)
+        {
+            return {};
+        }
+        if (!database.transaction())
+        {
+            return make_error(ErrorCode::kIo, "Unable to start catalog capture-column repair",
+                              {{"qt_error", utf8_from_qstring(database.lastError().text())}});
+        }
+        for (const auto &sql : missing)
+        {
+            auto added = exec(QString::fromStdString(sql), "repair_v5_capture_fields");
+            if (!added)
+            {
+                return abort_transaction(added.error());
+            }
+        }
+        if (copy_signed_altitude)
+        {
+            auto copied = exec(
+                QStringLiteral(
+                    "UPDATE asset_metadata SET "
+                    "gps_altitude_magnitude_mm = CASE "
+                    "WHEN gps_altitude_mm IS NULL THEN NULL "
+                    "WHEN gps_altitude_mm >= 0 AND gps_altitude_mm <= 100000000 THEN gps_altitude_mm "
+                    "WHEN gps_altitude_mm < 0 AND -gps_altitude_mm <= 12000000 THEN -gps_altitude_mm "
+                    "ELSE NULL END, "
+                    "gps_altitude_ref = CASE "
+                    "WHEN gps_altitude_mm IS NULL THEN NULL "
+                    "WHEN gps_altitude_mm >= 0 AND gps_altitude_mm <= 100000000 THEN 0 "
+                    "WHEN gps_altitude_mm < 0 AND -gps_altitude_mm <= 12000000 THEN 1 "
+                    "ELSE NULL END "
+                    "WHERE gps_altitude_magnitude_mm IS NULL AND gps_altitude_ref IS NULL"),
+                "repair_v5_signed_altitude");
+            if (!copied)
+            {
+                return abort_transaction(copied.error());
+            }
+        }
+        if (!database.commit())
+        {
+            return abort_transaction(
+                make_error(ErrorCode::kIo, "Unable to commit catalog capture-column repair",
+                           {{"qt_error", utf8_from_qstring(database.lastError().text())}}));
+        }
+        return {};
+    }
 };
 
 void testing::SqliteCatalogTestControl::inject(SqliteCatalogRepository &repository,
@@ -904,6 +1001,11 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 make_error(ErrorCode::kIo, "Unable to commit catalog migration",
                            {{"qt_error", utf8_from_qstring(impl->database.lastError().text())}}));
         }
+    }
+    auto repaired = impl->repair_v5_capture_columns();
+    if (!repaired)
+    {
+        return repaired.error();
     }
     impl->snapshot.schema_version = kCatalogSchemaVersion;
     impl->snapshot.catalog_id = utf8_from_qstring(query.value(1).toString());

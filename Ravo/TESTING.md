@@ -36,7 +36,9 @@ CPU Develop operations, edited previews, and
 covers Unicode tag filtering, writable metadata, and history/snapshot save and
 restore. Schema v5 adds capture local time/offset and GPS magnitude/reference
 columns with strict migration, import-transaction, storage-decoding, and reopen
-contracts. This does not complete I11/I12/I13/S9/J6. FreeCM Test and
+contracts. Opening a v5 file that still has signed `gps_altitude_mm` repairs
+the ADR-0040 magnitude/ref columns in place. This does not complete
+I11/I12/I13/S9/J6. FreeCM Test and
 `ctest --test-dir build/<preset>` run the same suite
 from the repository root. GitHub Actions runs the same CTest set on
 `mac_clang_debug`, `linux_clang_debug`, and `win_msvc_debug`, plus static
