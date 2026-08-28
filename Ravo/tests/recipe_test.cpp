@@ -580,6 +580,61 @@ TEST(RecipeTest, DevelopRoundTripRetainsTheFullExposureV2Contract)
     EXPECT_TRUE(restored.value().exposure_compensate_highlight_preservation);
 }
 
+TEST(RecipeTest, LeftoverFlipOrientationMapsToCanonicalRotateThenFlip)
+{
+    const struct Case
+    {
+        std::int32_t orientation;
+        std::int64_t rotate_quarters;
+        std::int64_t flip_horizontal;
+        std::int64_t flip_vertical;
+    } cases[] = {
+        {-1, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 1}, {2, 0, 1, 0}, {3, 2, 0, 0},
+        {4, 1, 1, 0},  {5, 1, 0, 0}, {6, 3, 0, 0}, {7, 1, 0, 1},
+    };
+    for (const auto &entry : cases)
+    {
+        auto mapped = leftover_flip_orientation_to_geometry(entry.orientation);
+        ASSERT_TRUE(mapped) << mapped.error().message << " orientation=" << entry.orientation;
+        EXPECT_EQ(mapped.value().rotate_quarters, entry.rotate_quarters);
+        EXPECT_EQ(mapped.value().flip_horizontal, entry.flip_horizontal);
+        EXPECT_EQ(mapped.value().flip_vertical, entry.flip_vertical);
+        EXPECT_EQ(mapped.value().is_identity(), entry.rotate_quarters == 0 &&
+                                                    entry.flip_horizontal == 0 &&
+                                                    entry.flip_vertical == 0);
+    }
+    auto invalid = leftover_flip_orientation_to_geometry(8);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(invalid.error().context.at("reason"), "unsupported_legacy_flip_orientation");
+}
+
+TEST(RecipeTest, LeftoverCropBoxMapsLeftTopRightBottomToCanonicalExtent)
+{
+    auto identity = leftover_crop_box_to_geometry(0.0F, 0.0F, 1.0F, 1.0F);
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_TRUE(identity.value().is_identity());
+
+    auto quarter = leftover_crop_box_to_geometry(0.25F, 0.25F, 0.75F, 0.75F);
+    ASSERT_TRUE(quarter) << quarter.error().message;
+    EXPECT_NEAR(quarter.value().x, 0.25, 1e-6);
+    EXPECT_NEAR(quarter.value().y, 0.25, 1e-6);
+    EXPECT_NEAR(quarter.value().width, 0.5, 1e-6);
+    EXPECT_NEAR(quarter.value().height, 0.5, 1e-6);
+    EXPECT_FALSE(quarter.value().is_identity());
+
+    auto fixture = leftover_crop_box_to_geometry(0.0F, 2.6700357e-07F, 0.42977872F, 0.64279574F);
+    ASSERT_TRUE(fixture) << fixture.error().message;
+    EXPECT_NEAR(fixture.value().x, 0.0, 1e-6);
+    EXPECT_NEAR(fixture.value().width, 0.42977872, 1e-6);
+    EXPECT_NEAR(fixture.value().height, 0.64279547, 1e-6);
+
+    auto empty = leftover_crop_box_to_geometry(0.5F, 0.5F, 0.5F, 0.5F);
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(empty.error().context.at("reason"), "unsupported_legacy_crop_box");
+}
+
 TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
 {
     auto registry = make_phase1_registry();

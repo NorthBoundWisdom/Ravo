@@ -253,6 +253,45 @@ struct LegacyGammaXmpOptions
     return document;
 }
 
+[[nodiscard]] std::string legacy_flip_xmp(const std::string_view parameters,
+                                          const std::string_view blend = kLegacyGammaBlendV9)
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+<rdf:li darktable:num="7" darktable:operation="flip" darktable:modversion="2" darktable:enabled="1" darktable:params=")";
+    document += parameters;
+    document +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="9" darktable:blendop_params=")";
+    document += blend;
+    document += R"("/>
+</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+[[nodiscard]] std::string legacy_crop_xmp(const std::string_view parameters,
+                                          const std::string_view version = "3",
+                                          const std::string_view blend = kLegacyGammaBlendV9)
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+<rdf:li darktable:num="11" darktable:operation="crop" darktable:modversion=")";
+    document += version;
+    document += R"(" darktable:enabled="1" darktable:params=")";
+    document += parameters;
+    document +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="9" darktable:blendop_params=")";
+    document += blend;
+    document += R"("/>
+</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
 inline constexpr std::string_view kLegacyExposureV5ManualOne =
     "00000000000000000000803f00004842000080c0";
 inline constexpr std::string_view kLegacyExposureV6ManualOneBias =
@@ -1118,6 +1157,84 @@ TEST_F(CliTest, FrozenNopXmpMapsItsInputProfileExplicitly)
     EXPECT_EQ(input.value().working_profile, kInputProfileLinearRec2020);
     EXPECT_EQ(imported.value().operations.back().id, "ravo.color.output");
     EXPECT_TRUE(imported.value().masks.empty());
+}
+
+TEST_F(CliTest, LegacyXmpMapsFlipOrientationOntoCanonicalGeometry)
+{
+    const auto import_flip = [](const std::string_view parameters)
+    {
+        return import_legacy_xmp(
+            {legacy_flip_xmp(parameters), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    };
+
+    auto auto_orient = import_flip("ffffffff");
+    ASSERT_TRUE(auto_orient) << auto_orient.error().message;
+    ASSERT_EQ(auto_orient.value().operations.size(), 2U);
+    EXPECT_EQ(auto_orient.value().operations.front().id, "ravo.color.input");
+    EXPECT_EQ(auto_orient.value().operations.back().id, "ravo.color.output");
+
+    auto none = import_flip("00000000");
+    ASSERT_TRUE(none) << none.error().message;
+    EXPECT_EQ(none.value().operations.size(), 2U);
+
+    auto clockwise = import_flip("05000000");
+    ASSERT_TRUE(clockwise) << clockwise.error().message;
+    ASSERT_EQ(clockwise.value().operations.size(), 3U);
+    EXPECT_EQ(clockwise.value().operations[1].id, "ravo.geometry.rotate");
+    EXPECT_EQ(
+        std::get<std::int64_t>(clockwise.value().operations[1].parameters.at("quarters").value), 1);
+
+    auto transpose = import_flip("04000000");
+    ASSERT_TRUE(transpose) << transpose.error().message;
+    ASSERT_EQ(transpose.value().operations.size(), 4U);
+    EXPECT_EQ(transpose.value().operations[1].id, "ravo.geometry.rotate");
+    EXPECT_EQ(transpose.value().operations[2].id, "ravo.geometry.flip");
+    EXPECT_EQ(
+        std::get<std::int64_t>(transpose.value().operations[2].parameters.at("horizontal").value),
+        1);
+
+    auto rejected = import_flip("08000000");
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_legacy_flip_orientation");
+}
+
+TEST_F(CliTest, LegacyXmpMapsCropBoxOntoCanonicalGeometry)
+{
+    constexpr std::string_view kIdentity = "00000000000000000000803f0000803fffffffffffffffff";
+    constexpr std::string_view kQuarter = "0000803e0000803e0000403f0000403fffffffffffffffff";
+    constexpr std::string_view kFixtureV1 = "00000000b1588f34f50bdc3e438e243f0100000001000000";
+    constexpr std::string_view kEmpty = "0000003f0000003f0000003f0000003fffffffffffffffff";
+
+    auto identity = import_legacy_xmp(
+        {legacy_crop_xmp(kIdentity), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(identity) << identity.error().message;
+    ASSERT_EQ(identity.value().operations.size(), 2U);
+
+    auto quarter = import_legacy_xmp(
+        {legacy_crop_xmp(kQuarter), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(quarter) << quarter.error().message;
+    ASSERT_EQ(quarter.value().operations.size(), 3U);
+    EXPECT_EQ(quarter.value().operations[1].id, "ravo.geometry.crop");
+    EXPECT_NEAR(std::get<double>(quarter.value().operations[1].parameters.at("x").value), 0.25,
+                1e-6);
+    EXPECT_NEAR(std::get<double>(quarter.value().operations[1].parameters.at("width").value), 0.5,
+                1e-6);
+
+    auto fixture =
+        import_legacy_xmp({legacy_crop_xmp(kFixtureV1, "1", kLegacyGammaBlendGz14GuideFive),
+                           {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(fixture) << fixture.error().message;
+    ASSERT_EQ(fixture.value().operations.size(), 3U);
+    EXPECT_EQ(fixture.value().operations[1].id, "ravo.geometry.crop");
+    EXPECT_NEAR(std::get<double>(fixture.value().operations[1].parameters.at("width").value),
+                0.42977872, 1e-6);
+
+    auto empty = import_legacy_xmp(
+        {legacy_crop_xmp(kEmpty), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(empty.error().context.at("reason"), "unsupported_legacy_crop_box");
 }
 
 TEST_F(CliTest, LegacyXmpGammaFixtureCensusPinsEveryFrozenMandatoryBoundary)

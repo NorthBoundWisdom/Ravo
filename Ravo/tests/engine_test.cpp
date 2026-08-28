@@ -1813,6 +1813,53 @@ TEST(EngineFacadeTest, RasterDevelopOpsRotateAndDesaturate)
     EXPECT_NEAR(rendered.value().rgb[1], rendered.value().rgb[2], 8);
 }
 
+TEST(EngineFacadeTest, LeftoverCropBoxMatchesCanonicalCropPixels)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto box = leftover_crop_box_to_geometry(0.25F, 0.25F, 0.75F, 0.75F);
+    ASSERT_TRUE(box) << box.error().message;
+
+    RasterBuffer source;
+    source.width = 16;
+    source.height = 16;
+    declare_srgb(source);
+    source.srgb.resize(16U * 16U * 3U);
+    for (std::uint32_t y = 0; y < 16U; ++y)
+    {
+        for (std::uint32_t x = 0; x < 16U; ++x)
+        {
+            const std::size_t index = (static_cast<std::size_t>(y) * 16U + x) * 3U;
+            source.srgb[index] = static_cast<std::uint8_t>(x);
+            source.srgb[index + 1U] = static_cast<std::uint8_t>(y);
+            source.srgb[index + 2U] = 80;
+        }
+    }
+
+    Recipe recipe;
+    recipe.asset = {"raster", "memory:raster", std::nullopt};
+    declare_input(recipe);
+    recipe.operations.push_back({"ravo.geometry.crop",
+                                 1,
+                                 "crop-1",
+                                 true,
+                                 {{"x", ParameterValue{box.value().x}},
+                                  {"y", ParameterValue{box.value().y}},
+                                  {"width", ParameterValue{box.value().width}},
+                                  {"height", ParameterValue{box.value().height}}},
+                                 std::nullopt});
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    auto rendered = engine.value().render_to_image(request, &source);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    EXPECT_EQ(rendered.value().width, 8U);
+    EXPECT_EQ(rendered.value().height, 8U);
+    EXPECT_EQ(rendered.value().rgb[0], 4);
+    EXPECT_EQ(rendered.value().rgb[1], 4);
+    EXPECT_EQ(rendered.value().rgb[2], 80);
+}
+
 [[nodiscard]] RasterBuffer solid_raster(const std::uint32_t width, const std::uint32_t height,
                                         const std::uint8_t r, const std::uint8_t g,
                                         const std::uint8_t b)
@@ -6122,6 +6169,74 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     ASSERT_TRUE(flipped) << flipped.error().message;
     EXPECT_EQ(flipped.value().rgb[0], 0);
     EXPECT_EQ(flipped.value().rgb[1], 255);
+
+    RasterBuffer unique;
+    unique.width = 3;
+    unique.height = 2;
+    unique.srgb = {10, 20, 30, 40, 50, 60, 70, 80, 90, 11, 21, 31, 41, 51, 61, 71, 81, 91};
+    declare_srgb(unique);
+    const auto sample = [](const RenderedImage &image, const std::uint32_t x, const std::uint32_t y)
+    {
+        const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
+        return std::array<std::uint8_t, 3>{image.rgb[index], image.rgb[index + 1U],
+                                           image.rgb[index + 2U]};
+    };
+    for (std::int32_t orientation = 0; orientation <= 7; ++orientation)
+    {
+        SCOPED_TRACE(orientation);
+        auto geometry = leftover_flip_orientation_to_geometry(orientation);
+        ASSERT_TRUE(geometry) << geometry.error().message;
+        Recipe recipe;
+        recipe.asset = {"raster", "memory:raster", std::nullopt};
+        declare_input(recipe);
+        if (geometry.value().rotate_quarters != 0)
+        {
+            recipe.operations.push_back(
+                {"ravo.geometry.rotate",
+                 1,
+                 "rotate-1",
+                 true,
+                 {{"quarters", ParameterValue{geometry.value().rotate_quarters}}},
+                 std::nullopt});
+        }
+        if (geometry.value().flip_horizontal != 0 || geometry.value().flip_vertical != 0)
+        {
+            recipe.operations.push_back(
+                {"ravo.geometry.flip",
+                 1,
+                 "flip-1",
+                 true,
+                 {{"horizontal", ParameterValue{geometry.value().flip_horizontal}},
+                  {"vertical", ParameterValue{geometry.value().flip_vertical}}},
+                 std::nullopt});
+        }
+        RenderRequest request;
+        request.asset = recipe.asset;
+        request.recipe = recipe;
+        auto rendered = engine.value().render_to_image(request, &unique);
+        ASSERT_TRUE(rendered) << rendered.error().message;
+        if (orientation == 0)
+        {
+            EXPECT_EQ(rendered.value().width, 3U);
+            EXPECT_EQ(rendered.value().height, 2U);
+            EXPECT_EQ(sample(rendered.value(), 0, 0), (std::array<std::uint8_t, 3>{10, 20, 30}));
+            EXPECT_EQ(sample(rendered.value(), 2, 1), (std::array<std::uint8_t, 3>{71, 81, 91}));
+        }
+        else if (orientation == 5)
+        {
+            EXPECT_EQ(rendered.value().width, 2U);
+            EXPECT_EQ(rendered.value().height, 3U);
+            EXPECT_EQ(sample(rendered.value(), 1, 0), (std::array<std::uint8_t, 3>{10, 20, 30}));
+            EXPECT_EQ(sample(rendered.value(), 0, 0), (std::array<std::uint8_t, 3>{11, 21, 31}));
+        }
+        else if (orientation == 4)
+        {
+            EXPECT_EQ(rendered.value().width, 2U);
+            EXPECT_EQ(rendered.value().height, 3U);
+            EXPECT_EQ(sample(rendered.value(), 0, 0), (std::array<std::uint8_t, 3>{10, 20, 30}));
+            EXPECT_EQ(sample(rendered.value(), 1, 0), (std::array<std::uint8_t, 3>{11, 21, 31}));
+        }
+    }
 
     auto vignette = render_op(engine.value(), solid_raster(32, 32, 200, 200, 200),
                               {"ravo.effect.vignette",

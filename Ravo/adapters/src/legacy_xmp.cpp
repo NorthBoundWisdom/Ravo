@@ -1049,7 +1049,6 @@ constexpr std::array kBuiltinRawOperations{
     BuiltinRawOperation{"temperature", "3", "006007400000803f0000b33f0000c07f"},
     BuiltinRawOperation{"highlights", "2", "000000000000803f00000000000000000000803f"},
     BuiltinRawOperation{"demosaic", "3", "0000000000000000000000000000000000000000"},
-    BuiltinRawOperation{"flip", "2", "ffffffff"},
 };
 
 constexpr std::string_view kDefaultBlendParameters =
@@ -1790,6 +1789,183 @@ map_exposure_candidate(const LegacyExposureCandidate &candidate)
     return true;
 }
 
+constexpr std::string_view kLegacyFlipBlendGz14 =
+    "gz14eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfNoAAEkgGQQ=";
+constexpr std::string_view kLegacyGeometryBlendGz14GuideFive =
+    "gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg=";
+
+[[nodiscard]] bool is_legacy_unmasked_geometry_blend(const std::string_view blend) noexcept
+{
+    return blend == kDefaultBlendParameters || blend == kLegacyFlipBlendGz14 ||
+           blend == kLegacyGeometryBlendGz14GuideFive;
+}
+
+[[nodiscard]] bool is_allowed_geometry_attribute(const QStringView name) noexcept
+{
+    return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
+           name == u"params" || name == u"multi_name" || name == u"multi_priority" ||
+           name == u"multi_name_hand_edited" || name == u"blendop_version" ||
+           name == u"blendop_params";
+}
+
+[[nodiscard]] Result<LeftoverFlipGeometry> map_legacy_flip(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy flip mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "flip"},
+                               {"reason", "unsupported_legacy_flip_mask"}});
+        }
+        if (!is_allowed_geometry_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy flip contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "flip"},
+                               {"reason", "unsupported_legacy_flip_attribute"}});
+        }
+    }
+    const auto version = required_attribute(attributes, u"modversion", "flip");
+    const auto enabled = required_attribute(attributes, u"enabled", "flip");
+    const auto encoded = required_attribute(attributes, u"params", "flip");
+    const auto blend = required_attribute(attributes, u"blendop_params", "flip");
+    const auto priority = required_attribute(attributes, u"multi_priority", "flip");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!version || !enabled || !encoded || !blend || !priority || !name)
+    {
+        return !version ? version.error() :
+               !enabled ? enabled.error() :
+               !encoded ? encoded.error() :
+               !blend   ? blend.error() :
+               !priority ?
+                        priority.error() :
+                        make_error(ErrorCode::kUnsupported, "Legacy flip singleton name is missing",
+                                   {{"attribute", "multi_name"},
+                                    {"legacy_operation", "flip"},
+                                    {"reason", "unsupported_legacy_flip_multi_state"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy flip instance is not the frozen singleton priority",
+            {{"legacy_operation", "flip"}, {"reason", "unsupported_legacy_flip_multi_state"}});
+    }
+    if (version.value() != "2")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy flip version is outside the frozen evidence",
+                          {{"legacy_operation", "flip"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_flip_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy flip enabled state is outside the frozen fixture evidence",
+            {{"legacy_operation", "flip"}, {"reason", "unsupported_legacy_flip_enabled_state"}});
+    }
+    if (!is_legacy_unmasked_geometry_blend(blend.value()))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy flip blend is not a frozen unmasked default",
+            {{"legacy_operation", "flip"}, {"reason", "unsupported_legacy_flip_blend"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded.value(), sizeof(std::int32_t), "flip");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return leftover_flip_orientation_to_geometry(read_i32(decoded.value(), 0U));
+}
+
+[[nodiscard]] Result<LeftoverCropBox> map_legacy_crop(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy crop mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "crop"},
+                               {"reason", "unsupported_legacy_crop_mask"}});
+        }
+        if (!is_allowed_geometry_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy crop contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "crop"},
+                               {"reason", "unsupported_legacy_crop_attribute"}});
+        }
+    }
+    const auto version = required_attribute(attributes, u"modversion", "crop");
+    const auto enabled = required_attribute(attributes, u"enabled", "crop");
+    const auto encoded = required_attribute(attributes, u"params", "crop");
+    const auto blend = required_attribute(attributes, u"blendop_params", "crop");
+    const auto priority = required_attribute(attributes, u"multi_priority", "crop");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!version || !enabled || !encoded || !blend || !priority || !name)
+    {
+        return !version ? version.error() :
+               !enabled ? enabled.error() :
+               !encoded ? encoded.error() :
+               !blend   ? blend.error() :
+               !priority ?
+                        priority.error() :
+                        make_error(ErrorCode::kUnsupported, "Legacy crop singleton name is missing",
+                                   {{"attribute", "multi_name"},
+                                    {"legacy_operation", "crop"},
+                                    {"reason", "unsupported_legacy_crop_multi_state"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy crop instance is not the frozen singleton priority",
+            {{"legacy_operation", "crop"}, {"reason", "unsupported_legacy_crop_multi_state"}});
+    }
+    if (version.value() != "1" && version.value() != "2" && version.value() != "3")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy crop version is outside the frozen evidence",
+                          {{"legacy_operation", "crop"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_crop_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy crop enabled state is outside the frozen fixture evidence",
+            {{"legacy_operation", "crop"}, {"reason", "unsupported_legacy_crop_enabled_state"}});
+    }
+    if (!is_legacy_unmasked_geometry_blend(blend.value()))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy crop blend is not a frozen unmasked default",
+            {{"legacy_operation", "crop"}, {"reason", "unsupported_legacy_crop_blend"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded.value(), 24U, "crop");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return leftover_crop_box_to_geometry(
+        read_f32(decoded.value(), 0U), read_f32(decoded.value(), 4U), read_f32(decoded.value(), 8U),
+        read_f32(decoded.value(), 12U));
+}
+
 [[nodiscard]] Result<void> consume_empty_mask_history(QXmlStreamReader &reader)
 {
     std::size_t depth = 1;
@@ -1991,6 +2167,8 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
     std::optional<OperationInstance> primaries;
+    std::optional<LeftoverFlipGeometry> flip_geometry;
+    std::optional<LeftoverCropBox> crop_box;
     bool absorbed_gamma = false;
     std::size_t history_index = 0;
     while (!reader.atEnd())
@@ -2328,6 +2506,28 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "flip")
+            {
+                auto mapped = map_legacy_flip(reader.attributes());
+                if (!mapped)
+                {
+                    return mapped.error();
+                }
+                flip_geometry = std::move(mapped).value();
+                ++history_index;
+                continue;
+            }
+            if (operation.value() == "crop")
+            {
+                auto mapped = map_legacy_crop(reader.attributes());
+                if (!mapped)
+                {
+                    return mapped.error();
+                }
+                crop_box = std::move(mapped).value();
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -2452,6 +2652,42 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
             return mapped.error();
         }
         operations.push_back(std::move(mapped).value());
+    }
+    if (flip_geometry && !flip_geometry->is_identity())
+    {
+        if (flip_geometry->rotate_quarters != 0)
+        {
+            operations.push_back(
+                OperationInstance{"ravo.geometry.rotate",
+                                  1,
+                                  "legacy-flip-rotate",
+                                  true,
+                                  {{"quarters", ParameterValue{flip_geometry->rotate_quarters}}},
+                                  std::nullopt});
+        }
+        if (flip_geometry->flip_horizontal != 0 || flip_geometry->flip_vertical != 0)
+        {
+            operations.push_back(
+                OperationInstance{"ravo.geometry.flip",
+                                  1,
+                                  "legacy-flip",
+                                  true,
+                                  {{"horizontal", ParameterValue{flip_geometry->flip_horizontal}},
+                                   {"vertical", ParameterValue{flip_geometry->flip_vertical}}},
+                                  std::nullopt});
+        }
+    }
+    if (crop_box && !crop_box->is_identity())
+    {
+        operations.push_back(OperationInstance{"ravo.geometry.crop",
+                                               1,
+                                               "legacy-crop",
+                                               true,
+                                               {{"x", ParameterValue{crop_box->x}},
+                                                {"y", ParameterValue{crop_box->y}},
+                                                {"width", ParameterValue{crop_box->width}},
+                                                {"height", ParameterValue{crop_box->height}}},
+                                               std::nullopt});
     }
     operations.insert(operations.begin(),
                       input_color.value_or(OperationInstance{

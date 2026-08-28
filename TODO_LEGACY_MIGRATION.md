@@ -2,12 +2,11 @@
 
 > **Status: in progress**
 >
-> **Updated: 2026-08-28**
+> **Updated: 2026-08-29**
 >
-> **Current execution status: P1 first-frame open/view is accepted** (JPEG/PNG/
-> TIFF publication under ADR-0046; Bayer LibRaw/DNG, structured RAW errors,
-> unpack-before-publish, corrupt-cache miss, and close/reopen under ADR-0047).
-> Next Ready outcome is P2 everyday Develop controls. Leftover GTK
+> **Current execution status: P1 first-frame open/view is accepted.** P2 leftover
+> flip v2 and crop v1–v3 box import are accepted (ADR-0048/0049). Next Ready is
+> resize/output dimensions/straighten (`G3`/`G7`/`G6`). Leftover GTK
 > `mask_manager` / `libs/masks.c` wait for zero develop/history consumers. Do
 > not start C15 or cacorrectrgb until a later exact tranche is explicitly
 > authorized. Wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` stays blocked on
@@ -71,7 +70,7 @@ explicitly authorized. A priority label alone does not waive those conditions.
 | --- | --- | --- | --- |
 | P0 — finish active local-adjustment work | Mask overlay/group editing, path/brush authoring, and Color Harmonizer IOP retirement | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers; **Accepted product surface**. `C15` and `R4` remain explicitly unauthorized | Canonical graph/evaluator/service path with Studio overlay/group/path/brush; C14 retired; leftover GTK mask-manager files wait for zero-consumer proof |
 | P1 — reliably open and view common photos | **Accepted first-frame.** JPEG/PNG/TIFF publication plus Bayer LibRaw/DNG inspect/decode, structured failures, unpack-before-publish, corrupt PNG cache miss, and close/reopen | ADR-0046/0047. Remaining: full `R1`/`R2` ALG, `I1` dispatcher, `S11` byte-budget LRU, leftover `J*` jobs, and wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
-| P2 — everyday Develop controls | **Ready.** In order: orientation/crop, resize/output dimensions/straighten, RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `G1`, `G4`, `G3`, `G7`, `G6`, `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2`, with consumer-driven `S1`/`S2`/`S4`; blocked items wait for their stated P0/P1 dependency | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
+| P2 — everyday Develop controls | **Ready.** Leftover flip/crop box import accepted (ADR-0048/0049). Remaining in order: resize/output dimensions/straighten, RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `G1`/`G4` remaining mask/ROI and leftover `(int)` crop truncation; `G3`, `G7`, `G6`, `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2` | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
 | P3 — library and delivery workflow | Improve filtering/recent/navigation/scopes; then metadata/history/styles/presets; finish common export/storage, canvas/frame/watermark and output dither | `S8`, `L5`–`L8`, `J5`, `S9`, `S10`, `J6`, `J7`, `L2`, `U5`, `I10`–`I14`, `G5`, `G8`, `M5`, `O1`, `H3`, `H4` | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
 | P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, Color Zones/monochrome/split toning/Velvia, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T6`, `T1`, `C17`, `C18`, `C20`, `C21`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
 | P5 — specialist and low-frequency tools | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until a later exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget and explicit unsupported-state policy; no simplified substitute or speculative shell |
@@ -203,10 +202,10 @@ covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| G1 | flip — iop/flip.c | yes | Queued / ALG; complete EXIF/orientation/ROI; existing mirror/quarter-turn is only a subset |
+| G1 | flip — iop/flip.c | yes | Queued / ALG; leftover v2 orientation bits and Studio rotate/flip/crop-follow are accepted (ADR-0048). Remaining: mask/ROI distort, leftover NONE as EXIF undo, and `flip.c` retirement |
 | G2 | rotatepixels — iop/rotatepixels.c | no | Queued / ALG; depends on G1; sensor/pixel rotation synthetic fixture |
 | G3 | scalepixels — iop/scalepixels.c | no | Queued / ALG; depends on S3; interpolation/ROI/scale contract and synthetic fixture |
-| G4 | crop — iop/crop.c | yes | Queued / ALG; depends on M1/G1; complete aspect/keystone/ROI; current normalized crop is only a subset |
+| G4 | crop — iop/crop.c | yes | Queued / ALG; leftover v1–v3 box import and Studio normalized crop/aspect lock are accepted (ADR-0049). Remaining: leftover `(int)` ROI truncation, export `ratio_n`/`ratio_d` snap, mask/distort, and `crop.c` retirement. Keystone is G6 |
 | G5 | enlargecanvas — iop/enlargecanvas.c | yes | Queued / ALG; canvas coordinates, fill/alpha, mask transform |
 | G6 | ashift — iop/ashift.c + ashift_lsd.c + ashift_nmsimplex.c | yes | Queued / ALG; line detection, lens geometry, automatic/manual fit; current straighten is not a substitute |
 | G7 | finalscale — iop/finalscale.c | no | Queued / ALG; depends on G3/O1; formal resampling/output-size contract |

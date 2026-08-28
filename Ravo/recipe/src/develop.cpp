@@ -5394,4 +5394,80 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
     return params;
 }
 
+Result<LeftoverFlipGeometry> leftover_flip_orientation_to_geometry(const std::int32_t orientation)
+{
+    LeftoverFlipGeometry geometry;
+    switch (orientation)
+    {
+    case -1:
+    case 0:
+        return geometry;
+    case 1:
+        geometry.flip_vertical = 1;
+        return geometry;
+    case 2:
+        geometry.flip_horizontal = 1;
+        return geometry;
+    case 3:
+        geometry.rotate_quarters = 2;
+        return geometry;
+    case 4:
+        geometry.rotate_quarters = 1;
+        geometry.flip_horizontal = 1;
+        return geometry;
+    case 5:
+        geometry.rotate_quarters = 1;
+        return geometry;
+    case 6:
+        geometry.rotate_quarters = 3;
+        return geometry;
+    case 7:
+        geometry.rotate_quarters = 1;
+        geometry.flip_vertical = 1;
+        return geometry;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy flip orientation is outside the frozen bit contract",
+                          {{"legacy_operation", "flip"},
+                           {"orientation", std::to_string(orientation)},
+                           {"reason", "unsupported_legacy_flip_orientation"}});
+    }
+}
+
+bool LeftoverCropBox::is_identity() const noexcept
+{
+    return near(x, 0.0) && near(y, 0.0) && near(width, 1.0) && near(height, 1.0);
+}
+
+Result<LeftoverCropBox> leftover_crop_box_to_geometry(const float left, const float top,
+                                                      const float right, const float bottom)
+{
+    if (!std::isfinite(left) || !std::isfinite(top) || !std::isfinite(right) ||
+        !std::isfinite(bottom))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy crop box contains a non-finite edge",
+            {{"legacy_operation", "crop"}, {"reason", "unsupported_legacy_crop_box"}});
+    }
+    constexpr float kMin = 0.01F;
+    const float cx = std::clamp(left, 0.0F, 1.0F - kMin);
+    const float cy = std::clamp(top, 0.0F, 1.0F - kMin);
+    const float cw = std::clamp(right, kMin, 1.0F);
+    const float ch = std::clamp(bottom, kMin, 1.0F);
+    const float width = cw - cx;
+    const float height = ch - cy;
+    if (width < kMin || height < kMin)
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy crop box is empty after leftover clamp",
+            {{"legacy_operation", "crop"}, {"reason", "unsupported_legacy_crop_box"}});
+    }
+    LeftoverCropBox box;
+    box.x = cx;
+    box.y = cy;
+    box.width = width;
+    box.height = height;
+    return box;
+}
+
 } // namespace ravo

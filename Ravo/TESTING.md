@@ -176,7 +176,11 @@ RAW; a camera TIFF without a RAW suffix may still import through
 structured LibRaw reasons, `.dng` suffix import of the Bayer fixture, X-Trans
 `unsupported_raw_sensor`, unpack-before-publish when no embedded JPEG exists,
 RAW import cancellation, corrupt PNG cache miss, and close/reopen preview.
-Full RCD/PPG/X-Trans demosaic and DNG GainMap opcodes remain later.
+Full RCD/PPG/X-Trans demosaic and DNG GainMap opcodes remain later. Leftover
+flip v2 orientation bits 1–7 map to canonical rotate-then-flip; `NULL`/`NONE`
+stay identity because camera EXIF is applied at decode. Leftover crop v1–v3
+left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1
+is identity.
 
 - Compare the source image hash/size/mtime before and after import to prove a
   reference-only path does not modify the original.

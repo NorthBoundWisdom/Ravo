@@ -378,6 +378,40 @@ color_balance_to_parameters(const ColorBalanceParams &params);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 color_balance_rgb_to_parameters(const ColorBalanceRgbParams &params);
 
+struct LeftoverFlipGeometry
+{
+    std::int64_t rotate_quarters = 0;
+    std::int64_t flip_horizontal = 0;
+    std::int64_t flip_vertical = 0;
+
+    [[nodiscard]] bool is_identity() const noexcept
+    {
+        return rotate_quarters == 0 && flip_horizontal == 0 && flip_vertical == 0;
+    }
+};
+
+// Maps leftover flip.c orientation bits (ORIENTATION_NULL=-1 through TRANSVERSE=7)
+// onto canonical rotate-then-flip. NULL and NONE are identity because Ravo applies
+// camera EXIF at decode.
+[[nodiscard]] Result<LeftoverFlipGeometry>
+leftover_flip_orientation_to_geometry(std::int32_t orientation);
+
+struct LeftoverCropBox
+{
+    double x = 0.0;
+    double y = 0.0;
+    double width = 1.0;
+    double height = 1.0;
+
+    [[nodiscard]] bool is_identity() const noexcept;
+};
+
+// Maps leftover crop.c left/top/right/bottom (cx, cy, cw, ch) onto canonical
+// x/y/width/height. Full-frame 0,0,1,1 is identity. ratio_n/ratio_d export
+// snapping stays later G7 work.
+[[nodiscard]] Result<LeftoverCropBox> leftover_crop_box_to_geometry(float left, float top,
+                                                                    float right, float bottom);
+
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);
 [[nodiscard]] Result<void> apply_develop_field_strict(DevelopParams &params, std::string_view name,
