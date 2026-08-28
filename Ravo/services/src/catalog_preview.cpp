@@ -376,7 +376,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             }
         }
     }
-    const bool interactive = !request.persist_preview_record;
+    const bool interactive =
+        !request.persist_preview_record || request.overlay_mask_id.has_value();
     const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
                                                   interactive ? "interactive" : edit_digest);
 
@@ -429,8 +430,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
         Recipe rgb_recipe = edit_recipe;
         disable_raw_preprocess(rgb_recipe);
-        auto applied =
-            engine_->render_linear_working(*linear.value(), rgb_recipe, request.cancellation);
+        auto applied = engine_->render_linear_working(*linear.value(), rgb_recipe,
+                                                      request.cancellation, request.overlay_mask_id);
         if (!applied)
         {
             return applied.error();
@@ -445,8 +446,8 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             return linear.error();
         }
-        auto applied =
-            engine_->render_linear_working(*linear.value(), edit_recipe, request.cancellation);
+        auto applied = engine_->render_linear_working(*linear.value(), edit_recipe,
+                                                      request.cancellation, request.overlay_mask_id);
         if (!applied)
         {
             return applied.error();
@@ -465,6 +466,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     {
         result.rgb = std::move(rendered.rgb);
         result.color_profile = std::move(rendered.color_profile);
+        result.mask_alpha = std::move(rendered.mask_alpha);
         return result;
     }
 

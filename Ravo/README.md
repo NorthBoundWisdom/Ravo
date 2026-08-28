@@ -249,11 +249,11 @@ Current implementation status:
   author one unshared Studio-owned all, spatial, or parametric leaf for each Color
   Harmonizer/Graduated ND attachment through the same typed Recipe, live
   preview, Catalog cache/save/reopen, ordinary Develop edit, and undo/redo
-  path. External, shared, and group attachments remain read-only and may only
-  detach; the preview shows the masked operation effect, not a mask alpha or
-  tinted overlay. Legacy XMP masks/custom blends remain rejected. Group-child
-  editing, overlay presentation, path/brush, historic blend modes, M1, C14
-  retirement, and C15 remain unfinished and are not implied by this slice.
+  path. Studio can show a preview-only yellow mask overlay, author owned group
+  children, and author path/brush leaves. External and shared attachments stay
+  read-only except for explicit detach. Legacy XMP masks/custom blends remain
+  rejected. Historic blend modes, leftover GTK mask-manager consumers, and C15
+  remain unfinished.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

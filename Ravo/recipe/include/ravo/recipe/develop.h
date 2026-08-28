@@ -261,6 +261,8 @@ struct DevelopParams
     bool color_harmonizer_enabled = false;
     ColorHarmonizerParams color_harmonizer;
     std::optional<std::string> color_harmonizer_mask_id;
+    std::int64_t color_harmonizer_mask_child_index = 0;
+    std::int64_t color_harmonizer_mask_point_index = 0;
     double monochrome = 0.0;
     double split_shadows_hue = 0.0;
     double split_highlights_hue = 0.2;
@@ -307,6 +309,8 @@ struct DevelopParams
     bool graduated_present = false;
     bool graduated_enabled = false;
     std::optional<std::string> graduated_mask_id;
+    std::int64_t graduated_mask_child_index = 0;
+    std::int64_t graduated_mask_point_index = 0;
     double tone_eq_blacks = 0.0;
     double tone_eq_shadows = 0.0;
     double tone_eq_midtones = 0.0;

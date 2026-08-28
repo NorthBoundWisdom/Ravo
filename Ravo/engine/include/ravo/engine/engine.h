@@ -97,6 +97,8 @@ struct RenderRequest
     RenderBackend backend = RenderBackend::kCpu;
     CancellationToken cancellation;
     std::string correlation_id;
+    // Preview-only. Export callers must leave this empty.
+    std::optional<std::string> overlay_mask_id;
 };
 
 struct RenderResult
@@ -113,6 +115,7 @@ struct RenderedImage
     std::uint32_t height = 0;
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
+    std::vector<float> mask_alpha;
 };
 
 enum class RenderSampleKind : std::uint8_t
@@ -386,7 +389,8 @@ public:
     // `ravo.raw.highlights` into the buffer must disable that operation before calling.
     [[nodiscard]] Result<RenderedImage>
     render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
-                          const CancellationToken &cancellation) const;
+                          const CancellationToken &cancellation,
+                          std::optional<std::string> overlay_mask_id = {}) const;
     // Same recipe/output-colour stage as render_linear_working; packs the owned
     // ProfiledOutputBuffer to the requested sample kind. Preview callers stay on
     // the RGB8 APIs above.
@@ -398,6 +402,10 @@ public:
     render_to_export_image(const RenderRequest &request, RenderSampleKind sample_kind,
                            const RasterBuffer *raster = nullptr) const;
     [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
+    [[nodiscard]] Result<void>
+    composite_preview_mask_overlay(std::vector<std::uint8_t> &rgb, std::uint32_t width,
+                                   std::uint32_t height, const std::vector<float> &alpha,
+                                   const CancellationToken &cancellation) const;
     // Engine-private Exiv2: embedded Exif only. No sidecar, XMP, or maker-note copy.
     // Returns one owned semantic capture value. Exiv2 types die inside the call.
     [[nodiscard]] Result<EngineCaptureMetadata>

@@ -60,6 +60,21 @@ struct DevelopMaskEditorState
     double threshold1 = 0.0;
     double threshold2 = 1.0;
     double threshold3 = 1.0;
+    std::int64_t child_count = 0;
+    std::int64_t child_index = 0;
+    std::int64_t child_kind_index = 0;
+    std::string child_kind_name{"all"};
+    std::int64_t child_operator_index = 0;
+    double child_opacity = 1.0;
+    bool child_inverted = false;
+    std::int64_t point_count = 0;
+    std::int64_t point_index = 0;
+    double point_x = 0.5;
+    double point_y = 0.5;
+    double point_radius = 0.05;
+    double point_hardness = 0.5;
+    double point_density = 1.0;
+    double path_feather = 0.0;
 };
 
 [[nodiscard]] std::string_view develop_mask_target_name(DevelopMaskTarget target) noexcept;

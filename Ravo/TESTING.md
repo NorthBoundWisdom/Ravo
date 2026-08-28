@@ -446,32 +446,30 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   cover exact sigma, pull-width floor,
   full/downscaled canonical ROI scale, propagation, two-pass oracle,
   source/profile/analysis ownership, map/Gaussian/apply/prepublication
-  cancellation, and saturated RAW memory estimates. S3.1 separately covers
-  canonical attachment alpha 0/all/spatial behavior. S3.2 adds strict
-  Studio-owned leaf creation/collision allocation, kind/selector/boundary and
-  monotonic-threshold rejection without mutation, external/shared/group
-  read-only detach, field/kind reset ownership, Presenter descriptor maps,
-  reusable QML intent forwarding, and Catalog live-preview/save/close/reopen
-  through an ordinary other-slider edit. Those tests assert the operation
-  preview path, not a mask alpha overlay; they do not relax the frozen legacy
-  importer or claim group editing/GPU/M1/C14 retirement.
+  cancellation, and saturated RAW memory estimates. Canonical mask tests cover
+  attachment alpha 0/all/spatial/path/brush behavior, Studio-owned leaf and
+  group creation, overlay composite of exact-zero versus positive alpha, and
+  read-only detach of external/shared attachments. They do not relax the frozen
+  legacy importer or claim historic blend modes, leftover GTK mask-manager
+  deletion, GPU, or C15.
 - Canonical mask graph tests cover schema-v1 `all` upgrade and deterministic
   v2 serialization; unknown fields/kinds/versions, non-finite/bounded values,
   duplicate/dangling/cyclic/deep/shared DAGs, node/child/expanded-work limits,
   invalid enum state, and v1 non-identity rejection. Private evaluator tests
   freeze pixel-centre exact grids, zero/positive gradient/circle/ellipse
-  transitions, frozen parametric branches for input/output sources, group
+  transitions, path/brush tessellation, frozen parametric branches for
+  input/output sources, group
   replace/union/intersection/difference/exclusion ordering with node/edge
   inversion and opacity, whole-
   frame versus vertical and inset-stride tiled ROI, invalid ROI/stride/sample/
   finiteness, pre/node/row cancellation, and owned alpha scratch bounds. Engine
-  tests cover exact normal alpha 0/1 selection, spatial mix, unsupported-
-  operation failure, and RAW
+  tests cover exact normal alpha 0/1 selection, spatial mix, overlay composite,
+  unsupported-operation failure, and RAW
   saturating masked memory estimates. CLI direct render parity and Catalog
   preview/cache/save/close/reopen tests retain graph/attachments through an
-  ordinary Develop edit; reset_recipe alone clears the stored graph. The S3.2
-  contract requires failed strict mutations to leave Develop/saved/undo/cache
-  state untouched before the existing preview/commit lifecycle is reached.
+  ordinary Develop edit; reset_recipe alone clears the stored graph. Failed
+  strict mutations leave Develop/saved/undo/cache state untouched before the
+  existing preview/commit lifecycle is reached.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

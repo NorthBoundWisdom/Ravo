@@ -249,7 +249,9 @@ versioned schema only and owns neither a second algorithm nor history format.
 S3.1 adds a recipe-owned canonical mask graph under
 [ADR-0043](docs/adr/0043-canonical-mask-graph-foundation.md). Each immutable
 node has its own schema version and typed all/linear-gradient/circle/rotated-
-ellipse/parametric/group payload; v1 identity `all` upgrades on read. Recipe
+ellipse/parametric/group payload; v1 identity `all` upgrades on read.
+[ADR-0045](docs/adr/0045-studio-mask-overlay-group-path.md) extends that graph
+with path/brush kinds, preview overlay, and owned group authoring. Recipe
 parsing, upgrade, deterministic serialization, and DAG validation are the only
 owners of IDs, references, opacity/inversion, bounds, topology, and version
 rules. S3.2's [ADR-0044](docs/adr/0044-studio-canonical-mask-authoring.md)
@@ -279,13 +281,14 @@ the result becomes the next recipe input. `DevelopParams` keeps the typed graph
 and both attachments, including disabled/default instances, so live preview,
 save/reopen and ordinary Develop edits cannot baseline-elide a loaded mask.
 Studio projects two read-only mask-editor maps and forwards numeric intents to
-the recipe helper through the existing Develop preview/commit path. Only an
-unshared Studio-owned leaf is editable; external IDs, group roots, and shared
-leaves are visibly read-only and may only be explicitly detached. This surface
-does not draw an alpha/tinted mask overlay. The Graduated ND density gradient
+the recipe helper through the existing Develop preview/commit path. Unshared
+Studio-owned leaves and groups are editable; external IDs and shared
+attachments are visibly read-only and may only be explicitly detached. Studio can
+show a preview-only yellow overlay of the named attachment, author owned group
+children, and author path/brush leaves. The Graduated ND density gradient
 is still its independent operation formula, not an alias for generic mask
-geometry. Group-child editing, path/brush, more blend modes, M1, and legacy
-retirement remain outside this tranche.
+geometry. Historic blend modes and leftover GTK mask-manager consumers remain
+outside this tranche.
 
 `ravo.core.tonecurve` implements the frozen C RGB-linked default:
 Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
@@ -628,9 +631,10 @@ Studio section consume that same recipe, including smoothing `0..2`. Cache
 identity follows the canonical recipe/engine path. Synthetic positive legacy
 payloads remain rejected because no frozen record evidences them. S3.1/S3.2's
 canonical recipe graph and bounded Studio authoring do not relax that importer.
-Mask overlay/group-child presentation, path/brush, remaining blend modes, and
-retirement of the frozen owner remain separate C14/M1 tranches and do not
-authorize C15.
+Studio overlay, owned group editing, and path/brush are accepted under
+[ADR-0045](docs/adr/0045-studio-mask-overlay-group-path.md). Remaining blend
+modes and leftover GTK mask-manager consumers stay later work and do not
+authorize C15. The frozen `iop/colorharmonizer.c` owner is retired.
 [ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md) freezes the core;
 [ADR-0041](docs/adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
 extends it with the first product surface; [ADR-0042](docs/adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
@@ -755,8 +759,8 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   presets remain out of scope. Studio
   now collects one explicit format plus the matching typed options before the
   native save dialog; it does not infer format from a localized filter.
-- The first version does not implement full history/styles, path/brush mask
-  authoring, historic blend modes, every operation, or old-catalog migration.
+- The first version does not implement full history/styles, historic blend
+  modes, every operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.

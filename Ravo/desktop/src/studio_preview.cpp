@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 #include <QByteArray>
 #include <QColorSpace>
@@ -35,6 +37,8 @@ void StudioPresenter::clear_displayed_preview()
         preview_image_ = QImage();
         preview_url_.clear();
     }
+    preview_base_image_ = QImage();
+    preview_mask_alpha_.clear();
     clear_scopes();
 }
 
@@ -165,15 +169,50 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             setError(QStringLiteral("Interactive preview has no declared ICC profile"));
             return;
         }
+        preview_base_image_ = owned;
+        preview_mask_alpha_ = preview.mask_alpha;
+        QImage displayed = owned;
+        if (mask_overlay_visible_ && !preview.mask_alpha.empty() && engine_.has_value())
+        {
+            std::vector<std::uint8_t> rgb(static_cast<std::size_t>(owned.width()) *
+                                          static_cast<std::size_t>(owned.height()) * 3U);
+            for (int y = 0; y < owned.height(); ++y)
+            {
+                std::copy_n(owned.constScanLine(y), static_cast<std::size_t>(owned.width()) * 3U,
+                            rgb.begin() + static_cast<std::ptrdiff_t>(
+                                              static_cast<std::size_t>(y) * owned.width() * 3U));
+            }
+            auto composited = engine_->composite_preview_mask_overlay(
+                rgb, static_cast<std::uint32_t>(owned.width()),
+                static_cast<std::uint32_t>(owned.height()), preview.mask_alpha, {});
+            if (composited)
+            {
+                displayed = QImage(static_cast<int>(owned.width()), static_cast<int>(owned.height()),
+                                   QImage::Format_RGB888);
+                for (int y = 0; y < displayed.height(); ++y)
+                {
+                    std::copy_n(rgb.data() + static_cast<std::ptrdiff_t>(
+                                                 static_cast<std::size_t>(y) * displayed.width() * 3U),
+                                static_cast<std::size_t>(displayed.width()) * 3U,
+                                displayed.scanLine(y));
+                }
+                if (owned.colorSpace().isValid())
+                {
+                    displayed.setColorSpace(owned.colorSpace());
+                }
+            }
+        }
         {
             const QMutexLocker lock(&preview_image_mutex_);
-            preview_image_ = owned;
+            preview_image_ = displayed;
         }
         preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
         refresh_scopes(owned);
         return;
     }
     const QImage cached = QImage(qstring_from_utf8(preview.cache_path));
+    preview_base_image_ = cached;
+    preview_mask_alpha_.clear();
     {
         const QMutexLocker lock(&preview_image_mutex_);
         preview_image_ = cached;

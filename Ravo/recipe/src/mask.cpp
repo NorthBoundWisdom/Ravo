@@ -1,6 +1,7 @@
 #include "ravo/recipe/mask.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <functional>
@@ -166,6 +167,26 @@ required_field(const JsonObject &object, const std::string_view name, const std:
            value <= kCanonicalMaskAngleMax;
 }
 
+[[nodiscard]] bool finite_positive_unit(const double value) noexcept
+{
+    return std::isfinite(value) && value >= kCanonicalMaskPositiveMin &&
+           value <= kCanonicalMaskUnitMax;
+}
+
+[[nodiscard]] bool valid_path_point(const PathMaskPoint &point) noexcept
+{
+    return finite_unit(point.x) && finite_unit(point.y) && finite_unit(point.ctrl1_x) &&
+           finite_unit(point.ctrl1_y) && finite_unit(point.ctrl2_x) && finite_unit(point.ctrl2_y);
+}
+
+[[nodiscard]] bool valid_brush_point(const BrushMaskPoint &point) noexcept
+{
+    return finite_unit(point.x) && finite_unit(point.y) && finite_unit(point.ctrl1_x) &&
+           finite_unit(point.ctrl1_y) && finite_unit(point.ctrl2_x) && finite_unit(point.ctrl2_y) &&
+           finite_positive_unit(point.radius) && finite_unit(point.hardness) &&
+           finite_unit(point.density);
+}
+
 [[nodiscard]] Result<MaskKind> parse_kind(const std::string_view text, const std::string_view path)
 {
     if (text == "all")
@@ -191,6 +212,14 @@ required_field(const JsonObject &object, const std::string_view name, const std:
     if (text == "group")
     {
         return MaskKind::kGroup;
+    }
+    if (text == "path")
+    {
+        return MaskKind::kPath;
+    }
+    if (text == "brush")
+    {
+        return MaskKind::kBrush;
     }
     return make_error(ErrorCode::kUnsupported, "Unsupported canonical mask kind",
                       {{"kind", std::string(text)},
@@ -407,6 +436,127 @@ required_field(const JsonObject &object, const std::string_view name, const std:
     return group;
 }
 
+[[nodiscard]] Result<double> object_number(const JsonObject &object, const std::string_view key,
+                                           const std::string_view path)
+{
+    auto field = required_field(object, key, path);
+    if (!field)
+    {
+        return field.error();
+    }
+    return number_at(*field.value(), std::string(path) + "." + std::string(key));
+}
+
+[[nodiscard]] Result<PathMask> parse_path(const JsonObject &object, const std::string_view path)
+{
+    auto feather = object_number(object, "feather", path);
+    auto points = required_field(object, "points", path);
+    if (!feather || !points)
+    {
+        return !feather ? feather.error() : points.error();
+    }
+    const auto *array = points.value()->array_if();
+    if (array == nullptr)
+    {
+        return field_error("Expected a JSON array", std::string(path) + ".points");
+    }
+    PathMask result;
+    result.feather = feather.value();
+    result.points.reserve(array->size());
+    for (std::size_t index = 0; index < array->size(); ++index)
+    {
+        const std::string point_path = std::string(path) + ".points[" + std::to_string(index) + "]";
+        auto point = object_at((*array)[index], point_path);
+        if (!point)
+        {
+            return point.error();
+        }
+        auto fields = reject_unknown_fields(
+            *point.value(), {"ctrl1_x", "ctrl1_y", "ctrl2_x", "ctrl2_y", "x", "y"}, point_path);
+        if (!fields)
+        {
+            return fields.error();
+        }
+        auto x = object_number(*point.value(), "x", point_path);
+        auto y = object_number(*point.value(), "y", point_path);
+        auto ctrl1_x = object_number(*point.value(), "ctrl1_x", point_path);
+        auto ctrl1_y = object_number(*point.value(), "ctrl1_y", point_path);
+        auto ctrl2_x = object_number(*point.value(), "ctrl2_x", point_path);
+        auto ctrl2_y = object_number(*point.value(), "ctrl2_y", point_path);
+        if (!x || !y || !ctrl1_x || !ctrl1_y || !ctrl2_x || !ctrl2_y)
+        {
+            return !x       ? x.error() :
+                   !y       ? y.error() :
+                   !ctrl1_x ? ctrl1_x.error() :
+                   !ctrl1_y ? ctrl1_y.error() :
+                   !ctrl2_x ? ctrl2_x.error() :
+                              ctrl2_y.error();
+        }
+        result.points.push_back({x.value(), y.value(), ctrl1_x.value(), ctrl1_y.value(),
+                                 ctrl2_x.value(), ctrl2_y.value()});
+    }
+    return result;
+}
+
+[[nodiscard]] Result<BrushMask> parse_brush(const JsonObject &object, const std::string_view path)
+{
+    auto points = required_field(object, "points", path);
+    if (!points)
+    {
+        return points.error();
+    }
+    const auto *array = points.value()->array_if();
+    if (array == nullptr)
+    {
+        return field_error("Expected a JSON array", std::string(path) + ".points");
+    }
+    BrushMask result;
+    result.points.reserve(array->size());
+    for (std::size_t index = 0; index < array->size(); ++index)
+    {
+        const std::string point_path = std::string(path) + ".points[" + std::to_string(index) + "]";
+        auto point = object_at((*array)[index], point_path);
+        if (!point)
+        {
+            return point.error();
+        }
+        auto fields = reject_unknown_fields(
+            *point.value(),
+            {"ctrl1_x", "ctrl1_y", "ctrl2_x", "ctrl2_y", "density", "hardness", "radius", "x", "y"},
+            point_path);
+        if (!fields)
+        {
+            return fields.error();
+        }
+        auto x = object_number(*point.value(), "x", point_path);
+        auto y = object_number(*point.value(), "y", point_path);
+        auto ctrl1_x = object_number(*point.value(), "ctrl1_x", point_path);
+        auto ctrl1_y = object_number(*point.value(), "ctrl1_y", point_path);
+        auto ctrl2_x = object_number(*point.value(), "ctrl2_x", point_path);
+        auto ctrl2_y = object_number(*point.value(), "ctrl2_y", point_path);
+        auto radius = object_number(*point.value(), "radius", point_path);
+        auto hardness = object_number(*point.value(), "hardness", point_path);
+        auto density = object_number(*point.value(), "density", point_path);
+        if (!x || !y || !ctrl1_x || !ctrl1_y || !ctrl2_x || !ctrl2_y || !radius || !hardness ||
+            !density)
+        {
+            return !x        ? x.error() :
+                   !y        ? y.error() :
+                   !ctrl1_x  ? ctrl1_x.error() :
+                   !ctrl1_y  ? ctrl1_y.error() :
+                   !ctrl2_x  ? ctrl2_x.error() :
+                   !ctrl2_y  ? ctrl2_y.error() :
+                   !radius   ? radius.error() :
+                   !hardness ? hardness.error() :
+                               density.error();
+        }
+        result.points.push_back({x.value(), y.value(), ctrl1_x.value(), ctrl1_y.value(),
+                                 ctrl2_x.value(), ctrl2_y.value(), radius.value(), hardness.value(),
+                                 density.value()});
+    }
+    return result;
+}
+
 [[nodiscard]] Result<void> validate_mask_node(const Mask &mask)
 {
     if (mask.id.empty() || mask.id.size() > 128U)
@@ -565,6 +715,52 @@ required_field(const JsonObject &object, const std::string_view name, const std:
         }
         return {};
     }
+    case MaskKind::kPath:
+    {
+        const auto *path = std::get_if<PathMask>(&mask.payload);
+        if (path == nullptr)
+        {
+            return wrong_payload();
+        }
+        if (path->points.size() < kCanonicalMaskMinPathPoints ||
+            path->points.size() > kCanonicalMaskMaxPathPoints || !finite_unit(path->feather))
+        {
+            return mask_error("Path mask point count or feather is outside the canonical bounds",
+                              "invalid_path_mask", mask.id);
+        }
+        for (const auto &point : path->points)
+        {
+            if (!valid_path_point(point))
+            {
+                return mask_error("Path mask point is outside the canonical bounds",
+                                  "invalid_path_mask_point", mask.id);
+            }
+        }
+        return {};
+    }
+    case MaskKind::kBrush:
+    {
+        const auto *brush = std::get_if<BrushMask>(&mask.payload);
+        if (brush == nullptr)
+        {
+            return wrong_payload();
+        }
+        if (brush->points.size() < kCanonicalMaskMinBrushPoints ||
+            brush->points.size() > kCanonicalMaskMaxPathPoints)
+        {
+            return mask_error("Brush mask point count is outside the canonical bounds",
+                              "invalid_brush_mask", mask.id);
+        }
+        for (const auto &point : brush->points)
+        {
+            if (!valid_brush_point(point))
+            {
+                return mask_error("Brush mask point is outside the canonical bounds",
+                                  "invalid_brush_mask_point", mask.id);
+            }
+        }
+        return {};
+    }
     }
     return mask_error("Mask kind is invalid", "invalid_mask_kind", mask.id);
 }
@@ -608,6 +804,12 @@ Mask::Mask(std::string value_id, const std::int64_t value_schema_version, const 
     case MaskKind::kGroup:
         payload = MaskGroup{};
         break;
+    case MaskKind::kPath:
+        payload = PathMask{};
+        break;
+    case MaskKind::kBrush:
+        payload = BrushMask{};
+        break;
     }
 }
 
@@ -627,6 +829,10 @@ std::string_view mask_kind_name(const MaskKind kind) noexcept
         return "parametric";
     case MaskKind::kGroup:
         return "group";
+    case MaskKind::kPath:
+        return "path";
+    case MaskKind::kBrush:
+        return "brush";
     }
     return "all";
 }
@@ -722,6 +928,13 @@ try
         break;
     case MaskKind::kGroup:
         fields.insert("children");
+        break;
+    case MaskKind::kPath:
+        fields.insert("feather");
+        fields.insert("points");
+        break;
+    case MaskKind::kBrush:
+        fields.insert("points");
         break;
     }
     auto unknown = reject_unknown_fields(*object.value(), fields, path);
@@ -858,6 +1071,26 @@ try
             return group.error();
         }
         result.payload = std::move(group).value();
+        break;
+    }
+    case MaskKind::kPath:
+    {
+        auto path_payload = parse_path(*object.value(), path);
+        if (!path_payload)
+        {
+            return path_payload.error();
+        }
+        result.payload = std::move(path_payload).value();
+        break;
+    }
+    case MaskKind::kBrush:
+    {
+        auto brush = parse_brush(*object.value(), path);
+        if (!brush)
+        {
+            return brush.error();
+        }
+        result.payload = std::move(brush).value();
         break;
     }
     }
@@ -1176,6 +1409,68 @@ try
                            {"operator", std::string(group_operator_name(child.operation))}});
         }
         object.emplace("children", std::move(children));
+        break;
+    }
+    case MaskKind::kPath:
+    {
+        const auto &path_mask = std::get<PathMask>(mask.payload);
+        auto feather = add("feather", path_mask.feather);
+        if (!feather)
+        {
+            return feather.error();
+        }
+        JsonValue::Array points;
+        points.reserve(path_mask.points.size());
+        for (const auto &point : path_mask.points)
+        {
+            JsonObject point_object;
+            for (const auto &[key, value] : std::array<std::pair<std::string_view, double>, 6>{
+                     {{"x", point.x},
+                      {"y", point.y},
+                      {"ctrl1_x", point.ctrl1_x},
+                      {"ctrl1_y", point.ctrl1_y},
+                      {"ctrl2_x", point.ctrl2_x},
+                      {"ctrl2_y", point.ctrl2_y}}})
+            {
+                auto field = add_number(point_object, key, value);
+                if (!field)
+                {
+                    return field.error();
+                }
+            }
+            points.emplace_back(std::move(point_object));
+        }
+        object.emplace("points", std::move(points));
+        break;
+    }
+    case MaskKind::kBrush:
+    {
+        const auto &brush = std::get<BrushMask>(mask.payload);
+        JsonValue::Array points;
+        points.reserve(brush.points.size());
+        for (const auto &point : brush.points)
+        {
+            JsonObject point_object;
+            for (const auto &[key, value] : std::array<std::pair<std::string_view, double>, 9>{
+                     {{"x", point.x},
+                      {"y", point.y},
+                      {"ctrl1_x", point.ctrl1_x},
+                      {"ctrl1_y", point.ctrl1_y},
+                      {"ctrl2_x", point.ctrl2_x},
+                      {"ctrl2_y", point.ctrl2_y},
+                      {"radius", point.radius},
+                      {"hardness", point.hardness},
+                      {"density", point.density}}})
+            {
+                auto field = add_number(point_object, key, value);
+                if (!field)
+                {
+                    return field.error();
+                }
+            }
+            points.emplace_back(std::move(point_object));
+        }
+        object.emplace("points", std::move(points));
         break;
     }
     }

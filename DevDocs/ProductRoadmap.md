@@ -27,19 +27,19 @@ immutable recipe publication, ROI/cancellation, and normal mix for a bounded
 typed all/linear-gradient/circle/ellipse/parametric/group graph. ADR-0044
 accepts S3.2's bounded Studio-owned spatial/parametric leaf authoring for
 Color Harmonizer and Graduated ND; Graduated ND's own density gradient remains
-separate operation math.
+separate operation math. ADR-0045 accepts preview-only overlay, owned
+group-child editing, and path/brush sampling/lifecycle; Color Harmonizer's
+frozen IOP is retired.
 
-- Decide path/brush data, sampling and resource lifecycle before adding them.
-- Decide a future mask alpha/tinted overlay, group-child editor, picker,
-  histogram/harmony interactions, and any additional undo intent without
-  moving graph mathematics into QML. S3.2's existing preview shows only the
-  resulting operation effect; it is not an overlay contract.
+- Decide picker, histogram/harmony interactions, and any additional undo intent
+  without moving graph mathematics into QML.
 - Decide any additional blend modes only with a named operation consumer and
   source-order/failure/ROI contract; historic blend-mode completeness is not
-  implied by S3.1.
-- M1 acceptance and C14 legacy-owner retirement require their separate gates;
-  strict legacy XMP mask/custom-blend rejection remains current policy. C15
-  and `cacorrectrgb` remain outside execution until a later exact tranche.
+  implied by S3.
+- Leftover GTK `mask_manager` / `libs/masks.c` wait for zero develop/history
+  consumers. Strict legacy XMP mask/custom-blend rejection remains current
+  policy. C15 and `cacorrectrgb` remain outside execution until a later exact
+  tranche.
 
 ## RAW and optical contracts
 

@@ -131,6 +131,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editColorContrast READ editColorContrast NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorHarmonizer READ editColorHarmonizer NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorHarmonizerMask READ editColorHarmonizerMask NOTIFY editChanged)
+    Q_PROPERTY(bool maskOverlayVisible READ maskOverlayVisible NOTIFY previewChanged)
+    Q_PROPERTY(QString maskOverlayTarget READ maskOverlayTarget NOTIFY previewChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
     Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
     Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
@@ -394,6 +396,9 @@ public:
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
     Q_INVOKABLE void previewDevelopNumber(const QString &name, double value);
+    [[nodiscard]] bool maskOverlayVisible() const noexcept;
+    [[nodiscard]] QString maskOverlayTarget() const;
+    Q_INVOKABLE void setMaskOverlay(const QString &target, bool visible);
     void retranslate();
     Q_INVOKABLE void setToneCurve(const QVariantList &points);
     Q_INVOKABLE void previewToneCurve(const QVariantList &points);
@@ -473,6 +478,8 @@ private:
     void constrain_geometry_crop(DevelopParams &params) const;
     void fit_geometry_crop(DevelopParams &params) const;
     void valid_crop_rect(double &x, double &y, double &width, double &height) const;
+    [[nodiscard]] std::optional<std::string>
+    current_overlay_mask_id(const DevelopParams &params) const;
     void kick_develop_work();
     void clear_displayed_preview();
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision);
@@ -493,6 +500,7 @@ private:
         bool ignore_crop = false;
         bool ignore_straighten = false;
         bool refresh_preview = true;
+        std::optional<std::string> overlay_mask_id;
     };
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<std::unique_ptr<CatalogService>>
@@ -529,6 +537,10 @@ private:
     std::unordered_set<std::string> selected_ids_;
     QUrl preview_url_;
     QImage preview_image_;
+    QImage preview_base_image_;
+    std::vector<float> preview_mask_alpha_;
+    bool mask_overlay_visible_ = false;
+    QString mask_overlay_target_{QStringLiteral("color_harmonizer")};
     mutable QMutex preview_image_mutex_;
     QString scope_mode_{QStringLiteral("histogram")};
     RgbHistogram scope_histogram_{};

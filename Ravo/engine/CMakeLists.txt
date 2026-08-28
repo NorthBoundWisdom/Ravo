@@ -24,6 +24,8 @@ target_sources(ravo_engine
     src/input_color.h
     src/mask_evaluator.cpp
     src/mask_evaluator.h
+    src/mask_path.cpp
+    src/mask_path.h
     src/output_color.h
     src/profile_gamma.cpp
     src/profile_gamma.h

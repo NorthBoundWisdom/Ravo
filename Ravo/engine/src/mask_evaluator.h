@@ -68,6 +68,17 @@ struct MaskEvaluatorMemoryEstimate
                                            const AlphaPlane &alpha,
                                            const CancellationToken &cancellation);
 
+inline constexpr float kMaskOverlayStrength = 0.65F;
+inline constexpr std::uint8_t kMaskOverlayRed = 255;
+inline constexpr std::uint8_t kMaskOverlayGreen = 204;
+inline constexpr std::uint8_t kMaskOverlayBlue = 0;
+
+// Preview-only yellow composite. Exact alpha zero keeps source bytes. Export
+// callers must not invoke this.
+[[nodiscard]] Result<void> composite_mask_overlay_rgb8(std::span<std::uint8_t> rgb,
+                                                       const AlphaPlane &alpha,
+                                                       const CancellationToken &cancellation);
+
 // Valid graphs produce a no-throw, saturating peak estimate.  Unknown roots
 // return zero; validation is the owner of structured graph diagnostics.
 [[nodiscard]] MaskEvaluatorMemoryEstimate

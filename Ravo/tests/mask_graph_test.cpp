@@ -715,7 +715,7 @@ TEST(DevelopMaskAuthoringTest, StrictlyValidatesSelectorsBoundsAndParametricOrde
     DevelopParams params;
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 2.0));
     const auto before = params;
-    auto invalid = apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 6.0);
+    auto invalid = apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 9.0);
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().context.at("reason"), "invalid_develop_mask_kind");
     EXPECT_EQ(params, before);
@@ -880,6 +880,76 @@ TEST(DevelopMaskAuthoringTest, AllocatesTargetSpecificCollisionSafeStudioIds)
     ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 1.0));
     ASSERT_TRUE(params.color_harmonizer_mask_id);
     EXPECT_EQ(*params.color_harmonizer_mask_id, "ravo.studio.mask.color_harmonizer.2");
+}
+
+TEST(DevelopMaskAuthoringTest, AuthorsOwnedGroupsPathsAndBrushes)
+{
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 6.0));
+    const auto group_state =
+        develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
+    EXPECT_TRUE(group_state.editable);
+    EXPECT_EQ(group_state.kind_name, "group");
+    EXPECT_EQ(group_state.child_count, 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskAddChild", 3.0));
+    EXPECT_EQ(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).child_count, 2);
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskChildOperator", 1.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskCenterX", 0.4));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 7.0));
+    auto path_state = develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
+    EXPECT_EQ(path_state.kind_name, "path");
+    EXPECT_GE(path_state.point_count, 3);
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskAddPoint", 1.0));
+    EXPECT_EQ(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).point_count,
+              path_state.point_count + 1);
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 8.0));
+    EXPECT_EQ(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).kind_name,
+              "brush");
+}
+
+TEST(CanonicalMaskGraphTest, PathAndBrushEvaluateClosedAndOpenGeometry)
+{
+    PathMask square;
+    square.points = {{0.2, 0.2, 0.2, 0.2, 0.2, 0.2},
+                     {0.8, 0.2, 0.8, 0.2, 0.8, 0.2},
+                     {0.8, 0.8, 0.8, 0.8, 0.8, 0.8},
+                     {0.2, 0.8, 0.2, 0.8, 0.2, 0.8}};
+    Mask path{"path", kCanonicalMaskSchemaVersion, MaskKind::kPath};
+    path.payload = square;
+    auto json = canonical_mask_to_json(path);
+    ASSERT_TRUE(json) << json.error().message;
+    auto parsed = parse_canonical_mask(json.value(), "path");
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_EQ(parsed.value(), path);
+
+    const auto input = rgb_grid(32U, 32U);
+    auto alpha = evaluate_canonical_mask({path}, "path", full_request(32U, 32U, input));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_GT(alpha.value().alpha[16U * 32U + 16U], 0.5F);
+    EXPECT_LT(alpha.value().alpha[1U], 0.5F);
+
+    BrushMask stroke;
+    stroke.points = {{0.2, 0.5, 0.2, 0.5, 0.35, 0.5, 0.08, 0.4, 1.0},
+                     {0.8, 0.5, 0.65, 0.5, 0.8, 0.5, 0.08, 0.4, 1.0}};
+    Mask brush{"brush", kCanonicalMaskSchemaVersion, MaskKind::kBrush};
+    brush.payload = stroke;
+    alpha = evaluate_canonical_mask({brush}, "brush", full_request(32U, 32U, input));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_GT(alpha.value().alpha[16U * 32U + 16U], 0.0F);
+}
+
+TEST(CanonicalMaskGraphTest, OverlayCompositePreservesExactZeroAlpha)
+{
+    std::vector<std::uint8_t> rgb{10, 20, 30, 40, 50, 60};
+    AlphaPlane alpha;
+    alpha.width = 2;
+    alpha.height = 1;
+    alpha.alpha = {0.0F, 1.0F};
+    ASSERT_TRUE(composite_mask_overlay_rgb8(rgb, alpha, {}));
+    EXPECT_EQ(rgb[0], 10);
+    EXPECT_EQ(rgb[1], 20);
+    EXPECT_EQ(rgb[2], 30);
+    EXPECT_NE(rgb[3], 40);
 }
 
 } // namespace

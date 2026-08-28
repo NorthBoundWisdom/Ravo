@@ -4,10 +4,11 @@
 >
 > **Updated: 2026-08-28**
 >
-> **Current execution status: C14 remaining work is mask-overlay/group-editor
-> presentation, path/brush capability, the required M1 acceptance gates, and
-> atomic legacy-owner retirement.** Do not start C15 or cacorrectrgb until a
-> later exact tranche is explicitly authorized.
+> **Current execution status: P0 product mask surface is accepted (overlay,
+> owned group editor, path/brush, and Color Harmonizer IOP retirement).** Next
+> Ready outcome is P1 input hardening. Leftover GTK `mask_manager` / `libs/masks.c`
+> wait for zero develop/history consumers. Do not start C15 or cacorrectrgb until
+> a later exact tranche is explicitly authorized.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -64,7 +65,7 @@ explicitly authorized. A priority label alone does not waive those conditions.
 
 | Priority | User outcome and internal order | Owner IDs / readiness | Acceptance gate |
 | --- | --- | --- | --- |
-| P0 — finish active local-adjustment work | Complete mask overlay/group editing, then path/brush authoring and the current Color Harmonizer closure | `C14`, `S3`, `M1`, `L11`, mask-related `U4`; **In progress**. S3.1/S3.2 are foundations only. `C15` and `R4` remain explicitly unauthorized | One canonical graph/evaluator/service path; Studio creation/edit/overlay, ROI/cancellation/resource and reopen coverage; retire each old owner only with zero-consumer proof |
+| P0 — finish active local-adjustment work | Mask overlay/group editing, path/brush authoring, and Color Harmonizer IOP retirement | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers; **Accepted product surface**. `C15` and `R4` remain explicitly unauthorized | Canonical graph/evaluator/service path with Studio overlay/group/path/brush; C14 retired; leftover GTK mask-manager files wait for zero-consumer proof |
 | P1 — reliably open and view common photos | First harden JPEG/PNG/TIFF and LibRaw/DNG input, then complete RAW prepare/demosaic and first-frame/cache/job lifecycle | `I5`, `I6`, `I7`, `I2`, `I4`, `R1`, `R2`, `I1`, `S11`, `J1`, `J3`, `J4`; Ready in independent fixture-backed tranches that do not overlap P0 | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
 | P2 — everyday Develop controls | In order: orientation/crop, resize/output dimensions/straighten, RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `G1`, `G4`, `G3`, `G7`, `G6`, `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2`, with consumer-driven `S1`/`S2`/`S4`; blocked items wait for their stated P0/P1 dependency | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
 | P3 — library and delivery workflow | Improve filtering/recent/navigation/scopes; then metadata/history/styles/presets; finish common export/storage, canvas/frame/watermark and output dither | `S8`, `L5`–`L8`, `J5`, `S9`, `S10`, `J6`, `J7`, `L2`, `U5`, `I10`–`I14`, `G5`, `G8`, `M5`, `O1`, `H3`, `H4` | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
@@ -110,8 +111,8 @@ This section is a lookup index for ownership, dependencies, fixtures, and
 deletion gates. **Its section and row order is not execution priority**; only
 section 2.1 chooses work. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 51 unconditional IOP registrations plus two
-  conditional owners (`liquify`, `watermark`); all 53 have a row in section 3.2.
+- legacy/src/iop/CMakeLists.txt has 50 unconditional IOP registrations plus two
+  conditional owners (`liquify`, `watermark`); all 52 have a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools; retired
   export/copy_history/tagging/metadata/history/snapshots registrations are gone.
 - legacy/src/views has darkroom/lighttable; imageio has four formats, one
@@ -153,7 +154,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry, including shared exposure order/module-group/manual names; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm owner index (53 owners: 51 unconditional + 2 conditional)
+### 3.2 IOP algorithm owner index (52 owners: 50 unconditional + 2 conditional)
 
 The groups below make legacy ownership searchable. They do not define product
 priority or serial order. fixture means static evidence exists, not that it is
@@ -163,7 +164,6 @@ covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / DECISION+RETIRE: S3.1 canonical attachments and S3.2 bounded Studio-owned leaf authoring exist, but mask-overlay/group-editor presentation, path/brush capability, remaining C14 acceptance evidence, zero-consumer audit, and atomic retirement remain; C15 is forbidden |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
 | C17 | colorzones — iop/colorzones.c | yes | Queued / ALG; colorequal stays default; migrate complete optional HSL/Lab partitions and curves |
@@ -230,7 +230,7 @@ covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| M1 | mask_manager — iop/mask_manager.c | yes | Queued / ALG+CORE; S3.1/S3.2 are only bounded graph and leaf-authoring foundations. Complete M1 path/brush/product presentation, full required consumers, acceptance evidence, and retirement separately |
+| M1 | mask_manager — iop/mask_manager.c | yes | Queued / DELETE; Studio owns mask presentation. Old dummy IOP remains while develop/history/styles still reference it |
 | M2 | retouch — iop/retouch.c | yes | Queued / ALG; depends on M1/S2; clone/heal/blur/fill and source geometry |
 | M3 | overlay — iop/overlay.c | yes | Queued / ALG; depends on M1/I1/G5; resource lifecycle and alpha composition |
 | M4 | censorize — iop/censorize.c | yes | Queued / ALG; depends on M1/S2; pixelate/blur/noise modes |
@@ -248,7 +248,7 @@ covered.
 | --- | --- | --- | --- |
 | S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 frozen D50 Lab and S1.2 source-order dt-UCS bridges are complete behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
 | S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept remaining primitives only for an explicitly reopened consumer and do not port OpenCL twins |
-| S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: canonical mask/blend graph | Remaining: path/brush, further source-backed shape/mode consumers, alpha-overlay/group-child Studio presentation, and M1 acceptance. S3.1 typed graph/ROI/normal-mix plus S3.2 owned-leaf authoring are not S3 completion |
+| S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: canonical mask/blend graph | Remaining: further source-backed blend-mode consumers and leftover GTK mask-manager files. Overlay, owned groups, and path/brush are accepted |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
 | S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all remaining IOPs retire; built-in versioned operation registry remains |
 | S6 | common/database*, database_schema*, sqliteicu* | CORE/DELETE | Compare against Ravo schema/FTS/ICU; move needed data contracts into SQLite adapter and delete remaining old catalog ABI |
@@ -315,7 +315,7 @@ covered.
 | L8 | libs/histogram.c + libs/scopes/* | CORE/DELETE | Separate RGB histogram/waveform/vectorscope/split tests; current histogram/parade is only a subset |
 | L9 | libs/modulegroups.c + header | DELETE | Studio Inspector grouping complete; delete old names/quick-access config |
 | L10 | libs/backgroundjobs.c | DELETE | J1 progress/task presentation covers it |
-| L11 | libs/masks.c | DELETE | M1 canonical mask service plus Studio intents and zero-consumer proof cover it; S3.1/S3.2 bounded graph/authoring are insufficient |
+| L11 | libs/masks.c | DELETE | Studio owns mask intents; leftover develop proxy still references this GTK module |
 | L12 | libs/ioporder.c | DELETE | Canonical recipe operation-order/version contract covers it |
 | L13 | libs/tools/viewswitcher.c | DELETE | Studio Gallery/Edit command covers it |
 | L14 | libs/tools/darktable.c | DELETE | Old brand/label tool has no consumer |
@@ -358,7 +358,7 @@ legacy deletion over a higher-value Ready outcome.
 
 Delete this document only when all are true:
 
-- [ ] C14 completes its staged migration gate, and C14 and every later raised
+- [ ] Color Harmonizer is retired, and every later raised
   algorithm are accepted and removed from this document, with each accepted old
   owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree

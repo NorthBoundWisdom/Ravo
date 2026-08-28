@@ -26,6 +26,10 @@ inline constexpr std::size_t kCanonicalMaskMaxDepth = 32U;
 // evaluator deliberately does not cache full alpha planes, so bound the
 // expanded work of every possible root as well as the stored node count.
 inline constexpr std::size_t kCanonicalMaskMaxExpandedNodes = 256U;
+inline constexpr std::size_t kCanonicalMaskMinPathPoints = 3U;
+inline constexpr std::size_t kCanonicalMaskMinBrushPoints = 2U;
+inline constexpr std::size_t kCanonicalMaskMaxPathPoints = 32U;
+inline constexpr std::size_t kCanonicalMaskMaxTessellatedSamples = 65536U;
 
 // These are the canonical validator bounds. Presentation may choose a coarser
 // interaction step, but it must not invent another accepted range.
@@ -46,6 +50,8 @@ enum class MaskKind
     kEllipse,
     kParametric,
     kGroup,
+    kPath,
+    kBrush,
 };
 
 enum class ParametricMaskSource
@@ -153,8 +159,50 @@ struct MaskGroup
     [[nodiscard]] bool operator==(const MaskGroup &) const noexcept = default;
 };
 
-using MaskPayload =
-    std::variant<AllMask, LinearGradientMask, CircleMask, EllipseMask, ParametricMask, MaskGroup>;
+struct PathMaskPoint
+{
+    double x = 0.5;
+    double y = 0.5;
+    double ctrl1_x = 0.5;
+    double ctrl1_y = 0.5;
+    double ctrl2_x = 0.5;
+    double ctrl2_y = 0.5;
+
+    [[nodiscard]] bool operator==(const PathMaskPoint &) const noexcept = default;
+};
+
+struct PathMask
+{
+    std::vector<PathMaskPoint> points;
+    double feather = 0.0;
+
+    [[nodiscard]] bool operator==(const PathMask &) const noexcept = default;
+};
+
+struct BrushMaskPoint
+{
+    double x = 0.5;
+    double y = 0.5;
+    double ctrl1_x = 0.5;
+    double ctrl1_y = 0.5;
+    double ctrl2_x = 0.5;
+    double ctrl2_y = 0.5;
+    double radius = 0.05;
+    double hardness = 0.5;
+    double density = 1.0;
+
+    [[nodiscard]] bool operator==(const BrushMaskPoint &) const noexcept = default;
+};
+
+struct BrushMask
+{
+    std::vector<BrushMaskPoint> points;
+
+    [[nodiscard]] bool operator==(const BrushMask &) const noexcept = default;
+};
+
+using MaskPayload = std::variant<AllMask, LinearGradientMask, CircleMask, EllipseMask,
+                                 ParametricMask, MaskGroup, PathMask, BrushMask>;
 
 struct Mask
 {

@@ -162,14 +162,16 @@ an automatic fallback or alias for the other.
 ### Canonical masks for Color Harmonizer and Graduated ND
 
 Both **Color Harmonizer** and **Graduated ND / Color EQ** include a **Mask**
-editor. Choose None, All, Linear gradient, Circle, Ellipse, or Parametric. The
-available controls change with the selected kind; parametric thresholds remain
-ordered while you edit them. Selecting a non-None kind makes that operation an
-explicit enabled Develop edit, including a Graduated ND with density 0.
+editor. Choose None, All, Linear gradient, Circle, Ellipse, Parametric, Group,
+Path, or Brush. The available controls change with the selected kind; parametric
+thresholds remain ordered while you edit them. Selecting a non-None kind makes
+that operation an explicit enabled Develop edit, including a Graduated ND with
+density 0.
 
-The preview shows the resulting operation effect. It does not draw a mask alpha
-or tinted overlay. Paths, brushes, and group-child editing are not available in
-this release.
+**Show mask overlay** tints the live preview with the selected operation's mask.
+It is a view setting only: it is not saved with the recipe and does not change
+export. Group attachments can add and combine children. Path and brush masks
+expose ordered points plus, for a brush, radius, hardness, and density.
 
 Some recipes can contain masks that Studio did not create, masks shared by two
 operations, or group masks. Studio shows those attachments as read-only so an

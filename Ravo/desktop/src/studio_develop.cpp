@@ -598,6 +598,10 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
         return QCoreApplication::translate("DevelopPanel", "Parametric");
     if (name == "group")
         return QCoreApplication::translate("DevelopPanel", "Group");
+    if (name == "path")
+        return QCoreApplication::translate("DevelopPanel", "Path");
+    if (name == "brush")
+        return QCoreApplication::translate("DevelopPanel", "Brush");
     return QCoreApplication::translate("DevelopPanel", "Unknown");
 }
 
@@ -638,7 +642,9 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
                                                   const DevelopMaskTarget target)
 {
     const auto prefix = develop_mask_field_prefix(target);
-    const auto kind_is = [&state](const std::int64_t index) { return state.kind_index == index; };
+    const auto shape_kind =
+        state.kind_index == 6 ? state.child_kind_index : state.kind_index;
+    const auto kind_is = [shape_kind](const std::int64_t index) { return shape_kind == index; };
     const bool attached = state.attached;
     const double threshold0_min = kCanonicalMaskUnitMin;
     const double threshold0_max = state.threshold1;
@@ -703,14 +709,56 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
                              threshold2_min, threshold2_max, 0.01, 1.0, 2, kind_is(5)),
         develop_mask_control(QCoreApplication::translate("DevelopPanel", "Threshold 4"),
                              QStringLiteral("threshold3"), prefix + QStringLiteral("Threshold3"),
-                             threshold3_min, threshold3_max, 0.01, 1.0, 2, kind_is(5))};
+                             threshold3_min, threshold3_max, 0.01, 1.0, 2, kind_is(5)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Path feather"),
+                             QStringLiteral("pathFeather"), prefix + QStringLiteral("PathFeather"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.05, 2,
+                             kind_is(7)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Point X"),
+                             QStringLiteral("pointX"), prefix + QStringLiteral("PointX"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.5, 2,
+                             kind_is(7) || kind_is(8)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Point Y"),
+                             QStringLiteral("pointY"), prefix + QStringLiteral("PointY"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.5, 2,
+                             kind_is(7) || kind_is(8)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Point radius"),
+                             QStringLiteral("pointRadius"), prefix + QStringLiteral("PointRadius"),
+                             radius_min, kCanonicalMaskUnitMax, 0.01, 0.05, 2, kind_is(8)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Point hardness"),
+                             QStringLiteral("pointHardness"),
+                             prefix + QStringLiteral("PointHardness"), kCanonicalMaskUnitMin,
+                             kCanonicalMaskUnitMax, 0.01, 0.5, 2, kind_is(8)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Point density"),
+                             QStringLiteral("pointDensity"), prefix + QStringLiteral("PointDensity"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 1.0, 2, kind_is(8)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Child opacity"),
+                             QStringLiteral("childOpacity"), prefix + QStringLiteral("ChildOpacity"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 1.0, 2,
+                             state.kind_index == 6)};
 
     const QStringList kind_choices{develop_mask_kind_label("none"),
                                    develop_mask_kind_label("all"),
                                    develop_mask_kind_label("linear_gradient"),
                                    develop_mask_kind_label("circle"),
                                    develop_mask_kind_label("ellipse"),
-                                   develop_mask_kind_label("parametric")};
+                                   develop_mask_kind_label("parametric"),
+                                   develop_mask_kind_label("group"),
+                                   develop_mask_kind_label("path"),
+                                   develop_mask_kind_label("brush")};
+    const QStringList child_kind_choices{develop_mask_kind_label("all"),
+                                         develop_mask_kind_label("linear_gradient"),
+                                         develop_mask_kind_label("circle"),
+                                         develop_mask_kind_label("ellipse"),
+                                         develop_mask_kind_label("parametric"),
+                                         develop_mask_kind_label("path"),
+                                         develop_mask_kind_label("brush")};
+    const QStringList operator_choices{
+        QCoreApplication::translate("DevelopPanel", "Replace"),
+        QCoreApplication::translate("DevelopPanel", "Union"),
+        QCoreApplication::translate("DevelopPanel", "Intersection"),
+        QCoreApplication::translate("DevelopPanel", "Difference"),
+        QCoreApplication::translate("DevelopPanel", "Exclusion")};
     const QStringList source_choices{
         QCoreApplication::translate("DevelopPanel", "Input"),
         QCoreApplication::translate("DevelopPanel", "Operation output")};
@@ -755,6 +803,37 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
             {QStringLiteral("threshold1"), state.threshold1},
             {QStringLiteral("threshold2"), state.threshold2},
             {QStringLiteral("threshold3"), state.threshold3},
+            {QStringLiteral("pathFeather"), state.path_feather},
+            {QStringLiteral("pointX"), state.point_x},
+            {QStringLiteral("pointY"), state.point_y},
+            {QStringLiteral("pointRadius"), state.point_radius},
+            {QStringLiteral("pointHardness"), state.point_hardness},
+            {QStringLiteral("pointDensity"), state.point_density},
+            {QStringLiteral("pointCount"), static_cast<int>(state.point_count)},
+            {QStringLiteral("pointIndex"), static_cast<int>(state.point_index)},
+            {QStringLiteral("pointIndexField"), prefix + QStringLiteral("PointIndex")},
+            {QStringLiteral("addPointField"), prefix + QStringLiteral("AddPoint")},
+            {QStringLiteral("removePointField"), prefix + QStringLiteral("RemovePoint")},
+            {QStringLiteral("childCount"), static_cast<int>(state.child_count)},
+            {QStringLiteral("childIndex"), static_cast<int>(state.child_index)},
+            {QStringLiteral("childIndexField"), prefix + QStringLiteral("ChildIndex")},
+            {QStringLiteral("childKindIndex"),
+             state.child_kind_index <= 5 ? static_cast<int>(state.child_kind_index - 1) :
+             state.child_kind_index >= 7 ? static_cast<int>(state.child_kind_index - 2) :
+                                           0},
+            {QStringLiteral("childKindField"), prefix + QStringLiteral("ChildKind")},
+            {QStringLiteral("childKindChoices"), child_kind_choices},
+            {QStringLiteral("childKindValues"), QVariantList{1, 2, 3, 4, 5, 7, 8}},
+            {QStringLiteral("childOperatorIndex"), static_cast<int>(state.child_operator_index)},
+            {QStringLiteral("childOperatorField"), prefix + QStringLiteral("ChildOperator")},
+            {QStringLiteral("operatorChoices"), operator_choices},
+            {QStringLiteral("childOpacity"), state.child_opacity},
+            {QStringLiteral("childInverted"), state.child_inverted},
+            {QStringLiteral("childInvertedField"), prefix + QStringLiteral("ChildInverted")},
+            {QStringLiteral("addChildField"), prefix + QStringLiteral("AddChild")},
+            {QStringLiteral("removeChildField"), prefix + QStringLiteral("RemoveChild")},
+            {QStringLiteral("groupVisible"), state.kind_index == 6},
+            {QStringLiteral("pointsVisible"), kind_is(7) || kind_is(8)},
             {QStringLiteral("numericControls"), controls}};
 }
 
@@ -888,6 +967,42 @@ QVariantMap StudioPresenter::editColorHarmonizerMask() const
     return develop_mask_editor_map(
         develop_mask_editor_state(develop_, DevelopMaskTarget::kColorHarmonizer),
         DevelopMaskTarget::kColorHarmonizer);
+}
+
+bool StudioPresenter::maskOverlayVisible() const noexcept
+{
+    return mask_overlay_visible_;
+}
+
+QString StudioPresenter::maskOverlayTarget() const
+{
+    return mask_overlay_target_;
+}
+
+void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
+{
+    const QString normalized = target == QLatin1String("graduatednd") ?
+                                   QStringLiteral("graduatednd") :
+                                   QStringLiteral("color_harmonizer");
+    const bool changed = mask_overlay_visible_ != visible || mask_overlay_target_ != normalized;
+    mask_overlay_visible_ = visible;
+    mask_overlay_target_ = normalized;
+    if (!changed)
+    {
+        return;
+    }
+    emit previewChanged();
+    if (!visible)
+    {
+        if (!preview_base_image_.isNull())
+        {
+            const QMutexLocker lock(&preview_image_mutex_);
+            preview_image_ = preview_base_image_;
+        }
+        emit previewChanged();
+        return;
+    }
+    enqueue_preview();
 }
 
 void StudioPresenter::retranslate()
@@ -1210,9 +1325,23 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .ignore_crop = crop_guides,
         .ignore_straighten = crop_guides,
         .refresh_preview = refresh_preview,
+        .overlay_mask_id = current_overlay_mask_id(params),
     };
     pending_preview_.reset();
     kick_develop_work();
+}
+
+[[nodiscard]] std::optional<std::string>
+StudioPresenter::current_overlay_mask_id(const DevelopParams &params) const
+{
+    if (!mask_overlay_visible_ || before_after_)
+    {
+        return std::nullopt;
+    }
+    const auto &attachment = mask_overlay_target_ == QLatin1String("graduatednd") ?
+                                 params.graduated_mask_id :
+                                 params.color_harmonizer_mask_id;
+    return attachment;
 }
 
 void StudioPresenter::preview_develop(DevelopParams params)
@@ -1237,6 +1366,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
         .ignore_straighten = crop_guides,
+        .overlay_mask_id = current_overlay_mask_id(params),
     };
     kick_develop_work();
 }
@@ -1254,11 +1384,13 @@ void StudioPresenter::enqueue_preview()
     static_cast<void>(develop_preview_owner_.supersede("preview_superseded"));
     const bool crop_guides = crop_tool_active_ && !before_after_;
     pending_preview_ = PendingDevelopWork{
+        .interactive = mask_overlay_visible_,
         .params = develop_,
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
         .ignore_straighten = crop_guides,
+        .overlay_mask_id = current_overlay_mask_id(develop_),
     };
     kick_develop_work();
 }
@@ -1312,6 +1444,11 @@ void StudioPresenter::kick_develop_work()
                     request.ignore_straighten = job.ignore_straighten;
                     request.persist_preview_record = !job.interactive;
                     request.cancellation = cancellation;
+                    if (job.overlay_mask_id)
+                    {
+                        request.overlay_mask_id = job.overlay_mask_id;
+                        request.persist_preview_record = false;
+                    }
                     preview = service_->request_preview(
                         request, job.interactive ? std::optional<DevelopParams>{job.params} :
                                                    std::optional<DevelopParams>{});

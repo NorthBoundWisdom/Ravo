@@ -418,6 +418,7 @@ struct PreviewRequest
     bool prefer_embedded_preview = false;
     CancellationToken cancellation{};
     std::string correlation_id;
+    std::optional<std::string> overlay_mask_id;
 };
 
 struct PreviewResult
@@ -431,6 +432,7 @@ struct PreviewResult
     bool original_missing = false;
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
+    std::vector<float> mask_alpha;
 };
 
 struct ExportRequest

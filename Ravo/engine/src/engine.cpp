@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <limits>
 #include <new>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -12,6 +13,7 @@
 #include "capability_ops.h"
 #include "image_ops.h"
 #include "input_color.h"
+#include "mask_evaluator.h"
 #include "output_color.h"
 #include "profile_gamma.h"
 #include "primaries.h"
@@ -523,7 +525,9 @@ namespace
 
 [[nodiscard]] Result<ProfiledOutputBuffer>
 render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recipe &recipe,
-                                 const CancellationToken &cancellation)
+                                 const CancellationToken &cancellation,
+                                 const std::optional<std::string> &overlay_mask_id,
+                                 AlphaPlane *overlay_alpha)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -566,6 +570,33 @@ render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recip
     {
         return adjusted.error();
     }
+    if (overlay_alpha != nullptr && overlay_mask_id.has_value() && !overlay_mask_id->empty())
+    {
+        if (adjusted.value().width == 0U || adjusted.value().height == 0U ||
+            adjusted.value().width > std::numeric_limits<std::uint32_t>::max() / 3U)
+        {
+            return make_error(ErrorCode::kValidation, "Overlay working image is invalid",
+                              {{"reason", "invalid_mask_overlay"}});
+        }
+        const std::uint32_t stride = adjusted.value().width * 3U;
+        MaskEvaluationRequest request{
+            .full_width = adjusted.value().width,
+            .full_height = adjusted.value().height,
+            .roi_x = 0U,
+            .roi_y = 0U,
+            .roi_width = adjusted.value().width,
+            .roi_height = adjusted.value().height,
+            .input = MaskRgbPlaneView{adjusted.value().rgb, stride},
+            .operation_output = MaskRgbPlaneView{adjusted.value().rgb, stride},
+            .cancellation = cancellation,
+        };
+        auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
+        if (!alpha)
+        {
+            return alpha.error();
+        }
+        *overlay_alpha = std::move(alpha).value();
+    }
     return apply_output_color(adjusted.value(), output_color.value(), cancellation);
 }
 
@@ -585,12 +616,40 @@ render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recip
 
 } // namespace
 
+Result<void> EngineFacade::composite_preview_mask_overlay(
+    std::vector<std::uint8_t> &rgb, const std::uint32_t width, const std::uint32_t height,
+    const std::vector<float> &alpha, const CancellationToken &cancellation) const
+{
+    AlphaPlane plane;
+    plane.width = width;
+    plane.height = height;
+    plane.alpha = alpha;
+    return composite_mask_overlay_rgb8(rgb, plane, cancellation);
+}
+
 Result<RenderedImage>
 EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
-                                    const CancellationToken &cancellation) const
+                                    const CancellationToken &cancellation,
+                                    std::optional<std::string> overlay_mask_id) const
 {
-    auto packed =
-        render_linear_working_export(working, recipe, RenderSampleKind::kRgb8, cancellation);
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto valid = validate(recipe);
+    if (!valid)
+    {
+        return valid.error();
+    }
+    AlphaPlane overlay;
+    auto output = render_recipe_to_profiled_output(working, recipe, cancellation, overlay_mask_id,
+                                                   overlay_mask_id ? &overlay : nullptr);
+    if (!output)
+    {
+        return output.error();
+    }
+    auto packed = encode_profiled_output(output.value(), RenderSampleKind::kRgb8, cancellation);
     if (!packed)
     {
         return packed.error();
@@ -600,6 +659,10 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
     result.height = packed.value().height;
     result.color_profile = std::move(packed.value().color_profile);
     result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
+    if (overlay_mask_id && overlay.width == result.width && overlay.height == result.height)
+    {
+        result.mask_alpha = std::move(overlay.alpha);
+    }
     return result;
 }
 
@@ -624,7 +687,8 @@ try
         return make_error(ErrorCode::kValidation, "Render sample kind is unsupported",
                           {{"reason", "unsupported_sample_kind"}});
     }
-    auto output = render_recipe_to_profiled_output(working, recipe, cancellation);
+    auto output = render_recipe_to_profiled_output(working, recipe, cancellation, std::nullopt,
+                                                   nullptr);
     if (!output)
     {
         return output.error();

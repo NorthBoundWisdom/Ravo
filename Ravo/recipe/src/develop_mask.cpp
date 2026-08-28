@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <new>
@@ -36,6 +37,22 @@ enum class MaskField
     kThreshold1,
     kThreshold2,
     kThreshold3,
+    kChildIndex,
+    kAddChild,
+    kRemoveChild,
+    kChildOperator,
+    kChildOpacity,
+    kChildInverted,
+    kChildKind,
+    kPointIndex,
+    kPointX,
+    kPointY,
+    kPointRadius,
+    kPointHardness,
+    kPointDensity,
+    kAddPoint,
+    kRemovePoint,
+    kPathFeather,
 };
 
 struct ParsedMaskField
@@ -91,6 +108,38 @@ struct ParsedMaskField
             return parsed(MaskField::kThreshold2);
         if (suffix == "Threshold3")
             return parsed(MaskField::kThreshold3);
+        if (suffix == "ChildIndex")
+            return parsed(MaskField::kChildIndex);
+        if (suffix == "AddChild")
+            return parsed(MaskField::kAddChild);
+        if (suffix == "RemoveChild")
+            return parsed(MaskField::kRemoveChild);
+        if (suffix == "ChildOperator")
+            return parsed(MaskField::kChildOperator);
+        if (suffix == "ChildOpacity")
+            return parsed(MaskField::kChildOpacity);
+        if (suffix == "ChildInverted")
+            return parsed(MaskField::kChildInverted);
+        if (suffix == "ChildKind")
+            return parsed(MaskField::kChildKind);
+        if (suffix == "PointIndex")
+            return parsed(MaskField::kPointIndex);
+        if (suffix == "PointX")
+            return parsed(MaskField::kPointX);
+        if (suffix == "PointY")
+            return parsed(MaskField::kPointY);
+        if (suffix == "PointRadius")
+            return parsed(MaskField::kPointRadius);
+        if (suffix == "PointHardness")
+            return parsed(MaskField::kPointHardness);
+        if (suffix == "PointDensity")
+            return parsed(MaskField::kPointDensity);
+        if (suffix == "AddPoint")
+            return parsed(MaskField::kAddPoint);
+        if (suffix == "RemovePoint")
+            return parsed(MaskField::kRemovePoint);
+        if (suffix == "PathFeather")
+            return parsed(MaskField::kPathFeather);
         return std::nullopt;
     };
 
@@ -264,7 +313,11 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
     case MaskKind::kParametric:
         return 5;
     case MaskKind::kGroup:
-        return -1;
+        return 6;
+    case MaskKind::kPath:
+        return 7;
+    case MaskKind::kBrush:
+        return 8;
     }
     return -1;
 }
@@ -283,9 +336,254 @@ mask_attachment(const DevelopParams &params, const DevelopMaskTarget target) noe
         return MaskKind::kEllipse;
     case 5:
         return MaskKind::kParametric;
+    case 6:
+        return MaskKind::kGroup;
+    case 7:
+        return MaskKind::kPath;
+    case 8:
+        return MaskKind::kBrush;
     default:
         return std::nullopt;
     }
+}
+
+[[nodiscard]] std::int64_t &child_index_slot(DevelopParams &params,
+                                             const DevelopMaskTarget target) noexcept
+{
+    return target == DevelopMaskTarget::kColorHarmonizer ? params.color_harmonizer_mask_child_index :
+                                                           params.graduated_mask_child_index;
+}
+
+[[nodiscard]] const std::int64_t &child_index_slot(const DevelopParams &params,
+                                                   const DevelopMaskTarget target) noexcept
+{
+    return target == DevelopMaskTarget::kColorHarmonizer ? params.color_harmonizer_mask_child_index :
+                                                           params.graduated_mask_child_index;
+}
+
+[[nodiscard]] std::int64_t &point_index_slot(DevelopParams &params,
+                                             const DevelopMaskTarget target) noexcept
+{
+    return target == DevelopMaskTarget::kColorHarmonizer ? params.color_harmonizer_mask_point_index :
+                                                           params.graduated_mask_point_index;
+}
+
+[[nodiscard]] const std::int64_t &point_index_slot(const DevelopParams &params,
+                                                   const DevelopMaskTarget target) noexcept
+{
+    return target == DevelopMaskTarget::kColorHarmonizer ? params.color_harmonizer_mask_point_index :
+                                                           params.graduated_mask_point_index;
+}
+
+void clamp_cursor(std::int64_t &index, const std::size_t count) noexcept
+{
+    if (count == 0U)
+    {
+        index = 0;
+        return;
+    }
+    if (index < 0)
+    {
+        index = 0;
+        return;
+    }
+    if (static_cast<std::size_t>(index) >= count)
+    {
+        index = static_cast<std::int64_t>(count - 1U);
+    }
+}
+
+void smooth_path_handles(std::vector<PathMaskPoint> &points) noexcept
+{
+    const std::size_t count = points.size();
+    if (count < kCanonicalMaskMinPathPoints)
+    {
+        return;
+    }
+    std::vector<PathMaskPoint> next = points;
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const auto &prev = points[(index + count - 1U) % count];
+        const auto &curr = points[index];
+        const auto &succ = points[(index + 1U) % count];
+        const double dx = succ.x - prev.x;
+        const double dy = succ.y - prev.y;
+        const double length = std::hypot(dx, dy);
+        const double incoming = std::hypot(curr.x - prev.x, curr.y - prev.y) / 3.0;
+        const double outgoing = std::hypot(succ.x - curr.x, succ.y - curr.y) / 3.0;
+        if (length <= 0.0)
+        {
+            next[index].ctrl1_x = curr.x;
+            next[index].ctrl1_y = curr.y;
+            next[index].ctrl2_x = curr.x;
+            next[index].ctrl2_y = curr.y;
+            continue;
+        }
+        const double ux = dx / length;
+        const double uy = dy / length;
+        next[index].ctrl1_x = std::clamp(curr.x - ux * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl1_y = std::clamp(curr.y - uy * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_x = std::clamp(curr.x + ux * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_y = std::clamp(curr.y + uy * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+    }
+    points = std::move(next);
+}
+
+void smooth_brush_handles(std::vector<BrushMaskPoint> &points) noexcept
+{
+    const std::size_t count = points.size();
+    if (count < kCanonicalMaskMinBrushPoints)
+    {
+        return;
+    }
+    std::vector<BrushMaskPoint> next = points;
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const auto &prev = points[index == 0U ? 0U : index - 1U];
+        const auto &curr = points[index];
+        const auto &succ = points[index + 1U == count ? count - 1U : index + 1U];
+        const double dx = succ.x - prev.x;
+        const double dy = succ.y - prev.y;
+        const double length = std::hypot(dx, dy);
+        if (length <= 0.0)
+        {
+            next[index].ctrl1_x = curr.x;
+            next[index].ctrl1_y = curr.y;
+            next[index].ctrl2_x = curr.x;
+            next[index].ctrl2_y = curr.y;
+            continue;
+        }
+        const double ux = dx / length;
+        const double uy = dy / length;
+        const double incoming = std::hypot(curr.x - prev.x, curr.y - prev.y) / 3.0;
+        const double outgoing = std::hypot(succ.x - curr.x, succ.y - curr.y) / 3.0;
+        next[index].ctrl1_x = std::clamp(curr.x - ux * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl1_y = std::clamp(curr.y - uy * incoming, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_x = std::clamp(curr.x + ux * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+        next[index].ctrl2_y = std::clamp(curr.y + uy * outgoing, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+    }
+    points = std::move(next);
+}
+
+[[nodiscard]] PathMask default_path_mask()
+{
+    PathMask path;
+    path.feather = 0.05;
+    path.points = {{0.35, 0.30}, {0.65, 0.30}, {0.50, 0.70}};
+    smooth_path_handles(path.points);
+    return path;
+}
+
+[[nodiscard]] BrushMask default_brush_mask()
+{
+    BrushMask brush;
+    brush.points = {{0.30, 0.50, 0.30, 0.50, 0.30, 0.50, 0.05, 0.5, 1.0},
+                    {0.70, 0.50, 0.70, 0.50, 0.70, 0.50, 0.05, 0.5, 1.0}};
+    smooth_brush_handles(brush.points);
+    return brush;
+}
+
+[[nodiscard]] Mask make_kind_mask(std::string id, const MaskKind kind)
+{
+    Mask mask{std::move(id), kCanonicalMaskSchemaVersion, kind};
+    if (kind == MaskKind::kPath)
+    {
+        mask.payload = default_path_mask();
+    }
+    else if (kind == MaskKind::kBrush)
+    {
+        mask.payload = default_brush_mask();
+    }
+    else if (kind == MaskKind::kGroup)
+    {
+        mask.payload = MaskGroup{};
+    }
+    return mask;
+}
+
+[[nodiscard]] std::size_t reference_count(const DevelopParams &params, const std::string_view id) noexcept
+{
+    std::size_t count = 0U;
+    if (params.color_harmonizer_mask_id && *params.color_harmonizer_mask_id == id)
+    {
+        ++count;
+    }
+    if (params.graduated_mask_id && *params.graduated_mask_id == id)
+    {
+        ++count;
+    }
+    for (const auto &mask : params.masks)
+    {
+        const auto *group = std::get_if<MaskGroup>(&mask.payload);
+        if (group == nullptr)
+        {
+            continue;
+        }
+        count += static_cast<std::size_t>(
+            std::count_if(group->children.begin(), group->children.end(),
+                          [id](const MaskGroupChild &child) { return child.mask_id == id; }));
+    }
+    return count;
+}
+
+void erase_mask_id(DevelopParams &params, const std::string_view id)
+{
+    params.masks.erase(std::remove_if(params.masks.begin(), params.masks.end(),
+                                      [id](const Mask &mask) { return mask.id == id; }),
+                       params.masks.end());
+}
+
+void delete_unreferenced_studio_children(DevelopParams &params, const MaskGroup &group,
+                                         const DevelopMaskTarget target)
+{
+    for (const auto &child : group.children)
+    {
+        if (studio_owns_mask_id(target, child.mask_id) && reference_count(params, child.mask_id) == 0U)
+        {
+            erase_mask_id(params, child.mask_id);
+        }
+    }
+}
+
+[[nodiscard]] Mask *selected_group_child(DevelopParams &params, const DevelopMaskTarget target)
+{
+    const auto &attachment = mask_attachment(params, target);
+    if (!attachment)
+    {
+        return nullptr;
+    }
+    auto *group_mask = find_mask(params.masks, *attachment);
+    if (group_mask == nullptr)
+    {
+        return nullptr;
+    }
+    auto *group = std::get_if<MaskGroup>(&group_mask->payload);
+    if (group == nullptr || group->children.empty())
+    {
+        return nullptr;
+    }
+    clamp_cursor(child_index_slot(params, target), group->children.size());
+    const auto index = static_cast<std::size_t>(child_index_slot(params, target));
+    return find_mask(params.masks, group->children[index].mask_id);
+}
+
+[[nodiscard]] Mask *edited_leaf(DevelopParams &params, const DevelopMaskTarget target)
+{
+    const auto &attachment = mask_attachment(params, target);
+    if (!attachment)
+    {
+        return nullptr;
+    }
+    auto *mask = find_mask(params.masks, *attachment);
+    if (mask == nullptr)
+    {
+        return nullptr;
+    }
+    if (mask->kind == MaskKind::kGroup)
+    {
+        return selected_group_child(params, target);
+    }
+    return mask;
 }
 
 [[nodiscard]] Result<std::int64_t> exact_index(const double value, const std::int64_t minimum,
@@ -390,13 +688,26 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
     }
     const auto state = develop_mask_editor_state(params, target);
     const std::string id = *attachment;
+    const Mask *attached = find_mask(params.masks, id);
+    MaskGroup owned_group;
+    const bool owned_group_detach =
+        attached != nullptr && attached->kind == MaskKind::kGroup &&
+        state.status == DevelopMaskAttachmentStatus::kEditable;
+    if (owned_group_detach)
+    {
+        owned_group = std::get<MaskGroup>(attached->payload);
+    }
     attachment.reset();
     if (state.status == DevelopMaskAttachmentStatus::kEditable)
     {
-        params.masks.erase(std::remove_if(params.masks.begin(), params.masks.end(),
-                                          [&id](const Mask &mask) { return mask.id == id; }),
-                           params.masks.end());
+        erase_mask_id(params, id);
+        if (owned_group_detach)
+        {
+            delete_unreferenced_studio_children(params, owned_group, target);
+        }
     }
+    child_index_slot(params, target) = 0;
+    point_index_slot(params, target) = 0;
     return validate_develop_mask_state(params, target, field);
 }
 
@@ -547,8 +858,35 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
         parametric->thresholds[index] = value;
         return {};
     }
+    case MaskField::kPathFeather:
+    {
+        auto *path = std::get_if<PathMask>(&mask.payload);
+        if (path == nullptr)
+            return type_mismatch(mask, target, field_name);
+        auto valid =
+            finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+        if (!valid)
+            return valid.error();
+        path->feather = value;
+        return {};
+    }
     case MaskField::kKind:
     case MaskField::kWhole:
+    case MaskField::kChildIndex:
+    case MaskField::kAddChild:
+    case MaskField::kRemoveChild:
+    case MaskField::kChildOperator:
+    case MaskField::kChildOpacity:
+    case MaskField::kChildInverted:
+    case MaskField::kChildKind:
+    case MaskField::kPointIndex:
+    case MaskField::kPointX:
+    case MaskField::kPointY:
+    case MaskField::kPointRadius:
+    case MaskField::kPointHardness:
+    case MaskField::kPointDensity:
+    case MaskField::kAddPoint:
+    case MaskField::kRemovePoint:
         break;
     }
     return mask_edit_error(ErrorCode::kInvalidArgument, "Develop mask field is unsupported",
@@ -670,8 +1008,31 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
         parametric->thresholds = identity->thresholds;
         return {};
     }
+    case MaskField::kPathFeather:
+    {
+        auto *path = std::get_if<PathMask>(&mask.payload);
+        if (path == nullptr)
+            return type_mismatch(mask, target, field_name);
+        path->feather = 0.0;
+        return {};
+    }
     case MaskField::kWhole:
     case MaskField::kKind:
+    case MaskField::kChildIndex:
+    case MaskField::kAddChild:
+    case MaskField::kRemoveChild:
+    case MaskField::kChildOperator:
+    case MaskField::kChildOpacity:
+    case MaskField::kChildInverted:
+    case MaskField::kChildKind:
+    case MaskField::kPointIndex:
+    case MaskField::kPointX:
+    case MaskField::kPointY:
+    case MaskField::kPointRadius:
+    case MaskField::kPointHardness:
+    case MaskField::kPointDensity:
+    case MaskField::kAddPoint:
+    case MaskField::kRemovePoint:
         break;
     }
     return mask_edit_error(ErrorCode::kInvalidArgument, "Develop mask field is unsupported",
@@ -750,41 +1111,97 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
     result.kind_name = std::string(mask_kind_name(mask->kind));
     result.opacity = mask->common.opacity;
     result.inverted = mask->common.inverted;
-    if (const auto *gradient = std::get_if<LinearGradientMask>(&mask->payload); gradient != nullptr)
+    const auto fill_leaf = [&](const Mask &leaf)
     {
-        result.anchor_x = gradient->anchor_x;
-        result.anchor_y = gradient->anchor_y;
-        result.rotation_degrees = gradient->rotation_degrees;
-        result.transition = gradient->transition;
-    }
-    else if (const auto *circle = std::get_if<CircleMask>(&mask->payload); circle != nullptr)
+        if (const auto *gradient = std::get_if<LinearGradientMask>(&leaf.payload);
+            gradient != nullptr)
+        {
+            result.anchor_x = gradient->anchor_x;
+            result.anchor_y = gradient->anchor_y;
+            result.rotation_degrees = gradient->rotation_degrees;
+            result.transition = gradient->transition;
+        }
+        else if (const auto *circle = std::get_if<CircleMask>(&leaf.payload); circle != nullptr)
+        {
+            result.center_x = circle->center_x;
+            result.center_y = circle->center_y;
+            result.radius = circle->radius;
+            result.feather = circle->feather;
+        }
+        else if (const auto *ellipse = std::get_if<EllipseMask>(&leaf.payload); ellipse != nullptr)
+        {
+            result.center_x = ellipse->center_x;
+            result.center_y = ellipse->center_y;
+            result.radius_x = ellipse->radius_x;
+            result.radius_y = ellipse->radius_y;
+            result.rotation_degrees = ellipse->rotation_degrees;
+            result.feather = ellipse->feather;
+        }
+        else if (const auto *parametric = std::get_if<ParametricMask>(&leaf.payload);
+                 parametric != nullptr)
+        {
+            result.source_index = parametric->source == ParametricMaskSource::kInput ? 0 : 1;
+            result.channel_index = static_cast<std::int64_t>(parametric->channel);
+            result.threshold0 = parametric->thresholds[0];
+            result.threshold1 = parametric->thresholds[1];
+            result.threshold2 = parametric->thresholds[2];
+            result.threshold3 = parametric->thresholds[3];
+        }
+        else if (const auto *path = std::get_if<PathMask>(&leaf.payload); path != nullptr)
+        {
+            result.path_feather = path->feather;
+            result.point_count = static_cast<std::int64_t>(path->points.size());
+            auto point_index = point_index_slot(params, target);
+            clamp_cursor(point_index, path->points.size());
+            result.point_index = point_index;
+            if (!path->points.empty())
+            {
+                const auto &point = path->points[static_cast<std::size_t>(point_index)];
+                result.point_x = point.x;
+                result.point_y = point.y;
+            }
+        }
+        else if (const auto *brush = std::get_if<BrushMask>(&leaf.payload); brush != nullptr)
+        {
+            result.point_count = static_cast<std::int64_t>(brush->points.size());
+            auto point_index = point_index_slot(params, target);
+            clamp_cursor(point_index, brush->points.size());
+            result.point_index = point_index;
+            if (!brush->points.empty())
+            {
+                const auto &point = brush->points[static_cast<std::size_t>(point_index)];
+                result.point_x = point.x;
+                result.point_y = point.y;
+                result.point_radius = point.radius;
+                result.point_hardness = point.hardness;
+                result.point_density = point.density;
+            }
+        }
+    };
+    fill_leaf(*mask);
+    if (const auto *group = std::get_if<MaskGroup>(&mask->payload); group != nullptr)
     {
-        result.center_x = circle->center_x;
-        result.center_y = circle->center_y;
-        result.radius = circle->radius;
-        result.feather = circle->feather;
-    }
-    else if (const auto *ellipse = std::get_if<EllipseMask>(&mask->payload); ellipse != nullptr)
-    {
-        result.center_x = ellipse->center_x;
-        result.center_y = ellipse->center_y;
-        result.radius_x = ellipse->radius_x;
-        result.radius_y = ellipse->radius_y;
-        result.rotation_degrees = ellipse->rotation_degrees;
-        result.feather = ellipse->feather;
-    }
-    else if (const auto *parametric = std::get_if<ParametricMask>(&mask->payload);
-             parametric != nullptr)
-    {
-        result.source_index = parametric->source == ParametricMaskSource::kInput ? 0 : 1;
-        result.channel_index = static_cast<std::int64_t>(parametric->channel);
-        result.threshold0 = parametric->thresholds[0];
-        result.threshold1 = parametric->thresholds[1];
-        result.threshold2 = parametric->thresholds[2];
-        result.threshold3 = parametric->thresholds[3];
+        result.child_count = static_cast<std::int64_t>(group->children.size());
+        auto child_index = child_index_slot(params, target);
+        clamp_cursor(child_index, group->children.size());
+        result.child_index = child_index;
+        if (!group->children.empty())
+        {
+            const auto &edge = group->children[static_cast<std::size_t>(child_index)];
+            result.child_operator_index = static_cast<std::int64_t>(edge.operation);
+            result.child_opacity = edge.opacity;
+            result.child_inverted = edge.inverted;
+            const auto *child = find_mask(params.masks, edge.mask_id);
+            if (child != nullptr)
+            {
+                result.child_kind_index = mask_kind_index(child->kind);
+                result.child_kind_name = std::string(mask_kind_name(child->kind));
+                fill_leaf(*child);
+            }
+        }
     }
 
-    if (mask->kind == MaskKind::kGroup)
+    if (mask->kind == MaskKind::kGroup && !studio_owns_mask_id(target, mask->id))
     {
         result.editable = false;
         result.status = DevelopMaskAttachmentStatus::kGroupReadOnly;
@@ -805,6 +1222,429 @@ DevelopMaskEditorState develop_mask_editor_state(const DevelopParams &params,
         result.status = DevelopMaskAttachmentStatus::kEditable;
     }
     return result;
+}
+
+[[nodiscard]] bool is_group_field(const MaskField field) noexcept
+{
+    switch (field)
+    {
+    case MaskField::kChildIndex:
+    case MaskField::kAddChild:
+    case MaskField::kRemoveChild:
+    case MaskField::kChildOperator:
+    case MaskField::kChildOpacity:
+    case MaskField::kChildInverted:
+    case MaskField::kChildKind:
+        return true;
+    default:
+        return false;
+    }
+}
+
+[[nodiscard]] bool is_point_field(const MaskField field) noexcept
+{
+    switch (field)
+    {
+    case MaskField::kPointIndex:
+    case MaskField::kPointX:
+    case MaskField::kPointY:
+    case MaskField::kPointRadius:
+    case MaskField::kPointHardness:
+    case MaskField::kPointDensity:
+    case MaskField::kAddPoint:
+    case MaskField::kRemovePoint:
+        return true;
+    default:
+        return false;
+    }
+}
+
+[[nodiscard]] Result<void> apply_kind_change(DevelopParams &params, const DevelopMaskTarget target,
+                                             const std::string_view field, const MaskKind kind)
+{
+    auto &attachment = mask_attachment(params, target);
+    if (!attachment)
+    {
+        if (kind == MaskKind::kGroup)
+        {
+            auto child_id = next_studio_mask_id(params, target, field);
+            if (!child_id)
+                return child_id.error();
+            params.masks.push_back(make_kind_mask(child_id.value(), MaskKind::kAll));
+            auto group_id = next_studio_mask_id(params, target, field);
+            if (!group_id)
+                return group_id.error();
+            Mask group = make_kind_mask(group_id.value(), MaskKind::kGroup);
+            group.payload = MaskGroup{{{child_id.value(), MaskGroupOperator::kReplace, 1.0, false}}};
+            params.masks.push_back(std::move(group));
+            attachment = params.masks.back().id;
+            child_index_slot(params, target) = 0;
+        }
+        else
+        {
+            auto id = next_studio_mask_id(params, target, field);
+            if (!id)
+                return id.error();
+            params.masks.push_back(make_kind_mask(std::move(id).value(), kind));
+            attachment = params.masks.back().id;
+        }
+        enable_target_operation(params, target);
+        point_index_slot(params, target) = 0;
+        return {};
+    }
+    auto editable = require_editable(params, target, field);
+    if (!editable)
+        return editable.error();
+    auto *mask = find_mask(params.masks, *attachment);
+    if (mask == nullptr)
+    {
+        return mask_edit_error(ErrorCode::kValidation,
+                               "Develop mask attachment does not resolve to a canonical node",
+                               "missing_develop_mask_attachment", target, field);
+    }
+    if (mask->kind == kind)
+    {
+        return {};
+    }
+    if (kind == MaskKind::kGroup)
+    {
+        if (mask->kind == MaskKind::kGroup)
+        {
+            return {};
+        }
+        const std::string leaf_id = mask->id;
+        auto group_id = next_studio_mask_id(params, target, field);
+        if (!group_id)
+            return group_id.error();
+        Mask group = make_kind_mask(group_id.value(), MaskKind::kGroup);
+        group.payload = MaskGroup{{{leaf_id, MaskGroupOperator::kReplace, 1.0, false}}};
+        params.masks.push_back(std::move(group));
+        attachment = params.masks.back().id;
+        child_index_slot(params, target) = 0;
+        enable_target_operation(params, target);
+        return {};
+    }
+    if (mask->kind == MaskKind::kGroup)
+    {
+        const auto group = std::get<MaskGroup>(mask->payload);
+        Mask replacement = make_kind_mask(mask->id, kind);
+        replacement.common = mask->common;
+        *mask = std::move(replacement);
+        delete_unreferenced_studio_children(params, group, target);
+        child_index_slot(params, target) = 0;
+        point_index_slot(params, target) = 0;
+        enable_target_operation(params, target);
+        return {};
+    }
+    Mask replacement = make_kind_mask(mask->id, kind);
+    replacement.common = mask->common;
+    *mask = std::move(replacement);
+    point_index_slot(params, target) = 0;
+    enable_target_operation(params, target);
+    return {};
+}
+
+[[nodiscard]] Result<void> apply_group_field(DevelopParams &params, const DevelopMaskTarget target,
+                                             const std::string_view field_name,
+                                             const MaskField field, const double value)
+{
+    auto *root = find_mask(params.masks, *mask_attachment(params, target));
+    if (root == nullptr)
+    {
+        return mask_edit_error(ErrorCode::kValidation,
+                               "Develop mask attachment does not resolve to a canonical node",
+                               "missing_develop_mask_attachment", target, field_name);
+    }
+    auto *group = std::get_if<MaskGroup>(&root->payload);
+    if (group == nullptr)
+    {
+        return type_mismatch(*root, target, field_name);
+    }
+    if (field == MaskField::kChildIndex)
+    {
+        auto index = exact_index(value, 0, static_cast<std::int64_t>(group->children.size()) - 1,
+                                 target, field_name, "invalid_develop_mask_child_index");
+        if (!index)
+            return index.error();
+        child_index_slot(params, target) = index.value();
+        return {};
+    }
+    if (field == MaskField::kAddChild)
+    {
+        auto kind_index = exact_index(value, 1, 8, target, field_name, "invalid_develop_mask_kind");
+        if (!kind_index)
+            return kind_index.error();
+        const auto kind = mask_kind_from_index(kind_index.value());
+        if (!kind || kind.value() == MaskKind::kGroup)
+        {
+            return mask_edit_error(ErrorCode::kInvalidArgument,
+                                   "Group children must be Studio-owned leaves",
+                                   "invalid_develop_mask_kind", target, field_name);
+        }
+        if (group->children.size() >= kCanonicalMaskMaxGroupChildren)
+        {
+            return mask_edit_error(ErrorCode::kValidation, "Mask group child count is at the limit",
+                                   "invalid_mask_group_size", target, field_name);
+        }
+        auto id = next_studio_mask_id(params, target, field_name);
+        if (!id)
+            return id.error();
+        const std::string child_id = id.value();
+        params.masks.push_back(make_kind_mask(child_id, kind.value()));
+        root = find_mask(params.masks, *mask_attachment(params, target));
+        if (root == nullptr)
+        {
+            return mask_edit_error(ErrorCode::kValidation,
+                                   "Develop mask attachment does not resolve to a canonical node",
+                                   "missing_develop_mask_attachment", target, field_name);
+        }
+        group = std::get_if<MaskGroup>(&root->payload);
+        if (group == nullptr)
+        {
+            return type_mismatch(*root, target, field_name);
+        }
+        group->children.push_back({child_id, MaskGroupOperator::kUnion, 1.0, false});
+        child_index_slot(params, target) = static_cast<std::int64_t>(group->children.size() - 1U);
+        return {};
+    }
+    if (group->children.empty())
+    {
+        return mask_edit_error(ErrorCode::kValidation, "Mask group has no children",
+                               "invalid_mask_group_size", target, field_name);
+    }
+    clamp_cursor(child_index_slot(params, target), group->children.size());
+    auto &edge = group->children[static_cast<std::size_t>(child_index_slot(params, target))];
+    if (field == MaskField::kRemoveChild)
+    {
+        auto flag = exact_index(value, 1, 1, target, field_name, "invalid_develop_mask_boolean");
+        if (!flag)
+            return flag.error();
+        if (group->children.size() <= 1U)
+        {
+            return mask_edit_error(ErrorCode::kValidation,
+                                   "A group must keep at least one child",
+                                   "invalid_mask_group_size", target, field_name);
+        }
+        const std::string child_id = edge.mask_id;
+        group->children.erase(group->children.begin() +
+                              static_cast<std::ptrdiff_t>(child_index_slot(params, target)));
+        if (!group->children.empty())
+        {
+            group->children.front().operation = MaskGroupOperator::kReplace;
+        }
+        if (studio_owns_mask_id(target, child_id) && reference_count(params, child_id) == 0U)
+        {
+            erase_mask_id(params, child_id);
+        }
+        clamp_cursor(child_index_slot(params, target), group->children.size());
+        return {};
+    }
+    if (field == MaskField::kChildOperator)
+    {
+        auto op = exact_index(value, 0, 4, target, field_name, "invalid_mask_group_operator");
+        if (!op)
+            return op.error();
+        if (child_index_slot(params, target) == 0 &&
+            static_cast<MaskGroupOperator>(op.value()) != MaskGroupOperator::kReplace)
+        {
+            return mask_edit_error(ErrorCode::kValidation,
+                                   "The first group child must replace the accumulator",
+                                   "invalid_mask_group_order", target, field_name);
+        }
+        if (child_index_slot(params, target) > 0 &&
+            static_cast<MaskGroupOperator>(op.value()) == MaskGroupOperator::kReplace)
+        {
+            return mask_edit_error(ErrorCode::kValidation,
+                                   "Later group children cannot replace the accumulator",
+                                   "invalid_mask_group_order", target, field_name);
+        }
+        edge.operation = static_cast<MaskGroupOperator>(op.value());
+        return {};
+    }
+    if (field == MaskField::kChildOpacity)
+    {
+        auto valid =
+            finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+        if (!valid)
+            return valid.error();
+        edge.opacity = value;
+        return {};
+    }
+    if (field == MaskField::kChildInverted)
+    {
+        auto parsed = exact_index(value, 0, 1, target, field_name, "invalid_develop_mask_boolean");
+        if (!parsed)
+            return parsed.error();
+        edge.inverted = parsed.value() == 1;
+        return {};
+    }
+    if (field == MaskField::kChildKind)
+    {
+        auto kind_index = exact_index(value, 1, 8, target, field_name, "invalid_develop_mask_kind");
+        if (!kind_index)
+            return kind_index.error();
+        const auto kind = mask_kind_from_index(kind_index.value());
+        if (!kind || kind.value() == MaskKind::kGroup)
+        {
+            return mask_edit_error(ErrorCode::kInvalidArgument,
+                                   "Group children must be Studio-owned leaves",
+                                   "invalid_develop_mask_kind", target, field_name);
+        }
+        auto *child = find_mask(params.masks, edge.mask_id);
+        if (child == nullptr || !studio_owns_mask_id(target, child->id))
+        {
+            return mask_edit_error(ErrorCode::kUnsupported,
+                                   "Attached Develop mask is read-only for Studio authoring",
+                                   "external_read_only", target, field_name);
+        }
+        if (child->kind != kind.value())
+        {
+            Mask replacement = make_kind_mask(child->id, kind.value());
+            replacement.common = child->common;
+            *child = std::move(replacement);
+        }
+        return {};
+    }
+    return mask_edit_error(ErrorCode::kInvalidArgument, "Develop mask field is unsupported",
+                           "unknown_develop_mask_field", target, field_name);
+}
+
+[[nodiscard]] Result<void> apply_point_field(DevelopParams &params, const DevelopMaskTarget target,
+                                             const std::string_view field_name,
+                                             const MaskField field, const double value)
+{
+    auto *leaf = edited_leaf(params, target);
+    if (leaf == nullptr)
+    {
+        return mask_edit_error(ErrorCode::kValidation,
+                               "Develop mask attachment does not resolve to a canonical node",
+                               "missing_develop_mask_attachment", target, field_name);
+    }
+    auto *path = std::get_if<PathMask>(&leaf->payload);
+    auto *brush = std::get_if<BrushMask>(&leaf->payload);
+    if (path == nullptr && brush == nullptr)
+    {
+        return type_mismatch(*leaf, target, field_name);
+    }
+    const std::size_t count = path != nullptr ? path->points.size() : brush->points.size();
+    if (field == MaskField::kPointIndex)
+    {
+        auto index = exact_index(value, 0, static_cast<std::int64_t>(count) - 1, target, field_name,
+                                 "invalid_develop_mask_point_index");
+        if (!index)
+            return index.error();
+        point_index_slot(params, target) = index.value();
+        return {};
+    }
+    if (field == MaskField::kAddPoint)
+    {
+        auto flag = exact_index(value, 1, 1, target, field_name, "invalid_develop_mask_boolean");
+        if (!flag)
+            return flag.error();
+        if (count >= kCanonicalMaskMaxPathPoints)
+        {
+            return mask_edit_error(ErrorCode::kValidation, "Mask point count is at the limit",
+                                   path != nullptr ? "invalid_path_mask" : "invalid_brush_mask",
+                                   target, field_name);
+        }
+        clamp_cursor(point_index_slot(params, target), count);
+        const std::size_t at = static_cast<std::size_t>(point_index_slot(params, target));
+        if (path != nullptr)
+        {
+            PathMaskPoint point = path->points[at];
+            point.x = std::clamp(point.x + 0.05, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+            point.y = std::clamp(point.y + 0.05, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+            path->points.insert(path->points.begin() + static_cast<std::ptrdiff_t>(at + 1U), point);
+            smooth_path_handles(path->points);
+        }
+        else
+        {
+            BrushMaskPoint point = brush->points[at];
+            point.x = std::clamp(point.x + 0.05, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+            point.y = std::clamp(point.y + 0.05, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax);
+            brush->points.insert(brush->points.begin() + static_cast<std::ptrdiff_t>(at + 1U),
+                                 point);
+            smooth_brush_handles(brush->points);
+        }
+        point_index_slot(params, target) = static_cast<std::int64_t>(at + 1U);
+        return {};
+    }
+    if (field == MaskField::kRemovePoint)
+    {
+        auto flag = exact_index(value, 1, 1, target, field_name, "invalid_develop_mask_boolean");
+        if (!flag)
+            return flag.error();
+        const std::size_t minimum =
+            path != nullptr ? kCanonicalMaskMinPathPoints : kCanonicalMaskMinBrushPoints;
+        if (count <= minimum)
+        {
+            return mask_edit_error(ErrorCode::kValidation, "Mask point count is at the minimum",
+                                   path != nullptr ? "invalid_path_mask" : "invalid_brush_mask",
+                                   target, field_name);
+        }
+        clamp_cursor(point_index_slot(params, target), count);
+        const std::size_t at = static_cast<std::size_t>(point_index_slot(params, target));
+        if (path != nullptr)
+        {
+            path->points.erase(path->points.begin() + static_cast<std::ptrdiff_t>(at));
+            smooth_path_handles(path->points);
+        }
+        else
+        {
+            brush->points.erase(brush->points.begin() + static_cast<std::ptrdiff_t>(at));
+            smooth_brush_handles(brush->points);
+        }
+        clamp_cursor(point_index_slot(params, target),
+                     path != nullptr ? path->points.size() : brush->points.size());
+        return {};
+    }
+    clamp_cursor(point_index_slot(params, target), count);
+    const std::size_t at = static_cast<std::size_t>(point_index_slot(params, target));
+    if (field == MaskField::kPointX || field == MaskField::kPointY)
+    {
+        auto valid =
+            finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+        if (!valid)
+            return valid.error();
+        if (path != nullptr)
+        {
+            if (field == MaskField::kPointX)
+                path->points[at].x = value;
+            else
+                path->points[at].y = value;
+            smooth_path_handles(path->points);
+        }
+        else
+        {
+            if (field == MaskField::kPointX)
+                brush->points[at].x = value;
+            else
+                brush->points[at].y = value;
+            smooth_brush_handles(brush->points);
+        }
+        return {};
+    }
+    if (brush == nullptr)
+    {
+        return type_mismatch(*leaf, target, field_name);
+    }
+    if (field == MaskField::kPointRadius)
+    {
+        auto valid =
+            finite_range(value, kCanonicalMaskPositiveMin, kCanonicalMaskUnitMax, target, field_name);
+        if (!valid)
+            return valid.error();
+        brush->points[at].radius = value;
+        return {};
+    }
+    auto valid = finite_range(value, kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, target, field_name);
+    if (!valid)
+        return valid.error();
+    if (field == MaskField::kPointHardness)
+        brush->points[at].hardness = value;
+    else
+        brush->points[at].density = value;
+    return {};
 }
 
 Result<void> apply_develop_mask_field_strict(DevelopParams &params, const std::string_view field,
@@ -840,7 +1680,7 @@ Result<void> apply_develop_mask_field_strict(DevelopParams &params, const std::s
         if (parsed->field == MaskField::kKind)
         {
             auto index =
-                exact_index(value, 0, 5, parsed->target, field, "invalid_develop_mask_kind");
+                exact_index(value, 0, 8, parsed->target, field, "invalid_develop_mask_kind");
             if (!index)
             {
                 return index.error();
@@ -860,23 +1700,35 @@ Result<void> apply_develop_mask_field_strict(DevelopParams &params, const std::s
                                        "Develop mask kind is unsupported for Studio authoring",
                                        "invalid_develop_mask_kind", parsed->target, field);
             }
-            auto &attachment = mask_attachment(candidate, parsed->target);
-            if (!attachment)
+            auto changed = apply_kind_change(candidate, parsed->target, field, kind.value());
+            if (!changed)
+                return changed.error();
+        }
+        else
+        {
+            auto editable = require_editable(candidate, parsed->target, field);
+            if (!editable)
+                return editable.error();
+            if (is_group_field(parsed->field))
             {
-                auto id = next_studio_mask_id(candidate, parsed->target, field);
-                if (!id)
-                    return id.error();
-                candidate.masks.emplace_back(std::move(id).value(), kCanonicalMaskSchemaVersion,
-                                             kind.value());
-                attachment = candidate.masks.back().id;
-                enable_target_operation(candidate, parsed->target);
+                auto applied =
+                    apply_group_field(candidate, parsed->target, field, parsed->field, value);
+                if (!applied)
+                    return applied.error();
+            }
+            else if (is_point_field(parsed->field))
+            {
+                auto applied =
+                    apply_point_field(candidate, parsed->target, field, parsed->field, value);
+                if (!applied)
+                    return applied.error();
             }
             else
             {
-                auto editable = require_editable(candidate, parsed->target, field);
-                if (!editable)
-                    return editable.error();
-                auto *mask = find_mask(candidate.masks, *attachment);
+                auto *mask = (parsed->field == MaskField::kOpacity ||
+                              parsed->field == MaskField::kInverted) ?
+                                 find_mask(candidate.masks, *mask_attachment(candidate, parsed->target)) :
+                                 edited_leaf(candidate, parsed->target);
                 if (mask == nullptr)
                 {
                     return mask_edit_error(
@@ -884,32 +1736,10 @@ Result<void> apply_develop_mask_field_strict(DevelopParams &params, const std::s
                         "Develop mask attachment does not resolve to a canonical node",
                         "missing_develop_mask_attachment", parsed->target, field);
                 }
-                if (mask->kind != kind.value())
-                {
-                    Mask replacement{mask->id, kCanonicalMaskSchemaVersion, kind.value()};
-                    replacement.common = mask->common;
-                    *mask = std::move(replacement);
-                    enable_target_operation(candidate, parsed->target);
-                }
+                auto applied = apply_mask_value(*mask, parsed->field, value, parsed->target, field);
+                if (!applied)
+                    return applied.error();
             }
-        }
-        else
-        {
-            auto editable = require_editable(candidate, parsed->target, field);
-            if (!editable)
-                return editable.error();
-            const auto &attachment = mask_attachment(candidate, parsed->target);
-            auto *mask = find_mask(candidate.masks, *attachment);
-            if (mask == nullptr)
-            {
-                return mask_edit_error(
-                    ErrorCode::kValidation,
-                    "Develop mask attachment does not resolve to a canonical node",
-                    "missing_develop_mask_attachment", parsed->target, field);
-            }
-            auto applied = apply_mask_value(*mask, parsed->field, value, parsed->target, field);
-            if (!applied)
-                return applied.error();
         }
         valid = validate_develop_mask_state(candidate, parsed->target, field);
         if (!valid)
@@ -961,17 +1791,37 @@ Result<void> reset_develop_mask_field(DevelopParams &params, const std::string_v
         auto editable = require_editable(candidate, parsed->target, field);
         if (!editable)
             return editable.error();
-        const auto &attachment = mask_attachment(candidate, parsed->target);
-        auto *mask = find_mask(candidate.masks, *attachment);
-        if (mask == nullptr)
+        if (parsed->field == MaskField::kChildIndex)
         {
-            return mask_edit_error(ErrorCode::kValidation,
-                                   "Develop mask attachment does not resolve to a canonical node",
-                                   "missing_develop_mask_attachment", parsed->target, field);
+            child_index_slot(candidate, parsed->target) = 0;
         }
-        auto reset = reset_mask_value(*mask, parsed->field, parsed->target, field);
-        if (!reset)
-            return reset.error();
+        else if (parsed->field == MaskField::kPointIndex)
+        {
+            point_index_slot(candidate, parsed->target) = 0;
+        }
+        else if (parsed->field == MaskField::kKind)
+        {
+            auto changed = apply_kind_change(candidate, parsed->target, field, MaskKind::kAll);
+            if (!changed)
+                return changed.error();
+        }
+        else
+        {
+            auto *mask = (parsed->field == MaskField::kOpacity ||
+                          parsed->field == MaskField::kInverted) ?
+                             find_mask(candidate.masks, *mask_attachment(candidate, parsed->target)) :
+                             edited_leaf(candidate, parsed->target);
+            if (mask == nullptr)
+            {
+                return mask_edit_error(
+                    ErrorCode::kValidation,
+                    "Develop mask attachment does not resolve to a canonical node",
+                    "missing_develop_mask_attachment", parsed->target, field);
+            }
+            auto reset = reset_mask_value(*mask, parsed->field, parsed->target, field);
+            if (!reset)
+                return reset.error();
+        }
         valid = validate_develop_mask_state(candidate, parsed->target, field);
         if (!valid)
             return valid.error();

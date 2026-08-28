@@ -220,6 +220,125 @@ ColumnLayout {
                     root.commands.resetControl(modelData.field)
             }
         }
+        CustomCheckBox {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.attached === true
+            text: qsTr("Show mask overlay")
+            enabled: root.hasSelection
+            checked: root.hasPresenter && root.presenter.maskOverlayVisible &&
+                     root.presenter.maskOverlayTarget === maskEditor.mask.target
+            onToggled: if (root.hasPresenter)
+                root.presenter.setMaskOverlay(maskEditor.mask.target, checked)
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.groupVisible === true
+            spacing: Fonts.smallSpacing
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Group child")
+            }
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: {
+                    const count = maskEditor.mask.childCount !== undefined ? maskEditor.mask.childCount : 0
+                    const items = []
+                    for (let i = 0; i < count; ++i)
+                        items.push(qsTr("Child %1").arg(i + 1))
+                    return items
+                }
+                currentIndex: maskEditor.mask.childIndex !== undefined ? maskEditor.mask.childIndex : 0
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onActivated: if (root.commands)
+                    root.commands.setDevelopNumber(maskEditor.mask.childIndexField, currentIndex)
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Child kind")
+            }
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: maskEditor.mask.childKindChoices !== undefined ? maskEditor.mask.childKindChoices : []
+                currentIndex: maskEditor.mask.childKindIndex !== undefined ? maskEditor.mask.childKindIndex : 0
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onActivated: if (root.commands && maskEditor.mask.childKindValues)
+                    root.commands.setDevelopNumber(maskEditor.mask.childKindField,
+                                                   maskEditor.mask.childKindValues[currentIndex])
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Combine")
+            }
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: maskEditor.mask.operatorChoices !== undefined ? maskEditor.mask.operatorChoices : []
+                currentIndex: maskEditor.mask.childOperatorIndex !== undefined ? maskEditor.mask.childOperatorIndex : 0
+                enabled: root.hasSelection && maskEditor.mask.editable === true && maskEditor.mask.childIndex > 0
+                onActivated: if (root.commands)
+                    root.commands.setDevelopNumber(maskEditor.mask.childOperatorField, currentIndex)
+            }
+            CustomCheckBox {
+                Layout.fillWidth: true
+                text: qsTr("Invert child")
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                checked: maskEditor.mask.childInverted === true
+                onToggled: if (root.commands)
+                    root.commands.setDevelopNumber(maskEditor.mask.childInvertedField, checked ? 1 : 0)
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                CustomButton {
+                    text: qsTr("Add circle")
+                    enabled: root.hasSelection && maskEditor.mask.editable === true
+                    onClicked: if (root.commands)
+                        root.commands.setDevelopNumber(maskEditor.mask.addChildField, 3)
+                }
+                CustomButton {
+                    text: qsTr("Remove child")
+                    enabled: root.hasSelection && maskEditor.mask.editable === true && maskEditor.mask.childCount > 1
+                    onClicked: if (root.commands)
+                        root.commands.setDevelopNumber(maskEditor.mask.removeChildField, 1)
+                }
+            }
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.pointsVisible === true
+            spacing: Fonts.smallSpacing
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Point")
+            }
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: {
+                    const count = maskEditor.mask.pointCount !== undefined ? maskEditor.mask.pointCount : 0
+                    const items = []
+                    for (let i = 0; i < count; ++i)
+                        items.push(qsTr("Point %1").arg(i + 1))
+                    return items
+                }
+                currentIndex: maskEditor.mask.pointIndex !== undefined ? maskEditor.mask.pointIndex : 0
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onActivated: if (root.commands)
+                    root.commands.setDevelopNumber(maskEditor.mask.pointIndexField, currentIndex)
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                CustomButton {
+                    text: qsTr("Add point")
+                    enabled: root.hasSelection && maskEditor.mask.editable === true
+                    onClicked: if (root.commands)
+                        root.commands.setDevelopNumber(maskEditor.mask.addPointField, 1)
+                }
+                CustomButton {
+                    text: qsTr("Remove point")
+                    enabled: root.hasSelection && maskEditor.mask.editable === true && maskEditor.mask.pointCount > 2
+                    onClicked: if (root.commands)
+                        root.commands.setDevelopNumber(maskEditor.mask.removePointField, 1)
+                }
+            }
+        }
         RowLayout {
             Layout.fillWidth: true
             visible: maskEditor.mask.attached === true

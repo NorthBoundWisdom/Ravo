@@ -494,7 +494,8 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(maskEditor.mask.detachField)")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("maskEditor.mask.editable === true && modelData.visible")));
-    EXPECT_FALSE(source.contains(QStringLiteral("mask alpha"), Qt::CaseInsensitive));
+    EXPECT_TRUE(source.contains(QStringLiteral("Show mask overlay")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMaskOverlay")));
     EXPECT_FALSE(source.contains(QStringLiteral("OpenCL")));
     EXPECT_FALSE(source.contains(QStringLiteral("JSON")));
 

@@ -1,4 +1,5 @@
 #include "mask_evaluator.h"
+#include "mask_path.h"
 
 #include <algorithm>
 #include <array>
@@ -457,6 +458,26 @@ try
             {
                 return active.error();
             }
+            if (const auto *path = std::get_if<PathMask>(&mask.payload); path != nullptr)
+            {
+                auto evaluated = evaluate_path_mask_alpha(*path, request);
+                if (!evaluated)
+                {
+                    return evaluated.error();
+                }
+                result = std::move(evaluated).value();
+            }
+            else if (const auto *brush = std::get_if<BrushMask>(&mask.payload); brush != nullptr)
+            {
+                auto evaluated = evaluate_brush_mask_alpha(*brush, request);
+                if (!evaluated)
+                {
+                    return evaluated.error();
+                }
+                result = std::move(evaluated).value();
+            }
+            else
+            {
             result.assign(count.value(), 0.0F);
             for (std::uint32_t row = 0; row < request.roi_height; ++row)
             {
@@ -598,6 +619,7 @@ try
                     result[output_index] = unit_math(value);
                 }
             }
+            }
         }
         auto common = apply_common(result, mask.common, request, mask.id);
         if (!common)
@@ -689,6 +711,57 @@ Result<void> normal_mask_mix(const std::span<const float> input_rgb,
                     operation_output_rgb[channel + offset] = mixed;
                 }
             }
+        }
+    }
+    return {};
+}
+
+Result<void> composite_mask_overlay_rgb8(const std::span<std::uint8_t> rgb, const AlphaPlane &alpha,
+                                         const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    const std::uint64_t pixels = static_cast<std::uint64_t>(alpha.width) * alpha.height;
+    if (alpha.width == 0U || alpha.height == 0U ||
+        pixels > std::numeric_limits<std::size_t>::max() / 3U || alpha.alpha.size() != pixels ||
+        rgb.size() != pixels * 3U)
+    {
+        return evaluator_error("Mask overlay dimensions or samples are invalid",
+                               "invalid_mask_overlay");
+    }
+    for (std::uint32_t row = 0; row < alpha.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        for (std::uint32_t column = 0; column < alpha.width; ++column)
+        {
+            const std::size_t pixel = static_cast<std::size_t>(row) * alpha.width + column;
+            const float opacity = alpha.alpha[pixel];
+            if (!std::isfinite(opacity) || opacity < 0.0F || opacity > 1.0F)
+            {
+                return evaluator_error("Mask overlay alpha is invalid", "invalid_mask_alpha");
+            }
+            if (opacity == 0.0F)
+            {
+                continue;
+            }
+            const float mix = opacity * kMaskOverlayStrength;
+            const std::size_t channel = pixel * 3U;
+            const auto blend = [mix](const std::uint8_t source, const std::uint8_t tint)
+            {
+                const float value = static_cast<float>(source) * (1.0F - mix) +
+                                    static_cast<float>(tint) * mix;
+                return static_cast<std::uint8_t>(std::clamp(value + 0.5F, 0.0F, 255.0F));
+            };
+            rgb[channel] = blend(rgb[channel], kMaskOverlayRed);
+            rgb[channel + 1U] = blend(rgb[channel + 1U], kMaskOverlayGreen);
+            rgb[channel + 2U] = blend(rgb[channel + 2U], kMaskOverlayBlue);
         }
     }
     return {};

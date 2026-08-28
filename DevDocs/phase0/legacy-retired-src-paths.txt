@@ -35,3 +35,4 @@ iop/colorbalance.c
 iop/colorchecker.c
 iop/colorcorrection.c
 iop/colorcontrast.c
+iop/colorharmonizer.c
