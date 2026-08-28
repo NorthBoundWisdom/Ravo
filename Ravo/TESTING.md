@@ -28,7 +28,8 @@ The dependency-boundary checker covers the product target graph:
 check to admit a new dependency.
 
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
-integration. Review contracts include schema v2→v5 migration, review
+integration, including first-frame Bayer RAW/DNG errors and preview-cache miss
+rebuild. Review contracts include schema v2→v5 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
 canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
 CPU Develop operations, edited previews, and
@@ -51,9 +52,10 @@ Windows gtest discovery can see Qt on runner `Path`. CI does not build
 
 Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
 codes, bounded strict XMP mappings, and real `mire1.cr2` inspect/render. Catalog tests
-cover schema create/reopen/newer-version reject, idempotent PNG/JPEG/RAW
-import, directory sidecar skipping, unchanged source hashes, preview cache,
-missing/unsupported input, and recipe/review independence. They do not replace
+cover schema create/reopen/newer-version reject, idempotent PNG/JPEG/RAW/DNG
+import, directory sidecar skipping, unchanged source hashes, preview cache
+including corrupt-PNG miss, missing/unsupported/cancelled input, and
+recipe/review independence. They do not replace
 local manual Studio Fit/100%/Develop acceptance. Each successful link of
 `ravo_studio` runs `--smoke` on the `offscreen` platform to load the root QML
 and exit immediately; a QML component failure fails the target build. Manual
@@ -166,8 +168,15 @@ fake upgrade success by directly editing an old fixture.
 ## Import and source-image safety
 
 The first integration covers both a repository PNG and
-`legacy/tests/images/mire1.cr2`. Later coverage expands to JPEG/TIFF,
-directories, corrupt files, and more RAW files.
+`legacy/tests/images/mire1.cr2`. JPEG/PNG/TIFF catalog import now fully decodes
+before publication: truncated JPEG/PNG/TIFF publish no asset or preview;
+recognized but unimplemented TIFF layouts stay `unsupported` and do not become
+RAW; a camera TIFF without a RAW suffix may still import through
+`unsupported_tiff_raw_container`. First-frame RAW/DNG coverage includes
+structured LibRaw reasons, `.dng` suffix import of the Bayer fixture, X-Trans
+`unsupported_raw_sensor`, unpack-before-publish when no embedded JPEG exists,
+RAW import cancellation, corrupt PNG cache miss, and close/reopen preview.
+Full RCD/PPG/X-Trans demosaic and DNG GainMap opcodes remain later.
 
 - Compare the source image hash/size/mtime before and after import to prove a
   reference-only path does not modify the original.
@@ -224,8 +233,9 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
 
 - Write preview cache to a temporary file and publish atomically; a failed
   request never overwrites an existing trusted file.
-- Cache keys include source fingerprint, size, and contract version; corrupt or
-  missing cache can be rebuilt.
+- Cache keys include source fingerprint, size, and contract version; a PNG
+  without the 8-byte signature is a miss and is deleted so the next request
+  rebuilds it. Close releases cache owners; reopen rebuilds from the source.
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
 - RAW preview contract v7 validates complete decode, explicit input/output

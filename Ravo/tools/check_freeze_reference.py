@@ -36,6 +36,15 @@ QOI_WRAPPER_CONSUMERS = Path(
 RGBE_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_rgbe_wrapper_consumers.json"
 )
+LIBRAW_WRAPPER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_libraw_wrapper_consumers.json"
+)
+DNG_OPCODE_WRAPPER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_dng_opcode_wrapper_consumers.json"
+)
+DNG_WRITER_CONSUMERS = Path(
+    "Ravo/tests/fixtures/legacy_dng_writer_consumers.json"
+)
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {
@@ -77,6 +86,21 @@ QOI_WRAPPER_INCLUDE = re.compile(
 RGBE_WRAPPER_INCLUDE = re.compile(
     r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_rgbe\.h>'
     r'|"(?:[^"\r\n/]+/)*imageio_rgbe\.h")',
+    re.MULTILINE,
+)
+LIBRAW_WRAPPER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_libraw\.h>'
+    r'|"(?:[^"\r\n/]+/)*imageio_libraw\.h")',
+    re.MULTILINE,
+)
+DNG_OPCODE_WRAPPER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*dng_opcode\.h>'
+    r'|"(?:[^"\r\n/]+/)*dng_opcode\.h")',
+    re.MULTILINE,
+)
+DNG_WRITER_INCLUDE = re.compile(
+    r'^\s*#\s*include\s*(?:<(?:[^<>\r\n/]+/)*imageio_dng\.h>'
+    r'|"(?:[^"\r\n/]+/)*imageio_dng\.h")',
     re.MULTILINE,
 )
 
@@ -207,6 +231,20 @@ def load_qoi_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
 
 def load_rgbe_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
     return load_wrapper_manifest(repository_root, RGBE_WRAPPER_CONSUMERS, "RGBE")
+
+
+def load_libraw_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, LIBRAW_WRAPPER_CONSUMERS, "LibRaw")
+
+
+def load_dng_opcode_wrapper_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(
+        repository_root, DNG_OPCODE_WRAPPER_CONSUMERS, "DNG opcode"
+    )
+
+
+def load_dng_writer_manifest(repository_root: Path) -> dict[str, Any]:
+    return load_wrapper_manifest(repository_root, DNG_WRITER_CONSUMERS, "DNG writer")
 
 
 def _files(repository_root: Path, *, cmake: bool) -> list[Path]:
@@ -410,6 +448,33 @@ def verify_rgbe_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
     )
 
 
+def verify_libraw_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_libraw_wrapper_manifest(repository_root),
+        LIBRAW_WRAPPER_INCLUDE,
+        "LibRaw",
+    )
+
+
+def verify_dng_opcode_wrapper_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_dng_opcode_wrapper_manifest(repository_root),
+        DNG_OPCODE_WRAPPER_INCLUDE,
+        "DNG opcode",
+    )
+
+
+def verify_dng_writer_consumers(repository_root: Path) -> dict[str, Any]:
+    return verify_wrapper_consumers(
+        repository_root,
+        load_dng_writer_manifest(repository_root),
+        DNG_WRITER_INCLUDE,
+        "DNG writer",
+    )
+
+
 def run_git(repository_root: Path, *arguments: str) -> str:
     completed = subprocess.run(
         ("git", *arguments),
@@ -539,6 +604,9 @@ def verify(
     dict[str, Any],
     dict[str, Any],
     dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
 ]:
     freeze = run_git(repository_root, "rev-parse", f"{freeze_commit}^{{commit}}")
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, "HEAD^{commit}")
@@ -562,7 +630,20 @@ def verify(
     tiff_wrapper = verify_tiff_wrapper_consumers(repository_root)
     qoi_wrapper = verify_qoi_wrapper_consumers(repository_root)
     rgbe_wrapper = verify_rgbe_wrapper_consumers(repository_root)
-    return trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper, rgbe_wrapper
+    libraw_wrapper = verify_libraw_wrapper_consumers(repository_root)
+    dng_opcode_wrapper = verify_dng_opcode_wrapper_consumers(repository_root)
+    dng_writer = verify_dng_writer_consumers(repository_root)
+    return (
+        trees,
+        jpeg_wrapper,
+        png_wrapper,
+        tiff_wrapper,
+        qoi_wrapper,
+        rgbe_wrapper,
+        libraw_wrapper,
+        dng_opcode_wrapper,
+        dng_writer,
+    )
 
 
 def main() -> int:
@@ -581,13 +662,21 @@ def main() -> int:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="emit the verified freeze and current JPEG/PNG/TIFF/QOI/RGBE wrapper censuses as JSON",
+        help="emit the verified freeze and current JPEG/PNG/TIFF/QOI/RGBE/LibRaw/DNG wrapper censuses as JSON",
     )
     arguments = parser.parse_args()
     try:
-        trees, jpeg_wrapper, png_wrapper, tiff_wrapper, qoi_wrapper, rgbe_wrapper = verify(
-            arguments.repository_root.resolve(), arguments.freeze_commit
-        )
+        (
+            trees,
+            jpeg_wrapper,
+            png_wrapper,
+            tiff_wrapper,
+            qoi_wrapper,
+            rgbe_wrapper,
+            libraw_wrapper,
+            dng_opcode_wrapper,
+            dng_writer,
+        ) = verify(arguments.repository_root.resolve(), arguments.freeze_commit)
     except FreezeCheckError as error:
         print(f"freeze reference check failed: {error}")
         return 1
@@ -602,6 +691,9 @@ def main() -> int:
                     "legacy_tiff_wrapper": tiff_wrapper,
                     "legacy_qoi_wrapper": qoi_wrapper,
                     "legacy_rgbe_wrapper": rgbe_wrapper,
+                    "legacy_libraw_wrapper": libraw_wrapper,
+                    "legacy_dng_opcode_wrapper": dng_opcode_wrapper,
+                    "legacy_dng_writer": dng_writer,
                 },
                 indent=2,
                 sort_keys=True,
@@ -621,7 +713,13 @@ def main() -> int:
         f"qoi_wrapper={qoi_wrapper['state']} "
         f"qoi_blockers={len(qoi_wrapper['blocking_consumers'])} "
         f"rgbe_wrapper={rgbe_wrapper['state']} "
-        f"rgbe_blockers={len(rgbe_wrapper['blocking_consumers'])}"
+        f"rgbe_blockers={len(rgbe_wrapper['blocking_consumers'])} "
+        f"libraw_wrapper={libraw_wrapper['state']} "
+        f"libraw_blockers={len(libraw_wrapper['blocking_consumers'])} "
+        f"dng_opcode_wrapper={dng_opcode_wrapper['state']} "
+        f"dng_opcode_blockers={len(dng_opcode_wrapper['blocking_consumers'])} "
+        f"dng_writer={dng_writer['state']} "
+        f"dng_writer_blockers={len(dng_writer['blocking_consumers'])}"
     )
     return 0
 

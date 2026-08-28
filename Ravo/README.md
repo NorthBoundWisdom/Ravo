@@ -22,9 +22,16 @@ Current implementation status:
   boundary. Exact default-unmasked singleton state maps to the canonical recipe;
   mask, custom blend, multi-instance, and conflicting-revision state rejects
   structurally.
-- The catalog vertical slice is implemented: reference-only JPEG/PNG/RAW
+- The catalog vertical slice is implemented: reference-only JPEG/PNG/TIFF/RAW
   import, preview cache outside the library, and the `ravo_studio` Qt Quick
-  window using controls from the `GeoControls` source root.
+  window using controls from the `GeoControls` source root. Catalog fully
+  decodes JPEG/PNG/TIFF before inserting an asset; only TIFF RAW containers
+  may fall through to LibRaw (ADR-0046). First-frame Bayer RAW/DNG uses pinned
+  LibRaw crop/black/white/CFA/flip plus 3×3 interpolation; missing, corrupt,
+  unrecognized, oversized, X-Trans, and cancelled inputs fail structurally.
+  Catalog unpacks a RAW with no embedded JPEG before publication. A corrupt
+  preview PNG is a cache miss and is rebuilt on request or after close/reopen
+  (ADR-0047).
 - Browse & Review includes catalog schema v2; ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid and shows number/rating/flags in its letterbox;

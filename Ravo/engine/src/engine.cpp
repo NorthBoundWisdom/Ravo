@@ -222,8 +222,8 @@ Result<InspectionResult> EngineFacade::inspect(const std::string_view input_uri,
     }
     if (input_uri.empty())
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Input URI must not be empty for inspection");
+        return make_error(ErrorCode::kInvalidArgument, "Input URI must not be empty for inspection",
+                          {{"reason", "empty_raw_path"}});
     }
     return identify_raw(input_uri);
 }
@@ -241,7 +241,8 @@ EngineFacade::extract_embedded_preview(const std::string_view input_uri,
     if (input_uri.empty())
     {
         return make_error(ErrorCode::kInvalidArgument,
-                          "Input URI must not be empty for preview extraction");
+                          "Input URI must not be empty for preview extraction",
+                          {{"reason", "empty_raw_path"}});
     }
     return extract_libraw_preview(input_uri, max_edge, cancellation);
 }
@@ -258,8 +259,8 @@ EngineFacade::inspect_with_embedded_preview(const std::string_view input_uri,
     }
     if (input_uri.empty())
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Input URI must not be empty for inspection");
+        return make_error(ErrorCode::kInvalidArgument, "Input URI must not be empty for inspection",
+                          {{"reason", "empty_raw_path"}});
     }
     return inspect_raw_with_embedded_preview(input_uri, max_edge, cancellation);
 }
@@ -365,8 +366,8 @@ Result<DecodedRaw> EngineFacade::decode_raw_frame(const std::string_view input_u
     }
     if (input_uri.empty())
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Input URI must not be empty for RAW decode");
+        return make_error(ErrorCode::kInvalidArgument, "Input URI must not be empty for RAW decode",
+                          {{"reason", "empty_raw_path"}});
     }
     auto decoded = decode_raw(input_uri, cancellation);
     if (!decoded)
@@ -523,11 +524,9 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
 namespace
 {
 
-[[nodiscard]] Result<ProfiledOutputBuffer>
-render_recipe_to_profiled_output(const LinearWorkingBuffer &working, const Recipe &recipe,
-                                 const CancellationToken &cancellation,
-                                 const std::optional<std::string> &overlay_mask_id,
-                                 AlphaPlane *overlay_alpha)
+[[nodiscard]] Result<ProfiledOutputBuffer> render_recipe_to_profiled_output(
+    const LinearWorkingBuffer &working, const Recipe &recipe, const CancellationToken &cancellation,
+    const std::optional<std::string> &overlay_mask_id, AlphaPlane *overlay_alpha)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -687,8 +686,8 @@ try
         return make_error(ErrorCode::kValidation, "Render sample kind is unsupported",
                           {{"reason", "unsupported_sample_kind"}});
     }
-    auto output = render_recipe_to_profiled_output(working, recipe, cancellation, std::nullopt,
-                                                   nullptr);
+    auto output =
+        render_recipe_to_profiled_output(working, recipe, cancellation, std::nullopt, nullptr);
     if (!output)
     {
         return output.error();

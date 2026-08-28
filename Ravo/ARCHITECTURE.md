@@ -178,10 +178,13 @@ each input; partial success must not lose failure detail.
 First-version import only registers sources: it never copies, moves, renames,
 rewrites metadata, or deletes them. Codec probing confirms a format; extensions
 are only candidate filters. One LibRaw open reads RAW capture metadata and
-embedded JPEG, then persists a `kThumbnailMaxEdge` browse thumbnail; import
-does not perform a 1600px full decode. It validates trusted metadata before
-transactionally publishing an asset. Cancellation stops undispatched work;
-committed results remain valid.
+embedded JPEG, then persists a `kThumbnailMaxEdge` browse thumbnail. A RAW
+suffix or TIFF RAW container with no embedded JPEG must first-frame-decode
+before `commit_imported_asset`. Import does not perform a 1600px full decode
+when a browse JPEG exists. It validates trusted metadata before transactionally
+publishing an asset. Cancellation stops undispatched work; committed results
+remain valid. Missing, directory, unrecognized, unpack-failed, oversized, and
+X-Trans/non-Bayer full-decode inputs fail with stable `reason` context.
 
 ### Preview
 
@@ -193,9 +196,15 @@ structured failure.
 
 RAW uses the Ravo CPU engine, while JPEG/PNG/TIFF use the raster adapter. Both
 share orientation, colour, alpha, scaling, finite-value, and error contracts.
+Catalog import fully decodes JPEG/PNG/TIFF before publication and reuses that
+RGB8 thumbnail. A recognized raster error never becomes a RAW inspect except
+`unsupported_tiff_raw_container`. First-frame RAW decode is 16-bit Bayer only;
+`.dng` uses the same LibRaw path. X-Trans may browse from embedded JPEG.
 Preview cache is atomically written outside the database, keyed by source
-fingerprint, target dimensions, and contract version. Corrupt or missing cache
-rebuilds from the read-only source.
+fingerprint, target dimensions, and contract version. A cached PNG without the
+8-byte PNG signature is a miss and is deleted. Corrupt or missing cache
+rebuilds from the read-only source. `CatalogService::close` drops repository,
+raster, cache, and decoded RAW/working buffers.
 
 Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the

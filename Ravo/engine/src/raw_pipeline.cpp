@@ -110,12 +110,19 @@ namespace
     if (path.isEmpty())
     {
         return make_error(ErrorCode::kInvalidArgument, "RAW input path must not be empty",
-                          {{"input_uri", std::string(input_uri)}});
+                          {{"input_uri", std::string(input_uri)}, {"reason", "empty_raw_path"}});
     }
-    if (!QFileInfo::exists(path))
+    const QFileInfo info(path);
+    if (!info.exists())
     {
         return make_error(ErrorCode::kNotFound, "RAW input does not exist",
-                          {{"input_uri", std::string(input_uri)}});
+                          {{"input_uri", std::string(input_uri)}, {"reason", "raw_not_found"}});
+    }
+    if (!info.isFile())
+    {
+        return make_error(
+            ErrorCode::kInvalidArgument, "RAW input must be a regular file",
+            {{"input_uri", std::string(input_uri)}, {"reason", "raw_not_regular_file"}});
     }
 
     auto decoder = std::make_unique<LibRaw>();
@@ -123,11 +130,13 @@ namespace
     const int open_status = decoder->open_file(utf8.constData());
     if (open_status != LIBRAW_SUCCESS)
     {
-        const ErrorCode code = open_status == LIBRAW_FILE_UNSUPPORTED ? ErrorCode::kUnsupported :
-                                                                        ErrorCode::kValidation;
+        const bool unsupported = open_status == LIBRAW_FILE_UNSUPPORTED;
         return make_error(
-            code, "LibRaw could not identify the RAW input",
-            {{"detail", libraw_strerror(open_status)}, {"input_uri", std::string(input_uri)}});
+            unsupported ? ErrorCode::kUnsupported : ErrorCode::kValidation,
+            "LibRaw could not identify the RAW input",
+            {{"detail", libraw_strerror(open_status)},
+             {"input_uri", std::string(input_uri)},
+             {"reason", unsupported ? "libraw_unsupported_file" : "libraw_open_failed"}});
     }
     return decoder;
 }
@@ -635,23 +644,57 @@ try
     const int unpack_status = decoder.value()->unpack();
     if (unpack_status != LIBRAW_SUCCESS)
     {
-        return make_error(
-            ErrorCode::kValidation, "LibRaw could not unpack the RAW input",
-            {{"detail", libraw_strerror(unpack_status)}, {"input_uri", std::string(input_uri)}});
+        return make_error(ErrorCode::kValidation, "LibRaw could not unpack the RAW input",
+                          {{"detail", libraw_strerror(unpack_status)},
+                           {"input_uri", std::string(input_uri)},
+                           {"reason", "libraw_unpack_failed"}});
     }
 
     const auto &raw = decoder.value()->imgdata;
     const auto &sizes = raw.sizes;
-    if (raw.idata.filters == 0 || raw.rawdata.raw_image == nullptr)
+    const bool xtrans = raw.idata.filters == LIBRAW_XTRANS;
+    const bool missing_raw = raw.rawdata.raw_image == nullptr;
+    const bool bayer = !xtrans && raw.idata.filters != 0 && !missing_raw;
+    if (!bayer)
     {
+        const char *sensor = "non_bayer";
+        if (xtrans)
+        {
+            sensor = "xtrans";
+        }
+        else if (missing_raw)
+        {
+            sensor = "missing_raw_image";
+        }
         return make_error(ErrorCode::kUnsupported,
-                          "The first Ravo RAW slice requires a 16-bit Bayer CFA");
+                          "The first-frame RAW decoder requires a 16-bit Bayer CFA",
+                          {{"input_uri", std::string(input_uri)},
+                           {"reason", "unsupported_raw_sensor"},
+                           {"sensor", sensor}});
     }
     if (sizes.width == 0 || sizes.height == 0 || sizes.raw_pitch == 0 ||
         static_cast<std::uint32_t>(sizes.left_margin) + sizes.width > sizes.raw_width ||
         static_cast<std::uint32_t>(sizes.top_margin) + sizes.height > sizes.raw_height)
     {
-        return make_error(ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions");
+        return make_error(
+            ErrorCode::kValidation, "LibRaw returned invalid RAW dimensions",
+            {{"input_uri", std::string(input_uri)}, {"reason", "invalid_raw_dimensions"}});
+    }
+    constexpr std::uint32_t kMaxRawDimension = 65535U;
+    constexpr std::uint64_t kMaxRawCfaBytes = 512ULL * 1024ULL * 1024ULL;
+    const auto pixel_count =
+        saturating_multiply(static_cast<std::uint64_t>(sizes.width), sizes.height);
+    const auto cfa_bytes = saturating_multiply(pixel_count, sizeof(std::uint16_t));
+    if (sizes.width > kMaxRawDimension || sizes.height > kMaxRawDimension ||
+        static_cast<std::uint32_t>(sizes.raw_width) > kMaxRawDimension ||
+        static_cast<std::uint32_t>(sizes.raw_height) > kMaxRawDimension ||
+        cfa_bytes > kMaxRawCfaBytes)
+    {
+        return make_error(ErrorCode::kUnsupported, "RAW frame exceeds the first-frame size limit",
+                          {{"height", std::to_string(sizes.height)},
+                           {"input_uri", std::string(input_uri)},
+                           {"reason", "oversized_raw_frame"},
+                           {"width", std::to_string(sizes.width)}});
     }
 
     DecodedRaw result;

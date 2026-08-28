@@ -66,6 +66,12 @@ namespace
     return repository_path(std::filesystem::path("legacy") / "tests" / "images" / "mire1.cr2");
 }
 
+[[nodiscard]] std::string xtrans_fixture_path()
+{
+    return repository_path(std::filesystem::path("legacy") / "tests" / "images" /
+                           "mire1-xtrans.raf");
+}
+
 [[nodiscard]] QByteArray file_sha256(const std::string &path)
 {
     QFile file(QString::fromStdString(path));
@@ -3540,6 +3546,301 @@ TEST_F(CatalogServiceTest, ImportsPngAndTiffCaptureContainersIndependently)
     auto listed = service->list_assets();
     ASSERT_TRUE(listed);
     EXPECT_EQ(listed.value().size(), 2U);
+}
+
+[[nodiscard]] std::string write_truncated_raster(const std::filesystem::path &path,
+                                                 const char *format)
+{
+    QImage image(12, 8, QImage::Format_RGB888);
+    image.fill(QColor(40, 80, 120));
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    EXPECT_TRUE(buffer.open(QIODevice::WriteOnly));
+    EXPECT_TRUE(image.save(&buffer, format));
+    EXPECT_GT(encoded.size(), 16);
+    encoded.chop(8);
+    QFile file(QString::fromStdString(path.string()));
+    EXPECT_TRUE(file.open(QIODevice::WriteOnly));
+    EXPECT_EQ(file.write(encoded), encoded.size());
+    return path.string();
+}
+
+[[nodiscard]] std::string write_float_rgb_tiff(const std::filesystem::path &path)
+{
+    QByteArray encoded;
+    const auto append_u16 = [&](const std::uint16_t value)
+    {
+        encoded.append(static_cast<char>(value & 0xFFU));
+        encoded.append(static_cast<char>((value >> 8U) & 0xFFU));
+    };
+    const auto append_u32 = [&](const std::uint32_t value)
+    {
+        encoded.append(static_cast<char>(value & 0xFFU));
+        encoded.append(static_cast<char>((value >> 8U) & 0xFFU));
+        encoded.append(static_cast<char>((value >> 16U) & 0xFFU));
+        encoded.append(static_cast<char>((value >> 24U) & 0xFFU));
+    };
+    encoded.append("II*\0", 4);
+    append_u32(8U);
+    append_u16(11U);
+    const auto entry = [&](const std::uint16_t tag, const std::uint16_t type,
+                           const std::uint32_t count, const std::uint32_t value)
+    {
+        append_u16(tag);
+        append_u16(type);
+        append_u32(count);
+        append_u32(value);
+    };
+    entry(256U, 4U, 1U, 1U);
+    entry(257U, 4U, 1U, 1U);
+    entry(258U, 3U, 3U, 146U);
+    entry(259U, 3U, 1U, 1U);
+    entry(262U, 3U, 1U, 2U);
+    entry(273U, 4U, 1U, 158U);
+    entry(277U, 3U, 1U, 3U);
+    entry(278U, 4U, 1U, 1U);
+    entry(279U, 4U, 1U, 12U);
+    entry(284U, 3U, 1U, 1U);
+    entry(339U, 3U, 3U, 152U);
+    append_u32(0U);
+    append_u16(32U);
+    append_u16(32U);
+    append_u16(32U);
+    append_u16(3U);
+    append_u16(3U);
+    append_u16(3U);
+    encoded.append(12, '\0');
+    QFile file(QString::fromStdString(path.string()));
+    EXPECT_TRUE(file.open(QIODevice::WriteOnly));
+    EXPECT_EQ(file.write(encoded), encoded.size());
+    return path.string();
+}
+
+TEST_F(CatalogServiceTest, CorruptPngAndTiffNeverPublishAnAssetOrPreview)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto png_path = write_truncated_raster(root / "truncated.png", "PNG");
+    const auto png_hash = file_sha256(png_path);
+    auto png_imported = service->import_one(png_path, CancellationToken{});
+    ASSERT_TRUE(png_imported) << png_imported.error().message;
+    EXPECT_EQ(png_imported.value().status, ImportItemStatus::kFailed);
+    EXPECT_FALSE(png_imported.value().asset);
+    EXPECT_FALSE(png_imported.value().preview_cache_path);
+    ASSERT_TRUE(png_imported.value().error);
+    EXPECT_EQ(png_imported.value().error->code, ErrorCode::kValidation);
+    EXPECT_EQ(png_imported.value().error->context.at("format"), "png");
+    EXPECT_EQ(file_sha256(png_path), png_hash);
+
+    const auto tiff_path = write_truncated_raster(root / "truncated.tif", "TIFF");
+    const auto tiff_hash = file_sha256(tiff_path);
+    auto tiff_imported = service->import_one(tiff_path, CancellationToken{});
+    ASSERT_TRUE(tiff_imported) << tiff_imported.error().message;
+    EXPECT_EQ(tiff_imported.value().status, ImportItemStatus::kFailed);
+    EXPECT_FALSE(tiff_imported.value().asset);
+    EXPECT_FALSE(tiff_imported.value().preview_cache_path);
+    ASSERT_TRUE(tiff_imported.value().error);
+    EXPECT_EQ(tiff_imported.value().error->code, ErrorCode::kValidation);
+    EXPECT_EQ(tiff_imported.value().error->context.at("format"), "tiff");
+    EXPECT_EQ(file_sha256(tiff_path), tiff_hash);
+
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    EXPECT_TRUE(assets.value().empty());
+    auto previews = service->list_previews();
+    ASSERT_TRUE(previews) << previews.error().message;
+    EXPECT_TRUE(previews.value().empty());
+}
+
+TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto float_path = write_float_rgb_tiff(root / "float.tif");
+    const auto float_hash = file_sha256(float_path);
+    auto floating = service->import_one(float_path, CancellationToken{});
+    ASSERT_TRUE(floating) << floating.error().message;
+    EXPECT_EQ(floating.value().status, ImportItemStatus::kUnsupported);
+    EXPECT_FALSE(floating.value().asset);
+    ASSERT_TRUE(floating.value().error);
+    EXPECT_EQ(floating.value().error->code, ErrorCode::kUnsupported);
+    EXPECT_EQ(floating.value().error->context.at("format"), "tiff");
+    EXPECT_EQ(floating.value().error->context.at("reason"), "unsupported_tiff_float_samples");
+    EXPECT_EQ(file_sha256(float_path), float_hash);
+
+    const auto arw = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+                     "hlrecovery.arw";
+    const auto disguised = root / "camera.tif";
+    std::filesystem::copy_file(arw, disguised);
+    const auto disguised_hash = file_sha256(disguised.string());
+    auto imported = service->import_one(disguised.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset)
+        << (imported.value().error ? imported.value().error->message : "");
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kImported);
+    EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
+    EXPECT_EQ(file_sha256(disguised.string()), disguised_hash);
+
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    ASSERT_EQ(assets.value().size(), 1U);
+    EXPECT_EQ(assets.value().front().media_type, kMediaTypeRaw);
+}
+
+TEST_F(CatalogServiceTest, CorruptAndUnrecognizedRawNeverPublishAnAsset)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto missing = service->import_one((root / "missing.cr2").string(), CancellationToken{});
+    ASSERT_TRUE(missing) << missing.error().message;
+    EXPECT_EQ(missing.value().status, ImportItemStatus::kFailed);
+    EXPECT_FALSE(missing.value().asset);
+    ASSERT_TRUE(missing.value().error);
+    EXPECT_EQ(missing.value().error->code, ErrorCode::kNotFound);
+
+    const auto garbage_path = root / "notes.cr2";
+    {
+        std::ofstream output(garbage_path, std::ios::binary);
+        output << "not a camera raw";
+    }
+    const auto garbage_hash = file_sha256(garbage_path.string());
+    auto garbage = service->import_one(garbage_path.string(), CancellationToken{});
+    ASSERT_TRUE(garbage) << garbage.error().message;
+    EXPECT_TRUE(garbage.value().status == ImportItemStatus::kUnsupported ||
+                garbage.value().status == ImportItemStatus::kFailed);
+    EXPECT_FALSE(garbage.value().asset);
+    EXPECT_EQ(file_sha256(garbage_path.string()), garbage_hash);
+
+    const auto truncated_path = root / "truncated.cr2";
+    {
+        std::ifstream input(std::filesystem::path(raw_fixture_path()), std::ios::binary);
+        std::ofstream output(truncated_path, std::ios::binary);
+        std::vector<char> prefix(1024);
+        input.read(prefix.data(), static_cast<std::streamsize>(prefix.size()));
+        output.write(prefix.data(), input.gcount());
+    }
+    const auto truncated_hash = file_sha256(truncated_path.string());
+    auto truncated = service->import_one(truncated_path.string(), CancellationToken{});
+    ASSERT_TRUE(truncated) << truncated.error().message;
+    EXPECT_TRUE(truncated.value().status == ImportItemStatus::kUnsupported ||
+                truncated.value().status == ImportItemStatus::kFailed);
+    EXPECT_FALSE(truncated.value().asset);
+    EXPECT_EQ(file_sha256(truncated_path.string()), truncated_hash);
+
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    EXPECT_TRUE(assets.value().empty());
+}
+
+TEST_F(CatalogServiceTest, DngSuffixImportsAsRawWithoutRewritingTheSource)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto dng_path = root / "camera.dng";
+    std::filesystem::copy_file(raw_fixture_path(), dng_path);
+    const auto dng_hash = file_sha256(dng_path.string());
+    auto imported = service->import_one(dng_path.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset)
+        << (imported.value().error ? imported.value().error->message : "");
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kImported);
+    EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
+    EXPECT_GT(imported.value().asset->width.value_or(0), 0U);
+    EXPECT_GT(imported.value().asset->height.value_or(0), 0U);
+    EXPECT_EQ(file_sha256(dng_path.string()), dng_hash);
+    ASSERT_TRUE(imported.value().preview_cache_path);
+    EXPECT_TRUE(std::filesystem::exists(*imported.value().preview_cache_path));
+}
+
+TEST_F(CatalogServiceTest, XTransMayBrowseButNeverPublishesAFailedFullDecode)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto path = xtrans_fixture_path();
+    const auto hash = file_sha256(path);
+    auto decoded = engine.decode_raw_frame(path, CancellationToken{});
+    ASSERT_FALSE(decoded);
+    EXPECT_EQ(decoded.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(decoded.error().context.at("reason"), "unsupported_raw_sensor");
+
+    auto imported = service->import_one(path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    EXPECT_EQ(file_sha256(path), hash);
+    if (imported.value().asset)
+    {
+        EXPECT_EQ(imported.value().status, ImportItemStatus::kImported);
+        EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
+        ASSERT_TRUE(imported.value().preview_cache_path);
+        EXPECT_TRUE(std::filesystem::exists(*imported.value().preview_cache_path));
+    }
+    else
+    {
+        EXPECT_TRUE(imported.value().status == ImportItemStatus::kUnsupported ||
+                    imported.value().status == ImportItemStatus::kFailed);
+        ASSERT_TRUE(imported.value().error);
+        auto assets = service->list_assets();
+        ASSERT_TRUE(assets) << assets.error().message;
+        EXPECT_TRUE(assets.value().empty());
+    }
+}
+
+TEST_F(CatalogServiceTest, CancellationAfterRawInspectPreventsPublication)
+{
+    ASSERT_TRUE(open_service(true));
+    auto before = service->snapshot();
+    ASSERT_TRUE(before);
+    CancellationSource cancellation;
+    testing::CatalogServiceTestControl::set_before_import_publication(
+        *service, [&cancellation] { EXPECT_TRUE(cancellation.cancel("after-raw-inspect")); });
+    auto imported = service->import_one(raw_fixture_path(), cancellation.token());
+    ASSERT_TRUE(imported);
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kFailed);
+    ASSERT_TRUE(imported.value().error);
+    EXPECT_EQ(imported.value().error->code, ErrorCode::kCancelled);
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets);
+    EXPECT_TRUE(assets.value().empty());
+    auto after = service->snapshot();
+    ASSERT_TRUE(after);
+    EXPECT_EQ(after.value().revision, before.value().revision);
+}
+
+TEST_F(CatalogServiceTest, CloseAndCorruptCacheStillAllowReopenPreview)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = (root / "cached.jpg").string();
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.fill(QColor(10, 20, 30));
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 95));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(imported.value().preview_cache_path);
+    const auto cache_path = *imported.value().preview_cache_path;
+    EXPECT_TRUE(std::filesystem::exists(cache_path));
+
+    {
+        QFile corrupt(QString::fromStdString(cache_path));
+        ASSERT_TRUE(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(corrupt.write("not-a-png", 9), 9);
+    }
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = kThumbnailMaxEdge;
+    auto rebuilt = service->request_preview(request);
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    EXPECT_TRUE(std::filesystem::exists(rebuilt.value().cache_path));
+    QFile rebuilt_file(QString::fromStdString(rebuilt.value().cache_path));
+    ASSERT_TRUE(rebuilt_file.open(QIODevice::ReadOnly));
+    EXPECT_EQ(rebuilt_file.read(8), QByteArray("\x89PNG\r\n\x1a\n", 8));
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    PreviewRequest after_close;
+    after_close.asset_id = asset_id;
+    after_close.max_edge = kThumbnailMaxEdge;
+    auto reopened = service->request_preview(after_close);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    EXPECT_TRUE(std::filesystem::exists(reopened.value().cache_path));
 }
 
 TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministically)

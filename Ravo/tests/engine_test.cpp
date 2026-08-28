@@ -76,6 +76,14 @@ public:
     return {utf8.begin(), utf8.end()};
 }
 
+[[nodiscard]] std::string mire1_xtrans_path()
+{
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+                      "mire1-xtrans.raf";
+    const auto utf8 = path.generic_u8string();
+    return {utf8.begin(), utf8.end()};
+}
+
 struct SourceFileSnapshot
 {
     std::uintmax_t size = 0;
@@ -1414,6 +1422,82 @@ TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)
     EXPECT_FALSE(inspected.value().model.empty());
     EXPECT_GT(inspected.value().width, 0U);
     EXPECT_GT(inspected.value().height, 0U);
+}
+
+TEST(EngineFacadeTest, ClassifiesMissingDirectoryTruncatedAndUnrecognizedRaw)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-engine-raw-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+
+    auto empty = engine.value().inspect("", CancellationToken{});
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_EQ(empty.error().context.at("reason"), "empty_raw_path");
+
+    auto missing = engine.value().inspect((root / "missing.cr2").string(), CancellationToken{});
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
+    EXPECT_EQ(missing.error().context.at("reason"), "raw_not_found");
+
+    const auto directory = root / "folder.cr2";
+    std::filesystem::create_directories(directory);
+    auto not_file = engine.value().inspect(directory.string(), CancellationToken{});
+    ASSERT_FALSE(not_file);
+    EXPECT_EQ(not_file.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_EQ(not_file.error().context.at("reason"), "raw_not_regular_file");
+
+    const auto garbage_path = root / "notes.cr2";
+    {
+        std::ofstream output(garbage_path, std::ios::binary);
+        output << "not a raw camera file";
+    }
+    auto garbage = engine.value().inspect(garbage_path.string(), CancellationToken{});
+    ASSERT_FALSE(garbage);
+    EXPECT_TRUE(garbage.error().code == ErrorCode::kUnsupported ||
+                garbage.error().code == ErrorCode::kValidation);
+    const auto &garbage_reason = garbage.error().context.at("reason");
+    EXPECT_TRUE(garbage_reason == "libraw_unsupported_file" ||
+                garbage_reason == "libraw_open_failed");
+
+    const auto truncated_path = root / "truncated.cr2";
+    {
+        std::ifstream input(std::filesystem::path(mire1_path()), std::ios::binary);
+        std::ofstream output(truncated_path, std::ios::binary);
+        std::vector<char> prefix(512);
+        input.read(prefix.data(), static_cast<std::streamsize>(prefix.size()));
+        output.write(prefix.data(), input.gcount());
+    }
+    auto truncated = engine.value().decode_raw_frame(truncated_path.string(), CancellationToken{});
+    ASSERT_FALSE(truncated);
+    EXPECT_TRUE(truncated.error().code == ErrorCode::kValidation ||
+                truncated.error().code == ErrorCode::kUnsupported);
+    EXPECT_FALSE(truncated.error().context.at("reason").empty());
+
+    const auto dng_path = root / "mire1.dng";
+    std::filesystem::copy_file(mire1_path(), dng_path);
+    auto dng = engine.value().decode_raw_frame(dng_path.string(), CancellationToken{});
+    ASSERT_TRUE(dng) << dng.error().message;
+    EXPECT_GT(dng.value().width, 0U);
+    EXPECT_GT(dng.value().height, 0U);
+    EXPECT_EQ(dng.value().cfa_width, 2U);
+    EXPECT_EQ(dng.value().cfa_height, 2U);
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST(EngineFacadeTest, FirstFrameDecodeRejectsXTransSensor)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto decoded = engine.value().decode_raw_frame(mire1_xtrans_path(), CancellationToken{});
+    ASSERT_FALSE(decoded);
+    EXPECT_EQ(decoded.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(decoded.error().context.at("reason"), "unsupported_raw_sensor");
+    EXPECT_EQ(decoded.error().context.at("sensor"), "xtrans");
 }
 
 TEST(EngineFacadeTest, DecodeExposesAsShotAndCameraReferenceWhiteBalance)

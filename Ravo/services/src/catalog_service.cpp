@@ -30,6 +30,45 @@ namespace
            media_type == kMediaTypePng || media_type == kMediaTypeTiff;
 }
 
+[[nodiscard]] bool is_common_raster_media(const std::string_view media_type) noexcept
+{
+    return media_type == kMediaTypeJpeg || media_type == kMediaTypePng ||
+           media_type == kMediaTypeTiff;
+}
+
+[[nodiscard]] std::string_view context_value(const TaskError &error, const std::string_view key)
+{
+    const auto found = error.context.find(std::string(key));
+    if (found == error.context.end())
+    {
+        return {};
+    }
+    return found->second;
+}
+
+[[nodiscard]] bool is_recognized_raster_probe_error(const TaskError &error) noexcept
+{
+    const auto format = context_value(error, "format");
+    return format == "jpeg" || format == "jpg" || format == "png" || format == "tiff" ||
+           format == "tif" || format == "bmp" || format == "gif" || format == "webp" ||
+           format == "qoi" || format == "rgbe";
+}
+
+[[nodiscard]] bool should_try_raw_after_raster(const TaskError &error) noexcept
+{
+    const auto format = context_value(error, "format");
+    const auto reason = context_value(error, "reason");
+    if ((format == "tiff" || format == "tif") && reason == "unsupported_tiff_raw_container")
+    {
+        return true;
+    }
+    if (is_recognized_raster_probe_error(error))
+    {
+        return false;
+    }
+    return error.code == ErrorCode::kUnsupported;
+}
+
 } // namespace
 
 CatalogService::CatalogService(const EngineFacade &engine,
@@ -838,7 +877,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
             asset.media_type = raster.value().media_type;
             asset.width = raster.value().width;
             asset.height = raster.value().height;
-            if (asset.media_type == kMediaTypeJpeg)
+            if (is_common_raster_media(asset.media_type))
             {
                 auto decoded =
                     raster_->decode(location.value().path, kThumbnailMaxEdge, cancellation);
@@ -853,25 +892,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
                 validated_raster = std::move(decoded).value();
             }
         }
-        else if (raster.error().code == ErrorCode::kUnsupported)
+        else if (should_try_raw_after_raster(raster.error()))
         {
-            const auto format = raster.error().context.find("format");
-            if (format != raster.error().context.end() && format->second == "jpeg")
-            {
-                return unsupported_item(location.value().path, raster.error());
-            }
-            const auto reason = raster.error().context.find("reason");
-            if (format != raster.error().context.end() && format->second == "qoi" &&
-                reason != raster.error().context.end() && reason->second == "unsupported_qoi_input")
-            {
-                return unsupported_item(location.value().path, raster.error());
-            }
-            if (format != raster.error().context.end() && format->second == "rgbe" &&
-                reason != raster.error().context.end() &&
-                reason->second == "unsupported_rgbe_input")
-            {
-                return unsupported_item(location.value().path, raster.error());
-            }
             auto probed = engine_->inspect_with_embedded_preview(location.value().path,
                                                                  kThumbnailMaxEdge, cancellation);
             if (!probed)
@@ -885,9 +907,22 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
             }
             embedded_preview = std::move(probed.value().embedded_preview);
         }
+        else if (raster.error().code == ErrorCode::kUnsupported)
+        {
+            return unsupported_item(location.value().path, raster.error());
+        }
         else
         {
             return failed_item(location.value().path, raster.error());
+        }
+    }
+
+    if (is_raw_media_type(asset.media_type) && !embedded_preview)
+    {
+        auto decoded = engine_->decode_raw_frame(location.value().path, cancellation);
+        if (!decoded)
+        {
+            return map_raw_probe_error(decoded.error());
         }
     }
 

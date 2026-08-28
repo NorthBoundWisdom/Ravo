@@ -5,6 +5,7 @@
 #include <limits>
 #include <system_error>
 
+#include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QIODevice>
 #include <QtCore/QSaveFile>
@@ -95,6 +96,21 @@ FilesystemPreviewCache::existing_png(const std::string_view cache_key) const
     const auto path = absolute_png_path(cache_key);
     if (!QFileInfo::exists(qstring_from_utf8(path)))
     {
+        return std::optional<std::string>{};
+    }
+    QFile file(qstring_from_utf8(path));
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        return std::optional<std::string>{};
+    }
+    const QByteArray magic = file.read(8);
+    static const char kPngSignature[] = {'\x89', 'P', 'N', 'G', '\r', '\n', '\x1a', '\n'};
+    if (magic.size() != 8 || magic != QByteArray::fromRawData(kPngSignature, 8))
+    {
+        file.close();
+        std::error_code ignored;
+        std::filesystem::remove(std::filesystem::path(std::u8string(path.begin(), path.end())),
+                                ignored);
         return std::optional<std::string>{};
     }
     return std::optional<std::string>{path};

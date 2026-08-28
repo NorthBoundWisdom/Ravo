@@ -4,11 +4,15 @@
 >
 > **Updated: 2026-08-28**
 >
-> **Current execution status: P0 product mask surface is accepted (overlay,
-> owned group editor, path/brush, and Color Harmonizer IOP retirement).** Next
-> Ready outcome is P1 input hardening. Leftover GTK `mask_manager` / `libs/masks.c`
-> wait for zero develop/history consumers. Do not start C15 or cacorrectrgb until
-> a later exact tranche is explicitly authorized.
+> **Current execution status: P1 first-frame open/view is accepted** (JPEG/PNG/
+> TIFF publication under ADR-0046; Bayer LibRaw/DNG, structured RAW errors,
+> unpack-before-publish, corrupt-cache miss, and close/reopen under ADR-0047).
+> Next Ready outcome is P2 everyday Develop controls. Leftover GTK
+> `mask_manager` / `libs/masks.c` wait for zero develop/history consumers. Do
+> not start C15 or cacorrectrgb until a later exact tranche is explicitly
+> authorized. Wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` stays blocked on
+> freeze censuses. Full R1/R2 ALG (GainMap, RCD/PPG/X-Trans) is not this
+> first-frame contract.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -66,8 +70,8 @@ explicitly authorized. A priority label alone does not waive those conditions.
 | Priority | User outcome and internal order | Owner IDs / readiness | Acceptance gate |
 | --- | --- | --- | --- |
 | P0 — finish active local-adjustment work | Mask overlay/group editing, path/brush authoring, and Color Harmonizer IOP retirement | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers; **Accepted product surface**. `C15` and `R4` remain explicitly unauthorized | Canonical graph/evaluator/service path with Studio overlay/group/path/brush; C14 retired; leftover GTK mask-manager files wait for zero-consumer proof |
-| P1 — reliably open and view common photos | First harden JPEG/PNG/TIFF and LibRaw/DNG input, then complete RAW prepare/demosaic and first-frame/cache/job lifecycle | `I5`, `I6`, `I7`, `I2`, `I4`, `R1`, `R2`, `I1`, `S11`, `J1`, `J3`, `J4`; Ready in independent fixture-backed tranches that do not overlap P0 | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
-| P2 — everyday Develop controls | In order: orientation/crop, resize/output dimensions/straighten, RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `G1`, `G4`, `G3`, `G7`, `G6`, `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2`, with consumer-driven `S1`/`S2`/`S4`; blocked items wait for their stated P0/P1 dependency | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
+| P1 — reliably open and view common photos | **Accepted first-frame.** JPEG/PNG/TIFF publication plus Bayer LibRaw/DNG inspect/decode, structured failures, unpack-before-publish, corrupt PNG cache miss, and close/reopen | ADR-0046/0047. Remaining: full `R1`/`R2` ALG, `I1` dispatcher, `S11` byte-budget LRU, leftover `J*` jobs, and wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
+| P2 — everyday Develop controls | **Ready.** In order: orientation/crop, resize/output dimensions/straighten, RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `G1`, `G4`, `G3`, `G7`, `G6`, `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2`, with consumer-driven `S1`/`S2`/`S4`; blocked items wait for their stated P0/P1 dependency | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
 | P3 — library and delivery workflow | Improve filtering/recent/navigation/scopes; then metadata/history/styles/presets; finish common export/storage, canvas/frame/watermark and output dither | `S8`, `L5`–`L8`, `J5`, `S9`, `S10`, `J6`, `J7`, `L2`, `U5`, `I10`–`I14`, `G5`, `G8`, `M5`, `O1`, `H3`, `H4` | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
 | P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, Color Zones/monochrome/split toning/Velvia, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T6`, `T1`, `C17`, `C18`, `C20`, `C21`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
 | P5 — specialist and low-frequency tools | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until a later exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget and explicit unsupported-state policy; no simplified substitute or speculative shell |
@@ -188,8 +192,8 @@ covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| R1 | rawprepare — iop/rawprepare.c | yes | Queued / ALG; complete crop/black/white/CFA/orientation, replacing current absorbed subset |
-| R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; Bayer/X-Trans modes, dual/green matching, memory/ROI; basic 3×3 is only a subset |
+| R1 | rawprepare — iop/rawprepare.c | yes | Queued / ALG; first-frame LibRaw crop/black/white/CFA/flip is accepted (ADR-0047). Remaining: DNG GainMap OpcodeList2/3 and the complete frozen crop/black/white path |
+| R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; first-frame Bayer 3×3 is accepted (ADR-0047). Remaining: RCD/PPG, dual/green matching, X-Trans Markesteijn, memory/ROI. Do not treat 3×3 as ALG retirement |
 | R3 | rawdenoise — iop/rawdenoise.c | yes | Queued / ALG; pre-demosaic wavelet/threshold and sensor rejection |
 | R4 | cacorrectrgb — iop/cacorrectrgb.c | no | Queued / ALG; separate from migrated pre-demosaic cacorrect; create synthetic/RAW fixture first |
 | R5 | colorreconstruct — iop/colorreconstruction.c | yes | Queued / ALG; depends on R2 and explicit input-profile state; complete highlight colour propagation/ROI |
@@ -256,7 +260,7 @@ covered.
 | S8 | common/collection*, selection*, ratings*, colorlabels*, act_on* | CORE/DELETE | Ravo LibraryQuery/selection/review coverage; map each missing collection query or mark unsupported |
 | S9 | common/exif*, metadata*, metadata_export*, tags* | CORE/DATA | Bounded rendered-export packets are accepted under ADR-0038. Remaining: general sidecar/history interchange, metadata refresh, privacy stripping, shared old consumers, and deletion gates. Schema v5 now persists typed capture datetime/offset/GPS for newly imported files. Originals stay read-only; Exiv2 types remain adapter-private. Do not claim this row complete. |
 | S10 | common/history*, history_snapshot*, styles*, presets*, undo* | CORE/DATA | Canonical recipe history/style/preset import/reject and rollback; delete GUI preset owner |
-| S11 | common/cache*, image_cache*, mipmap_cache*, imagebuf* | CORE/DELETE | Explicit byte budget/LRU/atomic publication; replace with CatalogService/PreviewCache |
+| S11 | common/cache*, image_cache*, mipmap_cache*, imagebuf* | CORE/DELETE | First-frame atomic PNG cache, corrupt-signature miss, and close/reopen rebuild are accepted (ADR-0047). Remaining: explicit byte-budget LRU and leftover mipmap/imagebuf deletion |
 | S12 | common/atomic*, dtpthread*, resource_limits*, system_signal_handling*, utility*, datetime*, variables*, calculator*, file_location*, math.h, points.h, heap.h, tea.h, dttypes.h, debug.h, extra_optimizations.h, sse.h, grealpath.h, win_file_trash* | CORE/DELETE | Move only value/thread/path/platform logic with Ravo consumers; delete the rest with global core |
 | S13 | common/curl_tools*, dbus*, gimp*, pwstorage/*, overlay* | DELETE or adapter | Create an independent port only for an explicitly active IOP/service; do not keep remote-publish/UI credential shells |
 | S14 | common/opencl*, dlopencl*, opencl_drivers_blacklist.h | DELETE | Delete after CPU goldens complete, including the shared `host/data/kernels/basic.cl` exposure kernel/program path; Ravo GPU never reuses OpenCL API |
@@ -266,12 +270,12 @@ covered.
 | ID | Owner | Action | Acceptance gate |
 | --- | --- | --- | --- |
 | I1 | imageio/imageio.c, imageio_module*, imageio_common.h | CORE/DELETE dispatcher | All formats/storage use Ravo ports; delete dynamic imageio ABI/global registry |
-| I2 | imageio_libraw* | Adapter audit | Ravo pinned LibRaw covers RAW metadata/embedded/decode/sensor error, then delete old wrapper |
+| I2 | imageio_libraw* | Adapter audit | Core accepted: pinned LibRaw inspect/embedded JPEG/Bayer first-frame decode and structured missing/directory/unrecognized/unpack/sensor/oversized errors (ADR-0047). Remaining: freeze census then delete `imageio_libraw.c`; I1 dispatcher is a separate owner |
 | I3 | imageio_rawspeed* + external RawSpeed wiring | DELETE or independent decoder | Make format/performance/fixture decision; do not silently fall back to LibRaw |
-| I4 | imageio_dng*, common/dng_opcode* | ALG/adapter | DNG opcode/crop/black/metadata fixture; LibRaw partial coverage is not complete coverage |
-| I5 | imageio_jpeg* | Adapter audit | Orientation/ICC/alpha/error contract for Qt decoder; delete old libjpeg wrapper without consumers |
-| I6 | imageio_png* | Adapter audit | Bit depth/ICC/alpha/error contract for Qt decoder |
-| I7 | imageio_tiff* | Adapter audit | 8/16/float, multi-page, ICC/alpha/error Qt contract |
+| I4 | imageio_dng*, common/dng_opcode* | ALG/adapter | Core accepted: `.dng` and TIFF RAW-container read through LibRaw first-frame (ADR-0047). Remaining: OpcodeList2/3 GainMap with R1; leftover `imageio_dng` writer (J2) and `dng_opcode` (S9) censuses; do not treat LibRaw crop as complete DNG opcode coverage |
+| I5 | imageio_jpeg* | Adapter audit | Core accepted: content recognition, EXIF 1–8 scaling, strict APP2 ICC, opaque RGB8, and Catalog full-decode before publication (ADR-0023/0046). Remaining: zero-consumer census then delete `imageio_jpeg.c`; I11 export is a separate owner |
+| I6 | imageio_png* | Adapter audit | Core accepted: content recognition, bit-depth/ICC/cICP/orientation, opaque RGB8, probe-time pixel validation, and Catalog full-decode before publication (ADR-0046). Remaining: interlaced/low-bit stay structured unsupported; zero-consumer census then delete `imageio_png.c`; I12 export is a separate owner |
+| I7 | imageio_tiff* | Adapter audit | Core accepted: classic/BigTIFF recognition, 8/16 RGB/gray, ICC/orientation/alpha discard, probe-time pixel validation, Catalog full-decode before publication, and RAW-container routing that does not steal float/tiled/multi-page layouts (ADR-0046). Remaining: float/multi-page/tiled stay structured unsupported; zero-consumer census then delete `imageio_tiff.c`; keep QTiffPlugin; I13 export is a separate owner |
 | I8 | imageio_qoi* + qoi.h | ALG/adapter | If Ravo keeps QOI, add decoder/encoder fixtures; otherwise explicit unsupported then delete |
 | I9 | imageio_rgbe* | ALG/adapter | HDR RGBE decode/colour contract and fixture; do not treat it as ordinary raster |
 | I10 | imageio/format/copy.c | DELETE/reuse original-copy service | Ravo exact-byte 64 KiB streaming, exclusive temp, atomic no-replace, conflict/cancellation/source/error/disk-full and CLI context are hardened; still blocked on I1/I14/U10/J2 zero consumers before removing plugin/registration |
@@ -285,10 +289,10 @@ covered.
 
 | ID | Owner | Action | Acceptance gate |
 | --- | --- | --- | --- |
-| J1 | control/control*, jobs*, progress*, signal* | CORE/DELETE | SerialExecutor/task-handle/cancellation/progress/close resource contracts; no detached/global controller |
+| J1 | control/control*, jobs*, progress*, signal* | CORE/DELETE | First-frame import/preview cancellation and Catalog close/reopen resource drop are accepted (ADR-0047). Remaining: leftover global controller/progress/signal deletion |
 | J2 | control/jobs/control_jobs* | DELETE/map use case | Delete old job wrapper after command/service contracts cover it |
-| J3 | control/jobs/develop_jobs* | CORE/DELETE | Preview/render/export queue, supersede/cancel/close tests |
-| J4 | control/jobs/film_jobs* | CORE/DELETE | Folder/import batch/reopen owned by CatalogService |
+| J3 | control/jobs/develop_jobs* | CORE/DELETE | First-frame preview cancel/close/reopen are accepted (ADR-0047). Remaining: leftover develop job wrappers and supersede/export queue retirement |
+| J4 | control/jobs/film_jobs* | CORE/DELETE | Folder/import batch/reopen and RAW/raster publication-before-insert are owned by CatalogService (ADR-0047). Remaining: leftover film job deletion |
 | J5 | control/jobs/image_jobs* | CORE/DELETE | Asset mutation, duplicate/missing/error service contract |
 | J6 | control/jobs/sidecar_jobs* | DATA/DELETE | Explicit XMP read/write policy, original safety, conflict/rollback before deletion |
 | J7 | control/conf*, settings.h, crawler* | DELETE or Ravo settings port | Move only typed setting with a product consumer; keep no old-key compatibility shell |

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "wrapper": {
+    "todo_owner": "I2",
+    "source": "legacy/src/imageio/imageio_libraw.c",
+    "header": "legacy/src/imageio/imageio_libraw.h",
+    "cmake_registration": {
+      "path": "legacy/src/CMakeLists.txt",
+      "needle": "\"imageio/imageio_libraw.c\""
+    }
+  },
+  "public_symbols": [
+    "dt_imageio_open_libraw",
+    "dt_libraw_lookup_makermodel"
+  ],
+  "known_consumers": [
+    {
+      "path": "legacy/src/imageio/imageio.c",
+      "todo_owner": "I1",
+      "symbols": [
+        "dt_imageio_open_libraw",
+        "dt_libraw_lookup_makermodel"
+      ],
+      "why_reachable": "The shared magic-number dispatcher registers dt_imageio_open_libraw for CR3/X3F and uses the maker-model lookup as the LibRaw fallback after RawSpeed."
+    }
+  ],
+  "known_include_only": [
+    {
+      "path": "legacy/src/common/image.c",
+      "todo_owner": "S7",
+      "why_reachable": "The frozen image owner includes the wrapper header but calls no wrapper symbol; this stale compile dependency may disappear independently."
+    }
+  ],
+  "separate_owners": []
+}

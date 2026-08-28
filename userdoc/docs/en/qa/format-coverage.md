@@ -20,7 +20,7 @@ candidate contracts.
 | BMP | `.bmp` | Candidate raster input through the Qt image path; validate with a real file on the target kit. |
 | GIF | `.gif` | Candidate raster input through the required Qt GIF plugin; validate with a real file on the target kit. |
 | WebP | `.webp` | Candidate raster input through the required Qt WebP plugin; validate with a real file on the target kit. |
-| LibRaw RAW | Common `.arw`, `.cr2`, `.cr3`, `.nef`, `.dng`, `.raf`, `.orf`, `.rw2`, plus other recognized RAW suffixes | Supported only when the actual camera/container is decoded by the pinned LibRaw path. Bayer RAW is the current tested path; embedded previews may be used for Gallery thumbnails. |
+| LibRaw RAW | Common `.arw`, `.cr2`, `.cr3`, `.nef`, `.dng`, `.raf`, `.orf`, `.rw2`, plus other recognized RAW suffixes | Supported only when the actual camera/container is decoded by the pinned LibRaw path. First-frame full decode is 16-bit Bayer; X-Trans and other non-Bayer sensors stay explicitly unsupported for Develop. Embedded JPEG may still provide a Gallery thumbnail. TIFF-wrapped camera files without a RAW suffix can import as RAW. |
 
 Directory import considers raster and RAW candidates recursively, ignores hidden
 filenames, and returns item-level results. It does not make unsupported formats
