@@ -1,14 +1,17 @@
 #include "ravo/desktop/studio_presenter.h"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <numbers>
 #include <string_view>
 #include <utility>
 
+#include <QCoreApplication>
 #include <QMetaObject>
 #include <QMutexLocker>
 #include <QString>
+#include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -499,6 +502,198 @@ QVariantMap StudioPresenter::editColorContrast() const
             {QStringLiteral("bSteepness"), params.b_steepness},
             {QStringLiteral("bOffset"), params.b_offset},
             {QStringLiteral("unbound"), params.unbound}};
+}
+
+namespace
+{
+
+constexpr double kColorHarmonizerHueStepDegrees = 0.1;
+constexpr double kColorHarmonizerLinearStep = 0.01;
+constexpr double kColorHarmonizerCustomNodesStep = 1.0;
+constexpr int kColorHarmonizerHueDecimals = 1;
+constexpr int kColorHarmonizerLinearDecimals = 2;
+constexpr int kColorHarmonizerCustomNodesDecimals = 0;
+
+[[nodiscard]] QString color_harmonizer_rule_label(const std::string_view name)
+{
+    if (name == "monochromatic")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Monochromatic");
+    }
+    if (name == "analogous")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Analogous");
+    }
+    if (name == "analogous_complementary")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Analogous complementary");
+    }
+    if (name == "complementary")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Complementary");
+    }
+    if (name == "split_complementary")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Split complementary");
+    }
+    if (name == "dyad")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Dyad");
+    }
+    if (name == "triad")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Triad");
+    }
+    if (name == "tetrad")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Tetrad");
+    }
+    if (name == "square")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Square");
+    }
+    if (name == "custom")
+    {
+        return QCoreApplication::translate("DevelopPanel", "Custom");
+    }
+    return {};
+}
+
+[[nodiscard]] QVariantMap color_harmonizer_control(const QString &title, const QString &key,
+                                                   const QString &field, const double minimum,
+                                                   const double maximum, const double step,
+                                                   const double reset, const int decimals,
+                                                   const bool visible)
+{
+    return {{QStringLiteral("title"), title},     {QStringLiteral("key"), key},
+            {QStringLiteral("field"), field},     {QStringLiteral("minimum"), minimum},
+            {QStringLiteral("maximum"), maximum}, {QStringLiteral("step"), step},
+            {QStringLiteral("reset"), reset},     {QStringLiteral("decimals"), decimals},
+            {QStringLiteral("visible"), visible}};
+}
+
+} // namespace
+
+QVariantMap StudioPresenter::editColorHarmonizer() const
+{
+    const auto &params = develop_.color_harmonizer;
+    const ColorHarmonizerParams defaults;
+    const bool custom_rule = params.rule == ColorHarmonizerRule::kCustom;
+    const int active_node_count = static_cast<int>(color_harmonizer_active_node_count(params));
+    const bool anchor_visible = color_harmonizer_uses_anchor_hue(params.rule);
+
+    QStringList rule_choices;
+    rule_choices.reserve(static_cast<int>(kColorHarmonizerRuleCount));
+    for (std::size_t index = 0U; index < kColorHarmonizerRuleCount; ++index)
+    {
+        const auto rule = color_harmonizer_rule_from_index(static_cast<std::int64_t>(index));
+        const auto name = rule ? color_harmonizer_rule_name(rule.value()) : std::string_view{};
+        rule_choices.push_back(color_harmonizer_rule_label(name));
+    }
+
+    const QVariantList shared_controls{
+        color_harmonizer_control(QCoreApplication::translate("DevelopPanel", "Anchor hue"),
+                                 QStringLiteral("anchorHueDegrees"),
+                                 QStringLiteral("colorHarmonizerAnchorHueDegrees"),
+                                 kColorHarmonizerHueDegreesMin, kColorHarmonizerHueDegreesMax,
+                                 kColorHarmonizerHueStepDegrees,
+                                 color_harmonizer_hue_turns_to_degrees(defaults.anchor_hue),
+                                 kColorHarmonizerHueDecimals, anchor_visible),
+        color_harmonizer_control(QCoreApplication::translate("DevelopPanel", "Pull strength"),
+                                 QStringLiteral("pullStrength"),
+                                 QStringLiteral("colorHarmonizerPullStrength"),
+                                 kColorHarmonizerPullStrengthMin, kColorHarmonizerPullStrengthMax,
+                                 kColorHarmonizerLinearStep, defaults.pull_strength,
+                                 kColorHarmonizerLinearDecimals, true),
+        color_harmonizer_control(QCoreApplication::translate("DevelopPanel", "Neutral protection"),
+                                 QStringLiteral("neutralProtection"),
+                                 QStringLiteral("colorHarmonizerNeutralProtection"),
+                                 kColorHarmonizerNeutralProtectionMin,
+                                 kColorHarmonizerNeutralProtectionMax, kColorHarmonizerLinearStep,
+                                 defaults.neutral_protection, kColorHarmonizerLinearDecimals, true),
+        color_harmonizer_control(
+            QCoreApplication::translate("DevelopPanel", "Pull width"), QStringLiteral("pullWidth"),
+            QStringLiteral("colorHarmonizerPullWidth"), kColorHarmonizerPullWidthMin,
+            kColorHarmonizerPullWidthMax, kColorHarmonizerLinearStep, defaults.pull_width,
+            kColorHarmonizerLinearDecimals, true),
+    };
+
+    const QVariantMap custom_node_control = color_harmonizer_control(
+        QCoreApplication::translate("DevelopPanel", "Custom nodes"),
+        QStringLiteral("customNodeCount"), QStringLiteral("colorHarmonizerCustomNodeCount"),
+        static_cast<double>(kColorHarmonizerCustomNodesMin),
+        static_cast<double>(kColorHarmonizerCustomNodesMax), kColorHarmonizerCustomNodesStep,
+        static_cast<double>(defaults.num_custom_nodes), kColorHarmonizerCustomNodesDecimals,
+        custom_rule);
+
+    QVariantList custom_hue_controls;
+    QVariantList node_saturation_controls;
+    custom_hue_controls.reserve(static_cast<int>(kColorHarmonizerNodeSlotCount));
+    node_saturation_controls.reserve(static_cast<int>(kColorHarmonizerNodeSlotCount));
+    static const std::array<const char *, 4> hue_titles{
+        QT_TRANSLATE_NOOP("DevelopPanel", "Custom hue 1"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Custom hue 2"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Custom hue 3"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Custom hue 4")};
+    static const std::array<const char *, 4> sat_titles{
+        QT_TRANSLATE_NOOP("DevelopPanel", "Node saturation 1"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Node saturation 2"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Node saturation 3"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Node saturation 4")};
+    for (std::size_t index = 0U; index < kColorHarmonizerNodeSlotCount; ++index)
+    {
+        const auto suffix = QString::number(static_cast<int>(index));
+        custom_hue_controls.push_back(color_harmonizer_control(
+            QCoreApplication::translate("DevelopPanel", hue_titles[index]),
+            QStringLiteral("customHue%1Degrees").arg(suffix),
+            QStringLiteral("colorHarmonizerCustomHue%1Degrees").arg(suffix),
+            kColorHarmonizerHueDegreesMin, kColorHarmonizerHueDegreesMax,
+            kColorHarmonizerHueStepDegrees,
+            color_harmonizer_hue_turns_to_degrees(defaults.custom_hue[index]),
+            kColorHarmonizerHueDecimals, color_harmonizer_uses_custom_hue(params, index)));
+        node_saturation_controls.push_back(color_harmonizer_control(
+            QCoreApplication::translate("DevelopPanel", sat_titles[index]),
+            QStringLiteral("nodeSaturation%1").arg(suffix),
+            QStringLiteral("colorHarmonizerNodeSaturation%1").arg(suffix),
+            kColorHarmonizerNodeSaturationMin, kColorHarmonizerNodeSaturationMax,
+            kColorHarmonizerLinearStep, defaults.node_saturation[index],
+            kColorHarmonizerLinearDecimals, color_harmonizer_uses_node_saturation(params, index)));
+    }
+
+    return {
+        {QStringLiteral("enabled"), develop_.color_harmonizer_enabled},
+        {QStringLiteral("ruleIndex"), static_cast<int>(color_harmonizer_rule_index(params.rule))},
+        {QStringLiteral("ruleChoices"), rule_choices},
+        {QStringLiteral("customRule"), custom_rule},
+        {QStringLiteral("activeNodeCount"), active_node_count},
+        {QStringLiteral("anchorVisible"), anchor_visible},
+        {QStringLiteral("anchorHueDegrees"),
+         color_harmonizer_hue_turns_to_degrees(params.anchor_hue)},
+        {QStringLiteral("pullStrength"), params.pull_strength},
+        {QStringLiteral("neutralProtection"), params.neutral_protection},
+        {QStringLiteral("pullWidth"), params.pull_width},
+        {QStringLiteral("customNodeCount"), static_cast<int>(params.num_custom_nodes)},
+        {QStringLiteral("customHue0Degrees"),
+         color_harmonizer_hue_turns_to_degrees(params.custom_hue[0])},
+        {QStringLiteral("customHue1Degrees"),
+         color_harmonizer_hue_turns_to_degrees(params.custom_hue[1])},
+        {QStringLiteral("customHue2Degrees"),
+         color_harmonizer_hue_turns_to_degrees(params.custom_hue[2])},
+        {QStringLiteral("customHue3Degrees"),
+         color_harmonizer_hue_turns_to_degrees(params.custom_hue[3])},
+        {QStringLiteral("nodeSaturation0"), params.node_saturation[0]},
+        {QStringLiteral("nodeSaturation1"), params.node_saturation[1]},
+        {QStringLiteral("nodeSaturation2"), params.node_saturation[2]},
+        {QStringLiteral("nodeSaturation3"), params.node_saturation[3]},
+        {QStringLiteral("sharedControls"), shared_controls},
+        {QStringLiteral("customNodeControl"), custom_node_control},
+        {QStringLiteral("customHueControls"), custom_hue_controls},
+        {QStringLiteral("nodeSaturationControls"), node_saturation_controls}};
+}
+
+void StudioPresenter::retranslate()
+{
+    emit editChanged();
 }
 
 double StudioPresenter::editMonochrome() const noexcept

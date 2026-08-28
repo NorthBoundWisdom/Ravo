@@ -129,6 +129,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editColorCorrection READ editColorCorrection NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editPrimaries READ editPrimaries NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorContrast READ editColorContrast NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorHarmonizer READ editColorHarmonizer NOTIFY editChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
     Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
     Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
@@ -302,6 +303,7 @@ public:
     [[nodiscard]] QVariantMap editColorCorrection() const;
     [[nodiscard]] QVariantMap editPrimaries() const;
     [[nodiscard]] QVariantMap editColorContrast() const;
+    [[nodiscard]] QVariantMap editColorHarmonizer() const;
     [[nodiscard]] double editMonochrome() const noexcept;
     [[nodiscard]] double editSplitShadowsHue() const noexcept;
     [[nodiscard]] double editSplitHighlightsHue() const noexcept;
@@ -388,6 +390,7 @@ public:
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
     Q_INVOKABLE void previewDevelopNumber(const QString &name, double value);
+    void retranslate();
     Q_INVOKABLE void setToneCurve(const QVariantList &points);
     Q_INVOKABLE void previewToneCurve(const QVariantList &points);
     Q_INVOKABLE void setCropRect(double x, double y, double width, double height);

@@ -96,14 +96,17 @@ Parameter response sweeps use a committed RAW or raster input and compare exact
 channel sums plus display-luma movement; a qualitative “looks less strong”
 result is not an acceptance value.
 
-Localization is a desktop build contract. Ravo/tools/check_i18n.py requires
-well-formed TS XML, no active unfinished/empty translations, matching
-placeholders/newlines, and English source identity. The
-ravo_studio_translations target then compiles both catalogs; the desktop command
-test loads the built Chinese QM and verifies QML, command, and presenter
-contexts. Refresh catalogs only through the project i18n workflow before these
-checks, so current source and historical Chinese translations remain separate
-and reproducible.
+Localization packaging is a desktop build contract: tracked TS XML must remain
+well formed and the `ravo_studio_translations` target must compile both catalogs.
+Translation wording, completeness, and source-extraction inventory are periodic
+localization-maintenance work rather than per-feature acceptance gates. Feature
+slices do not add assertions for individual translated strings or extraction
+lists; the existing compiled-catalog smoke remains only as a packaging/context
+wiring signal. During an explicit localization-maintenance run,
+`Ravo/tools/check_i18n.py` requires no active unfinished/empty translations,
+matching placeholders/newlines, and English source identity. Refresh catalogs
+only through the project i18n workflow so current source and historical Chinese
+translations remain separate and reproducible.
 
 ## Test framework and target boundaries
 
@@ -413,7 +416,7 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   custom, registry metadata, JSON round-trip, and structured mask/presentation
   rejection. Exact little-endian parameter decodes from frozen 0176 history
   records 12 and 13 cover the post-initialization default and an edited split-
-  complementary state; they are fixture evidence, not a strict-import claim.
+  complementary state and feed the accepted singleton importer.
 - Its independent source-order scalar oracle covers both 0176 parameter states
   through the declared profile matrix, private D50/dt-UCS bridge, S2.1 geometry,
   frozen negative `fmaxf` clipping, cubic neutral protection, attraction,
@@ -429,9 +432,14 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   non-finite geometry/output, wrong ID/schema, mask state, positive smoothing,
   pre-cancel, and row-deadline cancellation. Success owns RGB and deep profile
   storage, retains the shared immutable analysis snapshot, and leaves the
-  source unchanged; failure publishes nothing. There are deliberately no C14
-  legacy-import, Develop, CLI, Catalog, Studio, nonzero-smoothing, canonical
-  ROI-scale, S2.2 Gaussian, or retirement test claims yet.
+  source unchanged; failure publishes nothing. Vertical-slice tests cover
+  strict v1 singleton import (including reversed XML, reused-position
+  conflict, and whole-0176 remaining unsupported), explicit Develop
+  presence versus absence, CLI `--set` accept/reject, Catalog
+  preview/save/reopen/export of the explicit default and edited 0176
+  state, and Studio presenter/QML section bounds. There are deliberately
+  no C14 nonzero-smoothing, canonical ROI-scale, S2.2 Gaussian, mask, GPU,
+  or retirement test claims.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

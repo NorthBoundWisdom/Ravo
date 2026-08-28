@@ -12,6 +12,7 @@
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/recipe/color_harmonizer.h"
 
 namespace ravo
 {
@@ -46,6 +47,23 @@ void ensure_qt_core()
     static char *argv[] = {executable, nullptr};
     static auto *application = new QCoreApplication(argc, argv);
     static_cast<void>(application);
+}
+
+[[nodiscard]] QString qml_model_entry(const QString &source, const char *field)
+{
+    const auto needle = QStringLiteral("\"field\": \"%1\"").arg(QString::fromLatin1(field));
+    const auto field_position = source.indexOf(needle);
+    if (field_position < 0)
+    {
+        return {};
+    }
+    const auto begin = source.lastIndexOf(QLatin1Char('{'), field_position);
+    const auto end = source.indexOf(QLatin1Char('}'), field_position);
+    if (begin < 0 || end < field_position)
+    {
+        return {};
+    }
+    return source.mid(begin, end - begin + 1);
 }
 
 TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
@@ -113,6 +131,45 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bSteepness")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bOffset")).toDouble(), 0.0);
     EXPECT_TRUE(color_contrast.value(QStringLiteral("unbound")).toBool());
+    const auto color_harmonizer = presenter.editColorHarmonizer();
+    EXPECT_EQ(color_harmonizer.size(), 23);
+    EXPECT_FALSE(color_harmonizer.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(color_harmonizer.value(QStringLiteral("ruleIndex")).toInt(), 3);
+    EXPECT_EQ(color_harmonizer.value(QStringLiteral("ruleChoices")).toStringList().size(), 10);
+    EXPECT_FALSE(color_harmonizer.value(QStringLiteral("customRule")).toBool());
+    EXPECT_EQ(color_harmonizer.value(QStringLiteral("activeNodeCount")).toInt(), 2);
+    EXPECT_TRUE(color_harmonizer.value(QStringLiteral("anchorVisible")).toBool());
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("anchorHueDegrees")).toDouble(), 36.0);
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("pullStrength")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("neutralProtection")).toDouble(), 0.5);
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("pullWidth")).toDouble(), 1.0);
+    EXPECT_EQ(color_harmonizer.value(QStringLiteral("customNodeCount")).toInt(), 4);
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("customHue0Degrees")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("nodeSaturation0")).toDouble(), 1.0);
+    const auto shared_controls = color_harmonizer.value(QStringLiteral("sharedControls")).toList();
+    ASSERT_EQ(shared_controls.size(), 4);
+    const auto anchor_control = shared_controls.front().toMap();
+    EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("minimum")).toDouble(),
+                     kColorHarmonizerHueDegreesMin);
+    EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("maximum")).toDouble(),
+                     kColorHarmonizerHueDegreesMax);
+    EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("step")).toDouble(), 0.1);
+    EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("reset")).toDouble(), 36.0);
+    EXPECT_TRUE(anchor_control.value(QStringLiteral("visible")).toBool());
+    EXPECT_FALSE(color_harmonizer.value(QStringLiteral("customNodeControl"))
+                     .toMap()
+                     .value(QStringLiteral("visible"))
+                     .toBool());
+    const auto custom_hues = color_harmonizer.value(QStringLiteral("customHueControls")).toList();
+    const auto node_sats =
+        color_harmonizer.value(QStringLiteral("nodeSaturationControls")).toList();
+    ASSERT_EQ(custom_hues.size(), 4);
+    ASSERT_EQ(node_sats.size(), 4);
+    EXPECT_FALSE(custom_hues[0].toMap().value(QStringLiteral("visible")).toBool());
+    EXPECT_TRUE(node_sats[0].toMap().value(QStringLiteral("visible")).toBool());
+    EXPECT_TRUE(node_sats[1].toMap().value(QStringLiteral("visible")).toBool());
+    EXPECT_FALSE(node_sats[2].toMap().value(QStringLiteral("visible")).toBool());
+    EXPECT_FALSE(node_sats[3].toMap().value(QStringLiteral("visible")).toBool());
     const auto primaries = presenter.editPrimaries();
     EXPECT_EQ(primaries.size(), 8);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintHueDegrees")).toDouble(), 0.0);
@@ -194,14 +251,19 @@ TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
     };
     for (const auto *field : zero_to_two_fields)
     {
-        const auto expected = QStringLiteral("\"field\": \"%1\", \"minimum\": 0, \"maximum\": 2")
-                                  .arg(QString::fromLatin1(field));
-        EXPECT_TRUE(source.contains(expected)) << field;
+        const auto entry = qml_model_entry(source, field);
+        ASSERT_FALSE(entry.isEmpty()) << field;
+        EXPECT_TRUE(entry.contains(QStringLiteral("\"minimum\": 0"))) << field;
+        EXPECT_TRUE(entry.contains(QStringLiteral("\"maximum\": 2"))) << field;
     }
-    EXPECT_TRUE(source.contains(QStringLiteral(
-        "\"field\": \"legacyColorBalanceContrast\", \"minimum\": 0.01, \"maximum\": 1.99")));
-    EXPECT_TRUE(source.contains(QStringLiteral(
-        "\"field\": \"legacyColorBalanceGreyFulcrum\", \"minimum\": 0.1, \"maximum\": 100")));
+    const auto contrast = qml_model_entry(source, "legacyColorBalanceContrast");
+    ASSERT_FALSE(contrast.isEmpty());
+    EXPECT_TRUE(contrast.contains(QStringLiteral("\"minimum\": 0.01")));
+    EXPECT_TRUE(contrast.contains(QStringLiteral("\"maximum\": 1.99")));
+    const auto fulcrum = qml_model_entry(source, "legacyColorBalanceGreyFulcrum");
+    ASSERT_FALSE(fulcrum.isEmpty());
+    EXPECT_TRUE(fulcrum.contains(QStringLiteral("\"minimum\": 0.1")));
+    EXPECT_TRUE(fulcrum.contains(QStringLiteral("\"maximum\": 100")));
 }
 
 TEST(StudioQmlContract, ColorCheckerExposesEveryLabFieldWithoutClampingCanonicalFloats)
@@ -243,12 +305,15 @@ TEST(StudioQmlContract, ColorCorrectionUsesHardBoundsAndGenericDevelopIntents)
         "colorCorrectionShadowB"};
     for (const auto *field : endpoint_fields)
     {
-        const auto expected = QStringLiteral("\"field\": \"%1\", \"minimum\": -40, \"maximum\": 40")
-                                  .arg(QString::fromLatin1(field));
-        EXPECT_TRUE(source.contains(expected)) << field;
+        const auto entry = qml_model_entry(source, field);
+        ASSERT_FALSE(entry.isEmpty()) << field;
+        EXPECT_TRUE(entry.contains(QStringLiteral("\"minimum\": -40"))) << field;
+        EXPECT_TRUE(entry.contains(QStringLiteral("\"maximum\": 40"))) << field;
     }
-    EXPECT_TRUE(source.contains(QStringLiteral(
-        "\"field\": \"colorCorrectionSaturation\", \"minimum\": -3, \"maximum\": 3")));
+    const auto saturation = qml_model_entry(source, "colorCorrectionSaturation");
+    ASSERT_FALSE(saturation.isEmpty());
+    EXPECT_TRUE(saturation.contains(QStringLiteral("\"minimum\": -3")));
+    EXPECT_TRUE(saturation.contains(QStringLiteral("\"maximum\": 3")));
 
     const auto section_begin = source.indexOf(QStringLiteral("colorCorrectionEnabled"));
     const auto section_end = source.indexOf(QStringLiteral("colorContrast"), section_begin);
@@ -283,9 +348,10 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
 
     for (const auto *field : {"colorContrastASteepness", "colorContrastBSteepness"})
     {
-        const auto expected = QStringLiteral("\"field\": \"%1\", \"minimum\": 0, \"maximum\": 5")
-                                  .arg(QString::fromLatin1(field));
-        EXPECT_TRUE(source.contains(expected)) << field;
+        const auto entry = qml_model_entry(source, field);
+        ASSERT_FALSE(entry.isEmpty()) << field;
+        EXPECT_TRUE(entry.contains(QStringLiteral("\"minimum\": 0"))) << field;
+        EXPECT_TRUE(entry.contains(QStringLiteral("\"maximum\": 5"))) << field;
     }
     for (const auto *field : {"colorContrastAOffset", "colorContrastBOffset"})
     {
@@ -336,6 +402,60 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     EXPECT_LT(b_steepness, a_offset);
     EXPECT_LT(a_offset, b_offset);
     EXPECT_LT(b_offset, unbound);
+}
+
+TEST(StudioQmlContract, ColorHarmonizerExposesSmoothingZeroSurfaceWithoutForbiddenControls)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    const auto section_begin = source.indexOf(QStringLiteral("colorHarmonizerEnabled"));
+    const auto section_end = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"), section_begin);
+    ASSERT_GE(section_begin, 0);
+    ASSERT_GT(section_end, section_begin);
+    const auto section = source.mid(section_begin, section_end - section_begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorHarmonizer")));
+    EXPECT_TRUE(section.contains(
+        QStringLiteral("setDevelopNumber(\"colorHarmonizerEnabled\", checked ? 1 : 0)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("colorHarmonizerRuleIndex")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.ruleChoices")));
+    EXPECT_TRUE(section.contains(
+        QStringLiteral("setDevelopNumber(\"colorHarmonizerRuleIndex\", currentIndex)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.sharedControls")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customNodeControl")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customHueControls")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.nodeSaturationControls")));
+    EXPECT_TRUE(section.contains(QStringLiteral("modelData.minimum")));
+    EXPECT_TRUE(section.contains(QStringLiteral("modelData.maximum")));
+    EXPECT_TRUE(section.contains(QStringLiteral("modelData.step")));
+    EXPECT_TRUE(section.contains(QStringLiteral("modelData.reset")));
+    EXPECT_TRUE(section.contains(QStringLiteral("modelData.visible")));
+    EXPECT_TRUE(section.contains(QStringLiteral("nodeControl.field")));
+    EXPECT_TRUE(section.contains(QStringLiteral("modelData.field")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customRule")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizer.customNodeCount")));
+    EXPECT_FALSE(section.contains(QStringLiteral("\"minimum\": 0, \"maximum\": 360")));
+    EXPECT_FALSE(section.contains(
+        QStringLiteral("modelData.index < root.presenter.editColorHarmonizer.customNodeCount")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorHarmonizer\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("colorHarmonizerSmoothing")));
+    EXPECT_FALSE(section.contains(QStringLiteral("smoothing"), Qt::CaseInsensitive));
+    EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
+    EXPECT_FALSE(section.contains(QStringLiteral("auto-detect")));
+    EXPECT_FALSE(section.contains(QStringLiteral("histogram")));
+    EXPECT_FALSE(section.contains(QStringLiteral("picker")));
+    EXPECT_FALSE(section.contains(QStringLiteral("mask")));
+
+    const auto contrast = source.indexOf(QStringLiteral("colorContrastEnabled"));
+    const auto harmonizer = source.indexOf(QStringLiteral("colorHarmonizerEnabled"), contrast);
+    const auto monochrome = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"), harmonizer);
+    ASSERT_GE(contrast, 0);
+    ASSERT_GE(harmonizer, 0);
+    ASSERT_GE(monochrome, 0);
+    EXPECT_LT(contrast, harmonizer);
+    EXPECT_LT(harmonizer, monochrome);
 }
 
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)

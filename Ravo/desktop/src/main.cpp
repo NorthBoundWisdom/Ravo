@@ -156,6 +156,8 @@ int main(int argc, char *argv[])
     ravo::StudioCommandController command_controller(presenter);
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
                      &command_controller, &ravo::StudioCommandController::retranslate);
+    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &presenter,
+                     &ravo::StudioPresenter::retranslate);
     if (!catalog_path.isEmpty())
     {
         presenter.setStartupCatalogPath(QFileInfo(catalog_path).absoluteFilePath());

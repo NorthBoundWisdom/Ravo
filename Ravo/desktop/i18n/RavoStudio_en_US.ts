@@ -776,6 +776,70 @@
         <translation>Disable and reset Color contrast</translation>
     </message>
     <message>
+        <source>Color Harmonizer</source>
+        <translation>Color Harmonizer</translation>
+    </message>
+    <message>
+        <source>Enable Color Harmonizer</source>
+        <translation>Enable Color Harmonizer</translation>
+    </message>
+    <message>
+        <source>Anchor hue</source>
+        <translation>Anchor hue</translation>
+    </message>
+    <message>
+        <source>Pull strength</source>
+        <translation>Pull strength</translation>
+    </message>
+    <message>
+        <source>Neutral protection</source>
+        <translation>Neutral protection</translation>
+    </message>
+    <message>
+        <source>Pull width</source>
+        <translation>Pull width</translation>
+    </message>
+    <message>
+        <source>Custom nodes</source>
+        <translation>Custom nodes</translation>
+    </message>
+    <message>
+        <source>Custom hue 1</source>
+        <translation>Custom hue 1</translation>
+    </message>
+    <message>
+        <source>Custom hue 2</source>
+        <translation>Custom hue 2</translation>
+    </message>
+    <message>
+        <source>Custom hue 3</source>
+        <translation>Custom hue 3</translation>
+    </message>
+    <message>
+        <source>Custom hue 4</source>
+        <translation>Custom hue 4</translation>
+    </message>
+    <message>
+        <source>Node saturation 1</source>
+        <translation>Node saturation 1</translation>
+    </message>
+    <message>
+        <source>Node saturation 2</source>
+        <translation>Node saturation 2</translation>
+    </message>
+    <message>
+        <source>Node saturation 3</source>
+        <translation>Node saturation 3</translation>
+    </message>
+    <message>
+        <source>Node saturation 4</source>
+        <translation>Node saturation 4</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color Harmonizer</source>
+        <translation>Disable and reset Color Harmonizer</translation>
+    </message>
+    <message>
         <source>Monochrome</source>
         <translation>Monochrome</translation>
     </message>
@@ -902,6 +966,46 @@
     <message>
         <source>Band hue</source>
         <translation>Band hue</translation>
+    </message>
+    <message>
+        <source>Monochromatic</source>
+        <translation>Monochromatic</translation>
+    </message>
+    <message>
+        <source>Analogous</source>
+        <translation>Analogous</translation>
+    </message>
+    <message>
+        <source>Analogous complementary</source>
+        <translation>Analogous complementary</translation>
+    </message>
+    <message>
+        <source>Complementary</source>
+        <translation>Complementary</translation>
+    </message>
+    <message>
+        <source>Split complementary</source>
+        <translation>Split complementary</translation>
+    </message>
+    <message>
+        <source>Dyad</source>
+        <translation>Dyad</translation>
+    </message>
+    <message>
+        <source>Triad</source>
+        <translation>Triad</translation>
+    </message>
+    <message>
+        <source>Tetrad</source>
+        <translation>Tetrad</translation>
+    </message>
+    <message>
+        <source>Square</source>
+        <translation>Square</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Custom</translation>
     </message>
 </context>
 <context>

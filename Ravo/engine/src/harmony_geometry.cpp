@@ -2,6 +2,8 @@
 
 #include "dt_ucs.h"
 
+#include "ravo/recipe/color_harmonizer.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -256,7 +258,6 @@ Result<float> ryb_to_ucs_hue(const HarmonyHueTables &tables, const float hue)
 Result<HarmonyNodes> predefined_harmony_nodes(const StandardRule rule, const float anchor_hue,
                                               const HarmonyHueTables &tables)
 {
-    constexpr std::array<std::size_t, 9> counts{1U, 3U, 4U, 2U, 3U, 2U, 3U, 4U, 4U};
     constexpr std::array<std::array<float, 4>, 9> offsets{
         std::array<float, 4>{0.0F / 12.0F, 0.0F, 0.0F, 0.0F},
         std::array<float, 4>{-1.0F / 12.0F, 0.0F / 12.0F, 1.0F / 12.0F, 0.0F},
@@ -268,6 +269,7 @@ Result<HarmonyNodes> predefined_harmony_nodes(const StandardRule rule, const flo
         std::array<float, 4>{-1.0F / 12.0F, 1.0F / 12.0F, 5.0F / 12.0F, 7.0F / 12.0F},
         std::array<float, 4>{0.0F / 12.0F, 3.0F / 12.0F, 6.0F / 12.0F, 9.0F / 12.0F},
     };
+    static_assert(kColorHarmonizerPredefinedNodeCounts.size() == offsets.size());
 
     if (rule < StandardRule::kMonochromatic || rule > StandardRule::kSquare)
     {
@@ -291,7 +293,7 @@ Result<HarmonyNodes> predefined_harmony_nodes(const StandardRule rule, const flo
     const int rotation = static_cast<int>(rotation_value) % 360;
     const float sector_anchor = static_cast<float>(rotation) / 360.0F;
     HarmonyNodes nodes;
-    nodes.count = counts[rule_index];
+    nodes.count = static_cast<std::size_t>(kColorHarmonizerPredefinedNodeCounts[rule_index]);
     for (std::size_t index = 0U; index < nodes.count; ++index)
     {
         float angle = offsets[rule_index][index] + sector_anchor;

@@ -33,6 +33,7 @@ gtest_discover_tests(ravo_export_metadata_encoder_tests PROPERTIES LABELS "ravo-
 add_executable(ravo_contract_tests
   cli_test.cpp
   color_correction_test.cpp
+  color_harmonizer_test.cpp
   engine_test.cpp
   input_color_test.cpp
   jpeg_cli_test.cpp

@@ -5,7 +5,7 @@
 Identify current product boundaries before treating an explicit unsupported
 result as a regression.
 
-**Last verified:** 2026-08-27 against the current migration status and product
+**Last verified:** 2026-08-28 against the current migration status and product
 baseline.
 
 ## Current boundaries
@@ -28,7 +28,9 @@ The XMP importer accepts only a versioned, evidenced subset. Empty history and
 some default-unmasked singleton operation records have mappings. Masks, custom
 blend state, multiple instances, conflicting revisions, malformed data, and
 unknown operations reject structurally. A successful import does not imply that
-an entire historical editing session is replayable.
+an entire historical editing session is replayable. Color Harmonizer currently
+maps only the evidenced unsmoothed singleton; positive smoothing, masks, and
+other unsupported history in the same document still reject.
 
 ### CPU render backend
 

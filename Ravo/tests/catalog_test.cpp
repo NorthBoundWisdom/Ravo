@@ -31,6 +31,7 @@
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
@@ -1947,6 +1948,152 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorContrastPersistsReopensAndExports
     const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
     ASSERT_FALSE(after_reopen_image.isNull());
     EXPECT_EQ(after_reopen_image, before_reopen_image);
+}
+
+TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExportsExactPixels)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto absent = service->request_preview(preview);
+    ASSERT_TRUE(absent) << absent.error().message;
+    ASSERT_FALSE(absent.value().cache_path.empty());
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto develop = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_FALSE(develop.value().color_harmonizer_enabled);
+    develop.value().color_harmonizer_enabled = true;
+    develop.value().color_harmonizer = ColorHarmonizerParams{};
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto stored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    const auto operation = std::find_if(
+        stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
+        [](const OperationInstance &item) { return item.id == kColorHarmonizerOperationId; });
+    ASSERT_NE(operation, stored_recipe.value().operations.end());
+    EXPECT_TRUE(operation->enabled);
+    EXPECT_EQ(operation->schema_version, kColorHarmonizerOperationSchemaVersion);
+    EXPECT_EQ(operation->parameters.size(), 17U);
+    auto decoded = color_harmonizer_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), ColorHarmonizerParams{});
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
+    ASSERT_FALSE(before_reopen.value().cache_path.empty());
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+
+    const auto export_path = (root / "colorharmonizer-default.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 64U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(export_image, before_reopen_image);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_harmonizer_enabled);
+    EXPECT_EQ(restored.value().color_harmonizer, ColorHarmonizerParams{});
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+}
+
+TEST_F(CatalogServiceTest, Edited0176ColorHarmonizerPersistsAndRejectedInputLeavesStateUnchanged)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    const auto baseline_serialized = serialize_recipe(baseline_recipe.value());
+    ASSERT_TRUE(baseline_serialized) << baseline_serialized.error().message;
+    auto develop = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    const DevelopParams before_reject = develop.value();
+    EXPECT_FALSE(apply_develop_field_strict(develop.value(), "colorHarmonizerPullStrength", 1.5));
+    EXPECT_EQ(develop.value(), before_reject);
+    auto still_baseline = service->load_recipe(asset_id);
+    ASSERT_TRUE(still_baseline) << still_baseline.error().message;
+    auto still_serialized = serialize_recipe(still_baseline.value());
+    ASSERT_TRUE(still_serialized) << still_serialized.error().message;
+    EXPECT_EQ(still_serialized.value(), baseline_serialized.value());
+
+    ColorHarmonizerParams edited;
+    edited.rule = ColorHarmonizerRule::kSplitComplementary;
+    edited.anchor_hue = 0.55000001192092896;
+    edited.pull_strength = 0.81999999284744263;
+    edited.pull_width = 1.8400000333786011;
+    edited.node_saturation = {1.2599999904632568, 0.18000000715255737, 1.5199999809265137, 1.0};
+    develop.value().color_harmonizer_enabled = true;
+    develop.value().color_harmonizer = edited;
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto live = service->request_preview(preview);
+    ASSERT_TRUE(live) << live.error().message;
+    const auto cache_key = live.value().cache_key;
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_harmonizer_enabled);
+    EXPECT_EQ(restored.value().color_harmonizer, edited);
+    auto after = service->request_preview(preview);
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_EQ(after.value().cache_key, cache_key);
+    const auto export_path = (root / "colorharmonizer-0176.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 64U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    const QImage preview_image(QString::fromStdString(after.value().cache_path));
+    ASSERT_FALSE(export_image.isNull());
+    ASSERT_FALSE(preview_image.isNull());
+    EXPECT_EQ(export_image, preview_image);
 }
 
 TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfterReopen)

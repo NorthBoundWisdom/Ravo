@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <string_view>
@@ -29,6 +30,14 @@ inline constexpr double kColorHarmonizerNodeSaturationMin = 0.0;
 inline constexpr double kColorHarmonizerNodeSaturationMax = 2.0;
 inline constexpr double kColorHarmonizerSmoothingMin = 0.0;
 inline constexpr double kColorHarmonizerSmoothingMax = 2.0;
+inline constexpr double kColorHarmonizerHueDegreesMin = 0.0;
+inline constexpr double kColorHarmonizerHueDegreesMax = 360.0;
+inline constexpr std::size_t kColorHarmonizerRuleCount = 10;
+inline constexpr std::size_t kColorHarmonizerNodeSlotCount = 4;
+// Canonical active-node counts for predefined rules 0..8. Engine geometry and
+// product consumers share this semantic table rather than copying its arity.
+inline constexpr std::array<std::int64_t, 9> kColorHarmonizerPredefinedNodeCounts{1, 3, 4, 2, 3,
+                                                                                  2, 3, 4, 4};
 
 enum class ColorHarmonizerRule : std::uint8_t
 {
@@ -65,5 +74,17 @@ struct ColorHarmonizerParams
 color_harmonizer_to_parameters(const ColorHarmonizerParams &params);
 [[nodiscard]] Result<void> validate_color_harmonizer_parameters(
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] std::string_view color_harmonizer_rule_name(ColorHarmonizerRule rule) noexcept;
+[[nodiscard]] std::int64_t color_harmonizer_rule_index(ColorHarmonizerRule rule) noexcept;
+[[nodiscard]] Result<ColorHarmonizerRule> color_harmonizer_rule_from_index(std::int64_t index);
+[[nodiscard]] Result<double> color_harmonizer_hue_degrees_to_turns(double degrees);
+[[nodiscard]] double color_harmonizer_hue_turns_to_degrees(double turns) noexcept;
+[[nodiscard]] std::int64_t
+color_harmonizer_active_node_count(const ColorHarmonizerParams &params) noexcept;
+[[nodiscard]] bool color_harmonizer_uses_anchor_hue(ColorHarmonizerRule rule) noexcept;
+[[nodiscard]] bool color_harmonizer_uses_custom_hue(const ColorHarmonizerParams &params,
+                                                    std::size_t index) noexcept;
+[[nodiscard]] bool color_harmonizer_uses_node_saturation(const ColorHarmonizerParams &params,
+                                                         std::size_t index) noexcept;
 
 } // namespace ravo

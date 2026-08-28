@@ -13,6 +13,7 @@
 #include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_output.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -252,6 +253,8 @@ struct DevelopParams
     ColorCorrectionParams color_correction;
     bool color_contrast_enabled = false;
     ColorContrastParams color_contrast;
+    bool color_harmonizer_enabled = false;
+    ColorHarmonizerParams color_harmonizer;
     double monochrome = 0.0;
     double split_shadows_hue = 0.0;
     double split_highlights_hue = 0.2;

@@ -12,9 +12,9 @@
 #include <gtest/gtest.h>
 
 #include "ravo/recipe/color_checker.h"
-#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -2109,6 +2109,236 @@ TEST(RecipeTest, ColorContrastV1AndExplicitDefaultV2PresenceSurviveDevelopRoundT
     auto absent = recipe_from_develop(canonical.asset, DevelopParams{});
     ASSERT_TRUE(absent) << absent.error().message;
     EXPECT_EQ(operation_by_id(absent.value(), kColorContrastOperationId), nullptr);
+}
+
+TEST(RecipeTest, ColorHarmonizerActiveNodeCountFollowsRuleNotCustomCount)
+{
+    const std::array<std::pair<ColorHarmonizerRule, std::int64_t>, 9> predefined{
+        std::pair{ColorHarmonizerRule::kMonochromatic, 1},
+        std::pair{ColorHarmonizerRule::kAnalogous, 3},
+        std::pair{ColorHarmonizerRule::kAnalogousComplementary, 4},
+        std::pair{ColorHarmonizerRule::kComplementary, 2},
+        std::pair{ColorHarmonizerRule::kSplitComplementary, 3},
+        std::pair{ColorHarmonizerRule::kDyad, 2},
+        std::pair{ColorHarmonizerRule::kTriad, 3},
+        std::pair{ColorHarmonizerRule::kTetrad, 4},
+        std::pair{ColorHarmonizerRule::kSquare, 4},
+    };
+    for (const auto &[rule, nodes] : predefined)
+    {
+        ColorHarmonizerParams params;
+        params.rule = rule;
+        params.num_custom_nodes = 2;
+        EXPECT_EQ(color_harmonizer_active_node_count(params), nodes)
+            << color_harmonizer_rule_name(rule);
+        EXPECT_TRUE(color_harmonizer_uses_anchor_hue(rule));
+        EXPECT_FALSE(color_harmonizer_uses_custom_hue(params, 0));
+        EXPECT_TRUE(color_harmonizer_uses_node_saturation(params, 0));
+        EXPECT_EQ(
+            color_harmonizer_uses_node_saturation(params, static_cast<std::size_t>(nodes - 1)),
+            true);
+        if (nodes < 4)
+        {
+            EXPECT_FALSE(
+                color_harmonizer_uses_node_saturation(params, static_cast<std::size_t>(nodes)));
+        }
+    }
+
+    ColorHarmonizerParams custom;
+    custom.rule = ColorHarmonizerRule::kCustom;
+    custom.num_custom_nodes = 2;
+    EXPECT_EQ(color_harmonizer_active_node_count(custom), 2);
+    EXPECT_FALSE(color_harmonizer_uses_anchor_hue(custom.rule));
+    EXPECT_TRUE(color_harmonizer_uses_custom_hue(custom, 1));
+    EXPECT_FALSE(color_harmonizer_uses_custom_hue(custom, 2));
+    EXPECT_FALSE(color_harmonizer_uses_custom_hue(custom, std::numeric_limits<std::size_t>::max()));
+    custom.num_custom_nodes = 3;
+    EXPECT_EQ(color_harmonizer_active_node_count(custom), 3);
+    EXPECT_TRUE(color_harmonizer_uses_custom_hue(custom, 2));
+    EXPECT_FALSE(color_harmonizer_uses_custom_hue(custom, 3));
+}
+
+TEST(RecipeTest, ColorHarmonizerHueDegreesConversionIsTheSingleDevelopOwner)
+{
+    auto turns = color_harmonizer_hue_degrees_to_turns(90.0);
+    ASSERT_TRUE(turns) << turns.error().message;
+    EXPECT_DOUBLE_EQ(turns.value(), 0.25);
+    EXPECT_DOUBLE_EQ(color_harmonizer_hue_turns_to_degrees(0.25), 90.0);
+    EXPECT_FALSE(color_harmonizer_hue_degrees_to_turns(-0.01));
+    EXPECT_FALSE(color_harmonizer_hue_degrees_to_turns(360.01));
+
+    DevelopParams develop;
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerAnchorHueDegrees", 90.0));
+    EXPECT_DOUBLE_EQ(develop.color_harmonizer.anchor_hue, 0.25);
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerCustomHue1Degrees", 180.0));
+    EXPECT_DOUBLE_EQ(develop.color_harmonizer.custom_hue[1], 0.5);
+}
+
+TEST(RecipeTest, ColorHarmonizerDevelopFieldsAreStrictResettableAndPreservePresence)
+{
+    DevelopParams develop;
+    EXPECT_FALSE(develop.color_harmonizer_enabled);
+    EXPECT_EQ(develop.color_harmonizer, ColorHarmonizerParams{});
+    EXPECT_TRUE(develop.is_identity());
+
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerEnabled", 1.0));
+    EXPECT_TRUE(develop.color_harmonizer_enabled);
+    EXPECT_EQ(develop.color_harmonizer, ColorHarmonizerParams{});
+    EXPECT_FALSE(develop.is_identity());
+    auto explicit_default =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(explicit_default) << explicit_default.error().message;
+    const auto *operation = operation_by_id(explicit_default.value(), kColorHarmonizerOperationId);
+    ASSERT_NE(operation, nullptr);
+    EXPECT_EQ(operation->instance_id, "colorharmonizer-1");
+    EXPECT_EQ(operation->parameters.size(), 17U);
+    auto decoded = color_harmonizer_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), ColorHarmonizerParams{});
+    EXPECT_DOUBLE_EQ(decoded.value().smoothing, 0.0);
+    auto restored = develop_from_recipe(explicit_default.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_harmonizer_enabled);
+    EXPECT_EQ(restored.value().color_harmonizer, ColorHarmonizerParams{});
+
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength", 0.0));
+    EXPECT_TRUE(develop.color_harmonizer_enabled);
+    ASSERT_TRUE(reset_develop_field(develop, "colorHarmonizerEnabled"));
+    EXPECT_FALSE(develop.color_harmonizer_enabled);
+    auto absent = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(absent) << absent.error().message;
+    EXPECT_EQ(operation_by_id(absent.value(), kColorHarmonizerOperationId), nullptr);
+
+    develop = DevelopParams{};
+    for (std::int64_t index = 0; index < static_cast<std::int64_t>(kColorHarmonizerRuleCount);
+         ++index)
+    {
+        ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerRuleIndex",
+                                               static_cast<double>(index)))
+            << index;
+        EXPECT_EQ(color_harmonizer_rule_index(develop.color_harmonizer.rule), index);
+    }
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerRuleIndex", 3.5));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerRuleIndex", 10.0));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerRuleIndex",
+                                            std::numeric_limits<double>::max()));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerEnabled", 0.5));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerCustomNodeCount", 2.5));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerCustomNodeCount", 1.0));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerCustomNodeCount", 5.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerCustomNodeCount", 2.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerCustomNodeCount", 3.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerCustomNodeCount", 4.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerAnchorHueDegrees", 0.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerAnchorHueDegrees", 360.0));
+    EXPECT_DOUBLE_EQ(develop.color_harmonizer.anchor_hue, 1.0);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerAnchorHueDegrees", -0.01));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerAnchorHueDegrees", 360.01));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength", 0.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength", 1.0));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength", -0.01));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullWidth", 0.24));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerNodeSaturation0", 2.01));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerSmoothing", 0.0));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "unknownHarmonizer", 1.0));
+    const DevelopParams before_nan = develop;
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength",
+                                            std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_EQ(develop, before_nan);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength",
+                                            std::numeric_limits<double>::infinity()));
+    EXPECT_EQ(develop, before_nan);
+
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerCustomHue0Degrees", 90.0));
+    ASSERT_TRUE(reset_develop_field(develop, "colorHarmonizerCustomHue0Degrees"));
+    EXPECT_DOUBLE_EQ(develop.color_harmonizer.custom_hue[0], 0.0);
+    EXPECT_TRUE(develop.color_harmonizer_enabled);
+    ASSERT_TRUE(reset_develop_field(develop, "colorHarmonizer"));
+    EXPECT_FALSE(develop.color_harmonizer_enabled);
+    EXPECT_EQ(develop.color_harmonizer, ColorHarmonizerParams{});
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerPullWidth", 1.5));
+    ASSERT_TRUE(reset_develop_section(develop, "colorHarmonizer"));
+    EXPECT_FALSE(develop.color_harmonizer_enabled);
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerNeutralProtection", 0.25));
+    ASSERT_TRUE(reset_develop_section(develop, "color"));
+    EXPECT_FALSE(develop.color_harmonizer_enabled);
+    EXPECT_EQ(develop.color_harmonizer, ColorHarmonizerParams{});
+
+    Recipe masked;
+    masked.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    auto parameters = color_harmonizer_to_parameters(ColorHarmonizerParams{});
+    ASSERT_TRUE(parameters) << parameters.error().message;
+    masked.operations.push_back({std::string(kColorHarmonizerOperationId),
+                                 kColorHarmonizerOperationSchemaVersion, "colorharmonizer-1", true,
+                                 parameters.value(), "mask-1"});
+    auto rejected_mask = develop_from_recipe(masked);
+    ASSERT_FALSE(rejected_mask);
+    EXPECT_EQ(rejected_mask.error().context.at("reason"), "unsupported_colorharmonizer_mask");
+
+    Recipe duplicate = masked;
+    duplicate.operations.front().mask_id.reset();
+    duplicate.operations.push_back(duplicate.operations.front());
+    auto rejected_duplicate = develop_from_recipe(duplicate);
+    ASSERT_FALSE(rejected_duplicate);
+    EXPECT_EQ(rejected_duplicate.error().context.at("reason"),
+              "duplicate_colorharmonizer_operation");
+
+    ColorHarmonizerParams positive;
+    positive.smoothing = 0.25;
+    auto positive_parameters = color_harmonizer_to_parameters(positive);
+    ASSERT_TRUE(positive_parameters) << positive_parameters.error().message;
+    Recipe positive_recipe;
+    positive_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    positive_recipe.operations.push_back(
+        {std::string(kColorHarmonizerOperationId), kColorHarmonizerOperationSchemaVersion,
+         "colorharmonizer-1", true, positive_parameters.value(), std::nullopt});
+    auto positive_develop = develop_from_recipe(positive_recipe);
+    ASSERT_TRUE(positive_develop) << positive_develop.error().message;
+    EXPECT_DOUBLE_EQ(positive_develop.value().color_harmonizer.smoothing, 0.25);
+    clamp_develop(positive_develop.value());
+    EXPECT_DOUBLE_EQ(positive_develop.value().color_harmonizer.smoothing, 0.25);
+}
+
+TEST(RecipeTest, ColorHarmonizerPresenceAndParameterFingerprintsDiffer)
+{
+    const auto fingerprint = [](const DevelopParams &params) -> std::string
+    {
+        auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+        EXPECT_TRUE(recipe) << recipe.error().message;
+        if (!recipe)
+        {
+            return {};
+        }
+        auto serialized = serialize_recipe(recipe.value());
+        EXPECT_TRUE(serialized) << serialized.error().message;
+        return serialized ? serialized.value() : std::string{};
+    };
+
+    DevelopParams baseline;
+    const auto absent = fingerprint(baseline);
+    baseline.color_harmonizer_enabled = true;
+    const auto present = fingerprint(baseline);
+    EXPECT_NE(absent, present);
+    EXPECT_NE(present.find("ravo.color.colorharmonizer"), std::string::npos);
+
+    const std::array mutations{
+        std::pair{"colorHarmonizerRuleIndex", 4.0},
+        std::pair{"colorHarmonizerAnchorHueDegrees", 90.0},
+        std::pair{"colorHarmonizerPullStrength", 0.2},
+        std::pair{"colorHarmonizerNeutralProtection", 0.75},
+        std::pair{"colorHarmonizerPullWidth", 1.5},
+        std::pair{"colorHarmonizerCustomHue0Degrees", 12.0},
+        std::pair{"colorHarmonizerCustomNodeCount", 3.0},
+        std::pair{"colorHarmonizerNodeSaturation0", 1.25},
+    };
+    for (const auto &[field, value] : mutations)
+    {
+        DevelopParams edited = baseline;
+        ASSERT_TRUE(apply_develop_field_strict(edited, field, value)) << field;
+        EXPECT_NE(fingerprint(edited), present) << field;
+    }
+    ASSERT_TRUE(reset_develop_field(baseline, "colorHarmonizer"));
+    EXPECT_EQ(fingerprint(baseline), absent);
 }
 
 TEST(RecipeTest, ColorBalanceRgbSchemaFailsFastOnEveryInvalidPolicyClass)

@@ -915,6 +915,268 @@ void clamp_color_contrast(ColorContrastParams &params) noexcept
     }
 }
 
+[[nodiscard]] bool exact_develop_integer(const double value, const std::int64_t minimum,
+                                         const std::int64_t maximum, std::int64_t &out) noexcept
+{
+    if (!std::isfinite(value) || value < static_cast<double>(minimum) ||
+        value > static_cast<double>(maximum) || value != std::trunc(value))
+    {
+        return false;
+    }
+    out = static_cast<std::int64_t>(value);
+    return true;
+}
+
+[[nodiscard]] bool assign_color_harmonizer_hue_turns(double &target, const double degrees) noexcept
+{
+    const auto turns = color_harmonizer_hue_degrees_to_turns(degrees);
+    if (!turns)
+    {
+        return false;
+    }
+    target = turns.value();
+    return true;
+}
+
+struct ColorHarmonizerNumericField
+{
+    std::string_view develop_name;
+    double ColorHarmonizerParams::*member;
+    double minimum;
+    double maximum;
+};
+
+[[nodiscard]] const std::array<ColorHarmonizerNumericField, 3> &
+color_harmonizer_linear_fields() noexcept
+{
+    static const std::array<ColorHarmonizerNumericField, 3> fields{{
+        {"colorHarmonizerPullStrength", &ColorHarmonizerParams::pull_strength,
+         kColorHarmonizerPullStrengthMin, kColorHarmonizerPullStrengthMax},
+        {"colorHarmonizerNeutralProtection", &ColorHarmonizerParams::neutral_protection,
+         kColorHarmonizerNeutralProtectionMin, kColorHarmonizerNeutralProtectionMax},
+        {"colorHarmonizerPullWidth", &ColorHarmonizerParams::pull_width,
+         kColorHarmonizerPullWidthMin, kColorHarmonizerPullWidthMax},
+    }};
+    return fields;
+}
+
+[[nodiscard]] const std::array<std::pair<std::string_view, std::size_t>, 4> &
+color_harmonizer_custom_hue_fields() noexcept
+{
+    static const std::array<std::pair<std::string_view, std::size_t>, 4> fields{{
+        {"colorHarmonizerCustomHue0Degrees", 0U},
+        {"colorHarmonizerCustomHue1Degrees", 1U},
+        {"colorHarmonizerCustomHue2Degrees", 2U},
+        {"colorHarmonizerCustomHue3Degrees", 3U},
+    }};
+    return fields;
+}
+
+[[nodiscard]] const std::array<std::pair<std::string_view, std::size_t>, 4> &
+color_harmonizer_node_saturation_fields() noexcept
+{
+    static const std::array<std::pair<std::string_view, std::size_t>, 4> fields{{
+        {"colorHarmonizerNodeSaturation0", 0U},
+        {"colorHarmonizerNodeSaturation1", 1U},
+        {"colorHarmonizerNodeSaturation2", 2U},
+        {"colorHarmonizerNodeSaturation3", 3U},
+    }};
+    return fields;
+}
+
+[[nodiscard]] bool apply_color_harmonizer_field(DevelopParams &params, const std::string_view name,
+                                                const double value) noexcept
+{
+    if (name == "colorHarmonizerEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.color_harmonizer_enabled = value == 1.0;
+        return true;
+    }
+    if (name == "colorHarmonizerRuleIndex")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(
+                value, 0, static_cast<std::int64_t>(kColorHarmonizerRuleCount - 1U), index))
+        {
+            return false;
+        }
+        auto rule = color_harmonizer_rule_from_index(index);
+        if (!rule)
+        {
+            return false;
+        }
+        params.color_harmonizer.rule = rule.value();
+        params.color_harmonizer_enabled = true;
+        return true;
+    }
+    if (name == "colorHarmonizerCustomNodeCount")
+    {
+        std::int64_t count = 0;
+        if (!exact_develop_integer(value, kColorHarmonizerCustomNodesMin,
+                                   kColorHarmonizerCustomNodesMax, count))
+        {
+            return false;
+        }
+        params.color_harmonizer.num_custom_nodes = count;
+        params.color_harmonizer_enabled = true;
+        return true;
+    }
+    if (name == "colorHarmonizerAnchorHueDegrees")
+    {
+        if (!assign_color_harmonizer_hue_turns(params.color_harmonizer.anchor_hue, value))
+        {
+            return false;
+        }
+        params.color_harmonizer_enabled = true;
+        return true;
+    }
+    for (const auto &[field, index] : color_harmonizer_custom_hue_fields())
+    {
+        if (name == field)
+        {
+            if (!assign_color_harmonizer_hue_turns(params.color_harmonizer.custom_hue[index],
+                                                   value))
+            {
+                return false;
+            }
+            params.color_harmonizer_enabled = true;
+            return true;
+        }
+    }
+    if (!std::isfinite(value) || !std::isfinite(static_cast<float>(value)))
+    {
+        return false;
+    }
+    for (const auto &field : color_harmonizer_linear_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.color_harmonizer.*(field.member) = value;
+            params.color_harmonizer_enabled = true;
+            return true;
+        }
+    }
+    for (const auto &[field, index] : color_harmonizer_node_saturation_fields())
+    {
+        if (name == field)
+        {
+            params.color_harmonizer.node_saturation[index] = value;
+            params.color_harmonizer_enabled = true;
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_color_harmonizer_field(DevelopParams &params,
+                                                const std::string_view name) noexcept
+{
+    const ColorHarmonizerParams defaults;
+    if (name == "colorHarmonizer")
+    {
+        params.color_harmonizer_enabled = false;
+        params.color_harmonizer = defaults;
+        return true;
+    }
+    if (name == "colorHarmonizerEnabled")
+    {
+        params.color_harmonizer_enabled = false;
+        return true;
+    }
+    if (name == "colorHarmonizerRuleIndex")
+    {
+        params.color_harmonizer.rule = defaults.rule;
+        return true;
+    }
+    if (name == "colorHarmonizerCustomNodeCount")
+    {
+        params.color_harmonizer.num_custom_nodes = defaults.num_custom_nodes;
+        return true;
+    }
+    if (name == "colorHarmonizerAnchorHueDegrees")
+    {
+        params.color_harmonizer.anchor_hue = defaults.anchor_hue;
+        return true;
+    }
+    for (const auto &[field, index] : color_harmonizer_custom_hue_fields())
+    {
+        if (name == field)
+        {
+            params.color_harmonizer.custom_hue[index] = defaults.custom_hue[index];
+            return true;
+        }
+    }
+    for (const auto &field : color_harmonizer_linear_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.color_harmonizer.*(field.member) = defaults.*(field.member);
+            return true;
+        }
+    }
+    for (const auto &[field, index] : color_harmonizer_node_saturation_fields())
+    {
+        if (name == field)
+        {
+            params.color_harmonizer.node_saturation[index] = defaults.node_saturation[index];
+            return true;
+        }
+    }
+    return false;
+}
+
+void clamp_color_harmonizer(ColorHarmonizerParams &params) noexcept
+{
+    const ColorHarmonizerParams defaults;
+    auto rule = color_harmonizer_rule_from_index(color_harmonizer_rule_index(params.rule));
+    if (!rule)
+    {
+        params.rule = defaults.rule;
+    }
+    const auto clamp_hue = [&](double &value, const double fallback)
+    {
+        if (!std::isfinite(value) || !std::isfinite(static_cast<float>(value)))
+        {
+            value = fallback;
+            return;
+        }
+        value = clamp_value(value, kColorHarmonizerHueMin, kColorHarmonizerHueMax);
+    };
+    clamp_hue(params.anchor_hue, defaults.anchor_hue);
+    for (std::size_t index = 0U; index < params.custom_hue.size(); ++index)
+    {
+        clamp_hue(params.custom_hue[index], defaults.custom_hue[index]);
+    }
+    for (const auto &field : color_harmonizer_linear_fields())
+    {
+        double &value = params.*(field.member);
+        value = std::isfinite(value) && std::isfinite(static_cast<float>(value)) ?
+                    clamp_value(value, field.minimum, field.maximum) :
+                    defaults.*(field.member);
+    }
+    if (params.num_custom_nodes < kColorHarmonizerCustomNodesMin ||
+        params.num_custom_nodes > kColorHarmonizerCustomNodesMax)
+    {
+        params.num_custom_nodes = defaults.num_custom_nodes;
+    }
+    for (std::size_t index = 0U; index < params.node_saturation.size(); ++index)
+    {
+        double &value = params.node_saturation[index];
+        value = std::isfinite(value) && std::isfinite(static_cast<float>(value)) ?
+                    clamp_value(value, kColorHarmonizerNodeSaturationMin,
+                                kColorHarmonizerNodeSaturationMax) :
+                    defaults.node_saturation[index];
+    }
+    if (!std::isfinite(params.smoothing) || !std::isfinite(static_cast<float>(params.smoothing)))
+    {
+        params.smoothing = defaults.smoothing;
+    }
+}
+
 struct ColorBalanceNumericField
 {
     std::string_view parameter_name;
@@ -2191,6 +2453,7 @@ void clamp_develop(DevelopParams &params) noexcept
     clamp_color_balance(params.color_balance_rgb);
     clamp_color_correction(params.color_correction);
     clamp_color_contrast(params.color_contrast);
+    clamp_color_harmonizer(params.color_harmonizer);
     if (params.exposure_mode != kExposureModeManual &&
         params.exposure_mode != kExposureModeDeflicker)
     {
@@ -2330,12 +2593,12 @@ bool DevelopParams::is_identity() const noexcept
            near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
            near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) && !color_balance_enabled &&
            !color_checker_enabled && color_balance_rgb.is_identity() && !color_correction_enabled &&
-           !color_contrast_enabled && near(monochrome, 0.0) && near(split_amount, 0.0) &&
-           near(gamma, kDevelopGammaDefault) && tone_curve_is_identity(tone_curve) &&
-           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
-           raw_ca_iterations == 0 && near(denoise, 0.0) && near(lens_k1, 0.0) &&
-           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
-           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !color_contrast_enabled && !color_harmonizer_enabled && near(monochrome, 0.0) &&
+           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
+           tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
+           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
+           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
+           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -2783,6 +3046,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (apply_color_contrast_field(params, name, value))
     {
     }
+    else if (apply_color_harmonizer_field(params, name, value))
+    {
+    }
     else if (name == "monochrome")
     {
         params.monochrome = value;
@@ -3227,6 +3493,9 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     else if (reset_color_contrast_field(params, name))
     {
     }
+    else if (reset_color_harmonizer_field(params, name))
+    {
+    }
     else if (name == "monochrome")
     {
         params.monochrome = identity.monochrome;
@@ -3470,6 +3739,8 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.color_correction = identity.color_correction;
         params.color_contrast_enabled = identity.color_contrast_enabled;
         params.color_contrast = identity.color_contrast;
+        params.color_harmonizer_enabled = identity.color_harmonizer_enabled;
+        params.color_harmonizer = identity.color_harmonizer;
         params.monochrome = identity.monochrome;
         params.split_shadows_hue = identity.split_shadows_hue;
         params.split_highlights_hue = identity.split_highlights_hue;
@@ -3479,6 +3750,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.color_eq_sat = {};
         params.color_eq_light = {};
         params.color_eq_band = 0;
+    }
+    else if (section == "colorHarmonizer")
+    {
+        params.color_harmonizer_enabled = identity.color_harmonizer_enabled;
+        params.color_harmonizer = identity.color_harmonizer;
     }
     else if (section == "detail")
     {
@@ -3885,6 +4161,16 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, std::string(kColorCheckerOperationId), "colorchecker-1",
                       std::move(color_checker).value(), kColorCheckerOperationSchemaVersion);
     }
+    if (clamped.color_harmonizer_enabled)
+    {
+        auto color_harmonizer = color_harmonizer_to_parameters(clamped.color_harmonizer);
+        if (!color_harmonizer)
+        {
+            return color_harmonizer.error();
+        }
+        add_operation(recipe, std::string(kColorHarmonizerOperationId), "colorharmonizer-1",
+                      std::move(color_harmonizer).value(), kColorHarmonizerOperationSchemaVersion);
+    }
     if (!near(clamped.highlights, 0.0))
     {
         add_operation(recipe, "ravo.core.highlights", "highlights-1",
@@ -4186,6 +4472,38 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.color_checker_enabled = true;
             params.color_checker = std::move(color_checker).value();
+        }
+        else if (operation.id == kColorHarmonizerOperationId)
+        {
+            if (params.color_harmonizer_enabled)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Develop Color Harmonizer does not allow duplicate operations",
+                                  {{"operation_id", operation.id},
+                                   {"reason", "duplicate_colorharmonizer_operation"}});
+            }
+            if (operation.schema_version != kColorHarmonizerOperationSchemaVersion)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Color Harmonizer schema version is unsupported",
+                                  {{"operation_id", operation.id},
+                                   {"schema_version", std::to_string(operation.schema_version)},
+                                   {"reason", "unsupported_colorharmonizer_schema"}});
+            }
+            if (operation.mask_id.has_value())
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Color Harmonizer masks are unsupported",
+                                  {{"operation_id", operation.id},
+                                   {"reason", "unsupported_colorharmonizer_mask"}});
+            }
+            auto color_harmonizer = color_harmonizer_from_parameters(operation.parameters);
+            if (!color_harmonizer)
+            {
+                return color_harmonizer.error();
+            }
+            params.color_harmonizer_enabled = true;
+            params.color_harmonizer = std::move(color_harmonizer).value();
         }
         else if (operation.id == "ravo.core.contrast")
         {

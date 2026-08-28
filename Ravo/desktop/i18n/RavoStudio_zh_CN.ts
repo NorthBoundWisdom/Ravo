@@ -776,6 +776,70 @@
         <translation>禁用并重置色彩对比</translation>
     </message>
     <message>
+        <source>Color Harmonizer</source>
+        <translation>色彩和谐</translation>
+    </message>
+    <message>
+        <source>Enable Color Harmonizer</source>
+        <translation>启用色彩和谐</translation>
+    </message>
+    <message>
+        <source>Anchor hue</source>
+        <translation>锚定色相</translation>
+    </message>
+    <message>
+        <source>Pull strength</source>
+        <translation>牵引强度</translation>
+    </message>
+    <message>
+        <source>Neutral protection</source>
+        <translation>中性色保护</translation>
+    </message>
+    <message>
+        <source>Pull width</source>
+        <translation>牵引宽度</translation>
+    </message>
+    <message>
+        <source>Custom nodes</source>
+        <translation>自定义节点</translation>
+    </message>
+    <message>
+        <source>Custom hue 1</source>
+        <translation>自定义色相 1</translation>
+    </message>
+    <message>
+        <source>Custom hue 2</source>
+        <translation>自定义色相 2</translation>
+    </message>
+    <message>
+        <source>Custom hue 3</source>
+        <translation>自定义色相 3</translation>
+    </message>
+    <message>
+        <source>Custom hue 4</source>
+        <translation>自定义色相 4</translation>
+    </message>
+    <message>
+        <source>Node saturation 1</source>
+        <translation>节点饱和度 1</translation>
+    </message>
+    <message>
+        <source>Node saturation 2</source>
+        <translation>节点饱和度 2</translation>
+    </message>
+    <message>
+        <source>Node saturation 3</source>
+        <translation>节点饱和度 3</translation>
+    </message>
+    <message>
+        <source>Node saturation 4</source>
+        <translation>节点饱和度 4</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color Harmonizer</source>
+        <translation>禁用并重置色彩和谐</translation>
+    </message>
+    <message>
         <source>Monochrome</source>
         <translation>单色</translation>
     </message>
@@ -902,6 +966,46 @@
     <message>
         <source>Band hue</source>
         <translation>色带色相</translation>
+    </message>
+    <message>
+        <source>Monochromatic</source>
+        <translation>单色</translation>
+    </message>
+    <message>
+        <source>Analogous</source>
+        <translation>类似色</translation>
+    </message>
+    <message>
+        <source>Analogous complementary</source>
+        <translation>类似互补色</translation>
+    </message>
+    <message>
+        <source>Complementary</source>
+        <translation>互补色</translation>
+    </message>
+    <message>
+        <source>Split complementary</source>
+        <translation>分裂互补色</translation>
+    </message>
+    <message>
+        <source>Dyad</source>
+        <translation>二元</translation>
+    </message>
+    <message>
+        <source>Triad</source>
+        <translation>三元</translation>
+    </message>
+    <message>
+        <source>Tetrad</source>
+        <translation>四元</translation>
+    </message>
+    <message>
+        <source>Square</source>
+        <translation>方形</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>自定义</translation>
     </message>
 </context>
 <context>

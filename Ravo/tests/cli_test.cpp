@@ -27,10 +27,12 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/cli/application.h"
 #include "ravo/domain/types.h"
+#include "ravo/foundation/json.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -2958,6 +2960,165 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, RealCliColorHarmonizerDevelopSetPersistsAndRejectsInvalidInput)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-harmonizer-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                      "0000-nop" / "expected.png")
+                         .generic_u8string();
+    const QString catalog_q = QString::fromStdString(catalog);
+    const QString png_q = QString::fromStdString(std::string(png.begin(), png.end()));
+    struct CliRun
+    {
+        int exit_code = 1;
+        QByteArray stdout_bytes;
+        QByteArray stderr_bytes;
+    };
+    const auto run = [&](const QStringList &arguments) -> CliRun
+    {
+        QProcess process;
+        process.start(QStringLiteral(RAVO_CLI_EXECUTABLE), arguments);
+        EXPECT_TRUE(process.waitForStarted());
+        EXPECT_TRUE(process.waitForFinished());
+        return {process.exitCode(), process.readAllStandardOutput(),
+                process.readAllStandardError()};
+    };
+    const auto recipe_json = [&](const QByteArray &stdout_bytes) -> Result<JsonValue>
+    {
+        auto parsed = parse_json(stdout_bytes.toStdString());
+        if (!parsed)
+        {
+            return parsed.error();
+        }
+        const auto *data = parsed.value().find("data");
+        const auto *recipe = data == nullptr ? nullptr : data->find("recipe");
+        if (recipe == nullptr)
+        {
+            return make_error(ErrorCode::kValidation, "CLI recipe payload is missing");
+        }
+        return *recipe;
+    };
+
+    const auto created = run({QStringLiteral("catalog"), QStringLiteral("create"),
+                              QStringLiteral("--path"), catalog_q, QStringLiteral("--json")});
+    ASSERT_EQ(created.exit_code, 0) << created.stdout_bytes.constData();
+    EXPECT_TRUE(created.stderr_bytes.isEmpty());
+    const auto imported =
+        run({QStringLiteral("catalog"), QStringLiteral("import"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--input"), png_q, QStringLiteral("--json")});
+    ASSERT_EQ(imported.exit_code, 0) << imported.stdout_bytes.constData();
+    const auto imported_json = parse_json(imported.stdout_bytes.toStdString());
+    ASSERT_TRUE(imported_json) << imported_json.error().message;
+    const auto *data = imported_json.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    const auto *asset = items->array_if()->front().find("asset");
+    ASSERT_NE(asset, nullptr);
+    const auto *asset_id = asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const QString id = QString::fromStdString(*asset_id->string_if());
+
+    const auto baseline =
+        run({QStringLiteral("catalog"), QStringLiteral("recipe"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--json")});
+    ASSERT_EQ(baseline.exit_code, 0) << baseline.stdout_bytes.constData();
+    auto baseline_recipe = recipe_json(baseline.stdout_bytes);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    const auto serialized_baseline = serialize_json(baseline_recipe.value());
+
+    const auto noop =
+        run({QStringLiteral("catalog"), QStringLiteral("develop"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--json")});
+    ASSERT_EQ(noop.exit_code, 0) << noop.stdout_bytes.constData();
+    const auto after_noop =
+        run({QStringLiteral("catalog"), QStringLiteral("recipe"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--json")});
+    ASSERT_EQ(after_noop.exit_code, 0) << after_noop.stdout_bytes.constData();
+    auto after_noop_recipe = recipe_json(after_noop.stdout_bytes);
+    ASSERT_TRUE(after_noop_recipe) << after_noop_recipe.error().message;
+    EXPECT_EQ(serialize_json(after_noop_recipe.value()), serialized_baseline);
+
+    const auto enabled =
+        run({QStringLiteral("catalog"), QStringLiteral("develop"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--set"),
+             QStringLiteral("colorHarmonizerEnabled=1"), QStringLiteral("--json")});
+    ASSERT_EQ(enabled.exit_code, 0) << enabled.stdout_bytes.constData();
+    const auto enabled_recipe_run =
+        run({QStringLiteral("catalog"), QStringLiteral("recipe"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--json")});
+    ASSERT_EQ(enabled_recipe_run.exit_code, 0) << enabled_recipe_run.stdout_bytes.constData();
+    auto enabled_recipe = recipe_json(enabled_recipe_run.stdout_bytes);
+    ASSERT_TRUE(enabled_recipe) << enabled_recipe.error().message;
+    const auto enabled_text = serialize_json(enabled_recipe.value());
+    EXPECT_NE(enabled_text.find("ravo.color.colorharmonizer"), std::string::npos);
+    EXPECT_NE(enabled_text.find("\"pull_strength\""), std::string::npos);
+    const auto enabled_again =
+        run({QStringLiteral("catalog"), QStringLiteral("recipe"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--json")});
+    EXPECT_EQ(enabled_again.stdout_bytes, enabled_recipe_run.stdout_bytes);
+
+    const auto edited =
+        run({QStringLiteral("catalog"),    QStringLiteral("develop"),
+             QStringLiteral("--catalog"),  catalog_q,
+             QStringLiteral("--asset-id"), id,
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerRuleIndex=4"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerAnchorHueDegrees=198"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerPullStrength=0.82"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerPullWidth=1.84"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerNodeSaturation0=1.26"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerNodeSaturation1=0.18"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerNodeSaturation2=1.52"),
+             QStringLiteral("--json")});
+    ASSERT_EQ(edited.exit_code, 0) << edited.stdout_bytes.constData();
+
+    const auto expect_fail = [&](const QStringList &extra)
+    {
+        QStringList arguments{QStringLiteral("catalog"),    QStringLiteral("develop"),
+                              QStringLiteral("--catalog"),  catalog_q,
+                              QStringLiteral("--asset-id"), id};
+        arguments.append(extra);
+        arguments.push_back(QStringLiteral("--json"));
+        const auto failed = run(arguments);
+        EXPECT_NE(failed.exit_code, 0) << extra.join(' ').toStdString();
+        EXPECT_TRUE(failed.stderr_bytes.isEmpty()) << failed.stderr_bytes.constData();
+        const auto parsed = parse_json(failed.stdout_bytes.toStdString());
+        ASSERT_TRUE(parsed) << parsed.error().message;
+        const auto *error = parsed.value().find("error");
+        ASSERT_NE(error, nullptr);
+        const auto *code = error->find("code");
+        ASSERT_NE(code, nullptr);
+        ASSERT_NE(code->string_if(), nullptr);
+        EXPECT_EQ(*code->string_if(), "invalid_argument");
+    };
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerEnabled=1"),
+                 QStringLiteral("--set"), QStringLiteral("colorHarmonizerEnabled=1")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerRuleIndex=3.5")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerEnabled=0.5")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerPullStrength=nan")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerPullStrength=inf")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerPullStrength=1.5")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerSmoothing=0.2")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("unknownHarmonizer=1")});
+
+    const auto after_fail =
+        run({QStringLiteral("catalog"), QStringLiteral("recipe"), QStringLiteral("--catalog"),
+             catalog_q, QStringLiteral("--asset-id"), id, QStringLiteral("--json")});
+    ASSERT_EQ(after_fail.exit_code, 0) << after_fail.stdout_bytes.constData();
+    auto after_fail_recipe = recipe_json(after_fail.stdout_bytes);
+    ASSERT_TRUE(after_fail_recipe) << after_fail_recipe.error().message;
+    EXPECT_NE(serialize_json(after_fail_recipe.value()).find("split_complementary"),
+              std::string::npos);
+
+    std::error_code cleanup;
+    std::filesystem::remove_all(root, cleanup);
 }
 
 } // namespace

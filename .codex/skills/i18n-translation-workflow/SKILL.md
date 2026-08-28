@@ -1,7 +1,7 @@
 ---
 name: "i18n-translation-workflow"
 description: "Ravo Studio Qt/QML 中英本地化更新、翻译记忆复用和译包验证工作流。"
-version: 0.2.0
+version: 0.2.1
 ---
 
 # Ravo Studio i18n 翻译工作流
@@ -41,6 +41,16 @@ context::source 优先、source 次之复用；它可保留已经从当前 UI �
 - 6_fix_english_translations.py：将英文 TS 的 source 文本补全为英文翻译。
 
 0_update_ts.py -p1 编排 1–4，-p2 编排 5–6；run_i18n_workflow.py 是首选入口。
+
+## 提交门槛与维护节奏
+
+- 普通功能开发和评审不以译文措辞、翻译完整度或 source 提取清单作为阻塞项；这些内容由
+  定期本地化维护集中处理。
+- 不为单个 UI 文本、具体译文或提取清单新增专项自动化测试。现有译包装载 smoke 只保护
+  编译与 context 接线，不把逐条翻译变成功能验收门槛。
+- 功能代码仍应使用 Qt 可提取标记；顺手可安全修正时直接修正，否则记录给下一次本地化维护，
+  不阻塞无关功能提交。
+- 下列强约束和完整成功标准适用于显式执行本地化维护时，不扩大普通功能提交的门槛。
 
 ## 强约束
 

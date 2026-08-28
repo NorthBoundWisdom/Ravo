@@ -541,8 +541,9 @@ control. Its exact 17-field flat schema fixes
 `algorithm=dt_ucs_harmony_v1`, one of nine predefined rules or `custom`, the
 anchor/pull/neutral/width values, four custom hues, custom node count, four node
 saturations, and smoothing. The two real version-1 records at history positions
-12 and 13 in frozen fixture 0176 provide default and edited parameter evidence;
-they do not establish a strict-import contract.
+12 and 13 in frozen fixture 0176 provide default and edited parameter evidence
+and the accepted strict-import singleton envelope; they do not make the
+complete 0176 document compatible.
 
 The current engine boundary accepts only enabled, unmasked,
 `smoothing == 0` operations. It clips each finite working RGB channel with
@@ -568,12 +569,19 @@ borrowed input unchanged. Masks reject structurally; positive smoothing rejects
 as `unsupported_smoothing_requires_recursive_gaussian` rather than falling
 back to the accepted core.
 
-Strict legacy import, explicit Develop presence, CLI/Catalog/Studio consumers,
-cache persistence, canonical ROI scale, the S2.2 two-channel recursive
-Gaussian, general masks/presentation, and retirement of the frozen owner remain
-separate C14 tranches. The current feature-convergence pause authorizes none of
-them and does not authorize C15. [ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md)
-freezes only this core boundary.
+The private legacy-XMP adapter maps the evidenced v1 singleton (enabled 1,
+priority 0, empty multi_name, missing-or-zero multi_name_hand_edited, blend v14
+default-unmasked payload, no mask/custom blend/extra attrs) onto one canonical
+operation. Ordered revisions are validated and the greatest numeric history
+position wins. Develop owns explicit presence plus the existing 17-field
+parameter object; CLI `--set`, Catalog preview/save/reopen/export, and one
+Studio section consume that same recipe. Cache identity follows the existing
+canonical recipe/engine path. Canonical ROI scale, the S2.2 two-channel
+recursive Gaussian, general masks/presentation, and retirement of the frozen
+owner remain separate C14 tranches and do not authorize C15.
+[ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md) freezes the core;
+[ADR-0041](docs/adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
+extends it with this product surface.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked

@@ -22,6 +22,7 @@
 #include "ravo/recipe/color_checker.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/operation.h"
 
@@ -299,6 +300,12 @@ struct LegacyColorContrastCandidate
     std::uint64_t history_position = 0;
 };
 
+struct LegacyColorHarmonizerCandidate
+{
+    QXmlStreamAttributes attributes;
+    std::uint64_t history_position = 0;
+};
+
 // Repository-history evidence used only for the synthetic legacy v1 upgrade.
 constexpr std::array<std::array<float, 3>, kColorCheckerDefaultPatchCount>
     kLegacyColorCheckerV1Sources{{
@@ -511,6 +518,41 @@ capture_color_contrast_candidate(const QXmlStreamAttributes &attributes)
     return LegacyColorContrastCandidate{attributes, parsed_position.value()};
 }
 
+[[nodiscard]] Result<LegacyColorHarmonizerCandidate>
+capture_color_harmonizer_candidate(const QXmlStreamAttributes &attributes)
+{
+    const auto position = required_attribute(attributes, u"num", "colorharmonizer");
+    const auto priority = required_attribute(attributes, u"multi_priority", "colorharmonizer");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!position || !priority || !name)
+    {
+        return !position ?
+                   position.error() :
+               !priority ?
+                   priority.error() :
+                   make_error(ErrorCode::kUnsupported,
+                              "Legacy Color Harmonizer singleton name is missing",
+                              {{"attribute", "multi_name"},
+                               {"legacy_operation", "colorharmonizer"},
+                               {"reason", "unsupported_legacy_colorharmonizer_multi_state"}});
+    }
+    auto parsed_position = legacy_history_position(position.value(), "num", "colorharmonizer",
+                                                   "invalid_legacy_history_position");
+    if (!parsed_position)
+    {
+        return parsed_position.error();
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Harmonizer instance is not the frozen singleton priority",
+                          {{"legacy_operation", "colorharmonizer"},
+                           {"reason", "unsupported_legacy_colorharmonizer_multi_state"}});
+    }
+    return LegacyColorHarmonizerCandidate{attributes, parsed_position.value()};
+}
+
 [[nodiscard]] Result<ColorCheckerParams>
 decode_legacy_color_checker_parameters(const std::string &version, const std::string_view encoded)
 {
@@ -716,6 +758,123 @@ decode_legacy_color_contrast_parameters(const std::string &version, const std::s
         error.context.emplace("legacy_operation", "colorcontrast");
         error.context.emplace("legacy_version", version);
         error.context.insert_or_assign("reason", "invalid_legacy_colorcontrast_parameters");
+        return error;
+    }
+    return params;
+}
+
+[[nodiscard]] Result<ColorHarmonizerParams>
+decode_legacy_color_harmonizer_parameters(const std::string &version,
+                                          const std::string_view encoded)
+{
+    if (version != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Harmonizer module version is not supported",
+                          {{"legacy_operation", "colorharmonizer"},
+                           {"legacy_version", version},
+                           {"reason", "unsupported_legacy_colorharmonizer_version"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded, 60U, "colorharmonizer");
+    if (!decoded)
+    {
+        auto error = decoded.error();
+        error.context.emplace("legacy_version", version);
+        error.context.emplace("reason", "invalid_legacy_colorharmonizer_parameters");
+        return error;
+    }
+    const auto &bytes = decoded.value();
+    const std::int32_t rule_bits = read_i32(bytes, 0U);
+    auto rule = color_harmonizer_rule_from_index(rule_bits);
+    if (!rule)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy Color Harmonizer rule is outside the frozen enumeration",
+                          {{"legacy_operation", "colorharmonizer"},
+                           {"legacy_version", version},
+                           {"reason", "invalid_legacy_colorharmonizer_parameters"}});
+    }
+    ColorHarmonizerParams params;
+    params.rule = rule.value();
+    std::size_t offset = sizeof(std::int32_t);
+    const auto assign_finite = [&](double &target, const std::string_view field) -> Result<void>
+    {
+        const float value = read_f32(bytes, offset);
+        offset += sizeof(float);
+        if (!std::isfinite(value))
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Legacy Color Harmonizer parameter is not a finite float",
+                              {{"legacy_operation", "colorharmonizer"},
+                               {"legacy_version", version},
+                               {"parameter", std::string(field)},
+                               {"reason", "invalid_legacy_colorharmonizer_parameters"}});
+        }
+        target = value;
+        return {};
+    };
+    if (auto assigned = assign_finite(params.anchor_hue, "anchor_hue"); !assigned)
+    {
+        return assigned.error();
+    }
+    if (auto assigned = assign_finite(params.pull_strength, "pull_strength"); !assigned)
+    {
+        return assigned.error();
+    }
+    if (auto assigned = assign_finite(params.neutral_protection, "neutral_protection"); !assigned)
+    {
+        return assigned.error();
+    }
+    if (auto assigned = assign_finite(params.pull_width, "pull_width"); !assigned)
+    {
+        return assigned.error();
+    }
+    for (std::size_t index = 0U; index < params.custom_hue.size(); ++index)
+    {
+        if (auto assigned = assign_finite(params.custom_hue[index], "custom_hue"); !assigned)
+        {
+            return assigned.error();
+        }
+    }
+    const std::int32_t node_count = read_i32(bytes, offset);
+    offset += sizeof(std::int32_t);
+    if (node_count < kColorHarmonizerCustomNodesMin || node_count > kColorHarmonizerCustomNodesMax)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Legacy Color Harmonizer custom-node count is outside 2..4",
+                          {{"legacy_operation", "colorharmonizer"},
+                           {"legacy_version", version},
+                           {"reason", "invalid_legacy_colorharmonizer_parameters"}});
+    }
+    params.num_custom_nodes = node_count;
+    for (std::size_t index = 0U; index < params.node_saturation.size(); ++index)
+    {
+        if (auto assigned = assign_finite(params.node_saturation[index], "node_saturation");
+            !assigned)
+        {
+            return assigned.error();
+        }
+    }
+    if (auto assigned = assign_finite(params.smoothing, "smoothing"); !assigned)
+    {
+        return assigned.error();
+    }
+    if (params.smoothing != 0.0)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Harmonizer smoothing requires the recursive Gaussian path",
+                          {{"legacy_operation", "colorharmonizer"},
+                           {"legacy_version", version},
+                           {"parameter", "smoothing"},
+                           {"reason", "unsupported_smoothing_requires_recursive_gaussian"}});
+    }
+    auto canonical = color_harmonizer_to_parameters(params);
+    if (!canonical)
+    {
+        auto error = canonical.error();
+        error.context.emplace("legacy_operation", "colorharmonizer");
+        error.context.emplace("legacy_version", version);
+        error.context.insert_or_assign("reason", "invalid_legacy_colorharmonizer_parameters");
         return error;
     }
     return params;
@@ -983,6 +1142,9 @@ constexpr std::array kFrozenColorCorrectionBlendTuples{
 constexpr std::string_view kFrozenColorContrastBlendV10 =
     "gz13eJxjYGBgYAJiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAExgGQY=";
 
+constexpr std::string_view kFrozenColorHarmonizerBlendV14 =
+    "gz08eJxjYGBgYAFiCQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dlAx68oBEMbFxwX+AwGIBgCbGCeh";
+
 [[nodiscard]] bool is_allowed_color_checker_attribute(const QStringView name) noexcept
 {
     return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
@@ -1244,6 +1406,95 @@ map_color_contrast_candidate(const LegacyColorContrastCandidate &candidate)
     return OperationInstance{std::string(kColorContrastOperationId),
                              kColorContrastOperationSchemaVersion,
                              "legacy-colorcontrast-" + std::to_string(candidate.history_position),
+                             true,
+                             std::move(parameters).value(),
+                             std::nullopt};
+}
+
+[[nodiscard]] bool is_allowed_color_harmonizer_attribute(const QStringView name) noexcept
+{
+    return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
+           name == u"params" || name == u"multi_name" || name == u"multi_priority" ||
+           name == u"multi_name_hand_edited" || name == u"blendop_version" ||
+           name == u"blendop_params";
+}
+
+[[nodiscard]] Result<OperationInstance>
+map_color_harmonizer_candidate(const LegacyColorHarmonizerCandidate &candidate)
+{
+    for (const auto &attribute : candidate.attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy Color Harmonizer mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "colorharmonizer"},
+                               {"reason", "unsupported_legacy_colorharmonizer_mask"}});
+        }
+        if (!is_allowed_color_harmonizer_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy Color Harmonizer contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "colorharmonizer"},
+                               {"reason", "unsupported_legacy_colorharmonizer_attribute"}});
+        }
+    }
+    const auto version = required_attribute(candidate.attributes, u"modversion", "colorharmonizer");
+    const auto enabled = required_attribute(candidate.attributes, u"enabled", "colorharmonizer");
+    const auto encoded = required_attribute(candidate.attributes, u"params", "colorharmonizer");
+    const auto blend_version =
+        required_attribute(candidate.attributes, u"blendop_version", "colorharmonizer");
+    const auto blend_parameters =
+        required_attribute(candidate.attributes, u"blendop_params", "colorharmonizer");
+    if (!version || !enabled || !encoded || !blend_version || !blend_parameters)
+    {
+        return !version       ? version.error() :
+               !enabled       ? enabled.error() :
+               !encoded       ? encoded.error() :
+               !blend_version ? blend_version.error() :
+                                blend_parameters.error();
+    }
+    if (version.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Harmonizer version is outside the frozen evidence",
+                          {{"legacy_operation", "colorharmonizer"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_colorharmonizer_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy Color Harmonizer enabled state is outside the frozen fixture evidence",
+            {{"legacy_operation", "colorharmonizer"},
+             {"reason", "unsupported_legacy_colorharmonizer_enabled_state"}});
+    }
+    if (blend_version.value() != "14" || blend_parameters.value() != kFrozenColorHarmonizerBlendV14)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Color Harmonizer blend is not the frozen unmasked default",
+                          {{"legacy_blend_version", blend_version.value()},
+                           {"legacy_operation", "colorharmonizer"},
+                           {"reason", "unsupported_legacy_colorharmonizer_blend"}});
+    }
+    auto decoded = decode_legacy_color_harmonizer_parameters(version.value(), encoded.value());
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    auto parameters = color_harmonizer_to_parameters(decoded.value());
+    if (!parameters)
+    {
+        return parameters.error();
+    }
+    return OperationInstance{std::string(kColorHarmonizerOperationId),
+                             kColorHarmonizerOperationSchemaVersion,
+                             "legacy-colorharmonizer-0",
                              true,
                              std::move(parameters).value(),
                              std::nullopt};
@@ -1736,6 +1987,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::vector<LegacyColorCheckerCandidate> color_checker_candidates;
     std::vector<LegacyColorCorrectionCandidate> color_correction_candidates;
     std::vector<LegacyColorContrastCandidate> color_contrast_candidates;
+    std::vector<LegacyColorHarmonizerCandidate> color_harmonizer_candidates;
     std::optional<OperationInstance> input_color;
     std::optional<OperationInstance> output_color;
     std::optional<OperationInstance> primaries;
@@ -2054,6 +2306,28 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "colorharmonizer")
+            {
+                auto captured = capture_color_harmonizer_candidate(reader.attributes());
+                if (!captured)
+                {
+                    return captured.error();
+                }
+                if (std::any_of(
+                        color_harmonizer_candidates.begin(), color_harmonizer_candidates.end(),
+                        [&](const LegacyColorHarmonizerCandidate &existing)
+                        { return existing.history_position == captured.value().history_position; }))
+                {
+                    return make_error(
+                        ErrorCode::kConflict,
+                        "Legacy Color Harmonizer revisions reuse one history position",
+                        {{"legacy_operation", "colorharmonizer"},
+                         {"reason", "duplicate_legacy_colorharmonizer_revision"}});
+                }
+                color_harmonizer_candidates.push_back(std::move(captured).value());
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -2138,6 +2412,28 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
             operations.begin(), operations.end(), [](const OperationInstance &operation)
             { return operation.id == kColorBalanceOperationId; });
         operations.insert(color_balance, std::move(mapped).value());
+    }
+    if (!color_harmonizer_candidates.empty())
+    {
+        std::optional<OperationInstance> winner;
+        std::uint64_t winner_position = 0;
+        for (const auto &candidate : color_harmonizer_candidates)
+        {
+            auto mapped = map_color_harmonizer_candidate(candidate);
+            if (!mapped)
+            {
+                return mapped.error();
+            }
+            if (!winner || candidate.history_position > winner_position)
+            {
+                winner_position = candidate.history_position;
+                winner = std::move(mapped).value();
+            }
+        }
+        const auto color_balance = std::find_if(
+            operations.begin(), operations.end(), [](const OperationInstance &operation)
+            { return operation.id == kColorBalanceOperationId; });
+        operations.insert(color_balance, std::move(*winner));
     }
     if (!color_correction_candidates.empty())
     {

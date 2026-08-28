@@ -32,6 +32,9 @@ constexpr std::array<std::string_view, 10> kRuleNames{"monochromatic",
                                                       "square",
                                                       "custom"};
 
+static_assert(kRuleNames.size() == kColorHarmonizerRuleCount);
+static_assert(kColorHarmonizerPredefinedNodeCounts.size() + 1U == kColorHarmonizerRuleCount);
+
 [[nodiscard]] TaskError invalid_parameter(const std::string_view message,
                                           const std::string_view parameter = {})
 {
@@ -288,6 +291,91 @@ Result<void> validate_color_harmonizer_parameters(
         return parsed.error();
     }
     return {};
+}
+
+std::string_view color_harmonizer_rule_name(const ColorHarmonizerRule rule) noexcept
+{
+    const auto index = static_cast<std::size_t>(rule);
+    if (index >= kRuleNames.size())
+    {
+        return {};
+    }
+    return kRuleNames[index];
+}
+
+std::int64_t color_harmonizer_rule_index(const ColorHarmonizerRule rule) noexcept
+{
+    return static_cast<std::int64_t>(rule);
+}
+
+Result<ColorHarmonizerRule> color_harmonizer_rule_from_index(const std::int64_t index)
+{
+    if (index < 0 || index >= static_cast<std::int64_t>(kRuleNames.size()))
+    {
+        return invalid_parameter("Color Harmonizer rule is unsupported", "rule");
+    }
+    return static_cast<ColorHarmonizerRule>(index);
+}
+
+Result<double> color_harmonizer_hue_degrees_to_turns(const double degrees)
+{
+    if (!std::isfinite(degrees) || !std::isfinite(static_cast<float>(degrees)))
+    {
+        return invalid_parameter(
+            "Color Harmonizer hue degrees must be finite and representable as float", "anchor_hue");
+    }
+    if (degrees < kColorHarmonizerHueDegreesMin || degrees > kColorHarmonizerHueDegreesMax)
+    {
+        return invalid_parameter("Color Harmonizer hue degrees are outside 0..360", "anchor_hue");
+    }
+    const double turns = degrees / kColorHarmonizerHueDegreesMax;
+    const float narrowed = static_cast<float>(turns);
+    if (!std::isfinite(turns) || !std::isfinite(narrowed) || turns < kColorHarmonizerHueMin ||
+        turns > kColorHarmonizerHueMax)
+    {
+        return invalid_parameter(
+            "Color Harmonizer hue degrees cannot produce a valid canonical turn", "anchor_hue");
+    }
+    return turns;
+}
+
+double color_harmonizer_hue_turns_to_degrees(const double turns) noexcept
+{
+    return turns * kColorHarmonizerHueDegreesMax;
+}
+
+std::int64_t color_harmonizer_active_node_count(const ColorHarmonizerParams &params) noexcept
+{
+    if (params.rule == ColorHarmonizerRule::kCustom)
+    {
+        return params.num_custom_nodes;
+    }
+    const auto index = static_cast<std::size_t>(params.rule);
+    if (index >= kColorHarmonizerPredefinedNodeCounts.size())
+    {
+        return 0;
+    }
+    return kColorHarmonizerPredefinedNodeCounts[index];
+}
+
+bool color_harmonizer_uses_anchor_hue(const ColorHarmonizerRule rule) noexcept
+{
+    return rule != ColorHarmonizerRule::kCustom;
+}
+
+bool color_harmonizer_uses_custom_hue(const ColorHarmonizerParams &params,
+                                      const std::size_t index) noexcept
+{
+    return params.rule == ColorHarmonizerRule::kCustom &&
+           color_harmonizer_uses_node_saturation(params, index);
+}
+
+bool color_harmonizer_uses_node_saturation(const ColorHarmonizerParams &params,
+                                           const std::size_t index) noexcept
+{
+    const auto active = color_harmonizer_active_node_count(params);
+    return active > 0 && index < kColorHarmonizerNodeSlotCount &&
+           index < static_cast<std::size_t>(active);
 }
 
 } // namespace ravo

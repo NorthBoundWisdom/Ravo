@@ -2,13 +2,15 @@
 
 > **Status: in progress**
 >
-> **Updated: 2026-08-27**
+> **Updated: 2026-08-28**
 >
-> **Current execution status: C14's default-unmasked, smoothing-zero CPU core
-> is accepted; later migration tranches are paused.** Resume only after feature
-> convergence is reviewed explicitly. Strict import, product consumers,
-> nonzero smoothing/S2.2, masks/presentation, and retirement are not authorized.
-> Do not start C15 or cacorrectrgb in parallel.
+> **Current execution status: remaining C14 work is unfinished and
+> unauthorized.** The smoothing-zero core and the strict v1 import plus
+> Develop/CLI/Catalog/Studio vertical slice are accepted. Remaining C14
+> work is positive smoothing with canonical ROI scale and S2.2,
+> masks/presentation decisions, and atomic legacy-owner retirement. Do
+> not start those, C15, or cacorrectrgb until a later exact tranche is
+> explicitly authorized.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -41,15 +43,16 @@ ready for execution.
 
 ## 2. Migration queue
 
-C14 colorharmonizer's owner/dependency audit and default-unmasked,
-`smoothing == 0` canonical recipe/CPU core are accepted. S1.1 owns the frozen
-D50 Lab bridge, S1.2 owns the source-order dt-UCS bridge, and S2.1 owns immutable
-RYB lookup and harmony-node geometry. M1 and the general mask graph do not block
-this exact unmasked boundary; every other mask/blend state remains structurally
-unsupported. Strict legacy import, Develop/CLI/Catalog/Studio consumers,
-nonzero smoothing with canonical ROI scale and S2.2, presentation, and atomic
-legacy retirement remain unfinished and are paused pending a new feature-
-convergence review. No later C14 tranche, S2.2 work, or C15 work is authorized.
+C14 colorharmonizer's owner/dependency audit, default-unmasked
+`smoothing == 0` canonical recipe/CPU core, and the strict v1 import plus
+smoothing-zero Develop/CLI/Catalog/Studio vertical slice are accepted.
+S1.1 owns the frozen D50 Lab bridge, S1.2 owns the source-order dt-UCS
+bridge, and S2.1 owns immutable RYB lookup and harmony-node geometry. M1
+and the general mask graph do not block this exact unmasked boundary;
+every other mask/blend state remains structurally unsupported. Remaining
+C14 work is positive smoothing with canonical ROI scale and S2.2,
+masks/presentation decisions, and atomic legacy retirement. Those items
+are unfinished and unauthorized. C15 and cacorrectrgb stay forbidden.
 
 Independent adapter or reliability work may run only when its dependencies are
 met and its owners and files do not overlap.
@@ -110,7 +113,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C14 | colorharmonizer — iop/colorharmonizer.c | yes | **Core accepted / follow-on paused**; exact schema-v1 default-unmasked smoothing-zero CPU path uses S1.1/S1.2/S2.1; strict import, consumers, S2.2/ROI smoothing, masks/presentation, and retirement await a new feature-convergence review; C15 is forbidden |
+| C14 | colorharmonizer — iop/colorharmonizer.c | yes | **Core + vertical slice accepted**; exact schema-v1 default-unmasked smoothing-zero CPU path, strict v1 singleton import, and Develop/CLI/Catalog/Studio consumers use S1.1/S1.2/S2.1; remaining unfinished work is S2.2/ROI smoothing, masks/presentation, and retirement; C15 is forbidden |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
 | C17 | colorzones — iop/colorzones.c | yes | Queued / ALG; colorequal stays default; migrate complete optional HSL/Lab partitions and curves |
@@ -194,7 +197,7 @@ default. fixture means static evidence exists, not that it is covered.
 | ID | Owner paths | Action | Dependency and acceptance gate |
 | --- | --- | --- | --- |
 | S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 frozen D50 Lab and S1.2 source-order dt-UCS bridges are complete behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
-| S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | S2.1 immutable harmony geometry is complete; S2.2 remains required for C14 nonzero smoothing but is not authorized during the feature-convergence pause; accept remaining primitives only for an explicitly reopened consumer and do not port OpenCL twins |
+| S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | S2.1 immutable harmony geometry is complete; S2.2 remains required for unfinished C14 nonzero smoothing and is not authorized; accept remaining primitives only for an explicitly reopened consumer and do not port OpenCL twins |
 | S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: create canonical mask/blend graph | Shape/group/coordinate/parametric blend/ROI/schema/cancellation tests; prerequisite for M1 |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
 | S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all remaining IOPs retire; built-in versioned operation registry remains |
@@ -320,9 +323,10 @@ are stable, and end-to-end measurements prove benefit.
 
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
-constraints; it cannot be used to hide modules from this TODO. Do not begin a
-later C14 tranche, S2.2, or C15 audit/implementation until feature convergence
-is reviewed and that exact tranche is explicitly authorized.
+constraints; it cannot be used to hide modules from this TODO. Remaining C14
+work is positive smoothing, S2.2, ROI-scale, masks/presentation, and retirement.
+Do not begin those, or C15 audit/implementation, until a later exact tranche is
+explicitly authorized.
 Independent adapter or reliability work requires satisfied dependencies and
 explicitly non-overlapping owners and files.
 

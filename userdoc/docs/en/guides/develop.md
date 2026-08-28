@@ -148,6 +148,10 @@ The Color section currently exposes:
   saturation.
 - **Color contrast**, with independent a*/b* slopes and offsets plus an
   **Allow extended chroma** switch.
+- **Color Harmonizer**, with an enable switch, ten harmony rules, anchor
+  hue, pull strength, neutral protection, pull width, custom nodes 2–4,
+  four custom hues, and four node saturations. The current product accepts
+  only the unsmoothed path; there is no smoothing slider.
 - Monochrome and split-toning controls for amount, shadow/highlight hue, and
   balance.
 
