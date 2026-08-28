@@ -1044,10 +1044,19 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     }
 
     std::optional<std::size_t> input_color_index;
+    std::optional<std::size_t> any_input_color_index;
     for (std::size_t index = 0; index < recipe.operations.size(); ++index)
     {
         const auto &operation = recipe.operations[index];
-        if (!operation.enabled || operation.id != "ravo.color.input")
+        if (operation.id != "ravo.color.input")
+        {
+            continue;
+        }
+        if (!any_input_color_index)
+        {
+            any_input_color_index = index;
+        }
+        if (!operation.enabled)
         {
             continue;
         }
@@ -1078,13 +1087,13 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     }
     if (profile_gamma_index)
     {
-        if (!input_color_index)
+        if (!any_input_color_index)
         {
             return make_error(ErrorCode::kValidation,
-                              "Profile gamma requires an enabled input colour operation",
+                              "Profile gamma requires an input colour operation",
                               {{"operation_id", std::string(kProfileGammaOperationId)}});
         }
-        if (*profile_gamma_index + 1U != *input_color_index)
+        if (*profile_gamma_index + 1U != *any_input_color_index)
         {
             return make_error(ErrorCode::kValidation,
                               "Profile gamma must immediately precede input colour",
@@ -1127,19 +1136,19 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     }
     if (primaries_index)
     {
-        if (!input_color_index)
+        if (!any_input_color_index)
         {
             return make_error(ErrorCode::kValidation,
-                              "RGB primaries requires an enabled input colour operation",
+                              "RGB primaries requires an input colour operation",
                               {{"operation_id", std::string(kPrimariesOperationId)}});
         }
-        if (*primaries_index != *input_color_index + 1U)
+        if (*primaries_index != *any_input_color_index + 1U)
         {
             return make_error(ErrorCode::kValidation,
                               "RGB primaries must immediately follow input colour",
                               {{"operation_id", std::string(kPrimariesOperationId)}});
         }
-        if (!output_color_index || *output_color_index != recipe.operations.size() - 1U)
+        if (recipe.operations.empty() || recipe.operations.back().id != "ravo.color.output")
         {
             return make_error(ErrorCode::kValidation,
                               "RGB primaries recipes require output colour as the final operation",

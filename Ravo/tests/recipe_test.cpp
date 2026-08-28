@@ -2647,5 +2647,41 @@ TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)
     EXPECT_EQ(recipe.error().code, ErrorCode::kUnsupported);
 }
 
+TEST(RecipeTest, SectionEffectBypassKeepsParametersAndDisablesOperations)
+{
+    DevelopParams params;
+    EXPECT_FALSE(develop_section_modified(params, "inputProfile"));
+    EXPECT_TRUE(develop_section_effect_enabled(params, "inputProfile"));
+    params.input_color.working_profile = std::string(kInputProfileLinearRec2020);
+    EXPECT_TRUE(develop_section_modified(params, "inputProfile"));
+    ASSERT_TRUE(set_develop_section_effect_enabled(params, "inputProfile", false));
+    EXPECT_FALSE(develop_section_effect_enabled(params, "inputProfile"));
+
+    params.exposure_ev = 0.75;
+    ASSERT_TRUE(set_develop_section_effect_enabled(params, "light", false));
+    EXPECT_TRUE(develop_section_modified(params, "light"));
+    EXPECT_FALSE(develop_section_effect_enabled(params, "light"));
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto *input = operation_by_id(recipe.value(), "ravo.color.input");
+    ASSERT_NE(input, nullptr);
+    EXPECT_FALSE(input->enabled);
+    const auto *exposure = operation_by_id(recipe.value(), kExposureOperationId);
+    ASSERT_NE(exposure, nullptr);
+    EXPECT_FALSE(exposure->enabled);
+
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().input_color.working_profile, kInputProfileLinearRec2020);
+    EXPECT_FALSE(develop_section_effect_enabled(restored.value(), "inputProfile"));
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, 0.75);
+    EXPECT_FALSE(develop_section_effect_enabled(restored.value(), "light"));
+
+    ASSERT_TRUE(reset_develop_section(params, "inputProfile"));
+    EXPECT_FALSE(develop_section_modified(params, "inputProfile"));
+    EXPECT_TRUE(develop_section_effect_enabled(params, "inputProfile"));
+}
+
 } // namespace
 } // namespace ravo

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <initializer_list>
 #include <limits>
+#include <map>
 #include <numbers>
 #include <set>
 #include <string>
@@ -3865,7 +3866,237 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     {
         return false;
     }
+    if (section != "profileGamma")
+    {
+        static_cast<void>(set_develop_section_effect_enabled(params, section, true));
+    }
     clamp_develop(params);
+    return true;
+}
+
+bool develop_section_modified(const DevelopParams &params, const std::string_view section)
+{
+    const DevelopParams identity;
+    if (section == "geometry")
+    {
+        return params.rotate_quarters % 4 != 0 || params.flip_horizontal != 0 ||
+               params.flip_vertical != 0 || !near(params.straighten_degrees, 0.0) ||
+               !near(params.crop_x, 0.0) || !near(params.crop_y, 0.0) ||
+               !near(params.crop_width, 1.0) || !near(params.crop_height, 1.0);
+    }
+    if (section == "whiteBalance")
+    {
+        return !params.temperature.is_identity();
+    }
+    if (section == "profileGamma")
+    {
+        return params.profile_gamma_enabled || !params.profile_gamma.is_default();
+    }
+    if (section == "inputProfile")
+    {
+        return !params.input_color.is_identity();
+    }
+    if (section == "outputProfile")
+    {
+        return !params.output_color.is_identity();
+    }
+    if (section == "calibration")
+    {
+        return !params.channel_mixer.is_identity();
+    }
+    if (section == "primaries")
+    {
+        return !params.primaries.is_identity();
+    }
+    if (section == "light")
+    {
+        const ExposureParams exposure{params.exposure_mode,
+                                      params.exposure_black,
+                                      params.exposure_ev,
+                                      params.exposure_deflicker_percentile,
+                                      params.exposure_deflicker_target_ev,
+                                      params.exposure_compensate_exposure_bias,
+                                      params.exposure_compensate_highlight_preservation};
+        return !exposure.is_identity() || !near(params.contrast, 0.0) ||
+               !near(params.highlights, 0.0) || !near(params.shadows, 0.0) ||
+               !near(params.whites, 0.0) || !near(params.blacks, 0.0) ||
+               !near(params.gamma, kDevelopGammaDefault) ||
+               !tone_curve_is_identity(params.tone_curve) || params.sigmoid_enabled ||
+               !near(params.sigmoid_contrast, identity.sigmoid_contrast) ||
+               !near(params.sigmoid_skew, identity.sigmoid_skew) ||
+               !near(params.sigmoid_display_white, identity.sigmoid_display_white) ||
+               !near(params.sigmoid_display_black, identity.sigmoid_display_black) ||
+               !near(params.sigmoid_hue_preservation, identity.sigmoid_hue_preservation);
+    }
+    if (section == "color")
+    {
+        return !near(params.vibrance, 0.0) || !near(params.saturation, 0.0) ||
+               !near(params.velvia, 0.0) || params.color_balance_enabled ||
+               !params.color_balance.is_identity() || params.color_checker_enabled ||
+               !params.color_balance_rgb.is_identity() || params.color_correction_enabled ||
+               params.color_contrast_enabled || params.color_harmonizer_enabled ||
+               params.color_harmonizer_present || !near(params.monochrome, 0.0) ||
+               !near(params.split_amount, 0.0);
+    }
+    if (section == "colorHarmonizer")
+    {
+        return params.color_harmonizer_enabled || params.color_harmonizer_present;
+    }
+    if (section == "detail")
+    {
+        return !near(params.sharpen, 0.0) || !near(params.sharpen_radius, identity.sharpen_radius) ||
+               !near(params.clarity, 0.0) || !near(params.grain, 0.0);
+    }
+    if (section == "effects")
+    {
+        return !near(params.vignette, 0.0) || !near(params.bloom, 0.0) ||
+               !near(params.soften, 0.0) || !near(params.dehaze, 0.0);
+    }
+    if (section == "raw")
+    {
+        return !near(params.raw_highlights, 0.0) || !near(params.hot_pixels_strength, 0.0) ||
+               params.raw_ca_iterations > 0 || !near(params.denoise, 0.0) ||
+               !near(params.lens_k1, 0.0) || !near(params.lens_vignetting, 0.0);
+    }
+    if (section == "toneEqual")
+    {
+        return !near(params.tone_eq_blacks, 0.0) || !near(params.tone_eq_shadows, 0.0) ||
+               !near(params.tone_eq_midtones, 0.0) || !near(params.tone_eq_highlights, 0.0) ||
+               !near(params.tone_eq_whites, 0.0);
+    }
+    if (section == "graduated")
+    {
+        return params.graduated_present || params.graduated_enabled ||
+               !near(params.graduated_density, 0.0) || !bands_near_zero(params.color_eq_hue) ||
+               !bands_near_zero(params.color_eq_sat) || !bands_near_zero(params.color_eq_light);
+    }
+    return false;
+}
+
+bool develop_section_effect_enabled(const DevelopParams &params, const std::string_view section)
+{
+    if (section == "geometry")
+    {
+        return params.geometry_effect_enabled;
+    }
+    if (section == "whiteBalance")
+    {
+        return params.white_balance_effect_enabled;
+    }
+    if (section == "profileGamma")
+    {
+        return params.profile_gamma_enabled;
+    }
+    if (section == "inputProfile")
+    {
+        return params.input_profile_effect_enabled;
+    }
+    if (section == "outputProfile")
+    {
+        return params.output_profile_effect_enabled;
+    }
+    if (section == "calibration")
+    {
+        return params.calibration_effect_enabled;
+    }
+    if (section == "primaries")
+    {
+        return params.primaries_effect_enabled;
+    }
+    if (section == "light")
+    {
+        return params.light_effect_enabled;
+    }
+    if (section == "color" || section == "colorHarmonizer")
+    {
+        return params.color_effect_enabled;
+    }
+    if (section == "detail")
+    {
+        return params.detail_effect_enabled;
+    }
+    if (section == "effects")
+    {
+        return params.effects_effect_enabled;
+    }
+    if (section == "raw")
+    {
+        return params.raw_effect_enabled;
+    }
+    if (section == "toneEqual")
+    {
+        return params.tone_equal_effect_enabled;
+    }
+    if (section == "graduated")
+    {
+        return params.graduated_effect_enabled;
+    }
+    return false;
+}
+
+bool set_develop_section_effect_enabled(DevelopParams &params, const std::string_view section,
+                                        const bool enabled)
+{
+    if (section == "geometry")
+    {
+        params.geometry_effect_enabled = enabled;
+    }
+    else if (section == "whiteBalance")
+    {
+        params.white_balance_effect_enabled = enabled;
+    }
+    else if (section == "profileGamma")
+    {
+        params.profile_gamma_enabled = enabled;
+    }
+    else if (section == "inputProfile")
+    {
+        params.input_profile_effect_enabled = enabled;
+    }
+    else if (section == "outputProfile")
+    {
+        params.output_profile_effect_enabled = enabled;
+    }
+    else if (section == "calibration")
+    {
+        params.calibration_effect_enabled = enabled;
+    }
+    else if (section == "primaries")
+    {
+        params.primaries_effect_enabled = enabled;
+    }
+    else if (section == "light")
+    {
+        params.light_effect_enabled = enabled;
+    }
+    else if (section == "color" || section == "colorHarmonizer")
+    {
+        params.color_effect_enabled = enabled;
+    }
+    else if (section == "detail")
+    {
+        params.detail_effect_enabled = enabled;
+    }
+    else if (section == "effects")
+    {
+        params.effects_effect_enabled = enabled;
+    }
+    else if (section == "raw")
+    {
+        params.raw_effect_enabled = enabled;
+    }
+    else if (section == "toneEqual")
+    {
+        params.tone_equal_effect_enabled = enabled;
+    }
+    else if (section == "graduated")
+    {
+        params.graduated_effect_enabled = enabled;
+    }
+    else
+    {
+        return false;
+    }
     return true;
 }
 
@@ -4103,7 +4334,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     if (!clamped.temperature.is_identity())
     {
         add_operation(recipe, "ravo.color.temperature", "temperature-1",
-                      temperature_to_parameters(clamped.temperature));
+                      temperature_to_parameters(clamped.temperature), 1, std::nullopt,
+                      clamped.white_balance_effect_enabled);
     }
     if (clamped.profile_gamma_enabled)
     {
@@ -4113,46 +4345,54 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
             return profile_gamma.error();
         }
         add_operation(recipe, std::string(kProfileGammaOperationId), "profilegamma-1",
-                      std::move(profile_gamma).value());
+                      std::move(profile_gamma).value(), kProfileGammaOperationSchemaVersion,
+                      std::nullopt, true);
     }
     add_operation(recipe, "ravo.color.input", "color-input-1",
-                  input_color_to_parameters(clamped.input_color));
+                  input_color_to_parameters(clamped.input_color), 1, std::nullopt,
+                  clamped.input_profile_effect_enabled);
     if (!clamped.primaries.is_identity())
     {
         add_operation(recipe, std::string(kPrimariesOperationId), "primaries-1",
-                      primaries_to_parameters(clamped.primaries));
+                      primaries_to_parameters(clamped.primaries), 1, std::nullopt,
+                      clamped.primaries_effect_enabled);
     }
     if (!clamped.channel_mixer.is_identity())
     {
         add_operation(recipe, "ravo.color.channelmixerrgb", "channelmixerrgb-1",
-                      channel_mixer_to_parameters(clamped.channel_mixer));
+                      channel_mixer_to_parameters(clamped.channel_mixer), 1, std::nullopt,
+                      clamped.calibration_effect_enabled);
     }
     if (!near(clamped.hot_pixels_strength, 0.0))
     {
         add_operation(recipe, "ravo.raw.hotpixels", "hotpixels-1",
                       {{"strength", ParameterValue{clamped.hot_pixels_strength}},
                        {"threshold", ParameterValue{clamped.hot_pixels_threshold}},
-                       {"permissive", ParameterValue{clamped.hot_pixels_permissive}}});
+                       {"permissive", ParameterValue{clamped.hot_pixels_permissive}}},
+                      1, std::nullopt, clamped.raw_effect_enabled);
     }
     if (!near(clamped.raw_highlights, 0.0))
     {
         add_operation(recipe, "ravo.raw.highlights", "raw-highlights-1",
                       {{"mode", ParameterValue{clamped.raw_highlights_mode}},
                        {"amount", ParameterValue{clamped.raw_highlights}},
-                       {"clip", ParameterValue{clamped.raw_highlights_clip}}});
+                       {"clip", ParameterValue{clamped.raw_highlights_clip}}},
+                      1, std::nullopt, clamped.raw_effect_enabled);
     }
     if (clamped.raw_ca_iterations > 0)
     {
         add_operation(recipe, "ravo.raw.cacorrect", "cacorrect-1",
                       {{"iterations", ParameterValue{clamped.raw_ca_iterations}},
-                       {"avoid_color_shift", ParameterValue{clamped.raw_ca_avoid_shift}}});
+                       {"avoid_color_shift", ParameterValue{clamped.raw_ca_avoid_shift}}},
+                      1, std::nullopt, clamped.raw_effect_enabled);
     }
     if (!near(clamped.denoise, 0.0))
     {
         add_operation(recipe, "ravo.detail.denoiseprofile", "denoiseprofile-1",
                       {{"strength", ParameterValue{clamped.denoise}},
                        {"chroma", ParameterValue{clamped.denoise_chroma}},
-                       {"radius", ParameterValue{clamped.denoise_radius}}});
+                       {"radius", ParameterValue{clamped.denoise_radius}}},
+                      1, std::nullopt, clamped.raw_effect_enabled);
     }
     if (clamped.lens_mode == kLensModeLookup || !near(clamped.lens_k1, 0.0) ||
         !near(clamped.lens_k2, 0.0) || !near(clamped.lens_tca_r, 1.0) ||
@@ -4168,7 +4408,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"camera_make", ParameterValue{clamped.lens_make}},
                        {"camera_model", ParameterValue{clamped.lens_model}},
                        {"lens", ParameterValue{clamped.lens_name}},
-                       {"focal_mm", ParameterValue{clamped.lens_focal_mm}}});
+                       {"focal_mm", ParameterValue{clamped.lens_focal_mm}}},
+                      1, std::nullopt, clamped.raw_effect_enabled);
     }
     const ExposureParams exposure{clamped.exposure_mode,
                                   clamped.exposure_black,
@@ -4180,7 +4421,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     if (!exposure.is_identity())
     {
         add_operation(recipe, std::string(kExposureOperationId), "exposure-1",
-                      exposure_to_parameters(exposure), kExposureOperationSchemaVersion);
+                      exposure_to_parameters(exposure), kExposureOperationSchemaVersion,
+                      std::nullopt, clamped.light_effect_enabled);
     }
     if (!near(clamped.tone_eq_blacks, 0.0) || !near(clamped.tone_eq_shadows, 0.0) ||
         !near(clamped.tone_eq_midtones, 0.0) || !near(clamped.tone_eq_highlights, 0.0) ||
@@ -4191,7 +4433,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"shadows", ParameterValue{clamped.tone_eq_shadows}},
                        {"midtones", ParameterValue{clamped.tone_eq_midtones}},
                        {"highlights", ParameterValue{clamped.tone_eq_highlights}},
-                       {"whites", ParameterValue{clamped.tone_eq_whites}}});
+                       {"whites", ParameterValue{clamped.tone_eq_whites}}},
+                      1, std::nullopt, clamped.tone_equal_effect_enabled);
     }
     if (clamped.graduated_present || !near(clamped.graduated_density, 0.0))
     {
@@ -4201,7 +4444,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"rotation_deg", ParameterValue{clamped.graduated_rotation}},
                        {"offset", ParameterValue{clamped.graduated_offset}}},
                       1, clamped.graduated_mask_id,
-                      clamped.graduated_present ? clamped.graduated_enabled : true);
+                      clamped.graduated_effect_enabled &&
+                          (clamped.graduated_present ? clamped.graduated_enabled : true));
     }
     if (clamped.color_checker_enabled)
     {
@@ -4211,7 +4455,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
             return color_checker.error();
         }
         add_operation(recipe, std::string(kColorCheckerOperationId), "colorchecker-1",
-                      std::move(color_checker).value(), kColorCheckerOperationSchemaVersion);
+                      std::move(color_checker).value(), kColorCheckerOperationSchemaVersion,
+                      std::nullopt, clamped.color_effect_enabled);
     }
     if (clamped.color_harmonizer_present || clamped.color_harmonizer_enabled)
     {
@@ -4222,37 +4467,44 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         }
         add_operation(recipe, std::string(kColorHarmonizerOperationId), "colorharmonizer-1",
                       std::move(color_harmonizer).value(), kColorHarmonizerOperationSchemaVersion,
-                      clamped.color_harmonizer_mask_id, clamped.color_harmonizer_enabled);
+                      clamped.color_harmonizer_mask_id,
+                      clamped.color_effect_enabled && clamped.color_harmonizer_enabled);
     }
     if (!near(clamped.highlights, 0.0))
     {
         add_operation(recipe, "ravo.core.highlights", "highlights-1",
-                      {{"amount", ParameterValue{clamped.highlights}}});
+                      {{"amount", ParameterValue{clamped.highlights}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (!near(clamped.shadows, 0.0))
     {
         add_operation(recipe, "ravo.core.shadows", "shadows-1",
-                      {{"amount", ParameterValue{clamped.shadows}}});
+                      {{"amount", ParameterValue{clamped.shadows}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (!near(clamped.whites, 0.0))
     {
         add_operation(recipe, "ravo.core.whites", "whites-1",
-                      {{"amount", ParameterValue{clamped.whites}}});
+                      {{"amount", ParameterValue{clamped.whites}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (!near(clamped.blacks, 0.0))
     {
         add_operation(recipe, "ravo.core.blacks", "blacks-1",
-                      {{"amount", ParameterValue{clamped.blacks}}});
+                      {{"amount", ParameterValue{clamped.blacks}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (!near(clamped.contrast, 0.0))
     {
         add_operation(recipe, "ravo.core.contrast", "contrast-1",
-                      {{"amount", ParameterValue{clamped.contrast}}});
+                      {{"amount", ParameterValue{clamped.contrast}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (!near(clamped.gamma, kDevelopGammaDefault))
     {
         add_operation(recipe, "ravo.core.gamma", "gamma-1",
-                      {{"gamma", ParameterValue{clamped.gamma}}});
+                      {{"gamma", ParameterValue{clamped.gamma}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
     }
     if (!tone_curve_is_identity(clamped.tone_curve))
     {
@@ -4262,18 +4514,21 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"interpolation", ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
              {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
              {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
-             {"points", tone_curve_points_to_parameter(clamped.tone_curve)}});
+             {"points", tone_curve_points_to_parameter(clamped.tone_curve)}},
+            1, std::nullopt, clamped.light_effect_enabled);
     }
     if (clamped.color_balance_enabled)
     {
         add_operation(recipe, std::string(kColorBalanceOperationId), "colorbalance-1",
                       color_balance_to_parameters(clamped.color_balance),
-                      kColorBalanceOperationSchemaVersion);
+                      kColorBalanceOperationSchemaVersion, std::nullopt,
+                      clamped.color_effect_enabled);
     }
     if (!clamped.color_balance_rgb.is_identity())
     {
         add_operation(recipe, "ravo.color.colorbalancergb", "colorbalancergb-1",
-                      color_balance_rgb_to_parameters(clamped.color_balance_rgb));
+                      color_balance_rgb_to_parameters(clamped.color_balance_rgb), 1, std::nullopt,
+                      clamped.color_effect_enabled);
     }
     if (clamped.color_correction_enabled)
     {
@@ -4283,7 +4538,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
             return color_correction.error();
         }
         add_operation(recipe, std::string(kColorCorrectionOperationId), "colorcorrection-1",
-                      std::move(color_correction).value(), kColorCorrectionOperationSchemaVersion);
+                      std::move(color_correction).value(), kColorCorrectionOperationSchemaVersion,
+                      std::nullopt, clamped.color_effect_enabled);
     }
     if (clamped.color_contrast_enabled)
     {
@@ -4293,22 +4549,26 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
             return color_contrast.error();
         }
         add_operation(recipe, std::string(kColorContrastOperationId), "colorcontrast-1",
-                      std::move(color_contrast).value(), kColorContrastOperationSchemaVersion);
+                      std::move(color_contrast).value(), kColorContrastOperationSchemaVersion,
+                      std::nullopt, clamped.color_effect_enabled);
     }
     if (!near(clamped.velvia, 0.0))
     {
         add_operation(recipe, "ravo.color.velvia", "velvia-1",
-                      {{"amount", ParameterValue{clamped.velvia}}, {"bias", ParameterValue{1.0}}});
+                      {{"amount", ParameterValue{clamped.velvia}}, {"bias", ParameterValue{1.0}}},
+                      1, std::nullopt, clamped.color_effect_enabled);
     }
     if (!near(clamped.vibrance, 0.0))
     {
         add_operation(recipe, "ravo.color.vibrance", "vibrance-1",
-                      {{"amount", ParameterValue{clamped.vibrance}}});
+                      {{"amount", ParameterValue{clamped.vibrance}}}, 1, std::nullopt,
+                      clamped.color_effect_enabled);
     }
     if (!near(clamped.saturation, 0.0))
     {
         add_operation(recipe, "ravo.color.saturation", "saturation-1",
-                      {{"amount", ParameterValue{clamped.saturation}}});
+                      {{"amount", ParameterValue{clamped.saturation}}}, 1, std::nullopt,
+                      clamped.color_effect_enabled);
     }
     if (!bands_near_zero(clamped.color_eq_hue) || !bands_near_zero(clamped.color_eq_sat) ||
         !bands_near_zero(clamped.color_eq_light))
@@ -4316,12 +4576,14 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, "ravo.color.colorequal", "colorequal-1",
                       {{"hue_shift", band_array_parameter(clamped.color_eq_hue)},
                        {"saturation", band_array_parameter(clamped.color_eq_sat)},
-                       {"lightness", band_array_parameter(clamped.color_eq_light)}});
+                       {"lightness", band_array_parameter(clamped.color_eq_light)}},
+                      1, std::nullopt, clamped.graduated_effect_enabled);
     }
     if (!near(clamped.monochrome, 0.0))
     {
         add_operation(recipe, "ravo.color.monochrome", "monochrome-1",
-                      {{"amount", ParameterValue{clamped.monochrome}}});
+                      {{"amount", ParameterValue{clamped.monochrome}}}, 1, std::nullopt,
+                      clamped.color_effect_enabled);
     }
     if (!near(clamped.split_amount, 0.0))
     {
@@ -4329,62 +4591,73 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       {{"shadows_hue", ParameterValue{clamped.split_shadows_hue}},
                        {"highlights_hue", ParameterValue{clamped.split_highlights_hue}},
                        {"balance", ParameterValue{clamped.split_balance}},
-                       {"amount", ParameterValue{clamped.split_amount}}});
+                       {"amount", ParameterValue{clamped.split_amount}}},
+                      1, std::nullopt, clamped.color_effect_enabled);
     }
     if (!near(clamped.sharpen, 0.0))
     {
         add_operation(recipe, "ravo.detail.sharpen", "sharpen-1",
                       {{"amount", ParameterValue{clamped.sharpen}},
                        {"radius", ParameterValue{clamped.sharpen_radius}},
-                       {"threshold", ParameterValue{0.5}}});
+                       {"threshold", ParameterValue{0.5}}},
+                      1, std::nullopt, clamped.detail_effect_enabled);
     }
     if (!near(clamped.clarity, 0.0))
     {
         add_operation(recipe, "ravo.detail.clarity", "clarity-1",
-                      {{"amount", ParameterValue{clamped.clarity}}});
+                      {{"amount", ParameterValue{clamped.clarity}}}, 1, std::nullopt,
+                      clamped.detail_effect_enabled);
     }
     if (!near(clamped.bloom, 0.0))
     {
         add_operation(recipe, "ravo.effect.bloom", "bloom-1",
-                      {{"amount", ParameterValue{clamped.bloom}}});
+                      {{"amount", ParameterValue{clamped.bloom}}}, 1, std::nullopt,
+                      clamped.effects_effect_enabled);
     }
     if (!near(clamped.soften, 0.0))
     {
         add_operation(recipe, "ravo.effect.soften", "soften-1",
-                      {{"amount", ParameterValue{clamped.soften}}});
+                      {{"amount", ParameterValue{clamped.soften}}}, 1, std::nullopt,
+                      clamped.effects_effect_enabled);
     }
     if (!near(clamped.dehaze, 0.0))
     {
         add_operation(recipe, "ravo.effect.dehaze", "dehaze-1",
-                      {{"amount", ParameterValue{clamped.dehaze}}});
+                      {{"amount", ParameterValue{clamped.dehaze}}}, 1, std::nullopt,
+                      clamped.effects_effect_enabled);
     }
     if (!near(clamped.vignette, 0.0))
     {
         add_operation(recipe, "ravo.effect.vignette", "vignette-1",
                       {{"amount", ParameterValue{clamped.vignette}},
                        {"midpoint", ParameterValue{0.8}},
-                       {"falloff", ParameterValue{0.5}}});
+                       {"falloff", ParameterValue{0.5}}},
+                      1, std::nullopt, clamped.effects_effect_enabled);
     }
     if (!near(clamped.grain, 0.0))
     {
         add_operation(recipe, "ravo.effect.grain", "grain-1",
-                      {{"amount", ParameterValue{clamped.grain}}});
+                      {{"amount", ParameterValue{clamped.grain}}}, 1, std::nullopt,
+                      clamped.detail_effect_enabled);
     }
     if (clamped.rotate_quarters % 4 != 0)
     {
         add_operation(recipe, "ravo.geometry.rotate", "rotate-1",
-                      {{"quarters", ParameterValue{clamped.rotate_quarters % 4}}});
+                      {{"quarters", ParameterValue{clamped.rotate_quarters % 4}}}, 1, std::nullopt,
+                      clamped.geometry_effect_enabled);
     }
     if (clamped.flip_horizontal != 0 || clamped.flip_vertical != 0)
     {
         add_operation(recipe, "ravo.geometry.flip", "flip-1",
                       {{"horizontal", ParameterValue{clamped.flip_horizontal}},
-                       {"vertical", ParameterValue{clamped.flip_vertical}}});
+                       {"vertical", ParameterValue{clamped.flip_vertical}}},
+                      1, std::nullopt, clamped.geometry_effect_enabled);
     }
     if (!near(clamped.straighten_degrees, 0.0))
     {
         add_operation(recipe, "ravo.geometry.straighten", "straighten-1",
-                      {{"degrees", ParameterValue{clamped.straighten_degrees}}});
+                      {{"degrees", ParameterValue{clamped.straighten_degrees}}}, 1, std::nullopt,
+                      clamped.geometry_effect_enabled);
     }
     if (!near(clamped.crop_x, 0.0) || !near(clamped.crop_y, 0.0) ||
         !near(clamped.crop_width, 1.0) || !near(clamped.crop_height, 1.0))
@@ -4393,7 +4666,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       {{"x", ParameterValue{clamped.crop_x}},
                        {"y", ParameterValue{clamped.crop_y}},
                        {"width", ParameterValue{clamped.crop_width}},
-                       {"height", ParameterValue{clamped.crop_height}}});
+                       {"height", ParameterValue{clamped.crop_height}}},
+                      1, std::nullopt, clamped.geometry_effect_enabled);
     }
     if (clamped.sigmoid_enabled)
     {
@@ -4405,10 +4679,12 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"contrast_skewness", ParameterValue{clamped.sigmoid_skew}},
              {"display_white_target", ParameterValue{clamped.sigmoid_display_white}},
              {"display_black_target", ParameterValue{clamped.sigmoid_display_black}},
-             {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}});
+             {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}},
+            1, std::nullopt, clamped.light_effect_enabled);
     }
     add_operation(recipe, "ravo.color.output", "color-output-1",
-                  output_color_to_parameters(clamped.output_color));
+                  output_color_to_parameters(clamped.output_color), 1, std::nullopt,
+                  clamped.output_profile_effect_enabled);
     return recipe;
 }
 
@@ -4416,13 +4692,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
 {
     DevelopParams params;
     params.masks = recipe.masks;
+    std::map<std::string, std::pair<bool, bool>, std::less<>> section_flags;
+    const auto note_section = [&](const std::string_view section, const bool enabled)
+    {
+        auto &entry = section_flags[std::string(section)];
+        entry.first = true;
+        entry.second = entry.second || enabled;
+    };
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled && operation.id != kColorHarmonizerOperationId &&
-            operation.id != "ravo.effect.graduatednd")
-        {
-            continue;
-        }
         const auto number = [&](const std::string_view name, const double fallback)
         {
             const auto found = operation.parameters.find(std::string(name));
@@ -4449,6 +4727,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return temperature.error();
             }
             params.temperature = std::move(temperature).value();
+            note_section("whiteBalance", operation.enabled);
         }
         else if (operation.id == kProfileGammaOperationId)
         {
@@ -4457,8 +4736,11 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 return profile_gamma.error();
             }
-            params.profile_gamma_enabled = true;
-            params.profile_gamma = std::move(profile_gamma).value();
+            if (operation.enabled)
+            {
+                params.profile_gamma_enabled = true;
+                params.profile_gamma = std::move(profile_gamma).value();
+            }
         }
         else if (operation.id == "ravo.color.input")
         {
@@ -4468,6 +4750,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return input_color.error();
             }
             params.input_color = std::move(input_color).value();
+            note_section("inputProfile", operation.enabled);
         }
         else if (operation.id == kPrimariesOperationId)
         {
@@ -4477,6 +4760,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return primaries.error();
             }
             params.primaries = std::move(primaries).value();
+            note_section("primaries", operation.enabled);
         }
         else if (operation.id == "ravo.color.output")
         {
@@ -4486,6 +4770,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return output_color.error();
             }
             params.output_color = std::move(output_color).value();
+            note_section("outputProfile", operation.enabled);
         }
         else if (operation.id == "ravo.color.channelmixerrgb")
         {
@@ -4495,6 +4780,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return mixer.error();
             }
             params.channel_mixer = std::move(mixer).value();
+            note_section("calibration", operation.enabled);
         }
         else if (operation.id == kExposureOperationId)
         {
@@ -4517,6 +4803,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.exposure_compensate_exposure_bias = exposure.value().compensate_exposure_bias;
             params.exposure_compensate_highlight_preservation =
                 exposure.value().compensate_highlight_preservation;
+            note_section("light", operation.enabled);
         }
         else if (operation.id == kColorCheckerOperationId)
         {
@@ -4527,6 +4814,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.color_checker_enabled = true;
             params.color_checker = std::move(color_checker).value();
+            note_section("color", operation.enabled);
         }
         else if (operation.id == kColorHarmonizerOperationId)
         {
@@ -4554,30 +4842,37 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.color_harmonizer_enabled = operation.enabled;
             params.color_harmonizer = std::move(color_harmonizer).value();
             params.color_harmonizer_mask_id = operation.mask_id;
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.core.contrast")
         {
             params.contrast = number("amount", params.contrast);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.highlights")
         {
             params.highlights = number("amount", params.highlights);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.shadows")
         {
             params.shadows = number("amount", params.shadows);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.whites")
         {
             params.whites = number("amount", params.whites);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.blacks")
         {
             params.blacks = number("amount", params.blacks);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.gamma")
         {
             params.gamma = number("gamma", params.gamma);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.core.tonecurve")
         {
@@ -4599,18 +4894,22 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 }
                 params.tone_curve = std::move(points).value();
             }
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.color.vibrance")
         {
             params.vibrance = number("amount", params.vibrance);
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.saturation")
         {
             params.saturation = number("amount", params.saturation);
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.velvia")
         {
             params.velvia = number("amount", params.velvia);
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.colorbalancergb")
         {
@@ -4620,6 +4919,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 return color_balance.error();
             }
             params.color_balance_rgb = std::move(color_balance).value();
+            note_section("color", operation.enabled);
         }
         else if (operation.id == kColorCorrectionOperationId)
         {
@@ -4630,6 +4930,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.color_correction_enabled = true;
             params.color_correction = std::move(color_correction).value();
+            note_section("color", operation.enabled);
         }
         else if (operation.id == kColorBalanceOperationId)
         {
@@ -4640,6 +4941,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.color_balance = std::move(color_balance).value();
             params.color_balance_enabled = true;
+            note_section("color", operation.enabled);
         }
         else if (operation.id == kColorContrastOperationId)
         {
@@ -4651,6 +4953,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             if (!canonical.enabled)
             {
+                note_section("color", false);
                 continue;
             }
             if (canonical.mask_id.has_value())
@@ -4666,10 +4969,12 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.color_contrast_enabled = true;
             params.color_contrast = std::move(color_contrast).value();
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.monochrome")
         {
             params.monochrome = number("amount", params.monochrome);
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.splittoning")
         {
@@ -4677,35 +4982,43 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.split_highlights_hue = number("highlights_hue", params.split_highlights_hue);
             params.split_balance = number("balance", params.split_balance);
             params.split_amount = number("amount", params.split_amount);
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.detail.sharpen")
         {
             params.sharpen = number("amount", params.sharpen);
             params.sharpen_radius = number("radius", params.sharpen_radius);
+            note_section("detail", operation.enabled);
         }
         else if (operation.id == "ravo.detail.clarity")
         {
             params.clarity = number("amount", params.clarity);
+            note_section("detail", operation.enabled);
         }
         else if (operation.id == "ravo.effect.vignette")
         {
             params.vignette = number("amount", params.vignette);
+            note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.effect.grain")
         {
             params.grain = number("amount", params.grain);
+            note_section("detail", operation.enabled);
         }
         else if (operation.id == "ravo.effect.bloom")
         {
             params.bloom = number("amount", params.bloom);
+            note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.effect.soften")
         {
             params.soften = number("amount", params.soften);
+            note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.effect.dehaze")
         {
             params.dehaze = number("amount", params.dehaze);
+            note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.rotate")
         {
@@ -4714,15 +5027,18 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 params.rotate_quarters += 4;
             }
+            note_section("geometry", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.flip")
         {
             params.flip_horizontal = flag01(integer("horizontal", 0));
             params.flip_vertical = flag01(integer("vertical", 0));
+            note_section("geometry", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.straighten")
         {
             params.straighten_degrees = number("degrees", params.straighten_degrees);
+            note_section("geometry", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.crop")
         {
@@ -4730,6 +5046,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.crop_y = number("y", params.crop_y);
             params.crop_width = number("width", params.crop_width);
             params.crop_height = number("height", params.crop_height);
+            note_section("geometry", operation.enabled);
         }
         else if (operation.id == "ravo.display.sigmoid")
         {
@@ -4747,6 +5064,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 number("display_black_target", params.sigmoid_display_black);
             params.sigmoid_hue_preservation =
                 number("hue_preservation", params.sigmoid_hue_preservation);
+            note_section("light", operation.enabled);
         }
         else if (operation.id == "ravo.raw.highlights")
         {
@@ -4760,6 +5078,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                     params.raw_highlights_mode = *text;
                 }
             }
+            note_section("raw", operation.enabled);
         }
         else if (operation.id == "ravo.raw.hotpixels")
         {
@@ -4773,6 +5092,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                     params.hot_pixels_permissive = *flag;
                 }
             }
+            note_section("raw", operation.enabled);
         }
         else if (operation.id == "ravo.raw.cacorrect")
         {
@@ -4785,12 +5105,14 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                     params.raw_ca_avoid_shift = *flag;
                 }
             }
+            note_section("raw", operation.enabled);
         }
         else if (operation.id == "ravo.detail.denoiseprofile")
         {
             params.denoise = number("strength", params.denoise);
             params.denoise_chroma = number("chroma", params.denoise_chroma);
             params.denoise_radius = number("radius", params.denoise_radius);
+            note_section("raw", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.lens")
         {
@@ -4822,6 +5144,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             take_text("camera_make", params.lens_make);
             take_text("camera_model", params.lens_model);
             take_text("lens", params.lens_name);
+            note_section("raw", operation.enabled);
         }
         else if (operation.id == "ravo.color.colorequal")
         {
@@ -4855,6 +5178,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 }
                 params.color_eq_light = parsed.value();
             }
+            note_section("graduated", operation.enabled);
         }
         else if (operation.id == "ravo.effect.graduatednd")
         {
@@ -4865,6 +5189,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.graduated_rotation = number("rotation_deg", params.graduated_rotation);
             params.graduated_offset = number("offset", params.graduated_offset);
             params.graduated_mask_id = operation.mask_id;
+            note_section("graduated", operation.enabled);
         }
         else if (operation.id == "ravo.core.toneequal")
         {
@@ -4873,6 +5198,14 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.tone_eq_midtones = number("midtones", params.tone_eq_midtones);
             params.tone_eq_highlights = number("highlights", params.tone_eq_highlights);
             params.tone_eq_whites = number("whites", params.tone_eq_whites);
+            note_section("toneEqual", operation.enabled);
+        }
+    }
+    for (const auto &[section, flags] : section_flags)
+    {
+        if (flags.first && !flags.second)
+        {
+            static_cast<void>(set_develop_section_effect_enabled(params, section, false));
         }
     }
     clamp_develop(params);

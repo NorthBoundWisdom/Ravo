@@ -1286,9 +1286,15 @@ Result<InputColorParams> resolve_input_color(const Recipe &recipe)
 try
 {
     std::optional<InputColorParams> resolved;
+    bool saw_input = false;
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled || operation.id != "ravo.color.input")
+        if (operation.id != "ravo.color.input")
+        {
+            continue;
+        }
+        saw_input = true;
+        if (!operation.enabled)
         {
             continue;
         }
@@ -1304,12 +1310,16 @@ try
         }
         resolved = std::move(parsed).value();
     }
-    if (!resolved)
+    if (resolved)
     {
-        return make_error(ErrorCode::kValidation,
-                          "Render recipe must declare an input colour operation");
+        return *resolved;
     }
-    return *resolved;
+    if (saw_input)
+    {
+        return InputColorParams{};
+    }
+    return make_error(ErrorCode::kValidation,
+                      "Render recipe must declare an input colour operation");
 }
 catch (const std::bad_alloc &)
 {
@@ -1385,9 +1395,15 @@ Result<OutputColorParams> resolve_output_color(const Recipe &recipe)
 try
 {
     std::optional<OutputColorParams> resolved;
+    bool saw_output = false;
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled || operation.id != "ravo.color.output")
+        if (operation.id != "ravo.color.output")
+        {
+            continue;
+        }
+        saw_output = true;
+        if (!operation.enabled)
         {
             continue;
         }
@@ -1403,12 +1419,16 @@ try
         }
         resolved = std::move(parsed).value();
     }
-    if (!resolved)
+    if (resolved)
     {
-        return make_error(ErrorCode::kValidation,
-                          "Render recipe must declare an output colour operation");
+        return *resolved;
     }
-    return *resolved;
+    if (saw_output)
+    {
+        return OutputColorParams{};
+    }
+    return make_error(ErrorCode::kValidation,
+                      "Render recipe must declare an output colour operation");
 }
 catch (const std::bad_alloc &)
 {

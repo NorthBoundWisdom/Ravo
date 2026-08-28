@@ -316,6 +316,21 @@ struct DevelopParams
     double tone_eq_midtones = 0.0;
     double tone_eq_highlights = 0.0;
     double tone_eq_whites = 0.0;
+    // Panel-lamp bypass. Identity sections stay omitted; a modified section with
+    // effect_enabled=false keeps parameters and writes operation.enabled=false.
+    bool geometry_effect_enabled = true;
+    bool input_profile_effect_enabled = true;
+    bool output_profile_effect_enabled = true;
+    bool white_balance_effect_enabled = true;
+    bool calibration_effect_enabled = true;
+    bool primaries_effect_enabled = true;
+    bool light_effect_enabled = true;
+    bool color_effect_enabled = true;
+    bool detail_effect_enabled = true;
+    bool effects_effect_enabled = true;
+    bool raw_effect_enabled = true;
+    bool tone_equal_effect_enabled = true;
+    bool graduated_effect_enabled = true;
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;
@@ -366,6 +381,11 @@ void clamp_develop(DevelopParams &params) noexcept;
                                                       double value);
 [[nodiscard]] bool reset_develop_field(DevelopParams &params, std::string_view name);
 [[nodiscard]] bool reset_develop_section(DevelopParams &params, std::string_view section);
+[[nodiscard]] bool develop_section_modified(const DevelopParams &params, std::string_view section);
+[[nodiscard]] bool develop_section_effect_enabled(const DevelopParams &params,
+                                                  std::string_view section);
+[[nodiscard]] bool set_develop_section_effect_enabled(DevelopParams &params,
+                                                      std::string_view section, bool enabled);
 [[nodiscard]] bool apply_crop_aspect(DevelopParams &params, std::string_view aspect);
 void transform_crop_for_quarter_turns(DevelopParams &params, int turns_cw) noexcept;
 void transform_crop_for_flip(DevelopParams &params, bool horizontal, bool vertical) noexcept;

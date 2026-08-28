@@ -700,7 +700,9 @@ The Ravo Studio first version owns:
 
 QML sends only intents to desktop-owned C++ presenters and observes immutable,
 revisioned view state. Visible controls use GeoControls (buttons, labels, list
-items, segmented switches, status bar, and file dialog). Gallery/`Image`
+items, segmented switches, status bar, edit-panel lamps, and file dialog).
+Develop section lamps bind identity/active/bypass to presenter state; a bypass
+keeps stored parameters and writes `operation.enabled = false`. Gallery/`Image`
 consumes controlled preview resources only and never opens an original directly.
 QML contains no SQL, file enumeration, codec probing, task scheduling, or
 services-duplicated business state machine. GeoControls has no folder picker, so

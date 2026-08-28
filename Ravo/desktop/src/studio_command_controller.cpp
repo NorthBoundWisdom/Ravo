@@ -70,6 +70,7 @@ inline constexpr auto kEditUndo = "studio.edit.undo";
 inline constexpr auto kEditRedo = "studio.edit.redo";
 inline constexpr auto kEditResetAll = "studio.edit.reset_all";
 inline constexpr auto kEditResetSection = "studio.edit.reset_section";
+inline constexpr auto kEditSetSectionEnabled = "studio.edit.set_section_enabled";
 inline constexpr auto kEditResetControl = "studio.edit.reset_control";
 inline constexpr auto kEditSetNumber = "studio.edit.set_number";
 inline constexpr auto kEditSetToneCurve = "studio.edit.set_tone_curve";
@@ -191,6 +192,8 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Navigation argument must be 'range'."),
     QT_TRANSLATE_NOOP("StudioCommands", "Thumbnail size must be an integer between 120 and 320."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop control name must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Develop section name must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Develop section enabled must be boolean."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop value must be finite."),
     QT_TRANSLATE_NOOP("StudioCommands", "Tone curve points must be a list."),
     QT_TRANSLATE_NOOP("StudioCommands", "Crop width and height must be positive."),
@@ -326,6 +329,7 @@ QStringList command_ids()
             QLatin1String(command::kEditRedo),
             QLatin1String(command::kEditResetAll),
             QLatin1String(command::kEditResetSection),
+            QLatin1String(command::kEditSetSectionEnabled),
             QLatin1String(command::kEditResetControl),
             QLatin1String(command::kEditSetNumber),
             QLatin1String(command::kEditSetToneCurve),
@@ -1035,6 +1039,28 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &) { presenter_.resetSection(argument.toString()); });
+    add(
+        command::kEditSetSectionEnabled, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const auto error = required_fields(argument, {QStringLiteral("section"),
+                                                          QStringLiteral("enabled")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            if (fields.value(QStringLiteral("section")).toString().trimmed().isEmpty())
+                return QStringLiteral("Develop section name must not be empty.");
+            const auto enabled = fields.value(QStringLiteral("enabled"));
+            return enabled.metaType().id() == QMetaType::Bool || enabled.canConvert<bool>() ?
+                       QString{} :
+                       QStringLiteral("Develop section enabled must be boolean.");
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.setSectionEffectEnabled(fields.value(QStringLiteral("section")).toString(),
+                                               fields.value(QStringLiteral("enabled")).toBool());
+        });
     add(command::kEditResetControl, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &) { presenter_.resetControl(argument.toString()); });
     add(
@@ -1221,6 +1247,7 @@ QVariantMap StudioCommandController::ids() const
             {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
             {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
             {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
+            {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
             {QStringLiteral("editResetControl"), QLatin1String(command::kEditResetControl)},
             {QStringLiteral("editSetNumber"), QLatin1String(command::kEditSetNumber)},
             {QStringLiteral("editSetToneCurve"), QLatin1String(command::kEditSetToneCurve)},

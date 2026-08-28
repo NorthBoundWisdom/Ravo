@@ -13,17 +13,37 @@ ColumnLayout {
     spacing: Fonts.smallSpacing
 
     component DevelopSection: CustomEditPanel {
+        id: sectionPanel
         showAddButton: false
         showDeleteButton: false
         showApplyButton: false
         actionsNeedEditing: false
         actionButtonsEnabled: root.hasSelection
-        editing: root.hasSelection
+        editing: false
+        effectIndicator: true
+        effectActiveTooltip: qsTr("Click to bypass this panel")
+        effectBypassedTooltip: qsTr("Click to enable this panel")
         resetTooltip: qsTr("Reset this section")
         property string sectionId
+        function syncEffectLamp() {
+            modified = root.hasPresenter && sectionId.length && root.presenter.sectionModified(sectionId)
+            effectEnabled = !root.hasPresenter || !sectionId.length ||
+                            root.presenter.sectionEffectEnabled(sectionId)
+        }
+        Connections {
+            target: root.presenter
+            function onEditChanged() { sectionPanel.syncEffectLamp() }
+            function onSelectionChanged() { sectionPanel.syncEffectLamp() }
+        }
+        Component.onCompleted: syncEffectLamp()
+        onSectionIdChanged: syncEffectLamp()
         onReset: function () {
             if (root.commands && sectionId.length)
                 root.commands.resetSection(sectionId);
+        }
+        onEffectEnabledToggled: function (enabled) {
+            if (root.commands && sectionId.length)
+                root.commands.setSectionEnabled(sectionId, enabled);
         }
     }
 

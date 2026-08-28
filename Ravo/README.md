@@ -43,7 +43,9 @@ Current implementation status:
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
   lensfun poly3/vignette, dt UCS `colorequal`, graduated filter, and nine-band
-  toneequal. Studio provides an Edit panel, before/after, and session undo/redo.
+  toneequal. Studio provides an Edit panel whose section lamps are gray at
+  identity, green when modified, and black when those parameters are kept but
+  bypassed; plus before/after and session undo/redo.
   RAW interactive preview reuses a scene-linear working image; superseded
   requests cancel and late results are dropped by revision; recipe/history/
   revision save atomically, and catalog unit tests cover L2–L9 parameters and

@@ -1814,6 +1814,26 @@ void StudioPresenter::resetSection(const QString &section)
     commit_develop(next, true);
 }
 
+bool StudioPresenter::sectionModified(const QString &section) const
+{
+    return develop_section_modified(develop_, utf8_from_qstring(section));
+}
+
+bool StudioPresenter::sectionEffectEnabled(const QString &section) const
+{
+    return develop_section_effect_enabled(develop_, utf8_from_qstring(section));
+}
+
+void StudioPresenter::setSectionEffectEnabled(const QString &section, const bool enabled)
+{
+    DevelopParams next = develop_;
+    if (!set_develop_section_effect_enabled(next, utf8_from_qstring(section), enabled))
+    {
+        return;
+    }
+    commit_develop(next, true);
+}
+
 void StudioPresenter::resetAllEdits()
 {
     crop_aspect_ = QStringLiteral("free");

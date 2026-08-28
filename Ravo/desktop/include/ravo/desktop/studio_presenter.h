@@ -412,6 +412,9 @@ public:
     Q_INVOKABLE void setCropToolActive(bool active);
     Q_INVOKABLE void resetControl(const QString &name);
     Q_INVOKABLE void resetSection(const QString &section);
+    Q_INVOKABLE bool sectionModified(const QString &section) const;
+    Q_INVOKABLE bool sectionEffectEnabled(const QString &section) const;
+    Q_INVOKABLE void setSectionEffectEnabled(const QString &section, bool enabled);
     Q_INVOKABLE void resetAllEdits();
     Q_INVOKABLE void undoEdit();
     Q_INVOKABLE void redoEdit();

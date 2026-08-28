@@ -51,6 +51,9 @@ Item {
     function previewToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points, "live": true}); }
     function setToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points}); }
     function resetSection(section) { root.run(root.ids.editResetSection, section); }
+    function setSectionEnabled(section, enabled) {
+        root.run(root.ids.editSetSectionEnabled, {"section": section, "enabled": enabled});
+    }
     function resetControl(name) { root.run(root.ids.editResetControl, name); }
     function previewCropRect(x, y, width, height) { root.run(root.ids.editSetCrop, {"x": x, "y": y, "width": width, "height": height, "live": true}); }
     function setCropRect(x, y, width, height) { root.run(root.ids.editSetCrop, {"x": x, "y": y, "width": width, "height": height}); }
