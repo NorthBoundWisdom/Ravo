@@ -252,6 +252,34 @@
         <translation>Saturation</translation>
     </message>
     <message>
+        <source>Mask</source>
+        <translation>Mask</translation>
+    </message>
+    <message>
+        <source>Mask kind</source>
+        <translation>Mask kind</translation>
+    </message>
+    <message>
+        <source>Invert mask</source>
+        <translation>Invert mask</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>Source</translation>
+    </message>
+    <message>
+        <source>Channel</source>
+        <translation>Channel</translation>
+    </message>
+    <message>
+        <source>Reset to all</source>
+        <translation>Reset to all</translation>
+    </message>
+    <message>
+        <source>Detach mask</source>
+        <translation>Detach mask</translation>
+    </message>
+    <message>
         <source>Reset</source>
         <translation>Reset</translation>
     </message>
@@ -1010,6 +1038,150 @@
     <message>
         <source>Custom</source>
         <translation>Custom</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>All</translation>
+    </message>
+    <message>
+        <source>Linear gradient</source>
+        <translation>Linear gradient</translation>
+    </message>
+    <message>
+        <source>Circle</source>
+        <translation>Circle</translation>
+    </message>
+    <message>
+        <source>Ellipse</source>
+        <translation>Ellipse</translation>
+    </message>
+    <message>
+        <source>Parametric</source>
+        <translation>Parametric</translation>
+    </message>
+    <message>
+        <source>Group</source>
+        <translation>Group</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Unknown</translation>
+    </message>
+    <message>
+        <source>No mask attached</source>
+        <translation>No mask attached</translation>
+    </message>
+    <message>
+        <source>Mask is editable</source>
+        <translation>Mask is editable</translation>
+    </message>
+    <message>
+        <source>External mask is read-only</source>
+        <translation>External mask is read-only</translation>
+    </message>
+    <message>
+        <source>Shared mask is read-only</source>
+        <translation>Shared mask is read-only</translation>
+    </message>
+    <message>
+        <source>Group mask is read-only</source>
+        <translation>Group mask is read-only</translation>
+    </message>
+    <message>
+        <source>Mask attachment is invalid</source>
+        <translation>Mask attachment is invalid</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>Opacity</translation>
+    </message>
+    <message>
+        <source>Anchor X</source>
+        <translation>Anchor X</translation>
+    </message>
+    <message>
+        <source>Anchor Y</source>
+        <translation>Anchor Y</translation>
+    </message>
+    <message>
+        <source>Rotation</source>
+        <translation>Rotation</translation>
+    </message>
+    <message>
+        <source>Transition</source>
+        <translation>Transition</translation>
+    </message>
+    <message>
+        <source>Center X</source>
+        <translation>Center X</translation>
+    </message>
+    <message>
+        <source>Center Y</source>
+        <translation>Center Y</translation>
+    </message>
+    <message>
+        <source>Radius X</source>
+        <translation>Radius X</translation>
+    </message>
+    <message>
+        <source>Radius Y</source>
+        <translation>Radius Y</translation>
+    </message>
+    <message>
+        <source>Feather</source>
+        <translation>Feather</translation>
+    </message>
+    <message>
+        <source>Threshold 1</source>
+        <translation>Threshold 1</translation>
+    </message>
+    <message>
+        <source>Threshold 2</source>
+        <translation>Threshold 2</translation>
+    </message>
+    <message>
+        <source>Threshold 3</source>
+        <translation>Threshold 3</translation>
+    </message>
+    <message>
+        <source>Threshold 4</source>
+        <translation>Threshold 4</translation>
+    </message>
+    <message>
+        <source>Input</source>
+        <translation>Input</translation>
+    </message>
+    <message>
+        <source>Operation output</source>
+        <translation>Operation output</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>Luminance</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>Red</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>Green</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>Blue</translation>
+    </message>
+    <message>
+        <source>Mask edit was rejected</source>
+        <translation>Mask edit was rejected</translation>
+    </message>
+    <message>
+        <source>Mask reset was rejected</source>
+        <translation>Mask reset was rejected</translation>
     </message>
 </context>
 <context>

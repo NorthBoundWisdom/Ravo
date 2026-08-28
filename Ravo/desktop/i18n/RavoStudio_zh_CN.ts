@@ -252,6 +252,34 @@
         <translation>饱和度</translation>
     </message>
     <message>
+        <source>Mask</source>
+        <translation>蒙版</translation>
+    </message>
+    <message>
+        <source>Mask kind</source>
+        <translation>蒙版类型</translation>
+    </message>
+    <message>
+        <source>Invert mask</source>
+        <translation>反转蒙版</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>来源</translation>
+    </message>
+    <message>
+        <source>Channel</source>
+        <translation>通道</translation>
+    </message>
+    <message>
+        <source>Reset to all</source>
+        <translation>重置为全部</translation>
+    </message>
+    <message>
+        <source>Detach mask</source>
+        <translation>分离蒙版</translation>
+    </message>
+    <message>
         <source>Reset</source>
         <translation>重置</translation>
     </message>
@@ -1010,6 +1038,150 @@
     <message>
         <source>Custom</source>
         <translation>自定义</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>无</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>全部</translation>
+    </message>
+    <message>
+        <source>Linear gradient</source>
+        <translation>线性渐变</translation>
+    </message>
+    <message>
+        <source>Circle</source>
+        <translation>圆形</translation>
+    </message>
+    <message>
+        <source>Ellipse</source>
+        <translation>椭圆</translation>
+    </message>
+    <message>
+        <source>Parametric</source>
+        <translation>参数化</translation>
+    </message>
+    <message>
+        <source>Group</source>
+        <translation>组</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>未知</translation>
+    </message>
+    <message>
+        <source>No mask attached</source>
+        <translation>未附加蒙版</translation>
+    </message>
+    <message>
+        <source>Mask is editable</source>
+        <translation>蒙版可编辑</translation>
+    </message>
+    <message>
+        <source>External mask is read-only</source>
+        <translation>外部蒙版为只读</translation>
+    </message>
+    <message>
+        <source>Shared mask is read-only</source>
+        <translation>共享蒙版为只读</translation>
+    </message>
+    <message>
+        <source>Group mask is read-only</source>
+        <translation>组蒙版为只读</translation>
+    </message>
+    <message>
+        <source>Mask attachment is invalid</source>
+        <translation>蒙版附加无效</translation>
+    </message>
+    <message>
+        <source>Opacity</source>
+        <translation>不透明度</translation>
+    </message>
+    <message>
+        <source>Anchor X</source>
+        <translation>锚点 X</translation>
+    </message>
+    <message>
+        <source>Anchor Y</source>
+        <translation>锚点 Y</translation>
+    </message>
+    <message>
+        <source>Rotation</source>
+        <translation>旋转</translation>
+    </message>
+    <message>
+        <source>Transition</source>
+        <translation>过渡</translation>
+    </message>
+    <message>
+        <source>Center X</source>
+        <translation>中心 X</translation>
+    </message>
+    <message>
+        <source>Center Y</source>
+        <translation>中心 Y</translation>
+    </message>
+    <message>
+        <source>Radius X</source>
+        <translation>X 半径</translation>
+    </message>
+    <message>
+        <source>Radius Y</source>
+        <translation>Y 半径</translation>
+    </message>
+    <message>
+        <source>Feather</source>
+        <translation>羽化</translation>
+    </message>
+    <message>
+        <source>Threshold 1</source>
+        <translation>阈值 1</translation>
+    </message>
+    <message>
+        <source>Threshold 2</source>
+        <translation>阈值 2</translation>
+    </message>
+    <message>
+        <source>Threshold 3</source>
+        <translation>阈值 3</translation>
+    </message>
+    <message>
+        <source>Threshold 4</source>
+        <translation>阈值 4</translation>
+    </message>
+    <message>
+        <source>Input</source>
+        <translation>输入</translation>
+    </message>
+    <message>
+        <source>Operation output</source>
+        <translation>操作输出</translation>
+    </message>
+    <message>
+        <source>Luminance</source>
+        <translation>亮度</translation>
+    </message>
+    <message>
+        <source>Red</source>
+        <translation>红色</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>绿色</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>蓝色</translation>
+    </message>
+    <message>
+        <source>Mask edit was rejected</source>
+        <translation>蒙版编辑被拒绝</translation>
+    </message>
+    <message>
+        <source>Mask reset was rejected</source>
+        <translation>蒙版重置被拒绝</translation>
     </message>
 </context>
 <context>

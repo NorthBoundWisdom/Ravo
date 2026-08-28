@@ -245,12 +245,15 @@ Current implementation status:
   non-finite, allocation, invalid-ROI-scale, and cancellation paths publish
   nothing. S3.1 additionally gives canonical recipes an immutable typed mask
   DAG (`all`, linear gradient, circle, rotated ellipse, parametric, ordered
-  group) and private ROI alpha evaluation with normal mix. Only Color
-  Harmonizer and Graduated ND consume an attachment; all/zero/spatial masks,
-  CLI render, Catalog cache/save/reopen, and Studio's typed preserve path use
-  the same Recipe. Legacy XMP masks/custom blends remain rejected. Studio mask
-  authoring/preview, path/brush, historic blend modes, M1, C14 retirement, and
-  C15 remain unfinished and are not implied by this slice.
+  group) and private ROI alpha evaluation with normal mix. S3.2 lets Studio
+  author one unshared Studio-owned all, spatial, or parametric leaf for each Color
+  Harmonizer/Graduated ND attachment through the same typed Recipe, live
+  preview, Catalog cache/save/reopen, ordinary Develop edit, and undo/redo
+  path. External, shared, and group attachments remain read-only and may only
+  detach; the preview shows the masked operation effect, not a mask alpha or
+  tinted overlay. Legacy XMP masks/custom blends remain rejected. Group-child
+  editing, overlay presentation, path/brush, historic blend modes, M1, C14
+  retirement, and C15 remain unfinished and are not implied by this slice.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

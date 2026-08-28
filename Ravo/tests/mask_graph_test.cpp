@@ -13,6 +13,7 @@
 
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/recipe.h"
 
@@ -651,6 +652,234 @@ TEST(MaskGraphDevelopTest, PreservesTypedGraphAndDisabledOrIdentityAttachments)
     EXPECT_TRUE(disabled_restored.value().graduated_present);
     EXPECT_FALSE(disabled_restored.value().graduated_enabled);
     EXPECT_DOUBLE_EQ(disabled_restored.value().graduated_density, 0.75);
+}
+
+TEST(DevelopMaskAuthoringTest, CreatesTypedStudioOwnedLeavesAndRoundTripsOrdinaryEdits)
+{
+    DevelopParams params;
+    auto initial = develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
+    EXPECT_FALSE(initial.attached);
+    EXPECT_TRUE(initial.editable);
+    EXPECT_EQ(initial.kind_index, 0);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 3.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskCenterX", 0.25));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskRadius", 0.4));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskOpacity", 0.6));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskKind", 5.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskSource", 1.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskThreshold1", 0.2));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskThreshold2", 0.8));
+
+    ASSERT_TRUE(params.color_harmonizer_mask_id);
+    ASSERT_TRUE(params.graduated_mask_id);
+    EXPECT_EQ(*params.color_harmonizer_mask_id, "ravo.studio.mask.color_harmonizer.1");
+    EXPECT_EQ(*params.graduated_mask_id, "ravo.studio.mask.graduatednd.1");
+    EXPECT_TRUE(params.color_harmonizer_present);
+    EXPECT_TRUE(params.color_harmonizer_enabled);
+    EXPECT_TRUE(params.graduated_present);
+    EXPECT_TRUE(params.graduated_enabled);
+
+    const auto color_state = develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
+    EXPECT_TRUE(color_state.attached);
+    EXPECT_TRUE(color_state.editable);
+    EXPECT_EQ(color_state.status, DevelopMaskAttachmentStatus::kEditable);
+    EXPECT_EQ(color_state.kind_name, "circle");
+    EXPECT_DOUBLE_EQ(color_state.center_x, 0.25);
+    EXPECT_DOUBLE_EQ(color_state.radius, 0.4);
+    EXPECT_DOUBLE_EQ(color_state.opacity, 0.6);
+    const auto before_same_kind = params;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 3.0));
+    EXPECT_EQ(params, before_same_kind);
+    const auto graduated_state = develop_mask_editor_state(params, DevelopMaskTarget::kGraduatedNd);
+    EXPECT_EQ(graduated_state.kind_name, "parametric");
+    EXPECT_EQ(graduated_state.source_index, 1);
+    EXPECT_DOUBLE_EQ(graduated_state.threshold1, 0.2);
+    EXPECT_DOUBLE_EQ(graduated_state.threshold2, 0.8);
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value(), params);
+
+    auto ordinary_edit = restored.value();
+    ASSERT_TRUE(apply_develop_field_strict(ordinary_edit, "exposure", 0.25));
+    EXPECT_EQ(ordinary_edit.masks, params.masks);
+    EXPECT_EQ(ordinary_edit.color_harmonizer_mask_id, params.color_harmonizer_mask_id);
+    EXPECT_EQ(ordinary_edit.graduated_mask_id, params.graduated_mask_id);
+}
+
+TEST(DevelopMaskAuthoringTest, StrictlyValidatesSelectorsBoundsAndParametricOrderWithoutMutation)
+{
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 2.0));
+    const auto before = params;
+    auto invalid = apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 6.0);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_develop_mask_kind");
+    EXPECT_EQ(params, before);
+    invalid = apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 2.5);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(params, before);
+    invalid = apply_develop_mask_field_strict(params, "colorHarmonizerMaskAnchorX",
+                                              std::numeric_limits<double>::quiet_NaN());
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(params, before);
+    invalid = apply_develop_mask_field_strict(params, "colorHarmonizerMaskRotationDegrees", 181.0);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(params, before);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskKind", 5.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskThreshold1", 0.3));
+    const auto parametric_before = params;
+    invalid = apply_develop_mask_field_strict(params, "graduatedMaskThreshold0", 0.4);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_parametric_thresholds");
+    EXPECT_EQ(params, parametric_before);
+    invalid = apply_develop_mask_field_strict(params, "graduatedMaskSource", 0.5);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_develop_mask_source");
+    EXPECT_EQ(params, parametric_before);
+    invalid = apply_develop_mask_field_strict(params, "graduatedMaskFuture", 1.0);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "unknown_develop_mask_field");
+    EXPECT_EQ(params, parametric_before);
+    ASSERT_TRUE(reset_develop_mask_field(params, "graduatedMaskThreshold1"));
+    const auto reset_parametric =
+        develop_mask_editor_state(params, DevelopMaskTarget::kGraduatedNd);
+    EXPECT_DOUBLE_EQ(reset_parametric.threshold0, 0.0);
+    EXPECT_DOUBLE_EQ(reset_parametric.threshold1, 0.0);
+    EXPECT_DOUBLE_EQ(reset_parametric.threshold2, 1.0);
+    EXPECT_DOUBLE_EQ(reset_parametric.threshold3, 1.0);
+
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskSource", 1.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskChannel", 2.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskThreshold1", 0.2));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "graduatedMaskThreshold2", 0.8));
+    ASSERT_TRUE(reset_develop_mask_field(params, "graduatedMaskSource"));
+    auto independently_reset = develop_mask_editor_state(params, DevelopMaskTarget::kGraduatedNd);
+    EXPECT_EQ(independently_reset.source_index, 0);
+    EXPECT_EQ(independently_reset.channel_index, 2);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold1, 0.2);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold2, 0.8);
+    ASSERT_TRUE(reset_develop_mask_field(params, "graduatedMaskChannel"));
+    independently_reset = develop_mask_editor_state(params, DevelopMaskTarget::kGraduatedNd);
+    EXPECT_EQ(independently_reset.channel_index, 0);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold1, 0.2);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold2, 0.8);
+    ASSERT_TRUE(reset_develop_mask_field(params, "graduatedMaskThreshold1"));
+    independently_reset = develop_mask_editor_state(params, DevelopMaskTarget::kGraduatedNd);
+    EXPECT_EQ(independently_reset.source_index, 0);
+    EXPECT_EQ(independently_reset.channel_index, 0);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold0, 0.0);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold1, 0.0);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold2, 1.0);
+    EXPECT_DOUBLE_EQ(independently_reset.threshold3, 1.0);
+}
+
+TEST(DevelopMaskAuthoringTest, ResetKeepsOwnedAttachmentAndDetachDoesNotRewriteOperationPresence)
+{
+    DevelopParams params;
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 4.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskRadiusX", 0.7));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskInverted", 1.0));
+    const auto id = params.color_harmonizer_mask_id;
+    ASSERT_TRUE(id);
+    ASSERT_TRUE(reset_develop_mask_field(params, "colorHarmonizerMaskRadiusX"));
+    EXPECT_EQ(params.color_harmonizer_mask_id, id);
+    const auto after_field_reset =
+        develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer);
+    EXPECT_DOUBLE_EQ(after_field_reset.radius_x, 0.25);
+    ASSERT_TRUE(reset_develop_mask_field(params, "colorHarmonizerMaskInverted"));
+    EXPECT_FALSE(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).inverted);
+    EXPECT_EQ(params.color_harmonizer_mask_id, id);
+
+    ASSERT_TRUE(reset_develop_mask_field(params, "colorHarmonizerMaskKind"));
+    EXPECT_EQ(params.color_harmonizer_mask_id, id);
+    EXPECT_EQ(develop_mask_editor_state(params, DevelopMaskTarget::kColorHarmonizer).kind_name,
+              "all");
+    ASSERT_TRUE(reset_develop_mask_field(params, "colorHarmonizerMask"));
+    EXPECT_FALSE(params.color_harmonizer_mask_id);
+    EXPECT_TRUE(params.masks.empty());
+    // Attachment lifecycle has no durable provenance. Detach deliberately
+    // leaves the explicit operation state intact rather than guessing whether
+    // it was user-authored before Studio created the leaf.
+    EXPECT_TRUE(params.color_harmonizer_present);
+    EXPECT_TRUE(params.color_harmonizer_enabled);
+}
+
+TEST(DevelopMaskAuthoringTest, ExternalSharedAndGroupAttachmentsAreReadOnlyButDetachable)
+{
+    DevelopParams invalid;
+    invalid.color_harmonizer_mask_id = "missing";
+    const auto invalid_state =
+        develop_mask_editor_state(invalid, DevelopMaskTarget::kColorHarmonizer);
+    EXPECT_TRUE(invalid_state.attached);
+    EXPECT_FALSE(invalid_state.editable);
+    EXPECT_FALSE(invalid_state.can_detach);
+    EXPECT_EQ(invalid_state.status, DevelopMaskAttachmentStatus::kInvalid);
+    auto rejected = apply_develop_mask_field_strict(invalid, "colorHarmonizerMaskKind", 0.0);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "missing_develop_mask_attachment");
+
+    DevelopParams external;
+    external.masks.push_back(all_mask("external-mask"));
+    external.color_harmonizer_mask_id = "external-mask";
+    const auto external_before = external;
+    rejected = apply_develop_mask_field_strict(external, "colorHarmonizerMaskOpacity", 0.5);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(rejected.error().context.at("reason"), "external_read_only");
+    EXPECT_EQ(external, external_before);
+    ASSERT_TRUE(apply_develop_mask_field_strict(external, "colorHarmonizerMaskKind", 0.0));
+    EXPECT_FALSE(external.color_harmonizer_mask_id);
+    ASSERT_EQ(external.masks.size(), 1U);
+    EXPECT_EQ(external.masks.front().id, "external-mask");
+
+    DevelopParams shared;
+    shared.masks.push_back(all_mask("ravo.studio.mask.color_harmonizer.1"));
+    shared.color_harmonizer_mask_id = shared.masks.front().id;
+    shared.graduated_mask_id = shared.masks.front().id;
+    rejected = apply_develop_mask_field_strict(shared, "colorHarmonizerMaskOpacity", 0.5);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "shared_read_only");
+    ASSERT_TRUE(reset_develop_mask_field(shared, "colorHarmonizerMask"));
+    EXPECT_FALSE(shared.color_harmonizer_mask_id);
+    EXPECT_TRUE(shared.graduated_mask_id);
+    ASSERT_EQ(shared.masks.size(), 1U);
+
+    DevelopParams grouped;
+    Mask group{"external-group", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    group.payload = MaskGroup{
+        {{"ravo.studio.mask.color_harmonizer.1", MaskGroupOperator::kReplace, 1.0, false}}};
+    grouped.masks = {all_mask("ravo.studio.mask.color_harmonizer.1"), group};
+    grouped.color_harmonizer_mask_id = "ravo.studio.mask.color_harmonizer.1";
+    rejected = apply_develop_mask_field_strict(grouped, "colorHarmonizerMaskKind", 3.0);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "shared_read_only");
+    ASSERT_TRUE(reset_develop_mask_field(grouped, "colorHarmonizerMask"));
+    ASSERT_EQ(grouped.masks.size(), 2U);
+
+    DevelopParams group_root;
+    Mask root_group{"external-group", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    root_group.payload = MaskGroup{{{"child", MaskGroupOperator::kReplace, 1.0, false}}};
+    group_root.masks = {all_mask("child"), root_group};
+    group_root.color_harmonizer_mask_id = "external-group";
+    rejected = apply_develop_mask_field_strict(group_root, "colorHarmonizerMaskOpacity", 0.5);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "group_read_only");
+    ASSERT_TRUE(reset_develop_mask_field(group_root, "colorHarmonizerMask"));
+    ASSERT_EQ(group_root.masks.size(), 2U);
+}
+
+TEST(DevelopMaskAuthoringTest, AllocatesTargetSpecificCollisionSafeStudioIds)
+{
+    DevelopParams params;
+    params.masks.push_back(all_mask("ravo.studio.mask.color_harmonizer.1"));
+    ASSERT_TRUE(apply_develop_mask_field_strict(params, "colorHarmonizerMaskKind", 1.0));
+    ASSERT_TRUE(params.color_harmonizer_mask_id);
+    EXPECT_EQ(*params.color_harmonizer_mask_id, "ravo.studio.mask.color_harmonizer.2");
 }
 
 } // namespace

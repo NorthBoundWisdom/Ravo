@@ -252,8 +252,12 @@ node has its own schema version and typed all/linear-gradient/circle/rotated-
 ellipse/parametric/group payload; v1 identity `all` upgrades on read. Recipe
 parsing, upgrade, deterministic serialization, and DAG validation are the only
 owners of IDs, references, opacity/inversion, bounds, topology, and version
-rules. Catalog/services preserve the canonical graph without rewriting its
-mathematics, and QML owns no mask data or mathematics.
+rules. S3.2's [ADR-0044](docs/adr/0044-studio-canonical-mask-authoring.md)
+keeps that ownership in recipe: its pure Develop helper owns Studio's stable
+numeric field intents, reserved collision-safe leaf IDs, strict edits, and
+detach rules. Catalog/services preserve the canonical graph without rewriting
+its mathematics; QML receives presentation values but owns no canonical graph
+state or mask mathematics.
 
 The engine-private evaluator accepts full attached-input dimensions plus an
 explicit ROI and borrowed input/optional operation-output RGB planes. Pixel
@@ -274,10 +278,14 @@ pre-operation image, produces local output, evaluates alpha, then mixes before
 the result becomes the next recipe input. `DevelopParams` keeps the typed graph
 and both attachments, including disabled/default instances, so live preview,
 save/reopen and ordinary Develop edits cannot baseline-elide a loaded mask.
-There is no Studio authoring/painter/picker graph yet. The Graduated ND density
-gradient is still its independent operation formula, not an alias for generic
-mask geometry. Path/brush, more blend modes, M1, and legacy retirement remain
-outside this tranche.
+Studio projects two read-only mask-editor maps and forwards numeric intents to
+the recipe helper through the existing Develop preview/commit path. Only an
+unshared Studio-owned leaf is editable; external IDs, group roots, and shared
+leaves are visibly read-only and may only be explicitly detached. This surface
+does not draw an alpha/tinted mask overlay. The Graduated ND density gradient
+is still its independent operation formula, not an alias for generic mask
+geometry. Group-child editing, path/brush, more blend modes, M1, and legacy
+retirement remain outside this tranche.
 
 `ravo.core.tonecurve` implements the frozen C RGB-linked default:
 Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
@@ -618,10 +626,11 @@ position wins. Develop owns explicit presence plus the existing 17-field
 parameter object; CLI `--set`, Catalog preview/save/reopen/export, and one
 Studio section consume that same recipe, including smoothing `0..2`. Cache
 identity follows the canonical recipe/engine path. Synthetic positive legacy
-payloads remain rejected because no frozen record evidences them. S3.1's
-canonical recipe graph does not relax that importer. Studio mask authoring,
-path/brush, presentation, remaining blend modes, and retirement of the frozen
-owner remain separate C14/M1 tranches and do not authorize C15.
+payloads remain rejected because no frozen record evidences them. S3.1/S3.2's
+canonical recipe graph and bounded Studio authoring do not relax that importer.
+Mask overlay/group-child presentation, path/brush, remaining blend modes, and
+retirement of the frozen owner remain separate C14/M1 tranches and do not
+authorize C15.
 [ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md) freezes the core;
 [ADR-0041](docs/adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
 extends it with the first product surface; [ADR-0042](docs/adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)

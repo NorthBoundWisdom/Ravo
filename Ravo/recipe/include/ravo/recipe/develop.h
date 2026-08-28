@@ -205,9 +205,9 @@ struct ColorBalanceRgbParams
 
 struct DevelopParams
 {
-    // Studio has no mask authoring surface in S3.1, but any loaded canonical
-    // graph/attachment is typed Develop state and must survive ordinary edits,
-    // previews, saves, undo, and reopen.
+    // Canonical graph/attachment state is typed Develop state. S3.2's recipe
+    // helper may author bounded Studio-owned leaves, while ordinary edits,
+    // previews, saves, undo, and reopen preserve every valid attachment.
     std::vector<Mask> masks;
     TemperatureParams temperature;
     bool profile_gamma_enabled = false;

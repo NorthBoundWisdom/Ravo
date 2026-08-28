@@ -109,6 +109,135 @@ ColumnLayout {
             root.commands.resetControl(modelData.field)
     }
 
+    component MaskEditor: ColumnLayout {
+        id: maskEditor
+        required property var mask
+        Layout.fillWidth: true
+        spacing: Fonts.smallSpacing
+
+        CustomLabel {
+            Layout.fillWidth: true
+            text: qsTr("Mask")
+            font.bold: true
+            wrapMode: Text.WordWrap
+        }
+        CustomLabel {
+            Layout.fillWidth: true
+            text: maskEditor.mask.status !== undefined ? maskEditor.mask.status : ""
+            wrapMode: Text.WordWrap
+        }
+        CustomLabel {
+            Layout.fillWidth: true
+            text: qsTr("Mask kind")
+        }
+        CustomComboBox {
+            objectName: "maskKind"
+            Layout.fillWidth: true
+            model: maskEditor.mask.kindChoices !== undefined ? maskEditor.mask.kindChoices : []
+            currentIndex: maskEditor.mask.kindIndex !== undefined ? maskEditor.mask.kindIndex : 0
+            visible: currentIndex >= 0
+            enabled: root.hasSelection && (maskEditor.mask.editable || !maskEditor.mask.attached)
+            onActivated: if (root.commands)
+                root.commands.setDevelopNumber(maskEditor.mask.kindField, currentIndex)
+        }
+        CustomLabel {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.attached === true && maskEditor.mask.kindIndex < 0
+            text: maskEditor.mask.kindLabel !== undefined ? maskEditor.mask.kindLabel : ""
+            wrapMode: Text.WordWrap
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.attached === true
+            CustomCheckBox {
+                Layout.fillWidth: true
+                text: qsTr("Invert mask")
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                checked: maskEditor.mask.inverted === true
+                onToggled: if (root.liveReady && root.commands && maskEditor.mask.editable === true)
+                    root.commands.setDevelopNumber(maskEditor.mask.invertedField, checked ? 1 : 0)
+            }
+            CustomButton {
+                text: qsTr("Reset")
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onClicked: if (root.commands)
+                    root.commands.resetControl(maskEditor.mask.invertedField)
+            }
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.selectorsVisible === true
+            spacing: Fonts.smallSpacing
+
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Source")
+            }
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: maskEditor.mask.sourceChoices !== undefined ? maskEditor.mask.sourceChoices : []
+                currentIndex: maskEditor.mask.sourceIndex !== undefined ? maskEditor.mask.sourceIndex : 0
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onActivated: if (root.commands)
+                    root.commands.setDevelopNumber(maskEditor.mask.sourceField, currentIndex)
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Channel")
+            }
+            CustomComboBox {
+                Layout.fillWidth: true
+                model: maskEditor.mask.channelChoices !== undefined ? maskEditor.mask.channelChoices : []
+                currentIndex: maskEditor.mask.channelIndex !== undefined ? maskEditor.mask.channelIndex : 0
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onActivated: if (root.commands)
+                    root.commands.setDevelopNumber(maskEditor.mask.channelField, currentIndex)
+            }
+        }
+        Repeater {
+            model: maskEditor.mask.numericControls !== undefined ? maskEditor.mask.numericControls : []
+            delegate: CustomSlider {
+                required property var modelData
+                Layout.fillWidth: true
+                title: modelData.title
+                from: modelData.min
+                to: modelData.max
+                stepSize: modelData.step
+                validatorDecimals: modelData.decimals
+                showReset: true
+                resetValue: modelData.reset
+                delayedCommit: true
+                visible: modelData.visible
+                enabled: root.hasSelection && maskEditor.mask.editable === true && modelData.visible
+                value: maskEditor.mask[modelData.key] !== undefined ? maskEditor.mask[modelData.key] : modelData.reset
+                onValueChanged: if (root.liveReady && root.commands && maskEditor.mask.editable === true && modelData.visible)
+                    root.commands.previewDevelopNumber(modelData.field, value)
+                onValueCommitted: function (value) {
+                    if (root.commands)
+                        root.commands.setDevelopNumber(modelData.field, value);
+                }
+                onResetRequested: if (root.commands)
+                    root.commands.resetControl(modelData.field)
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            visible: maskEditor.mask.attached === true
+            CustomButton {
+                text: qsTr("Reset to all")
+                enabled: root.hasSelection && maskEditor.mask.editable === true
+                onClicked: if (root.commands)
+                    root.commands.resetControl(maskEditor.mask.kindField)
+            }
+            CustomButton {
+                text: qsTr("Detach mask")
+                enabled: root.hasSelection && maskEditor.mask.canDetach === true
+                onClicked: if (root.commands)
+                    root.commands.resetControl(maskEditor.mask.detachField)
+            }
+        }
+    }
+
     component ColorCheckerNumberField: RowLayout {
         required property var modelData
         Layout.fillWidth: true
@@ -2166,6 +2295,10 @@ ColumnLayout {
                     onClicked: if (root.commands)
                         root.commands.resetControl("colorHarmonizer")
                 }
+                MaskEditor {
+                    objectName: "colorHarmonizerMaskEditor"
+                    mask: root.hasPresenter ? root.presenter.editColorHarmonizerMask : ({})
+                }
                 CustomSlider {
                     Layout.fillWidth: true
                     title: qsTr("Monochrome")
@@ -2763,6 +2896,10 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("graduatedRotation")
+                }
+                MaskEditor {
+                    objectName: "graduatedMaskEditor"
+                    mask: root.hasPresenter ? root.presenter.editGraduatedMask : ({})
                 }
                 CustomComboBox {
                     Layout.fillWidth: true

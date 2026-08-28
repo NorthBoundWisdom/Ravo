@@ -1,4 +1,5 @@
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 
 #include <algorithm>
 #include <array>
@@ -3280,6 +3281,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
+    if (is_develop_mask_field(name))
+    {
+        return static_cast<bool>(apply_develop_mask_field_strict(params, name, value));
+    }
     if (!assign_develop_field(params, name, value))
     {
         return false;
@@ -3291,6 +3296,10 @@ bool apply_develop_field(DevelopParams &params, const std::string_view name, con
 Result<void> apply_develop_field_strict(DevelopParams &params, const std::string_view name,
                                         const double value)
 {
+    if (is_develop_mask_field(name))
+    {
+        return apply_develop_mask_field_strict(params, name, value);
+    }
     DevelopParams candidate = params;
     if (!assign_develop_field(candidate, name, value))
     {
@@ -3311,6 +3320,10 @@ Result<void> apply_develop_field_strict(DevelopParams &params, const std::string
 
 bool reset_develop_field(DevelopParams &params, const std::string_view name)
 {
+    if (is_develop_mask_field(name))
+    {
+        return static_cast<bool>(reset_develop_mask_field(params, name));
+    }
     DevelopParams identity;
     if (reset_temperature_field(params.temperature, name))
     {

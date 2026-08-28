@@ -36,12 +36,13 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 
 Ravo is actively developed and already supports the core loop of creating or opening a local library, reference-only import, browsing and review, non-destructive Develop, and local export. Current editing operations include RAW highlight reconstruction, hot-pixel and chromatic-aberration correction, denoising, lens correction, white balance, color calibration, Color Balance RGB, a graduated filter, tone curves, and tone equalizer.
 
-Ravo is not yet a complete darktable replacement. Beyond the bounded S3.1
-canonical mask-graph foundation, path/brush masks and Studio authoring remain
-unfinished alongside full ICC and metadata export, additional image operations,
-and end-to-end installation verification on every platform. [The Ravo product
-document](Ravo/README.md) and the [active migration TODO](TODO_LEGACY_MIGRATION.md)
-define the supported scope, validation status, and next work item.
+Ravo is not yet a complete darktable replacement. Its bounded S3.1 canonical
+mask graph and S3.2 Studio-owned leaf authoring do not yet include mask
+overlays, group editing, or path/brush masks. Full ICC and metadata export, additional
+image operations, and end-to-end installation verification on every platform
+also remain in progress. [The Ravo product document](Ravo/README.md) and the
+[active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
+validation status, and next work item.
 
 ## The rewrite path
 

@@ -157,12 +157,13 @@ required_field(const JsonObject &object, const std::string_view name, const std:
 
 [[nodiscard]] bool finite_unit(const double value) noexcept
 {
-    return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+    return std::isfinite(value) && value >= kCanonicalMaskUnitMin && value <= kCanonicalMaskUnitMax;
 }
 
 [[nodiscard]] bool finite_angle(const double value) noexcept
 {
-    return std::isfinite(value) && value >= -180.0 && value <= 180.0;
+    return std::isfinite(value) && value >= kCanonicalMaskAngleMin &&
+           value <= kCanonicalMaskAngleMax;
 }
 
 [[nodiscard]] Result<MaskKind> parse_kind(const std::string_view text, const std::string_view path)
@@ -471,8 +472,8 @@ required_field(const JsonObject &object, const std::string_view name, const std:
             return wrong_payload();
         }
         if (!finite_unit(circle->center_x) || !finite_unit(circle->center_y) ||
-            !std::isfinite(circle->radius) || circle->radius <= 0.0 || circle->radius > 1.0 ||
-            !finite_unit(circle->feather))
+            !std::isfinite(circle->radius) || circle->radius < kCanonicalMaskPositiveMin ||
+            circle->radius > kCanonicalMaskUnitMax || !finite_unit(circle->feather))
         {
             return mask_error("Circle parameters are outside the canonical bounds",
                               "invalid_circle", mask.id);
@@ -487,10 +488,11 @@ required_field(const JsonObject &object, const std::string_view name, const std:
             return wrong_payload();
         }
         if (!finite_unit(ellipse->center_x) || !finite_unit(ellipse->center_y) ||
-            !std::isfinite(ellipse->radius_x) || ellipse->radius_x <= 0.0 ||
-            ellipse->radius_x > 1.0 || !std::isfinite(ellipse->radius_y) ||
-            ellipse->radius_y <= 0.0 || ellipse->radius_y > 1.0 ||
-            !finite_angle(ellipse->rotation_degrees) || !finite_unit(ellipse->feather))
+            !std::isfinite(ellipse->radius_x) || ellipse->radius_x < kCanonicalMaskPositiveMin ||
+            ellipse->radius_x > kCanonicalMaskUnitMax || !std::isfinite(ellipse->radius_y) ||
+            ellipse->radius_y < kCanonicalMaskPositiveMin ||
+            ellipse->radius_y > kCanonicalMaskUnitMax || !finite_angle(ellipse->rotation_degrees) ||
+            !finite_unit(ellipse->feather))
         {
             return mask_error("Ellipse parameters are outside the canonical bounds",
                               "invalid_ellipse", mask.id);

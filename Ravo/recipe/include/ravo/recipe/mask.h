@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -25,6 +26,17 @@ inline constexpr std::size_t kCanonicalMaskMaxDepth = 32U;
 // evaluator deliberately does not cache full alpha planes, so bound the
 // expanded work of every possible root as well as the stored node count.
 inline constexpr std::size_t kCanonicalMaskMaxExpandedNodes = 256U;
+
+// These are the canonical validator bounds. Presentation may choose a coarser
+// interaction step, but it must not invent another accepted range.
+inline constexpr double kCanonicalMaskUnitMin = 0.0;
+inline constexpr double kCanonicalMaskUnitMax = 1.0;
+inline constexpr double kCanonicalMaskAngleMin = -180.0;
+inline constexpr double kCanonicalMaskAngleMax = 180.0;
+// Radius values are strictly positive. denorm_min is the smallest positive
+// representable double, so this preserves the validator's existing `> 0`
+// contract without silently narrowing persisted canonical recipes.
+inline constexpr double kCanonicalMaskPositiveMin = std::numeric_limits<double>::denorm_min();
 
 enum class MaskKind
 {

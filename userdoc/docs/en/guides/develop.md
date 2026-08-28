@@ -5,7 +5,7 @@
 Make non-destructive edits to a selected photo, inspect their effect, and keep
 or recover the result through the catalog recipe and history.
 
-**Last verified:** 2026-08-27 against the current Develop recipe and Studio
+**Last verified:** 2026-08-28 against the current Develop recipe and Studio
 presenter contracts.
 
 ## Applies to
@@ -152,13 +152,34 @@ The Color section currently exposes:
   hue, pull strength, neutral protection, pull width, custom nodes 2–4,
   four custom hues, four node saturations, and smoothing from 0 through 2.
   The engine applies positive smoothing through its canonical working-image
-  scale and private recursive path; it is not a mask, picker, or auto-detect
-  control.
+  scale and private recursive path.
 - Monochrome and split-toning controls for amount, shadow/highlight hue, and
   balance.
 
 The two Color Balance paths are separate operations. Ravo does not treat one as
 an automatic fallback or alias for the other.
+
+### Canonical masks for Color Harmonizer and Graduated ND
+
+Both **Color Harmonizer** and **Graduated ND / Color EQ** include a **Mask**
+editor. Choose None, All, Linear gradient, Circle, Ellipse, or Parametric. The
+available controls change with the selected kind; parametric thresholds remain
+ordered while you edit them. Selecting a non-None kind makes that operation an
+explicit enabled Develop edit, including a Graduated ND with density 0.
+
+The preview shows the resulting operation effect. It does not draw a mask alpha
+or tinted overlay. Paths, brushes, and group-child editing are not available in
+this release.
+
+Some recipes can contain masks that Studio did not create, masks shared by two
+operations, or group masks. Studio shows those attachments as read-only so an
+ordinary control cannot alter the wider graph. You can still use **Detach
+mask** to remove the attachment from the current operation without deleting
+the external/shared graph. **Reset to all** keeps an editable attachment and
+returns it to the All kind; use **Detach mask** when you want no attachment.
+Detaching does not disable or reset the owning operation, because Studio cannot
+infer whether that operation was already an explicit edit before the mask was
+created. Use the operation's enable/reset control separately when needed.
 
 ### Detail and Effects
 
@@ -205,6 +226,10 @@ rewrite the preview cache as a new edit.
 - **Undo** and **Redo** operate on the current Studio editing session and save
   the resulting recipe state through the same catalog transaction.
 - A control reset changes one field back to its default.
+- A mask-control reset keeps its attached editable mask. **Reset to all**
+  changes that mask to All, while **Detach mask** removes only the current
+  operation's attachment. Resetting one parametric threshold restores the
+  complete canonical four-threshold ramp so it remains ordered.
 - A section reset clears the fields owned by that section.
 - **Reset all** returns the photo to the product baseline. RAW keeps its default
   Sigmoid display behavior.

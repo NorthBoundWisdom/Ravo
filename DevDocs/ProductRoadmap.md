@@ -24,18 +24,22 @@ in their owning architecture/ADR/code/test truth source.
 
 ADR-0043 freezes S3.1 ownership, attached-frame pixel-centre coordinates,
 immutable recipe publication, ROI/cancellation, and normal mix for a bounded
-typed all/linear-gradient/circle/ellipse/parametric/group graph. Color
-Harmonizer and Graduated ND are its initial consumers; Graduated ND's own
-density gradient remains separate operation math.
+typed all/linear-gradient/circle/ellipse/parametric/group graph. ADR-0044
+accepts S3.2's bounded Studio-owned spatial/parametric leaf authoring for
+Color Harmonizer and Graduated ND; Graduated ND's own density gradient remains
+separate operation math.
 
 - Decide path/brush data, sampling and resource lifecycle before adding them.
-- Decide Studio authoring, mask preview/presentation, picker/histogram/harmony
-  interactions, and undo intent without moving graph mathematics into QML.
+- Decide a future mask alpha/tinted overlay, group-child editor, picker,
+  histogram/harmony interactions, and any additional undo intent without
+  moving graph mathematics into QML. S3.2's existing preview shows only the
+  resulting operation effect; it is not an overlay contract.
 - Decide any additional blend modes only with a named operation consumer and
   source-order/failure/ROI contract; historic blend-mode completeness is not
   implied by S3.1.
 - M1 acceptance and C14 legacy-owner retirement require their separate gates;
-  strict legacy XMP mask/custom-blend rejection remains current policy.
+  strict legacy XMP mask/custom-blend rejection remains current policy. C15
+  and `cacorrectrgb` remain outside execution until a later exact tranche.
 
 ## RAW and optical contracts
 

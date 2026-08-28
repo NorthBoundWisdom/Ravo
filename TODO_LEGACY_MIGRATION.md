@@ -4,10 +4,10 @@
 >
 > **Updated: 2026-08-28**
 >
-> **Current execution status: C14 remaining work is Studio mask presentation/
-> authoring, the required M1 acceptance gates, and atomic legacy-owner
-> retirement.** Do not start C15 or cacorrectrgb until a later exact tranche is
-> explicitly authorized.
+> **Current execution status: C14 remaining work is mask-overlay/group-editor
+> presentation, path/brush capability, the required M1 acceptance gates, and
+> atomic legacy-owner retirement.** Do not start C15 or cacorrectrgb until a
+> later exact tranche is explicitly authorized.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -40,10 +40,10 @@ ready for execution.
 
 ## 2. Migration queue
 
-C14 still requires Studio mask presentation/authoring decisions and every M1
-acceptance/retirement gate. S3.1 supplies only the bounded canonical graph
-foundation recorded by ADR-0043; it does not accept M1/C14 or authorize C15 or
-cacorrectrgb.
+C14 still requires mask-overlay/group-editor presentation, path/brush
+capability, and every M1 acceptance/retirement gate. S3.1 supplies the bounded
+canonical graph foundation and S3.2 supplies bounded Studio-owned leaf authoring; neither
+accepts M1/C14 or authorizes C15 or cacorrectrgb.
 
 Independent adapter or reliability work may run only when its dependencies are
 met and its owners and files do not overlap.
@@ -104,7 +104,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / DECISION+RETIRE: S3.1 canonical attachments exist, but Studio authoring/presentation, remaining C14 acceptance evidence, zero-consumer audit, and atomic retirement remain; C15 is forbidden |
+| C14 | colorharmonizer — iop/colorharmonizer.c | yes | Queued / DECISION+RETIRE: S3.1 canonical attachments and S3.2 bounded Studio-owned leaf authoring exist, but mask-overlay/group-editor presentation, path/brush capability, remaining C14 acceptance evidence, zero-consumer audit, and atomic retirement remain; C15 is forbidden |
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
 | C17 | colorzones — iop/colorzones.c | yes | Queued / ALG; colorequal stays default; migrate complete optional HSL/Lab partitions and curves |
@@ -171,7 +171,7 @@ default. fixture means static evidence exists, not that it is covered.
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| M1 | mask_manager — iop/mask_manager.c | yes | Queued / ALG+CORE; S3.1 is only the bounded graph foundation. Complete M1 path/brush/product presentation, full required consumers, acceptance evidence, and retirement separately |
+| M1 | mask_manager — iop/mask_manager.c | yes | Queued / ALG+CORE; S3.1/S3.2 are only bounded graph and leaf-authoring foundations. Complete M1 path/brush/product presentation, full required consumers, acceptance evidence, and retirement separately |
 | M2 | retouch — iop/retouch.c | yes | Queued / ALG; depends on M1/S2; clone/heal/blur/fill and source geometry |
 | M3 | overlay — iop/overlay.c | yes | Queued / ALG; depends on M1/I1/G5; resource lifecycle and alpha composition |
 | M4 | censorize — iop/censorize.c | yes | Queued / ALG; depends on M1/S2; pixelate/blur/noise modes |
@@ -189,7 +189,7 @@ default. fixture means static evidence exists, not that it is covered.
 | --- | --- | --- | --- |
 | S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 frozen D50 Lab and S1.2 source-order dt-UCS bridges are complete behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
 | S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept remaining primitives only for an explicitly reopened consumer and do not port OpenCL twins |
-| S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: canonical mask/blend graph | Remaining: path/brush, further source-backed shape/mode consumers, Studio authoring/preview, and M1 acceptance. S3.1 typed graph/ROI/normal-mix foundation is not S3 completion |
+| S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: canonical mask/blend graph | Remaining: path/brush, further source-backed shape/mode consumers, alpha-overlay/group-child Studio presentation, and M1 acceptance. S3.1 typed graph/ROI/normal-mix plus S3.2 owned-leaf authoring are not S3 completion |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format*, borders_helper* | CORE: converge into Engine facade + services cache/scheduler | Every old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
 | S5 | iop/iop_api.h, common/module*, module_api.h, dynload*, introspection.h, action.h, darktable*, darktable_api.h, poison.h, iop_group*, iop_order*, iop_profile* | DELETE dynamic IOP/module ABI and global composition | Delete after all remaining IOPs retire; built-in versioned operation registry remains |
 | S6 | common/database*, database_schema*, sqliteicu* | CORE/DELETE | Compare against Ravo schema/FTS/ICU; move needed data contracts into SQLite adapter and delete remaining old catalog ABI |
@@ -256,7 +256,7 @@ default. fixture means static evidence exists, not that it is covered.
 | L8 | libs/histogram.c + libs/scopes/* | CORE/DELETE | Separate RGB histogram/waveform/vectorscope/split tests; current histogram/parade is only a subset |
 | L9 | libs/modulegroups.c + header | DELETE | Studio Inspector grouping complete; delete old names/quick-access config |
 | L10 | libs/backgroundjobs.c | DELETE | J1 progress/task presentation covers it |
-| L11 | libs/masks.c | DELETE | M1 canonical mask service plus Studio intents and zero-consumer proof cover it; S3.1 preservation is insufficient |
+| L11 | libs/masks.c | DELETE | M1 canonical mask service plus Studio intents and zero-consumer proof cover it; S3.1/S3.2 bounded graph/authoring are insufficient |
 | L12 | libs/ioporder.c | DELETE | Canonical recipe operation-order/version contract covers it |
 | L13 | libs/tools/viewswitcher.c | DELETE | Studio Gallery/Edit command covers it |
 | L14 | libs/tools/darktable.c | DELETE | Old brand/label tool has no consumer |
@@ -315,9 +315,9 @@ are stable, and end-to-end measurements prove benefit.
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
 constraints; it cannot be used to hide modules from this TODO. Remaining C14
-work is Studio mask presentation/authoring, the required M1 gates, and atomic
-retirement. Do not begin C15 audit/implementation until a later exact tranche
-is explicitly authorized.
+work is mask-overlay/group-editor presentation, path/brush capability, the
+required M1 gates, and atomic retirement. Do not begin C15
+audit/implementation until a later exact tranche is explicitly authorized.
 Independent adapter or reliability work requires satisfied dependencies and
 explicitly non-overlapping owners and files.
 

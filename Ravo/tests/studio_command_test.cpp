@@ -14,6 +14,7 @@
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/recipe/color_harmonizer.h"
+#include "ravo/recipe/develop_mask.h"
 
 namespace ravo
 {
@@ -183,6 +184,30 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_TRUE(node_sats[1].toMap().value(QStringLiteral("visible")).toBool());
     EXPECT_FALSE(node_sats[2].toMap().value(QStringLiteral("visible")).toBool());
     EXPECT_FALSE(node_sats[3].toMap().value(QStringLiteral("visible")).toBool());
+    const auto harmonizer_mask = presenter.editColorHarmonizerMask();
+    EXPECT_FALSE(harmonizer_mask.value(QStringLiteral("attached")).toBool());
+    EXPECT_TRUE(harmonizer_mask.value(QStringLiteral("editable")).toBool());
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindIndex")).toInt(), 0);
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindName")).toString(), QStringLiteral("none"));
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("statusCode")).toString(),
+              QStringLiteral("no_mask"));
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindChoices")).toStringList().size(), 6);
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("sourceChoices")).toStringList().size(), 2);
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("channelChoices")).toStringList().size(), 4);
+    const auto mask_controls = harmonizer_mask.value(QStringLiteral("numericControls")).toList();
+    ASSERT_EQ(mask_controls.size(), 15);
+    const auto radius = std::find_if(
+        mask_controls.cbegin(), mask_controls.cend(), [](const QVariant &candidate)
+        { return candidate.toMap().value(QStringLiteral("key")) == QStringLiteral("radius"); });
+    ASSERT_NE(radius, mask_controls.cend());
+    EXPECT_DOUBLE_EQ(radius->toMap().value(QStringLiteral("min")).toDouble(), 0.01);
+    EXPECT_DOUBLE_EQ(radius->toMap().value(QStringLiteral("max")).toDouble(),
+                     kCanonicalMaskUnitMax);
+    const auto graduated_mask = presenter.editGraduatedMask();
+    EXPECT_EQ(graduated_mask.value(QStringLiteral("target")).toString(),
+              QStringLiteral("graduatednd"));
+    EXPECT_EQ(graduated_mask.value(QStringLiteral("detachField")).toString(),
+              QStringLiteral("graduatedMask"));
     const auto primaries = presenter.editPrimaries();
     EXPECT_EQ(primaries.size(), 8);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("achromaticTintHueDegrees")).toDouble(), 0.0);
@@ -457,7 +482,21 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_FALSE(section.contains(QStringLiteral("auto-detect")));
     EXPECT_FALSE(section.contains(QStringLiteral("histogram")));
     EXPECT_FALSE(section.contains(QStringLiteral("picker")));
-    EXPECT_FALSE(section.contains(QStringLiteral("mask")));
+    EXPECT_FALSE(section.contains(QStringLiteral("harmony guide"), Qt::CaseInsensitive));
+    EXPECT_TRUE(section.contains(QStringLiteral("MaskEditor")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editColorHarmonizerMask")));
+    EXPECT_TRUE(source.contains(QStringLiteral("component MaskEditor")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editGraduatedMask")));
+    EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.numericControls")));
+    EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.kindChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.sourceChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("maskEditor.mask.channelChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(maskEditor.mask.detachField)")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("maskEditor.mask.editable === true && modelData.visible")));
+    EXPECT_FALSE(source.contains(QStringLiteral("mask alpha"), Qt::CaseInsensitive));
+    EXPECT_FALSE(source.contains(QStringLiteral("OpenCL")));
+    EXPECT_FALSE(source.contains(QStringLiteral("JSON")));
 
     const auto contrast = source.indexOf(QStringLiteral("colorContrastEnabled"));
     const auto harmonizer = source.indexOf(QStringLiteral("colorHarmonizerEnabled"), contrast);

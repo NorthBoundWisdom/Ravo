@@ -33,6 +33,7 @@
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/services/catalog_service.h"
@@ -783,17 +784,22 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     ASSERT_TRUE(baseline) << baseline.error().message;
     auto develop = develop_from_recipe(baseline.value());
     ASSERT_TRUE(develop) << develop.error().message;
-    Mask mask{"mask-all", kCanonicalMaskSchemaVersion, MaskKind::kAll};
-    develop.value().masks = {mask};
-    develop.value().graduated_present = true;
-    develop.value().graduated_enabled = true;
-    develop.value().graduated_mask_id = "mask-all";
-    develop.value().graduated_density = 0.75;
-    // Studio has no authoring UI in S3.1, but disabled C14 attachments are
-    // still durable typed state rather than an identity-baseline shortcut.
-    develop.value().color_harmonizer_present = true;
-    develop.value().color_harmonizer_enabled = false;
-    develop.value().color_harmonizer_mask_id = "mask-all";
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop.value(), "graduatedMaskKind", 2.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop.value(), "graduatedMaskAnchorY", 0.3));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop.value(), "graduatedMaskTransition", 0.2));
+    ASSERT_TRUE(apply_develop_field_strict(develop.value(), "graduatedDensity", 0.75));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop.value(), "colorHarmonizerMaskKind", 5.0));
+    ASSERT_TRUE(apply_develop_mask_field_strict(develop.value(), "colorHarmonizerMaskSource", 1.0));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(develop.value(), "colorHarmonizerMaskThreshold1", 0.25));
+    ASSERT_TRUE(
+        apply_develop_mask_field_strict(develop.value(), "colorHarmonizerMaskThreshold2", 0.75));
+    const auto authored_masks = develop.value().masks;
+    ASSERT_EQ(authored_masks.size(), 2U);
+    EXPECT_EQ(authored_masks[0].kind, MaskKind::kLinearGradient);
+    EXPECT_EQ(authored_masks[1].kind, MaskKind::kParametric);
+    EXPECT_TRUE(develop.value().graduated_enabled);
+    EXPECT_TRUE(develop.value().color_harmonizer_enabled);
     auto saved = service->save_develop(asset_id, develop.value());
     ASSERT_TRUE(saved) << saved.error().message;
     EXPECT_TRUE(saved.value().has_edits);
@@ -806,7 +812,10 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     ASSERT_TRUE(first_live) << first_live.error().message;
 
     auto ordinary_edit = develop.value();
-    ordinary_edit.exposure_ev = 0.25;
+    ASSERT_TRUE(apply_develop_field_strict(ordinary_edit, "exposure", 0.25));
+    EXPECT_EQ(ordinary_edit.masks, authored_masks);
+    EXPECT_EQ(ordinary_edit.graduated_mask_id, develop.value().graduated_mask_id);
+    EXPECT_EQ(ordinary_edit.color_harmonizer_mask_id, develop.value().color_harmonizer_mask_id);
     const auto second_live = service->request_preview(preview, ordinary_edit);
     ASSERT_TRUE(second_live) << second_live.error().message;
     EXPECT_NE(first_live.value().cache_key, second_live.value().cache_key);
@@ -817,20 +826,20 @@ TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseR
     ASSERT_TRUE(open_service(false));
     auto loaded = service->load_recipe(asset_id);
     ASSERT_TRUE(loaded) << loaded.error().message;
-    ASSERT_EQ(loaded.value().masks, std::vector<Mask>{mask});
+    ASSERT_EQ(loaded.value().masks, authored_masks);
     const auto graduated =
         std::find_if(loaded.value().operations.begin(), loaded.value().operations.end(),
                      [](const OperationInstance &operation)
                      { return operation.id == "ravo.effect.graduatednd"; });
     ASSERT_NE(graduated, loaded.value().operations.end());
-    EXPECT_EQ(graduated->mask_id, std::optional<std::string>{"mask-all"});
+    EXPECT_EQ(graduated->mask_id, ordinary_edit.graduated_mask_id);
     const auto harmonizer =
         std::find_if(loaded.value().operations.begin(), loaded.value().operations.end(),
                      [](const OperationInstance &operation)
                      { return operation.id == kColorHarmonizerOperationId; });
     ASSERT_NE(harmonizer, loaded.value().operations.end());
-    EXPECT_FALSE(harmonizer->enabled);
-    EXPECT_EQ(harmonizer->mask_id, std::optional<std::string>{"mask-all"});
+    EXPECT_TRUE(harmonizer->enabled);
+    EXPECT_EQ(harmonizer->mask_id, ordinary_edit.color_harmonizer_mask_id);
     auto reopened_preview = service->request_preview(preview);
     ASSERT_TRUE(reopened_preview) << reopened_preview.error().message;
     EXPECT_EQ(reopened_preview.value().cache_key, second_live.value().cache_key);

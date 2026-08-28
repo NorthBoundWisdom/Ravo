@@ -16,6 +16,7 @@
 #include <QVariantMap>
 
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/recipe.h"
 #include "studio_qt.h"
 
@@ -513,6 +514,9 @@ constexpr double kColorHarmonizerCustomNodesStep = 1.0;
 constexpr int kColorHarmonizerHueDecimals = 1;
 constexpr int kColorHarmonizerLinearDecimals = 2;
 constexpr int kColorHarmonizerCustomNodesDecimals = 0;
+// This is an interaction minimum only. Canonical recipes retain the exact
+// strictly-positive hard lower bound exported by mask.h.
+constexpr double kDevelopMaskRadiusSoftMin = 0.01;
 
 [[nodiscard]] QString color_harmonizer_rule_label(const std::string_view name)
 {
@@ -570,6 +574,188 @@ constexpr int kColorHarmonizerCustomNodesDecimals = 0;
             {QStringLiteral("maximum"), maximum}, {QStringLiteral("step"), step},
             {QStringLiteral("reset"), reset},     {QStringLiteral("decimals"), decimals},
             {QStringLiteral("visible"), visible}};
+}
+
+[[nodiscard]] QString develop_mask_field_prefix(const DevelopMaskTarget target)
+{
+    return target == DevelopMaskTarget::kColorHarmonizer ? QStringLiteral("colorHarmonizerMask") :
+                                                           QStringLiteral("graduatedMask");
+}
+
+[[nodiscard]] QString develop_mask_kind_label(const std::string_view name)
+{
+    if (name == "none")
+        return QCoreApplication::translate("DevelopPanel", "None");
+    if (name == "all")
+        return QCoreApplication::translate("DevelopPanel", "All");
+    if (name == "linear_gradient")
+        return QCoreApplication::translate("DevelopPanel", "Linear gradient");
+    if (name == "circle")
+        return QCoreApplication::translate("DevelopPanel", "Circle");
+    if (name == "ellipse")
+        return QCoreApplication::translate("DevelopPanel", "Ellipse");
+    if (name == "parametric")
+        return QCoreApplication::translate("DevelopPanel", "Parametric");
+    if (name == "group")
+        return QCoreApplication::translate("DevelopPanel", "Group");
+    return QCoreApplication::translate("DevelopPanel", "Unknown");
+}
+
+[[nodiscard]] QString develop_mask_status_label(const DevelopMaskAttachmentStatus status)
+{
+    switch (status)
+    {
+    case DevelopMaskAttachmentStatus::kNoMask:
+        return QCoreApplication::translate("DevelopPanel", "No mask attached");
+    case DevelopMaskAttachmentStatus::kEditable:
+        return QCoreApplication::translate("DevelopPanel", "Mask is editable");
+    case DevelopMaskAttachmentStatus::kExternalReadOnly:
+        return QCoreApplication::translate("DevelopPanel", "External mask is read-only");
+    case DevelopMaskAttachmentStatus::kSharedReadOnly:
+        return QCoreApplication::translate("DevelopPanel", "Shared mask is read-only");
+    case DevelopMaskAttachmentStatus::kGroupReadOnly:
+        return QCoreApplication::translate("DevelopPanel", "Group mask is read-only");
+    case DevelopMaskAttachmentStatus::kInvalid:
+        return QCoreApplication::translate("DevelopPanel", "Mask attachment is invalid");
+    }
+    return QCoreApplication::translate("DevelopPanel", "Mask attachment is invalid");
+}
+
+[[nodiscard]] QVariantMap develop_mask_control(const QString &title, const QString &key,
+                                               const QString &field, const double minimum,
+                                               const double maximum, const double step,
+                                               const double reset, const int decimals,
+                                               const bool visible)
+{
+    return {{QStringLiteral("title"), title},    {QStringLiteral("key"), key},
+            {QStringLiteral("field"), field},    {QStringLiteral("min"), minimum},
+            {QStringLiteral("max"), maximum},    {QStringLiteral("step"), step},
+            {QStringLiteral("reset"), reset},    {QStringLiteral("decimals"), decimals},
+            {QStringLiteral("visible"), visible}};
+}
+
+[[nodiscard]] QVariantMap develop_mask_editor_map(const DevelopMaskEditorState &state,
+                                                  const DevelopMaskTarget target)
+{
+    const auto prefix = develop_mask_field_prefix(target);
+    const auto kind_is = [&state](const std::int64_t index) { return state.kind_index == index; };
+    const bool attached = state.attached;
+    const double threshold0_min = kCanonicalMaskUnitMin;
+    const double threshold0_max = state.threshold1;
+    const double threshold1_min = state.threshold0;
+    const double threshold1_max = state.threshold2;
+    const double threshold2_min = state.threshold1;
+    const double threshold2_max = state.threshold3;
+    const double threshold3_min = state.threshold2;
+    const double threshold3_max = kCanonicalMaskUnitMax;
+    const double radius_min = std::min(kDevelopMaskRadiusSoftMin, state.radius);
+    const double radius_x_min = std::min(kDevelopMaskRadiusSoftMin, state.radius_x);
+    const double radius_y_min = std::min(kDevelopMaskRadiusSoftMin, state.radius_y);
+    const QVariantList controls{
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Opacity"),
+                             QStringLiteral("opacity"), prefix + QStringLiteral("Opacity"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 1.0, 2, attached),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Anchor X"),
+                             QStringLiteral("anchorX"), prefix + QStringLiteral("AnchorX"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.5, 2,
+                             kind_is(2)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Anchor Y"),
+                             QStringLiteral("anchorY"), prefix + QStringLiteral("AnchorY"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.5, 2,
+                             kind_is(2)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Rotation"),
+                             QStringLiteral("rotationDegrees"),
+                             prefix + QStringLiteral("RotationDegrees"), kCanonicalMaskAngleMin,
+                             kCanonicalMaskAngleMax, 1.0, 0.0, 0, kind_is(2) || kind_is(4)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Transition"),
+                             QStringLiteral("transition"), prefix + QStringLiteral("Transition"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.1, 2,
+                             kind_is(2)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Center X"),
+                             QStringLiteral("centerX"), prefix + QStringLiteral("CenterX"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.5, 2,
+                             kind_is(3) || kind_is(4)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Center Y"),
+                             QStringLiteral("centerY"), prefix + QStringLiteral("CenterY"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.5, 2,
+                             kind_is(3) || kind_is(4)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Radius"),
+                             QStringLiteral("radius"), prefix + QStringLiteral("Radius"),
+                             radius_min, kCanonicalMaskUnitMax, 0.01, 0.25, 2, kind_is(3)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Radius X"),
+                             QStringLiteral("radiusX"), prefix + QStringLiteral("RadiusX"),
+                             radius_x_min, kCanonicalMaskUnitMax, 0.01, 0.25, 2, kind_is(4)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Radius Y"),
+                             QStringLiteral("radiusY"), prefix + QStringLiteral("RadiusY"),
+                             radius_y_min, kCanonicalMaskUnitMax, 0.01, 0.25, 2, kind_is(4)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Feather"),
+                             QStringLiteral("feather"), prefix + QStringLiteral("Feather"),
+                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 0.0, 2,
+                             kind_is(3) || kind_is(4)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Threshold 1"),
+                             QStringLiteral("threshold0"), prefix + QStringLiteral("Threshold0"),
+                             threshold0_min, threshold0_max, 0.01, 0.0, 2, kind_is(5)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Threshold 2"),
+                             QStringLiteral("threshold1"), prefix + QStringLiteral("Threshold1"),
+                             threshold1_min, threshold1_max, 0.01, 0.0, 2, kind_is(5)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Threshold 3"),
+                             QStringLiteral("threshold2"), prefix + QStringLiteral("Threshold2"),
+                             threshold2_min, threshold2_max, 0.01, 1.0, 2, kind_is(5)),
+        develop_mask_control(QCoreApplication::translate("DevelopPanel", "Threshold 4"),
+                             QStringLiteral("threshold3"), prefix + QStringLiteral("Threshold3"),
+                             threshold3_min, threshold3_max, 0.01, 1.0, 2, kind_is(5))};
+
+    const QStringList kind_choices{develop_mask_kind_label("none"),
+                                   develop_mask_kind_label("all"),
+                                   develop_mask_kind_label("linear_gradient"),
+                                   develop_mask_kind_label("circle"),
+                                   develop_mask_kind_label("ellipse"),
+                                   develop_mask_kind_label("parametric")};
+    const QStringList source_choices{
+        QCoreApplication::translate("DevelopPanel", "Input"),
+        QCoreApplication::translate("DevelopPanel", "Operation output")};
+    const QStringList channel_choices{QCoreApplication::translate("DevelopPanel", "Luminance"),
+                                      QCoreApplication::translate("DevelopPanel", "Red"),
+                                      QCoreApplication::translate("DevelopPanel", "Green"),
+                                      QCoreApplication::translate("DevelopPanel", "Blue")};
+    return {{QStringLiteral("target"), qstring_from_utf8(develop_mask_target_name(target))},
+            {QStringLiteral("attached"), state.attached},
+            {QStringLiteral("editable"), state.editable},
+            {QStringLiteral("canDetach"), state.can_detach},
+            {QStringLiteral("kindIndex"), static_cast<int>(state.kind_index)},
+            {QStringLiteral("kindName"), qstring_from_utf8(state.kind_name)},
+            {QStringLiteral("kindLabel"), develop_mask_kind_label(state.kind_name)},
+            {QStringLiteral("kindChoices"), kind_choices},
+            {QStringLiteral("status"), develop_mask_status_label(state.status)},
+            {QStringLiteral("statusCode"),
+             qstring_from_utf8(develop_mask_attachment_status_name(state.status))},
+            {QStringLiteral("kindField"), prefix + QStringLiteral("Kind")},
+            {QStringLiteral("detachField"), prefix},
+            {QStringLiteral("invertedField"), prefix + QStringLiteral("Inverted")},
+            {QStringLiteral("sourceField"), prefix + QStringLiteral("Source")},
+            {QStringLiteral("channelField"), prefix + QStringLiteral("Channel")},
+            {QStringLiteral("selectorsVisible"), kind_is(5)},
+            {QStringLiteral("opacity"), state.opacity},
+            {QStringLiteral("inverted"), state.inverted},
+            {QStringLiteral("anchorX"), state.anchor_x},
+            {QStringLiteral("anchorY"), state.anchor_y},
+            {QStringLiteral("rotationDegrees"), state.rotation_degrees},
+            {QStringLiteral("transition"), state.transition},
+            {QStringLiteral("centerX"), state.center_x},
+            {QStringLiteral("centerY"), state.center_y},
+            {QStringLiteral("radius"), state.radius},
+            {QStringLiteral("radiusX"), state.radius_x},
+            {QStringLiteral("radiusY"), state.radius_y},
+            {QStringLiteral("feather"), state.feather},
+            {QStringLiteral("sourceIndex"), static_cast<int>(state.source_index)},
+            {QStringLiteral("sourceChoices"), source_choices},
+            {QStringLiteral("channelIndex"), static_cast<int>(state.channel_index)},
+            {QStringLiteral("channelChoices"), channel_choices},
+            {QStringLiteral("threshold0"), state.threshold0},
+            {QStringLiteral("threshold1"), state.threshold1},
+            {QStringLiteral("threshold2"), state.threshold2},
+            {QStringLiteral("threshold3"), state.threshold3},
+            {QStringLiteral("numericControls"), controls}};
 }
 
 } // namespace
@@ -695,6 +881,13 @@ QVariantMap StudioPresenter::editColorHarmonizer() const
         {QStringLiteral("customNodeControl"), custom_node_control},
         {QStringLiteral("customHueControls"), custom_hue_controls},
         {QStringLiteral("nodeSaturationControls"), node_saturation_controls}};
+}
+
+QVariantMap StudioPresenter::editColorHarmonizerMask() const
+{
+    return develop_mask_editor_map(
+        develop_mask_editor_state(develop_, DevelopMaskTarget::kColorHarmonizer),
+        DevelopMaskTarget::kColorHarmonizer);
 }
 
 void StudioPresenter::retranslate()
@@ -863,6 +1056,13 @@ double StudioPresenter::editGraduatedRotation() const noexcept
 double StudioPresenter::editGraduatedOffset() const noexcept
 {
     return develop_.graduated_offset;
+}
+
+QVariantMap StudioPresenter::editGraduatedMask() const
+{
+    return develop_mask_editor_map(
+        develop_mask_editor_state(develop_, DevelopMaskTarget::kGraduatedNd),
+        DevelopMaskTarget::kGraduatedNd);
 }
 
 double StudioPresenter::editToneEqBlacks() const noexcept
@@ -1208,7 +1408,22 @@ void StudioPresenter::kick_develop_work()
 void StudioPresenter::setDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = develop_;
-    if (!apply_develop_field(next, utf8_from_qstring(name), value))
+    const auto field = utf8_from_qstring(name);
+    if (is_develop_mask_field(field))
+    {
+        auto applied = apply_develop_field_strict(next, field, value);
+        if (!applied)
+        {
+            const auto reason = applied.error().context.find("reason");
+            const auto reason_text = reason == applied.error().context.end() ?
+                                         QStringLiteral("unknown") :
+                                         qstring_from_utf8(reason->second);
+            setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            return;
+        }
+    }
+    else if (!apply_develop_field(next, field, value))
     {
         return;
     }
@@ -1262,7 +1477,22 @@ void StudioPresenter::previewToneCurve(const QVariantList &points)
 void StudioPresenter::previewDevelopNumber(const QString &name, const double value)
 {
     DevelopParams next = develop_;
-    if (!apply_develop_field(next, utf8_from_qstring(name), value))
+    const auto field = utf8_from_qstring(name);
+    if (is_develop_mask_field(field))
+    {
+        auto applied = apply_develop_field_strict(next, field, value);
+        if (!applied)
+        {
+            const auto reason = applied.error().context.find("reason");
+            const auto reason_text = reason == applied.error().context.end() ?
+                                         QStringLiteral("unknown") :
+                                         qstring_from_utf8(reason->second);
+            setError(QCoreApplication::translate("DevelopPanel", "Mask edit was rejected") +
+                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            return;
+        }
+    }
+    else if (!apply_develop_field(next, field, value))
     {
         return;
     }
@@ -1407,7 +1637,22 @@ void StudioPresenter::setCropToolActive(const bool active)
 void StudioPresenter::resetControl(const QString &name)
 {
     DevelopParams next = develop_;
-    if (!reset_develop_field(next, utf8_from_qstring(name)))
+    const auto field = utf8_from_qstring(name);
+    if (is_develop_mask_field(field))
+    {
+        auto reset = reset_develop_mask_field(next, field);
+        if (!reset)
+        {
+            const auto reason = reset.error().context.find("reason");
+            const auto reason_text = reason == reset.error().context.end() ?
+                                         QStringLiteral("unknown") :
+                                         qstring_from_utf8(reason->second);
+            setError(QCoreApplication::translate("DevelopPanel", "Mask reset was rejected") +
+                     QStringLiteral(" [") + reason_text + QStringLiteral("]"));
+            return;
+        }
+    }
+    else if (!reset_develop_field(next, field))
     {
         return;
     }

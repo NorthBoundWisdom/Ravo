@@ -130,6 +130,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editPrimaries READ editPrimaries NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorContrast READ editColorContrast NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorHarmonizer READ editColorHarmonizer NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorHarmonizerMask READ editColorHarmonizerMask NOTIFY editChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
     Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
     Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
@@ -162,6 +163,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editGraduatedHardness READ editGraduatedHardness NOTIFY editChanged)
     Q_PROPERTY(double editGraduatedRotation READ editGraduatedRotation NOTIFY editChanged)
     Q_PROPERTY(double editGraduatedOffset READ editGraduatedOffset NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editGraduatedMask READ editGraduatedMask NOTIFY editChanged)
     Q_PROPERTY(double editToneEqBlacks READ editToneEqBlacks NOTIFY editChanged)
     Q_PROPERTY(double editToneEqShadows READ editToneEqShadows NOTIFY editChanged)
     Q_PROPERTY(double editToneEqMidtones READ editToneEqMidtones NOTIFY editChanged)
@@ -304,6 +306,7 @@ public:
     [[nodiscard]] QVariantMap editPrimaries() const;
     [[nodiscard]] QVariantMap editColorContrast() const;
     [[nodiscard]] QVariantMap editColorHarmonizer() const;
+    [[nodiscard]] QVariantMap editColorHarmonizerMask() const;
     [[nodiscard]] double editMonochrome() const noexcept;
     [[nodiscard]] double editSplitShadowsHue() const noexcept;
     [[nodiscard]] double editSplitHighlightsHue() const noexcept;
@@ -336,6 +339,7 @@ public:
     [[nodiscard]] double editGraduatedHardness() const noexcept;
     [[nodiscard]] double editGraduatedRotation() const noexcept;
     [[nodiscard]] double editGraduatedOffset() const noexcept;
+    [[nodiscard]] QVariantMap editGraduatedMask() const;
     [[nodiscard]] double editToneEqBlacks() const noexcept;
     [[nodiscard]] double editToneEqShadows() const noexcept;
     [[nodiscard]] double editToneEqMidtones() const noexcept;
