@@ -862,11 +862,11 @@ decode_legacy_color_harmonizer_parameters(const std::string &version,
     if (params.smoothing != 0.0)
     {
         return make_error(ErrorCode::kUnsupported,
-                          "Legacy Color Harmonizer smoothing requires the recursive Gaussian path",
+                          "Legacy Color Harmonizer smoothing is outside the frozen 0176 evidence",
                           {{"legacy_operation", "colorharmonizer"},
                            {"legacy_version", version},
                            {"parameter", "smoothing"},
-                           {"reason", "unsupported_smoothing_requires_recursive_gaussian"}});
+                           {"reason", "unsupported_legacy_colorharmonizer_unevidenced_smoothing"}});
     }
     auto canonical = color_harmonizer_to_parameters(params);
     if (!canonical)

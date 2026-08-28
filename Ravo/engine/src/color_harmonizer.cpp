@@ -9,9 +9,12 @@
 #include <new>
 #include <span>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "dt_ucs.h"
 #include "harmony_geometry.h"
+#include "recursive_gaussian.h"
 
 namespace ravo
 {
@@ -29,6 +32,7 @@ struct FrozenColorHarmonizerData
     float pull_strength = 0.0F;
     float neutral_protection = 0.5F;
     float pull_width = 1.0F;
+    float smoothing = 0.0F;
 };
 
 [[nodiscard]] float matrix_row(const float coefficient0, const float value0,
@@ -111,18 +115,11 @@ commit_color_harmonizer(const ColorHarmonizerParams &params)
     {
         return canonical.error();
     }
-    if (params.smoothing > 0.0)
-    {
-        return make_error(
-            ErrorCode::kUnsupported,
-            "Color Harmonizer smoothing requires the recursive Gaussian and canonical ROI scale",
-            {{"reason", "unsupported_smoothing_requires_recursive_gaussian"}});
-    }
-
     FrozenColorHarmonizerData data;
     data.pull_strength = static_cast<float>(params.pull_strength);
     data.neutral_protection = static_cast<float>(params.neutral_protection);
     data.pull_width = static_cast<float>(params.pull_width);
+    data.smoothing = static_cast<float>(params.smoothing);
     for (std::size_t index = 0U; index < data.node_saturation.size(); ++index)
     {
         data.node_saturation[index] = static_cast<float>(params.node_saturation[index]);
@@ -196,13 +193,113 @@ commit_color_harmonizer(const ColorHarmonizerParams &params)
     return result;
 }
 
+struct ColorHarmonizerCorrection
+{
+    float lightness = 0.0F;
+    float chroma = 0.0F;
+    float normalized_hue = 0.0F;
+    float hue_shift = 0.0F;
+    float saturation_delta = 0.0F;
+};
+
+[[nodiscard]] Result<ColorHarmonizerCorrection>
+map_color_harmonizer_committed(const FrozenColorHarmonizerData &data,
+                               const Matrix3 &working_to_xyz_d50, const Triplet input,
+                               const float white_lightness)
+{
+    const Triplet nonnegative{std::fmax(input[0], 0.0F), std::fmax(input[1], 0.0F),
+                              std::fmax(input[2], 0.0F)};
+    const auto jch =
+        dt_ucs::xyz_d50_to_jch(apply_matrix(working_to_xyz_d50, nonnegative), white_lightness);
+    if (!std::ranges::all_of(jch, [](const float value) { return std::isfinite(value); }))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Harmonizer forward conversion produced a non-finite JCH sample",
+                          {{"reason", "invalid_colorharmonizer_geometry"}});
+    }
+    constexpr float pi = 3.14159265358979323846F;
+    constexpr float two_pi = 6.28318530717958647693F;
+    const float hue = (jch[2] + pi) / two_pi;
+    const auto attraction = harmony_geometry::harmony_attraction(
+        hue, std::span<const float>(data.nodes.data(), data.node_count), data.pull_width);
+    if (!attraction)
+    {
+        return make_error(ErrorCode::kValidation, "Color Harmonizer attraction geometry is invalid",
+                          {{"reason", "invalid_colorharmonizer_geometry"}});
+    }
+    const float saturation_delta =
+        (data.node_saturation[attraction.value().winning_index] - 1.0F) * attraction.value().weight;
+    if (!std::isfinite(hue) || !std::isfinite(attraction.value().shift) ||
+        !std::isfinite(saturation_delta))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Harmonizer correction signal is non-finite",
+                          {{"reason", "invalid_colorharmonizer_geometry"}});
+    }
+    return ColorHarmonizerCorrection{jch[0], jch[1], hue, attraction.value().shift,
+                                     saturation_delta};
+}
+
+[[nodiscard]] Result<Triplet> apply_smoothed_color_harmonizer_committed(
+    const FrozenColorHarmonizerData &data, const Matrix3 &xyz_d50_to_working,
+    const ColorHarmonizerCorrection &cached, const float hue_shift, const float saturation_delta,
+    const float white_lightness)
+{
+    constexpr float pi = 3.14159265358979323846F;
+    constexpr float two_pi = 6.28318530717958647693F;
+    const float neutral_squared = data.neutral_protection * data.neutral_protection;
+    const float neutral_cubed = neutral_squared * data.neutral_protection;
+    const float cutoff = neutral_cubed * 0.03F;
+    const float chroma_weight = cached.chroma / (cached.chroma + cutoff + 1.0e-5F);
+    const float new_hue =
+        wrap_hue(cached.normalized_hue + hue_shift * data.pull_strength * chroma_weight);
+    const Triplet jch{cached.lightness,
+                      std::fmax(cached.chroma * (1.0F + saturation_delta * chroma_weight), 0.0F),
+                      new_hue * two_pi - pi};
+    const auto result =
+        apply_matrix(xyz_d50_to_working, dt_ucs::jch_to_xyz_d50(jch, white_lightness));
+    if (!std::ranges::all_of(result, [](const float value) { return std::isfinite(value); }))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Harmonizer produced a non-finite RGB sample",
+                          {{"reason", "nonfinite_colorharmonizer_output"}});
+    }
+    return result;
+}
+
+void checkpoint(const detail::ColorHarmonizerControl control,
+                const detail::ColorHarmonizerCheckpoint stage,
+                const std::uint32_t progress) noexcept
+{
+    if (control.checkpoint_callback != nullptr)
+    {
+        control.checkpoint_callback(control.context, stage, progress);
+    }
+}
+
+struct GaussianControlBridge
+{
+    detail::ColorHarmonizerControl color_harmonizer;
+};
+
+void gaussian_checkpoint(void *const context, const detail::RecursiveGaussianCheckpoint,
+                         const std::uint32_t progress) noexcept
+{
+    const auto *const bridge = static_cast<const GaussianControlBridge *>(context);
+    checkpoint(bridge->color_harmonizer, detail::ColorHarmonizerCheckpoint::kGaussian, progress);
+}
+
 } // namespace
 
-Result<WorkingImage> apply_color_harmonizer(const WorkingImage &input,
-                                            const ColorHarmonizerParams &params,
-                                            const CancellationToken &cancellation)
-try
+namespace
 {
+
+[[nodiscard]] Result<WorkingImage>
+apply_color_harmonizer_impl(const WorkingImage &input, const ColorHarmonizerParams &params,
+                            const CancellationToken &cancellation,
+                            const detail::ColorHarmonizerControl control)
+{
+    checkpoint(control, detail::ColorHarmonizerCheckpoint::kBeforeValidation, 0U);
     auto active = cancellation.check();
     if (!active)
     {
@@ -262,37 +359,163 @@ try
         }
     }
 
-    WorkingImage output;
-    output.width = input.width;
-    output.height = input.height;
-    output.color_profile = input.color_profile;
-    output.exposure_analysis = input.exposure_analysis;
-    output.rgb.resize(input.rgb.size());
-    const float white_lightness = dt_ucs::y_to_lightness(1.0F);
-    for (std::uint32_t row = 0U; row < input.height; ++row)
+    // Keep the already accepted one-pass path byte-for-byte intact.  It does
+    // not consume or validate ROI scale, so legacy/manual unknown geometry
+    // retains the same smoothing-zero behavior.
+    if (data.value().smoothing == 0.0F)
     {
+        WorkingImage output;
+        output.width = input.width;
+        output.height = input.height;
+        output.color_profile = input.color_profile;
+        output.exposure_analysis = input.exposure_analysis;
+        output.canonical_roi_scale = input.canonical_roi_scale;
+        output.rgb.resize(input.rgb.size());
+        const float white_lightness = dt_ucs::y_to_lightness(1.0F);
+        for (std::uint32_t row = 0U; row < input.height; ++row)
+        {
+            active = cancellation.check();
+            if (!active)
+            {
+                return active.error();
+            }
+            for (std::uint32_t column = 0U; column < input.width; ++column)
+            {
+                const std::size_t index =
+                    (static_cast<std::size_t>(row) * input.width + column) * 3U;
+                auto result = apply_color_harmonizer_committed(
+                    data.value(), input.color_profile.matrix_to_xyz_d50, inverse.value(),
+                    {input.rgb[index], input.rgb[index + 1U], input.rgb[index + 2U]},
+                    white_lightness);
+                if (!result)
+                {
+                    auto error = result.error();
+                    error.context.emplace("sample_index", std::to_string(index));
+                    return error;
+                }
+                output.rgb[index] = result.value()[0];
+                output.rgb[index + 1U] = result.value()[1];
+                output.rgb[index + 2U] = result.value()[2];
+            }
+        }
         active = cancellation.check();
         if (!active)
         {
             return active.error();
         }
+        return output;
+    }
+
+    if (!input.canonical_roi_scale.valid())
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Color Harmonizer smoothing requires a canonical ROI scale",
+                          {{"reason", "invalid_colorharmonizer_roi_scale"}});
+    }
+
+    const std::size_t pixel_count = static_cast<std::size_t>(pixels);
+    std::vector<float> jch_cache;
+    std::vector<float> corrections;
+    jch_cache.resize(input.rgb.size());
+    corrections.resize(pixel_count * 2U);
+    const float white_lightness = dt_ucs::y_to_lightness(1.0F);
+    for (std::uint32_t row = 0U; row < input.height; ++row)
+    {
+        checkpoint(control, detail::ColorHarmonizerCheckpoint::kMapRow, row);
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const std::size_t row_offset = static_cast<std::size_t>(row) * input.width;
         for (std::uint32_t column = 0U; column < input.width; ++column)
         {
-            const std::size_t index = (static_cast<std::size_t>(row) * input.width + column) * 3U;
-            auto result = apply_color_harmonizer_committed(
-                data.value(), input.color_profile.matrix_to_xyz_d50, inverse.value(),
-                {input.rgb[index], input.rgb[index + 1U], input.rgb[index + 2U]}, white_lightness);
+            if ((column & 63U) == 0U)
+            {
+                checkpoint(control, detail::ColorHarmonizerCheckpoint::kMapChunk, column);
+                active = cancellation.check();
+                if (!active)
+                {
+                    return active.error();
+                }
+            }
+            const std::size_t pixel = row_offset + column;
+            const std::size_t rgb = pixel * 3U;
+            auto mapped = map_color_harmonizer_committed(
+                data.value(), input.color_profile.matrix_to_xyz_d50,
+                {input.rgb[rgb], input.rgb[rgb + 1U], input.rgb[rgb + 2U]}, white_lightness);
+            if (!mapped)
+            {
+                auto error = mapped.error();
+                error.context.emplace("sample_index", std::to_string(rgb));
+                return error;
+            }
+            jch_cache[pixel * 3U] = mapped.value().lightness;
+            jch_cache[pixel * 3U + 1U] = mapped.value().chroma;
+            jch_cache[pixel * 3U + 2U] = mapped.value().normalized_hue;
+            corrections[pixel * 2U] = mapped.value().hue_shift;
+            corrections[pixel * 2U + 1U] = mapped.value().saturation_delta;
+        }
+    }
+
+    const float sigma = data.value().smoothing *
+                        std::fmax(1.5F, 8.0F * input.canonical_roi_scale.value()) *
+                        std::fmax(1.0F, data.value().pull_width);
+    GaussianControlBridge bridge{control};
+    auto smoothed =
+        detail::recursive_gaussian_zero_2c(std::move(corrections), input.width, input.height, sigma,
+                                           cancellation, {&bridge, gaussian_checkpoint});
+    if (!smoothed)
+    {
+        return smoothed.error();
+    }
+
+    WorkingImage output;
+    output.width = input.width;
+    output.height = input.height;
+    output.color_profile = input.color_profile;
+    output.exposure_analysis = input.exposure_analysis;
+    output.canonical_roi_scale = input.canonical_roi_scale;
+    output.rgb.resize(input.rgb.size());
+    for (std::uint32_t row = 0U; row < input.height; ++row)
+    {
+        checkpoint(control, detail::ColorHarmonizerCheckpoint::kApplyRow, row);
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const std::size_t row_offset = static_cast<std::size_t>(row) * input.width;
+        for (std::uint32_t column = 0U; column < input.width; ++column)
+        {
+            if ((column & 63U) == 0U)
+            {
+                checkpoint(control, detail::ColorHarmonizerCheckpoint::kApplyChunk, column);
+                active = cancellation.check();
+                if (!active)
+                {
+                    return active.error();
+                }
+            }
+            const std::size_t pixel = row_offset + column;
+            const std::size_t rgb = pixel * 3U;
+            const ColorHarmonizerCorrection cached{
+                jch_cache[pixel * 3U], jch_cache[pixel * 3U + 1U], jch_cache[pixel * 3U + 2U]};
+            auto result = apply_smoothed_color_harmonizer_committed(
+                data.value(), inverse.value(), cached, smoothed.value()[pixel * 2U],
+                smoothed.value()[pixel * 2U + 1U], white_lightness);
             if (!result)
             {
                 auto error = result.error();
-                error.context.emplace("sample_index", std::to_string(index));
+                error.context.emplace("sample_index", std::to_string(rgb));
                 return error;
             }
-            output.rgb[index] = result.value()[0];
-            output.rgb[index + 1U] = result.value()[1];
-            output.rgb[index + 2U] = result.value()[2];
+            output.rgb[rgb] = result.value()[0];
+            output.rgb[rgb + 1U] = result.value()[1];
+            output.rgb[rgb + 2U] = result.value()[2];
         }
     }
+    checkpoint(control, detail::ColorHarmonizerCheckpoint::kBeforePublication, input.height);
     active = cancellation.check();
     if (!active)
     {
@@ -300,10 +523,27 @@ try
     }
     return output;
 }
+
+} // namespace
+
+Result<WorkingImage> detail::apply_color_harmonizer_controlled(
+    const WorkingImage &input, const ColorHarmonizerParams &params,
+    const CancellationToken &cancellation, const ColorHarmonizerControl control)
+try
+{
+    return apply_color_harmonizer_impl(input, params, cancellation, control);
+}
 catch (const std::bad_alloc &)
 {
     return make_error(ErrorCode::kIo, "Color Harmonizer output allocation failed",
                       {{"reason", "allocation_failed"}});
+}
+
+Result<WorkingImage> apply_color_harmonizer(const WorkingImage &input,
+                                            const ColorHarmonizerParams &params,
+                                            const CancellationToken &cancellation)
+{
+    return detail::apply_color_harmonizer_controlled(input, params, cancellation, {});
 }
 
 Result<WorkingImage> apply_color_harmonizer(const WorkingImage &input,

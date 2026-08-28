@@ -2239,7 +2239,11 @@ TEST(RecipeTest, ColorHarmonizerDevelopFieldsAreStrictResettableAndPreservePrese
     EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength", -0.01));
     EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullWidth", 0.24));
     EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerNodeSaturation0", 2.01));
-    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerSmoothing", 0.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerSmoothing", 0.0));
+    ASSERT_TRUE(apply_develop_field_strict(develop, "colorHarmonizerSmoothing", 1.25));
+    EXPECT_DOUBLE_EQ(develop.color_harmonizer.smoothing, 1.25);
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerSmoothing", -0.01));
+    EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerSmoothing", 2.01));
     EXPECT_FALSE(apply_develop_field_strict(develop, "unknownHarmonizer", 1.0));
     const DevelopParams before_nan = develop;
     EXPECT_FALSE(apply_develop_field_strict(develop, "colorHarmonizerPullStrength",
@@ -2327,6 +2331,7 @@ TEST(RecipeTest, ColorHarmonizerPresenceAndParameterFingerprintsDiffer)
         std::pair{"colorHarmonizerPullStrength", 0.2},
         std::pair{"colorHarmonizerNeutralProtection", 0.75},
         std::pair{"colorHarmonizerPullWidth", 1.5},
+        std::pair{"colorHarmonizerSmoothing", 0.5},
         std::pair{"colorHarmonizerCustomHue0Degrees", 12.0},
         std::pair{"colorHarmonizerCustomNodeCount", 3.0},
         std::pair{"colorHarmonizerNodeSaturation0", 1.25},

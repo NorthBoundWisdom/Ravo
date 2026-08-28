@@ -949,6 +949,8 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         RasterBuffer raster;
         raster.width = validated_raster->width;
         raster.height = validated_raster->height;
+        raster.source_width = validated_raster->source_width;
+        raster.source_height = validated_raster->source_height;
         raster.srgb = std::move(validated_raster->rgb);
         raster.color_profile = std::move(validated_raster->color_profile);
         decoded_preview_source_ =

@@ -2342,6 +2342,16 @@ read_rgbe_file_candidate(const std::string_view path,
     return image.transformed(transform, Qt::FastTransformation);
 }
 
+[[nodiscard]] QSize apply_display_rotation_to_size(QSize size, const int rotate_quarters)
+{
+    const int turns = ((rotate_quarters % 4) + 4) % 4;
+    if (turns % 2 != 0)
+    {
+        size.transpose();
+    }
+    return size;
+}
+
 [[nodiscard]] QImage apply_png_orientation(QImage image, const std::uint16_t orientation)
 {
     if (image.isNull() || orientation == 1U)
@@ -2453,10 +2463,11 @@ void apply_scaled_decode_size(QImageReader &reader, const std::uint32_t max_edge
     return result;
 }
 
-[[nodiscard]] Result<DecodedRaster>
-decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToken &cancellation,
-              const std::string_view context,
-              std::optional<ColorProfileState> color_profile = std::nullopt)
+[[nodiscard]] Result<DecodedRaster> decode_raster(QImage image, const std::uint32_t max_edge,
+                                                  const CancellationToken &cancellation,
+                                                  const std::string_view context,
+                                                  std::optional<ColorProfileState> color_profile,
+                                                  const QSize source_size)
 {
     auto cancelled = cancellation.check();
     if (!cancelled)
@@ -2469,6 +2480,13 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
                           {{"path", std::string(context)}});
     }
 
+    const QSize original_size = source_size;
+    if (original_size.width() <= 0 || original_size.height() <= 0)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Raster source dimensions are invalid",
+            {{"path", std::string(context)}, {"reason", "invalid_raster_source_dimensions"}});
+    }
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     fit_within_max_edge(static_cast<std::uint32_t>(image.width()),
@@ -2484,6 +2502,8 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
     DecodedRaster result;
     result.width = static_cast<std::uint32_t>(image.width());
     result.height = static_cast<std::uint32_t>(image.height());
+    result.source_width = static_cast<std::uint32_t>(original_size.width());
+    result.source_height = static_cast<std::uint32_t>(original_size.height());
     result.color_profile =
         color_profile ? std::move(*color_profile) : color_profile_for_image(image);
     result.pixel_format = RasterPixelFormat::kRgb8;
@@ -2585,6 +2605,8 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
                           "jpeg_header_decode_failed",
                           {{"qt_error", reader.errorString().toUtf8().toStdString()}});
     }
+    const QSize source_size =
+        apply_display_rotation_to_size(transformed_reader_size(reader), rotate_quarters);
     apply_scaled_decode_size(reader, max_edge);
     QImage image = reader.read();
     if (image.isNull())
@@ -2595,7 +2617,7 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
     }
     image = apply_display_rotation(std::move(image), rotate_quarters);
     return decode_raster(std::move(image), max_edge, cancellation, source,
-                         std::move(contract).value().color_profile);
+                         std::move(contract).value().color_profile, source_size);
 }
 
 [[nodiscard]] Result<RasterInfo> probe_png_bytes(const QByteArray &bytes,
@@ -2671,7 +2693,8 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
 [[nodiscard]] Result<DecodedRaster> decode_png_raster(QImage image, const std::uint32_t max_edge,
                                                       const CancellationToken &cancellation,
                                                       const std::string_view source,
-                                                      ColorProfileState color_profile)
+                                                      ColorProfileState color_profile,
+                                                      const QSize source_size)
 {
     auto active = cancellation.check();
     if (!active)
@@ -2682,6 +2705,11 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
     {
         return png_error(ErrorCode::kValidation, "Unable to decode complete PNG image", source,
                          "png_pixel_decode_failed");
+    }
+    if (!source_size.isValid() || source_size.width() <= 0 || source_size.height() <= 0)
+    {
+        return png_error(ErrorCode::kValidation, "PNG source dimensions are invalid", source,
+                         "invalid_png_source_dimensions");
     }
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
@@ -2703,6 +2731,8 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
     DecodedRaster result;
     result.width = static_cast<std::uint32_t>(image.width());
     result.height = static_cast<std::uint32_t>(image.height());
+    result.source_width = static_cast<std::uint32_t>(source_size.width());
+    result.source_height = static_cast<std::uint32_t>(source_size.height());
     result.color_profile = std::move(color_profile);
     result.pixel_format = RasterPixelFormat::kRgb8;
     result.alpha_mode = RasterAlphaMode::kOpaque;
@@ -2772,6 +2802,12 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
                           {"qt_height", std::to_string(native_size.height())},
                           {"qt_width", std::to_string(native_size.width())}});
     }
+    QSize source_size = native_size;
+    if (contract.value().orientation >= 5U)
+    {
+        source_size.transpose();
+    }
+    source_size = apply_display_rotation_to_size(source_size, rotate_quarters);
     apply_scaled_decode_size(reader, max_edge);
     QImage image = reader.read();
     if (image.isNull() || reader.error() != QImageReader::UnknownError)
@@ -2783,7 +2819,7 @@ decode_raster(QImage image, const std::uint32_t max_edge, const CancellationToke
     image = apply_png_orientation(std::move(image), contract.value().orientation);
     image = apply_display_rotation(std::move(image), rotate_quarters);
     return decode_png_raster(std::move(image), max_edge, cancellation, source,
-                             std::move(contract).value().color_profile);
+                             std::move(contract).value().color_profile, source_size);
 }
 
 [[nodiscard]] bool is_tiff_qt_format(const QByteArray &format)
@@ -2963,7 +2999,8 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
 [[nodiscard]] Result<DecodedRaster> decode_tiff_raster(QImage image, const std::uint32_t max_edge,
                                                        const CancellationToken &cancellation,
                                                        const std::string_view source,
-                                                       ColorProfileState color_profile)
+                                                       ColorProfileState color_profile,
+                                                       const QSize source_size)
 {
     auto active = cancellation.check();
     if (!active)
@@ -2974,6 +3011,11 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
     {
         return tiff_error(ErrorCode::kValidation, "Unable to decode complete TIFF pixels", source,
                           "tiff_pixel_decode_failed");
+    }
+    if (!source_size.isValid() || source_size.width() <= 0 || source_size.height() <= 0)
+    {
+        return tiff_error(ErrorCode::kValidation, "TIFF source dimensions are invalid", source,
+                          "invalid_tiff_source_dimensions");
     }
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
@@ -2995,6 +3037,8 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
     DecodedRaster result;
     result.width = static_cast<std::uint32_t>(image.width());
     result.height = static_cast<std::uint32_t>(image.height());
+    result.source_width = static_cast<std::uint32_t>(source_size.width());
+    result.source_height = static_cast<std::uint32_t>(source_size.height());
     result.color_profile = std::move(color_profile);
     result.pixel_format = RasterPixelFormat::kRgb8;
     result.alpha_mode = RasterAlphaMode::kOpaque;
@@ -3050,6 +3094,13 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
     {
         return prepared.error();
     }
+    QSize source_size(static_cast<int>(contract.value().width),
+                      static_cast<int>(contract.value().height));
+    if (contract.value().orientation >= 5U)
+    {
+        source_size.transpose();
+    }
+    source_size = apply_display_rotation_to_size(source_size, rotate_quarters);
     apply_scaled_decode_size(reader, max_edge);
     auto image = read_tiff_pixels(reader, &cancellation, source);
     if (!image)
@@ -3059,7 +3110,7 @@ prepare_tiff_reader(QImageReader &reader, const TiffContract &contract,
     image.value() = apply_png_orientation(std::move(image).value(), contract.value().orientation);
     image.value() = apply_display_rotation(std::move(image).value(), rotate_quarters);
     return decode_tiff_raster(std::move(image).value(), max_edge, cancellation, source,
-                              std::move(contract).value().color_profile);
+                              std::move(contract).value().color_profile, source_size);
 }
 
 [[nodiscard]] Result<QColorSpace> qt_output_color_space(const ColorProfileState &profile)
@@ -3331,8 +3382,9 @@ Result<DecodedRaster> QtRasterDecoder::decode(const std::string_view path,
     {
         return prepared.error();
     }
+    const QSize source_size = transformed_reader_size(reader);
     apply_scaled_decode_size(reader, max_edge);
-    return decode_raster(reader.read(), max_edge, cancellation, path);
+    return decode_raster(reader.read(), max_edge, cancellation, path, std::nullopt, source_size);
 }
 
 Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint8_t> &encoded,
@@ -3413,9 +3465,11 @@ Result<DecodedRaster> QtRasterDecoder::decode_memory(const std::vector<std::uint
                           "Embedded preview format is not enabled for import",
                           {{"format", reader.format().toStdString()}, {"source", "memory"}});
     }
+    const QSize source_size =
+        apply_display_rotation_to_size(transformed_reader_size(reader), rotate_quarters);
     apply_scaled_decode_size(reader, max_edge);
     return decode_raster(apply_display_rotation(reader.read(), rotate_quarters), max_edge,
-                         cancellation, "memory");
+                         cancellation, "memory", std::nullopt, source_size);
 }
 
 Result<std::vector<std::uint8_t>> QtRasterDecoder::encode(

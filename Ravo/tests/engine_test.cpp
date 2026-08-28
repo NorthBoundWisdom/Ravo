@@ -48,6 +48,7 @@
 #include "primaries.h"
 #include "raw_pipeline.h"
 #include "raw_temperature.h"
+#include "recursive_gaussian.h"
 #include "temperature_fixture.h"
 #include "test_support.h"
 
@@ -830,6 +831,53 @@ TEST(EngineOrientationTest, OddQuarterTurnsSwapDisplaySize)
     apply_display_rotation_to_size(width, height, 2);
     EXPECT_EQ(width, 6336U);
     EXPECT_EQ(height, 9504U);
+}
+
+TEST(CanonicalRoiScaleTest, RasterAndOrientedRawCreationCarryOnlyProvenProportionalScale)
+{
+    const auto full = CanonicalRoiScale::from_scaled_dimensions(8U, 6U, 8U, 6U);
+    const auto downscaled = CanonicalRoiScale::from_scaled_dimensions(4U, 3U, 8U, 6U);
+    EXPECT_TRUE(full.valid());
+    EXPECT_TRUE(downscaled.valid());
+    EXPECT_FLOAT_EQ(full.value(), 1.0F);
+    EXPECT_FLOAT_EQ(downscaled.value(), 0.5F);
+    EXPECT_FALSE(CanonicalRoiScale::from_scaled_dimensions(4U, 4U, 8U, 6U).valid());
+    EXPECT_FALSE(CanonicalRoiScale::from_scaled_dimensions(4U, 3U, 0U, 6U).valid());
+
+    RasterBuffer raster;
+    raster.width = 4U;
+    raster.height = 3U;
+    raster.source_width = 8U;
+    raster.source_height = 6U;
+    raster.srgb.assign(4U * 3U * 3U, 127U);
+    const auto raster_working = working_from_encoded_rgb8(raster);
+    ASSERT_TRUE(raster_working) << raster_working.error().message;
+    EXPECT_TRUE(raster_working.value().canonical_roi_scale.valid());
+    EXPECT_FLOAT_EQ(raster_working.value().canonical_roi_scale.value(), 0.5F);
+    raster.source_width = 0U;
+    const auto unknown_raster_working = working_from_encoded_rgb8(raster);
+    ASSERT_TRUE(unknown_raster_working) << unknown_raster_working.error().message;
+    EXPECT_FALSE(unknown_raster_working.value().canonical_roi_scale.valid());
+
+    DecodedRaw raw;
+    raw.width = 4U;
+    raw.height = 2U;
+    raw.rotate_quarters = 1;
+    raw.cfa_width = 2U;
+    raw.cfa_height = 2U;
+    raw.cfa_channels = {0U, 1U, 1U, 2U};
+    raw.pixels.assign(8U, 1024U);
+    raw.white_level = 4095U;
+    // Existing callers pass display-oriented dimensions. A 4x2 RAW rotated
+    // 90 degrees therefore has a 2x4 display source and a 1x2 half-scale
+    // target; assert the actual final dimensions, not the pre-rotate buffer.
+    const auto raw_working =
+        working_from_raw(raw, 1U, 2U, {1.0F, 1.0F, 1.0F, 1.0F}, CancellationToken{});
+    ASSERT_TRUE(raw_working) << raw_working.error().message;
+    EXPECT_EQ(raw_working.value().width, 1U);
+    EXPECT_EQ(raw_working.value().height, 2U);
+    EXPECT_TRUE(raw_working.value().canonical_roi_scale.valid());
+    EXPECT_FLOAT_EQ(raw_working.value().canonical_roi_scale.value(), 0.5F);
 }
 
 TEST(EngineFacadeTest, ReadsMire1EmbeddedCaptureAsLocalTimeWithoutOffset)
@@ -2616,6 +2664,240 @@ frozen_color_harmonizer_nodes(const ColorHarmonizerParams &params,
     analysis->raw_pixel_count = 4U;
     input.exposure_analysis = std::move(analysis);
     return input;
+}
+
+struct FrozenRecursiveGaussianCoefficients
+{
+    float a0 = 0.0F;
+    float a1 = 0.0F;
+    float a2 = 0.0F;
+    float a3 = 0.0F;
+    float b1 = 0.0F;
+    float b2 = 0.0F;
+    float coefp = 0.0F;
+    float coefn = 0.0F;
+};
+
+[[nodiscard]] float frozen_gaussian_clamp(const float value) noexcept
+{
+    return value >= -1.0e9F ? (value <= 1.0e9F ? value : 1.0e9F) : -1.0e9F;
+}
+
+[[nodiscard]] std::vector<float> frozen_gaussian_zero_2c(std::vector<float> signal,
+                                                         const std::uint32_t width,
+                                                         const std::uint32_t height,
+                                                         const float sigma)
+{
+    const float alpha = 1.695F / sigma;
+    const float ema = std::exp(-alpha);
+    const float ema2 = std::exp(-2.0F * alpha);
+    FrozenRecursiveGaussianCoefficients coefficients;
+    coefficients.b1 = -2.0F * ema;
+    coefficients.b2 = ema2;
+    const float k = (1.0F - ema) * (1.0F - ema) / (1.0F + (2.0F * alpha * ema) - ema2);
+    coefficients.a0 = k;
+    coefficients.a1 = k * (alpha - 1.0F) * ema;
+    coefficients.a2 = k * (alpha + 1.0F) * ema;
+    coefficients.a3 = -k * ema2;
+    coefficients.coefp =
+        (coefficients.a0 + coefficients.a1) / (1.0F + coefficients.b1 + coefficients.b2);
+    coefficients.coefn =
+        (coefficients.a2 + coefficients.a3) / (1.0F + coefficients.b1 + coefficients.b2);
+    std::vector<float> scratch(signal.size());
+    for (std::uint32_t column = 0U; column < width; ++column)
+    {
+        float xp[2]{};
+        float yb[2]{};
+        float yp[2]{};
+        for (std::size_t channel = 0U; channel < 2U; ++channel)
+        {
+            xp[channel] =
+                frozen_gaussian_clamp(signal[static_cast<std::size_t>(column) * 2U + channel]);
+            yb[channel] = xp[channel] * coefficients.coefp;
+            yp[channel] = yb[channel];
+        }
+        float xc[2]{};
+        float yc[2]{};
+        float xn[2]{};
+        float xa[2]{};
+        float yn[2]{};
+        float ya[2]{};
+        for (std::uint32_t row = 0U; row < height; ++row)
+        {
+            const std::size_t offset = (static_cast<std::size_t>(row) * width + column) * 2U;
+            for (std::size_t channel = 0U; channel < 2U; ++channel)
+            {
+                xc[channel] = frozen_gaussian_clamp(signal[offset + channel]);
+                yc[channel] = (coefficients.a0 * xc[channel]) + (coefficients.a1 * xp[channel]) -
+                              (coefficients.b1 * yp[channel]) - (coefficients.b2 * yb[channel]);
+                scratch[offset + channel] = yc[channel];
+                xp[channel] = xc[channel];
+                yb[channel] = yp[channel];
+                yp[channel] = yc[channel];
+            }
+        }
+        const std::size_t last = (static_cast<std::size_t>(height - 1U) * width + column) * 2U;
+        for (std::size_t channel = 0U; channel < 2U; ++channel)
+        {
+            xn[channel] = frozen_gaussian_clamp(signal[last + channel]);
+            xa[channel] = xn[channel];
+            yn[channel] = xn[channel] * coefficients.coefn;
+            ya[channel] = yn[channel];
+        }
+        for (std::uint32_t row = height; row > 0U; --row)
+        {
+            const std::size_t offset = (static_cast<std::size_t>(row - 1U) * width + column) * 2U;
+            for (std::size_t channel = 0U; channel < 2U; ++channel)
+            {
+                xc[channel] = frozen_gaussian_clamp(signal[offset + channel]);
+                yc[channel] = (coefficients.a2 * xn[channel]) + (coefficients.a3 * xa[channel]) -
+                              (coefficients.b1 * yn[channel]) - (coefficients.b2 * ya[channel]);
+                xa[channel] = xn[channel];
+                xn[channel] = xc[channel];
+                ya[channel] = yn[channel];
+                yn[channel] = yc[channel];
+                scratch[offset + channel] += yc[channel];
+            }
+        }
+    }
+    for (std::uint32_t row = 0U; row < height; ++row)
+    {
+        float xp[2]{};
+        float yb[2]{};
+        float yp[2]{};
+        const std::size_t first = static_cast<std::size_t>(row) * width * 2U;
+        for (std::size_t channel = 0U; channel < 2U; ++channel)
+        {
+            xp[channel] = frozen_gaussian_clamp(scratch[first + channel]);
+            yb[channel] = xp[channel] * coefficients.coefp;
+            yp[channel] = yb[channel];
+        }
+        float xc[2]{};
+        float yc[2]{};
+        float xn[2]{};
+        float xa[2]{};
+        float yn[2]{};
+        float ya[2]{};
+        for (std::uint32_t column = 0U; column < width; ++column)
+        {
+            const std::size_t offset = (static_cast<std::size_t>(row) * width + column) * 2U;
+            for (std::size_t channel = 0U; channel < 2U; ++channel)
+            {
+                xc[channel] = frozen_gaussian_clamp(scratch[offset + channel]);
+                yc[channel] = (coefficients.a0 * xc[channel]) + (coefficients.a1 * xp[channel]) -
+                              (coefficients.b1 * yp[channel]) - (coefficients.b2 * yb[channel]);
+                signal[offset + channel] = yc[channel];
+                xp[channel] = xc[channel];
+                yb[channel] = yp[channel];
+                yp[channel] = yc[channel];
+            }
+        }
+        const std::size_t last = (static_cast<std::size_t>(row + 1U) * width - 1U) * 2U;
+        for (std::size_t channel = 0U; channel < 2U; ++channel)
+        {
+            xn[channel] = frozen_gaussian_clamp(scratch[last + channel]);
+            xa[channel] = xn[channel];
+            yn[channel] = xn[channel] * coefficients.coefn;
+            ya[channel] = yn[channel];
+        }
+        for (std::uint32_t column = width; column > 0U; --column)
+        {
+            const std::size_t offset = (static_cast<std::size_t>(row) * width + (column - 1U)) * 2U;
+            for (std::size_t channel = 0U; channel < 2U; ++channel)
+            {
+                xc[channel] = frozen_gaussian_clamp(scratch[offset + channel]);
+                yc[channel] = (coefficients.a2 * xn[channel]) + (coefficients.a3 * xa[channel]) -
+                              (coefficients.b1 * yn[channel]) - (coefficients.b2 * ya[channel]);
+                xa[channel] = xn[channel];
+                xn[channel] = xc[channel];
+                ya[channel] = yn[channel];
+                yn[channel] = yc[channel];
+                signal[offset + channel] += yc[channel];
+            }
+        }
+    }
+    return signal;
+}
+
+[[nodiscard]] std::vector<float>
+frozen_color_harmonizer_two_pass(const WorkingImage &input, const ColorHarmonizerParams &params,
+                                 const float roi_scale, const FrozenHarmonyHueTables &tables)
+{
+    const auto nodes = frozen_color_harmonizer_nodes(params, tables);
+    const auto inverse = frozen_color_harmonizer_inverse(input.color_profile.matrix_to_xyz_d50);
+    const float white_lightness = frozen_dt_ucs_y_to_lightness(1.0F);
+    constexpr float pi = 3.14159265358979323846F;
+    constexpr float two_pi = 6.28318530717958647693F;
+    const std::size_t pixels = static_cast<std::size_t>(input.width) * input.height;
+    std::vector<float> jch(pixels * 3U);
+    std::vector<float> corrections(pixels * 2U);
+    for (std::size_t pixel = 0U; pixel < pixels; ++pixel)
+    {
+        const std::size_t rgb = pixel * 3U;
+        const FrozenD50Triplet nonnegative{std::fmax(input.rgb[rgb], 0.0F),
+                                           std::fmax(input.rgb[rgb + 1U], 0.0F),
+                                           std::fmax(input.rgb[rgb + 2U], 0.0F)};
+        const auto converted = frozen_dt_ucs_xyz_d50_to_jch(
+            frozen_color_harmonizer_matrix(input.color_profile.matrix_to_xyz_d50, nonnegative),
+            white_lightness);
+        const float hue = (converted[2] + pi) / two_pi;
+        const auto attraction =
+            frozen_harmony_attraction(hue, std::span<const float>(nodes.hues.data(), nodes.count),
+                                      static_cast<float>(params.pull_width));
+        jch[rgb] = converted[0];
+        jch[rgb + 1U] = converted[1];
+        jch[rgb + 2U] = hue;
+        corrections[pixel * 2U] = attraction.shift;
+        corrections[pixel * 2U + 1U] =
+            (static_cast<float>(params.node_saturation[attraction.winning_index]) - 1.0F) *
+            attraction.weight;
+    }
+    const float sigma = static_cast<float>(params.smoothing) * std::fmax(1.5F, 8.0F * roi_scale) *
+                        std::fmax(1.0F, static_cast<float>(params.pull_width));
+    corrections = frozen_gaussian_zero_2c(std::move(corrections), input.width, input.height, sigma);
+    const float neutral = static_cast<float>(params.neutral_protection);
+    const float cutoff = neutral * neutral * neutral * 0.03F;
+    std::vector<float> output(input.rgb.size());
+    for (std::size_t pixel = 0U; pixel < pixels; ++pixel)
+    {
+        const std::size_t rgb = pixel * 3U;
+        const float chroma = jch[rgb + 1U];
+        const float weight = chroma / (chroma + cutoff + 1.0e-5F);
+        float hue = std::fmod(jch[rgb + 2U] + corrections[pixel * 2U] *
+                                                  static_cast<float>(params.pull_strength) * weight,
+                              1.0F);
+        if (hue < 0.0F)
+        {
+            hue += 1.0F;
+        }
+        const FrozenD50Triplet converted{
+            jch[rgb], std::fmax(chroma * (1.0F + corrections[pixel * 2U + 1U] * weight), 0.0F),
+            hue * two_pi - pi};
+        const auto rgb_result = frozen_color_harmonizer_matrix(
+            inverse, frozen_dt_ucs_jch_to_xyz_d50(converted, white_lightness));
+        output[rgb] = rgb_result[0];
+        output[rgb + 1U] = rgb_result[1];
+        output[rgb + 2U] = rgb_result[2];
+    }
+    return output;
+}
+
+struct ColorHarmonizerCancellationFixture
+{
+    CancellationSource *source = nullptr;
+    detail::ColorHarmonizerCheckpoint target = detail::ColorHarmonizerCheckpoint::kBeforeValidation;
+    bool fired = false;
+};
+
+void cancel_color_harmonizer(void *const context,
+                             const detail::ColorHarmonizerCheckpoint checkpoint,
+                             std::uint32_t) noexcept
+{
+    auto &fixture = *static_cast<ColorHarmonizerCancellationFixture *>(context);
+    if (!fixture.fired && checkpoint == fixture.target)
+    {
+        fixture.fired = fixture.source->cancel("colorharmonizer-checkpoint");
+    }
 }
 
 // Independent scalar oracle transcribed from the frozen colorbalance.c
@@ -4545,17 +4827,22 @@ TEST(ColorHarmonizerTest, EveryPredefinedRuleAndCustomNodeCountUseCanonicalDispa
     }
 }
 
-TEST(ColorHarmonizerTest, UnsupportedAndInvalidStatesFailAtomicallyBeforePublication)
+TEST(ColorHarmonizerTest, InvalidStatesAndUnknownScaleFailAtomicallyBeforePublication)
 {
-    const WorkingImage input = color_harmonizer_working_fixture();
+    WorkingImage input = color_harmonizer_working_fixture();
     const WorkingImage original = input;
     ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
     params.smoothing = 0.01;
     auto rejected = apply_color_harmonizer(input, params, CancellationToken{});
     ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(rejected.error().context.at("reason"),
-              "unsupported_smoothing_requires_recursive_gaussian");
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorharmonizer_roi_scale");
+    EXPECT_EQ(input.rgb, original.rgb);
+    input.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(4U, 1U, 4U, 1U);
+    ASSERT_TRUE(input.canonical_roi_scale.valid());
+    const auto smoothed = apply_color_harmonizer(input, params, CancellationToken{});
+    ASSERT_TRUE(smoothed) << smoothed.error().message;
+    EXPECT_EQ(smoothed.value().canonical_roi_scale.value(), input.canonical_roi_scale.value());
 
     params.smoothing = 0.0;
     auto parameters = color_harmonizer_to_parameters(params);
@@ -4646,6 +4933,130 @@ TEST(ColorHarmonizerTest, UnsupportedAndInvalidStatesFailAtomicallyBeforePublica
     EXPECT_EQ(input.rgb, original.rgb);
     EXPECT_EQ(input.color_profile, original.color_profile);
     EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+}
+
+TEST(ColorHarmonizerSmoothingTest, MatchesIndependentTwoPassOracleAtFullAndDownscaledRoiScale)
+{
+    auto input = color_harmonizer_working_fixture();
+    ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
+    params.smoothing = 0.5;
+    params.pull_width = 0.25; // freezes the fmaxf(1, pull_width) sigma floor.
+    const auto tables = frozen_harmony_tables();
+    const auto run = [&](const CanonicalRoiScale scale)
+    {
+        input.canonical_roi_scale = scale;
+        EXPECT_TRUE(input.canonical_roi_scale.valid());
+        if (!input.canonical_roi_scale.valid())
+        {
+            return std::vector<float>{};
+        }
+        const float sigma = static_cast<float>(params.smoothing) *
+                            std::fmax(1.5F, 8.0F * scale.value()) *
+                            std::fmax(1.0F, static_cast<float>(params.pull_width));
+        const auto expected =
+            frozen_color_harmonizer_two_pass(input, params, scale.value(), tables);
+        const auto actual = apply_color_harmonizer(input, params, CancellationToken{});
+        EXPECT_TRUE(actual) << (actual ? "" : actual.error().message);
+        if (!actual)
+        {
+            return std::vector<float>{};
+        }
+        EXPECT_FLOAT_EQ(sigma, scale.value() == 1.0F ? 4.0F : 2.0F);
+        EXPECT_EQ(actual.value().rgb.size(), expected.size());
+        for (std::size_t index = 0U; index < expected.size(); ++index)
+        {
+            EXPECT_NEAR(actual.value().rgb[index], expected[index], kPlatformLibmReferenceTolerance)
+                << index;
+        }
+        EXPECT_EQ(actual.value().color_profile, input.color_profile);
+        EXPECT_EQ(actual.value().exposure_analysis, input.exposure_analysis);
+        EXPECT_EQ(actual.value().canonical_roi_scale.value(), scale.value());
+        EXPECT_NE(actual.value().rgb.data(), input.rgb.data());
+        EXPECT_NE(actual.value().color_profile.icc_bytes.data(),
+                  input.color_profile.icc_bytes.data());
+        return actual.value().rgb;
+    };
+
+    const auto full = run(CanonicalRoiScale::from_scaled_dimensions(4U, 1U, 4U, 1U));
+    const auto downscaled = run(CanonicalRoiScale::from_scaled_dimensions(4U, 1U, 8U, 2U));
+    EXPECT_NE(full, downscaled);
+    EXPECT_EQ(input.rgb, color_harmonizer_working_fixture().rgb);
+}
+
+TEST(ColorHarmonizerSmoothingTest, ZeroScaleMetadataDoesNotAffectZeroButPositiveFails)
+{
+    auto input = color_harmonizer_working_fixture();
+    const auto zero_without_scale =
+        apply_color_harmonizer(input, ColorHarmonizerParams{}, CancellationToken{});
+    ASSERT_TRUE(zero_without_scale) << zero_without_scale.error().message;
+    input.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(4U, 1U, 4U, 1U);
+    const auto zero_with_scale =
+        apply_color_harmonizer(input, ColorHarmonizerParams{}, CancellationToken{});
+    ASSERT_TRUE(zero_with_scale) << zero_with_scale.error().message;
+    EXPECT_EQ(zero_without_scale.value().rgb, zero_with_scale.value().rgb);
+
+    input.canonical_roi_scale = {};
+    ColorHarmonizerParams positive = frozen_color_harmonizer_0176_record13();
+    positive.smoothing = 0.25;
+    const auto rejected = apply_color_harmonizer(input, positive, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_colorharmonizer_roi_scale");
+}
+
+TEST(ColorHarmonizerSmoothingTest,
+     ControlledCancellationAtMapGaussianApplyAndPublicationNeverPublishes)
+{
+    auto input = color_harmonizer_working_fixture();
+    input.width = 128U;
+    input.height = 2U;
+    input.rgb.assign(static_cast<std::size_t>(input.width) * input.height * 3U, 0.25F);
+    input.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(128U, 2U, 128U, 2U);
+    const auto original = input;
+    ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
+    params.smoothing = 0.25;
+    const std::array checkpoints{detail::ColorHarmonizerCheckpoint::kBeforeValidation,
+                                 detail::ColorHarmonizerCheckpoint::kMapChunk,
+                                 detail::ColorHarmonizerCheckpoint::kGaussian,
+                                 detail::ColorHarmonizerCheckpoint::kApplyChunk,
+                                 detail::ColorHarmonizerCheckpoint::kBeforePublication};
+    for (const auto checkpoint : checkpoints)
+    {
+        CancellationSource cancellation;
+        ColorHarmonizerCancellationFixture fixture{&cancellation, checkpoint};
+        const auto rejected = detail::apply_color_harmonizer_controlled(
+            input, params, cancellation.token(), {&fixture, cancel_color_harmonizer});
+        ASSERT_FALSE(rejected);
+        EXPECT_TRUE(fixture.fired);
+        EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+        EXPECT_EQ(input.rgb, original.rgb);
+        EXPECT_EQ(input.color_profile, original.color_profile);
+        EXPECT_EQ(input.exposure_analysis, original.exposure_analysis);
+        EXPECT_EQ(input.canonical_roi_scale.value(), original.canonical_roi_scale.value());
+    }
+}
+
+TEST(ColorHarmonizerSmoothingTest, RawMemoryEstimateUsesS2Point2OwnerAndSaturates)
+{
+    DecodedRaw raw;
+    raw.width = 8U;
+    raw.height = 4U;
+    raw.pixels.assign(32U, 0U);
+    Recipe recipe;
+    const auto baseline = estimate_raw_render_memory(raw, recipe, 8U, 4U);
+    ColorHarmonizerParams params = frozen_color_harmonizer_0176_record13();
+    params.smoothing = 0.5;
+    auto serialized = color_harmonizer_to_parameters(params);
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    recipe.operations.push_back({std::string(kColorHarmonizerOperationId),
+                                 kColorHarmonizerOperationSchemaVersion, "smoothing", true,
+                                 std::move(serialized).value(), std::nullopt});
+    const auto estimated = estimate_raw_render_memory(raw, recipe, 8U, 4U);
+    const std::uint64_t expected =
+        8U * 4U * 3U * sizeof(float) + detail::recursive_gaussian_zero_2c_bytes(8U, 4U);
+    EXPECT_EQ(estimated - baseline, expected);
+    EXPECT_EQ(estimate_raw_render_memory(raw, recipe, std::numeric_limits<std::uint32_t>::max(),
+                                         std::numeric_limits<std::uint32_t>::max()),
+              std::numeric_limits<std::uint64_t>::max());
 }
 
 TEST(ColorHarmonizerTest, RowCancellationAndDisabledCopyPreserveSourceOwnership)

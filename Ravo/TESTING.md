@@ -429,17 +429,24 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   contraction-disabled production contains no FMA.
 - Engine negatives cover dimensions, RGB length/overflow, missing/non-RGB/
   matrixless/non-finite/singular profiles, every non-finite input class,
-  non-finite geometry/output, wrong ID/schema, mask state, positive smoothing,
-  pre-cancel, and row-deadline cancellation. Success owns RGB and deep profile
-  storage, retains the shared immutable analysis snapshot, and leaves the
-  source unchanged; failure publishes nothing. Vertical-slice tests cover
+  non-finite geometry/output, wrong ID/schema, mask state, invalid canonical
+  ROI scale for positive smoothing, pre-cancel, and row-deadline cancellation.
+  Success owns RGB and deep profile storage, retains the shared immutable
+  analysis snapshot, and leaves the source unchanged; failure publishes
+  nothing. Vertical-slice tests cover
   strict v1 singleton import (including reversed XML, reused-position
   conflict, and whole-0176 remaining unsupported), explicit Develop
   presence versus absence, CLI `--set` accept/reject, Catalog
-  preview/save/reopen/export of the explicit default and edited 0176
-  state, and Studio presenter/QML section bounds. There are deliberately
-  no C14 nonzero-smoothing, canonical ROI-scale, S2.2 Gaussian, mask, GPU,
-  or retirement test claims.
+  preview/save/reopen/export of explicit positive smoothing, and Studio
+  presenter/QML numeric intent bounds. Private S2.2 tests compare an
+  independent scalar source-order oracle and fixed constant/impulse/extended
+  vectors, including the frozen ±1e9 per-read clamp, dimensions/overflow/sigma,
+  and deterministic vertical/horizontal cancellation. Color Harmonizer tests
+  cover exact sigma, pull-width floor,
+  full/downscaled canonical ROI scale, propagation, two-pass oracle,
+  source/profile/analysis ownership, map/Gaussian/apply/prepublication
+  cancellation, and saturated RAW memory estimates. General masks, GPU, and
+  retirement have no acceptance claim.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 
 #include <QVariantMap>
@@ -132,7 +133,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bOffset")).toDouble(), 0.0);
     EXPECT_TRUE(color_contrast.value(QStringLiteral("unbound")).toBool());
     const auto color_harmonizer = presenter.editColorHarmonizer();
-    EXPECT_EQ(color_harmonizer.size(), 23);
+    EXPECT_EQ(color_harmonizer.size(), 24);
     EXPECT_FALSE(color_harmonizer.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(color_harmonizer.value(QStringLiteral("ruleIndex")).toInt(), 3);
     EXPECT_EQ(color_harmonizer.value(QStringLiteral("ruleChoices")).toStringList().size(), 10);
@@ -143,11 +144,12 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("pullStrength")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("neutralProtection")).toDouble(), 0.5);
     EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("pullWidth")).toDouble(), 1.0);
+    EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("smoothing")).toDouble(), 0.0);
     EXPECT_EQ(color_harmonizer.value(QStringLiteral("customNodeCount")).toInt(), 4);
     EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("customHue0Degrees")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(color_harmonizer.value(QStringLiteral("nodeSaturation0")).toDouble(), 1.0);
     const auto shared_controls = color_harmonizer.value(QStringLiteral("sharedControls")).toList();
-    ASSERT_EQ(shared_controls.size(), 4);
+    ASSERT_EQ(shared_controls.size(), 5);
     const auto anchor_control = shared_controls.front().toMap();
     EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("minimum")).toDouble(),
                      kColorHarmonizerHueDegreesMin);
@@ -156,6 +158,17 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("step")).toDouble(), 0.1);
     EXPECT_DOUBLE_EQ(anchor_control.value(QStringLiteral("reset")).toDouble(), 36.0);
     EXPECT_TRUE(anchor_control.value(QStringLiteral("visible")).toBool());
+    const auto smoothing_control =
+        std::find_if(shared_controls.cbegin(), shared_controls.cend(),
+                     [](const QVariant &candidate)
+                     {
+                         return candidate.toMap().value(QStringLiteral("field")).toString() ==
+                                QStringLiteral("colorHarmonizerSmoothing");
+                     });
+    ASSERT_NE(smoothing_control, shared_controls.cend());
+    EXPECT_DOUBLE_EQ(smoothing_control->toMap().value(QStringLiteral("minimum")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(smoothing_control->toMap().value(QStringLiteral("maximum")).toDouble(), 2.0);
+    EXPECT_DOUBLE_EQ(smoothing_control->toMap().value(QStringLiteral("step")).toDouble(), 0.01);
     EXPECT_FALSE(color_harmonizer.value(QStringLiteral("customNodeControl"))
                      .toMap()
                      .value(QStringLiteral("visible"))
@@ -404,7 +417,7 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     EXPECT_LT(b_offset, unbound);
 }
 
-TEST(StudioQmlContract, ColorHarmonizerExposesSmoothingZeroSurfaceWithoutForbiddenControls)
+TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPresentation)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
     ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -440,8 +453,6 @@ TEST(StudioQmlContract, ColorHarmonizerExposesSmoothingZeroSurfaceWithoutForbidd
     EXPECT_FALSE(section.contains(
         QStringLiteral("modelData.index < root.presenter.editColorHarmonizer.customNodeCount")));
     EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorHarmonizer\")")));
-    EXPECT_FALSE(section.contains(QStringLiteral("colorHarmonizerSmoothing")));
-    EXPECT_FALSE(section.contains(QStringLiteral("smoothing"), Qt::CaseInsensitive));
     EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
     EXPECT_FALSE(section.contains(QStringLiteral("auto-detect")));
     EXPECT_FALSE(section.contains(QStringLiteral("histogram")));

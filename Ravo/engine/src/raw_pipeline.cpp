@@ -1,6 +1,7 @@
 #include "raw_pipeline.h"
 
 #include "image_ops.h"
+#include "recursive_gaussian.h"
 
 #include <algorithm>
 #include <cctype>
@@ -31,6 +32,7 @@
 #include <libraw/libraw.h>
 
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/profile_gamma.h"
 
@@ -912,6 +914,34 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
                     saturating_multiply(saturating_multiply(fit_size, fit_size), sizeof(double)));
                 add_working_bytes(saturating_multiply(fit_size, sizeof(int)));
                 add_working_bytes(saturating_multiply(fit_size, sizeof(double)));
+            }
+        }
+        if (operation.id == kColorHarmonizerOperationId)
+        {
+            bool positive_smoothing = false;
+            if (const auto smoothing = operation.parameters.find("smoothing");
+                smoothing != operation.parameters.end())
+            {
+                if (const auto *value = std::get_if<double>(&smoothing->second.value);
+                    value != nullptr)
+                {
+                    positive_smoothing = std::isfinite(*value) && *value > 0.0;
+                }
+                else if (const auto *integer = std::get_if<std::int64_t>(&smoothing->second.value);
+                         integer != nullptr)
+                {
+                    positive_smoothing = *integer > 0;
+                }
+            }
+            if (positive_smoothing)
+            {
+                // The normal two-RGB-buffer estimate already covers borrowed
+                // working pixels and the eventual owned RGB output.  Positive
+                // C14 smoothing additionally owns JCH (3c); the S2.2 owner is
+                // the one authority for its consumed correction (2c) plus
+                // recurrence scratch (2c) bytes.
+                add_working_bytes(saturating_multiply(output_pixels, 3U * sizeof(float)));
+                add_working_bytes(detail::recursive_gaussian_zero_2c_bytes(width, height));
             }
         }
     }

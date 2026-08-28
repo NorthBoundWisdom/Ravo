@@ -545,8 +545,8 @@ saturations, and smoothing. The two real version-1 records at history positions
 and the accepted strict-import singleton envelope; they do not make the
 complete 0176 document compatible.
 
-The current engine boundary accepts only enabled, unmasked,
-`smoothing == 0` operations. It clips each finite working RGB channel with
+The engine boundary accepts enabled, unmasked operations. It clips each finite
+working RGB channel with
 source-order `fmaxf(value, 0)`, applies the declared profile matrix to XYZ D50,
 and reuses the private S1.2 D50/CAT16-D65/dt-UCS bridge. S2.1 supplies immutable
 720-step UCS↔RYB lookup, all nine predefined node geometries, custom-node
@@ -559,15 +559,20 @@ clip, or non-finite repair. Production and the independent scalar oracle match
 bit-for-bit on each host; libm-dependent Color Harmonizer output references
 also retain a recorded 1e-5 cross-platform tolerance.
 
-Validation covers schema bounds and float narrowing, dimensions, RGB buffer
-length/overflow, declared RGB matrix profile, matrix finiteness/invertibility,
-and every input/output sample. Cancellation is checked before work, by input
-and output row, and before return. Publication owns separate RGB and deep
-profile storage, shares the immutable exposure-analysis snapshot, and needs no
-operation-specific analysis or mutable global state. Any failure leaves the
-borrowed input unchanged. Masks reject structurally; positive smoothing rejects
-as `unsupported_smoothing_requires_recursive_gaussian` rather than falling
-back to the accepted core.
+For positive smoothing, `LinearWorkingBuffer` supplies one immutable canonical
+ROI scale: current pixel density over original input density. RAW/raster
+creation validates oriented proportional geometry and every derived working
+buffer/cache preserves the value; unknown geometry is explicit and positive
+smoothing fails as `invalid_colorharmonizer_roi_scale`, while smoothing zero
+does not consume it. Pass 1 owns JCH 3c plus the sole correction 2c; private
+S2.2 moves that correction into an exact `DT_IOP_GAUSSIAN_ZERO` two-channel
+vertical/horizontal recurrence with its ±1e9 per-read clamp, then Pass 2 owns
+the RGB output. Validation covers schema bounds/float narrowing, dimensions,
+buffers/overflow, profile/matrix state, scale/sigma, finite signals and every
+input/output sample. Cancellation covers preflight, mapping, recursive stages,
+apply, and pre-publication. Success deep-copies RGB/profile, shares immutable
+exposure analysis and preserves scale; any failure leaves borrowed input
+unchanged and publishes nothing. Masks still reject structurally.
 
 The private legacy-XMP adapter maps the evidenced v1 singleton (enabled 1,
 priority 0, empty multi_name, missing-or-zero multi_name_hand_edited, blend v14
@@ -575,13 +580,15 @@ default-unmasked payload, no mask/custom blend/extra attrs) onto one canonical
 operation. Ordered revisions are validated and the greatest numeric history
 position wins. Develop owns explicit presence plus the existing 17-field
 parameter object; CLI `--set`, Catalog preview/save/reopen/export, and one
-Studio section consume that same recipe. Cache identity follows the existing
-canonical recipe/engine path. Canonical ROI scale, the S2.2 two-channel
-recursive Gaussian, general masks/presentation, and retirement of the frozen
-owner remain separate C14 tranches and do not authorize C15.
+Studio section consume that same recipe, including smoothing `0..2`. Cache
+identity follows the canonical recipe/engine path. Synthetic positive legacy
+payloads remain rejected because no frozen record evidences them. General
+masks/presentation and retirement of the frozen owner remain separate C14
+tranches and do not authorize C15.
 [ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md) freezes the core;
 [ADR-0041](docs/adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
-extends it with this product surface.
+extends it with the first product surface; [ADR-0042](docs/adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
+accepts canonical positive smoothing.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked

@@ -560,6 +560,7 @@ try
     output.height = input.height;
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
+    output.canonical_roi_scale = input.canonical_roi_scale;
     output.rgb.resize(input.rgb.size());
     for (std::uint32_t row = 0U; row < input.height; ++row)
     {

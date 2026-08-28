@@ -361,7 +361,7 @@ TEST(ColorHarmonizerLegacyXmpTest, RejectsEveryNonEvidencedEnvelopeAndPayload)
         "03000000cdcccc3d000000000000003f0000803f000000000000803e0000003f0000403f040000000000803f"
         "0000803f0000803f0000803f0000803f";
     expect_rejected(positive_smoothing, ErrorCode::kUnsupported,
-                    "unsupported_smoothing_requires_recursive_gaussian");
+                    "unsupported_legacy_colorharmonizer_unevidenced_smoothing");
     LegacyColorHarmonizerXmpOptions malformed_position;
     malformed_position.history_position = "12a";
     expect_rejected(malformed_position, ErrorCode::kValidation, "invalid_legacy_history_position");
@@ -435,10 +435,10 @@ TEST(ColorHarmonizerLegacyXmpTest, ImportedRecord13MatchesDirectEngine)
 
     ColorHarmonizerParams positive = frozen_record13();
     positive.smoothing = 0.25;
-    const auto rejected = apply_color_harmonizer(input, positive, CancellationToken{});
-    ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().context.at("reason"),
-              "unsupported_smoothing_requires_recursive_gaussian");
+    input.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(2U, 1U, 2U, 1U);
+    const auto smoothed = apply_color_harmonizer(input, positive, CancellationToken{});
+    ASSERT_TRUE(smoothed) << smoothed.error().message;
+    EXPECT_NE(smoothed.value().rgb, direct_pixels.value().rgb);
 }
 
 TEST(ColorHarmonizerPresentationTest, RecipeNodeCountsMatchEnginePredefinedGeometry)

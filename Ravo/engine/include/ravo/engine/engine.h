@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -18,6 +21,63 @@
 
 namespace ravo
 {
+
+// Immutable scale metadata for a linear-working image.  It is the current
+// working-pixel density divided by the original input-pixel density; it is not
+// a UI value or an operation parameter.  An invalid value explicitly means
+// that the creating boundary could not prove a proportional source geometry.
+// Consumers which require scale must reject that state rather than guessing
+// from the current dimensions.
+class CanonicalRoiScale
+{
+public:
+    constexpr CanonicalRoiScale() noexcept = default;
+
+    [[nodiscard]] static CanonicalRoiScale
+    from_scaled_dimensions(std::uint32_t current_width, std::uint32_t current_height,
+                           std::uint32_t original_width, std::uint32_t original_height) noexcept
+    {
+        if (current_width == 0U || current_height == 0U || original_width == 0U ||
+            original_height == 0U)
+        {
+            return {};
+        }
+
+        const bool landscape_or_square = original_width >= original_height;
+        const std::uint32_t original_long = landscape_or_square ? original_width : original_height;
+        const std::uint32_t original_short = landscape_or_square ? original_height : original_width;
+        const std::uint32_t current_long = landscape_or_square ? current_width : current_height;
+        const std::uint32_t current_short = landscape_or_square ? current_height : current_width;
+        const auto expected_short = static_cast<std::uint32_t>(std::max<std::uint64_t>(
+            1U, static_cast<std::uint64_t>(original_short) * current_long / original_long));
+        if (current_short != expected_short)
+        {
+            return {};
+        }
+
+        const float scale = static_cast<float>(current_long) / static_cast<float>(original_long);
+        return std::isfinite(scale) && scale > 0.0F ? CanonicalRoiScale(scale) :
+                                                      CanonicalRoiScale{};
+    }
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return std::isfinite(value_) && value_ > 0.0F;
+    }
+
+    [[nodiscard]] float value() const noexcept
+    {
+        return value_;
+    }
+
+private:
+    explicit constexpr CanonicalRoiScale(const float value) noexcept
+        : value_(value)
+    {
+    }
+
+    float value_ = std::numeric_limits<float>::quiet_NaN();
+};
 
 enum class RenderBackend
 {
@@ -91,6 +151,10 @@ struct RasterBuffer
 {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    // Oriented dimensions before the raster decoder's optional proportional
+    // preview scaling.  Zero is explicit unknown geometry, never full size.
+    std::uint32_t source_width = 0;
+    std::uint32_t source_height = 0;
     // Encoded RGB8 samples in color_profile, not necessarily sRGB.
     std::vector<std::uint8_t> srgb;
     ColorProfileState color_profile;
@@ -130,6 +194,9 @@ struct LinearWorkingBuffer
     ColorProfileState color_profile;
     // RAW-only analysis is immutable and may be shared by live-preview/cache copies.
     std::shared_ptr<const ExposureAnalysisContext> exposure_analysis;
+    // Assigned once at the RAW/raster creation boundary and propagated exactly
+    // by every operation which creates a new working buffer.
+    CanonicalRoiScale canonical_roi_scale{};
 };
 
 inline constexpr std::uint32_t kRgbHistogramBins = 256;

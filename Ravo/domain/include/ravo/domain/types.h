@@ -467,6 +467,10 @@ struct DecodedRaster
 {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    // Oriented source dimensions before optional proportional preview decode.
+    // They preserve the density proof required by engine working buffers.
+    std::uint32_t source_width = 0;
+    std::uint32_t source_height = 0;
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
     RasterPixelFormat pixel_format = RasterPixelFormat::kRgb8;

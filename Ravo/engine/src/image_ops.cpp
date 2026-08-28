@@ -1007,6 +1007,7 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     output.height = input.height;
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
+    output.canonical_roi_scale = input.canonical_roi_scale;
     output.rgb.resize(input.rgb.size());
     for (std::uint32_t row = 0; row < input.height; ++row)
     {
@@ -1154,6 +1155,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     WorkingImage output;
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
+    output.canonical_roi_scale = image.canonical_roi_scale;
     if (turns == 2)
     {
         output.width = image.width;
@@ -1229,6 +1231,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     WorkingImage output;
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
+    output.canonical_roi_scale = image.canonical_roi_scale;
     output.width = crop_w;
     output.height = crop_h;
     output.rgb.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
@@ -1252,6 +1255,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     WorkingImage output;
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
+    output.canonical_roi_scale = image.canonical_roi_scale;
     output.width = image.width;
     output.height = image.height;
     output.rgb.resize(image.rgb.size());
@@ -1322,6 +1326,7 @@ void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb
     WorkingImage output;
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
+    output.canonical_roi_scale = image.canonical_roi_scale;
     output.width = image.width;
     output.height = image.height;
     output.rgb.assign(image.rgb.size(), 0.0F);
@@ -2264,6 +2269,7 @@ try
     output.height = input.height;
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
+    output.canonical_roi_scale = input.canonical_roi_scale;
     output.rgb.resize(input.rgb.size());
     const bool run_input_saturation = std::abs(input_saturation - 1.0F) > 1.0e-6F;
     const bool run_output_saturation = std::abs(output_saturation - 1.0F) > 1.0e-6F;
@@ -2438,6 +2444,9 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                           "RAW temperature requires a one-to-four-channel CFA pattern");
     }
     const int turns = normalized_rotate_quarters(raw.rotate_quarters);
+    std::uint32_t original_display_width = raw.width;
+    std::uint32_t original_display_height = raw.height;
+    apply_display_rotation_to_size(original_display_width, original_display_height, turns);
     std::uint32_t demosaic_width = width;
     std::uint32_t demosaic_height = height;
     apply_display_rotation_to_size(demosaic_width, demosaic_height, turns);
@@ -2509,11 +2518,19 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     {
         return rows.error();
     }
-    if (turns == 0)
+    auto oriented = turns == 0 ? Result<WorkingImage>(std::move(image)) :
+                                 rotate_working(std::move(image), turns);
+    if (!oriented)
     {
-        return image;
+        return oriented.error();
     }
-    return rotate_working(std::move(image), turns);
+    // width/height callers follow the existing display-oriented render
+    // contract.  Establish the scale from the actual final buffer so a quarter
+    // turn cannot accidentally validate the pre-rotation geometry instead.
+    oriented.value().canonical_roi_scale =
+        CanonicalRoiScale::from_scaled_dimensions(oriented.value().width, oriented.value().height,
+                                                  original_display_width, original_display_height);
+    return oriented;
 }
 
 Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
@@ -2528,6 +2545,8 @@ Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
     image.height = raster.height;
     image.rgb.resize(static_cast<std::size_t>(raster.width) * raster.height * 3U);
     image.color_profile = raster.color_profile;
+    image.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
+        raster.width, raster.height, raster.source_width, raster.source_height);
     for (std::size_t index = 0; index < image.rgb.size(); ++index)
     {
         image.rgb[index] = static_cast<float>(raster.srgb[index]) / 255.0F;

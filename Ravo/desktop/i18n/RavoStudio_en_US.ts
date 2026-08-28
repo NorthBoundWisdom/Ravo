@@ -800,6 +800,10 @@
         <translation>Pull width</translation>
     </message>
     <message>
+        <source>Smoothing</source>
+        <translation>Smoothing</translation>
+    </message>
+    <message>
         <source>Custom nodes</source>
         <translation>Custom nodes</translation>
     </message>

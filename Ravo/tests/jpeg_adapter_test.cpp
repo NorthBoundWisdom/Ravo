@@ -893,6 +893,8 @@ TEST(JpegAdapterTest, ScalesExifSixAndEightInEncodedCoordinates)
         ASSERT_TRUE(decoded) << decoded.error().message;
         EXPECT_EQ(decoded.value().width, 12U);
         EXPECT_EQ(decoded.value().height, 20U);
+        EXPECT_EQ(decoded.value().source_width, 48U);
+        EXPECT_EQ(decoded.value().source_height, 80U);
         EXPECT_EQ(decoded.value().rgb.size(), 12U * 20U * 3U);
     }
 }

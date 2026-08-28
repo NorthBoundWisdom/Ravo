@@ -858,6 +858,8 @@ TEST(TiffAdapterTest, AppliesAllOrientationsAndScalingBeforeExplicitRotation)
     ASSERT_TRUE(scaled) << scaled.error().message;
     EXPECT_EQ(scaled.value().width, 10U);
     EXPECT_EQ(scaled.value().height, 20U);
+    EXPECT_EQ(scaled.value().source_width, 40U);
+    EXPECT_EQ(scaled.value().source_height, 80U);
 
     TiffOptions rotated_options;
     rotated_options.pixels = rgb8_pixels();
@@ -866,6 +868,8 @@ TEST(TiffAdapterTest, AppliesAllOrientationsAndScalingBeforeExplicitRotation)
     ASSERT_TRUE(rotated) << rotated.error().message;
     EXPECT_EQ(rotated.value().width, 2U);
     EXPECT_EQ(rotated.value().height, 3U);
+    EXPECT_EQ(rotated.value().source_width, 2U);
+    EXPECT_EQ(rotated.value().source_height, 3U);
 }
 
 TEST(TiffAdapterTest, RejectsFloatPagesSubIfdsAndRawContainersWithoutStealingRawRouting)

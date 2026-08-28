@@ -150,8 +150,10 @@ The Color section currently exposes:
   **Allow extended chroma** switch.
 - **Color Harmonizer**, with an enable switch, ten harmony rules, anchor
   hue, pull strength, neutral protection, pull width, custom nodes 2–4,
-  four custom hues, and four node saturations. The current product accepts
-  only the unsmoothed path; there is no smoothing slider.
+  four custom hues, four node saturations, and smoothing from 0 through 2.
+  The engine applies positive smoothing through its canonical working-image
+  scale and private recursive path; it is not a mask, picker, or auto-detect
+  control.
 - Monochrome and split-toning controls for amount, shadow/highlight hue, and
   balance.
 

@@ -3073,6 +3073,7 @@ TEST_F(CliTest, RealCliColorHarmonizerDevelopSetPersistsAndRejectsInvalidInput)
              QStringLiteral("--set"),      QStringLiteral("colorHarmonizerAnchorHueDegrees=198"),
              QStringLiteral("--set"),      QStringLiteral("colorHarmonizerPullStrength=0.82"),
              QStringLiteral("--set"),      QStringLiteral("colorHarmonizerPullWidth=1.84"),
+             QStringLiteral("--set"),      QStringLiteral("colorHarmonizerSmoothing=0.5"),
              QStringLiteral("--set"),      QStringLiteral("colorHarmonizerNodeSaturation0=1.26"),
              QStringLiteral("--set"),      QStringLiteral("colorHarmonizerNodeSaturation1=0.18"),
              QStringLiteral("--set"),      QStringLiteral("colorHarmonizerNodeSaturation2=1.52"),
@@ -3105,7 +3106,8 @@ TEST_F(CliTest, RealCliColorHarmonizerDevelopSetPersistsAndRejectsInvalidInput)
     expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerPullStrength=nan")});
     expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerPullStrength=inf")});
     expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerPullStrength=1.5")});
-    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerSmoothing=0.2")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerSmoothing=-0.01")});
+    expect_fail({QStringLiteral("--set"), QStringLiteral("colorHarmonizerSmoothing=2.01")});
     expect_fail({QStringLiteral("--set"), QStringLiteral("unknownHarmonizer=1")});
 
     const auto after_fail =
@@ -3115,6 +3117,8 @@ TEST_F(CliTest, RealCliColorHarmonizerDevelopSetPersistsAndRejectsInvalidInput)
     auto after_fail_recipe = recipe_json(after_fail.stdout_bytes);
     ASSERT_TRUE(after_fail_recipe) << after_fail_recipe.error().message;
     EXPECT_NE(serialize_json(after_fail_recipe.value()).find("split_complementary"),
+              std::string::npos);
+    EXPECT_NE(serialize_json(after_fail_recipe.value()).find("\"smoothing\":0.5"),
               std::string::npos);
 
     std::error_code cleanup;

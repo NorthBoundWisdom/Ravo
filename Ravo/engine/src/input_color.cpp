@@ -1119,6 +1119,7 @@ apply_matrix_profile(const ProfiledColorBuffer &input, const ProfileData &source
     output.color_profile = working.state;
     output.color_profile.matrix_to_xyz_d50 = working.matrix_to_xyz_d50;
     output.color_profile.has_matrix = true;
+    output.canonical_roi_scale = input.canonical_roi_scale;
 
     for (std::uint32_t y = 0; y < input.height; ++y)
     {
@@ -1218,6 +1219,7 @@ apply_lcms_profile(const ProfiledColorBuffer &input, const ProfileData &source,
     output.color_profile = working.state;
     output.color_profile.matrix_to_xyz_d50 = working.matrix_to_xyz_d50;
     output.color_profile.has_matrix = true;
+    output.canonical_roi_scale = input.canonical_roi_scale;
     std::vector<float> source_row(static_cast<std::size_t>(input.width) * 3U);
     std::vector<float> transformed_row(source_row.size());
 
@@ -1564,6 +1566,7 @@ try
     source.height = input.height;
     source.channels = input.rgb;
     source.color_profile = input.color_profile;
+    source.canonical_roi_scale = input.canonical_roi_scale;
     source.color_profile.kind = ColorProfileKind::kMatrix;
     source.color_profile.icc_bytes.clear();
 
@@ -1576,6 +1579,7 @@ try
         return converted.error();
     }
     converted.value().exposure_analysis = input.exposure_analysis;
+    converted.value().canonical_roi_scale = input.canonical_roi_scale;
     return converted;
 }
 catch (const std::bad_alloc &)

@@ -616,6 +616,11 @@ QVariantMap StudioPresenter::editColorHarmonizer() const
             QStringLiteral("colorHarmonizerPullWidth"), kColorHarmonizerPullWidthMin,
             kColorHarmonizerPullWidthMax, kColorHarmonizerLinearStep, defaults.pull_width,
             kColorHarmonizerLinearDecimals, true),
+        color_harmonizer_control(
+            QCoreApplication::translate("DevelopPanel", "Smoothing"), QStringLiteral("smoothing"),
+            QStringLiteral("colorHarmonizerSmoothing"), kColorHarmonizerSmoothingMin,
+            kColorHarmonizerSmoothingMax, kColorHarmonizerLinearStep, defaults.smoothing,
+            kColorHarmonizerLinearDecimals, true),
     };
 
     const QVariantMap custom_node_control = color_harmonizer_control(
@@ -672,6 +677,7 @@ QVariantMap StudioPresenter::editColorHarmonizer() const
         {QStringLiteral("pullStrength"), params.pull_strength},
         {QStringLiteral("neutralProtection"), params.neutral_protection},
         {QStringLiteral("pullWidth"), params.pull_width},
+        {QStringLiteral("smoothing"), params.smoothing},
         {QStringLiteral("customNodeCount"), static_cast<int>(params.num_custom_nodes)},
         {QStringLiteral("customHue0Degrees"),
          color_harmonizer_hue_turns_to_degrees(params.custom_hue[0])},

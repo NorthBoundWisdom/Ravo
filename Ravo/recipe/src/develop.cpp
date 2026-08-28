@@ -946,16 +946,18 @@ struct ColorHarmonizerNumericField
     double maximum;
 };
 
-[[nodiscard]] const std::array<ColorHarmonizerNumericField, 3> &
+[[nodiscard]] const std::array<ColorHarmonizerNumericField, 4> &
 color_harmonizer_linear_fields() noexcept
 {
-    static const std::array<ColorHarmonizerNumericField, 3> fields{{
+    static const std::array<ColorHarmonizerNumericField, 4> fields{{
         {"colorHarmonizerPullStrength", &ColorHarmonizerParams::pull_strength,
          kColorHarmonizerPullStrengthMin, kColorHarmonizerPullStrengthMax},
         {"colorHarmonizerNeutralProtection", &ColorHarmonizerParams::neutral_protection,
          kColorHarmonizerNeutralProtectionMin, kColorHarmonizerNeutralProtectionMax},
         {"colorHarmonizerPullWidth", &ColorHarmonizerParams::pull_width,
          kColorHarmonizerPullWidthMin, kColorHarmonizerPullWidthMax},
+        {"colorHarmonizerSmoothing", &ColorHarmonizerParams::smoothing,
+         kColorHarmonizerSmoothingMin, kColorHarmonizerSmoothingMax},
     }};
     return fields;
 }
@@ -1170,10 +1172,6 @@ void clamp_color_harmonizer(ColorHarmonizerParams &params) noexcept
                     clamp_value(value, kColorHarmonizerNodeSaturationMin,
                                 kColorHarmonizerNodeSaturationMax) :
                     defaults.node_saturation[index];
-    }
-    if (!std::isfinite(params.smoothing) || !std::isfinite(static_cast<float>(params.smoothing)))
-    {
-        params.smoothing = defaults.smoothing;
     }
 }
 

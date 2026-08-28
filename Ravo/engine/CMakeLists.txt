@@ -30,6 +30,8 @@ target_sources(ravo_engine
     src/raw_ca.cpp
     src/raw_ca.h
     src/raw_pipeline.cpp
+    src/recursive_gaussian.cpp
+    src/recursive_gaussian.h
     src/raw_temperature.cpp
     src/raw_temperature.h
     src/scopes.cpp)

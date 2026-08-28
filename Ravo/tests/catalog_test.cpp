@@ -255,12 +255,16 @@ TEST(QtRasterDecoderTest, DecodeMemoryAppliesClockwiseQuarterTurnsWithoutExif)
     ASSERT_TRUE(identity) << identity.error().message;
     EXPECT_EQ(identity.value().width, 32U);
     EXPECT_EQ(identity.value().height, 16U);
+    EXPECT_EQ(identity.value().source_width, 32U);
+    EXPECT_EQ(identity.value().source_height, 16U);
     EXPECT_NE(identity.value().color_profile.kind, ColorProfileKind::kMissing);
 
     auto rotated = decoder.decode_memory(bytes, 64, CancellationToken{}, 3);
     ASSERT_TRUE(rotated) << rotated.error().message;
     EXPECT_EQ(rotated.value().width, 16U);
     EXPECT_EQ(rotated.value().height, 32U);
+    EXPECT_EQ(rotated.value().source_width, 16U);
+    EXPECT_EQ(rotated.value().source_height, 32U);
 }
 
 TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
@@ -2026,7 +2030,7 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
     EXPECT_EQ(after_reopen_image, before_reopen_image);
 }
 
-TEST_F(CatalogServiceTest, Edited0176ColorHarmonizerPersistsAndRejectedInputLeavesStateUnchanged)
+TEST_F(CatalogServiceTest, PositiveColorHarmonizerSmoothingPersistsReopensAndExports)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
@@ -2056,6 +2060,7 @@ TEST_F(CatalogServiceTest, Edited0176ColorHarmonizerPersistsAndRejectedInputLeav
     edited.pull_strength = 0.81999999284744263;
     edited.pull_width = 1.8400000333786011;
     edited.node_saturation = {1.2599999904632568, 0.18000000715255737, 1.5199999809265137, 1.0};
+    edited.smoothing = 0.5;
     develop.value().color_harmonizer_enabled = true;
     develop.value().color_harmonizer = edited;
     ASSERT_TRUE(service->save_develop(asset_id, develop.value()));

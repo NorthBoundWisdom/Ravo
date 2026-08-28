@@ -452,6 +452,7 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     profiled.height = demosaiced.value().height;
     profiled.channels = std::move(demosaiced.value().rgb);
     profiled.color_profile = std::move(demosaiced.value().color_profile);
+    profiled.canonical_roi_scale = demosaiced.value().canonical_roi_scale;
     if (profile_gamma.value())
     {
         auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
@@ -504,6 +505,7 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
     profiled.height = encoded.value().height;
     profiled.channels = std::move(encoded.value().rgb);
     profiled.color_profile = std::move(encoded.value().color_profile);
+    profiled.canonical_roi_scale = encoded.value().canonical_roi_scale;
     if (profile_gamma.value())
     {
         auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);

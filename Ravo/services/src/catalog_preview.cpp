@@ -104,6 +104,8 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     RasterBuffer source;
     source.width = decoded.value().width;
     source.height = decoded.value().height;
+    source.source_width = decoded.value().source_width;
+    source.source_height = decoded.value().source_height;
     source.srgb = std::move(decoded.value().rgb);
     source.color_profile = std::move(decoded.value().color_profile);
     if (source.color_profile.kind == ColorProfileKind::kMissing)
@@ -644,6 +646,8 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
         }
         raster.width = decoded.value().width;
         raster.height = decoded.value().height;
+        raster.source_width = decoded.value().source_width;
+        raster.source_height = decoded.value().source_height;
         raster.srgb = std::move(decoded.value().rgb);
         raster.color_profile = std::move(decoded.value().color_profile);
     }
@@ -660,6 +664,8 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
             }
             raster.width = decoded.value().width;
             raster.height = decoded.value().height;
+            raster.source_width = decoded.value().source_width;
+            raster.source_height = decoded.value().source_height;
             raster.srgb = std::move(decoded.value().rgb);
             raster.color_profile = std::move(decoded.value().color_profile);
             if (raster.color_profile.kind == ColorProfileKind::kMissing)

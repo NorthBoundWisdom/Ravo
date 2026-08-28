@@ -800,6 +800,10 @@
         <translation>牵引宽度</translation>
     </message>
     <message>
+        <source>Smoothing</source>
+        <translation>平滑</translation>
+    </message>
+    <message>
         <source>Custom nodes</source>
         <translation>自定义节点</translation>
     </message>
