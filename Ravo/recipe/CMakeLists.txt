@@ -8,6 +8,7 @@ target_sources(ravo_recipe
     src/color_correction.cpp
     src/color_input.cpp
     src/color_output.cpp
+    src/mask.cpp
     src/profile_gamma.cpp
     src/primaries.cpp
     src/operation.cpp

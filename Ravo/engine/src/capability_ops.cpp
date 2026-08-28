@@ -312,9 +312,9 @@ parameter_band_array(const OperationInstance &operation, const std::string_view 
     }
     if (array->size() != kColorEqualizerBandCount)
     {
-        return make_error(ErrorCode::kValidation, "Color equalizer band array must have 8 values",
-                          {{"parameter", std::string(name)},
-                           {"count", std::to_string(array->size())}});
+        return make_error(
+            ErrorCode::kValidation, "Color equalizer band array must have 8 values",
+            {{"parameter", std::string(name)}, {"count", std::to_string(array->size())}});
     }
     for (std::size_t index = 0; index < values.size(); ++index)
     {
@@ -404,9 +404,7 @@ void hsl_to_rgb(const float h, const float s, const float l, float &r, float &g,
     const float tx = sx - static_cast<float>(x0);
     const float ty = sy - static_cast<float>(y0);
     const auto at = [&](const std::uint32_t px, const std::uint32_t py)
-    {
-        return image.rgb[(static_cast<std::size_t>(py) * image.width + px) * 3U + channel];
-    };
+    { return image.rgb[(static_cast<std::size_t>(py) * image.width + px) * 3U + channel]; };
     const float top = at(x0, y0) * (1.0F - tx) + at(x1, y0) * tx;
     const float bottom = at(x0, y1) * (1.0F - tx) + at(x1, y1) * tx;
     return top * (1.0F - ty) + bottom * ty;
@@ -489,8 +487,8 @@ void blur_plane(std::vector<float> &plane, const std::uint32_t width, const std:
             float acc = 0.0F;
             for (int offset = -radius; offset <= radius; ++offset)
             {
-                const int sample_x = std::clamp(static_cast<int>(x) + offset, 0,
-                                                static_cast<int>(width) - 1);
+                const int sample_x =
+                    std::clamp(static_cast<int>(x) + offset, 0, static_cast<int>(width) - 1);
                 acc += plane[static_cast<std::size_t>(y) * width +
                              static_cast<std::uint32_t>(sample_x)] *
                        kernel[static_cast<std::size_t>(offset + radius)];
@@ -505,8 +503,8 @@ void blur_plane(std::vector<float> &plane, const std::uint32_t width, const std:
             float acc = 0.0F;
             for (int offset = -radius; offset <= radius; ++offset)
             {
-                const int sample_y = std::clamp(static_cast<int>(y) + offset, 0,
-                                                static_cast<int>(height) - 1);
+                const int sample_y =
+                    std::clamp(static_cast<int>(y) + offset, 0, static_cast<int>(height) - 1);
                 acc += temp[static_cast<std::size_t>(static_cast<std::uint32_t>(sample_y)) * width +
                             x] *
                        kernel[static_cast<std::size_t>(offset + radius)];
@@ -542,7 +540,8 @@ void box_blur_plane(const std::vector<float> &input, std::vector<float> &output,
         for (std::uint32_t x = 0; x < width; ++x)
         {
             temp[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
-            const int drop = std::clamp(static_cast<int>(x) - radius, 0, static_cast<int>(width) - 1);
+            const int drop =
+                std::clamp(static_cast<int>(x) - radius, 0, static_cast<int>(width) - 1);
             const int add =
                 std::clamp(static_cast<int>(x) + radius + 1, 0, static_cast<int>(width) - 1);
             acc += input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(add)] -
@@ -560,7 +559,8 @@ void box_blur_plane(const std::vector<float> &input, std::vector<float> &output,
         for (std::uint32_t y = 0; y < height; ++y)
         {
             output[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
-            const int drop = std::clamp(static_cast<int>(y) - radius, 0, static_cast<int>(height) - 1);
+            const int drop =
+                std::clamp(static_cast<int>(y) - radius, 0, static_cast<int>(height) - 1);
             const int add =
                 std::clamp(static_cast<int>(y) + radius + 1, 0, static_cast<int>(height) - 1);
             acc += temp[static_cast<std::size_t>(add) * width + x] -
@@ -773,7 +773,8 @@ void xyy_to_xyz(const float xyx, const float xyy, const float xy_y, float &x, fl
 [[nodiscard]] float ucs_l_star_to_y(const float l_star) noexcept
 {
     const float clamped = std::clamp(l_star, 0.0F, kUcsLStarUpper);
-    return std::pow((1.12426773749357F * clamped) / (kUcsLStarRange - clamped), 1.5831518565279648F);
+    return std::pow((1.12426773749357F * clamped) / (kUcsLStarRange - clamped),
+                    1.5831518565279648F);
 }
 
 void xyy_to_ucs_uv(const float xyx, const float xyy, float uv[2]) noexcept
@@ -791,7 +792,8 @@ void xyy_to_ucs_uv(const float xyx, const float xyy, float uv[2]) noexcept
     uv[1] = 1.86323315098672F * uv_star0 + 1.971853092390862F * uv_star1;
 }
 
-void ucs_luv_to_jch(const float l_star, const float l_white, const float uv[2], float jch[3]) noexcept
+void ucs_luv_to_jch(const float l_star, const float l_white, const float uv[2],
+                    float jch[3]) noexcept
 {
     const float m2 = uv[0] * uv[0] + uv[1] * uv[1];
     jch[0] = l_star / l_white;
@@ -862,8 +864,8 @@ void ucs_hsb_to_rgb(const float hsb[3], const float l_white, float &r, float &g,
     const int xi = static_cast<int>(x_prev) & (kUcsLutSize - 1);
     const int xii = static_cast<int>(x_next) & (kUcsLutSize - 1);
     const float y_prev = lut[static_cast<std::size_t>(xi)];
-    return y_prev + ((xi != xii) ? (x_test - x_prev) * (lut[static_cast<std::size_t>(xii)] - y_prev) :
-                                   0.0F);
+    return y_prev +
+           ((xi != xii) ? (x_test - x_prev) * (lut[static_cast<std::size_t>(xii)] - y_prev) : 0.0F);
 }
 
 [[nodiscard]] float conventional_hue_deg_to_ucs_rad(const float angle) noexcept
@@ -879,9 +881,8 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     std::vector<float> matrix(static_cast<std::size_t>(kColorNodes * kColorNodes), 0.0F);
     const auto node_hue = [hue_shift](const int k)
     {
-        return conventional_hue_deg_to_ucs_rad(static_cast<float>(k) * 360.0F /
-                                                   static_cast<float>(kColorNodes) +
-                                               hue_shift);
+        return conventional_hue_deg_to_ucs_rad(
+            static_cast<float>(k) * 360.0F / static_cast<float>(kColorNodes) + hue_shift);
     };
     for (int i = 0; i < kColorNodes; ++i)
     {
@@ -903,9 +904,8 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     }
     for (int i = 0; i < kUcsLutSize; ++i)
     {
-        const float hue = static_cast<float>(i) * 360.0F / static_cast<float>(kUcsLutSize) * kPi /
-                              180.0F -
-                          kPi;
+        const float hue =
+            static_cast<float>(i) * 360.0F / static_cast<float>(kUcsLutSize) * kPi / 180.0F - kPi;
         float acc = 0.0F;
         for (int k = 0; k < kColorNodes; ++k)
         {
@@ -941,10 +941,10 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     {
         for (int dx = dxmin; dx < dxmax; ++dx)
         {
-            const auto c = cfa_channel(raw, static_cast<std::uint32_t>(dx),
-                                       static_cast<std::uint32_t>(dy));
-            mean[c] += std::max(0.0F, input[static_cast<std::size_t>(dy) * width +
-                                            static_cast<std::uint32_t>(dx)]);
+            const auto c =
+                cfa_channel(raw, static_cast<std::uint32_t>(dx), static_cast<std::uint32_t>(dy));
+            mean[c] += std::max(
+                0.0F, input[static_cast<std::size_t>(dy) * width + static_cast<std::uint32_t>(dx)]);
             count[c] += 1.0F;
         }
     }
@@ -1088,11 +1088,10 @@ void interpolate_color_bayer(const std::vector<float> &in, std::vector<float> &o
         {
             i = k;
         }
-        const float clip0 = clip[cfa_channel(raw, static_cast<std::uint32_t>(i),
-                                             static_cast<std::uint32_t>(j))];
-        const float clip1 = clip[cfa_channel(
-            raw, static_cast<std::uint32_t>(dim ? i : i + 1),
-            static_cast<std::uint32_t>(dim ? j + 1 : j))];
+        const float clip0 =
+            clip[cfa_channel(raw, static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(j))];
+        const float clip1 = clip[cfa_channel(raw, static_cast<std::uint32_t>(dim ? i : i + 1),
+                                             static_cast<std::uint32_t>(dim ? j + 1 : j))];
         if (i == 0 || i == width - 1 || j == 0 || j == height - 1)
         {
             if (pass == 3)
@@ -1240,8 +1239,7 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
                             const auto at = [&](const std::ptrdiff_t offset) -> char
                             {
                                 const auto index = base + offset;
-                                if (index < 0 ||
-                                    index >= static_cast<std::ptrdiff_t>(mask.size()))
+                                if (index < 0 || index >= static_cast<std::ptrdiff_t>(mask.size()))
                                 {
                                     return 0;
                                 }
@@ -1269,10 +1267,9 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
                     if (inval < clips[color] && inval > 0.2F * clips[color] &&
                         dilated[static_cast<std::size_t>(color) * msize + mx] != 0)
                     {
-                        sums[color] +=
-                            inval - calc_refavg(buffer, raw, raw.width, raw.height,
-                                                static_cast<std::uint32_t>(row),
-                                                static_cast<std::uint32_t>(col));
+                        sums[color] += inval - calc_refavg(buffer, raw, raw.width, raw.height,
+                                                           static_cast<std::uint32_t>(row),
+                                                           static_cast<std::uint32_t>(col));
                         counts[color] += 1.0F;
                     }
                 }
@@ -1308,7 +1305,8 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
     const std::size_t count = static_cast<std::size_t>(raw.width) * raw.height;
     if (raw.pixels.size() < count)
     {
-        return make_error(ErrorCode::kValidation, "RAW buffer is undersized for highlight reconstruction");
+        return make_error(ErrorCode::kValidation,
+                          "RAW buffer is undersized for highlight reconstruction");
     }
     const float black = static_cast<float>(std::max(0, raw.black_level));
     const float scale = 1.0F / std::max(1.0F, static_cast<float>(raw.white_level) - black);
@@ -1330,8 +1328,7 @@ void float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer, const doubl
         const float restored = buffer[index] * range + black;
         const double mixed = static_cast<double>(raw.pixels[index]) * (1.0 - amount) +
                              static_cast<double>(restored) * amount;
-        raw.pixels[index] =
-            static_cast<std::uint16_t>(std::clamp(std::lround(mixed), 0L, 65535L));
+        raw.pixels[index] = static_cast<std::uint16_t>(std::clamp(std::lround(mixed), 0L, 65535L));
     }
 }
 
@@ -1371,8 +1368,8 @@ float dn_weight(const float *left, const float *right, const float inv_sigma2) n
 }
 
 void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &input,
-                      std::vector<float> &detail, std::array<float, 3> &sum_squared, const int scale,
-                      const float inv_sigma2, const int width, const int height)
+                      std::vector<float> &detail, std::array<float, 3> &sum_squared,
+                      const int scale, const float inv_sigma2, const int width, const int height)
 {
     static constexpr float kFilter[25] = {
         1.0F / 256.0F, 4.0F / 256.0F,  6.0F / 256.0F,  4.0F / 256.0F,  1.0F / 256.0F,
@@ -1592,12 +1589,13 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
                           {{"cfa_width", std::to_string(raw.cfa_width)},
                            {"cfa_height", std::to_string(raw.cfa_height)}});
     }
-    const std::string mode = parameter_string(operation, "mode", std::string(kRawHighlightsModeOpposed));
+    const std::string mode =
+        parameter_string(operation, "mode", std::string(kRawHighlightsModeOpposed));
     if (mode != kRawHighlightsModeClip && mode != kRawHighlightsModeInpaint &&
         mode != kRawHighlightsModeOpposed && mode != kRawHighlightsModeLch)
     {
-        return make_error(ErrorCode::kUnsupported, "RAW highlight reconstruction mode is unsupported",
-                          {{"mode", mode}});
+        return make_error(ErrorCode::kUnsupported,
+                          "RAW highlight reconstruction mode is unsupported", {{"mode", mode}});
     }
     const double amount = std::clamp(parameter(operation, "amount", 1.0), 0.0, 1.0);
     const double clip = std::clamp(parameter(operation, "clip", 1.0), 0.0, 2.0);
@@ -1652,7 +1650,8 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         return {};
     }
     const double chroma = std::clamp(parameter(operation, "chroma", 1.0), 0.0, 2.0);
-    const float shadows = static_cast<float>(std::clamp(parameter(operation, "shadows", 1.0), 0.0, 1.8));
+    const float shadows =
+        static_cast<float>(std::clamp(parameter(operation, "shadows", 1.0), 0.0, 1.8));
     const float bias = static_cast<float>(parameter(operation, "bias", 0.0));
     const float noise_a = static_cast<float>(
         std::max(1.0e-8, parameter(operation, "noise_a", static_cast<double>(kGenericNoiseA))));
@@ -1696,9 +1695,8 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     const float compensate_strength = 2.5F;
     const float strength_scale = static_cast<float>(strength) * compensate_strength;
 
-    float to_yuv[3][3] = {{1.0F / 3.0F, 1.0F / 3.0F, 1.0F / 3.0F},
-                          {0.5F, 0.0F, -0.5F},
-                          {0.25F, -0.5F, 0.25F}};
+    float to_yuv[3][3] = {
+        {1.0F / 3.0F, 1.0F / 3.0F, 1.0F / 3.0F}, {0.5F, 0.0F, -0.5F}, {0.25F, -0.5F, 0.25F}};
     float sum_invwb = (1.0F / wb[0] + 1.0F / wb[1] + 1.0F / wb[2]) * std::sqrt(3.0F);
     to_yuv[0][0] = sum_invwb / wb[0];
     to_yuv[0][1] = sum_invwb / wb[1];
@@ -1715,8 +1713,7 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     float to_rgb[3][3]{};
     if (!invert_matrix3(to_yuv, to_rgb))
     {
-        const float stddev_y =
-            std::sqrt((wb[0] * wb[0] + wb[1] * wb[1] + wb[2] * wb[2]) / 9.0F);
+        const float stddev_y = std::sqrt((wb[0] * wb[0] + wb[1] * wb[1] + wb[2] * wb[2]) / 9.0F);
         to_yuv[0][0] = to_yuv[0][1] = to_yuv[0][2] = 1.0F / (3.0F * stddev_y);
         invert_matrix3(to_yuv, to_rgb);
     }
@@ -1742,9 +1739,10 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         float tmp[3]{};
         for (int c = 0; c < 3; ++c)
         {
-            tmp[c] = std::pow(std::max(packed[pixel * 4U + static_cast<std::size_t>(c)] + noise_b, 0.0F),
-                              expon[static_cast<std::size_t>(c)]) *
-                     scale[static_cast<std::size_t>(c)];
+            tmp[c] =
+                std::pow(std::max(packed[pixel * 4U + static_cast<std::size_t>(c)] + noise_b, 0.0F),
+                         expon[static_cast<std::size_t>(c)]) *
+                scale[static_cast<std::size_t>(c)];
         }
         float yuv[3]{};
         apply_matrix(to_yuv, tmp, yuv);
@@ -1767,22 +1765,20 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         std::vector<float> coarse;
         std::vector<float> detail;
         std::array<float, 3> sum_y2{};
-        eaw_dn_decompose(coarse, current, detail, sum_y2, scale_index, 1.0F / (sigma_band * sigma_band),
-                         width, height);
+        eaw_dn_decompose(coarse, current, detail, sum_y2, scale_index,
+                         1.0F / (sigma_band * sigma_band), width, height);
         const float sb2 = sigma_band * sigma_band;
         const int offset_scale = kDenoiseBands - max_scale;
         const int band_index = kDenoiseBands - (scale_index + offset_scale + 1);
         const float y_force = 0.5F;
         const float uv_force = 0.5F * static_cast<float>(chroma);
-        auto band_adj = [](const float force)
-        {
-            return 8.0F * force * force * 4.0F;
-        };
+        auto band_adj = [](const float force) { return 8.0F * force * force * 4.0F; };
         std::array<float, 3> std_x{};
         for (int c = 0; c < 3; ++c)
         {
-            std_x[static_cast<std::size_t>(c)] =
-                std::sqrt(std::max(1.0e-6F, sum_y2[static_cast<std::size_t>(c)] / (static_cast<float>(npixels) - 1.0F) - sb2));
+            std_x[static_cast<std::size_t>(c)] = std::sqrt(std::max(
+                1.0e-6F,
+                sum_y2[static_cast<std::size_t>(c)] / (static_cast<float>(npixels) - 1.0F) - sb2));
         }
         const std::array<float, 3> thrs{band_adj(y_force) * sb2 / std_x[0],
                                         band_adj(uv_force) * sb2 / std_x[1],
@@ -1811,8 +1807,10 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         {
             const float x = std::max(rgb[c], 0.0F);
             const float delta = x * x + applied_bias * wb[static_cast<std::size_t>(c)];
-            const float z1 = (x + std::sqrt(std::max(delta, 0.0F))) * back_scale[static_cast<std::size_t>(c)];
-            rgb[c] = std::pow(std::max(z1, 0.0F), back_expon[static_cast<std::size_t>(c)]) - noise_b;
+            const float z1 =
+                (x + std::sqrt(std::max(delta, 0.0F))) * back_scale[static_cast<std::size_t>(c)];
+            rgb[c] =
+                std::pow(std::max(z1, 0.0F), back_expon[static_cast<std::size_t>(c)]) - noise_b;
         }
         packed[pixel * 4U] = rgb[0];
         packed[pixel * 4U + 1U] = rgb[1];
@@ -1841,7 +1839,8 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
             parameter_string(operation, "lens", ""), parameter(operation, "focal_mm", 50.0));
         if (calibration == nullptr)
         {
-            return make_error(ErrorCode::kNotFound, "No lens calibration matches the lookup request",
+            return make_error(ErrorCode::kNotFound,
+                              "No lens calibration matches the lookup request",
                               {{"camera_make", parameter_string(operation, "camera_make", "")},
                                {"camera_model", parameter_string(operation, "camera_model", "")},
                                {"lens", parameter_string(operation, "lens", "")}});
@@ -1857,8 +1856,8 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
         return make_error(ErrorCode::kUnsupported, "Lens correction mode is unsupported",
                           {{"mode", mode}});
     }
-    if (!std::isfinite(k1) || !std::isfinite(k2) || !std::isfinite(tca_r) || !std::isfinite(tca_b) ||
-        !std::isfinite(vignetting))
+    if (!std::isfinite(k1) || !std::isfinite(k2) || !std::isfinite(tca_r) ||
+        !std::isfinite(tca_b) || !std::isfinite(vignetting))
     {
         return make_error(ErrorCode::kValidation, "Lens correction coefficients must be finite");
     }
@@ -1879,7 +1878,8 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
     for (int i = 0; i < kVignetteSplines; ++i)
     {
         const double radius = static_cast<double>(i) / static_cast<double>(kVignetteSplines - 1);
-        spline[static_cast<std::size_t>(i)] = static_cast<float>(v + mul * std::tanh(b * (1.0 - radius)));
+        spline[static_cast<std::size_t>(i)] =
+            static_cast<float>(v + mul * std::tanh(b * (1.0 - radius)));
     }
     const auto vignette_at = [&](const float radius)
     {
@@ -1891,7 +1891,8 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
         const float frac = r - std::trunc(r);
         const int i = static_cast<int>(r);
         return spline[static_cast<std::size_t>(i)] +
-               (spline[static_cast<std::size_t>(i + 1)] - spline[static_cast<std::size_t>(i)]) * frac;
+               (spline[static_cast<std::size_t>(i + 1)] - spline[static_cast<std::size_t>(i)]) *
+                   frac;
     };
 
     WorkingImage source = image;
@@ -1899,7 +1900,8 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
     const float cy = static_cast<float>(image.height) * 0.5F;
     const float inv_maxr = 1.0F / std::hypot(cx, cy);
     const float vig_strength = 2.0F * static_cast<float>(vignetting);
-    const auto scales = std::array<float, 3>{static_cast<float>(tca_r), 1.0F, static_cast<float>(tca_b)};
+    const auto scales =
+        std::array<float, 3>{static_cast<float>(tca_r), 1.0F, static_cast<float>(tca_b)};
     for (std::uint32_t y = 0; y < image.height; ++y)
     {
         auto cancelled = cancellation.check();
@@ -1914,8 +1916,8 @@ Result<void> apply_lens_correction(WorkingImage &image, const OperationInstance 
             const float ru = std::hypot(dx, dy) * inv_maxr;
             const float ru2 = ru * ru;
             // lensfun poly5 dest-to-source: Rd = Ru * (1 + k1 Ru^2 + k2 Ru^4)
-            const float geometry = 1.0F + static_cast<float>(k1) * ru2 +
-                                   static_cast<float>(k2) * ru2 * ru2;
+            const float geometry =
+                1.0F + static_cast<float>(k1) * ru2 + static_cast<float>(k2) * ru2 * ru2;
             const float vig = std::max(0.0F, vig_strength * vignette_at(ru));
             const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
             for (std::size_t channel = 0; channel < 3; ++channel)
@@ -2215,7 +2217,8 @@ Result<void> apply_color_equalizer(WorkingImage &image, const OperationInstance 
     }
 
     const float hue_shift = static_cast<float>(parameter(operation, "node_placement", 0.0));
-    const float smoothing_hue = static_cast<float>(std::clamp(parameter(operation, "smoothing_hue", 1.0), 0.05, 2.0));
+    const float smoothing_hue =
+        static_cast<float>(std::clamp(parameter(operation, "smoothing_hue", 1.0), 0.05, 2.0));
     std::array<float, kUcsLutSize> lut_sat{};
     std::array<float, kUcsLutSize> lut_hue{};
     std::array<float, kUcsLutSize> lut_bright{};
@@ -2247,7 +2250,8 @@ Result<void> apply_color_equalizer(WorkingImage &image, const OperationInstance 
         xyy_to_ucs_uv(xyx, xyy, uv.data() + pixel * 2U);
         lstar[pixel] = y_to_ucs_l_star(xy_y);
     }
-    const float hue_sigma = 0.5F * static_cast<float>(std::clamp(parameter(operation, "chroma_size", 1.5), 1.0, 10.0));
+    const float hue_sigma =
+        0.5F * static_cast<float>(std::clamp(parameter(operation, "chroma_size", 1.5), 1.0, 10.0));
     std::vector<float> u_plane(count);
     std::vector<float> v_plane(count);
     for (std::size_t pixel = 0; pixel < count; ++pixel)
@@ -2285,7 +2289,8 @@ Result<void> apply_color_equalizer(WorkingImage &image, const OperationInstance 
                 const float hue = hsb[0];
                 const float sat = hsb[1];
                 hsb[0] += lookup_lut_periodic(lut_hue, hue);
-                hsb[1] = std::max(0.0F, sat * (1.0F + kSatEffect * (lookup_lut_periodic(lut_sat, hue) - 1.0F)));
+                hsb[1] = std::max(
+                    0.0F, sat * (1.0F + kSatEffect * (lookup_lut_periodic(lut_sat, hue) - 1.0F)));
                 const float bright_corr = sat * (lookup_lut_periodic(lut_bright, hue) - 1.0F);
                 hsb[2] = std::max(0.0F, hsb[2] * (1.0F + kBrightEffect * bright_corr));
             }
@@ -2304,13 +2309,20 @@ Result<void> apply_color_equalizer(WorkingImage &image, const OperationInstance 
 Result<void> apply_graduated_nd(WorkingImage &image, const OperationInstance &operation,
                                 const CancellationToken &cancellation)
 {
+    if (operation.mask_id.has_value())
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Graduated ND masks require canonical recipe dispatch",
+            {{"operation_id", operation.id}, {"reason", "graduatednd_mask_dispatch_required"}});
+    }
     const double density = std::clamp(parameter(operation, "density_ev", 0.0), -8.0, 8.0);
     if (std::abs(density) <= 1.0e-8)
     {
         return {};
     }
     const double hardness = std::clamp(parameter(operation, "hardness", 0.5), 0.0, 1.0) * 100.0;
-    const double rotation_deg = std::clamp(parameter(operation, "rotation_deg", 0.0), -180.0, 180.0);
+    const double rotation_deg =
+        std::clamp(parameter(operation, "rotation_deg", 0.0), -180.0, 180.0);
     const double offset_norm = std::clamp(parameter(operation, "offset", 0.0), -1.0, 1.0);
     const double offset = (offset_norm + 1.0) * 50.0;
     const float hue = static_cast<float>(std::clamp(parameter(operation, "hue", 0.0), 0.0, 1.0));
@@ -2400,7 +2412,8 @@ Result<void> apply_tone_equalizer(WorkingImage &image, const OperationInstance &
         static_cast<float>(parameter(operation, "midtones", 0.0)),
         static_cast<float>(parameter(operation, "highlights", 0.0)),
         static_cast<float>(parameter(operation, "whites", 0.0)),
-        static_cast<float>(parameter(operation, "speculars", parameter(operation, "whites", 0.0) * 0.0)),
+        static_cast<float>(
+            parameter(operation, "speculars", parameter(operation, "whites", 0.0) * 0.0)),
     };
     // Map the 5-slider Develop schema onto the frozen 9-band C params:
     // blacks(-8 via noise), shadows(-4), midtones(-3), highlights(-2), whites(-1).
@@ -2462,7 +2475,8 @@ Result<void> apply_tone_equalizer(WorkingImage &image, const OperationInstance &
     std::vector<float> lut(static_cast<std::size_t>(kToneLutResolution * kTonePixelChan + 1));
     for (int j = 0; j <= kToneLutResolution * kTonePixelChan; ++j)
     {
-        const float exposure = static_cast<float>(j) / static_cast<float>(kToneLutResolution) - 8.0F;
+        const float exposure =
+            static_cast<float>(j) / static_cast<float>(kToneLutResolution) - 8.0F;
         float result = 0.0F;
         for (int i = 0; i < kTonePixelChan; ++i)
         {

@@ -34,6 +34,7 @@ add_executable(ravo_contract_tests
   cli_test.cpp
   color_correction_test.cpp
   color_harmonizer_test.cpp
+  mask_graph_test.cpp
   recursive_gaussian_test.cpp
   engine_test.cpp
   input_color_test.cpp

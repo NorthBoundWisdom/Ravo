@@ -314,7 +314,7 @@ TEST(RecipeTest, ColorHarmonizerSchemaRoundTripsTheTwoReal0176ParameterStates)
     ASSERT_EQ(descriptor->parameters.size(), 17U);
     EXPECT_TRUE(std::ranges::all_of(descriptor->parameters,
                                     [](const ParameterRule &rule) { return rule.required; }));
-    EXPECT_FALSE(descriptor->supports_mask);
+    EXPECT_TRUE(descriptor->supports_mask);
     EXPECT_TRUE(descriptor->cpu_reference_available);
 
     const std::array<std::string_view, 17> expected_names{
@@ -444,10 +444,8 @@ TEST(RecipeTest, ColorHarmonizerRejectsEveryUnfrozenSchemaAndPresentationState)
     masked.operations.push_back({std::string(kColorHarmonizerOperationId),
                                  kColorHarmonizerOperationSchemaVersion, "colorharmonizer-mask",
                                  true, canonical.value(), "mask-1"});
-    const auto rejected = validate_recipe(masked, registry.value());
-    ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(rejected.error().context.at("operation_id"), kColorHarmonizerOperationId);
+    const auto accepted = validate_recipe(masked, registry.value());
+    EXPECT_TRUE(accepted) << accepted.error().message;
 }
 
 TEST(RecipeTest, RejectsUnknownFieldsRatherThanGuessingCompatibility)
@@ -2207,7 +2205,9 @@ TEST(RecipeTest, ColorHarmonizerDevelopFieldsAreStrictResettableAndPreservePrese
     EXPECT_FALSE(develop.color_harmonizer_enabled);
     auto absent = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
     ASSERT_TRUE(absent) << absent.error().message;
-    EXPECT_EQ(operation_by_id(absent.value(), kColorHarmonizerOperationId), nullptr);
+    const auto *disabled = operation_by_id(absent.value(), kColorHarmonizerOperationId);
+    ASSERT_NE(disabled, nullptr);
+    EXPECT_FALSE(disabled->enabled);
 
     develop = DevelopParams{};
     for (std::int64_t index = 0; index < static_cast<std::int64_t>(kColorHarmonizerRuleCount);
@@ -2270,14 +2270,16 @@ TEST(RecipeTest, ColorHarmonizerDevelopFieldsAreStrictResettableAndPreservePrese
 
     Recipe masked;
     masked.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    masked.masks.push_back({"mask-1", kCanonicalMaskSchemaVersion, MaskKind::kAll});
     auto parameters = color_harmonizer_to_parameters(ColorHarmonizerParams{});
     ASSERT_TRUE(parameters) << parameters.error().message;
     masked.operations.push_back({std::string(kColorHarmonizerOperationId),
                                  kColorHarmonizerOperationSchemaVersion, "colorharmonizer-1", true,
                                  parameters.value(), "mask-1"});
-    auto rejected_mask = develop_from_recipe(masked);
-    ASSERT_FALSE(rejected_mask);
-    EXPECT_EQ(rejected_mask.error().context.at("reason"), "unsupported_colorharmonizer_mask");
+    auto restored_mask = develop_from_recipe(masked);
+    ASSERT_TRUE(restored_mask) << restored_mask.error().message;
+    EXPECT_EQ(restored_mask.value().masks, masked.masks);
+    EXPECT_EQ(restored_mask.value().color_harmonizer_mask_id, std::optional<std::string>{"mask-1"});
 
     Recipe duplicate = masked;
     duplicate.operations.front().mask_id.reset();

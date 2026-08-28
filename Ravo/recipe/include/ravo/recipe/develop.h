@@ -205,6 +205,10 @@ struct ColorBalanceRgbParams
 
 struct DevelopParams
 {
+    // Studio has no mask authoring surface in S3.1, but any loaded canonical
+    // graph/attachment is typed Develop state and must survive ordinary edits,
+    // previews, saves, undo, and reopen.
+    std::vector<Mask> masks;
     TemperatureParams temperature;
     bool profile_gamma_enabled = false;
     ProfileGammaParams profile_gamma;
@@ -253,8 +257,10 @@ struct DevelopParams
     ColorCorrectionParams color_correction;
     bool color_contrast_enabled = false;
     ColorContrastParams color_contrast;
+    bool color_harmonizer_present = false;
     bool color_harmonizer_enabled = false;
     ColorHarmonizerParams color_harmonizer;
+    std::optional<std::string> color_harmonizer_mask_id;
     double monochrome = 0.0;
     double split_shadows_hue = 0.0;
     double split_highlights_hue = 0.2;
@@ -298,6 +304,9 @@ struct DevelopParams
     double graduated_hardness = 0.5;
     double graduated_rotation = 0.0;
     double graduated_offset = 0.0;
+    bool graduated_present = false;
+    bool graduated_enabled = false;
+    std::optional<std::string> graduated_mask_id;
     double tone_eq_blacks = 0.0;
     double tone_eq_shadows = 0.0;
     double tone_eq_midtones = 0.0;

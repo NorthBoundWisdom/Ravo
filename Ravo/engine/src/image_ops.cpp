@@ -24,6 +24,7 @@
 #include "color_checker.h"
 #include "color_harmonizer.h"
 #include "d50_lab.h"
+#include "mask_evaluator.h"
 #include "output_color.h"
 #include "primaries.h"
 #include "raw_temperature.h"
@@ -2554,6 +2555,107 @@ Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
     return image;
 }
 
+[[nodiscard]] Result<AlphaPlane> evaluate_operation_mask(const WorkingImage &input,
+                                                         const WorkingImage &operation_output,
+                                                         const Recipe &recipe,
+                                                         const std::string_view mask_id,
+                                                         const CancellationToken &cancellation)
+{
+    if (input.width == 0U || input.height == 0U || operation_output.width != input.width ||
+        operation_output.height != input.height ||
+        input.rgb.size() != operation_output.rgb.size() ||
+        input.width > std::numeric_limits<std::uint32_t>::max() / 3U)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Masked operation buffers are incompatible",
+            {{"reason", "invalid_masked_operation_buffers"}, {"mask_id", std::string(mask_id)}});
+    }
+    const std::uint32_t stride = input.width * 3U;
+    MaskEvaluationRequest request{
+        .full_width = input.width,
+        .full_height = input.height,
+        .roi_x = 0U,
+        .roi_y = 0U,
+        .roi_width = input.width,
+        .roi_height = input.height,
+        .input = MaskRgbPlaneView{input.rgb, stride},
+        .operation_output = MaskRgbPlaneView{operation_output.rgb, stride},
+        .cancellation = cancellation,
+    };
+    return evaluate_canonical_mask(recipe.masks, mask_id, request);
+}
+
+[[nodiscard]] Result<WorkingImage>
+apply_masked_color_harmonizer(WorkingImage image, const Recipe &recipe,
+                              const OperationInstance &operation,
+                              const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto operation_output = apply_color_harmonizer(pre_operation, unmasked, cancellation);
+    if (!operation_output)
+    {
+        return operation_output.error();
+    }
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output.value(), recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+    {
+        return alpha.error();
+    }
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.value().rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+    {
+        return mixed.error();
+    }
+    return std::move(operation_output).value();
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Color Harmonizer allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
+[[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
+                                                             const Recipe &recipe,
+                                                             const OperationInstance &operation,
+                                                             const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    // The caller-visible input remains in `pre_operation`; the legacy-derived
+    // graduated operation receives a separately owned output image.
+    WorkingImage operation_output = pre_operation;
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto graduated = apply_graduated_nd(operation_output, unmasked, cancellation);
+    if (!graduated)
+    {
+        return graduated.error();
+    }
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output, recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+    {
+        return alpha.error();
+    }
+    auto mixed =
+        normal_mask_mix(pre_operation.rgb, operation_output.rgb, alpha.value(), cancellation);
+    if (!mixed)
+    {
+        return mixed.error();
+    }
+    return operation_output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Graduated ND allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
 Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                                       const CancellationToken &cancellation)
 {
@@ -2569,6 +2671,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         if (!operation.enabled || absorbed_operation(operation.id))
         {
             continue;
+        }
+        if (operation.mask_id.has_value() && operation.id != kColorHarmonizerOperationId &&
+            operation.id != "ravo.effect.graduatednd")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Operation does not support canonical mask evaluation",
+                              {{"operation_id", operation.id},
+                               {"mask_id", *operation.mask_id},
+                               {"reason", "unsupported_operation_mask"}});
         }
         if (operation.id == kPrimariesOperationId)
         {
@@ -2741,6 +2852,17 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == kColorHarmonizerOperationId)
         {
+            if (operation.mask_id.has_value())
+            {
+                auto harmonized = apply_masked_color_harmonizer(std::move(image), recipe, operation,
+                                                                cancellation);
+                if (!harmonized)
+                {
+                    return harmonized.error();
+                }
+                image = std::move(harmonized).value();
+                continue;
+            }
             auto harmonized = apply_color_harmonizer(image, operation, cancellation);
             if (!harmonized)
             {
@@ -2893,6 +3015,17 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.effect.graduatednd")
         {
+            if (operation.mask_id.has_value())
+            {
+                auto graduated =
+                    apply_masked_graduated_nd(std::move(image), recipe, operation, cancellation);
+                if (!graduated)
+                {
+                    return graduated.error();
+                }
+                image = std::move(graduated).value();
+                continue;
+            }
             auto graduated = apply_graduated_nd(image, operation, cancellation);
             if (!graduated)
             {

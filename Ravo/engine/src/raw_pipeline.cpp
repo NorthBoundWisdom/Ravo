@@ -1,6 +1,7 @@
 #include "raw_pipeline.h"
 
 #include "image_ops.h"
+#include "mask_evaluator.h"
 #include "recursive_gaussian.h"
 
 #include <algorithm>
@@ -943,6 +944,21 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
                 add_working_bytes(saturating_multiply(output_pixels, 3U * sizeof(float)));
                 add_working_bytes(detail::recursive_gaussian_zero_2c_bytes(width, height));
             }
+        }
+        if (operation.mask_id.has_value() && (operation.id == kColorHarmonizerOperationId ||
+                                              operation.id == "ravo.effect.graduatednd"))
+        {
+            // Masked dispatch moves the current working image into an owned
+            // pre-operation snapshot, creates a distinct operation-output
+            // image, then owns one alpha result and depth-first evaluator
+            // group scratch before the normal mix can publish.  Keep these
+            // terms explicit rather than relying on a later bad_alloc.
+            add_working_bytes(float_rgb_bytes); // pre-operation snapshot
+            add_working_bytes(float_rgb_bytes); // operation output
+            const MaskEvaluatorMemoryEstimate mask_memory =
+                estimate_mask_evaluator_memory(recipe.masks, *operation.mask_id, width, height);
+            add_working_bytes(mask_memory.alpha_plane_bytes);
+            add_working_bytes(mask_memory.evaluator_scratch_bytes);
         }
     }
     // A RAW repair operation copies the decoded frame before mutation. Its

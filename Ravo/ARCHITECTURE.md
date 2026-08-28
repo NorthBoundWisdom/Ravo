@@ -246,6 +246,39 @@ and the explicit colour contract remain valid. The first viewer needs only the
 minimal CPU chain that yields a trusted preview; later editing UI maps the
 versioned schema only and owns neither a second algorithm nor history format.
 
+S3.1 adds a recipe-owned canonical mask graph under
+[ADR-0043](docs/adr/0043-canonical-mask-graph-foundation.md). Each immutable
+node has its own schema version and typed all/linear-gradient/circle/rotated-
+ellipse/parametric/group payload; v1 identity `all` upgrades on read. Recipe
+parsing, upgrade, deterministic serialization, and DAG validation are the only
+owners of IDs, references, opacity/inversion, bounds, topology, and version
+rules. Catalog/services preserve the canonical graph without rewriting its
+mathematics, and QML owns no mask data or mathematics.
+
+The engine-private evaluator accepts full attached-input dimensions plus an
+explicit ROI and borrowed input/optional operation-output RGB planes. Pixel
+centres are normalized in that full frame, so independently evaluated tiles
+join exactly; geometry operations naturally establish the next operation's
+attached input frame. It owns only an alpha result and depth-first group
+accumulator/child scratch through RAII; stored and expanded graph-work limits
+bound shared-DAG recomputation. Invalid ROI/stride/sample count,
+non-finite values, missing parametric operation output, cancellation, overflow,
+or allocation returns a structured failure before publication. Its only blend
+is normal `input + alpha * (operation_output - input)`, with exact alpha 0/1
+source selection. Raw budgeting uses saturating arithmetic for the masked
+snapshot/output/alpha/evaluator peak.
+
+Only Color Harmonizer and Graduated ND currently dispatch a canonical mask.
+Their unmasked path remains bit-identical; a masked operation retains a local
+pre-operation image, produces local output, evaluates alpha, then mixes before
+the result becomes the next recipe input. `DevelopParams` keeps the typed graph
+and both attachments, including disabled/default instances, so live preview,
+save/reopen and ordinary Develop edits cannot baseline-elide a loaded mask.
+There is no Studio authoring/painter/picker graph yet. The Graduated ND density
+gradient is still its independent operation formula, not an alias for generic
+mask geometry. Path/brush, more blend modes, M1, and legacy retirement remain
+outside this tranche.
+
 `ravo.core.tonecurve` implements the frozen C RGB-linked default:
 Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
 `interpolation=monotone_hermite`. `working_space=lab|xyz|lab_independent`
@@ -545,7 +578,8 @@ saturations, and smoothing. The two real version-1 records at history positions
 and the accepted strict-import singleton envelope; they do not make the
 complete 0176 document compatible.
 
-The engine boundary accepts enabled, unmasked operations. It clips each finite
+The engine boundary accepts enabled unmasked operations plus an S3.1 canonical
+attachment resolved by the private normal-mix dispatcher. It clips each finite
 working RGB channel with
 source-order `fmaxf(value, 0)`, applies the declared profile matrix to XYZ D50,
 and reuses the private S1.2 D50/CAT16-D65/dt-UCS bridge. S2.1 supplies immutable
@@ -572,7 +606,9 @@ buffers/overflow, profile/matrix state, scale/sigma, finite signals and every
 input/output sample. Cancellation covers preflight, mapping, recursive stages,
 apply, and pre-publication. Success deep-copies RGB/profile, shares immutable
 exposure analysis and preserves scale; any failure leaves borrowed input
-unchanged and publishes nothing. Masks still reject structurally.
+unchanged and publishes nothing. Canonical S3.1 attachments are evaluated only
+by the outer engine dispatcher; direct operation entry points remain fail-closed
+when given a mask.
 
 The private legacy-XMP adapter maps the evidenced v1 singleton (enabled 1,
 priority 0, empty multi_name, missing-or-zero multi_name_hand_edited, blend v14
@@ -582,9 +618,10 @@ position wins. Develop owns explicit presence plus the existing 17-field
 parameter object; CLI `--set`, Catalog preview/save/reopen/export, and one
 Studio section consume that same recipe, including smoothing `0..2`. Cache
 identity follows the canonical recipe/engine path. Synthetic positive legacy
-payloads remain rejected because no frozen record evidences them. General
-masks/presentation and retirement of the frozen owner remain separate C14
-tranches and do not authorize C15.
+payloads remain rejected because no frozen record evidences them. S3.1's
+canonical recipe graph does not relax that importer. Studio mask authoring,
+path/brush, presentation, remaining blend modes, and retirement of the frozen
+owner remain separate C14/M1 tranches and do not authorize C15.
 [ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md) freezes the core;
 [ADR-0041](docs/adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
 extends it with the first product surface; [ADR-0042](docs/adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
@@ -709,8 +746,8 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   presets remain out of scope. Studio
   now collects one explicit format plus the matching typed options before the
   native save dialog; it does not infer format from a localized filter.
-- The first version does not implement full history/styles, mask/blend, every
-  operation, or old-catalog migration.
+- The first version does not implement full history/styles, path/brush mask
+  authoring, historic blend modes, every operation, or old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.

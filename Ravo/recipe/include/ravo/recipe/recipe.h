@@ -9,6 +9,7 @@
 
 #include "ravo/foundation/error.h"
 #include "ravo/foundation/json.h"
+#include "ravo/recipe/mask.h"
 
 namespace ravo
 {
@@ -33,18 +34,6 @@ struct ParameterValue
     ParameterValue(const char *value);
     ParameterValue(Array value);
     ParameterValue(Object value);
-};
-
-enum class MaskKind
-{
-    kAll,
-};
-
-struct Mask
-{
-    std::string id;
-    std::int64_t schema_version = 1;
-    MaskKind kind = MaskKind::kAll;
 };
 
 struct AssetDescriptor

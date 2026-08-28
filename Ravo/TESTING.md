@@ -326,8 +326,8 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   sequential per-channel N=2/N=3 singular fallback, and shared N=4/RBF identity
   fallback are explicit. The RGB↔XYZ D50↔Lab bridge, dimensions/buffer/profile,
   denominator and all non-finite states, fit/output resource estimates,
-  pre/row cancellation, operation dispatch/mask rejection, owned output, source
-  immutability, and profile/analysis retention are covered.
+  pre/row cancellation, Color Checker operation dispatch/mask rejection, owned
+  output, source immutability, and profile/analysis retention are covered.
 - Eight preset bit hashes are checked against the frozen source tables. IT8 and
   Expanded also match all 295 parsed C-assignment words; Helmholtz/Kohlrausch,
   Astia, Classic Chrome, Monochrome, Provia, and Velvia each match all 1180
@@ -385,7 +385,7 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   default save/preview/export/close/reopen pixels and cache identity; Studio
   locks its six-key presenter, five hard-bound generic intents, compiled Chinese
   strings, and offscreen QML smoke. GTK plane/picker, three presets, OpenCL, and
-  the general mask graph are outside this accepted contract.
+  canonical mask attachment are outside this Color Correction contract.
 - The complete 158-XMP census finds one actual Color Contrast record, in 0038:
   enabled v2, priority zero, empty name, exact default-unmasked blend-v10 state,
   and a generic history position that does not define processing order. A
@@ -402,21 +402,22 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   axis order, float narrowing/evaluation, bounded ternary clamp, unbounded
   output, extended/negative values, and the observable default Lab bridge.
   Engine tests cover canonical dispatch, dimensions/buffer/profile, every
-  parameter/input/output finite failure, mask rejection, pre-cancel and
-  row-deadline cancellation, source immutability, profile/analysis retention, atomic
-  publication, and separately owned output.
+  parameter/input/output finite failure, Color Contrast mask rejection,
+  pre-cancel and row-deadline cancellation, source immutability,
+  profile/analysis retention, atomic publication, and separately owned output.
 - CLI descriptor/import/render tests, Catalog explicit-default preview/save/
   export/close/reopen pixels and cache identity, and Studio's six-key presenter,
   two hard-bounded slopes, two full-float scientific offsets, unbound toggle,
   generic intents, compiled Chinese strings, and offscreen QML smoke all use
-  the same canonical recipe/engine path. GTK sliders, OpenCL, and the general
-  mask graph are not claimed by these tests.
+  the same canonical recipe/engine path. GTK sliders, OpenCL, and canonical
+  mask attachment are not claimed by these Color Contrast tests.
 - Color Harmonizer recipe tests lock schema v1's exact 17 required flat fields,
   hard bounds, float representability, all nine predefined rule names plus
-  custom, registry metadata, JSON round-trip, and structured mask/presentation
-  rejection. Exact little-endian parameter decodes from frozen 0176 history
-  records 12 and 13 cover the post-initialization default and an edited split-
-  complementary state and feed the accepted singleton importer.
+  custom, registry metadata, JSON round-trip, and strict legacy
+  mask/custom-blend/presentation rejection. Exact little-endian parameter
+  decodes from frozen 0176 history records 12 and 13 cover the post-
+  initialization default and an edited split-complementary state and feed the
+  accepted singleton importer.
 - Its independent source-order scalar oracle covers both 0176 parameter states
   through the declared profile matrix, private D50/dt-UCS bridge, S2.1 geometry,
   frozen negative `fmaxf` clipping, cubic neutral protection, attraction,
@@ -445,8 +446,24 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   cover exact sigma, pull-width floor,
   full/downscaled canonical ROI scale, propagation, two-pass oracle,
   source/profile/analysis ownership, map/Gaussian/apply/prepublication
-  cancellation, and saturated RAW memory estimates. General masks, GPU, and
-  retirement have no acceptance claim.
+  cancellation, and saturated RAW memory estimates. S3.1 separately covers
+  canonical attachment alpha 0/all/spatial behavior; it does not relax the
+  frozen legacy importer or claim authoring/GPU/retirement.
+- Canonical mask graph tests cover schema-v1 `all` upgrade and deterministic
+  v2 serialization; unknown fields/kinds/versions, non-finite/bounded values,
+  duplicate/dangling/cyclic/deep/shared DAGs, node/child/expanded-work limits,
+  invalid enum state, and v1 non-identity rejection. Private evaluator tests
+  freeze pixel-centre exact grids, zero/positive gradient/circle/ellipse
+  transitions, frozen parametric branches for input/output sources, group
+  replace/union/intersection/difference/exclusion ordering with node/edge
+  inversion and opacity, whole-
+  frame versus vertical and inset-stride tiled ROI, invalid ROI/stride/sample/
+  finiteness, pre/node/row cancellation, and owned alpha scratch bounds. Engine
+  tests cover exact normal alpha 0/1 selection, spatial mix, unsupported-
+  operation failure, and RAW
+  saturating masked memory estimates. CLI direct render parity and Catalog
+  preview/cache/save/close/reopen tests retain graph/attachments through an
+  ordinary Develop edit; reset_recipe alone clears the stored graph.
 - `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
   and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
   `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic

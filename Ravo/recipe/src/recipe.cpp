@@ -261,57 +261,6 @@ required_field(const JsonObject &object, const std::string_view name, const std:
     return asset;
 }
 
-[[nodiscard]] Result<Mask> parse_mask(const JsonValue &value, const std::string_view path)
-{
-    auto object = object_at(value, path);
-    if (!object)
-    {
-        return object.error();
-    }
-    auto fields = reject_unknown_fields(*object.value(), {"id", "kind", "schema_version"}, path);
-    if (!fields)
-    {
-        return fields.error();
-    }
-    auto id = required_field(*object.value(), "id", path);
-    auto schema_version = required_field(*object.value(), "schema_version", path);
-    auto kind = required_field(*object.value(), "kind", path);
-    if (!id)
-    {
-        return id.error();
-    }
-    if (!schema_version)
-    {
-        return schema_version.error();
-    }
-    if (!kind)
-    {
-        return kind.error();
-    }
-    auto parsed_id = string_at(*id.value(), std::string(path) + ".id");
-    auto parsed_version =
-        integer_at(*schema_version.value(), std::string(path) + ".schema_version");
-    auto parsed_kind = string_at(*kind.value(), std::string(path) + ".kind");
-    if (!parsed_id)
-    {
-        return parsed_id.error();
-    }
-    if (!parsed_version)
-    {
-        return parsed_version.error();
-    }
-    if (!parsed_kind)
-    {
-        return parsed_kind.error();
-    }
-    if (parsed_kind.value() != "all")
-    {
-        return make_error(ErrorCode::kUnsupported, "Unsupported canonical mask kind",
-                          {{"kind", parsed_kind.value()}, {"path", std::string(path)}});
-    }
-    return Mask{std::move(parsed_id).value(), parsed_version.value(), MaskKind::kAll};
-}
-
 [[nodiscard]] Result<OperationInstance> parse_operation(const JsonValue &value,
                                                         const std::string_view path)
 {
@@ -599,6 +548,12 @@ Result<Recipe> parse_recipe_json(const std::string_view text)
                                field_error("Expected a JSON array", "recipe.operations") :
                                field_error("Expected a JSON array", "recipe.masks");
     }
+    if (mask_array->size() > kCanonicalMaskMaxNodes)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Mask graph exceeds the canonical node limit",
+            {{"reason", "mask_graph_too_large"}, {"count", std::to_string(mask_array->size())}});
+    }
 
     Recipe recipe{parsed_schema.value(), std::move(parsed_asset).value(), {}, {}};
     recipe.operations.reserve(operation_array->size());
@@ -615,7 +570,8 @@ Result<Recipe> parse_recipe_json(const std::string_view text)
     recipe.masks.reserve(mask_array->size());
     for (std::size_t index = 0; index < mask_array->size(); ++index)
     {
-        auto mask = parse_mask((*mask_array)[index], "recipe.masks[" + std::to_string(index) + "]");
+        auto mask = parse_canonical_mask((*mask_array)[index],
+                                         "recipe.masks[" + std::to_string(index) + "]");
         if (!mask)
         {
             return mask.error();
@@ -627,6 +583,11 @@ Result<Recipe> parse_recipe_json(const std::string_view text)
 
 Result<Recipe> upgrade_recipe(Recipe recipe)
 {
+    auto masks = upgrade_mask_graph(recipe.masks);
+    if (!masks)
+    {
+        return masks.error();
+    }
     for (auto &operation : recipe.operations)
     {
         if (operation.id == kExposureOperationId)
@@ -724,6 +685,11 @@ Result<Recipe> upgrade_recipe(Recipe recipe)
 
 Result<JsonValue> recipe_to_json(const Recipe &recipe)
 {
+    auto mask_graph = validate_mask_graph(recipe.masks);
+    if (!mask_graph)
+    {
+        return mask_graph.error();
+    }
     JsonValue::Object asset{{"id", recipe.asset.id}, {"input_uri", recipe.asset.input_uri}};
     if (recipe.asset.content_hash.has_value())
     {
@@ -762,11 +728,12 @@ Result<JsonValue> recipe_to_json(const Recipe &recipe)
     masks.reserve(recipe.masks.size());
     for (const auto &mask : recipe.masks)
     {
-        masks.emplace_back(JsonValue::Object{
-            {"id", mask.id},
-            {"kind", "all"},
-            {"schema_version", integer_json(mask.schema_version)},
-        });
+        auto encoded = canonical_mask_to_json(mask);
+        if (!encoded)
+        {
+            return encoded.error();
+        }
+        masks.emplace_back(std::move(encoded).value());
     }
 
     return JsonValue{JsonValue::Object{{"asset", std::move(asset)},
@@ -798,19 +765,15 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                           "Recipe asset ID and input URI must not be empty");
     }
 
+    auto mask_graph = validate_mask_graph(recipe.masks);
+    if (!mask_graph)
+    {
+        return mask_graph.error();
+    }
     std::set<std::string, std::less<>> masks;
     for (const auto &mask : recipe.masks)
     {
-        if (mask.id.empty() || mask.schema_version != 1)
-        {
-            return make_error(ErrorCode::kValidation, "Recipe mask is invalid",
-                              {{"mask_id", mask.id}});
-        }
-        if (!masks.insert(mask.id).second)
-        {
-            return make_error(ErrorCode::kConflict, "Recipe contains duplicate mask IDs",
-                              {{"mask_id", mask.id}});
-        }
+        masks.insert(mask.id);
     }
 
     std::set<std::string, std::less<>> instances;

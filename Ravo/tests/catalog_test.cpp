@@ -765,6 +765,82 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     EXPECT_EQ(reset.value().review.rating, 3);
 }
 
+TEST_F(CatalogServiceTest, CanonicalMaskGraphSurvivesDevelopPreviewSaveAndCloseReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = (root / "masked-develop.jpg").string();
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 130, 180));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    const auto source_hash = file_sha256(jpeg_path);
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    auto baseline = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    auto develop = develop_from_recipe(baseline.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    Mask mask{"mask-all", kCanonicalMaskSchemaVersion, MaskKind::kAll};
+    develop.value().masks = {mask};
+    develop.value().graduated_present = true;
+    develop.value().graduated_enabled = true;
+    develop.value().graduated_mask_id = "mask-all";
+    develop.value().graduated_density = 0.75;
+    // Studio has no authoring UI in S3.1, but disabled C14 attachments are
+    // still durable typed state rather than an identity-baseline shortcut.
+    develop.value().color_harmonizer_present = true;
+    develop.value().color_harmonizer_enabled = false;
+    develop.value().color_harmonizer_mask_id = "mask-all";
+    auto saved = service->save_develop(asset_id, develop.value());
+    ASSERT_TRUE(saved) << saved.error().message;
+    EXPECT_TRUE(saved.value().has_edits);
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64U;
+    preview.persist_preview_record = true;
+    const auto first_live = service->request_preview(preview, develop.value());
+    ASSERT_TRUE(first_live) << first_live.error().message;
+
+    auto ordinary_edit = develop.value();
+    ordinary_edit.exposure_ev = 0.25;
+    const auto second_live = service->request_preview(preview, ordinary_edit);
+    ASSERT_TRUE(second_live) << second_live.error().message;
+    EXPECT_NE(first_live.value().cache_key, second_live.value().cache_key);
+    ASSERT_TRUE(service->save_develop(asset_id, ordinary_edit));
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto loaded = service->load_recipe(asset_id);
+    ASSERT_TRUE(loaded) << loaded.error().message;
+    ASSERT_EQ(loaded.value().masks, std::vector<Mask>{mask});
+    const auto graduated =
+        std::find_if(loaded.value().operations.begin(), loaded.value().operations.end(),
+                     [](const OperationInstance &operation)
+                     { return operation.id == "ravo.effect.graduatednd"; });
+    ASSERT_NE(graduated, loaded.value().operations.end());
+    EXPECT_EQ(graduated->mask_id, std::optional<std::string>{"mask-all"});
+    const auto harmonizer =
+        std::find_if(loaded.value().operations.begin(), loaded.value().operations.end(),
+                     [](const OperationInstance &operation)
+                     { return operation.id == kColorHarmonizerOperationId; });
+    ASSERT_NE(harmonizer, loaded.value().operations.end());
+    EXPECT_FALSE(harmonizer->enabled);
+    EXPECT_EQ(harmonizer->mask_id, std::optional<std::string>{"mask-all"});
+    auto reopened_preview = service->request_preview(preview);
+    ASSERT_TRUE(reopened_preview) << reopened_preview.error().message;
+    EXPECT_EQ(reopened_preview.value().cache_key, second_live.value().cache_key);
+    EXPECT_EQ(file_sha256(jpeg_path), source_hash);
+
+    auto reset = service->reset_recipe(asset_id);
+    ASSERT_TRUE(reset) << reset.error().message;
+    EXPECT_FALSE(reset.value().has_edits);
+}
+
 TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
 {
     auto created = open_service(true);

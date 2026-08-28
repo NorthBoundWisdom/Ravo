@@ -945,6 +945,63 @@ TEST_F(CliTest, RenderCommandUsesItsInputAndWritesBoundedPngFromCanonicalRecipe)
     std::filesystem::remove(output_path, ignored);
 }
 
+TEST_F(CliTest, RenderCommandMatchesDirectEngineForCanonicalColorHarmonizerMask)
+{
+    const auto directory = std::filesystem::temp_directory_path();
+    const auto recipe_path = directory / "ravo-cli-canonical-mask.recipe.json";
+    const auto output_path = directory / "ravo-cli-canonical-mask.png";
+    std::error_code ignored;
+    std::filesystem::remove(recipe_path, ignored);
+    std::filesystem::remove(output_path, ignored);
+
+    Recipe recipe;
+    recipe.asset = {"mire1", "file:///recipe-placeholder.raw", std::nullopt};
+    recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
+                                 input_color_to_parameters(InputColorParams{}), std::nullopt});
+    auto harmonizer = color_harmonizer_to_parameters(ColorHarmonizerParams{});
+    ASSERT_TRUE(harmonizer) << harmonizer.error().message;
+    recipe.masks.push_back({"all", kCanonicalMaskSchemaVersion, MaskKind::kAll});
+    recipe.operations.push_back({std::string(kColorHarmonizerOperationId),
+                                 kColorHarmonizerOperationSchemaVersion, "harmonizer-1", true,
+                                 std::move(harmonizer).value(), "all"});
+    recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
+                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
+    const auto serialized = serialize_recipe(recipe);
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    {
+        std::ofstream file(recipe_path, std::ios::binary);
+        ASSERT_TRUE(file);
+        file << serialized.value();
+    }
+
+    const auto input = mire1_path();
+    const auto recipe_u8 = recipe_path.generic_u8string();
+    const std::string recipe_argument(recipe_u8.begin(), recipe_u8.end());
+    const auto output_u8 = output_path.generic_u8string();
+    const std::string output_argument(output_u8.begin(), output_u8.end());
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    const std::vector<std::string_view> arguments{
+        "render", input,      "--recipe", recipe_argument, "--output", output_argument, "--width",
+        "64",     "--height", "48",       "--json"};
+    ASSERT_EQ(application.run(std::span{arguments}), 0) << stderr_stream.str();
+
+    Recipe direct_recipe = recipe;
+    direct_recipe.asset.input_uri = input;
+    RenderRequest direct_request;
+    direct_request.asset = direct_recipe.asset;
+    direct_request.recipe = std::move(direct_recipe);
+    direct_request.output_width = 64U;
+    direct_request.output_height = 48U;
+    const auto direct = engine.render_to_image(direct_request);
+    ASSERT_TRUE(direct) << direct.error().message;
+    EXPECT_EQ(read_png_rgb(output_path), direct.value().rgb);
+
+    std::filesystem::remove(recipe_path, ignored);
+    std::filesystem::remove(output_path, ignored);
+}
+
 TEST_F(CliTest, RecipeValidateUsesTheFacadeAndReturnsMachineData)
 {
     const auto recipe = serialize_recipe(test::valid_recipe());

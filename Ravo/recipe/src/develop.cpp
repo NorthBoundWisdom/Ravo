@@ -64,10 +64,11 @@ constexpr double kEpsilon = 1e-6;
 
 void add_operation(Recipe &recipe, std::string id, std::string instance_id,
                    std::map<std::string, ParameterValue, std::less<>> parameters,
-                   const std::int64_t schema_version = 1)
+                   const std::int64_t schema_version = 1,
+                   std::optional<std::string> mask_id = std::nullopt, const bool enabled = true)
 {
-    recipe.operations.push_back({std::move(id), schema_version, std::move(instance_id), true,
-                                 std::move(parameters), std::nullopt});
+    recipe.operations.push_back({std::move(id), schema_version, std::move(instance_id), enabled,
+                                 std::move(parameters), std::move(mask_id)});
 }
 
 [[nodiscard]] std::int64_t flag01(const std::int64_t value) noexcept
@@ -995,6 +996,7 @@ color_harmonizer_node_saturation_fields() noexcept
         {
             return false;
         }
+        params.color_harmonizer_present = true;
         params.color_harmonizer_enabled = value == 1.0;
         return true;
     }
@@ -1012,6 +1014,7 @@ color_harmonizer_node_saturation_fields() noexcept
             return false;
         }
         params.color_harmonizer.rule = rule.value();
+        params.color_harmonizer_present = true;
         params.color_harmonizer_enabled = true;
         return true;
     }
@@ -1024,6 +1027,7 @@ color_harmonizer_node_saturation_fields() noexcept
             return false;
         }
         params.color_harmonizer.num_custom_nodes = count;
+        params.color_harmonizer_present = true;
         params.color_harmonizer_enabled = true;
         return true;
     }
@@ -1033,6 +1037,7 @@ color_harmonizer_node_saturation_fields() noexcept
         {
             return false;
         }
+        params.color_harmonizer_present = true;
         params.color_harmonizer_enabled = true;
         return true;
     }
@@ -1045,6 +1050,7 @@ color_harmonizer_node_saturation_fields() noexcept
             {
                 return false;
             }
+            params.color_harmonizer_present = true;
             params.color_harmonizer_enabled = true;
             return true;
         }
@@ -1058,6 +1064,7 @@ color_harmonizer_node_saturation_fields() noexcept
         if (name == field.develop_name)
         {
             params.color_harmonizer.*(field.member) = value;
+            params.color_harmonizer_present = true;
             params.color_harmonizer_enabled = true;
             return true;
         }
@@ -1067,6 +1074,7 @@ color_harmonizer_node_saturation_fields() noexcept
         if (name == field)
         {
             params.color_harmonizer.node_saturation[index] = value;
+            params.color_harmonizer_present = true;
             params.color_harmonizer_enabled = true;
             return true;
         }
@@ -2452,6 +2460,14 @@ void clamp_develop(DevelopParams &params) noexcept
     clamp_color_correction(params.color_correction);
     clamp_color_contrast(params.color_contrast);
     clamp_color_harmonizer(params.color_harmonizer);
+    // Preserve compatibility with existing typed callers that represented an
+    // active operation by setting only the historical enabled/value fields.
+    // The added explicit-presence bit is needed for disabled/default masked
+    // instances, but must not make a normal active round trip unequal.
+    if (params.color_harmonizer_enabled)
+    {
+        params.color_harmonizer_present = true;
+    }
     if (params.exposure_mode != kExposureModeManual &&
         params.exposure_mode != kExposureModeDeflicker)
     {
@@ -2557,6 +2573,18 @@ void clamp_develop(DevelopParams &params) noexcept
     params.graduated_hardness = clamp_value(params.graduated_hardness, 0.0, 1.0);
     params.graduated_rotation = clamp_value(params.graduated_rotation, -180.0, 180.0);
     params.graduated_offset = clamp_value(params.graduated_offset, -1.0, 1.0);
+    if (params.graduated_enabled)
+    {
+        params.graduated_present = true;
+    }
+    else if (!params.graduated_present && !near(params.graduated_density, 0.0))
+    {
+        // Preserve compatibility with callers that predate explicit presence,
+        // without re-enabling a loaded disabled operation whose stored density
+        // is intentionally non-zero.
+        params.graduated_present = true;
+        params.graduated_enabled = true;
+    }
     params.tone_eq_blacks = clamp_value(params.tone_eq_blacks, -4.0, 4.0);
     params.tone_eq_shadows = clamp_value(params.tone_eq_shadows, -4.0, 4.0);
     params.tone_eq_midtones = clamp_value(params.tone_eq_midtones, -4.0, 4.0);
@@ -2576,7 +2604,9 @@ void clamp_develop(DevelopParams &params) noexcept
 
 bool DevelopParams::is_identity() const noexcept
 {
-    return temperature.is_identity() && !profile_gamma_enabled && input_color.is_identity() &&
+    return masks.empty() && !color_harmonizer_present && !color_harmonizer_mask_id.has_value() &&
+           !graduated_present && !graduated_enabled && !graduated_mask_id.has_value() &&
+           temperature.is_identity() && !profile_gamma_enabled && input_color.is_identity() &&
            output_color.is_identity() && primaries.is_identity() && channel_mixer.is_identity() &&
            exposure_mode == kExposureModeManual && near(exposure_black, 0.0) &&
            near(exposure_ev, 0.0) &&
@@ -3181,18 +3211,26 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     }
     else if (name == "graduatedDensity")
     {
+        params.graduated_present = true;
+        params.graduated_enabled = true;
         params.graduated_density = value;
     }
     else if (name == "graduatedHardness")
     {
+        params.graduated_present = true;
+        params.graduated_enabled = true;
         params.graduated_hardness = value;
     }
     else if (name == "graduatedRotation")
     {
+        params.graduated_present = true;
+        params.graduated_enabled = true;
         params.graduated_rotation = value;
     }
     else if (name == "graduatedOffset")
     {
+        params.graduated_present = true;
+        params.graduated_enabled = true;
         params.graduated_offset = value;
     }
     else if (name == "toneEqBlacks")
@@ -4048,6 +4086,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     clamp_develop(clamped);
     Recipe recipe;
     recipe.asset = std::move(asset);
+    recipe.masks = clamped.masks;
     if (!clamped.temperature.is_identity())
     {
         add_operation(recipe, "ravo.color.temperature", "temperature-1",
@@ -4141,13 +4180,15 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"highlights", ParameterValue{clamped.tone_eq_highlights}},
                        {"whites", ParameterValue{clamped.tone_eq_whites}}});
     }
-    if (!near(clamped.graduated_density, 0.0))
+    if (clamped.graduated_present || !near(clamped.graduated_density, 0.0))
     {
         add_operation(recipe, "ravo.effect.graduatednd", "graduatednd-1",
                       {{"density_ev", ParameterValue{clamped.graduated_density}},
                        {"hardness", ParameterValue{clamped.graduated_hardness}},
                        {"rotation_deg", ParameterValue{clamped.graduated_rotation}},
-                       {"offset", ParameterValue{clamped.graduated_offset}}});
+                       {"offset", ParameterValue{clamped.graduated_offset}}},
+                      1, clamped.graduated_mask_id,
+                      clamped.graduated_present ? clamped.graduated_enabled : true);
     }
     if (clamped.color_checker_enabled)
     {
@@ -4159,7 +4200,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
         add_operation(recipe, std::string(kColorCheckerOperationId), "colorchecker-1",
                       std::move(color_checker).value(), kColorCheckerOperationSchemaVersion);
     }
-    if (clamped.color_harmonizer_enabled)
+    if (clamped.color_harmonizer_present || clamped.color_harmonizer_enabled)
     {
         auto color_harmonizer = color_harmonizer_to_parameters(clamped.color_harmonizer);
         if (!color_harmonizer)
@@ -4167,7 +4208,8 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
             return color_harmonizer.error();
         }
         add_operation(recipe, std::string(kColorHarmonizerOperationId), "colorharmonizer-1",
-                      std::move(color_harmonizer).value(), kColorHarmonizerOperationSchemaVersion);
+                      std::move(color_harmonizer).value(), kColorHarmonizerOperationSchemaVersion,
+                      clamped.color_harmonizer_mask_id, clamped.color_harmonizer_enabled);
     }
     if (!near(clamped.highlights, 0.0))
     {
@@ -4360,9 +4402,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
 Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
 {
     DevelopParams params;
+    params.masks = recipe.masks;
     for (const auto &operation : recipe.operations)
     {
-        if (!operation.enabled)
+        if (!operation.enabled && operation.id != kColorHarmonizerOperationId &&
+            operation.id != "ravo.effect.graduatednd")
         {
             continue;
         }
@@ -4473,7 +4517,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         }
         else if (operation.id == kColorHarmonizerOperationId)
         {
-            if (params.color_harmonizer_enabled)
+            if (params.color_harmonizer_present)
             {
                 return make_error(ErrorCode::kConflict,
                                   "Develop Color Harmonizer does not allow duplicate operations",
@@ -4488,20 +4532,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                                    {"schema_version", std::to_string(operation.schema_version)},
                                    {"reason", "unsupported_colorharmonizer_schema"}});
             }
-            if (operation.mask_id.has_value())
-            {
-                return make_error(ErrorCode::kUnsupported,
-                                  "Develop Color Harmonizer masks are unsupported",
-                                  {{"operation_id", operation.id},
-                                   {"reason", "unsupported_colorharmonizer_mask"}});
-            }
             auto color_harmonizer = color_harmonizer_from_parameters(operation.parameters);
             if (!color_harmonizer)
             {
                 return color_harmonizer.error();
             }
-            params.color_harmonizer_enabled = true;
+            params.color_harmonizer_present = true;
+            params.color_harmonizer_enabled = operation.enabled;
             params.color_harmonizer = std::move(color_harmonizer).value();
+            params.color_harmonizer_mask_id = operation.mask_id;
         }
         else if (operation.id == "ravo.core.contrast")
         {
@@ -4806,10 +4845,13 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         }
         else if (operation.id == "ravo.effect.graduatednd")
         {
+            params.graduated_present = true;
+            params.graduated_enabled = operation.enabled;
             params.graduated_density = number("density_ev", params.graduated_density);
             params.graduated_hardness = number("hardness", params.graduated_hardness);
             params.graduated_rotation = number("rotation_deg", params.graduated_rotation);
             params.graduated_offset = number("offset", params.graduated_offset);
+            params.graduated_mask_id = operation.mask_id;
         }
         else if (operation.id == "ravo.core.toneequal")
         {

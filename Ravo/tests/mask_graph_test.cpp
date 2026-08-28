@@ -1,0 +1,657 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "ravo/recipe/color_harmonizer.h"
+#include "ravo/recipe/develop.h"
+#include "ravo/recipe/operation.h"
+#include "ravo/recipe/recipe.h"
+
+#include "capability_ops.h"
+#include "color_harmonizer.h"
+#include "image_ops.h"
+#include "mask_evaluator.h"
+#include "raw_pipeline.h"
+
+namespace ravo
+{
+namespace
+{
+
+[[nodiscard]] Mask all_mask(std::string id, const double opacity = 1.0, const bool inverted = false)
+{
+    Mask result{std::move(id), kCanonicalMaskSchemaVersion, MaskKind::kAll};
+    result.common = {opacity, inverted};
+    return result;
+}
+
+[[nodiscard]] std::vector<float> rgb_grid(const std::uint32_t width, const std::uint32_t height)
+{
+    std::vector<float> result(static_cast<std::size_t>(width) * height * 3U);
+    for (std::uint32_t row = 0; row < height; ++row)
+    {
+        for (std::uint32_t column = 0; column < width; ++column)
+        {
+            const std::size_t index = (static_cast<std::size_t>(row) * width + column) * 3U;
+            result[index] = static_cast<float>(column) / static_cast<float>(width);
+            result[index + 1U] = static_cast<float>(row) / static_cast<float>(height);
+            result[index + 2U] = 0.5F;
+        }
+    }
+    return result;
+}
+
+[[nodiscard]] MaskEvaluationRequest
+full_request(const std::uint32_t width, const std::uint32_t height, const std::vector<float> &input,
+             const std::optional<std::vector<float>> &output = std::nullopt)
+{
+    MaskEvaluationRequest request;
+    request.full_width = width;
+    request.full_height = height;
+    request.roi_width = width;
+    request.roi_height = height;
+    request.input = {input, width * 3U};
+    if (output.has_value())
+    {
+        request.operation_output = MaskRgbPlaneView{*output, width * 3U};
+    }
+    return request;
+}
+
+[[nodiscard]] OperationInstance *find_operation(Recipe &recipe, const std::string_view id)
+{
+    const auto found =
+        std::find_if(recipe.operations.begin(), recipe.operations.end(),
+                     [id](const OperationInstance &operation) { return operation.id == id; });
+    return found == recipe.operations.end() ? nullptr : &*found;
+}
+
+struct MaskCancellationFixture
+{
+    CancellationSource *source = nullptr;
+    detail::MaskEvaluatorCheckpoint target = detail::MaskEvaluatorCheckpoint::kBeforeNode;
+    bool fired = false;
+
+    static void checkpoint(void *context, const detail::MaskEvaluatorCheckpoint point,
+                           const std::uint32_t) noexcept
+    {
+        auto &fixture = *static_cast<MaskCancellationFixture *>(context);
+        if (!fixture.fired && fixture.source != nullptr && point == fixture.target)
+        {
+            fixture.fired = fixture.source->cancel("mask-controlled-cancel");
+        }
+    }
+};
+
+TEST(MaskGraphRecipeTest, UpgradesLegacyAllAndRejectsUnknownOrInvalidGraphState)
+{
+    const auto parsed = parse_recipe_json(
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[{"id":"all","kind":"all","schema_version":1}],"operations":[],"schema_version":3})");
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    ASSERT_EQ(parsed.value().masks.size(), 1U);
+    EXPECT_EQ(parsed.value().masks.front().schema_version, kCanonicalMaskSchemaVersion);
+    const auto serialized = serialize_recipe(parsed.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    EXPECT_NE(serialized.value().find(R"("schema_version":2)"), std::string::npos);
+    EXPECT_NE(serialized.value().find(R"("opacity":1)"), std::string::npos);
+    EXPECT_NE(serialized.value().find(R"("inverted":false)"), std::string::npos);
+
+    const auto unknown = parse_recipe_json(
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[{"id":"all","inverted":false,"kind":"all","opacity":1,"schema_version":2,"unexpected":true}],"operations":[],"schema_version":3})");
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().context.at("path"), "recipe.masks[0].unexpected");
+
+    const auto unknown_kind = parse_recipe_json(
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[{"id":"future","inverted":false,"kind":"future","opacity":1,"schema_version":2}],"operations":[],"schema_version":3})");
+    ASSERT_FALSE(unknown_kind);
+    EXPECT_EQ(unknown_kind.error().context.at("reason"), "unsupported_mask_kind");
+
+    const auto unknown_version = parse_recipe_json(
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[{"id":"future","inverted":false,"kind":"all","opacity":1,"schema_version":99}],"operations":[],"schema_version":3})");
+    ASSERT_FALSE(unknown_version);
+    EXPECT_EQ(unknown_version.error().context.at("reason"), "unsupported_mask_schema");
+
+    const auto wrong_type = parse_recipe_json(
+        R"({"asset":{"id":"asset-1","input_uri":"file:///fixture.raw"},"masks":[{"id":"all","inverted":false,"kind":"all","opacity":"one","schema_version":2}],"operations":[],"schema_version":3})");
+    ASSERT_FALSE(wrong_type);
+    EXPECT_EQ(wrong_type.error().context.at("path"), "recipe.masks[0].opacity");
+
+    Mask group{"group", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    group.payload = MaskGroup{{{"missing", MaskGroupOperator::kReplace, 1.0, false}}};
+    auto dangling = validate_mask_graph({group});
+    ASSERT_FALSE(dangling);
+    EXPECT_EQ(dangling.error().context.at("reason"), "mask_graph_dangling_reference");
+
+    auto duplicate = validate_mask_graph({all_mask("duplicate"), all_mask("duplicate")});
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_mask_id");
+
+    Mask left{"left", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    left.payload = MaskGroup{{{"right", MaskGroupOperator::kReplace, 1.0, false}}};
+    Mask right{"right", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    right.payload = MaskGroup{{{"left", MaskGroupOperator::kReplace, 1.0, false}}};
+    auto cycle = validate_mask_graph({left, right});
+    ASSERT_FALSE(cycle);
+    EXPECT_EQ(cycle.error().context.at("reason"), "mask_graph_cycle");
+
+    Mask invalid = all_mask("invalid");
+    invalid.common.opacity = std::numeric_limits<double>::infinity();
+    auto nonfinite = validate_mask_graph({invalid});
+    ASSERT_FALSE(nonfinite);
+    EXPECT_EQ(nonfinite.error().context.at("reason"), "invalid_mask_opacity");
+
+    Mask invalid_circle{"invalid-circle", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    invalid_circle.payload = CircleMask{0.5, 0.5, 0.0, 0.1};
+    auto bounded = validate_mask_graph({invalid_circle});
+    ASSERT_FALSE(bounded);
+    EXPECT_EQ(bounded.error().context.at("reason"), "invalid_circle");
+    Mask invalid_thresholds{"invalid-thresholds", kCanonicalMaskSchemaVersion,
+                            MaskKind::kParametric};
+    invalid_thresholds.payload = ParametricMask{
+        ParametricMaskSource::kInput, ParametricMaskChannel::kRed, {0.0, 0.8, 0.7, 1.0}};
+    bounded = validate_mask_graph({invalid_thresholds});
+    ASSERT_FALSE(bounded);
+    EXPECT_EQ(bounded.error().context.at("reason"), "invalid_parametric_thresholds");
+
+    Mask legacy = all_mask("legacy", 0.5);
+    legacy.schema_version = 1;
+    std::vector<Mask> legacy_graph{legacy};
+    auto legacy_upgrade = upgrade_mask_graph(legacy_graph);
+    ASSERT_FALSE(legacy_upgrade);
+    EXPECT_EQ(legacy_upgrade.error().context.at("reason"), "unsupported_mask_v1_state");
+    const auto legacy_json = canonical_mask_to_json(legacy);
+    ASSERT_FALSE(legacy_json);
+    EXPECT_EQ(legacy_json.error().context.at("reason"), "invalid_mask_v1_common");
+
+    std::vector<Mask> deep;
+    const auto one_child_group = [](std::string id, std::string child)
+    {
+        Mask result{std::move(id), kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+        result.payload = MaskGroup{{{std::move(child), MaskGroupOperator::kReplace, 1.0, false}}};
+        return result;
+    };
+    // Put a shallow parent first. It reaches and completes the shared deep
+    // tail before a later parent chain reaches that tail at depth 33.
+    deep.push_back(one_child_group("shallow", "tail20"));
+    deep.push_back(all_mask("leaf"));
+    for (int index = 1; index <= 20; ++index)
+    {
+        deep.push_back(one_child_group("tail" + std::to_string(index),
+                                       index == 1 ? "leaf" : "tail" + std::to_string(index - 1)));
+    }
+    for (int index = 1; index <= 12; ++index)
+    {
+        deep.push_back(
+            one_child_group("parent" + std::to_string(index),
+                            index == 1 ? "tail20" : "parent" + std::to_string(index - 1)));
+    }
+    auto too_deep = validate_mask_graph(deep);
+    ASSERT_FALSE(too_deep);
+    EXPECT_EQ(too_deep.error().context.at("reason"), "mask_graph_too_deep");
+
+    std::vector<Mask> too_many(kCanonicalMaskMaxNodes + 1U);
+    for (std::size_t index = 0; index < too_many.size(); ++index)
+    {
+        too_many[index] = all_mask("mask" + std::to_string(index));
+    }
+    auto node_limit = validate_mask_graph(too_many);
+    ASSERT_FALSE(node_limit);
+    EXPECT_EQ(node_limit.error().context.at("reason"), "mask_graph_too_large");
+
+    Mask children{"children", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    MaskGroup oversized;
+    for (std::size_t index = 0; index <= kCanonicalMaskMaxGroupChildren; ++index)
+    {
+        oversized.children.push_back(
+            {"mask" + std::to_string(index),
+             index == 0U ? MaskGroupOperator::kReplace : MaskGroupOperator::kUnion, 1.0, false});
+    }
+    children.payload = std::move(oversized);
+    auto child_limit = validate_mask_graph({children});
+    ASSERT_FALSE(child_limit);
+    EXPECT_EQ(child_limit.error().context.at("reason"), "invalid_mask_group_size");
+
+    Mask invalid_selector{"invalid-selector", kCanonicalMaskSchemaVersion, MaskKind::kParametric};
+    invalid_selector.payload = ParametricMask{static_cast<ParametricMaskSource>(99),
+                                              ParametricMaskChannel::kLuminance,
+                                              {0.0, 0.0, 1.0, 1.0}};
+    auto selector = validate_mask_graph({invalid_selector});
+    ASSERT_FALSE(selector);
+    EXPECT_EQ(selector.error().context.at("reason"), "invalid_parametric_selector");
+    invalid_selector.payload = ParametricMask{
+        ParametricMaskSource::kInput, static_cast<ParametricMaskChannel>(99), {0.0, 0.0, 1.0, 1.0}};
+    selector = validate_mask_graph({invalid_selector});
+    ASSERT_FALSE(selector);
+    EXPECT_EQ(selector.error().context.at("reason"), "invalid_parametric_selector");
+
+    Mask invalid_operator{"invalid-operator", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    invalid_operator.payload =
+        MaskGroup{{{"first", MaskGroupOperator::kReplace, 1.0, false},
+                   {"second", static_cast<MaskGroupOperator>(99), 1.0, false}}};
+    auto group_operator =
+        validate_mask_graph({all_mask("first"), all_mask("second"), invalid_operator});
+    ASSERT_FALSE(group_operator);
+    EXPECT_EQ(group_operator.error().context.at("reason"), "invalid_mask_group_operator");
+
+    std::vector<Mask> expanding{all_mask("expansion-leaf")};
+    std::string previous = "expansion-leaf";
+    for (int index = 1; index <= 8; ++index)
+    {
+        Mask parent{"expansion-" + std::to_string(index), kCanonicalMaskSchemaVersion,
+                    MaskKind::kGroup};
+        parent.payload = MaskGroup{{{previous, MaskGroupOperator::kReplace, 1.0, false},
+                                    {previous, MaskGroupOperator::kUnion, 1.0, false}}};
+        previous = parent.id;
+        expanding.push_back(std::move(parent));
+    }
+    auto expansion_limit = validate_mask_graph(expanding);
+    ASSERT_FALSE(expansion_limit);
+    EXPECT_EQ(expansion_limit.error().context.at("reason"), "mask_graph_expansion_too_large");
+}
+
+TEST(MaskGraphEvaluatorTest, UsesPixelCentersSourceOrderGroupsAndParametricSources)
+{
+    const auto input = rgb_grid(4U, 4U);
+    Mask gradient{"gradient", kCanonicalMaskSchemaVersion, MaskKind::kLinearGradient};
+    gradient.payload = LinearGradientMask{0.5, 0.5, 0.0, 0.0};
+    auto alpha = evaluate_canonical_mask({gradient}, "gradient", full_request(4U, 4U, input));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    ASSERT_EQ(alpha.value().alpha.size(), 16U);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[0], 1.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[4], 1.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[8], 0.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[12], 0.0F);
+
+    Mask circle{"circle", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    circle.payload = CircleMask{0.5, 0.5, 0.25, 0.0};
+    alpha = evaluate_canonical_mask({circle}, "circle", full_request(4U, 4U, input));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha[5], 1.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[10], 1.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[0], 0.0F);
+
+    circle.payload = CircleMask{0.5, 0.5, 0.25, 0.25};
+    alpha = evaluate_canonical_mask({circle}, "circle", full_request(4U, 4U, input));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha[4], 0.25F);
+
+    Mask ellipse{"ellipse", kCanonicalMaskSchemaVersion, MaskKind::kEllipse};
+    ellipse.payload = EllipseMask{0.5, 0.5, 0.25, 0.125, 0.0, 0.125};
+    alpha = evaluate_canonical_mask({ellipse}, "ellipse", full_request(4U, 4U, input));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_GT(alpha.value().alpha[5], 0.0F);
+    EXPECT_LT(alpha.value().alpha[0], alpha.value().alpha[5]);
+
+    Mask lhs = all_mask("lhs", 0.6);
+    Mask rhs = all_mask("rhs", 0.5);
+    Mask difference{"difference", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    difference.payload = MaskGroup{{{"lhs", MaskGroupOperator::kReplace, 1.0, false},
+                                    {"rhs", MaskGroupOperator::kDifference, 0.5, false}}};
+    alpha = evaluate_canonical_mask({lhs, rhs, difference}, "difference",
+                                    full_request(1U, 1U, {0.2F, 0.2F, 0.2F}));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), 0.45F);
+
+    Mask union_group{"union", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    union_group.payload = MaskGroup{{{"lhs", MaskGroupOperator::kReplace, 1.0, false},
+                                     {"rhs", MaskGroupOperator::kUnion, 0.5, true}}};
+    alpha = evaluate_canonical_mask({lhs, rhs, union_group}, "union",
+                                    full_request(1U, 1U, {0.2F, 0.2F, 0.2F}));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), 0.6F);
+
+    Mask intersection{"intersection", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    intersection.payload = MaskGroup{{{"lhs", MaskGroupOperator::kReplace, 1.0, false},
+                                      {"rhs", MaskGroupOperator::kIntersection, 0.5, false}}};
+    alpha = evaluate_canonical_mask({lhs, rhs, intersection}, "intersection",
+                                    full_request(1U, 1U, {0.2F, 0.2F, 0.2F}));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), 0.25F);
+
+    Mask exclusion{"exclusion", kCanonicalMaskSchemaVersion, MaskKind::kGroup};
+    exclusion.payload = MaskGroup{{{"lhs", MaskGroupOperator::kReplace, 1.0, false},
+                                   {"rhs", MaskGroupOperator::kExclusion, 0.5, false}}};
+    alpha = evaluate_canonical_mask({lhs, rhs, exclusion}, "exclusion",
+                                    full_request(1U, 1U, {0.2F, 0.2F, 0.2F}));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), 0.45F);
+
+    Mask parametric{"parametric", kCanonicalMaskSchemaVersion, MaskKind::kParametric};
+    parametric.payload = ParametricMask{
+        ParametricMaskSource::kInput, ParametricMaskChannel::kRed, {0.25, 0.5, 0.5, 0.75}};
+    const std::vector<float> ramp{0.25F, 0.0F,   0.0F, 0.375F, 0.0F,  0.0F, 0.5F, 0.0F,
+                                  0.0F,  0.625F, 0.0F, 0.0F,   0.75F, 0.0F, 0.0F};
+    alpha = evaluate_canonical_mask({parametric}, "parametric", full_request(5U, 1U, ramp));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha[0], 0.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[1], 0.5F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[2], 1.0F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[3], 0.5F);
+    EXPECT_FLOAT_EQ(alpha.value().alpha[4], 0.0F);
+
+    parametric.payload = ParametricMask{
+        ParametricMaskSource::kInput, ParametricMaskChannel::kRed, {0.25, 0.2505, 0.75, 0.7505}};
+    alpha = evaluate_canonical_mask({parametric}, "parametric",
+                                    full_request(1U, 1U, {0.25025F, 0.0F, 0.0F}));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    const float expected_narrow_slope =
+        (0.25025F - 0.25F) * (1.0F / std::fmax(0.001F, 0.2505F - 0.25F));
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), expected_narrow_slope);
+
+    parametric.payload = ParametricMask{
+        ParametricMaskSource::kInput, ParametricMaskChannel::kLuminance, {0.22, 0.22, 0.23, 0.23}};
+    alpha = evaluate_canonical_mask({parametric}, "parametric",
+                                    full_request(1U, 1U, {1.0F, 0.0F, 0.0F}));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), 1.0F);
+
+    parametric.payload = ParametricMask{ParametricMaskSource::kOperationOutput,
+                                        ParametricMaskChannel::kGreen,
+                                        {0.0, 0.0, 1.0, 1.0}};
+    auto missing_output = evaluate_canonical_mask({parametric}, "parametric",
+                                                  full_request(1U, 1U, {0.0F, 0.0F, 0.0F}));
+    ASSERT_FALSE(missing_output);
+    EXPECT_EQ(missing_output.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(missing_output.error().context.at("reason"),
+              "mask_parametric_operation_output_unavailable");
+
+    const std::vector<float> operation_output{0.0F, 0.5F, 0.0F};
+    alpha = evaluate_canonical_mask({parametric}, "parametric",
+                                    full_request(1U, 1U, {0.0F, 0.0F, 0.0F}, operation_output));
+    ASSERT_TRUE(alpha) << alpha.error().message;
+    EXPECT_FLOAT_EQ(alpha.value().alpha.front(), 1.0F);
+}
+
+TEST(MaskGraphEvaluatorTest, RoiTilesExactlyMatchWholeFrameAndCancellationFailsBeforeAllocation)
+{
+    const auto input = rgb_grid(4U, 4U);
+    Mask gradient{"gradient", kCanonicalMaskSchemaVersion, MaskKind::kLinearGradient};
+    gradient.payload = LinearGradientMask{0.5, 0.5, 30.0, 0.35};
+    const auto whole = evaluate_canonical_mask({gradient}, "gradient", full_request(4U, 4U, input));
+    ASSERT_TRUE(whole) << whole.error().message;
+
+    for (std::uint32_t tile_y = 0; tile_y < 4U; tile_y += 2U)
+    {
+        MaskEvaluationRequest tile;
+        tile.full_width = 4U;
+        tile.full_height = 4U;
+        tile.roi_y = tile_y;
+        tile.roi_width = 4U;
+        tile.roi_height = 2U;
+        std::vector<float> tile_input(input.begin() + static_cast<std::ptrdiff_t>(tile_y * 4U * 3U),
+                                      input.begin() +
+                                          static_cast<std::ptrdiff_t>((tile_y + 2U) * 4U * 3U));
+        tile.input = {tile_input, 12U};
+        const auto partial = evaluate_canonical_mask({gradient}, "gradient", tile);
+        ASSERT_TRUE(partial) << partial.error().message;
+        for (std::size_t index = 0; index < partial.value().alpha.size(); ++index)
+        {
+            EXPECT_FLOAT_EQ(partial.value().alpha[index], whole.value().alpha[tile_y * 4U + index]);
+        }
+    }
+
+    MaskEvaluationRequest inset;
+    inset.full_width = 4U;
+    inset.full_height = 4U;
+    inset.roi_x = 1U;
+    inset.roi_y = 1U;
+    inset.roi_width = 2U;
+    inset.roi_height = 2U;
+    const std::size_t inset_offset = (1U * 4U + 1U) * 3U;
+    inset.input = {std::span<const float>(input).subspan(inset_offset), 12U};
+    const auto inset_alpha = evaluate_canonical_mask({gradient}, "gradient", inset);
+    ASSERT_TRUE(inset_alpha) << inset_alpha.error().message;
+    ASSERT_EQ(inset_alpha.value().alpha.size(), 4U);
+    EXPECT_FLOAT_EQ(inset_alpha.value().alpha[0], whole.value().alpha[5]);
+    EXPECT_FLOAT_EQ(inset_alpha.value().alpha[1], whole.value().alpha[6]);
+    EXPECT_FLOAT_EQ(inset_alpha.value().alpha[2], whole.value().alpha[9]);
+    EXPECT_FLOAT_EQ(inset_alpha.value().alpha[3], whole.value().alpha[10]);
+
+    CancellationSource source;
+    ASSERT_TRUE(source.cancel("mask-pre-cancel"));
+    auto cancelled = full_request(4U, 4U, input);
+    cancelled.cancellation = source.token();
+    const auto rejected = evaluate_canonical_mask({gradient}, "gradient", cancelled);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+
+    CancellationSource allocation_source;
+    MaskCancellationFixture allocation_fixture{&allocation_source,
+                                               detail::MaskEvaluatorCheckpoint::kBeforeAllocation};
+    auto allocation_controlled = full_request(4U, 4U, input);
+    allocation_controlled.cancellation = allocation_source.token();
+    const auto allocation_cancelled = detail::evaluate_canonical_mask_controlled(
+        {gradient}, "gradient", allocation_controlled,
+        {.context = &allocation_fixture,
+         .checkpoint_callback = &MaskCancellationFixture::checkpoint});
+    ASSERT_FALSE(allocation_cancelled);
+    EXPECT_TRUE(allocation_fixture.fired);
+    EXPECT_EQ(allocation_cancelled.error().code, ErrorCode::kCancelled);
+
+    const auto estimate = estimate_mask_evaluator_memory({gradient}, "gradient", 4U, 4U);
+    EXPECT_EQ(estimate.alpha_plane_bytes, 16U * sizeof(float));
+    EXPECT_LE(estimate.evaluator_scratch_bytes, sizeof(std::vector<float>));
+
+    auto bad_stride = full_request(4U, 4U, input);
+    bad_stride.input.row_stride_samples = 2U;
+    const auto rejected_stride = evaluate_canonical_mask({gradient}, "gradient", bad_stride);
+    ASSERT_FALSE(rejected_stride);
+    EXPECT_EQ(rejected_stride.error().context.at("reason"), "invalid_mask_stride");
+
+    auto bad_roi = full_request(4U, 4U, input);
+    bad_roi.roi_x = 4U;
+    const auto rejected_roi = evaluate_canonical_mask({gradient}, "gradient", bad_roi);
+    ASSERT_FALSE(rejected_roi);
+    EXPECT_EQ(rejected_roi.error().context.at("reason"), "invalid_mask_roi");
+
+    auto nonfinite = input;
+    nonfinite.front() = std::numeric_limits<float>::quiet_NaN();
+    const auto rejected_samples =
+        evaluate_canonical_mask({gradient}, "gradient", full_request(4U, 4U, nonfinite));
+    ASSERT_FALSE(rejected_samples);
+    EXPECT_EQ(rejected_samples.error().context.at("reason"), "non_finite_mask_samples");
+
+    CancellationSource row_source;
+    MaskCancellationFixture fixture{&row_source, detail::MaskEvaluatorCheckpoint::kEvaluateRow};
+    auto controlled = full_request(4U, 4U, input);
+    controlled.cancellation = row_source.token();
+    const auto row_cancelled = detail::evaluate_canonical_mask_controlled(
+        {gradient}, "gradient", controlled,
+        {.context = &fixture, .checkpoint_callback = &MaskCancellationFixture::checkpoint});
+    ASSERT_FALSE(row_cancelled);
+    EXPECT_TRUE(fixture.fired);
+    EXPECT_EQ(row_cancelled.error().code, ErrorCode::kCancelled);
+
+    CancellationSource node_source;
+    MaskCancellationFixture node_fixture{&node_source,
+                                         detail::MaskEvaluatorCheckpoint::kBeforeNode};
+    auto node_controlled = full_request(4U, 4U, input);
+    node_controlled.cancellation = node_source.token();
+    const auto node_cancelled = detail::evaluate_canonical_mask_controlled(
+        {gradient}, "gradient", node_controlled,
+        {.context = &node_fixture, .checkpoint_callback = &MaskCancellationFixture::checkpoint});
+    ASSERT_FALSE(node_cancelled);
+    EXPECT_TRUE(node_fixture.fired);
+    EXPECT_EQ(node_cancelled.error().code, ErrorCode::kCancelled);
+}
+
+TEST(MaskGraphEngineTest, NormalMixAndOnlySupportedOperationDispatchUseTheGraph)
+{
+    const auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    EXPECT_TRUE(registry.value().find(kColorHarmonizerOperationId)->supports_mask);
+    EXPECT_TRUE(registry.value().find("ravo.effect.graduatednd")->supports_mask);
+    EXPECT_FALSE(registry.value().find("ravo.core.gamma")->supports_mask);
+
+    WorkingImage input;
+    input.width = 2U;
+    input.height = 2U;
+    input.rgb.assign(12U, 0.5F);
+    OperationInstance graduated{"ravo.effect.graduatednd",
+                                1,
+                                "graduated-1",
+                                true,
+                                {{"density_ev", ParameterValue{1.0}},
+                                 {"hardness", ParameterValue{0.5}},
+                                 {"rotation_deg", ParameterValue{0.0}},
+                                 {"offset", ParameterValue{0.0}}},
+                                std::nullopt};
+    WorkingImage expected = input;
+    ASSERT_TRUE(apply_graduated_nd(expected, graduated, CancellationToken{}));
+
+    Recipe all_recipe;
+    all_recipe.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    all_recipe.masks.push_back(all_mask("all"));
+    graduated.mask_id = "all";
+    all_recipe.operations.push_back(graduated);
+    const auto all = apply_recipe_ops(input, all_recipe, CancellationToken{});
+    ASSERT_TRUE(all) << all.error().message;
+    EXPECT_EQ(all.value().rgb, expected.rgb);
+
+    Recipe zero_recipe = all_recipe;
+    zero_recipe.masks.front().common.opacity = 0.0;
+    const auto zero = apply_recipe_ops(input, zero_recipe, CancellationToken{});
+    ASSERT_TRUE(zero) << zero.error().message;
+    EXPECT_EQ(zero.value().rgb, input.rgb);
+
+    Recipe unsupported = all_recipe;
+    unsupported.operations.front().id = "ravo.core.gamma";
+    unsupported.operations.front().parameters = {{"gamma", ParameterValue{2.0}}};
+    const auto rejected = apply_recipe_ops(input, unsupported, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_operation_mask");
+
+    WorkingImage harmonizer_input;
+    harmonizer_input.width = 4U;
+    harmonizer_input.height = 2U;
+    harmonizer_input.rgb = {0.03F, 0.18F, 0.72F, 0.91F, 0.42F, 0.07F, 0.25F, 0.50F,
+                            0.70F, 0.20F, 0.30F, 0.40F, 0.03F, 0.18F, 0.72F, 0.91F,
+                            0.42F, 0.07F, 0.25F, 0.50F, 0.70F, 0.20F, 0.30F, 0.40F};
+    harmonizer_input.color_profile.kind = ColorProfileKind::kIcc;
+    harmonizer_input.color_profile.model = ColorModel::kRgb;
+    harmonizer_input.color_profile.identifier = std::string(kInputProfileLinearRec709);
+    harmonizer_input.color_profile.icc_bytes = {1U, 2U, 3U, 4U};
+    harmonizer_input.color_profile.matrix_to_xyz_d50 = {0.4360747F, 0.3850649F, 0.1430804F,
+                                                        0.2225045F, 0.7168786F, 0.0606169F,
+                                                        0.0139322F, 0.0971045F, 0.7141733F};
+    harmonizer_input.color_profile.has_matrix = true;
+    auto harmonizer_parameters = color_harmonizer_to_parameters(ColorHarmonizerParams{});
+    ASSERT_TRUE(harmonizer_parameters) << harmonizer_parameters.error().message;
+    OperationInstance harmonizer{std::string(kColorHarmonizerOperationId),
+                                 kColorHarmonizerOperationSchemaVersion,
+                                 "harmonizer-1",
+                                 true,
+                                 harmonizer_parameters.value(),
+                                 std::nullopt};
+    const auto direct_harmonizer =
+        apply_color_harmonizer(harmonizer_input, harmonizer, CancellationToken{});
+    ASSERT_TRUE(direct_harmonizer) << direct_harmonizer.error().message;
+    Recipe harmonizer_all;
+    harmonizer_all.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    harmonizer_all.masks.push_back(all_mask("all"));
+    harmonizer.mask_id = "all";
+    harmonizer_all.operations.push_back(harmonizer);
+    const auto masked_all = apply_recipe_ops(harmonizer_input, harmonizer_all, CancellationToken{});
+    ASSERT_TRUE(masked_all) << masked_all.error().message;
+    EXPECT_EQ(masked_all.value().rgb, direct_harmonizer.value().rgb);
+
+    Recipe harmonizer_zero = harmonizer_all;
+    harmonizer_zero.masks.front().common.opacity = 0.0;
+    const auto masked_zero =
+        apply_recipe_ops(harmonizer_input, harmonizer_zero, CancellationToken{});
+    ASSERT_TRUE(masked_zero) << masked_zero.error().message;
+    EXPECT_EQ(masked_zero.value().rgb, harmonizer_input.rgb);
+
+    Mask spatial{"spatial", kCanonicalMaskSchemaVersion, MaskKind::kLinearGradient};
+    spatial.payload = LinearGradientMask{0.5, 0.5, 0.0, 0.0};
+    Recipe harmonizer_spatial = harmonizer_all;
+    harmonizer_spatial.masks = {spatial};
+    harmonizer_spatial.operations.front().mask_id = "spatial";
+    const auto masked_spatial =
+        apply_recipe_ops(harmonizer_input, harmonizer_spatial, CancellationToken{});
+    ASSERT_TRUE(masked_spatial) << masked_spatial.error().message;
+    EXPECT_EQ(masked_spatial.value().rgb[0], direct_harmonizer.value().rgb[0]);
+    EXPECT_EQ(masked_spatial.value().rgb[12], harmonizer_input.rgb[12]);
+
+    DecodedRaw raw;
+    raw.width = 2U;
+    raw.height = 2U;
+    raw.pixels.assign(4U, 128U);
+    Recipe raw_baseline;
+    raw_baseline.asset = {"asset-1", "file:///fixture.raw", std::nullopt};
+    const auto baseline_bytes = estimate_raw_render_memory(raw, raw_baseline, 2U, 2U);
+    Recipe raw_masked = harmonizer_all;
+    const auto masked_bytes = estimate_raw_render_memory(raw, raw_masked, 2U, 2U);
+    const std::uint64_t float_rgb_bytes = 2U * 2U * 3U * sizeof(float);
+    EXPECT_GE(masked_bytes - baseline_bytes, 2U * float_rgb_bytes + 4U * sizeof(float));
+}
+
+TEST(MaskGraphDevelopTest, PreservesTypedGraphAndDisabledOrIdentityAttachments)
+{
+    DevelopParams params;
+    params.masks.push_back(all_mask("all"));
+    params.graduated_present = true;
+    params.graduated_enabled = true;
+    params.graduated_mask_id = "all";
+    params.graduated_density = 0.0;
+    params.color_harmonizer_present = true;
+    params.color_harmonizer_enabled = false;
+    params.color_harmonizer_mask_id = "all";
+    EXPECT_FALSE(params.is_identity());
+
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_EQ(recipe.value().masks, params.masks);
+    const auto *graduated = find_operation(recipe.value(), "ravo.effect.graduatednd");
+    ASSERT_NE(graduated, nullptr);
+    EXPECT_TRUE(graduated->enabled);
+    EXPECT_EQ(graduated->mask_id, std::optional<std::string>{"all"});
+    const auto *harmonizer = find_operation(recipe.value(), kColorHarmonizerOperationId);
+    ASSERT_NE(harmonizer, nullptr);
+    EXPECT_FALSE(harmonizer->enabled);
+    EXPECT_EQ(harmonizer->mask_id, std::optional<std::string>{"all"});
+
+    const auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().masks, params.masks);
+    EXPECT_TRUE(restored.value().graduated_present);
+    EXPECT_TRUE(restored.value().graduated_enabled);
+    EXPECT_EQ(restored.value().graduated_mask_id, std::optional<std::string>{"all"});
+    EXPECT_TRUE(restored.value().color_harmonizer_present);
+    EXPECT_FALSE(restored.value().color_harmonizer_enabled);
+    EXPECT_EQ(restored.value().color_harmonizer_mask_id, std::optional<std::string>{"all"});
+
+    auto edited = restored.value();
+    ASSERT_TRUE(reset_develop_section(edited, "effects"));
+    EXPECT_EQ(edited.masks, params.masks);
+    EXPECT_EQ(edited.graduated_mask_id, std::optional<std::string>{"all"});
+    EXPECT_FALSE(edited.is_identity());
+
+    DevelopParams disabled = params;
+    disabled.graduated_enabled = false;
+    disabled.graduated_density = 0.75;
+    auto disabled_recipe =
+        recipe_from_develop({"asset-2", "file:///fixture.raw", std::nullopt}, disabled);
+    ASSERT_TRUE(disabled_recipe) << disabled_recipe.error().message;
+    const auto *disabled_graduated =
+        find_operation(disabled_recipe.value(), "ravo.effect.graduatednd");
+    ASSERT_NE(disabled_graduated, nullptr);
+    EXPECT_FALSE(disabled_graduated->enabled);
+    auto disabled_restored = develop_from_recipe(disabled_recipe.value());
+    ASSERT_TRUE(disabled_restored) << disabled_restored.error().message;
+    EXPECT_TRUE(disabled_restored.value().graduated_present);
+    EXPECT_FALSE(disabled_restored.value().graduated_enabled);
+    EXPECT_DOUBLE_EQ(disabled_restored.value().graduated_density, 0.75);
+}
+
+} // namespace
+} // namespace ravo

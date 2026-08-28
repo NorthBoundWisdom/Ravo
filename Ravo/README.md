@@ -214,9 +214,10 @@ Current implementation status:
   custom blend/multi states reject structurally. CLI render, Catalog
   preview/save/reopen/export, and Studio's full generic Develop controls share
   the same recipe, cache, cancellation, ownership, and error path. GTK sliders,
-  OpenCL execution, and the general mask graph are not product contracts. The
-  owner has no 2D plane, picker, or three-preset algorithm and does not inherit
-  those adjacent Color Correction presentation assets. Shared `extended.cl`,
+  OpenCL execution, and canonical mask attachment are not Color Contrast
+  product contracts. The owner has no 2D plane, picker, or three-preset
+  algorithm and does not inherit those adjacent Color Correction presentation
+  assets. Shared `extended.cl`,
   order/modulegroup/usermanual names, the example style, and frozen fixtures
   remain D0.3/D0.4/S14/E1 owners.
 - Color Harmonizer provides the bounded `ravo.color.colorharmonizer` v1
@@ -224,7 +225,7 @@ Current implementation status:
   `working_space=profile_linear_rgb_d50`,
   `algorithm=dt_ucs_harmony_v1`, nine predefined rules plus custom nodes,
   pull/neutral/width controls, four node saturations, and smoothing. The
-  accepted CPU path is enabled and unmasked: it clips negative RGB with frozen
+  accepted CPU path clips negative RGB with frozen
   `fmaxf`, uses the declared profile matrix and private source-order dt-UCS/RYB
   geometry, cubes neutral protection, and disables float contraction. Positive
   smoothing caches JCH plus two corrections, uses the immutable canonical ROI
@@ -241,9 +242,15 @@ Current implementation status:
   libm-dependent references for the default and edited records 12/13 use a
   1e-5 component tolerance across supported platforms. Successful output owns
   RGB/profile storage and retains immutable analysis state; invalid,
-  non-finite, allocation, mask, invalid-ROI-scale, and cancellation paths
-  publish nothing. General masks/presentation decisions and old-owner
-  retirement remain unfinished and are not implied by this slice.
+  non-finite, allocation, invalid-ROI-scale, and cancellation paths publish
+  nothing. S3.1 additionally gives canonical recipes an immutable typed mask
+  DAG (`all`, linear gradient, circle, rotated ellipse, parametric, ordered
+  group) and private ROI alpha evaluation with normal mix. Only Color
+  Harmonizer and Graduated ND consume an attachment; all/zero/spatial masks,
+  CLI render, Catalog cache/save/reopen, and Studio's typed preserve path use
+  the same Recipe. Legacy XMP masks/custom blends remain rejected. Studio mask
+  authoring/preview, path/brush, historic blend modes, M1, C14 retirement, and
+  C15 remain unfinished and are not implied by this slice.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG

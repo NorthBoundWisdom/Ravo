@@ -22,12 +22,20 @@ in their owning architecture/ADR/code/test truth source.
 
 ## Mask and local adjustment graph
 
-- Define general drawn/parametric mask and blend ownership.
-- Define coordinate spaces, composition order, immutable publication,
-  cancellation, ROI/tile behavior and recipe versioning before adding UI.
-- `ravo.effect.graduatednd` is the first local adjustment and uses the gradient
-  itself as the mask. A generic mask/blend graph still needs this decision
-  before drawn or parametric masks.
+ADR-0043 freezes S3.1 ownership, attached-frame pixel-centre coordinates,
+immutable recipe publication, ROI/cancellation, and normal mix for a bounded
+typed all/linear-gradient/circle/ellipse/parametric/group graph. Color
+Harmonizer and Graduated ND are its initial consumers; Graduated ND's own
+density gradient remains separate operation math.
+
+- Decide path/brush data, sampling and resource lifecycle before adding them.
+- Decide Studio authoring, mask preview/presentation, picker/histogram/harmony
+  interactions, and undo intent without moving graph mathematics into QML.
+- Decide any additional blend modes only with a named operation consumer and
+  source-order/failure/ROI contract; historic blend-mode completeness is not
+  implied by S3.1.
+- M1 acceptance and C14 legacy-owner retirement require their separate gates;
+  strict legacy XMP mask/custom-blend rejection remains current policy.
 
 ## RAW and optical contracts
 
