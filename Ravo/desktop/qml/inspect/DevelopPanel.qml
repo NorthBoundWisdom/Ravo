@@ -933,6 +933,150 @@ ColumnLayout {
                         root.commands.resetControl("gamma")
                 }
                 CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("RGB levels")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomComboBox {
+                    Layout.fillWidth: true
+                    model: [qsTr("RGB, linked"), qsTr("RGB, independent")]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editRgbLevels.modeIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("rgbLevelsMode", currentIndex)
+                }
+                CustomComboBox {
+                    Layout.fillWidth: true
+                    visible: !root.hasPresenter || root.presenter.editRgbLevels.modeIndex === 0
+                    model: [
+                        qsTr("None"),
+                        qsTr("Luminance"),
+                        qsTr("Max RGB"),
+                        qsTr("Average RGB"),
+                        qsTr("Sum RGB"),
+                        qsTr("Norm RGB"),
+                        qsTr("Basic power")
+                    ]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editRgbLevels.preserveIndex : 1
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("rgbLevelsPreserve", currentIndex)
+                }
+                Repeater {
+                    model: [
+                        {
+                            "title": qsTr("Black"),
+                            "key": "black",
+                            "field": "rgbLevelsBlack",
+                            "reset": 0
+                        },
+                        {
+                            "title": qsTr("Grey"),
+                            "key": "grey",
+                            "field": "rgbLevelsGrey",
+                            "reset": 0.5
+                        },
+                        {
+                            "title": qsTr("White"),
+                            "key": "white",
+                            "field": "rgbLevelsWhite",
+                            "reset": 1
+                        }
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: 0
+                        to: 1
+                        stepSize: 0.001
+                        validatorDecimals: 3
+                        showReset: true
+                        resetValue: modelData.reset
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editRgbLevels[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(modelData.field)
+                    }
+                }
+                Repeater {
+                    model: [
+                        {
+                            "title": qsTr("Green black"),
+                            "key": "blackG",
+                            "field": "rgbLevelsBlackG",
+                            "reset": 0
+                        },
+                        {
+                            "title": qsTr("Green grey"),
+                            "key": "greyG",
+                            "field": "rgbLevelsGreyG",
+                            "reset": 0.5
+                        },
+                        {
+                            "title": qsTr("Green white"),
+                            "key": "whiteG",
+                            "field": "rgbLevelsWhiteG",
+                            "reset": 1
+                        },
+                        {
+                            "title": qsTr("Blue black"),
+                            "key": "blackB",
+                            "field": "rgbLevelsBlackB",
+                            "reset": 0
+                        },
+                        {
+                            "title": qsTr("Blue grey"),
+                            "key": "greyB",
+                            "field": "rgbLevelsGreyB",
+                            "reset": 0.5
+                        },
+                        {
+                            "title": qsTr("Blue white"),
+                            "key": "whiteB",
+                            "field": "rgbLevelsWhiteB",
+                            "reset": 1
+                        }
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        visible: root.hasPresenter && root.presenter.editRgbLevels.modeIndex === 1
+                        title: modelData.title
+                        from: 0
+                        to: 1
+                        stepSize: 0.001
+                        validatorDecimals: 3
+                        showReset: true
+                        resetValue: modelData.reset
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editRgbLevels[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(modelData.field)
+                    }
+                }
+                CustomButton {
+                    text: qsTr("Reset RGB levels")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("rgbLevels")
+                }
+                CustomLabel {
                     text: qsTr("Tone Curve")
                     Layout.fillWidth: true
                 }

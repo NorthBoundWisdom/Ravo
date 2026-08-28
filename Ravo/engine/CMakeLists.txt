@@ -33,6 +33,8 @@ target_sources(ravo_engine
     src/primaries.h
     src/raw_ca.cpp
     src/raw_ca.h
+    src/raw_denoise.cpp
+    src/raw_denoise.h
     src/raw_pipeline.cpp
     src/recursive_gaussian.cpp
     src/recursive_gaussian.h

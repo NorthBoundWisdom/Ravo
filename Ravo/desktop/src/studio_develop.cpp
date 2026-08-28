@@ -1077,6 +1077,38 @@ double StudioPresenter::editGamma() const noexcept
     return develop_.gamma;
 }
 
+QVariantMap StudioPresenter::editRgbLevels() const
+{
+    const auto &params = develop_.rgb_levels;
+    int preserve_index = 1;
+    const std::array<std::string_view, 7> names{kToneCurvePreserveColorsNone,
+                                                kToneCurvePreserveColorsLuminance,
+                                                kToneCurvePreserveColorsMax,
+                                                kToneCurvePreserveColorsAverage,
+                                                kToneCurvePreserveColorsSum,
+                                                kToneCurvePreserveColorsNorm,
+                                                kToneCurvePreserveColorsPower};
+    for (int index = 0; index < static_cast<int>(names.size()); ++index)
+    {
+        if (params.preserve_colors == names[static_cast<std::size_t>(index)])
+        {
+            preserve_index = index;
+            break;
+        }
+    }
+    return {{QStringLiteral("modeIndex"), params.mode == kRgbLevelsModeIndependent ? 1 : 0},
+            {QStringLiteral("preserveIndex"), preserve_index},
+            {QStringLiteral("black"), params.levels[0][0]},
+            {QStringLiteral("grey"), params.levels[0][1]},
+            {QStringLiteral("white"), params.levels[0][2]},
+            {QStringLiteral("blackG"), params.levels[1][0]},
+            {QStringLiteral("greyG"), params.levels[1][1]},
+            {QStringLiteral("whiteG"), params.levels[1][2]},
+            {QStringLiteral("blackB"), params.levels[2][0]},
+            {QStringLiteral("greyB"), params.levels[2][1]},
+            {QStringLiteral("whiteB"), params.levels[2][2]}};
+}
+
 QVariantList StudioPresenter::editToneCurve() const
 {
     return tone_curve_to_variant(develop_.tone_curve);
@@ -1284,6 +1316,8 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Velvia");
     if (field == "gamma")
         return QCoreApplication::translate("DevelopPanel", "Gamma");
+    if (field == "rgbLevels")
+        return QCoreApplication::translate("DevelopPanel", "RGB levels");
     if (field == "sharpen")
         return QCoreApplication::translate("DevelopPanel", "Sharpen");
     if (field == "clarity")

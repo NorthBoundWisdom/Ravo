@@ -1186,7 +1186,7 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             const auto &operation = recipe.operations[index];
             if (operation.enabled &&
                 (operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
-                 operation.id == "ravo.raw.hotpixels"))
+                 operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.denoise"))
             {
                 return make_error(ErrorCode::kValidation,
                                   "Temperature must precede every CFA preprocessing operation",

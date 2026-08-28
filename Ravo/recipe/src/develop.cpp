@@ -5,6 +5,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <initializer_list>
 #include <limits>
 #include <iomanip>
@@ -918,6 +920,145 @@ void clamp_color_contrast(ColorContrastParams &params) noexcept
             value = defaults.*(field.member);
         }
     }
+}
+
+[[nodiscard]] constexpr std::array<std::string_view, 7> rgb_levels_preserve_names() noexcept
+{
+    return {kToneCurvePreserveColorsNone,      kToneCurvePreserveColorsLuminance,
+            kToneCurvePreserveColorsMax,       kToneCurvePreserveColorsAverage,
+            kToneCurvePreserveColorsSum,       kToneCurvePreserveColorsNorm,
+            kToneCurvePreserveColorsPower};
+}
+
+struct RgbLevelsStopField
+{
+    std::string_view develop_name;
+    std::size_t channel;
+    std::size_t stop;
+};
+
+[[nodiscard]] const std::array<RgbLevelsStopField, 9> &rgb_levels_stop_fields() noexcept
+{
+    static const std::array<RgbLevelsStopField, 9> fields{{
+        {"rgbLevelsBlack", 0, 0},
+        {"rgbLevelsGrey", 0, 1},
+        {"rgbLevelsWhite", 0, 2},
+        {"rgbLevelsBlackG", 1, 0},
+        {"rgbLevelsGreyG", 1, 1},
+        {"rgbLevelsWhiteG", 1, 2},
+        {"rgbLevelsBlackB", 2, 0},
+        {"rgbLevelsGreyB", 2, 1},
+        {"rgbLevelsWhiteB", 2, 2},
+    }};
+    return fields;
+}
+
+[[nodiscard]] bool exact_develop_integer(const double value, const std::int64_t minimum,
+                                         const std::int64_t maximum, std::int64_t &out) noexcept;
+
+void clamp_rgb_levels(RgbLevelsParams &params) noexcept
+{
+    if (params.mode != kRgbLevelsModeIndependent)
+    {
+        params.mode = std::string(kRgbLevelsModeLinked);
+    }
+    bool preserve_known = false;
+    for (const auto name : rgb_levels_preserve_names())
+    {
+        if (params.preserve_colors == name)
+        {
+            preserve_known = true;
+            break;
+        }
+    }
+    if (!preserve_known)
+    {
+        params.preserve_colors = std::string(kToneCurvePreserveColorsLuminance);
+    }
+    for (auto &channel : params.levels)
+    {
+        for (auto &stop : channel)
+        {
+            if (!std::isfinite(stop))
+            {
+                stop = 0.0;
+            }
+            stop = clamp_value(stop, 0.0, 1.0);
+        }
+        if (!(channel[2] > channel[0]))
+        {
+            channel[2] = std::min(1.0, channel[0] + 1.0e-3);
+        }
+    }
+}
+
+[[nodiscard]] bool apply_rgb_levels_field(DevelopParams &params, const std::string_view name,
+                                          const double value) noexcept
+{
+    if (name == "rgbLevelsMode")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.rgb_levels.mode =
+            value == 1.0 ? std::string(kRgbLevelsModeIndependent) : std::string(kRgbLevelsModeLinked);
+        return true;
+    }
+    if (name == "rgbLevelsPreserve")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(value, 0, 6, index))
+        {
+            return false;
+        }
+        params.rgb_levels.preserve_colors = std::string(rgb_levels_preserve_names()[static_cast<std::size_t>(index)]);
+        return true;
+    }
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+    for (const auto &field : rgb_levels_stop_fields())
+    {
+        if (name != field.develop_name)
+        {
+            continue;
+        }
+        params.rgb_levels.levels[field.channel][field.stop] = value;
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_rgb_levels_field(DevelopParams &params, const std::string_view name) noexcept
+{
+    const RgbLevelsParams defaults;
+    if (name == "rgbLevels")
+    {
+        params.rgb_levels = defaults;
+        return true;
+    }
+    if (name == "rgbLevelsMode")
+    {
+        params.rgb_levels.mode = defaults.mode;
+        return true;
+    }
+    if (name == "rgbLevelsPreserve")
+    {
+        params.rgb_levels.preserve_colors = defaults.preserve_colors;
+        return true;
+    }
+    for (const auto &field : rgb_levels_stop_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.rgb_levels.levels[field.channel][field.stop] =
+                defaults.levels[field.channel][field.stop];
+            return true;
+        }
+    }
+    return false;
 }
 
 [[nodiscard]] bool exact_develop_integer(const double value, const std::int64_t minimum,
@@ -2273,6 +2414,53 @@ Result<std::vector<ToneCurvePoint>> parse_tone_curve_points(const ParameterValue
     return points;
 }
 
+Result<std::vector<ToneCurvePoint>> parse_rgb_curve_points(const ParameterValue &value)
+{
+    const auto *array = std::get_if<ParameterValue::Array>(&value.value);
+    if (array == nullptr)
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve points must be an array");
+    }
+    if (array->size() < kToneCurveMinPoints || array->size() > kToneCurveMaxPoints)
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve must have between 2 and 20 points",
+                          {{"point_count", std::to_string(array->size())}});
+    }
+    std::vector<ToneCurvePoint> points;
+    points.reserve(array->size());
+    for (std::size_t index = 0; index < array->size(); ++index)
+    {
+        const auto *object = std::get_if<ParameterValue::Object>(&(*array)[index].value);
+        if (object == nullptr || object->size() != 2)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "RGB curve point must be an object with only x and y",
+                              {{"point_index", std::to_string(index)}});
+        }
+        const auto x_found = object->find("x");
+        const auto y_found = object->find("y");
+        if (x_found == object->end() || y_found == object->end())
+        {
+            return make_error(ErrorCode::kValidation, "RGB curve point is missing x or y",
+                              {{"point_index", std::to_string(index)}});
+        }
+        const double x = as_number(x_found->second, std::numeric_limits<double>::quiet_NaN());
+        const double y = as_number(y_found->second, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(x) || !std::isfinite(y) || x < 0.0 || x > 1.0 || y < 0.0 || y > 1.0)
+        {
+            return make_error(ErrorCode::kValidation, "RGB curve point is outside 0..1",
+                              {{"point_index", std::to_string(index)}});
+        }
+        if (!points.empty() && !(x > points.back().x))
+        {
+            return make_error(ErrorCode::kValidation, "RGB curve point x values must increase",
+                              {{"point_index", std::to_string(index)}});
+        }
+        points.push_back({x, y});
+    }
+    return points;
+}
+
 ParameterValue tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points)
 {
     ParameterValue::Array array;
@@ -2525,6 +2713,27 @@ void clamp_develop(DevelopParams &params) noexcept
     params.split_balance = clamp_value(params.split_balance, 0.0, 1.0);
     params.split_amount = clamp_value(params.split_amount, 0.0, 1.0);
     params.gamma = clamp_value(params.gamma, 0.2, 3.0);
+    clamp_rgb_levels(params.rgb_levels);
+    for (auto &channel : params.rgb_curve.channels)
+    {
+        for (auto &point : channel)
+        {
+            point.x = clamp_value(point.x, 0.0, 1.0);
+            point.y = clamp_value(point.y, 0.0, 1.0);
+        }
+        if (channel.size() < kToneCurveMinPoints)
+        {
+            channel = {{0.0, 0.0}, {1.0, 1.0}};
+        }
+    }
+    if (params.rgb_curve.mode != kRgbLevelsModeIndependent)
+    {
+        params.rgb_curve.mode = std::string(kRgbLevelsModeLinked);
+    }
+    if (params.rgb_curve.interpolation != kToneCurveInterpolationMonotoneHermite)
+    {
+        params.rgb_curve.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
+    }
     params.sigmoid_contrast =
         clamp_value(params.sigmoid_contrast, kSigmoidContrastMin, kSigmoidContrastMax);
     params.sigmoid_skew = clamp_value(params.sigmoid_skew, kSigmoidSkewMin, kSigmoidSkewMax);
@@ -2546,6 +2755,14 @@ void clamp_develop(DevelopParams &params) noexcept
     params.hot_pixels_threshold = clamp_value(params.hot_pixels_threshold, 0.0, 1.0);
     params.raw_ca_iterations =
         std::clamp(params.raw_ca_iterations, std::int64_t{0}, std::int64_t{5});
+    params.raw_denoise_threshold = clamp_value(params.raw_denoise_threshold, 0.0, 1.0);
+    for (auto &channel : params.raw_denoise_bands)
+    {
+        for (double &band : channel)
+        {
+            band = clamp_value(band, 0.0, 16.0);
+        }
+    }
     params.denoise = clamp_value(params.denoise, 0.0, 1.0);
     params.denoise_chroma = clamp_value(params.denoise_chroma, 0.0, 1.0);
     params.denoise_radius = clamp_value(params.denoise_radius, 0.5, 8.0);
@@ -2627,8 +2844,10 @@ bool DevelopParams::is_identity() const noexcept
            !color_checker_enabled && color_balance_rgb.is_identity() && !color_correction_enabled &&
            !color_contrast_enabled && !color_harmonizer_enabled && near(monochrome, 0.0) &&
            near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
+           rgb_levels.is_identity() && rgb_curve.is_identity() &&
            tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
-           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 && near(denoise, 0.0) &&
+           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
+           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) &&
            near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
            near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
@@ -3105,6 +3324,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.gamma = value;
     }
+    else if (apply_rgb_levels_field(params, name, value))
+    {
+    }
     else if (name == "sigmoidContrast")
     {
         params.sigmoid_enabled = true;
@@ -3572,6 +3794,9 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.gamma = identity.gamma;
     }
+    else if (reset_rgb_levels_field(params, name))
+    {
+    }
     else if (name == "toneCurve")
     {
         params.tone_curve.clear();
@@ -3763,6 +3988,8 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.whites = identity.whites;
         params.blacks = identity.blacks;
         params.gamma = identity.gamma;
+        params.rgb_levels = identity.rgb_levels;
+        params.rgb_curve = identity.rgb_curve;
         params.tone_curve.clear();
         params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
         params.sigmoid_contrast = identity.sigmoid_contrast;
@@ -3839,6 +4066,8 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.hot_pixels_permissive = identity.hot_pixels_permissive;
         params.raw_ca_iterations = identity.raw_ca_iterations;
         params.raw_ca_avoid_shift = identity.raw_ca_avoid_shift;
+        params.raw_denoise_threshold = identity.raw_denoise_threshold;
+        params.raw_denoise_bands = identity.raw_denoise_bands;
         params.denoise = identity.denoise;
         params.denoise_chroma = identity.denoise_chroma;
         params.denoise_radius = identity.denoise_radius;
@@ -3922,8 +4151,9 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
         return !exposure.is_identity() || !near(params.contrast, 0.0) ||
                !near(params.highlights, 0.0) || !near(params.shadows, 0.0) ||
                !near(params.whites, 0.0) || !near(params.blacks, 0.0) ||
-               !near(params.gamma, kDevelopGammaDefault) ||
-               !tone_curve_is_identity(params.tone_curve) || params.sigmoid_enabled ||
+               !near(params.gamma, kDevelopGammaDefault) || !params.rgb_levels.is_identity() ||
+               !params.rgb_curve.is_identity() || !tone_curve_is_identity(params.tone_curve) ||
+               params.sigmoid_enabled ||
                !near(params.sigmoid_contrast, identity.sigmoid_contrast) ||
                !near(params.sigmoid_skew, identity.sigmoid_skew) ||
                !near(params.sigmoid_display_white, identity.sigmoid_display_white) ||
@@ -3958,7 +4188,8 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     if (section == "raw")
     {
         return !near(params.raw_highlights, 0.0) || !near(params.hot_pixels_strength, 0.0) ||
-               params.raw_ca_iterations > 0 || !near(params.denoise, 0.0) ||
+               params.raw_ca_iterations > 0 || !near(params.raw_denoise_threshold, 0.0) ||
+               !near(params.denoise, 0.0) ||
                !near(params.lens_k1, 0.0) || !near(params.lens_vignetting, 0.0);
     }
     if (section == "toneEqual")
@@ -4175,6 +4406,8 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_scaled_change(changes, "saturation", before.saturation, after.saturation, 10.0);
     add_scaled_change(changes, "velvia", before.velvia, after.velvia, 10.0);
     add_scaled_change(changes, "gamma", before.gamma, after.gamma, 10.0);
+    add_named_change(changes, "rgbLevels", before.rgb_levels != after.rgb_levels);
+    add_named_change(changes, "rgbCurve", before.rgb_curve != after.rgb_curve);
     add_scaled_change(changes, "sharpen", before.sharpen, after.sharpen, 10.0);
     add_scaled_change(changes, "clarity", before.clarity, after.clarity, 10.0);
     add_scaled_change(changes, "vignette", before.vignette, after.vignette, 10.0);
@@ -4568,6 +4801,13 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"avoid_color_shift", ParameterValue{clamped.raw_ca_avoid_shift}}},
                       1, std::nullopt, clamped.raw_effect_enabled);
     }
+    if (!near(clamped.raw_denoise_threshold, 0.0))
+    {
+        add_operation(recipe, "ravo.raw.denoise", "rawdenoise-1",
+                      raw_denoise_to_parameters(clamped.raw_denoise_threshold,
+                                                clamped.raw_denoise_bands),
+                      1, std::nullopt, clamped.raw_effect_enabled);
+    }
     if (!near(clamped.denoise, 0.0))
     {
         add_operation(recipe, "ravo.detail.denoiseprofile", "denoiseprofile-1",
@@ -4686,6 +4926,18 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     {
         add_operation(recipe, "ravo.core.gamma", "gamma-1",
                       {{"gamma", ParameterValue{clamped.gamma}}}, 1, std::nullopt,
+                      clamped.light_effect_enabled);
+    }
+    if (!clamped.rgb_levels.is_identity())
+    {
+        add_operation(recipe, "ravo.color.rgblevels", "rgblevels-1",
+                      rgb_levels_to_parameters(clamped.rgb_levels), 1, std::nullopt,
+                      clamped.light_effect_enabled);
+    }
+    if (!clamped.rgb_curve.is_identity())
+    {
+        add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",
+                      rgb_curve_to_parameters(clamped.rgb_curve), 1, std::nullopt,
                       clamped.light_effect_enabled);
     }
     if (!tone_curve_is_identity(clamped.tone_curve))
@@ -5056,6 +5308,103 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.gamma = number("gamma", params.gamma);
             note_section("light", operation.enabled);
         }
+        else if (operation.id == "ravo.color.rgblevels")
+        {
+            const auto take_text = [&](const char *name, std::string &target)
+            {
+                if (const auto found = operation.parameters.find(name);
+                    found != operation.parameters.end())
+                {
+                    if (const auto *text = as_string_if(found->second); text != nullptr)
+                    {
+                        target = *text;
+                    }
+                }
+            };
+            take_text("mode", params.rgb_levels.mode);
+            take_text("preserve_colors", params.rgb_levels.preserve_colors);
+            if (params.rgb_levels.mode != kRgbLevelsModeLinked &&
+                params.rgb_levels.mode != kRgbLevelsModeIndependent)
+            {
+                return make_error(ErrorCode::kValidation, "RGB levels mode is unsupported",
+                                  {{"mode", params.rgb_levels.mode}});
+            }
+            const auto preserve_names = rgb_levels_preserve_names();
+            if (std::find(preserve_names.begin(), preserve_names.end(),
+                          params.rgb_levels.preserve_colors) == preserve_names.end())
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "RGB levels preserve-colors is unsupported",
+                                  {{"preserve_colors", params.rgb_levels.preserve_colors}});
+            }
+            params.rgb_levels.levels[0][0] = number("black", params.rgb_levels.levels[0][0]);
+            params.rgb_levels.levels[0][1] = number("grey", params.rgb_levels.levels[0][1]);
+            params.rgb_levels.levels[0][2] = number("white", params.rgb_levels.levels[0][2]);
+            params.rgb_levels.levels[1][0] = number("black_g", params.rgb_levels.levels[1][0]);
+            params.rgb_levels.levels[1][1] = number("grey_g", params.rgb_levels.levels[1][1]);
+            params.rgb_levels.levels[1][2] = number("white_g", params.rgb_levels.levels[1][2]);
+            params.rgb_levels.levels[2][0] = number("black_b", params.rgb_levels.levels[2][0]);
+            params.rgb_levels.levels[2][1] = number("grey_b", params.rgb_levels.levels[2][1]);
+            params.rgb_levels.levels[2][2] = number("white_b", params.rgb_levels.levels[2][2]);
+            note_section("light", operation.enabled);
+        }
+        else if (operation.id == "ravo.color.rgbcurve")
+        {
+            const auto take_text = [&](const char *name, std::string &target)
+            {
+                if (const auto found = operation.parameters.find(name);
+                    found != operation.parameters.end())
+                {
+                    if (const auto *text = as_string_if(found->second); text != nullptr)
+                    {
+                        target = *text;
+                    }
+                }
+            };
+            take_text("mode", params.rgb_curve.mode);
+            take_text("preserve_colors", params.rgb_curve.preserve_colors);
+            take_text("interpolation", params.rgb_curve.interpolation);
+            if (const auto found = operation.parameters.find("compensate_middle_grey");
+                found != operation.parameters.end())
+            {
+                if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
+                {
+                    params.rgb_curve.compensate_middle_grey = *flag;
+                }
+                else
+                {
+                    params.rgb_curve.compensate_middle_grey = number("compensate_middle_grey", 0.0) != 0.0;
+                }
+            }
+            const auto take_points = [&](const char *name, std::vector<ToneCurvePoint> &target)
+                -> Result<void>
+            {
+                if (const auto found = operation.parameters.find(name);
+                    found != operation.parameters.end())
+                {
+                    auto points = parse_rgb_curve_points(found->second);
+                    if (!points)
+                    {
+                        return points.error();
+                    }
+                    target = std::move(points).value();
+                }
+                return {};
+            };
+            if (auto red = take_points("points", params.rgb_curve.channels[0]); !red)
+            {
+                return red.error();
+            }
+            if (auto green = take_points("points_g", params.rgb_curve.channels[1]); !green)
+            {
+                return green.error();
+            }
+            if (auto blue = take_points("points_b", params.rgb_curve.channels[2]); !blue)
+            {
+                return blue.error();
+            }
+            note_section("light", operation.enabled);
+        }
         else if (operation.id == "ravo.core.tonecurve")
         {
             if (const auto found = operation.parameters.find("working_space");
@@ -5272,6 +5621,23 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
                 {
                     params.hot_pixels_permissive = *flag;
+                }
+            }
+            note_section("raw", operation.enabled);
+        }
+        else if (operation.id == "ravo.raw.denoise")
+        {
+            params.raw_denoise_threshold = number("threshold", params.raw_denoise_threshold);
+            const char *names[4] = {"all", "red", "green", "blue"};
+            for (int channel = 0; channel < 4; ++channel)
+            {
+                for (int band = 0; band < 5; ++band)
+                {
+                    const std::string key = std::string("y_") + names[channel] + std::to_string(band);
+                    params.raw_denoise_bands[static_cast<std::size_t>(channel)]
+                                            [static_cast<std::size_t>(band)] =
+                        number(key, params.raw_denoise_bands[static_cast<std::size_t>(channel)]
+                                                           [static_cast<std::size_t>(band)]);
                 }
             }
             note_section("raw", operation.enabled);
@@ -5497,6 +5863,331 @@ Result<double> leftover_ashift_rotation_to_straighten(const float rotation, cons
                            {"reason", "unsupported_legacy_ashift_rotation_range"}});
     }
     return static_cast<double>(rotation);
+}
+
+bool RgbLevelsParams::is_identity() const noexcept
+{
+    const auto identity_channel = [](const std::array<double, 3> &channel)
+    { return near(channel[0], 0.0) && near(channel[1], 0.5) && near(channel[2], 1.0); };
+    if (mode == kRgbLevelsModeIndependent)
+    {
+        return identity_channel(levels[0]) && identity_channel(levels[1]) &&
+               identity_channel(levels[2]);
+    }
+    return identity_channel(levels[0]);
+}
+
+Result<RgbLevelsParams> leftover_rgblevels_from_v1(const std::int32_t autoscale,
+                                                   const std::int32_t preserve_colors,
+                                                   const std::array<float, 9> &levels)
+{
+    RgbLevelsParams result;
+    if (autoscale == 0)
+    {
+        result.mode = std::string(kRgbLevelsModeLinked);
+    }
+    else if (autoscale == 1)
+    {
+        result.mode = std::string(kRgbLevelsModeIndependent);
+    }
+    else
+    {
+        return make_error(ErrorCode::kUnsupported, "Legacy RGB levels mode is unsupported",
+                          {{"legacy_operation", "rgblevels"},
+                           {"reason", "unsupported_legacy_rgblevels_mode"}});
+    }
+    switch (preserve_colors)
+    {
+    case 0:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+        break;
+    case 1:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsLuminance);
+        break;
+    case 2:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsMax);
+        break;
+    case 3:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsAverage);
+        break;
+    case 4:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsSum);
+        break;
+    case 5:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsNorm);
+        break;
+    case 6:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsPower);
+        break;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB levels preserve-colors is unsupported",
+                          {{"legacy_operation", "rgblevels"},
+                           {"reason", "unsupported_legacy_rgblevels_preserve"}});
+    }
+    for (std::size_t channel = 0; channel < 3; ++channel)
+    {
+        for (std::size_t stop = 0; stop < 3; ++stop)
+        {
+            const float value = levels[channel * 3U + stop];
+            if (!std::isfinite(value))
+            {
+                return make_error(
+                    ErrorCode::kUnsupported, "Legacy RGB levels contain a non-finite stop",
+                    {{"legacy_operation", "rgblevels"},
+                     {"reason", "unsupported_legacy_rgblevels_levels"}});
+            }
+            result.levels[channel][stop] = value;
+        }
+        if (!(result.levels[channel][2] > result.levels[channel][0]))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB levels white must be greater than black",
+                              {{"legacy_operation", "rgblevels"},
+                               {"reason", "unsupported_legacy_rgblevels_levels"}});
+        }
+    }
+    return result;
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+rgb_levels_to_parameters(const RgbLevelsParams &params)
+{
+    return {{"mode", ParameterValue{params.mode}},
+            {"preserve_colors", ParameterValue{params.preserve_colors}},
+            {"black", ParameterValue{params.levels[0][0]}},
+            {"grey", ParameterValue{params.levels[0][1]}},
+            {"white", ParameterValue{params.levels[0][2]}},
+            {"black_g", ParameterValue{params.levels[1][0]}},
+            {"grey_g", ParameterValue{params.levels[1][1]}},
+            {"white_g", ParameterValue{params.levels[1][2]}},
+            {"black_b", ParameterValue{params.levels[2][0]}},
+            {"grey_b", ParameterValue{params.levels[2][1]}},
+            {"white_b", ParameterValue{params.levels[2][2]}}};
+}
+
+bool RgbCurveParams::is_identity() const noexcept
+{
+    if (mode == kRgbLevelsModeIndependent)
+    {
+        return tone_curve_is_identity(channels[0]) && tone_curve_is_identity(channels[1]) &&
+               tone_curve_is_identity(channels[2]);
+    }
+    return tone_curve_is_identity(channels[0]);
+}
+
+namespace
+{
+
+[[nodiscard]] std::int32_t rgb_curve_read_i32(const std::vector<std::uint8_t> &payload,
+                                              const std::size_t offset) noexcept
+{
+    std::int32_t value = 0;
+    std::memcpy(&value, payload.data() + offset, sizeof(value));
+    return value;
+}
+
+[[nodiscard]] float rgb_curve_read_f32(const std::vector<std::uint8_t> &payload,
+                                       const std::size_t offset) noexcept
+{
+    float value = 0.0F;
+    std::memcpy(&value, payload.data() + offset, sizeof(value));
+    return value;
+}
+
+} // namespace
+
+Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t> &payload)
+{
+    constexpr std::size_t kPayloadSize = 516;
+    constexpr std::size_t kMaxNodes = 20;
+    constexpr std::int32_t kMonotoneHermite = 2;
+    if (payload.size() != kPayloadSize)
+    {
+        return make_error(ErrorCode::kUnsupported, "Legacy RGB curve payload size is unsupported",
+                          {{"legacy_operation", "rgbcurve"},
+                           {"reason", "unsupported_legacy_rgbcurve_payload"}});
+    }
+    RgbCurveParams result;
+    const auto autoscale = rgb_curve_read_i32(payload, 504);
+    const auto compensate = rgb_curve_read_i32(payload, 508);
+    const auto preserve = rgb_curve_read_i32(payload, 512);
+    if (autoscale == 0)
+    {
+        result.mode = std::string(kRgbLevelsModeLinked);
+    }
+    else if (autoscale == 1)
+    {
+        result.mode = std::string(kRgbLevelsModeIndependent);
+    }
+    else
+    {
+        return make_error(ErrorCode::kUnsupported, "Legacy RGB curve mode is unsupported",
+                          {{"legacy_operation", "rgbcurve"},
+                           {"reason", "unsupported_legacy_rgbcurve_mode"}});
+    }
+    if (compensate != 0 && compensate != 1)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB curve middle-grey flag is unsupported",
+                          {{"legacy_operation", "rgbcurve"},
+                           {"reason", "unsupported_legacy_rgbcurve_middle_grey"}});
+    }
+    result.compensate_middle_grey = compensate == 1;
+    switch (preserve)
+    {
+    case 0:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+        break;
+    case 1:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsLuminance);
+        break;
+    case 2:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsMax);
+        break;
+    case 3:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsAverage);
+        break;
+    case 4:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsSum);
+        break;
+    case 5:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsNorm);
+        break;
+    case 6:
+        result.preserve_colors = std::string(kToneCurvePreserveColorsPower);
+        break;
+    default:
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB curve preserve-colors is unsupported",
+                          {{"legacy_operation", "rgbcurve"},
+                           {"reason", "unsupported_legacy_rgbcurve_preserve"}});
+    }
+    for (std::size_t channel = 0; channel < 3; ++channel)
+    {
+        const auto count = rgb_curve_read_i32(payload, 480 + channel * 4U);
+        const auto type = rgb_curve_read_i32(payload, 492 + channel * 4U);
+        if (count < 2 || static_cast<std::size_t>(count) > kMaxNodes)
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB curve node count is unsupported",
+                              {{"legacy_operation", "rgbcurve"},
+                               {"reason", "unsupported_legacy_rgbcurve_nodes"}});
+        }
+        if (type != kMonotoneHermite)
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB curve interpolation is unsupported",
+                              {{"legacy_operation", "rgbcurve"},
+                               {"reason", "unsupported_legacy_rgbcurve_interpolation"}});
+        }
+        std::vector<ToneCurvePoint> points;
+        points.reserve(static_cast<std::size_t>(count));
+        for (std::int32_t index = 0; index < count; ++index)
+        {
+            const std::size_t offset =
+                (channel * kMaxNodes + static_cast<std::size_t>(index)) * 8U;
+            const float x = rgb_curve_read_f32(payload, offset);
+            const float y = rgb_curve_read_f32(payload, offset + 4U);
+            if (!std::isfinite(x) || !std::isfinite(y) || x < 0.0F || x > 1.0F || y < 0.0F ||
+                y > 1.0F)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Legacy RGB curve nodes are outside the unit interval",
+                                  {{"legacy_operation", "rgbcurve"},
+                                   {"reason", "unsupported_legacy_rgbcurve_nodes"}});
+            }
+            if (!points.empty() && !(x > points.back().x))
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Legacy RGB curve nodes must be strictly increasing",
+                                  {{"legacy_operation", "rgbcurve"},
+                                   {"reason", "unsupported_legacy_rgbcurve_nodes"}});
+            }
+            points.push_back({x, y});
+        }
+        result.channels[channel] = std::move(points);
+    }
+    result.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
+    return result;
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+rgb_curve_to_parameters(const RgbCurveParams &params)
+{
+    return {{"mode", ParameterValue{params.mode}},
+            {"preserve_colors", ParameterValue{params.preserve_colors}},
+            {"interpolation", ParameterValue{params.interpolation}},
+            {"compensate_middle_grey", ParameterValue{params.compensate_middle_grey}},
+            {"points", tone_curve_points_to_parameter(params.channels[0])},
+            {"points_g", tone_curve_points_to_parameter(params.channels[1])},
+            {"points_b", tone_curve_points_to_parameter(params.channels[2])}};
+}
+
+Result<void> leftover_rawdenoise_from_v2(const std::vector<std::uint8_t> &payload, double &threshold,
+                                         std::array<std::array<double, 5>, 4> &bands)
+{
+    constexpr std::size_t kPayloadSize = 164;
+    if (payload.size() != kPayloadSize)
+    {
+        return make_error(ErrorCode::kUnsupported, "Legacy RAW denoise payload size is unsupported",
+                          {{"legacy_operation", "rawdenoise"},
+                           {"reason", "unsupported_legacy_rawdenoise_payload"}});
+    }
+    float threshold_f = 0.0F;
+    std::memcpy(&threshold_f, payload.data(), sizeof(threshold_f));
+    if (!std::isfinite(threshold_f) || threshold_f < 0.0F || threshold_f > 1.0F)
+    {
+        return make_error(ErrorCode::kUnsupported, "Legacy RAW denoise threshold is unsupported",
+                          {{"legacy_operation", "rawdenoise"},
+                           {"reason", "unsupported_legacy_rawdenoise_threshold"}});
+    }
+    threshold = threshold_f;
+    constexpr float kExpectedX[5] = {0.0F, 0.25F, 0.5F, 0.75F, 1.0F};
+    for (std::size_t channel = 0; channel < 4; ++channel)
+    {
+        for (std::size_t band = 0; band < 5; ++band)
+        {
+            float x = 0.0F;
+            float y = 0.0F;
+            std::memcpy(&x, payload.data() + 4U + (channel * 5U + band) * 4U, sizeof(x));
+            std::memcpy(&y, payload.data() + 84U + (channel * 5U + band) * 4U, sizeof(y));
+            if (!std::isfinite(x) || std::abs(x - kExpectedX[band]) > 1.0e-5F)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Legacy RAW denoise band positions are unsupported",
+                                  {{"legacy_operation", "rawdenoise"},
+                                   {"reason", "unsupported_legacy_rawdenoise_bands"}});
+            }
+            if (!std::isfinite(y) || y < 0.0F || y > 16.0F)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Legacy RAW denoise band values are unsupported",
+                                  {{"legacy_operation", "rawdenoise"},
+                                   {"reason", "unsupported_legacy_rawdenoise_bands"}});
+            }
+            bands[channel][band] = y;
+        }
+    }
+    return {};
+}
+
+std::map<std::string, ParameterValue, std::less<>>
+raw_denoise_to_parameters(const double threshold, const std::array<std::array<double, 5>, 4> &bands)
+{
+    std::map<std::string, ParameterValue, std::less<>> parameters{
+        {"threshold", ParameterValue{threshold}}};
+    const char *names[4] = {"all", "red", "green", "blue"};
+    for (int channel = 0; channel < 4; ++channel)
+    {
+        for (int band = 0; band < 5; ++band)
+        {
+            parameters.emplace(std::string("y_") + names[channel] + std::to_string(band),
+                               ParameterValue{bands[static_cast<std::size_t>(channel)]
+                                                   [static_cast<std::size_t>(band)]});
+        }
+    }
+    return parameters;
 }
 
 } // namespace ravo

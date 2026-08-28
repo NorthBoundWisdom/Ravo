@@ -58,3 +58,7 @@ supersession relationship when direction changes.
 | [0048](0048-legacy-flip-orientation-contract.md) | Accepted | Leftover flip v2 orientation bits map to canonical rotate-then-flip; NULL/NONE stay identity because EXIF is applied at decode. |
 | [0049](0049-legacy-crop-box-contract.md) | Accepted | Leftover crop v1–v3 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1 is identity. |
 | [0050](0050-ashift-rotation-and-export-scale.md) | Accepted | Leftover ashift rotation-only maps to straighten; Catalog export `max_edge` owns final scale. Perspective ashift stays later G6. |
+| [0051](0051-legacy-rgblevels-contract.md) | Accepted | Leftover rgblevels v1 maps to `ravo.color.rgblevels` with leftover LUT/clip math; auto-levels picker stays history-baked. |
+| [0052](0052-legacy-rgbcurve-contract.md) | Accepted; extended by 0053 | Leftover rgbcurve v1 monotone-hermite maps to `ravo.color.rgbcurve`. Middle-grey compensation is 0053. |
+| [0053](0053-rgbcurve-middle-grey-uncompensate.md) | Accepted | RGB curve `compensate_middle_grey` remaps nodes through the live working D50 matrix; `0060` imports. |
+| [0054](0054-legacy-rawdenoise-contract.md) | Accepted | Leftover Bayer rawdenoise v2 maps to `ravo.raw.denoise` wavelet/threshold; X-Trans stays later. |

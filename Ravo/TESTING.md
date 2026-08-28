@@ -182,7 +182,13 @@ stay identity because camera EXIF is applied at decode. Leftover crop v1–v3
 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1
 is identity. Leftover ashift v4/v5 rotation-only maps to straighten; non-zero
 lens shift/shear stay `unsupported_legacy_ashift_perspective`. Export
-`max_edge` is the G7 output-size contract.
+`max_edge` is the G7 output-size contract. Leftover rgblevels v1 maps to
+`ravo.color.rgblevels` with the frozen 65536 LUT, linked/independent modes,
+and last-write singleton import of `0054`/`0055`. Auto-levels picker UI is not
+a live engine pass. Leftover rgbcurve v1 monotone-hermite maps to
+`ravo.color.rgbcurve`, including `compensate_middle_grey` through the live
+working D50 matrix so `0060` imports. Leftover rawdenoise v2 Bayer wavelet
+maps to `ravo.raw.denoise`; X-Trans stays unsupported.
 
 - Compare the source image hash/size/mtime before and after import to prove a
   reference-only path does not modify the original.

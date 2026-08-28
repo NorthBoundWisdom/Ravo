@@ -143,6 +143,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSplitBalance READ editSplitBalance NOTIFY editChanged)
     Q_PROPERTY(double editSplitAmount READ editSplitAmount NOTIFY editChanged)
     Q_PROPERTY(double editGamma READ editGamma NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editRgbLevels READ editRgbLevels NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurve READ editToneCurve NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurveSamples READ editToneCurveSamples NOTIFY editChanged)
     Q_PROPERTY(bool editSigmoidEnabled READ editSigmoidEnabled NOTIFY editChanged)
@@ -325,6 +326,7 @@ public:
     [[nodiscard]] double editSplitBalance() const noexcept;
     [[nodiscard]] double editSplitAmount() const noexcept;
     [[nodiscard]] double editGamma() const noexcept;
+    [[nodiscard]] QVariantMap editRgbLevels() const;
     [[nodiscard]] QVariantList editToneCurve() const;
     [[nodiscard]] QVariantList editToneCurveSamples() const;
     [[nodiscard]] bool editSigmoidEnabled() const noexcept;

@@ -1485,6 +1485,346 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
     }
 }
 
+[[nodiscard]] Result<void> apply_rgb_levels(WorkingImage &image, const OperationInstance &operation)
+{
+    const auto mode = parameter_string(operation, "mode", std::string(kRgbLevelsModeLinked));
+    if (mode != kRgbLevelsModeLinked && mode != kRgbLevelsModeIndependent)
+    {
+        return make_error(ErrorCode::kValidation, "RGB levels mode is unsupported",
+                          {{"mode", mode}});
+    }
+    const auto preserve =
+        parameter_string(operation, "preserve_colors", std::string(kToneCurvePreserveColorsLuminance));
+    if (preserve != kToneCurvePreserveColorsNone && preserve != kToneCurvePreserveColorsLuminance &&
+        preserve != kToneCurvePreserveColorsMax && preserve != kToneCurvePreserveColorsAverage &&
+        preserve != kToneCurvePreserveColorsSum && preserve != kToneCurvePreserveColorsNorm &&
+        preserve != kToneCurvePreserveColorsPower)
+    {
+        return make_error(ErrorCode::kValidation, "RGB levels preserve-colors is unsupported",
+                          {{"preserve_colors", preserve}});
+    }
+    const std::array<std::array<float, 3>, 3> levels{
+        {{static_cast<float>(parameter(operation, "black", 0.0)),
+          static_cast<float>(parameter(operation, "grey", 0.5)),
+          static_cast<float>(parameter(operation, "white", 1.0))},
+         {static_cast<float>(parameter(operation, "black_g", 0.0)),
+          static_cast<float>(parameter(operation, "grey_g", 0.5)),
+          static_cast<float>(parameter(operation, "white_g", 1.0))},
+         {static_cast<float>(parameter(operation, "black_b", 0.0)),
+          static_cast<float>(parameter(operation, "grey_b", 0.5)),
+          static_cast<float>(parameter(operation, "white_b", 1.0))}}};
+    std::array<float, 3> inv_gamma{};
+    std::array<float, 3> mult{};
+    std::vector<float> lut(3U * 65536U);
+    const int channels = mode == kRgbLevelsModeIndependent ? 3 : 1;
+    for (int c = 0; c < channels; ++c)
+    {
+        const float black = levels[static_cast<std::size_t>(c)][0];
+        const float grey = levels[static_cast<std::size_t>(c)][1];
+        const float white = levels[static_cast<std::size_t>(c)][2];
+        if (!(white > black))
+        {
+            return make_error(ErrorCode::kValidation, "RGB levels white must be greater than black",
+                              {{"channel", std::to_string(c)}});
+        }
+        const float delta = (white - black) * 0.5F;
+        const float mid = black + delta;
+        inv_gamma[static_cast<std::size_t>(c)] = std::pow(10.0F, (grey - mid) / delta);
+        mult[static_cast<std::size_t>(c)] = 1.0F / (white - black);
+        float *row = lut.data() + static_cast<std::size_t>(c) * 65536U;
+        for (unsigned i = 0; i < 65536U; ++i)
+        {
+            const float percentage = static_cast<float>(i) / 65536.0F;
+            row[i] = std::pow(percentage, inv_gamma[static_cast<std::size_t>(c)]);
+        }
+    }
+    if (mode == kRgbLevelsModeLinked)
+    {
+        inv_gamma[1] = inv_gamma[2] = inv_gamma[0];
+        mult[1] = mult[2] = mult[0];
+        const float *src = lut.data();
+        std::copy(src, src + 65536U, lut.data() + 65536U);
+        std::copy(src, src + 65536U, lut.data() + 2U * 65536U);
+    }
+    const auto apply_channel = [&](const float sample, const int channel) -> float
+    {
+        const float black = levels[static_cast<std::size_t>(channel)][0];
+        const float white = levels[static_cast<std::size_t>(channel)][2];
+        if (sample <= black)
+        {
+            return 0.0F;
+        }
+        const float percentage = (sample - black) * mult[static_cast<std::size_t>(channel)];
+        if (sample >= white)
+        {
+            return std::pow(percentage, inv_gamma[static_cast<std::size_t>(channel)]);
+        }
+        const int index = std::clamp(static_cast<int>(percentage * 65536.0F), 0, 65535);
+        return lut[static_cast<std::size_t>(channel) * 65536U + static_cast<std::size_t>(index)];
+    };
+    const bool independent_or_none =
+        mode == kRgbLevelsModeIndependent || preserve == kToneCurvePreserveColorsNone;
+    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+    {
+        if (independent_or_none)
+        {
+            image.rgb[index] = apply_channel(image.rgb[index], 0);
+            image.rgb[index + 1U] =
+                apply_channel(image.rgb[index + 1U], mode == kRgbLevelsModeIndependent ? 1 : 0);
+            image.rgb[index + 2U] =
+                apply_channel(image.rgb[index + 2U], mode == kRgbLevelsModeIndependent ? 2 : 0);
+            continue;
+        }
+        const float rgb[3]{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
+        const float lum = rgb_norm(rgb, preserve);
+        if (lum <= levels[0][0])
+        {
+            image.rgb[index] = 0.0F;
+            image.rgb[index + 1U] = 0.0F;
+            image.rgb[index + 2U] = 0.0F;
+            continue;
+        }
+        const float curve_lum = apply_channel(lum, 0);
+        const float ratio = curve_lum / lum;
+        image.rgb[index] *= ratio;
+        image.rgb[index + 1U] *= ratio;
+        image.rgb[index + 2U] *= ratio;
+    }
+    return {};
+}
+
+[[nodiscard]] Result<std::array<float, 9>> invert_working_matrix(const std::array<float, 9> &matrix)
+{
+    const double a = matrix[0];
+    const double b = matrix[1];
+    const double c = matrix[2];
+    const double d = matrix[3];
+    const double e = matrix[4];
+    const double f = matrix[5];
+    const double g = matrix[6];
+    const double h = matrix[7];
+    const double i = matrix[8];
+    const double determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    if (!std::isfinite(determinant) || std::abs(determinant) < 1.0e-12)
+    {
+        return make_error(ErrorCode::kValidation, "Working colour matrix is singular",
+                          {{"reason", "unsupported_rgbcurve_middle_grey_profile"}});
+    }
+    const double inverse = 1.0 / determinant;
+    std::array<float, 9> result{
+        static_cast<float>((e * i - f * h) * inverse),
+        static_cast<float>((c * h - b * i) * inverse),
+        static_cast<float>((b * f - c * e) * inverse),
+        static_cast<float>((f * g - d * i) * inverse),
+        static_cast<float>((a * i - c * g) * inverse),
+        static_cast<float>((c * d - a * f) * inverse),
+        static_cast<float>((d * h - e * g) * inverse),
+        static_cast<float>((b * g - a * h) * inverse),
+        static_cast<float>((a * e - b * d) * inverse),
+    };
+    return result;
+}
+
+[[nodiscard]] Result<float> uncompensate_middle_grey(const float sample,
+                                                     const std::array<float, 9> &xyz_to_rgb)
+{
+    if (!std::isfinite(sample))
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve node is not finite");
+    }
+    const float lab[3]{sample * 100.0F, 0.0F, 0.0F};
+    float xyz[3]{};
+    lab_to_xyz_d50(lab, xyz);
+    const float rgb0 = xyz_to_rgb[0] * xyz[0] + xyz_to_rgb[1] * xyz[1] + xyz_to_rgb[2] * xyz[2];
+    if (!std::isfinite(rgb0))
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve middle-grey uncompensate is non-finite");
+    }
+    return rgb0;
+}
+
+[[nodiscard]] Result<void> apply_rgb_curve(WorkingImage &image, const OperationInstance &operation)
+{
+    const auto mode = parameter_string(operation, "mode", std::string(kRgbLevelsModeLinked));
+    if (mode != kRgbLevelsModeLinked && mode != kRgbLevelsModeIndependent)
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve mode is unsupported",
+                          {{"mode", mode}});
+    }
+    const auto interpolation = parameter_string(
+        operation, "interpolation", std::string(kToneCurveInterpolationMonotoneHermite));
+    if (interpolation != kToneCurveInterpolationMonotoneHermite)
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve interpolation is unsupported",
+                          {{"interpolation", interpolation}});
+    }
+    const auto preserve =
+        parameter_string(operation, "preserve_colors", std::string(kToneCurvePreserveColorsLuminance));
+    if (preserve != kToneCurvePreserveColorsNone && preserve != kToneCurvePreserveColorsLuminance &&
+        preserve != kToneCurvePreserveColorsMax && preserve != kToneCurvePreserveColorsAverage &&
+        preserve != kToneCurvePreserveColorsSum && preserve != kToneCurvePreserveColorsNorm &&
+        preserve != kToneCurvePreserveColorsPower)
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve preserve-colors is unsupported",
+                          {{"preserve_colors", preserve}});
+    }
+    bool compensate = false;
+    if (const auto found = operation.parameters.find("compensate_middle_grey");
+        found != operation.parameters.end())
+    {
+        if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
+        {
+            compensate = *flag;
+        }
+        else
+        {
+            compensate = parameter(operation, "compensate_middle_grey", 0.0) != 0.0;
+        }
+    }
+    const auto parse_channel = [&](const char *name) -> Result<std::vector<ToneCurvePoint>>
+    {
+        if (const auto found = operation.parameters.find(name); found != operation.parameters.end())
+        {
+            return parse_rgb_curve_points(found->second);
+        }
+        return std::vector<ToneCurvePoint>{{0.0, 0.0}, {1.0, 1.0}};
+    };
+    auto red_points = parse_channel("points");
+    if (!red_points)
+    {
+        return red_points.error();
+    }
+    auto green_points = parse_channel("points_g");
+    if (!green_points)
+    {
+        return green_points.error();
+    }
+    auto blue_points = parse_channel("points_b");
+    if (!blue_points)
+    {
+        return blue_points.error();
+    }
+    if (compensate)
+    {
+        if (image.color_profile.model != ColorModel::kRgb || !image.color_profile.has_matrix)
+        {
+            return make_error(
+                ErrorCode::kUnsupported,
+                "RGB curve middle-grey compensation requires a linear working RGB matrix",
+                {{"reason", "unsupported_rgbcurve_middle_grey_profile"}});
+        }
+        auto xyz_to_rgb = invert_working_matrix(image.color_profile.matrix_to_xyz_d50);
+        if (!xyz_to_rgb)
+        {
+            return xyz_to_rgb.error();
+        }
+        const auto remap = [&](std::vector<ToneCurvePoint> &points) -> Result<void>
+        {
+            for (auto &point : points)
+            {
+                auto x = uncompensate_middle_grey(static_cast<float>(point.x), xyz_to_rgb.value());
+                if (!x)
+                {
+                    return x.error();
+                }
+                auto y = uncompensate_middle_grey(static_cast<float>(point.y), xyz_to_rgb.value());
+                if (!y)
+                {
+                    return y.error();
+                }
+                point.x = x.value();
+                point.y = y.value();
+            }
+            for (std::size_t index = 1; index < points.size(); ++index)
+            {
+                if (!(points[index].x > points[index - 1U].x))
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "RGB curve nodes are not increasing after middle-grey uncompensate");
+                }
+            }
+            return {};
+        };
+        if (auto mapped = remap(red_points.value()); !mapped)
+        {
+            return mapped.error();
+        }
+        if (auto mapped = remap(green_points.value()); !mapped)
+        {
+            return mapped.error();
+        }
+        if (auto mapped = remap(blue_points.value()); !mapped)
+        {
+            return mapped.error();
+        }
+    }
+    std::array<std::vector<float>, 3> tables{};
+    std::array<std::array<float, 3>, 3> unbounded{};
+    std::array<float, 3> xm{};
+    const std::array<const std::vector<ToneCurvePoint> *, 3> channels{
+        &red_points.value(), &green_points.value(), &blue_points.value()};
+    const int lut_count = mode == kRgbLevelsModeIndependent ? 3 : 1;
+    for (int channel = 0; channel < lut_count; ++channel)
+    {
+        build_unit_lut(*channels[static_cast<std::size_t>(channel)],
+                       tables[static_cast<std::size_t>(channel)]);
+        const auto &points = *channels[static_cast<std::size_t>(channel)];
+        xm[static_cast<std::size_t>(channel)] =
+            points.empty() ? 1.0F : static_cast<float>(points.back().x);
+        const float x_l[4] = {0.7F * xm[static_cast<std::size_t>(channel)],
+                              0.8F * xm[static_cast<std::size_t>(channel)],
+                              0.9F * xm[static_cast<std::size_t>(channel)],
+                              1.0F * xm[static_cast<std::size_t>(channel)]};
+        float y_l[4]{};
+        for (int i = 0; i < 4; ++i)
+        {
+            const int index = std::clamp(static_cast<int>(x_l[i] * kToneCurveLut), 0,
+                                         kToneCurveLut - 1);
+            y_l[i] = tables[static_cast<std::size_t>(channel)][static_cast<std::size_t>(index)];
+        }
+        estimate_exp(x_l, y_l, 4, unbounded[static_cast<std::size_t>(channel)].data());
+    }
+    if (mode == kRgbLevelsModeLinked)
+    {
+        tables[1] = tables[0];
+        tables[2] = tables[0];
+        unbounded[1] = unbounded[0];
+        unbounded[2] = unbounded[0];
+        xm[1] = xm[2] = xm[0];
+    }
+    const auto apply_channel = [&](const float sample, const int channel) -> float
+    {
+        return lookup_curve_lut(tables[static_cast<std::size_t>(channel)], sample,
+                                xm[static_cast<std::size_t>(channel)],
+                                unbounded[static_cast<std::size_t>(channel)].data());
+    };
+    const bool independent_or_none =
+        mode == kRgbLevelsModeIndependent || preserve == kToneCurvePreserveColorsNone;
+    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+    {
+        if (independent_or_none)
+        {
+            image.rgb[index] = apply_channel(image.rgb[index], 0);
+            image.rgb[index + 1U] =
+                apply_channel(image.rgb[index + 1U], mode == kRgbLevelsModeIndependent ? 1 : 0);
+            image.rgb[index + 2U] =
+                apply_channel(image.rgb[index + 2U], mode == kRgbLevelsModeIndependent ? 2 : 0);
+            continue;
+        }
+        const float rgb[3]{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
+        const float lum = rgb_norm(rgb, preserve);
+        if (lum > 0.0F)
+        {
+            const float curve_lum = apply_channel(lum, 0);
+            const float ratio = curve_lum / lum;
+            image.rgb[index] *= ratio;
+            image.rgb[index + 1U] *= ratio;
+            image.rgb[index + 2U] *= ratio;
+        }
+    }
+    return {};
+}
+
 void apply_unsharp(WorkingImage &image, const double amount, const double radius,
                    const double threshold)
 {
@@ -2821,6 +3161,24 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             apply_gamma(image, parameter(operation, "gamma", 1.0));
             continue;
         }
+        if (operation.id == "ravo.color.rgblevels")
+        {
+            auto leveled = apply_rgb_levels(image, operation);
+            if (!leveled)
+            {
+                return leveled.error();
+            }
+            continue;
+        }
+        if (operation.id == "ravo.color.rgbcurve")
+        {
+            auto curved = apply_rgb_curve(image, operation);
+            if (!curved)
+            {
+                return curved.error();
+            }
+            continue;
+        }
         if (operation.id == "ravo.core.tonecurve")
         {
             auto curved = apply_tone_curve(image, operation);
@@ -2984,6 +3342,12 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             return make_error(ErrorCode::kUnsupported,
                               "RAW highlight reconstruction requires a Bayer CFA working buffer",
+                              {{"operation_id", operation.id}});
+        }
+        if (operation.id == "ravo.raw.denoise")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "RAW denoise requires a Bayer CFA working buffer",
                               {{"operation_id", operation.id}});
         }
         if (operation.id == "ravo.detail.denoiseprofile")

@@ -20,7 +20,10 @@ Current implementation status:
 - Legacy XMP supports empty history, a strict nop baseline with explicit
   `colorin`/`colorout` mapping, and the frozen exposure v5/v6/v7 final-revision
   boundary. Exact default-unmasked singleton state maps to the canonical recipe;
-  mask, custom blend, multi-instance, and conflicting-revision state rejects
+  leftover flip/crop/ashift-rotation, rgblevels v1, rgbcurve v1
+  including middle-grey uncompensate, and Bayer rawdenoise v2 also map
+  (ADR-0048–0054).
+  Mask, custom blend, multi-instance, and conflicting-revision state rejects
   structurally.
 - The catalog vertical slice is implemented: reference-only JPEG/PNG/TIFF/RAW
   import, preview cache outside the library, and the `ravo_studio` Qt Quick

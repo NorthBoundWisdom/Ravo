@@ -1836,11 +1836,21 @@ constexpr std::string_view kLegacyFlipBlendGz14 =
     "gz14eJxjYIAACQYYOOHEgAYY0QVwggZ7CB6pfNoAAEkgGQQ=";
 constexpr std::string_view kLegacyGeometryBlendGz14GuideFive =
     "gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg=";
+constexpr std::string_view kLegacyToneBlendGz13 =
+    "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc=";
+constexpr std::string_view kLegacyRawDenoiseBlendGz13 =
+    "gz13eJxjYGBgYARiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAErAGQU=";
 
 [[nodiscard]] bool is_legacy_unmasked_geometry_blend(const std::string_view blend) noexcept
 {
     return blend == kDefaultBlendParameters || blend == kLegacyFlipBlendGz14 ||
            blend == kLegacyGeometryBlendGz14GuideFive;
+}
+
+[[nodiscard]] bool is_legacy_unmasked_tone_blend(const std::string_view blend) noexcept
+{
+    return is_legacy_unmasked_geometry_blend(blend) || blend == kLegacyToneBlendGz13 ||
+           blend == kLegacyRawDenoiseBlendGz13;
 }
 
 [[nodiscard]] bool is_allowed_geometry_attribute(const QStringView name) noexcept
@@ -2089,6 +2099,276 @@ constexpr std::string_view kLegacyGeometryBlendGz14GuideFive =
         read_f32(decoded.value(), 12U));
 }
 
+[[nodiscard]] Result<RgbLevelsParams> map_legacy_rgblevels(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB levels mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "rgblevels"},
+                               {"reason", "unsupported_legacy_rgblevels_mask"}});
+        }
+        if (!is_allowed_geometry_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB levels contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "rgblevels"},
+                               {"reason", "unsupported_legacy_rgblevels_attribute"}});
+        }
+    }
+    const auto version = required_attribute(attributes, u"modversion", "rgblevels");
+    const auto enabled = required_attribute(attributes, u"enabled", "rgblevels");
+    const auto encoded = required_attribute(attributes, u"params", "rgblevels");
+    const auto blend = required_attribute(attributes, u"blendop_params", "rgblevels");
+    const auto priority = required_attribute(attributes, u"multi_priority", "rgblevels");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!version || !enabled || !encoded || !blend || !priority || !name)
+    {
+        return !version ? version.error() :
+               !enabled ? enabled.error() :
+               !encoded ? encoded.error() :
+               !blend   ? blend.error() :
+               !priority ?
+                        priority.error() :
+                        make_error(ErrorCode::kUnsupported,
+                                   "Legacy RGB levels singleton name is missing",
+                                   {{"attribute", "multi_name"},
+                                    {"legacy_operation", "rgblevels"},
+                                    {"reason", "unsupported_legacy_rgblevels_multi_state"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy RGB levels instance is not the frozen singleton priority",
+            {{"legacy_operation", "rgblevels"},
+             {"reason", "unsupported_legacy_rgblevels_multi_state"}});
+    }
+    if (version.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB levels version is outside the frozen evidence",
+                          {{"legacy_operation", "rgblevels"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_rgblevels_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB levels enabled state is outside the frozen fixture evidence",
+                          {{"legacy_operation", "rgblevels"},
+                           {"reason", "unsupported_legacy_rgblevels_enabled_state"}});
+    }
+    if (!is_legacy_unmasked_tone_blend(blend.value()))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RGB levels blend is not a frozen unmasked default",
+            {{"legacy_operation", "rgblevels"}, {"reason", "unsupported_legacy_rgblevels_blend"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded.value(), 44U, "rgblevels");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    std::array<float, 9> stops{};
+    for (std::size_t index = 0; index < stops.size(); ++index)
+    {
+        stops[index] = read_f32(decoded.value(), 8U + index * 4U);
+    }
+    return leftover_rgblevels_from_v1(read_i32(decoded.value(), 0U), read_i32(decoded.value(), 4U),
+                                      stops);
+}
+
+[[nodiscard]] Result<RgbCurveParams> map_legacy_rgbcurve(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB curve mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "rgbcurve"},
+                               {"reason", "unsupported_legacy_rgbcurve_mask"}});
+        }
+        if (!is_allowed_geometry_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB curve contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "rgbcurve"},
+                               {"reason", "unsupported_legacy_rgbcurve_attribute"}});
+        }
+    }
+    const auto version = required_attribute(attributes, u"modversion", "rgbcurve");
+    const auto enabled = required_attribute(attributes, u"enabled", "rgbcurve");
+    const auto encoded = required_attribute(attributes, u"params", "rgbcurve");
+    const auto blend = required_attribute(attributes, u"blendop_params", "rgbcurve");
+    const auto priority = required_attribute(attributes, u"multi_priority", "rgbcurve");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!version || !enabled || !encoded || !blend || !priority || !name)
+    {
+        return !version ? version.error() :
+               !enabled ? enabled.error() :
+               !encoded ? encoded.error() :
+               !blend   ? blend.error() :
+               !priority ?
+                        priority.error() :
+                        make_error(ErrorCode::kUnsupported,
+                                   "Legacy RGB curve singleton name is missing",
+                                   {{"attribute", "multi_name"},
+                                    {"legacy_operation", "rgbcurve"},
+                                    {"reason", "unsupported_legacy_rgbcurve_multi_state"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "Legacy RGB curve instance is not the frozen singleton priority",
+            {{"legacy_operation", "rgbcurve"},
+             {"reason", "unsupported_legacy_rgbcurve_multi_state"}});
+    }
+    if (version.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB curve version is outside the frozen evidence",
+                          {{"legacy_operation", "rgbcurve"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_rgbcurve_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RGB curve enabled state is outside the frozen fixture evidence",
+                          {{"legacy_operation", "rgbcurve"},
+                           {"reason", "unsupported_legacy_rgbcurve_enabled_state"}});
+    }
+    if (!is_legacy_unmasked_tone_blend(blend.value()))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RGB curve blend is not a frozen unmasked default",
+            {{"legacy_operation", "rgbcurve"}, {"reason", "unsupported_legacy_rgbcurve_blend"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded.value(), 516U, "rgbcurve");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return leftover_rgbcurve_from_v1(decoded.value());
+}
+
+struct LeftoverRawDenoise
+{
+    double threshold = 0.0;
+    std::array<std::array<double, 5>, 4> bands{{
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+    }};
+
+    [[nodiscard]] bool is_identity() const noexcept
+    {
+        return threshold <= 0.0;
+    }
+};
+
+[[nodiscard]] Result<LeftoverRawDenoise> map_legacy_rawdenoise(const QXmlStreamAttributes &attributes)
+{
+    for (const auto &attribute : attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask"))
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RAW denoise mask has no canonical graph mapping",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "rawdenoise"},
+                               {"reason", "unsupported_legacy_rawdenoise_mask"}});
+        }
+        if (!is_allowed_geometry_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RAW denoise contains unproven history state",
+                              {{"attribute", utf8(name)},
+                               {"legacy_operation", "rawdenoise"},
+                               {"reason", "unsupported_legacy_rawdenoise_attribute"}});
+        }
+    }
+    const auto version = required_attribute(attributes, u"modversion", "rawdenoise");
+    const auto enabled = required_attribute(attributes, u"enabled", "rawdenoise");
+    const auto encoded = required_attribute(attributes, u"params", "rawdenoise");
+    const auto blend = required_attribute(attributes, u"blendop_params", "rawdenoise");
+    const auto priority = required_attribute(attributes, u"multi_priority", "rawdenoise");
+    const auto name = attribute_value(attributes, u"multi_name");
+    if (!version || !enabled || !encoded || !blend || !priority || !name)
+    {
+        return !version ? version.error() :
+               !enabled ? enabled.error() :
+               !encoded ? encoded.error() :
+               !blend   ? blend.error() :
+               !priority ?
+                        priority.error() :
+                        make_error(ErrorCode::kUnsupported,
+                                   "Legacy RAW denoise singleton name is missing",
+                                   {{"attribute", "multi_name"},
+                                    {"legacy_operation", "rawdenoise"},
+                                    {"reason", "unsupported_legacy_rawdenoise_multi_state"}});
+    }
+    const auto hand_edited = attribute_value(attributes, u"multi_name_hand_edited");
+    if (priority.value() != "0" || !name->empty() || (hand_edited && *hand_edited != "0"))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RAW denoise instance is not the frozen singleton priority",
+                          {{"legacy_operation", "rawdenoise"},
+                           {"reason", "unsupported_legacy_rawdenoise_multi_state"}});
+    }
+    if (version.value() != "2")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RAW denoise version is outside the frozen evidence",
+                          {{"legacy_operation", "rawdenoise"},
+                           {"legacy_version", version.value()},
+                           {"reason", "unsupported_legacy_rawdenoise_version"}});
+    }
+    if (enabled.value() != "1")
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy RAW denoise enabled state is outside the frozen fixture evidence",
+                          {{"legacy_operation", "rawdenoise"},
+                           {"reason", "unsupported_legacy_rawdenoise_enabled_state"}});
+    }
+    if (!is_legacy_unmasked_tone_blend(blend.value()))
+    {
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RAW denoise blend is not a frozen unmasked default",
+            {{"legacy_operation", "rawdenoise"}, {"reason", "unsupported_legacy_rawdenoise_blend"}});
+    }
+    auto decoded = decode_legacy_parameter_blob(encoded.value(), 164U, "rawdenoise");
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    LeftoverRawDenoise mapped;
+    auto parsed = leftover_rawdenoise_from_v2(decoded.value(), mapped.threshold, mapped.bands);
+    if (!parsed)
+    {
+        return parsed.error();
+    }
+    return mapped;
+}
+
 [[nodiscard]] Result<void> consume_empty_mask_history(QXmlStreamReader &reader)
 {
     std::size_t depth = 1;
@@ -2293,6 +2573,9 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::optional<LeftoverFlipGeometry> flip_geometry;
     std::optional<LeftoverCropBox> crop_box;
     std::optional<double> ashift_straighten;
+    std::optional<RgbLevelsParams> rgb_levels;
+    std::optional<RgbCurveParams> rgb_curve;
+    std::optional<LeftoverRawDenoise> raw_denoise;
     bool absorbed_gamma = false;
     std::size_t history_index = 0;
     while (!reader.atEnd())
@@ -2663,6 +2946,39 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "rgblevels")
+            {
+                auto mapped = map_legacy_rgblevels(reader.attributes());
+                if (!mapped)
+                {
+                    return mapped.error();
+                }
+                rgb_levels = std::move(mapped).value();
+                ++history_index;
+                continue;
+            }
+            if (operation.value() == "rgbcurve")
+            {
+                auto mapped = map_legacy_rgbcurve(reader.attributes());
+                if (!mapped)
+                {
+                    return mapped.error();
+                }
+                rgb_curve = std::move(mapped).value();
+                ++history_index;
+                continue;
+            }
+            if (operation.value() == "rawdenoise")
+            {
+                auto mapped = map_legacy_rawdenoise(reader.attributes());
+                if (!mapped)
+                {
+                    return mapped.error();
+                }
+                raw_denoise = std::move(mapped).value();
+                ++history_index;
+                continue;
+            }
             auto absorbed = absorb_builtin_raw_operation(operation.value(), reader.attributes());
             if (!absorbed)
             {
@@ -2831,6 +3147,34 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                                                 {"y", ParameterValue{crop_box->y}},
                                                 {"width", ParameterValue{crop_box->width}},
                                                 {"height", ParameterValue{crop_box->height}}},
+                                               std::nullopt});
+    }
+    if (rgb_levels && !rgb_levels->is_identity())
+    {
+        operations.push_back(OperationInstance{"ravo.color.rgblevels",
+                                               1,
+                                               "legacy-rgblevels",
+                                               true,
+                                               rgb_levels_to_parameters(*rgb_levels),
+                                               std::nullopt});
+    }
+    if (rgb_curve && !rgb_curve->is_identity())
+    {
+        operations.push_back(OperationInstance{"ravo.color.rgbcurve",
+                                               1,
+                                               "legacy-rgbcurve",
+                                               true,
+                                               rgb_curve_to_parameters(*rgb_curve),
+                                               std::nullopt});
+    }
+    if (raw_denoise && !raw_denoise->is_identity())
+    {
+        operations.push_back(OperationInstance{"ravo.raw.denoise",
+                                               1,
+                                               "legacy-rawdenoise",
+                                               true,
+                                               raw_denoise_to_parameters(raw_denoise->threshold,
+                                                                         raw_denoise->bands),
                                                std::nullopt});
     }
     operations.insert(operations.begin(),

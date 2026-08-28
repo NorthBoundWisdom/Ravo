@@ -18,6 +18,7 @@
 #include "profile_gamma.h"
 #include "primaries.h"
 #include "raw_ca.h"
+#include "raw_denoise.h"
 #include "raw_pipeline.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/color_output.h"
@@ -413,7 +414,7 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     {
         if (!operation.enabled ||
             (operation.id != "ravo.raw.hotpixels" && operation.id != "ravo.raw.highlights" &&
-             operation.id != "ravo.raw.cacorrect"))
+             operation.id != "ravo.raw.cacorrect" && operation.id != "ravo.raw.denoise"))
         {
             continue;
         }
@@ -422,13 +423,24 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
             prepared = raw;
             source = &prepared;
         }
-        Result<void> applied =
-            operation.id == "ravo.raw.hotpixels" ?
-                apply_raw_hotpixels(prepared, operation, cancellation) :
-            operation.id == "ravo.raw.highlights" ?
-                apply_raw_highlights(prepared, operation, cancellation) :
-                apply_raw_cacorrect(prepared, operation, temperature.value().coefficients,
-                                    cancellation);
+        Result<void> applied{};
+        if (operation.id == "ravo.raw.hotpixels")
+        {
+            applied = apply_raw_hotpixels(prepared, operation, cancellation);
+        }
+        else if (operation.id == "ravo.raw.highlights")
+        {
+            applied = apply_raw_highlights(prepared, operation, cancellation);
+        }
+        else if (operation.id == "ravo.raw.cacorrect")
+        {
+            applied = apply_raw_cacorrect(prepared, operation, temperature.value().coefficients,
+                                          cancellation);
+        }
+        else
+        {
+            applied = apply_raw_denoise(prepared, operation, cancellation);
+        }
         if (!applied)
         {
             return applied.error();
@@ -605,7 +617,7 @@ namespace
     {
         if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
             operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
-            operation.id == kProfileGammaOperationId)
+            operation.id == "ravo.raw.denoise" || operation.id == kProfileGammaOperationId)
         {
             operation.enabled = false;
         }

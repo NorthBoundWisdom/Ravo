@@ -897,13 +897,17 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
             continue;
         }
         if (operation.id == "ravo.raw.hotpixels" || operation.id == "ravo.raw.highlights" ||
-            operation.id == "ravo.raw.cacorrect")
+            operation.id == "ravo.raw.cacorrect" || operation.id == "ravo.raw.denoise")
         {
             owns_raw_copy = true;
         }
         if (operation.id == "ravo.raw.hotpixels")
         {
             add_working_bytes(raw_bytes);
+        }
+        if (operation.id == "ravo.raw.denoise")
+        {
+            add_working_bytes(saturating_multiply(raw_pixels, 4U * sizeof(float)));
         }
         if (operation.id == "ravo.raw.cacorrect")
         {

@@ -3,6 +3,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <numbers>
 #include <string>
@@ -653,6 +654,137 @@ TEST(RecipeTest, LeftoverAshiftRotationOnlyMapsToStraighten)
     auto too_large = leftover_ashift_rotation_to_straighten(90.0F, 0.0F, 0.0F, 0.0F);
     ASSERT_FALSE(too_large);
     EXPECT_EQ(too_large.error().context.at("reason"), "unsupported_legacy_ashift_rotation_range");
+}
+
+TEST(RecipeTest, LeftoverRgbLevelsMapsV1PayloadAndRoundTrips)
+{
+    const std::array<float, 9> identity_stops{0.0F, 0.5F, 1.0F, 0.0F, 0.5F, 1.0F, 0.0F, 0.5F, 1.0F};
+    auto identity = leftover_rgblevels_from_v1(0, 1, identity_stops);
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_TRUE(identity.value().is_identity());
+    EXPECT_EQ(identity.value().mode, kRgbLevelsModeLinked);
+    EXPECT_EQ(identity.value().preserve_colors, kToneCurvePreserveColorsLuminance);
+
+    const std::array<float, 9> fixture_stops{
+        0.011636173352599144F, 0.3554200828075409F, 0.6208814978599548F,
+        0.06304372847080231F,  0.4457980990409851F, 0.7480812072753906F,
+        0.003582324832677841F, 0.4211500585079193F, 0.6725491881370544F};
+    auto linked = leftover_rgblevels_from_v1(0, 1, fixture_stops);
+    ASSERT_TRUE(linked) << linked.error().message;
+    EXPECT_FALSE(linked.value().is_identity());
+    EXPECT_EQ(linked.value().mode, kRgbLevelsModeLinked);
+    EXPECT_NEAR(linked.value().levels[0][0], 0.011636173352599144, 1e-7);
+    EXPECT_NEAR(linked.value().levels[0][2], 0.6208814978599548, 1e-7);
+
+    auto independent = leftover_rgblevels_from_v1(1, 0, fixture_stops);
+    ASSERT_TRUE(independent) << independent.error().message;
+    EXPECT_EQ(independent.value().mode, kRgbLevelsModeIndependent);
+    EXPECT_EQ(independent.value().preserve_colors, kToneCurvePreserveColorsNone);
+    EXPECT_NEAR(independent.value().levels[2][2], 0.6725491881370544, 1e-7);
+
+    auto bad_mode = leftover_rgblevels_from_v1(2, 1, identity_stops);
+    ASSERT_FALSE(bad_mode);
+    EXPECT_EQ(bad_mode.error().context.at("reason"), "unsupported_legacy_rgblevels_mode");
+
+    auto inverted = leftover_rgblevels_from_v1(0, 1, {0.8F, 0.5F, 0.2F, 0.0F, 0.5F, 1.0F, 0.0F,
+                                                     0.5F, 1.0F});
+    ASSERT_FALSE(inverted);
+    EXPECT_EQ(inverted.error().context.at("reason"), "unsupported_legacy_rgblevels_levels");
+
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    DevelopParams params;
+    params.rgb_levels = linked.value();
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto *levels = operation_by_id(recipe.value(), "ravo.color.rgblevels");
+    ASSERT_NE(levels, nullptr);
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().rgb_levels.mode, kRgbLevelsModeLinked);
+    EXPECT_NEAR(restored.value().rgb_levels.levels[0][1], 0.3554200828075409, 1e-7);
+}
+
+TEST(RecipeTest, LeftoverRgbCurveMapsV1PayloadAndMiddleGrey)
+{
+    std::vector<std::uint8_t> identity(516U, 0U);
+    auto write_f32 = [&](const std::size_t offset, const float value)
+    {
+        std::memcpy(identity.data() + offset, &value, sizeof(value));
+    };
+    auto write_i32 = [&](const std::size_t offset, const std::int32_t value)
+    {
+        std::memcpy(identity.data() + offset, &value, sizeof(value));
+    };
+    for (std::size_t channel = 0; channel < 3; ++channel)
+    {
+        write_f32(channel * 20U * 8U + 8U, 1.0F);
+        write_f32(channel * 20U * 8U + 12U, 1.0F);
+        write_i32(480U + channel * 4U, 2);
+        write_i32(492U + channel * 4U, 2);
+    }
+    write_i32(512U, 1);
+    auto mapped = leftover_rgbcurve_from_v1(identity);
+    ASSERT_TRUE(mapped) << mapped.error().message;
+    EXPECT_TRUE(mapped.value().is_identity());
+    EXPECT_EQ(mapped.value().mode, kRgbLevelsModeLinked);
+
+    write_i32(508U, 1);
+    auto compensated = leftover_rgbcurve_from_v1(identity);
+    ASSERT_TRUE(compensated) << compensated.error().message;
+    EXPECT_TRUE(compensated.value().compensate_middle_grey);
+    EXPECT_TRUE(compensated.value().is_identity());
+
+    write_i32(508U, 0);
+    write_f32(8U, 0.5F);
+    write_f32(12U, 0.75F);
+    write_f32(16U, 1.0F);
+    write_f32(20U, 1.0F);
+    write_i32(480U, 3);
+    auto lifted = leftover_rgbcurve_from_v1(identity);
+    ASSERT_TRUE(lifted) << lifted.error().message;
+    EXPECT_FALSE(lifted.value().is_identity());
+    ASSERT_EQ(lifted.value().channels[0].size(), 3U);
+    EXPECT_NEAR(lifted.value().channels[0][1].y, 0.75, 1e-6);
+
+    DevelopParams params;
+    params.rgb_curve = lifted.value();
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_NEAR(restored.value().rgb_curve.channels[0][1].y, 0.75, 1e-6);
+}
+
+TEST(RecipeTest, LeftoverRawDenoiseMapsV2Payload)
+{
+    std::vector<std::uint8_t> payload(164U, 0U);
+    const float threshold = 0.05F;
+    std::memcpy(payload.data(), &threshold, sizeof(threshold));
+    const float xs[5] = {0.0F, 0.25F, 0.5F, 0.75F, 1.0F};
+    for (std::size_t channel = 0; channel < 4; ++channel)
+    {
+        for (std::size_t band = 0; band < 5; ++band)
+        {
+            std::memcpy(payload.data() + 4U + (channel * 5U + band) * 4U, &xs[band], sizeof(float));
+            const float y = band == 0 ? 0.975F : 0.5F;
+            std::memcpy(payload.data() + 84U + (channel * 5U + band) * 4U, &y, sizeof(float));
+        }
+    }
+    double mapped_threshold = 0.0;
+    std::array<std::array<double, 5>, 4> bands{};
+    auto mapped = leftover_rawdenoise_from_v2(payload, mapped_threshold, bands);
+    ASSERT_TRUE(mapped) << mapped.error().message;
+    EXPECT_NEAR(mapped_threshold, 0.05, 1e-6);
+    EXPECT_NEAR(bands[0][0], 0.975, 1e-6);
+    DevelopParams params;
+    params.raw_denoise_threshold = mapped_threshold;
+    params.raw_denoise_bands = bands;
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto restored = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_NEAR(restored.value().raw_denoise_threshold, 0.05, 1e-6);
 }
 
 TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)

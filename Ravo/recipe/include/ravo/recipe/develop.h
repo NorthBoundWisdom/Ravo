@@ -64,6 +64,8 @@ inline constexpr std::string_view kToneCurvePreserveColorsMax = "max";
 inline constexpr std::string_view kToneCurvePreserveColorsSum = "sum";
 inline constexpr std::string_view kToneCurvePreserveColorsNorm = "norm";
 inline constexpr std::string_view kToneCurvePreserveColorsPower = "power";
+inline constexpr std::string_view kRgbLevelsModeLinked = "linked";
+inline constexpr std::string_view kRgbLevelsModeIndependent = "independent";
 inline constexpr std::size_t kColorEqualizerBandCount = 8;
 inline constexpr std::size_t kChannelMixerChannelCount = 3;
 inline constexpr std::string_view kChannelMixerWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
@@ -206,6 +208,33 @@ struct ColorBalanceRgbParams
     [[nodiscard]] bool operator==(const ColorBalanceRgbParams &) const noexcept = default;
 };
 
+struct RgbLevelsParams
+{
+    std::string mode{std::string(kRgbLevelsModeLinked)};
+    std::string preserve_colors{std::string(kToneCurvePreserveColorsLuminance)};
+    std::array<std::array<double, 3>, 3> levels{{{0.0, 0.5, 1.0}, {0.0, 0.5, 1.0}, {0.0, 0.5, 1.0}}};
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const RgbLevelsParams &) const noexcept = default;
+};
+
+struct RgbCurveParams
+{
+    std::string mode{std::string(kRgbLevelsModeLinked)};
+    std::string preserve_colors{std::string(kToneCurvePreserveColorsLuminance)};
+    std::string interpolation{std::string(kToneCurveInterpolationMonotoneHermite)};
+    bool compensate_middle_grey = false;
+    std::array<std::vector<ToneCurvePoint>, 3> channels{{{ToneCurvePoint{0.0, 0.0},
+                                                          ToneCurvePoint{1.0, 1.0}},
+                                                         {ToneCurvePoint{0.0, 0.0},
+                                                          ToneCurvePoint{1.0, 1.0}},
+                                                         {ToneCurvePoint{0.0, 0.0},
+                                                          ToneCurvePoint{1.0, 1.0}}}};
+
+    [[nodiscard]] bool is_identity() const noexcept;
+    [[nodiscard]] bool operator==(const RgbCurveParams &) const noexcept = default;
+};
+
 struct DevelopParams
 {
     // Canonical graph/attachment state is typed Develop state. S3.2's recipe
@@ -272,6 +301,8 @@ struct DevelopParams
     double split_balance = 0.5;
     double split_amount = 0.0;
     double gamma = kDevelopGammaDefault;
+    RgbLevelsParams rgb_levels;
+    RgbCurveParams rgb_curve;
     std::vector<ToneCurvePoint> tone_curve;
     std::string tone_curve_working_space{std::string(kToneCurveWorkingSpaceSrgb)};
     bool sigmoid_enabled = false;
@@ -282,6 +313,13 @@ struct DevelopParams
     double sigmoid_hue_preservation = kSigmoidHuePreservationDefault;
     double raw_highlights = 0.0;
     double raw_highlights_clip = 0.987;
+    double raw_denoise_threshold = 0.0;
+    std::array<std::array<double, 5>, 4> raw_denoise_bands{{
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+        {{0.5, 0.5, 0.5, 0.5, 0.5}},
+    }};
     std::string raw_highlights_mode{std::string(kRawHighlightsModeOpposed)};
     double hot_pixels_strength = 0.0;
     double hot_pixels_threshold = 0.05;
@@ -347,6 +385,8 @@ void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept;
 [[nodiscard]] std::string_view tone_curve_working_space_name(ToneCurveWorkingSpace space) noexcept;
 [[nodiscard]] Result<std::vector<ToneCurvePoint>>
 parse_tone_curve_points(const ParameterValue &value);
+[[nodiscard]] Result<std::vector<ToneCurvePoint>>
+parse_rgb_curve_points(const ParameterValue &value);
 [[nodiscard]] ParameterValue
 tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
 [[nodiscard]] Result<void> validate_tone_curve_parameters(
@@ -417,6 +457,21 @@ struct LeftoverCropBox
 [[nodiscard]] Result<double> leftover_ashift_rotation_to_straighten(float rotation,
                                                                     float lensshift_v,
                                                                     float lensshift_h, float shear);
+
+[[nodiscard]] Result<RgbLevelsParams>
+leftover_rgblevels_from_v1(std::int32_t autoscale, std::int32_t preserve_colors,
+                           const std::array<float, 9> &levels);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+rgb_levels_to_parameters(const RgbLevelsParams &params);
+[[nodiscard]] Result<RgbCurveParams>
+leftover_rgbcurve_from_v1(const std::vector<std::uint8_t> &payload);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+rgb_curve_to_parameters(const RgbCurveParams &params);
+[[nodiscard]] Result<void> leftover_rawdenoise_from_v2(const std::vector<std::uint8_t> &payload,
+                                                       double &threshold,
+                                                       std::array<std::array<double, 5>, 4> &bands);
+[[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
+raw_denoise_to_parameters(double threshold, const std::array<std::array<double, 5>, 4> &bands);
 
 void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);

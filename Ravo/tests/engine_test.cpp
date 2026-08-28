@@ -3544,6 +3544,51 @@ TEST(ExposureAnalysisTest, RawInputColorPrimariesAndProfileConversionPreserveOne
     EXPECT_EQ(raw.pixels, original_pixels);
 }
 
+TEST(EngineFacadeTest, RawDenoiseSmoothsBayerSpikeAndRejectsNonBayer)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    DecodedRaw raw;
+    raw.width = 64;
+    raw.height = 64;
+    raw.cfa_width = 2;
+    raw.cfa_height = 2;
+    raw.black_level = 0;
+    raw.white_level = 1000;
+    raw.has_as_shot_white_balance = true;
+    declare_linear_srgb_matrix(raw);
+    raw.cfa_channels = {0, 1, 1, 2};
+    raw.pixels.assign(64U * 64U, 200);
+    raw.pixels[32U * 64U + 32U] = 900;
+    Recipe recipe;
+    recipe.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
+    declare_input(recipe);
+    recipe.operations.insert(recipe.operations.begin() + 1,
+                             {"ravo.raw.denoise",
+                              1,
+                              "rawdenoise-1",
+                              true,
+                              {{"threshold", ParameterValue{0.05}}},
+                              std::nullopt});
+    auto working = engine.value().linear_working_from_raw(raw, recipe, 64U, 64U, CancellationToken{});
+    ASSERT_TRUE(working) << working.error().message;
+    Recipe identity;
+    identity.asset = recipe.asset;
+    declare_input(identity);
+    auto clean = engine.value().linear_working_from_raw(raw, identity, 64U, 64U, CancellationToken{});
+    ASSERT_TRUE(clean) << clean.error().message;
+    EXPECT_NE(working.value().rgb, clean.value().rgb);
+
+    DecodedRaw xtrans = raw;
+    xtrans.cfa_width = 6;
+    xtrans.cfa_height = 6;
+    xtrans.cfa_channels.assign(36U, 1);
+    auto rejected =
+        engine.value().linear_working_from_raw(xtrans, recipe, 64U, 64U, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_raw_sensor");
+}
+
 TEST(EngineFacadeTest, HotPixelsMatchesFrozenBayerNeighbourContract)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -7279,6 +7324,163 @@ TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndAcceptsLab)
     ASSERT_TRUE(rgb_red) << rgb_red.error().message;
     ASSERT_TRUE(lab_red) << lab_red.error().message;
     EXPECT_NE(lab_red.value().rgb, rgb_red.value().rgb);
+}
+
+TEST(EngineFacadeTest, RgbLevelsMatchesLeftoverLutAndLinkedPreserve)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto gray = solid_raster(8, 8, 128, 128, 128);
+    auto identity = render_op(engine.value(), gray,
+                              {"ravo.color.rgblevels",
+                               1,
+                               "levels-identity",
+                               true,
+                               rgb_levels_to_parameters(RgbLevelsParams{}),
+                               std::nullopt});
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_EQ(identity.value().rgb[0], 128);
+    EXPECT_EQ(identity.value().rgb[1], 128);
+    EXPECT_EQ(identity.value().rgb[2], 128);
+
+    RgbLevelsParams lifted;
+    lifted.mode = std::string(kRgbLevelsModeLinked);
+    lifted.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    lifted.levels[0] = {0.0, 0.25, 1.0};
+    auto brighter = render_op(engine.value(), gray,
+                              {"ravo.color.rgblevels",
+                               1,
+                               "levels-lift",
+                               true,
+                               rgb_levels_to_parameters(lifted),
+                               std::nullopt});
+    ASSERT_TRUE(brighter) << brighter.error().message;
+    EXPECT_GT(brighter.value().rgb[0], 128);
+
+    RgbLevelsParams clipped;
+    clipped.mode = std::string(kRgbLevelsModeLinked);
+    clipped.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    clipped.levels[0] = {0.6, 0.8, 1.0};
+    auto black = render_op(engine.value(), gray,
+                           {"ravo.color.rgblevels",
+                            1,
+                            "levels-clip",
+                            true,
+                            rgb_levels_to_parameters(clipped),
+                            std::nullopt});
+    ASSERT_TRUE(black) << black.error().message;
+    EXPECT_EQ(black.value().rgb[0], 0);
+    EXPECT_EQ(black.value().rgb[1], 0);
+    EXPECT_EQ(black.value().rgb[2], 0);
+
+    const auto red = solid_raster(8, 8, 220, 40, 30);
+    RgbLevelsParams independent;
+    independent.mode = std::string(kRgbLevelsModeIndependent);
+    independent.levels[0] = {0.0, 0.25, 1.0};
+    independent.levels[1] = {0.0, 0.5, 1.0};
+    independent.levels[2] = {0.0, 0.5, 1.0};
+    auto red_only = render_op(engine.value(), red,
+                              {"ravo.color.rgblevels",
+                               1,
+                               "levels-indep",
+                               true,
+                               rgb_levels_to_parameters(independent),
+                               std::nullopt});
+    ASSERT_TRUE(red_only) << red_only.error().message;
+    EXPECT_GT(red_only.value().rgb[0], 220);
+    EXPECT_EQ(red_only.value().rgb[1], 40);
+    EXPECT_EQ(red_only.value().rgb[2], 30);
+
+    RgbLevelsParams preserve;
+    preserve.mode = std::string(kRgbLevelsModeLinked);
+    preserve.preserve_colors = std::string(kToneCurvePreserveColorsLuminance);
+    preserve.levels[0] = {0.0, 0.25, 1.0};
+    auto preserved = render_op(engine.value(), red,
+                               {"ravo.color.rgblevels",
+                                1,
+                                "levels-preserve",
+                                true,
+                                rgb_levels_to_parameters(preserve),
+                                std::nullopt});
+    auto unpreserved = render_op(engine.value(), red,
+                                 {"ravo.color.rgblevels",
+                                  1,
+                                  "levels-none",
+                                  true,
+                                  rgb_levels_to_parameters(lifted),
+                                  std::nullopt});
+    ASSERT_TRUE(preserved) << preserved.error().message;
+    ASSERT_TRUE(unpreserved) << unpreserved.error().message;
+    EXPECT_NE(preserved.value().rgb, unpreserved.value().rgb);
+
+    auto inverted = render_op(engine.value(), gray,
+                              {"ravo.color.rgblevels",
+                               1,
+                               "levels-bad",
+                               true,
+                               {{"black", ParameterValue{0.8}}, {"white", ParameterValue{0.2}}},
+                               std::nullopt});
+    ASSERT_FALSE(inverted);
+    EXPECT_EQ(inverted.error().code, ErrorCode::kValidation);
+}
+
+TEST(EngineFacadeTest, RgbCurveMatchesHermiteLutAndIndependentChannels)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto gray = solid_raster(8, 8, 128, 128, 128);
+    RgbCurveParams identity;
+    auto identity_render = render_op(engine.value(), gray,
+                                     {"ravo.color.rgbcurve",
+                                      1,
+                                      "curve-identity",
+                                      true,
+                                      rgb_curve_to_parameters(identity),
+                                      std::nullopt});
+    ASSERT_TRUE(identity_render) << identity_render.error().message;
+    EXPECT_EQ(identity_render.value().rgb[0], 128);
+
+    RgbCurveParams lifted;
+    lifted.mode = std::string(kRgbLevelsModeLinked);
+    lifted.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    lifted.channels[0] = {{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}};
+    auto brighter = render_op(engine.value(), gray,
+                              {"ravo.color.rgbcurve",
+                               1,
+                               "curve-lift",
+                               true,
+                               rgb_curve_to_parameters(lifted),
+                               std::nullopt});
+    ASSERT_TRUE(brighter) << brighter.error().message;
+    EXPECT_GT(brighter.value().rgb[0], 128);
+
+    const auto red = solid_raster(8, 8, 220, 40, 30);
+    RgbCurveParams independent;
+    independent.mode = std::string(kRgbLevelsModeIndependent);
+    independent.channels[0] = {{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}};
+    auto red_only = render_op(engine.value(), red,
+                              {"ravo.color.rgbcurve",
+                               1,
+                               "curve-indep",
+                               true,
+                               rgb_curve_to_parameters(independent),
+                               std::nullopt});
+    ASSERT_TRUE(red_only) << red_only.error().message;
+    EXPECT_GT(red_only.value().rgb[0], 220);
+    EXPECT_EQ(red_only.value().rgb[1], 40);
+    EXPECT_EQ(red_only.value().rgb[2], 30);
+
+    RgbCurveParams compensated = lifted;
+    compensated.compensate_middle_grey = true;
+    auto with_grey = render_op(engine.value(), gray,
+                               {"ravo.color.rgbcurve",
+                                1,
+                                "curve-grey",
+                                true,
+                                rgb_curve_to_parameters(compensated),
+                                std::nullopt});
+    ASSERT_TRUE(with_grey) << with_grey.error().message;
+    EXPECT_NE(with_grey.value().rgb, brighter.value().rgb);
 }
 
 TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)

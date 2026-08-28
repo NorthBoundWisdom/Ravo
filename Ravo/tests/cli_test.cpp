@@ -1286,6 +1286,197 @@ TEST_F(CliTest, LegacyXmpMapsRotationOnlyAshiftOntoStraighten)
     EXPECT_EQ(perspective.error().context.at("reason"), "unsupported_legacy_ashift_perspective");
 }
 
+[[nodiscard]] std::string legacy_rgblevels_xmp(const std::string_view parameters,
+                                               const std::string_view blend =
+                                                   "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc=")
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+<rdf:li darktable:num="8" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
+    document += parameters;
+    document +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params=")";
+    document += blend;
+    document += R"("/>
+</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+TEST_F(CliTest, LegacyXmpMapsRgbLevelsOntoCanonicalToneOp)
+{
+    constexpr std::string_view kIdentity =
+        "0000000001000000000000000000003f0000803f000000000000003f0000803f000000000000003f0000803f";
+    constexpr std::string_view kFixtureLinked =
+        "0000000001000000a6a53e3c9ff9b53e17f21e3f121d813da63fe43e40823f3f70c56a3bfba0d73e2f2c2c3f";
+    constexpr std::string_view kFixtureIndependent =
+        "0100000001000000a6a53e3c9ff9b53e17f21e3f121d813da63fe43e40823f3f70c56a3bfba0d73e2f2c2c3f";
+
+    auto identity = import_legacy_xmp(
+        {legacy_rgblevels_xmp(kIdentity), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(identity) << identity.error().message;
+    ASSERT_EQ(identity.value().operations.size(), 2U);
+
+    auto linked = import_legacy_xmp(
+        {legacy_rgblevels_xmp(kFixtureLinked), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(linked) << linked.error().message;
+    ASSERT_EQ(linked.value().operations.size(), 3U);
+    EXPECT_EQ(linked.value().operations[1].id, "ravo.color.rgblevels");
+    EXPECT_EQ(std::get<std::string>(linked.value().operations[1].parameters.at("mode").value),
+              kRgbLevelsModeLinked);
+    EXPECT_NEAR(std::get<double>(linked.value().operations[1].parameters.at("black").value),
+                0.011636173352599144, 1e-7);
+    EXPECT_NEAR(std::get<double>(linked.value().operations[1].parameters.at("white").value),
+                0.6208814978599548, 1e-7);
+
+    auto independent = import_legacy_xmp({legacy_rgblevels_xmp(kFixtureIndependent),
+                                          {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(independent) << independent.error().message;
+    EXPECT_EQ(independent.value().operations[1].id, "ravo.color.rgblevels");
+    EXPECT_EQ(std::get<std::string>(independent.value().operations[1].parameters.at("mode").value),
+              kRgbLevelsModeIndependent);
+
+    std::string last_write = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>)";
+    last_write += R"(<rdf:li darktable:num="8" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
+    last_write += kFixtureLinked;
+    last_write +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params="gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="/>)";
+    last_write += R"(<rdf:li darktable:num="9" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
+    last_write += kFixtureIndependent;
+    last_write +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params="gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="/>)";
+    last_write += R"(</rdf:Seq></darktable:history></rdf:Description></rdf:RDF>)";
+    auto superseded = import_legacy_xmp(
+        {last_write, {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(superseded) << superseded.error().message;
+    ASSERT_EQ(superseded.value().operations.size(), 3U);
+    EXPECT_EQ(std::get<std::string>(superseded.value().operations[1].parameters.at("mode").value),
+              kRgbLevelsModeIndependent);
+
+    auto default_blend = import_legacy_xmp(
+        {legacy_rgblevels_xmp(kFixtureLinked, kLegacyGammaBlendV9),
+         {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(default_blend) << default_blend.error().message;
+    EXPECT_EQ(default_blend.value().operations[1].id, "ravo.color.rgblevels");
+
+    const auto fixture_linked_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" /
+                                     "tests" / "0054-rgblevels-linked" / "rgblevels-linked.xmp";
+    const auto fixture_linked = read_utf8_text_file(fixture_linked_path.generic_string());
+    ASSERT_TRUE(fixture_linked) << fixture_linked.error().message;
+    EXPECT_NE(fixture_linked.value().find(kFixtureLinked), std::string::npos);
+
+    const auto fixture_indep_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" /
+                                    "tests" / "0055-rgblevels-indep" / "rgblevels-indep.xmp";
+    const auto fixture_indep = read_utf8_text_file(fixture_indep_path.generic_string());
+    ASSERT_TRUE(fixture_indep) << fixture_indep.error().message;
+    EXPECT_NE(fixture_indep.value().find(kFixtureIndependent), std::string::npos);
+    EXPECT_NE(fixture_indep.value().find(kFixtureLinked), std::string::npos);
+}
+
+[[nodiscard]] std::string legacy_rgbcurve_xmp(const std::string_view parameters)
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+<rdf:li darktable:num="8" darktable:operation="rgbcurve" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
+    document += parameters;
+    document +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params="gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="/>
+</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+TEST_F(CliTest, LegacyXmpMapsRgbCurveIncludingMiddleGrey)
+{
+    constexpr std::string_view kIdentity = "gz04eNpjYICBBnsIHqxg1H3kACYcGAYYgRgABhAEiA==";
+    constexpr std::string_view kLifted = "gz04eNpjYIADewYGByBugOLBBgaruwa3+5iBmAkLRgYAb2EFRg==";
+    constexpr std::string_view kFixture0060 =
+        "gz04eJzjuZFqywAEbjMZ7MKmc9g5+1nbzfs+xe7O2167nXWn7aS7L9rtdRWwjwgSt9+4Vt1+ibmPfeY5Z/"
+        "v7vxPtT6pn2DMwNKBh2gDdL6l2qkZedirTeeyFfz6xE7Azs59T42wvJpVOU3uJBQvS5O0Efh2yCw1hsG+6LGmfLWdif74nlebh"
+        "QghwAjErFDMhYUYkDABTiDBy";
+
+    auto identity = import_legacy_xmp(
+        {legacy_rgbcurve_xmp(kIdentity), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(identity) << identity.error().message;
+    ASSERT_EQ(identity.value().operations.size(), 2U);
+
+    auto lifted = import_legacy_xmp(
+        {legacy_rgbcurve_xmp(kLifted), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(lifted) << lifted.error().message;
+    ASSERT_EQ(lifted.value().operations.size(), 3U);
+    EXPECT_EQ(lifted.value().operations[1].id, "ravo.color.rgbcurve");
+    EXPECT_EQ(std::get<std::string>(lifted.value().operations[1].parameters.at("mode").value),
+              kRgbLevelsModeLinked);
+
+    auto fixture = import_legacy_xmp(
+        {legacy_rgbcurve_xmp(kFixture0060), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(fixture) << fixture.error().message;
+    ASSERT_EQ(fixture.value().operations.size(), 3U);
+    EXPECT_EQ(fixture.value().operations[1].id, "ravo.color.rgbcurve");
+    EXPECT_EQ(std::get<std::string>(fixture.value().operations[1].parameters.at("mode").value),
+              kRgbLevelsModeIndependent);
+    EXPECT_TRUE(std::get<bool>(
+        fixture.value().operations[1].parameters.at("compensate_middle_grey").value));
+    const auto &red_points =
+        std::get<ParameterValue::Array>(fixture.value().operations[1].parameters.at("points").value);
+    EXPECT_EQ(red_points.size(), 9U);
+    auto developed = develop_from_recipe(fixture.value());
+    ASSERT_TRUE(developed) << developed.error().message;
+    EXPECT_TRUE(developed.value().rgb_curve.compensate_middle_grey);
+    ASSERT_EQ(developed.value().rgb_curve.channels[0].size(), 9U);
+    EXPECT_NEAR(developed.value().rgb_curve.channels[0].front().x, 0.056114, 1e-5);
+
+    const auto fixture_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                              "0060-rgbcurve-indep" / "rgbcurve-indep.xmp";
+    const auto fixture_text = read_utf8_text_file(fixture_path.generic_string());
+    ASSERT_TRUE(fixture_text) << fixture_text.error().message;
+    EXPECT_NE(fixture_text.value().find("gz04eJzjuZFqywAEbjMZ7MKmc9g5"), std::string::npos);
+}
+
+[[nodiscard]] std::string legacy_rawdenoise_xmp(const std::string_view parameters)
+{
+    std::string document = R"(<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:darktable="http://darktable.sf.net/">
+  <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>
+<rdf:li darktable:num="8" darktable:operation="rawdenoise" darktable:modversion="2" darktable:enabled="1" darktable:params=")";
+    document += parameters;
+    document +=
+        R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params="gz13eJxjYGBgYARiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAErAGQU="/>
+</rdf:Seq></darktable:history></rdf:Description>
+</rdf:RDF>)";
+    return document;
+}
+
+TEST_F(CliTest, LegacyXmpMapsRawDenoiseV2)
+{
+    constexpr std::string_view kFixture0049 =
+        "gz02eJw7e8bHlgEMGuyAhD0DgwMQN9hTIvb3YKW9yPL/ds87btl812K0lz1aAFJnz+zNYB+5qtFew4LBHqIegpP4Ge3nNdfZZ/"
+        "Chire2Mdp3LU21BwBmCx/+";
+    auto imported = import_legacy_xmp(
+        {legacy_rawdenoise_xmp(kFixture0049), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().operations.size(), 3U);
+    EXPECT_EQ(imported.value().operations[1].id, "ravo.raw.denoise");
+    EXPECT_NEAR(std::get<double>(imported.value().operations[1].parameters.at("threshold").value),
+                0.05, 1e-6);
+    EXPECT_NEAR(std::get<double>(imported.value().operations[1].parameters.at("y_all0").value),
+                0.9756162762641907, 1e-6);
+
+    const auto fixture_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                              "0049-rawdenoise" / "rawdenoise.xmp";
+    const auto fixture_text = read_utf8_text_file(fixture_path.generic_string());
+    ASSERT_TRUE(fixture_text) << fixture_text.error().message;
+    EXPECT_NE(fixture_text.value().find("gz02eJw7e8bHlgEMGuyAhD0DgwMQ"), std::string::npos);
+}
+
 TEST_F(CliTest, LegacyXmpGammaFixtureCensusPinsEveryFrozenMandatoryBoundary)
 {
     const auto fixture_root = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests";

@@ -5,9 +5,10 @@
 > **Updated: 2026-08-29**
 >
 > **Current execution status: P1 first-frame open/view is accepted.** P2 leftover
-> flip/crop and ashift rotation-only straighten are accepted
-> (ADR-0048/0049/0050). Catalog export `max_edge` owns G7 final scale. Next
-> Ready is RGB curves/levels (`T2`/`T3`). Leftover GTK
+> flip/crop, ashift rotation-only straighten, RGB levels, and RGB curve
+> including middle-grey uncompensate are accepted
+> (ADR-0048/0049/0050/0051/0052/0053/0054). Catalog export `max_edge` owns G7
+> final scale. Next Ready is highlight colour reconstruction (`R5`). Leftover GTK
 > `mask_manager` / `libs/masks.c` wait for zero develop/history consumers. Do
 > not start C15 or cacorrectrgb until a later exact tranche is explicitly
 > authorized. Wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` stays blocked on
@@ -71,7 +72,7 @@ explicitly authorized. A priority label alone does not waive those conditions.
 | --- | --- | --- | --- |
 | P0 — finish active local-adjustment work | Mask overlay/group editing, path/brush authoring, and Color Harmonizer IOP retirement | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers; **Accepted product surface**. `C15` and `R4` remain explicitly unauthorized | Canonical graph/evaluator/service path with Studio overlay/group/path/brush; C14 retired; leftover GTK mask-manager files wait for zero-consumer proof |
 | P1 — reliably open and view common photos | **Accepted first-frame.** JPEG/PNG/TIFF publication plus Bayer LibRaw/DNG inspect/decode, structured failures, unpack-before-publish, corrupt PNG cache miss, and close/reopen | ADR-0046/0047. Remaining: full `R1`/`R2` ALG, `I1` dispatcher, `S11` byte-budget LRU, leftover `J*` jobs, and wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
-| P2 — everyday Develop controls | **Ready.** Flip/crop/rotation-only straighten import accepted. Remaining in order: RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2`; remaining `G3` pixel-aspect, full `G6` perspective, and leftover `(int)` crop ROI | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
+| P2 — everyday Develop controls | **Ready.** Flip/crop/rotation-only straighten, RGB levels/curve, and Bayer RAW denoise import accepted. Remaining in order: highlight colour, sharpen/dehaze, then basic retouch | `R5`, `F1`, `F11`, `M2`; remaining `G3` pixel-aspect, full `G6` perspective, leftover `(int)` crop ROI, X-Trans rawdenoise, and dedicated RGB-curve/rawdenoise editors | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
 | P3 — library and delivery workflow | Improve filtering/recent/navigation/scopes; then metadata/history/styles/presets; finish common export/storage, canvas/frame/watermark and output dither | `S8`, `L5`–`L8`, `J5`, `S9`, `S10`, `J6`, `J7`, `L2`, `U5`, `I10`–`I14`, `G5`, `G8`, `M5`, `O1`, `H3`, `H4` | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
 | P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, Color Zones/monochrome/split toning/Velvia, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T6`, `T1`, `C17`, `C18`, `C20`, `C21`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
 | P5 — specialist and low-frequency tools | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until a later exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget and explicit unsupported-state policy; no simplified substitute or speculative shell |
@@ -181,8 +182,8 @@ covered.
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
 | T1 | basecurve — iop/basecurve.c | yes | Queued / ALG; depends on explicit input-profile state; camera presets, exposure fusion, curve interpolation |
-| T2 | rgbcurve — iop/rgbcurve.c | yes | Queued / ALG; distinct from migrated tonecurve; reproduce linked/independent/preserve-colour modes |
-| T3 | rgblevels — iop/rgblevels.c | yes | Queued / ALG; auto/manual, linked channels, picker UI deleted |
+| T2 | rgbcurve — iop/rgbcurve.c | yes | Accepted monotone-hermite linked/independent/preserve-colors plus live working-matrix middle-grey uncompensate (ADR-0052/0053). Remaining: Catmull-Rom/cubic; dedicated Studio editor; leftover IOP stays until freeze census is zero |
+| T3 | rgblevels — iop/rgblevels.c | yes | Accepted recipe/engine/Studio path (ADR-0051). Auto-levels picker stays history-baked; leftover IOP remains until freeze census is zero |
 | T4 | filmicrgb — iop/filmicrgb.c | yes | Queued / ALG; Sigmoid remains default; complete scene/display, chroma/gamut/reconstruction modes |
 | T5 | agx — iop/agx.c | yes | Queued / ALG; Sigmoid remains default; AgX curve, primaries, gamut path |
 | T6 | lut3d — iop/lut3d.c | yes | Queued / ALG; depends on explicit input/output profile state; LUT format adapter, missing/invalid file, interpolation |
@@ -194,7 +195,7 @@ covered.
 | --- | --- | --- | --- |
 | R1 | rawprepare — iop/rawprepare.c | yes | Queued / ALG; first-frame LibRaw crop/black/white/CFA/flip is accepted (ADR-0047). Remaining: DNG GainMap OpcodeList2/3 and the complete frozen crop/black/white path |
 | R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; first-frame Bayer 3×3 is accepted (ADR-0047). Remaining: RCD/PPG, dual/green matching, X-Trans Markesteijn, memory/ROI. Do not treat 3×3 as ALG retirement |
-| R3 | rawdenoise — iop/rawdenoise.c | yes | Queued / ALG; pre-demosaic wavelet/threshold and sensor rejection |
+| R3 | rawdenoise — iop/rawdenoise.c | yes | Accepted Bayer wavelet/threshold (ADR-0054). Remaining: X-Trans path; G1/G3 pull-together; leftover IOP until freeze census is zero |
 | R4 | cacorrectrgb — iop/cacorrectrgb.c | no | Queued / ALG; separate from migrated pre-demosaic cacorrect; create synthetic/RAW fixture first |
 | R5 | colorreconstruct — iop/colorreconstruction.c | yes | Queued / ALG; depends on R2 and explicit input-profile state; complete highlight colour propagation/ROI |
 | R6 | rasterfile — iop/rasterfile.c | no | Queued / ALG; depends on I1/M1; raster-source/mask ownership and no-fixture baseline |
