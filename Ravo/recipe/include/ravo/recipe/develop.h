@@ -386,6 +386,15 @@ void clamp_develop(DevelopParams &params) noexcept;
                                                   std::string_view section);
 [[nodiscard]] bool set_develop_section_effect_enabled(DevelopParams &params,
                                                       std::string_view section, bool enabled);
+
+struct DevelopChange
+{
+    std::string field;
+    std::string value;
+};
+
+[[nodiscard]] std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
+                                                                const DevelopParams &after);
 [[nodiscard]] bool apply_crop_aspect(DevelopParams &params, std::string_view aspect);
 void transform_crop_for_quarter_turns(DevelopParams &params, int turns_cw) noexcept;
 void transform_crop_for_flip(DevelopParams &params, bool horizontal, bool vertical) noexcept;

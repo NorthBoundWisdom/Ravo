@@ -33,8 +33,9 @@ persistence, filtering, and missing-source state. Develop contracts include one
 canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
 CPU Develop operations, edited previews, and
 `ravo catalog` JSON commands going through the same CatalogService. Schema v4
-covers Unicode tag filtering, writable metadata, and history/snapshot save and
-restore. Schema v5 adds capture local time/offset and GPS magnitude/reference
+covers Unicode tag filtering, writable metadata, history/snapshot save and
+restore, history preview without appending, and atomic discard of newer history
+steps. Schema v5 adds capture local time/offset and GPS magnitude/reference
 columns with strict migration, import-transaction, storage-decoding, and reopen
 contracts. Opening a v5 file that still has signed `gps_altitude_mm` repairs
 the ADR-0040 magnitude/ref columns in place. This does not complete

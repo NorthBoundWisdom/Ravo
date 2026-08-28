@@ -15,10 +15,13 @@ running under the window-lifetime token.
 ## Decision
 
 - `CatalogRepository::commit_recipe` publishes the active recipe (or explicit
-  baseline), the deduplicated automatic history entry and catalog revision in
-  one adapter-owned transaction.
-- Any statement or commit failure rolls back all three; callers continue to see
-  the previous recipe and revision.
+  baseline), optional deletion of history rows with `seq` greater than a cursor,
+  the deduplicated automatic history entry, and catalog revision in one
+  adapter-owned transaction. `RecipeHistoryWrite::kUnchanged` updates the
+  current recipe without touching the stack so a later edit can still discard
+  newer steps.
+- Any statement or commit failure rolls back the whole transaction; callers
+  continue to see the previous recipe, history, and revision.
 - A desktop-owned `PreviewRequestOwner` gives each in-flight Develop request a
   cancellation token and monotonically increasing revision. A new edit or asset
   selection cancels the borrowed token immediately.

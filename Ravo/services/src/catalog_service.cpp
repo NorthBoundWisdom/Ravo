@@ -384,7 +384,8 @@ Result<Recipe> CatalogService::load_recipe(const std::string_view asset_id) cons
 }
 
 Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
-                                                const Recipe &recipe)
+                                                const Recipe &recipe,
+                                                const RecipeSaveOptions options)
 {
     if (repository_ == nullptr || engine_ == nullptr)
     {
@@ -437,7 +438,8 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
     // string_view has a null data pointer, which Qt Sql correctly binds as SQL NULL.
     const std::string history_json = recipe_json.value_or(std::string{});
     const auto committed =
-        repository_->commit_recipe(asset_id, stored.schema_version, recipe_json_view, history_json);
+        repository_->commit_recipe(asset_id, stored.schema_version, recipe_json_view, history_json,
+                                   options.history_write, options.discard_history_after_seq);
     if (!committed)
     {
         return committed.error();
@@ -447,7 +449,8 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
 }
 
 Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id,
-                                                 const DevelopParams &params)
+                                                 const DevelopParams &params,
+                                                 const RecipeSaveOptions options)
 {
     if (repository_ == nullptr)
     {
@@ -490,7 +493,7 @@ Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id
     {
         return recipe.error();
     }
-    return save_recipe(asset_id, recipe.value());
+    return save_recipe(asset_id, recipe.value(), options);
 }
 
 Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id)

@@ -68,8 +68,7 @@ void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
     {
         const auto found = by_id.find(asset.id);
         if (found == by_id.end() || found->second.contract_version != kPreviewContractVersion ||
-            found->second.state != kPreviewStateReady ||
-            !found->second.cache_relpath)
+            found->second.state != kPreviewStateReady || !found->second.cache_relpath)
         {
             continue;
         }
@@ -430,7 +429,8 @@ QString StudioPresenter::selectedDescription() const
 QString StudioPresenter::selectedCreator() const
 {
     const auto asset = assets_.assetById(selected_asset_id_);
-    return asset && asset->metadata.creator ? qstring_from_utf8(*asset->metadata.creator) : QString{};
+    return asset && asset->metadata.creator ? qstring_from_utf8(*asset->metadata.creator) :
+                                              QString{};
 }
 
 QString StudioPresenter::selectedCopyright() const
@@ -675,7 +675,8 @@ void StudioPresenter::ingestImportedItem(const ImportItemResult &item)
     assets_.insertAsset(row, asset);
     if (item.preview_cache_path && QFileInfo::exists(qstring_from_utf8(*item.preview_cache_path)))
     {
-        assets_.setThumbnail(asset.id, QUrl::fromLocalFile(qstring_from_utf8(*item.preview_cache_path)),
+        assets_.setThumbnail(asset.id,
+                             QUrl::fromLocalFile(qstring_from_utf8(*item.preview_cache_path)),
                              QStringLiteral("ready"));
     }
     applyFolders(library_folders(assets_.records()));
@@ -1552,7 +1553,8 @@ void StudioPresenter::setMetadataField(const QString &name, const QString &value
     const auto field = utf8_from_qstring(name);
     const auto text = utf8_from_qstring(value);
     mutate_selected_review(
-        [field, text](CatalogService &service, const std::string_view asset_id) -> Result<AssetRecord>
+        [field, text](CatalogService &service,
+                      const std::string_view asset_id) -> Result<AssetRecord>
         {
             auto listed = service.list_assets();
             if (!listed)
@@ -1570,7 +1572,8 @@ void StudioPresenter::setMetadataField(const QString &name, const QString &value
             }
             if (field == "title")
             {
-                metadata.title = text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
+                metadata.title =
+                    text.empty() ? std::optional<std::string>{} : std::optional<std::string>{text};
             }
             else if (field == "description")
             {
@@ -1606,10 +1609,35 @@ void StudioPresenter::createSnapshot(const QString &label)
 
 void StudioPresenter::restoreHistory(const int history_id)
 {
-    mutate_selected_review(
-        [history_id](CatalogService &service, const std::string_view asset_id)
-        { return service.restore_recipe_history(asset_id, history_id); });
-    load_develop_for_selection();
+    if (selected_asset_id_.isEmpty())
+    {
+        return;
+    }
+    const RecipeHistoryEntry *found = nullptr;
+    for (const auto &entry : recipe_history_entries_)
+    {
+        if (entry.id == history_id)
+        {
+            found = &entry;
+            break;
+        }
+    }
+    if (found == nullptr)
+    {
+        setError(QCoreApplication::translate("DevelopHistoryPanel",
+                                             "Recipe history entry does not exist."));
+        return;
+    }
+    const auto params = develop_from_history_entry(*found);
+    if (found->id == active_history_id_ && params == develop_)
+    {
+        return;
+    }
+    undo_stack_.clear();
+    redo_stack_.clear();
+    active_history_id_ = found->id;
+    active_history_seq_ = found->seq;
+    commit_develop(params, false, true, RecipeHistoryWrite::kUnchanged);
 }
 
 void StudioPresenter::setTagFilter(const QString &tag)

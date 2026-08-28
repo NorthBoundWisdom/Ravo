@@ -1037,6 +1037,186 @@ TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevi
     EXPECT_NEAR(restored_params.value().exposure_ev, accepted.exposure_ev, 1e-9);
 }
 
+TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "history-cursor.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(20, 40, 80));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams first;
+    first.exposure_ev = 0.4;
+    ASSERT_TRUE(service->save_develop(asset_id, first));
+    DevelopParams second;
+    second.exposure_ev = -0.5;
+    ASSERT_TRUE(service->save_develop(asset_id, second));
+    DevelopParams third;
+    third.exposure_ev = -0.5;
+    third.highlights = 0.3;
+    ASSERT_TRUE(service->save_develop(asset_id, third));
+
+    auto history = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history) << history.error().message;
+    ASSERT_EQ(history.value().size(), 3U);
+    const auto newest = history.value()[0];
+    const auto middle = history.value()[1];
+    const auto oldest = history.value()[2];
+    EXPECT_GT(newest.seq, middle.seq);
+    EXPECT_GT(middle.seq, oldest.seq);
+
+    auto previewed =
+        service->save_develop(asset_id, second,
+                              RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
+                                                .discard_history_after_seq = {}});
+    ASSERT_TRUE(previewed) << previewed.error().message;
+    auto preview_history = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(preview_history) << preview_history.error().message;
+    ASSERT_EQ(preview_history.value().size(), 3U);
+    EXPECT_EQ(preview_history.value()[0].id, newest.id);
+    EXPECT_EQ(preview_history.value()[1].id, middle.id);
+    auto preview_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(preview_recipe) << preview_recipe.error().message;
+    auto preview_params = develop_from_recipe(preview_recipe.value());
+    ASSERT_TRUE(preview_params) << preview_params.error().message;
+    EXPECT_NEAR(preview_params.value().exposure_ev, second.exposure_ev, 1e-9);
+    EXPECT_NEAR(preview_params.value().highlights, 0.0, 1e-9);
+
+    DevelopParams branched = second;
+    branched.contrast = 0.2;
+    auto edited = service->save_develop(asset_id, branched,
+                                        RecipeSaveOptions{
+                                            .history_write = RecipeHistoryWrite::kAppendIfNew,
+                                            .discard_history_after_seq = middle.seq,
+                                        });
+    ASSERT_TRUE(edited) << edited.error().message;
+    auto truncated = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(truncated) << truncated.error().message;
+    ASSERT_EQ(truncated.value().size(), 3U);
+    EXPECT_EQ(truncated.value()[1].id, middle.id);
+    EXPECT_EQ(truncated.value()[2].id, oldest.id);
+    EXPECT_NE(truncated.value()[0].id, newest.id);
+    EXPECT_GT(truncated.value()[0].seq, middle.seq);
+    auto current = service->load_recipe(asset_id);
+    ASSERT_TRUE(current) << current.error().message;
+    auto current_params = develop_from_recipe(current.value());
+    ASSERT_TRUE(current_params) << current_params.error().message;
+    EXPECT_NEAR(current_params.value().exposure_ev, second.exposure_ev, 1e-9);
+    EXPECT_NEAR(current_params.value().contrast, branched.contrast, 1e-9);
+    EXPECT_NEAR(current_params.value().highlights, 0.0, 1e-9);
+}
+
+TEST_F(CatalogServiceTest, RestoreRecipeHistoryStillAppendsCurrentStep)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "history-restore-append.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(8, 16, 32));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams first;
+    first.exposure_ev = 0.25;
+    ASSERT_TRUE(service->save_develop(asset_id, first));
+    DevelopParams second;
+    second.exposure_ev = -0.25;
+    ASSERT_TRUE(service->save_develop(asset_id, second));
+    auto before = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(before) << before.error().message;
+    ASSERT_EQ(before.value().size(), 2U);
+    const auto oldest_id = before.value().back().id;
+
+    auto restored = service->restore_recipe_history(asset_id, oldest_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto after = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_EQ(after.value().size(), 3U);
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto params = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_NEAR(params.value().exposure_ev, first.exposure_ev, 1e-9);
+}
+
+TEST_F(CatalogServiceTest, HistoryDiscardAndAppendShareRecipeTransaction)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "history-discard-transaction.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(64, 32, 16));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams first;
+    first.exposure_ev = 0.25;
+    ASSERT_TRUE(service->save_develop(asset_id, first));
+    DevelopParams second;
+    second.exposure_ev = -0.75;
+    ASSERT_TRUE(service->save_develop(asset_id, second));
+    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
+    auto history_before = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history_before) << history_before.error().message;
+    ASSERT_EQ(history_before.value().size(), 2U);
+    const auto cursor_seq = history_before.value().back().seq;
+
+    {
+        const auto connection = QStringLiteral("ravo_history_discard_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER fail_recipe_history_discard BEFORE INSERT ON asset_recipe_history "
+            "BEGIN SELECT RAISE(ABORT, 'forced recipe history discard failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    DevelopParams branched = first;
+    branched.contrast = 0.4;
+    auto failed = service->save_develop(asset_id, branched,
+                                        RecipeSaveOptions{
+                                            .history_write = RecipeHistoryWrite::kAppendIfNew,
+                                            .discard_history_after_seq = cursor_seq,
+                                        });
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+
+    auto current = service->load_recipe(asset_id);
+    ASSERT_TRUE(current) << current.error().message;
+    auto current_params = develop_from_recipe(current.value());
+    ASSERT_TRUE(current_params) << current_params.error().message;
+    EXPECT_NEAR(current_params.value().exposure_ev, second.exposure_ev, 1e-9);
+    EXPECT_NEAR(current_params.value().contrast, 0.0, 1e-9);
+    auto snapshot_after = service->snapshot();
+    ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
+    EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
+    auto history_after = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history_after) << history_after.error().message;
+    ASSERT_EQ(history_after.value().size(), history_before.value().size());
+    EXPECT_EQ(history_after.value()[0].id, history_before.value()[0].id);
+    EXPECT_EQ(history_after.value()[1].id, history_before.value()[1].id);
+}
+
 TEST_F(CatalogServiceTest, RawSigmoidBaselinePersistsOnlyUserOverrides)
 {
     auto created = open_service(true);
@@ -2674,10 +2854,10 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
                            "  recipe_schema_version INTEGER NOT NULL,"
                            "  recipe_json TEXT NOT NULL,"
                            "  updated_unix_ms INTEGER NOT NULL)")));
-        ASSERT_TRUE(query.exec(QStringLiteral(
-            "CREATE TABLE asset_tag ("
-            "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
-            "  name TEXT NOT NULL, PRIMARY KEY (asset_id, name))")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("CREATE TABLE asset_tag ("
+                           "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
+                           "  name TEXT NOT NULL, PRIMARY KEY (asset_id, name))")));
         ASSERT_TRUE(query.exec(QStringLiteral(
             "CREATE TABLE asset_metadata (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
             "title TEXT, description TEXT, creator TEXT, copyright TEXT, camera_make TEXT, "
@@ -2708,14 +2888,12 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     EXPECT_EQ(snapshot.value().schema_version, 5);
     auto listed = service->list_assets();
-    ASSERT_TRUE(listed) << listed.error().message << " action="
-                        << (listed.error().context.contains("action") ?
-                                listed.error().context.at("action") :
-                                "")
-                        << " qt="
-                        << (listed.error().context.contains("qt_error") ?
-                                listed.error().context.at("qt_error") :
-                                "");
+    ASSERT_TRUE(listed)
+        << listed.error().message << " action="
+        << (listed.error().context.contains("action") ? listed.error().context.at("action") : "")
+        << " qt="
+        << (listed.error().context.contains("qt_error") ? listed.error().context.at("qt_error") :
+                                                          "");
     ASSERT_EQ(listed.value().size(), 2U);
     const AssetRecord *above = nullptr;
     const AssetRecord *below = nullptr;
@@ -2731,11 +2909,13 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
     ASSERT_TRUE(above->capture.location);
     ASSERT_TRUE(above->capture.location->altitude);
     EXPECT_EQ(above->capture.location->altitude->magnitude_mm, 123456U);
-    EXPECT_EQ(above->capture.location->altitude->reference, CaptureAltitudeReference::kAboveSeaLevel);
+    EXPECT_EQ(above->capture.location->altitude->reference,
+              CaptureAltitudeReference::kAboveSeaLevel);
     ASSERT_TRUE(below->capture.location);
     ASSERT_TRUE(below->capture.location->altitude);
     EXPECT_EQ(below->capture.location->altitude->magnitude_mm, 2500U);
-    EXPECT_EQ(below->capture.location->altitude->reference, CaptureAltitudeReference::kBelowSeaLevel);
+    EXPECT_EQ(below->capture.location->altitude->reference,
+              CaptureAltitudeReference::kBelowSeaLevel);
 
     ASSERT_TRUE(service->close());
     service.reset();

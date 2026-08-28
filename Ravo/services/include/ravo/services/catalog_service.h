@@ -25,6 +25,12 @@ namespace testing
 class CatalogServiceTestControl;
 }
 
+struct RecipeSaveOptions
+{
+    RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
+    std::optional<std::int64_t> discard_history_after_seq;
+};
+
 class CatalogService
 {
 public:
@@ -50,9 +56,11 @@ public:
     [[nodiscard]] Result<bool> asset_has_edits(std::string_view asset_id) const;
     [[nodiscard]] Result<Recipe> load_recipe(std::string_view asset_id) const;
     [[nodiscard]] Result<Recipe> load_baseline_recipe(std::string_view asset_id) const;
-    [[nodiscard]] Result<AssetRecord> save_recipe(std::string_view asset_id, const Recipe &recipe);
+    [[nodiscard]] Result<AssetRecord> save_recipe(std::string_view asset_id, const Recipe &recipe,
+                                                  RecipeSaveOptions options = {});
     [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,
-                                                   const DevelopParams &params);
+                                                   const DevelopParams &params,
+                                                   RecipeSaveOptions options = {});
     [[nodiscard]] Result<AssetRecord> reset_recipe(std::string_view asset_id);
     [[nodiscard]] Result<AssetRecord> set_tags(std::string_view asset_id,
                                                const std::vector<std::string> &tags);

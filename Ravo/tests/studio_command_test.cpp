@@ -509,6 +509,32 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_LT(harmonizer, monochrome);
 }
 
+TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
+{
+    QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
+    ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
+        << library.errorString().toStdString();
+    const auto library_source = QString::fromUtf8(library.readAll());
+    EXPECT_TRUE(library_source.contains(QStringLiteral("DevelopHistoryPanel")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("developOpen")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("visible: !root.developOpen")));
+
+    QFile history(QStringLiteral(RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML));
+    ASSERT_TRUE(history.open(QIODevice::ReadOnly | QIODevice::Text))
+        << history.errorString().toStdString();
+    const auto history_source = QString::fromUtf8(history.readAll());
+    EXPECT_TRUE(history_source.contains(QStringLiteral("recipeHistory")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("activeHistoryId")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("activeHistorySeq")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("restoreHistory")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("createSnapshot")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("maximumLineCount: 1")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("entryText")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("inactive")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("textColor")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("disabledTextColor")));
+}
+
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());

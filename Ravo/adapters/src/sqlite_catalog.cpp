@@ -662,10 +662,9 @@ struct SqliteCatalogRepository::Impl
                                      " " + type);
             }
         }
-        const bool copy_signed_altitude =
-            columns.value().contains("gps_altitude_mm") &&
-            (!columns.value().contains("gps_altitude_magnitude_mm") ||
-             !columns.value().contains("gps_altitude_ref"));
+        const bool copy_signed_altitude = columns.value().contains("gps_altitude_mm") &&
+                                          (!columns.value().contains("gps_altitude_magnitude_mm") ||
+                                           !columns.value().contains("gps_altitude_ref"));
         if (missing.empty() && !copy_signed_altitude)
         {
             return {};
@@ -1365,16 +1364,36 @@ Result<void> SqliteCatalogRepository::clear_recipe(const std::string_view asset_
 
 Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
     const std::string_view asset_id, const std::int64_t recipe_schema_version,
-    const std::optional<std::string_view> recipe_json, const std::string_view history_json)
+    const std::optional<std::string_view> recipe_json, const std::string_view history_json,
+    const RecipeHistoryWrite history_write,
+    const std::optional<std::int64_t> discard_history_after_seq)
 {
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
+    if (discard_history_after_seq && *discard_history_after_seq < 0)
+    {
+        return make_error(ErrorCode::kValidation, "Recipe history cursor is invalid",
+                          {{"seq", std::to_string(*discard_history_after_seq)}});
+    }
     if (!impl_->database.transaction())
     {
         return make_error(ErrorCode::kIo, "Unable to start recipe transaction",
                           {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+
+    if (discard_history_after_seq)
+    {
+        QSqlQuery discard(impl_->database);
+        discard.prepare(
+            QStringLiteral("DELETE FROM asset_recipe_history WHERE asset_id = ? AND seq > ?"));
+        discard.addBindValue(qstring_from_utf8(asset_id));
+        discard.addBindValue(static_cast<qlonglong>(*discard_history_after_seq));
+        if (!discard.exec())
+        {
+            return impl_->abort_transaction(map_sql_error(discard, "discard_recipe_history"));
+        }
     }
 
     const auto written = recipe_json ?
@@ -1385,26 +1404,29 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
         return impl_->abort_transaction(written.error());
     }
 
-    QSqlQuery latest(impl_->database);
-    latest.prepare(
-        QStringLiteral("SELECT kind, recipe_json FROM asset_recipe_history WHERE asset_id = ? "
-                       "ORDER BY seq DESC, id DESC LIMIT 1"));
-    latest.addBindValue(qstring_from_utf8(asset_id));
-    if (!latest.exec())
+    if (history_write == RecipeHistoryWrite::kAppendIfNew)
     {
-        return impl_->abort_transaction(map_sql_error(latest, "latest_recipe_history"));
-    }
-    const bool duplicate =
-        latest.next() &&
-        utf8_from_qstring(latest.value(0).toString()) == kRecipeHistoryKindHistory &&
-        utf8_from_qstring(latest.value(1).toString()) == history_json;
-    if (!duplicate)
-    {
-        auto recorded =
-            append_recipe_history(asset_id, kRecipeHistoryKindHistory, std::nullopt, history_json);
-        if (!recorded)
+        QSqlQuery latest(impl_->database);
+        latest.prepare(
+            QStringLiteral("SELECT kind, recipe_json FROM asset_recipe_history WHERE asset_id = ? "
+                           "ORDER BY seq DESC, id DESC LIMIT 1"));
+        latest.addBindValue(qstring_from_utf8(asset_id));
+        if (!latest.exec())
         {
-            return impl_->abort_transaction(recorded.error());
+            return impl_->abort_transaction(map_sql_error(latest, "latest_recipe_history"));
+        }
+        const bool duplicate =
+            latest.next() &&
+            utf8_from_qstring(latest.value(0).toString()) == kRecipeHistoryKindHistory &&
+            utf8_from_qstring(latest.value(1).toString()) == history_json;
+        if (!duplicate)
+        {
+            auto recorded = append_recipe_history(asset_id, kRecipeHistoryKindHistory, std::nullopt,
+                                                  history_json);
+            if (!recorded)
+            {
+                return impl_->abort_transaction(recorded.error());
+            }
         }
     }
 

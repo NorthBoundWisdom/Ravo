@@ -15,6 +15,7 @@ Rectangle {
 
     readonly property int treeColumnWidth: Fonts.size20
     readonly property int treeGuideX: Math.floor(treeColumnWidth / 2)
+    readonly property bool developOpen: presenter && presenter.browseMode === "develop"
     signal viewportSeeked(real nx, real ny)
 
     Connections {
@@ -37,6 +38,7 @@ Rectangle {
             Layout.leftMargin: Fonts.standardMargin
             Layout.topMargin: Fonts.size12
             Layout.bottomMargin: Fonts.size8
+            visible: !root.developOpen
             text: qsTr("Library")
             font.bold: true
         }
@@ -48,7 +50,7 @@ Rectangle {
             Layout.rightMargin: Fonts.standardMargin
             Layout.bottomMargin: Fonts.size8
             spacing: Fonts.size6
-            visible: root.presenter && (root.presenter.importWorkActive || root.presenter.previewWorkActive ||
+            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.previewWorkActive ||
                      (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) ||
                      (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
 
@@ -243,6 +245,7 @@ Rectangle {
             Layout.bottomMargin: Fonts.size8
             Layout.preferredHeight: Fonts.inputFieldHeight
             Layout.maximumHeight: Fonts.inputFieldHeight
+            visible: !root.developOpen
             showEmptyIndicator: false
             showClipIndicator: false
             alignRightWhenFocused: false
@@ -257,9 +260,10 @@ Rectangle {
         ListView {
             id: folderList
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: !root.developOpen
             Layout.leftMargin: Fonts.size8
             Layout.rightMargin: Fonts.size8
+            visible: !root.developOpen
             clip: true
             spacing: 0
             boundsBehavior: Flickable.StopAtBounds
@@ -443,6 +447,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 1
+            visible: !root.developOpen
             color: Theme.dividerColor
         }
 
@@ -452,6 +457,7 @@ Rectangle {
             Layout.rightMargin: Fonts.size8
             Layout.topMargin: Fonts.size8
             Layout.bottomMargin: Fonts.size8
+            visible: !root.developOpen
             spacing: Fonts.smallSpacing
 
             CustomButton {
@@ -468,6 +474,14 @@ Rectangle {
                 onClicked: if (root.commands)
                     root.commands.exportPhoto.trigger()
             }
+        }
+
+        DevelopHistoryPanel {
+            Layout.fillWidth: true
+            Layout.fillHeight: root.developOpen
+            visible: root.developOpen
+            presenter: root.presenter
+            commands: root.commands
         }
     }
 }

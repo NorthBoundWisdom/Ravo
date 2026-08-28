@@ -642,8 +642,7 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
                                                   const DevelopMaskTarget target)
 {
     const auto prefix = develop_mask_field_prefix(target);
-    const auto shape_kind =
-        state.kind_index == 6 ? state.child_kind_index : state.kind_index;
+    const auto shape_kind = state.kind_index == 6 ? state.child_kind_index : state.kind_index;
     const auto kind_is = [shape_kind](const std::int64_t index) { return shape_kind == index; };
     const bool attached = state.attached;
     const double threshold0_min = kCanonicalMaskUnitMin;
@@ -730,12 +729,13 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
                              prefix + QStringLiteral("PointHardness"), kCanonicalMaskUnitMin,
                              kCanonicalMaskUnitMax, 0.01, 0.5, 2, kind_is(8)),
         develop_mask_control(QCoreApplication::translate("DevelopPanel", "Point density"),
-                             QStringLiteral("pointDensity"), prefix + QStringLiteral("PointDensity"),
-                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 1.0, 2, kind_is(8)),
+                             QStringLiteral("pointDensity"),
+                             prefix + QStringLiteral("PointDensity"), kCanonicalMaskUnitMin,
+                             kCanonicalMaskUnitMax, 0.01, 1.0, 2, kind_is(8)),
         develop_mask_control(QCoreApplication::translate("DevelopPanel", "Child opacity"),
-                             QStringLiteral("childOpacity"), prefix + QStringLiteral("ChildOpacity"),
-                             kCanonicalMaskUnitMin, kCanonicalMaskUnitMax, 0.01, 1.0, 2,
-                             state.kind_index == 6)};
+                             QStringLiteral("childOpacity"),
+                             prefix + QStringLiteral("ChildOpacity"), kCanonicalMaskUnitMin,
+                             kCanonicalMaskUnitMax, 0.01, 1.0, 2, state.kind_index == 6)};
 
     const QStringList kind_choices{develop_mask_kind_label("none"),
                                    develop_mask_kind_label("all"),
@@ -746,19 +746,16 @@ constexpr double kDevelopMaskRadiusSoftMin = 0.01;
                                    develop_mask_kind_label("group"),
                                    develop_mask_kind_label("path"),
                                    develop_mask_kind_label("brush")};
-    const QStringList child_kind_choices{develop_mask_kind_label("all"),
-                                         develop_mask_kind_label("linear_gradient"),
-                                         develop_mask_kind_label("circle"),
-                                         develop_mask_kind_label("ellipse"),
-                                         develop_mask_kind_label("parametric"),
-                                         develop_mask_kind_label("path"),
-                                         develop_mask_kind_label("brush")};
-    const QStringList operator_choices{
-        QCoreApplication::translate("DevelopPanel", "Replace"),
-        QCoreApplication::translate("DevelopPanel", "Union"),
-        QCoreApplication::translate("DevelopPanel", "Intersection"),
-        QCoreApplication::translate("DevelopPanel", "Difference"),
-        QCoreApplication::translate("DevelopPanel", "Exclusion")};
+    const QStringList child_kind_choices{
+        develop_mask_kind_label("all"),        develop_mask_kind_label("linear_gradient"),
+        develop_mask_kind_label("circle"),     develop_mask_kind_label("ellipse"),
+        develop_mask_kind_label("parametric"), develop_mask_kind_label("path"),
+        develop_mask_kind_label("brush")};
+    const QStringList operator_choices{QCoreApplication::translate("DevelopPanel", "Replace"),
+                                       QCoreApplication::translate("DevelopPanel", "Union"),
+                                       QCoreApplication::translate("DevelopPanel", "Intersection"),
+                                       QCoreApplication::translate("DevelopPanel", "Difference"),
+                                       QCoreApplication::translate("DevelopPanel", "Exclusion")};
     const QStringList source_choices{
         QCoreApplication::translate("DevelopPanel", "Input"),
         QCoreApplication::translate("DevelopPanel", "Operation output")};
@@ -1210,6 +1207,300 @@ QVariantList StudioPresenter::recipeHistory() const
     return recipe_history_;
 }
 
+qlonglong StudioPresenter::activeHistoryId() const noexcept
+{
+    return static_cast<qlonglong>(active_history_id_);
+}
+
+qlonglong StudioPresenter::activeHistorySeq() const noexcept
+{
+    return static_cast<qlonglong>(active_history_seq_);
+}
+
+namespace
+{
+
+QString history_field_label(const std::string_view field)
+{
+    if (field == "exposure")
+        return QCoreApplication::translate("DevelopPanel", "Exposure");
+    if (field == "black")
+        return QCoreApplication::translate("DevelopPanel", "Exposure black");
+    if (field == "contrast")
+        return QCoreApplication::translate("DevelopPanel", "Contrast");
+    if (field == "highlights")
+        return QCoreApplication::translate("DevelopPanel", "Highlights");
+    if (field == "shadows")
+        return QCoreApplication::translate("DevelopPanel", "Shadows");
+    if (field == "whites")
+        return QCoreApplication::translate("DevelopPanel", "Whites");
+    if (field == "blacks")
+        return QCoreApplication::translate("DevelopPanel", "Blacks");
+    if (field == "vibrance")
+        return QCoreApplication::translate("DevelopPanel", "Vibrance");
+    if (field == "saturation")
+        return QCoreApplication::translate("DevelopPanel", "Saturation");
+    if (field == "velvia")
+        return QCoreApplication::translate("DevelopPanel", "Velvia");
+    if (field == "gamma")
+        return QCoreApplication::translate("DevelopPanel", "Gamma");
+    if (field == "sharpen")
+        return QCoreApplication::translate("DevelopPanel", "Sharpen");
+    if (field == "clarity")
+        return QCoreApplication::translate("DevelopPanel", "Clarity");
+    if (field == "vignette")
+        return QCoreApplication::translate("DevelopPanel", "Vignette");
+    if (field == "grain")
+        return QCoreApplication::translate("DevelopPanel", "Grain");
+    if (field == "bloom")
+        return QCoreApplication::translate("DevelopPanel", "Bloom");
+    if (field == "soften")
+        return QCoreApplication::translate("DevelopPanel", "Soften");
+    if (field == "dehaze")
+        return QCoreApplication::translate("DevelopPanel", "Dehaze");
+    if (field == "monochrome")
+        return QCoreApplication::translate("DevelopPanel", "Monochrome");
+    if (field == "denoise")
+        return QCoreApplication::translate("DevelopPanel", "Denoise");
+    if (field == "straighten")
+        return QCoreApplication::translate("DevelopPanel", "Angle");
+    if (field == "toneEqBlacks")
+        return QCoreApplication::translate("DevelopPanel", "Blacks");
+    if (field == "toneEqShadows")
+        return QCoreApplication::translate("DevelopPanel", "Shadows");
+    if (field == "toneEqMidtones")
+        return QCoreApplication::translate("DevelopPanel", "Midtones");
+    if (field == "toneEqHighlights")
+        return QCoreApplication::translate("DevelopPanel", "Highlights");
+    if (field == "toneEqWhites")
+        return QCoreApplication::translate("DevelopPanel", "Whites");
+    if (field == "graduated")
+        return QCoreApplication::translate("DevelopPanel", "Graduated ND");
+    if (field == "rotate")
+        return QCoreApplication::translate("DevelopPanel", "Rotate");
+    if (field == "flip")
+        return QCoreApplication::translate("DevelopPanel", "Flip");
+    if (field == "crop")
+        return QCoreApplication::translate("DevelopPanel", "Crop");
+    if (field == "toneCurve")
+        return QCoreApplication::translate("DevelopPanel", "Tone curve");
+    if (field == "whiteBalance")
+        return QCoreApplication::translate("DevelopPanel", "White Balance");
+    if (field == "inputProfile")
+        return QCoreApplication::translate("DevelopPanel", "Input Profile");
+    if (field == "outputProfile")
+        return QCoreApplication::translate("DevelopPanel", "Output Profile");
+    if (field == "primaries")
+        return QCoreApplication::translate("DevelopPanel", "RGB Primaries");
+    if (field == "mixer")
+        return QCoreApplication::translate("DevelopPanel", "Channel Mixer");
+    if (field == "colorBalance")
+        return QCoreApplication::translate("DevelopPanel", "Color Balance");
+    if (field == "colorBalanceRgb")
+        return QCoreApplication::translate("DevelopPanel", "Color Balance RGB");
+    if (field == "profileGamma")
+        return QCoreApplication::translate("DevelopPanel", "Unbreak input profile");
+    if (field == "sigmoid")
+        return QCoreApplication::translate("DevelopPanel", "Sigmoid");
+    if (field == "light")
+        return QCoreApplication::translate("DevelopPanel", "Light");
+    if (field == "color")
+        return QCoreApplication::translate("DevelopPanel", "Color");
+    if (field == "detail")
+        return QCoreApplication::translate("DevelopPanel", "Detail");
+    if (field == "effects")
+        return QCoreApplication::translate("DevelopPanel", "Effects");
+    if (field == "geometry")
+        return QCoreApplication::translate("DevelopPanel", "Geometry");
+    if (field == "reset")
+        return QCoreApplication::translate("StudioCommands", "Reset All Edits");
+    return qstring_from_utf8(field);
+}
+
+QString format_history_summary(const std::vector<DevelopChange> &changes)
+{
+    if (changes.empty())
+    {
+        return QCoreApplication::translate("DevelopHistoryPanel", "Original");
+    }
+    QStringList parts;
+    constexpr int kMaxParts = 4;
+    for (const auto &change : changes)
+    {
+        if (static_cast<int>(parts.size()) >= kMaxParts)
+        {
+            parts.push_back(QStringLiteral("…"));
+            break;
+        }
+        QString part = history_field_label(change.field);
+        if (change.value == "on")
+        {
+            part += QLatin1Char(' ') + QCoreApplication::translate("DevelopHistoryPanel", "on");
+        }
+        else if (change.value == "off")
+        {
+            part += QLatin1Char(' ') + QCoreApplication::translate("DevelopHistoryPanel", "off");
+        }
+        else if (!change.value.empty())
+        {
+            part += QLatin1Char(' ') + qstring_from_utf8(change.value);
+        }
+        parts.push_back(std::move(part));
+    }
+    return parts.join(QStringLiteral(", "));
+}
+
+DevelopParams develop_from_history_json(const std::string &recipe_json)
+{
+    if (recipe_json.empty())
+    {
+        return {};
+    }
+    auto recipe = parse_recipe_json(recipe_json);
+    if (!recipe)
+    {
+        return {};
+    }
+    auto params = develop_from_recipe(recipe.value());
+    if (!params)
+    {
+        return {};
+    }
+    return std::move(params).value();
+}
+
+} // namespace
+
+DevelopParams StudioPresenter::develop_from_history_entry(const RecipeHistoryEntry &entry) const
+{
+    if (entry.recipe_json.empty())
+    {
+        DevelopParams params;
+        const auto asset = assets_.assetById(selected_asset_id_);
+        if (asset)
+        {
+            params.sigmoid_enabled = is_raw_media_type(asset->media_type);
+        }
+        return params;
+    }
+    return develop_from_history_json(entry.recipe_json);
+}
+
+void StudioPresenter::sync_active_history()
+{
+    if (recipe_history_entries_.empty())
+    {
+        active_history_id_ = 0;
+        active_history_seq_ = 0;
+        return;
+    }
+    for (const auto &entry : recipe_history_entries_)
+    {
+        if (entry.id == active_history_id_)
+        {
+            active_history_seq_ = entry.seq;
+            return;
+        }
+    }
+    for (const auto &entry : recipe_history_entries_)
+    {
+        if (develop_from_history_entry(entry) == develop_)
+        {
+            active_history_id_ = entry.id;
+            active_history_seq_ = entry.seq;
+            return;
+        }
+    }
+    active_history_id_ = recipe_history_entries_.front().id;
+    active_history_seq_ = recipe_history_entries_.front().seq;
+}
+
+void StudioPresenter::apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries)
+{
+    recipe_history_entries_ = entries;
+    std::vector<DevelopParams> steps;
+    steps.reserve(entries.size());
+    for (const auto &entry : entries)
+    {
+        steps.push_back(develop_from_history_json(entry.recipe_json));
+    }
+    recipe_history_.clear();
+    for (std::size_t index = 0; index < entries.size(); ++index)
+    {
+        const auto &entry = entries[index];
+        const DevelopParams &after = steps[index];
+        const DevelopParams before = index + 1 < steps.size() ? steps[index + 1] : DevelopParams{};
+        QString summary = format_history_summary(develop_change_summary(before, after));
+        if (entry.kind == kRecipeHistoryKindSnapshot)
+        {
+            const QString label = entry.label ? qstring_from_utf8(*entry.label) : QString{};
+            const QString snapshot = QCoreApplication::translate("DevelopHistoryPanel", "Snapshot");
+            if (!label.isEmpty())
+            {
+                summary = snapshot + QStringLiteral(" · ") + label;
+            }
+            else
+            {
+                summary = snapshot + QStringLiteral(" · ") + summary;
+            }
+        }
+        QVariantMap row;
+        row.insert(QStringLiteral("id"), QVariant::fromValue(entry.id));
+        row.insert(QStringLiteral("kind"), qstring_from_utf8(entry.kind));
+        row.insert(QStringLiteral("label"),
+                   entry.label ? qstring_from_utf8(*entry.label) : QString{});
+        row.insert(QStringLiteral("seq"), QVariant::fromValue(entry.seq));
+        row.insert(QStringLiteral("createdUnixMs"), QVariant::fromValue(entry.created_unix_ms));
+        row.insert(QStringLiteral("summary"), summary);
+        recipe_history_.push_back(row);
+    }
+}
+
+void StudioPresenter::reload_recipe_history()
+{
+    if (selected_asset_id_.isEmpty())
+    {
+        recipe_history_.clear();
+        recipe_history_entries_.clear();
+        active_history_id_ = 0;
+        active_history_seq_ = 0;
+        emit editChanged();
+        return;
+    }
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    executor_.post(
+        [this, asset_id]()
+        {
+            Result<std::vector<RecipeHistoryEntry>> history =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                history = service_->list_recipe_history(asset_id);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, history = std::move(history)]() mutable
+                {
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    {
+                        return;
+                    }
+                    if (history)
+                    {
+                        apply_recipe_history(history.value());
+                    }
+                    else
+                    {
+                        recipe_history_.clear();
+                        recipe_history_entries_.clear();
+                    }
+                    sync_active_history();
+                    emit editChanged();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 bool StudioPresenter::cropToolActive() const noexcept
 {
     return crop_tool_active_;
@@ -1227,6 +1518,9 @@ void StudioPresenter::load_develop_for_selection()
     undo_stack_.clear();
     redo_stack_.clear();
     recipe_history_.clear();
+    recipe_history_entries_.clear();
+    active_history_id_ = 0;
+    active_history_seq_ = 0;
     if (selected_asset_id_.isEmpty())
     {
         emit editChanged();
@@ -1252,24 +1546,20 @@ void StudioPresenter::load_develop_for_selection()
                     {
                         return;
                     }
-                    recipe_history_.clear();
                     if (history)
                     {
-                        for (const auto &entry : history.value())
-                        {
-                            QVariantMap row;
-                            row.insert(QStringLiteral("id"), QVariant::fromValue(entry.id));
-                            row.insert(QStringLiteral("kind"), qstring_from_utf8(entry.kind));
-                            row.insert(QStringLiteral("label"),
-                                       entry.label ? qstring_from_utf8(*entry.label) : QString{});
-                            row.insert(QStringLiteral("seq"), QVariant::fromValue(entry.seq));
-                            recipe_history_.push_back(row);
-                        }
+                        apply_recipe_history(history.value());
+                    }
+                    else
+                    {
+                        recipe_history_.clear();
+                        recipe_history_entries_.clear();
                     }
                     if (!loaded)
                     {
                         develop_ = {};
                         saved_develop_ = {};
+                        sync_active_history();
                         emit editChanged();
                         setError(qstring_from_utf8(loaded.error().message));
                         return;
@@ -1279,12 +1569,14 @@ void StudioPresenter::load_develop_for_selection()
                     {
                         develop_ = {};
                         saved_develop_ = {};
+                        sync_active_history();
                         emit editChanged();
                         setError(qstring_from_utf8(params.error().message));
                         return;
                     }
                     develop_ = params.value();
                     saved_develop_ = develop_;
+                    sync_active_history();
                     emit editChanged();
                 },
                 Qt::QueuedConnection);
@@ -1292,7 +1584,8 @@ void StudioPresenter::load_develop_for_selection()
 }
 
 void StudioPresenter::commit_develop(DevelopParams params, const bool push_history,
-                                     const bool refresh_preview)
+                                     const bool refresh_preview,
+                                     const RecipeHistoryWrite history_write)
 {
     if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
@@ -1309,6 +1602,29 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         }
         redo_stack_.clear();
     }
+    std::optional<std::int64_t> discard_after;
+    if (push_history && history_write == RecipeHistoryWrite::kAppendIfNew &&
+        !recipe_history_entries_.empty() && active_history_seq_ > 0 &&
+        active_history_seq_ < recipe_history_entries_.front().seq)
+    {
+        discard_after = active_history_seq_;
+        const auto cursor_seq = *discard_after;
+        recipe_history_entries_.erase(std::remove_if(recipe_history_entries_.begin(),
+                                                     recipe_history_entries_.end(),
+                                                     [cursor_seq](const RecipeHistoryEntry &entry)
+                                                     { return entry.seq > cursor_seq; }),
+                                      recipe_history_entries_.end());
+        QVariantList kept;
+        kept.reserve(recipe_history_.size());
+        for (const auto &row : recipe_history_)
+        {
+            if (row.toMap().value(QStringLiteral("seq")).toLongLong() <= cursor_seq)
+            {
+                kept.push_back(row);
+            }
+        }
+        recipe_history_ = std::move(kept);
+    }
     develop_ = params;
     emit editChanged();
     const bool crop_guides = crop_tool_active_ && !before_after_;
@@ -1320,6 +1636,8 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .params = params,
         .previous = previous,
         .push_history = push_history,
+        .history_write = history_write,
+        .discard_history_after_seq = discard_after,
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
@@ -1362,6 +1680,8 @@ void StudioPresenter::preview_develop(DevelopParams params)
     pending_preview_ = PendingDevelopWork{
         .interactive = true,
         .params = params,
+        .history_write = RecipeHistoryWrite::kUnchanged,
+        .discard_history_after_seq = {},
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
@@ -1386,6 +1706,8 @@ void StudioPresenter::enqueue_preview()
     pending_preview_ = PendingDevelopWork{
         .interactive = mask_overlay_visible_,
         .params = develop_,
+        .history_write = RecipeHistoryWrite::kUnchanged,
+        .discard_history_after_seq = {},
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
@@ -1429,7 +1751,12 @@ void StudioPresenter::kick_develop_work()
             {
                 if (job.save)
                 {
-                    saved = service_->save_develop(job.asset_id, job.params);
+                    saved = service_->save_develop(
+                        job.asset_id, job.params,
+                        RecipeSaveOptions{
+                            .history_write = job.history_write,
+                            .discard_history_after_seq = job.discard_history_after_seq,
+                        });
                     save_ok = static_cast<bool>(saved);
                 }
                 if (save_ok && job.refresh_preview)
@@ -1475,6 +1802,15 @@ void StudioPresenter::kick_develop_work()
                                 {
                                     undo_stack_.pop_back();
                                 }
+                                active_history_id_ = 0;
+                                if (job.discard_history_after_seq)
+                                {
+                                    reload_recipe_history();
+                                }
+                                else
+                                {
+                                    sync_active_history();
+                                }
                                 preview_loading_ = false;
                                 emit editChanged();
                                 emit previewChanged();
@@ -1489,6 +1825,12 @@ void StudioPresenter::kick_develop_work()
                             assets_.updateAsset(saved.value());
                             emit selectionChanged();
                             emit editChanged();
+                            if (job.push_history)
+                            {
+                                active_history_id_ = 0;
+                                active_history_seq_ = 0;
+                                reload_recipe_history();
+                            }
                         }
                     }
                     if (!develop_preview_owner_.accepts(revision, job.asset_id,

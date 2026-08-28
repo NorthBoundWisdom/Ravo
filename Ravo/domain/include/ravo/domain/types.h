@@ -19,6 +19,15 @@ namespace ravo
 inline constexpr std::int64_t kCatalogSchemaVersion = 5;
 inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
+
+// kAppendIfNew records an automatic history row unless it duplicates the latest
+// history-kind entry. kUnchanged publishes the current recipe and leaves the
+// stack intact so a later edit can still discard newer steps.
+enum class RecipeHistoryWrite
+{
+    kAppendIfNew,
+    kUnchanged,
+};
 inline constexpr std::size_t kTagMaxLength = 128;
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
 inline constexpr std::int64_t kPreviewContractVersion = 7;

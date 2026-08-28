@@ -125,32 +125,4 @@ ColumnLayout {
                 onEditingFinished: if (root.commands)
                     root.commands.setMetadata("copyright", text)
             }
-            Repeater {
-                model: root.hasPresenter ? root.presenter.recipeHistory : []
-                delegate: RowLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Fonts.standardMargin
-                    Layout.rightMargin: Fonts.standardMargin
-                    CustomLabel {
-                        Layout.fillWidth: true
-                        elide: Text.ElideRight
-                        text: (modelData.kind === "snapshot" ? qsTr("Snapshot") : qsTr("History")) +
-                              (modelData.label && modelData.label.length ? " · " + modelData.label : " #" + modelData.seq)
-                    }
-                    CustomButton {
-                        text: qsTr("Restore")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.restoreHistory(modelData.id)
-                    }
-                }
-            }
-            CustomButton {
-                Layout.leftMargin: Fonts.standardMargin
-                text: qsTr("Snapshot")
-                enabled: root.hasSelection
-                onClicked: if (root.commands)
-                    root.commands.createSnapshot(qsTr("Snapshot"))
-            }
 }

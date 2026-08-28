@@ -178,6 +178,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedCopyright READ selectedCopyright NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
+    Q_PROPERTY(qlonglong activeHistoryId READ activeHistoryId NOTIFY editChanged)
+    Q_PROPERTY(qlonglong activeHistorySeq READ activeHistorySeq NOTIFY editChanged)
     Q_PROPERTY(QString tagFilter READ tagFilter NOTIFY filterChanged)
     Q_PROPERTY(bool cropToolActive READ cropToolActive NOTIFY editChanged)
     Q_PROPERTY(AssetListModel *assets READ assets CONSTANT)
@@ -354,6 +356,8 @@ public:
     [[nodiscard]] QString selectedCopyright() const;
     [[nodiscard]] QString selectedCaptureSummary() const;
     [[nodiscard]] QVariantList recipeHistory() const;
+    [[nodiscard]] qlonglong activeHistoryId() const noexcept;
+    [[nodiscard]] qlonglong activeHistorySeq() const noexcept;
     [[nodiscard]] QString tagFilter() const;
     [[nodiscard]] bool cropToolActive() const noexcept;
     [[nodiscard]] bool cropGuideReady() const noexcept;
@@ -473,7 +477,12 @@ private:
     void ingestImportedItem(const ImportItemResult &item);
     void finishPreviewJob(bool success);
     void load_develop_for_selection();
-    void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true);
+    void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
+    void reload_recipe_history();
+    void sync_active_history();
+    [[nodiscard]] DevelopParams develop_from_history_entry(const RecipeHistoryEntry &entry) const;
+    void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true,
+                        RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew);
     void preview_develop(DevelopParams params);
     void enqueue_preview();
     [[nodiscard]] double selected_source_aspect() const;
@@ -498,6 +507,8 @@ private:
         DevelopParams params{};
         DevelopParams previous{};
         bool push_history = false;
+        RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
+        std::optional<std::int64_t> discard_history_after_seq;
         std::string asset_id;
         bool ignore_edits = false;
         bool ignore_crop = false;
@@ -571,6 +582,9 @@ private:
     std::optional<PendingDevelopWork> pending_save_;
     std::optional<PendingDevelopWork> pending_preview_;
     QVariantList recipe_history_;
+    std::vector<RecipeHistoryEntry> recipe_history_entries_;
+    std::int64_t active_history_id_ = 0;
+    std::int64_t active_history_seq_ = 0;
 };
 
 } // namespace ravo

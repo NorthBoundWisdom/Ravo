@@ -2647,6 +2647,25 @@ TEST(RecipeTest, RejectsNewerSchemaVersionsBeforeValidation)
     EXPECT_EQ(recipe.error().code, ErrorCode::kUnsupported);
 }
 
+TEST(RecipeTest, DevelopChangeSummaryReportsSignedSliderDeltas)
+{
+    DevelopParams before;
+    DevelopParams after;
+    after.highlights = 0.3;
+    after.shadows = -0.2;
+    const auto changes = develop_change_summary(before, after);
+    ASSERT_EQ(changes.size(), 2U);
+    EXPECT_EQ(changes[0].field, "highlights");
+    EXPECT_EQ(changes[0].value, "+3");
+    EXPECT_EQ(changes[1].field, "shadows");
+    EXPECT_EQ(changes[1].value, "-2");
+
+    DevelopParams reset_from = after;
+    const auto reset = develop_change_summary(reset_from, DevelopParams{});
+    ASSERT_EQ(reset.size(), 1U);
+    EXPECT_EQ(reset.front().field, "reset");
+}
+
 TEST(RecipeTest, SectionEffectBypassKeepsParametersAndDisablesOperations)
 {
     DevelopParams params;

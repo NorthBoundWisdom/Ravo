@@ -159,11 +159,14 @@ WAL, `synchronous=NORMAL`, and `busy_timeout`. New catalogs and migrations use
 transactions, and an unknown higher schema version fails fast.
 
 The repository adapter atomically publishes the current recipe row (or baseline
-clearing), automatic history, and catalog revision. Any failed step rolls back
-everything; services neither compensate writes nor expose a partially committed
-recipe. The first version does not read or migrate a frozen 0.9 catalog. Future
-compatibility requires an independent product decision, backup/rollback, and
-fixtures.
+clearing), optional deletion of history rows newer than a cursor, automatic
+history, and catalog revision. A history preview writes the current recipe with
+`RecipeHistoryWrite::kUnchanged` so the stack stays intact; a later parameter
+edit discards `seq` greater than the cursor in the same transaction before
+appending. Any failed step rolls back everything; services neither compensate
+writes nor expose a partially committed recipe. The first version does not
+read or migrate a frozen 0.9 catalog. Future compatibility requires an
+independent product decision, backup/rollback, and fixtures.
 
 ### Import
 
@@ -692,7 +695,10 @@ The Ravo Studio first version owns:
 - Gallery list states: loading, ready, missing, unsupported, and failed;
 - selection, Gallery grid/loupe and Edit panes, fit, 100%, and pan. Grid and
   filmstrip use whole-image containment with letterbox number, rating,
-  format/dimension, and flag overlays;
+  format/dimension, and flag overlays. Gallery's left rail is the folder tree,
+  tag filter, and Import/Export; Edit's left rail is the selected photo's
+  recipe history and snapshots. Clicking a step previews that recipe and dims
+  newer rows; a subsequent parameter edit discards the dimmed rows;
 - shared scopes above the right Gallery/Edit panel: frozen-C 256-bin RGB
   histogram (linear Y) and RGB-parade component plot;
 - progress, cancellation, and recoverable-error presentation;
