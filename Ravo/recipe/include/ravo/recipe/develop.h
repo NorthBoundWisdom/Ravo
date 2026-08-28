@@ -26,6 +26,9 @@ namespace ravo
 inline constexpr double kDevelopGammaDefault = 1.0;
 inline constexpr double kDevelopStraightenMin = -45.0;
 inline constexpr double kDevelopStraightenMax = 45.0;
+// Short-edge floor is min(300px, half the source short side).
+inline constexpr double kDevelopCropMinShortEdgePixels = 300.0;
+inline constexpr double kDevelopCropMinShortEdgeFraction = 0.5;
 inline constexpr double kSigmoidMiddleGrey = 0.1845;
 inline constexpr double kSigmoidContrastDefault = 1.5;
 inline constexpr double kSigmoidContrastMin = 0.1;
@@ -396,6 +399,10 @@ struct DevelopChange
 [[nodiscard]] std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                                                                 const DevelopParams &after);
 [[nodiscard]] bool apply_crop_aspect(DevelopParams &params, std::string_view aspect);
+[[nodiscard]] double develop_crop_min_short_edge_pixels(double source_width,
+                                                        double source_height) noexcept;
+void clamp_develop_crop_min_extent(DevelopParams &params, double source_width,
+                                   double source_height) noexcept;
 void transform_crop_for_quarter_turns(DevelopParams &params, int turns_cw) noexcept;
 void transform_crop_for_flip(DevelopParams &params, bool horizontal, bool vertical) noexcept;
 [[nodiscard]] double working_image_aspect(std::int64_t rotate_quarters,

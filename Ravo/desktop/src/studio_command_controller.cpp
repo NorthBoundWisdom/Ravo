@@ -544,20 +544,23 @@ QVector<ActionSpec> builtin_actions()
 
 QString no_argument(const QVariant &argument)
 {
-    return argument.isValid() && !argument.isNull() ? QStringLiteral("This command takes no argument.") :
-                                                      QString{};
+    return argument.isValid() && !argument.isNull() ?
+               QStringLiteral("This command takes no argument.") :
+               QString{};
 }
 
 QString non_empty_string(const QVariant &argument)
 {
-    return argument.metaType().id() != QMetaType::QString || argument.toString().trimmed().isEmpty() ?
+    return argument.metaType().id() != QMetaType::QString ||
+                   argument.toString().trimmed().isEmpty() ?
                QStringLiteral("A non-empty string is required.") :
                QString{};
 }
 
 QString map_argument(const QVariant &argument)
 {
-    return argument.canConvert<QVariantMap>() ? QString{} : QStringLiteral("An object argument is required.");
+    return argument.canConvert<QVariantMap>() ? QString{} :
+                                                QStringLiteral("An object argument is required.");
 }
 
 QString list_argument(const QVariant &argument)
@@ -641,17 +644,20 @@ QStringList strings_from(const QVariant &argument)
 
 QVariantMap accepted()
 {
-    return {{QStringLiteral("accepted"), true}, {QStringLiteral("code"), QStringLiteral("accepted")},
+    return {{QStringLiteral("accepted"), true},
+            {QStringLiteral("code"), QStringLiteral("accepted")},
             {QStringLiteral("message"), QString{}}};
 }
 
 QVariantMap rejected(const QString &code, const QString &message)
 {
-    return {{QStringLiteral("accepted"), false}, {QStringLiteral("code"), code},
+    return {{QStringLiteral("accepted"), false},
+            {QStringLiteral("code"), code},
             {QStringLiteral("message"), message}};
 }
 
-template <typename Range> QSet<QString> string_set(const Range &values)
+template <typename Range>
+QSet<QString> string_set(const Range &values)
 {
     QSet<QString> result;
     for (const auto &value : values)
@@ -672,10 +678,12 @@ struct StudioCommandController::Impl
 };
 
 StudioCommandController::StudioCommandController(StudioPresenter &presenter, QObject *parent)
-    : QObject(parent), presenter_(presenter), impl_(std::make_unique<Impl>())
+    : QObject(parent)
+    , presenter_(presenter)
+    , impl_(std::make_unique<Impl>())
 {
-    const auto add = [this](const char *id, const Condition condition, Validator validator,
-                            Handler handler)
+    const auto add =
+        [this](const char *id, const Condition condition, Validator validator, Handler handler)
     {
         const auto key = QLatin1String(id);
         if (impl_->commands.contains(key))
@@ -688,16 +696,14 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     {
         ++impl_->confirmation_revision;
         impl_->pending_confirmation_command = QLatin1String(confirmed_id);
-        impl_->pending_confirmation_token =
-            QStringLiteral("%1:%2")
-                .arg(QLatin1String(confirmed_id))
-                .arg(impl_->confirmation_revision);
+        impl_->pending_confirmation_token = QStringLiteral("%1:%2")
+                                                .arg(QLatin1String(confirmed_id))
+                                                .arg(impl_->confirmation_revision);
         impl_->pending_confirmation_assets = presenter_.selected_asset_ids();
         emit presentationCommandRequested(QLatin1String(request_id),
                                           impl_->pending_confirmation_token);
     };
-    const auto confirmation_validator = [this](const char *confirmed_id,
-                                                const QVariant &argument)
+    const auto confirmation_validator = [this](const char *confirmed_id, const QVariant &argument)
     {
         if (argument.metaType().id() != QMetaType::QString ||
             impl_->pending_confirmation_command != QLatin1String(confirmed_id) ||
@@ -715,23 +721,32 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     };
 
     add(command::kLibraryCreate, Condition::kAlways, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kLibraryCreate, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryCreate, argument); });
     add(command::kLibraryCreatePath, Condition::kAlways, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.createCatalogFromPath(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.createCatalogFromPath(argument.toString()); });
     add(command::kLibraryOpen, Condition::kAlways, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kLibraryOpen, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryOpen, argument); });
     add(command::kLibraryOpenPath, Condition::kAlways, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.openCatalogFromPath(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.openCatalogFromPath(argument.toString()); });
     add(command::kLibraryImportFiles, Condition::kCatalogReady, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kLibraryImportFiles, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryImportFiles, argument); });
     add(command::kLibraryImportPaths, Condition::kCatalogReady, list_argument,
-        [this](const QVariant &argument, const QString &) { presenter_.importFilePaths(strings_from(argument)); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.importFilePaths(strings_from(argument)); });
     add(command::kLibraryImportFolder, Condition::kCatalogReady, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kLibraryImportFolder, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryImportFolder, argument); });
     add(command::kLibraryImportFolderPath, Condition::kCatalogReady, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.importFolderFromPath(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.importFolderFromPath(argument.toString()); });
     add(command::kLibraryExport, Condition::kReadySelection, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kLibraryExport, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryExport, argument); });
     add(
         command::kLibraryExportWrite, Condition::kReadySelection,
         [](const QVariant &argument)
@@ -777,14 +792,16 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                                             fields.value(QStringLiteral("format")).toString(),
                                             fields.value(QStringLiteral("options")).toMap());
         });
-    add(command::kLibrarySetTagFilter, Condition::kCatalogOpen,
-        [](const QVariant &) { return QString{}; },
-        [this](const QVariant &argument, const QString &) { presenter_.setTagFilter(argument.toString()); });
-    add(command::kLibrarySetRatingFilter, Condition::kCatalogOpen,
+    add(
+        command::kLibrarySetTagFilter, Condition::kCatalogOpen, [](const QVariant &)
+        { return QString{}; }, [this](const QVariant &argument, const QString &)
+        { presenter_.setTagFilter(argument.toString()); });
+    add(
+        command::kLibrarySetRatingFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
-            const auto error = required_fields(argument,
-                                               {QStringLiteral("mode"), QStringLiteral("value")});
+            const auto error =
+                required_fields(argument, {QStringLiteral("mode"), QStringLiteral("value")});
             if (!error.isEmpty())
                 return error;
             const auto fields = argument.toMap();
@@ -794,8 +811,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 return QStringLiteral("Unknown rating filter mode.");
             const auto value = fields.value(QStringLiteral("value"));
             const double number = value.toDouble();
-            return numeric_argument(value) && std::isfinite(number) && std::floor(number) == number &&
-                           number >= 0.0 && number <= 5.0 ?
+            return numeric_argument(value) && std::isfinite(number) &&
+                           std::floor(number) == number && number >= 0.0 && number <= 5.0 ?
                        QString{} :
                        QStringLiteral("Rating filter value must be an integer from 0 to 5.");
         },
@@ -805,7 +822,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.setRatingFilter(fields.value(QStringLiteral("mode")).toString(),
                                        fields.value(QStringLiteral("value")).toInt());
         });
-    add(command::kLibraryToggleColorFilter, Condition::kCatalogOpen,
+    add(
+        command::kLibraryToggleColorFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
             static const QSet<QString> values{QStringLiteral("red"), QStringLiteral("yellow"),
@@ -813,25 +831,29 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                                               QStringLiteral("purple")};
             return one_of(argument, values, QStringLiteral("color filter"));
         },
-        [this](const QVariant &argument, const QString &) { presenter_.toggleColorFilter(argument.toString()); });
-    add(command::kLibrarySetRejectFilter, Condition::kCatalogOpen,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.toggleColorFilter(argument.toString()); });
+    add(
+        command::kLibrarySetRejectFilter, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
             static const QSet<QString> values{QStringLiteral("include"), QStringLiteral("exclude"),
                                               QStringLiteral("only")};
             return one_of(argument, values, QStringLiteral("reject filter"));
         },
-        [this](const QVariant &argument, const QString &) { presenter_.setRejectFilter(argument.toString()); });
-    add(command::kLibrarySetSort, Condition::kCatalogOpen,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setRejectFilter(argument.toString()); });
+    add(
+        command::kLibrarySetSort, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
-            const auto error = required_fields(argument,
-                                               {QStringLiteral("field"), QStringLiteral("direction")});
+            const auto error =
+                required_fields(argument, {QStringLiteral("field"), QStringLiteral("direction")});
             if (!error.isEmpty())
                 return error;
             const auto fields = argument.toMap();
-            static const QSet<QString> sort_fields{QStringLiteral("imported"), QStringLiteral("name"),
-                                                   QStringLiteral("rating")};
+            static const QSet<QString> sort_fields{
+                QStringLiteral("imported"), QStringLiteral("name"), QStringLiteral("rating")};
             static const QSet<QString> directions{QStringLiteral("asc"), QStringLiteral("desc")};
             if (!sort_fields.contains(fields.value(QStringLiteral("field")).toString()))
                 return QStringLiteral("Unknown library sort field.");
@@ -847,11 +869,13 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(command::kLibraryClearFilters, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.clearFilters(); });
-    add(command::kLibrarySelectFolder, Condition::kCatalogOpen,
-        [](const QVariant &) { return QString{}; },
-        [this](const QVariant &argument, const QString &) { presenter_.selectFolder(argument.toString()); });
+    add(
+        command::kLibrarySelectFolder, Condition::kCatalogOpen, [](const QVariant &)
+        { return QString{}; }, [this](const QVariant &argument, const QString &)
+        { presenter_.selectFolder(argument.toString()); });
 
-    add(command::kPhotoSelect, Condition::kCatalogOpen,
+    add(
+        command::kPhotoSelect, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
             if (argument.metaType().id() == QMetaType::QString)
@@ -859,7 +883,11 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                            QStringLiteral("An asset ID is required.") :
                            QString{};
             const auto error = required_fields(argument, {QStringLiteral("id")});
-            return !error.isEmpty() || argument.toMap().value(QStringLiteral("id")).toString().trimmed().isEmpty() ?
+            return !error.isEmpty() || argument.toMap()
+                                           .value(QStringLiteral("id"))
+                                           .toString()
+                                           .trimmed()
+                                           .isEmpty() ?
                        QStringLiteral("An asset ID is required.") :
                        QString{};
         },
@@ -882,7 +910,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                         mode = QStringLiteral("toggle");
                 }
                 else
-                    mode = fields.value(QStringLiteral("mode"), QStringLiteral("single")).toString();
+                    mode =
+                        fields.value(QStringLiteral("mode"), QStringLiteral("single")).toString();
             }
             if (mode == QLatin1String("range"))
                 presenter_.selectAssetRange(asset_id);
@@ -891,36 +920,45 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.selectAsset(asset_id);
         });
-    add(command::kPhotoSetRating, Condition::kSelection,
+    add(
+        command::kPhotoSetRating, Condition::kSelection,
         [](const QVariant &argument)
         {
             const double value = argument.toDouble();
-            return numeric_argument(argument) && std::isfinite(value) && std::floor(value) == value &&
-                           value >= 0.0 && value <= 5.0 ?
+            return numeric_argument(argument) && std::isfinite(value) &&
+                           std::floor(value) == value && value >= 0.0 && value <= 5.0 ?
                        QString{} :
                        QStringLiteral("Rating must be an integer between 0 and 5.");
         },
-        [this](const QVariant &argument, const QString &) { presenter_.setRating(argument.toInt()); });
-    add(command::kPhotoSetColor, Condition::kSelection,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setRating(argument.toInt()); });
+    add(
+        command::kPhotoSetColor, Condition::kSelection,
         [](const QVariant &argument)
         {
-            static const QSet<QString> values{QStringLiteral("none"), QStringLiteral("red"),
+            static const QSet<QString> values{QStringLiteral("none"),   QStringLiteral("red"),
                                               QStringLiteral("yellow"), QStringLiteral("green"),
-                                              QStringLiteral("blue"), QStringLiteral("purple")};
-            return values.contains(argument.toString()) ? QString{} : QStringLiteral("Unknown color label.");
+                                              QStringLiteral("blue"),   QStringLiteral("purple")};
+            return values.contains(argument.toString()) ? QString{} :
+                                                          QStringLiteral("Unknown color label.");
         },
-        [this](const QVariant &argument, const QString &) { presenter_.setColorLabel(argument.toString()); });
-    add(command::kPhotoSetTags, Condition::kSelection, [](const QVariant &) { return QString{}; },
-        [this](const QVariant &argument, const QString &) { presenter_.setAssetTags(argument.toString()); });
-    add(command::kPhotoSetMetadata, Condition::kSelection,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setColorLabel(argument.toString()); });
+    add(
+        command::kPhotoSetTags, Condition::kSelection, [](const QVariant &) { return QString{}; },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setAssetTags(argument.toString()); });
+    add(
+        command::kPhotoSetMetadata, Condition::kSelection,
         [](const QVariant &argument)
         {
-            const auto error = required_fields(argument,
-                                               {QStringLiteral("name"), QStringLiteral("value")});
+            const auto error =
+                required_fields(argument, {QStringLiteral("name"), QStringLiteral("value")});
             if (!error.isEmpty())
                 return error;
             static const QSet<QString> names{QStringLiteral("title"), QStringLiteral("description"),
-                                             QStringLiteral("creator"), QStringLiteral("copyright")};
+                                             QStringLiteral("creator"),
+                                             QStringLiteral("copyright")};
             return names.contains(argument.toMap().value(QStringLiteral("name")).toString()) ?
                        QString{} :
                        QStringLiteral("Unknown writable metadata field.");
@@ -932,23 +970,27 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                                         fields.value(QStringLiteral("value")).toString());
         });
     add(command::kPhotoCreateSnapshot, Condition::kDevelopSelection, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.createSnapshot(argument.toString()); });
-    add(command::kPhotoRestoreHistory, Condition::kDevelopSelection,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.createSnapshot(argument.toString()); });
+    add(
+        command::kPhotoRestoreHistory, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
             const double value = argument.toDouble();
-            return numeric_argument(argument) && std::isfinite(value) && std::floor(value) == value &&
-                           value >= 0.0 ?
+            return numeric_argument(argument) && std::isfinite(value) &&
+                           std::floor(value) == value && value >= 0.0 ?
                        QString{} :
                        QStringLiteral("A non-negative integer history ID is required.");
         },
-        [this](const QVariant &argument, const QString &) { presenter_.restoreHistory(argument.toInt()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.restoreHistory(argument.toInt()); });
     add(command::kPhotoToggleReject, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.toggleRejected(); });
     add(command::kPhotoRequestRemove, Condition::kSelection, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestRemove, command::kPhotoRemove); });
-    add(command::kPhotoRemove, Condition::kSelection,
+    add(
+        command::kPhotoRemove, Condition::kSelection,
         [confirmation_validator](const QVariant &argument)
         { return confirmation_validator(command::kPhotoRemove, argument); },
         [this, clear_confirmation](const QVariant &, const QString &)
@@ -959,7 +1001,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kPhotoRequestDelete, Condition::kCanDelete, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestDelete, command::kPhotoDelete); });
-    add(command::kPhotoDelete, Condition::kCanDelete,
+    add(
+        command::kPhotoDelete, Condition::kCanDelete,
         [confirmation_validator](const QVariant &argument)
         { return confirmation_validator(command::kPhotoDelete, argument); },
         [this, clear_confirmation](const QVariant &, const QString &)
@@ -969,8 +1012,10 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     const auto navigation_validator = [](const QVariant &argument)
     {
-        return !argument.isValid() || argument.isNull() || argument.toString() == QLatin1String("range") ?
-                   QString{} : QStringLiteral("Navigation argument must be 'range'.");
+        return !argument.isValid() || argument.isNull() ||
+                       argument.toString() == QLatin1String("range") ?
+                   QString{} :
+                   QStringLiteral("Navigation argument must be 'range'.");
     };
     add(command::kPhotoPrevious, Condition::kSelection, navigation_validator,
         [this](const QVariant &argument, const QString &)
@@ -997,39 +1042,51 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kViewDevelop, Condition::kCatalogOpen, no_argument,
         [this](const QVariant &, const QString &) { presenter_.openDevelop(); });
     add(command::kViewFit, Condition::kNonGrid, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.setZoomMode(QStringLiteral("fit")); });
+        [this](const QVariant &, const QString &)
+        { presenter_.setZoomMode(QStringLiteral("fit")); });
     add(command::kViewFill, Condition::kNonGrid, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.setZoomMode(QStringLiteral("fill")); });
+        [this](const QVariant &, const QString &)
+        { presenter_.setZoomMode(QStringLiteral("fill")); });
     add(command::kViewActual, Condition::kNonGrid, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.setZoomMode(QStringLiteral("actual")); });
-    add(command::kViewSetZoomMode, Condition::kNonGrid,
+        [this](const QVariant &, const QString &)
+        { presenter_.setZoomMode(QStringLiteral("actual")); });
+    add(
+        command::kViewSetZoomMode, Condition::kNonGrid,
         [](const QVariant &argument)
         {
             static const QSet<QString> values{QStringLiteral("fit"), QStringLiteral("fill"),
                                               QStringLiteral("actual")};
             return one_of(argument, values, QStringLiteral("zoom mode"));
         },
-        [this](const QVariant &argument, const QString &) { presenter_.setZoomMode(argument.toString()); });
-    add(command::kViewAdjustZoom, Condition::kNonGrid,
-        [](const QVariant &argument) { return finite_number(argument, QStringLiteral("Zoom delta")); },
-        [this](const QVariant &argument, const QString &) { presenter_.adjustZoom(argument.toInt()); });
-    add(command::kViewSetThumbnailSize, Condition::kCatalogOpen,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setZoomMode(argument.toString()); });
+    add(
+        command::kViewAdjustZoom, Condition::kNonGrid, [](const QVariant &argument)
+        { return finite_number(argument, QStringLiteral("Zoom delta")); },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.adjustZoom(argument.toInt()); });
+    add(
+        command::kViewSetThumbnailSize, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
             const double value = argument.toDouble();
-            return numeric_argument(argument) && std::isfinite(value) && std::floor(value) == value &&
-                           value >= 120.0 && value <= 320.0 ?
+            return numeric_argument(argument) && std::isfinite(value) &&
+                           std::floor(value) == value && value >= 120.0 && value <= 320.0 ?
                        QString{} :
                        QStringLiteral("Thumbnail size must be an integer between 120 and 320.");
         },
-        [this](const QVariant &argument, const QString &) { presenter_.setThumbnailSize(argument.toInt()); });
-    add(command::kViewSetScopeMode, Condition::kCatalogOpen,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setThumbnailSize(argument.toInt()); });
+    add(
+        command::kViewSetScopeMode, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
-            static const QSet<QString> values{QStringLiteral("histogram"), QStringLiteral("parade")};
+            static const QSet<QString> values{QStringLiteral("histogram"),
+                                              QStringLiteral("parade")};
             return one_of(argument, values, QStringLiteral("scope mode"));
         },
-        [this](const QVariant &argument, const QString &) { presenter_.setScopeMode(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setScopeMode(argument.toString()); });
 
     add(command::kEditUndo, Condition::kCanUndo, no_argument,
         [this](const QVariant &, const QString &) { presenter_.undoEdit(); });
@@ -1038,13 +1095,14 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kEditResetAll, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.resetSection(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.resetSection(argument.toString()); });
     add(
         command::kEditSetSectionEnabled, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
-            const auto error = required_fields(argument, {QStringLiteral("section"),
-                                                          QStringLiteral("enabled")});
+            const auto error =
+                required_fields(argument, {QStringLiteral("section"), QStringLiteral("enabled")});
             if (!error.isEmpty())
                 return error;
             const auto fields = argument.toMap();
@@ -1062,13 +1120,14 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                                                fields.value(QStringLiteral("enabled")).toBool());
         });
     add(command::kEditResetControl, Condition::kDevelopSelection, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.resetControl(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.resetControl(argument.toString()); });
     add(
         command::kEditSetNumber, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
-            const auto error = required_fields(argument,
-                                               {QStringLiteral("name"), QStringLiteral("value")});
+            const auto error =
+                required_fields(argument, {QStringLiteral("name"), QStringLiteral("value")});
             if (!error.isEmpty())
                 return error;
             const auto fields = argument.toMap();
@@ -1093,7 +1152,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.setDevelopNumber(name, value);
         });
-    add(command::kEditSetToneCurve, Condition::kDevelopSelection,
+    add(
+        command::kEditSetToneCurve, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
             const auto error = required_fields(argument, {QStringLiteral("points")});
@@ -1111,7 +1171,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.setToneCurve(fields.value(QStringLiteral("points")).toList());
         });
-    add(command::kEditSetCrop, Condition::kDevelopSelection,
+    add(
+        command::kEditSetCrop, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
             const QStringList names{QStringLiteral("x"), QStringLiteral("y"),
@@ -1144,7 +1205,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 presenter_.setCropRect(x, y, width, height);
         });
     add(command::kEditSetCropAspect, Condition::kDevelopSelection, non_empty_string,
-        [this](const QVariant &argument, const QString &) { presenter_.setCropAspect(argument.toString()); });
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setCropAspect(argument.toString()); });
     add(command::kEditRotateLeft, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.rotateLeft(); });
     add(command::kEditRotateRight, Condition::kDevelopSelection, no_argument,
@@ -1153,23 +1215,41 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.flipHorizontal(); });
     add(command::kEditFlipVertical, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.flipVertical(); });
-    add(command::kEditCropTool, Condition::kDevelopSelection,
+    add(
+        command::kEditCropTool, Condition::kSelection,
         [](const QVariant &argument)
-        { return !argument.isValid() || argument.isNull() || argument.canConvert<bool>() ?
-                     QString{} : QStringLiteral("Crop state must be boolean."); },
-        [this](const QVariant &argument, const QString &)
-        { presenter_.setCropToolActive(argument.isValid() ? argument.toBool() : !presenter_.cropToolActive()); });
+        {
+            return !argument.isValid() || argument.isNull() || argument.canConvert<bool>() ?
+                       QString{} :
+                       QStringLiteral("Crop state must be boolean.");
+        },
+        [this](const QVariant &argument, const QString &source)
+        {
+            presenter_.openDevelop();
+            if (argument.isValid())
+            {
+                presenter_.setCropToolActive(argument.toBool());
+                return;
+            }
+            // R always enters crop. Menu/button still toggle so Done can exit.
+            presenter_.setCropToolActive(
+                source == QLatin1String("keyboard") ? true : !presenter_.cropToolActive());
+        });
     add(command::kEditBeforeAfter, Condition::kDevelop, no_argument,
         [this](const QVariant &, const QString &) { presenter_.toggleBeforeAfter(); });
 
     add(command::kWindowSettings, Condition::kAlways, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kWindowSettings, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kWindowSettings, argument); });
     add(command::kWindowClose, Condition::kAlways, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kWindowClose, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kWindowClose, argument); });
     add(command::kWindowQuit, Condition::kAlways, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kWindowQuit, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kWindowQuit, argument); });
     add(command::kWindowAbout, Condition::kAlways, no_argument,
-        [present](const QVariant &argument, const QString &) { present(command::kWindowAbout, argument); });
+        [present](const QVariant &argument, const QString &)
+        { present(command::kWindowAbout, argument); });
     add(command::kWindowPalette, Condition::kAlways, no_argument,
         [this](const QVariant &, const QString &) { setPaletteOpen(true); });
     add(command::kWindowDismiss, Condition::kAlways, no_argument,
@@ -1202,80 +1282,83 @@ StudioCommandController::~StudioCommandController() = default;
 
 QVariantMap StudioCommandController::ids() const
 {
-    return {{QStringLiteral("libraryCreate"), QLatin1String(command::kLibraryCreate)},
-            {QStringLiteral("libraryCreatePath"), QLatin1String(command::kLibraryCreatePath)},
-            {QStringLiteral("libraryOpen"), QLatin1String(command::kLibraryOpen)},
-            {QStringLiteral("libraryOpenPath"), QLatin1String(command::kLibraryOpenPath)},
-            {QStringLiteral("libraryImportFiles"), QLatin1String(command::kLibraryImportFiles)},
-            {QStringLiteral("libraryImportPaths"), QLatin1String(command::kLibraryImportPaths)},
-            {QStringLiteral("libraryImportFolder"), QLatin1String(command::kLibraryImportFolder)},
-            {QStringLiteral("libraryImportFolderPath"), QLatin1String(command::kLibraryImportFolderPath)},
-            {QStringLiteral("libraryExport"), QLatin1String(command::kLibraryExport)},
-            {QStringLiteral("libraryExportWrite"), QLatin1String(command::kLibraryExportWrite)},
-            {QStringLiteral("librarySetTagFilter"), QLatin1String(command::kLibrarySetTagFilter)},
-            {QStringLiteral("librarySetRatingFilter"), QLatin1String(command::kLibrarySetRatingFilter)},
-            {QStringLiteral("libraryToggleColorFilter"), QLatin1String(command::kLibraryToggleColorFilter)},
-            {QStringLiteral("librarySetRejectFilter"), QLatin1String(command::kLibrarySetRejectFilter)},
-            {QStringLiteral("librarySetSort"), QLatin1String(command::kLibrarySetSort)},
-            {QStringLiteral("libraryClearFilters"), QLatin1String(command::kLibraryClearFilters)},
-            {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},
-            {QStringLiteral("photoSelect"), QLatin1String(command::kPhotoSelect)},
-            {QStringLiteral("photoRate"), QLatin1String(command::kPhotoSetRating)},
-            {QStringLiteral("photoColor"), QLatin1String(command::kPhotoSetColor)},
-            {QStringLiteral("photoSetTags"), QLatin1String(command::kPhotoSetTags)},
-            {QStringLiteral("photoSetMetadata"), QLatin1String(command::kPhotoSetMetadata)},
-            {QStringLiteral("photoCreateSnapshot"), QLatin1String(command::kPhotoCreateSnapshot)},
-            {QStringLiteral("photoRestoreHistory"), QLatin1String(command::kPhotoRestoreHistory)},
-            {QStringLiteral("photoReject"), QLatin1String(command::kPhotoToggleReject)},
-            {QStringLiteral("photoRemove"), QLatin1String(command::kPhotoRequestRemove)},
-            {QStringLiteral("photoRemoveConfirmed"), QLatin1String(command::kPhotoRemove)},
-            {QStringLiteral("photoRemoveFromDisk"), QLatin1String(command::kPhotoRequestDelete)},
-            {QStringLiteral("photoRemoveFromDiskConfirmed"), QLatin1String(command::kPhotoDelete)},
-            {QStringLiteral("photoPrevious"), QLatin1String(command::kPhotoPrevious)},
-            {QStringLiteral("photoNext"), QLatin1String(command::kPhotoNext)},
-            {QStringLiteral("viewGrid"), QLatin1String(command::kViewGrid)},
-            {QStringLiteral("viewLoupe"), QLatin1String(command::kViewLoupe)},
-            {QStringLiteral("viewDevelop"), QLatin1String(command::kViewDevelop)},
-            {QStringLiteral("viewFit"), QLatin1String(command::kViewFit)},
-            {QStringLiteral("viewFill"), QLatin1String(command::kViewFill)},
-            {QStringLiteral("viewActual"), QLatin1String(command::kViewActual)},
-            {QStringLiteral("viewSetZoomMode"), QLatin1String(command::kViewSetZoomMode)},
-            {QStringLiteral("viewAdjustZoom"), QLatin1String(command::kViewAdjustZoom)},
-            {QStringLiteral("viewSetThumbnailSize"), QLatin1String(command::kViewSetThumbnailSize)},
-            {QStringLiteral("viewSetScopeMode"), QLatin1String(command::kViewSetScopeMode)},
-            {QStringLiteral("editUndo"), QLatin1String(command::kEditUndo)},
-            {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
-            {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
-            {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
-            {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
-            {QStringLiteral("editResetControl"), QLatin1String(command::kEditResetControl)},
-            {QStringLiteral("editSetNumber"), QLatin1String(command::kEditSetNumber)},
-            {QStringLiteral("editSetToneCurve"), QLatin1String(command::kEditSetToneCurve)},
-            {QStringLiteral("editSetCrop"), QLatin1String(command::kEditSetCrop)},
-            {QStringLiteral("editSetCropAspect"), QLatin1String(command::kEditSetCropAspect)},
-            {QStringLiteral("editRotateLeft"), QLatin1String(command::kEditRotateLeft)},
-            {QStringLiteral("editRotateRight"), QLatin1String(command::kEditRotateRight)},
-            {QStringLiteral("editFlipHorizontal"), QLatin1String(command::kEditFlipHorizontal)},
-            {QStringLiteral("editFlipVertical"), QLatin1String(command::kEditFlipVertical)},
-            {QStringLiteral("editCropTool"), QLatin1String(command::kEditCropTool)},
-            {QStringLiteral("editBeforeAfter"), QLatin1String(command::kEditBeforeAfter)},
-            {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
-            {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},
-            {QStringLiteral("windowQuit"), QLatin1String(command::kWindowQuit)},
-            {QStringLiteral("windowAbout"), QLatin1String(command::kWindowAbout)},
-            {QStringLiteral("windowCommandPalette"), QLatin1String(command::kWindowPalette)},
-            {QStringLiteral("actionRating0"), QLatin1String(action_id::kRating0)},
-            {QStringLiteral("actionRating1"), QLatin1String(action_id::kRating1)},
-            {QStringLiteral("actionRating2"), QLatin1String(action_id::kRating2)},
-            {QStringLiteral("actionRating3"), QLatin1String(action_id::kRating3)},
-            {QStringLiteral("actionRating4"), QLatin1String(action_id::kRating4)},
-            {QStringLiteral("actionRating5"), QLatin1String(action_id::kRating5)},
-            {QStringLiteral("actionColorNone"), QLatin1String(action_id::kColorNone)},
-            {QStringLiteral("actionColorRed"), QLatin1String(action_id::kColorRed)},
-            {QStringLiteral("actionColorYellow"), QLatin1String(action_id::kColorYellow)},
-            {QStringLiteral("actionColorGreen"), QLatin1String(action_id::kColorGreen)},
-            {QStringLiteral("actionColorBlue"), QLatin1String(action_id::kColorBlue)},
-            {QStringLiteral("actionColorPurple"), QLatin1String(action_id::kColorPurple)}};
+    return {
+        {QStringLiteral("libraryCreate"), QLatin1String(command::kLibraryCreate)},
+        {QStringLiteral("libraryCreatePath"), QLatin1String(command::kLibraryCreatePath)},
+        {QStringLiteral("libraryOpen"), QLatin1String(command::kLibraryOpen)},
+        {QStringLiteral("libraryOpenPath"), QLatin1String(command::kLibraryOpenPath)},
+        {QStringLiteral("libraryImportFiles"), QLatin1String(command::kLibraryImportFiles)},
+        {QStringLiteral("libraryImportPaths"), QLatin1String(command::kLibraryImportPaths)},
+        {QStringLiteral("libraryImportFolder"), QLatin1String(command::kLibraryImportFolder)},
+        {QStringLiteral("libraryImportFolderPath"),
+         QLatin1String(command::kLibraryImportFolderPath)},
+        {QStringLiteral("libraryExport"), QLatin1String(command::kLibraryExport)},
+        {QStringLiteral("libraryExportWrite"), QLatin1String(command::kLibraryExportWrite)},
+        {QStringLiteral("librarySetTagFilter"), QLatin1String(command::kLibrarySetTagFilter)},
+        {QStringLiteral("librarySetRatingFilter"), QLatin1String(command::kLibrarySetRatingFilter)},
+        {QStringLiteral("libraryToggleColorFilter"),
+         QLatin1String(command::kLibraryToggleColorFilter)},
+        {QStringLiteral("librarySetRejectFilter"), QLatin1String(command::kLibrarySetRejectFilter)},
+        {QStringLiteral("librarySetSort"), QLatin1String(command::kLibrarySetSort)},
+        {QStringLiteral("libraryClearFilters"), QLatin1String(command::kLibraryClearFilters)},
+        {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},
+        {QStringLiteral("photoSelect"), QLatin1String(command::kPhotoSelect)},
+        {QStringLiteral("photoRate"), QLatin1String(command::kPhotoSetRating)},
+        {QStringLiteral("photoColor"), QLatin1String(command::kPhotoSetColor)},
+        {QStringLiteral("photoSetTags"), QLatin1String(command::kPhotoSetTags)},
+        {QStringLiteral("photoSetMetadata"), QLatin1String(command::kPhotoSetMetadata)},
+        {QStringLiteral("photoCreateSnapshot"), QLatin1String(command::kPhotoCreateSnapshot)},
+        {QStringLiteral("photoRestoreHistory"), QLatin1String(command::kPhotoRestoreHistory)},
+        {QStringLiteral("photoReject"), QLatin1String(command::kPhotoToggleReject)},
+        {QStringLiteral("photoRemove"), QLatin1String(command::kPhotoRequestRemove)},
+        {QStringLiteral("photoRemoveConfirmed"), QLatin1String(command::kPhotoRemove)},
+        {QStringLiteral("photoRemoveFromDisk"), QLatin1String(command::kPhotoRequestDelete)},
+        {QStringLiteral("photoRemoveFromDiskConfirmed"), QLatin1String(command::kPhotoDelete)},
+        {QStringLiteral("photoPrevious"), QLatin1String(command::kPhotoPrevious)},
+        {QStringLiteral("photoNext"), QLatin1String(command::kPhotoNext)},
+        {QStringLiteral("viewGrid"), QLatin1String(command::kViewGrid)},
+        {QStringLiteral("viewLoupe"), QLatin1String(command::kViewLoupe)},
+        {QStringLiteral("viewDevelop"), QLatin1String(command::kViewDevelop)},
+        {QStringLiteral("viewFit"), QLatin1String(command::kViewFit)},
+        {QStringLiteral("viewFill"), QLatin1String(command::kViewFill)},
+        {QStringLiteral("viewActual"), QLatin1String(command::kViewActual)},
+        {QStringLiteral("viewSetZoomMode"), QLatin1String(command::kViewSetZoomMode)},
+        {QStringLiteral("viewAdjustZoom"), QLatin1String(command::kViewAdjustZoom)},
+        {QStringLiteral("viewSetThumbnailSize"), QLatin1String(command::kViewSetThumbnailSize)},
+        {QStringLiteral("viewSetScopeMode"), QLatin1String(command::kViewSetScopeMode)},
+        {QStringLiteral("editUndo"), QLatin1String(command::kEditUndo)},
+        {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
+        {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
+        {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
+        {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
+        {QStringLiteral("editResetControl"), QLatin1String(command::kEditResetControl)},
+        {QStringLiteral("editSetNumber"), QLatin1String(command::kEditSetNumber)},
+        {QStringLiteral("editSetToneCurve"), QLatin1String(command::kEditSetToneCurve)},
+        {QStringLiteral("editSetCrop"), QLatin1String(command::kEditSetCrop)},
+        {QStringLiteral("editSetCropAspect"), QLatin1String(command::kEditSetCropAspect)},
+        {QStringLiteral("editRotateLeft"), QLatin1String(command::kEditRotateLeft)},
+        {QStringLiteral("editRotateRight"), QLatin1String(command::kEditRotateRight)},
+        {QStringLiteral("editFlipHorizontal"), QLatin1String(command::kEditFlipHorizontal)},
+        {QStringLiteral("editFlipVertical"), QLatin1String(command::kEditFlipVertical)},
+        {QStringLiteral("editCropTool"), QLatin1String(command::kEditCropTool)},
+        {QStringLiteral("editBeforeAfter"), QLatin1String(command::kEditBeforeAfter)},
+        {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
+        {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},
+        {QStringLiteral("windowQuit"), QLatin1String(command::kWindowQuit)},
+        {QStringLiteral("windowAbout"), QLatin1String(command::kWindowAbout)},
+        {QStringLiteral("windowCommandPalette"), QLatin1String(command::kWindowPalette)},
+        {QStringLiteral("actionRating0"), QLatin1String(action_id::kRating0)},
+        {QStringLiteral("actionRating1"), QLatin1String(action_id::kRating1)},
+        {QStringLiteral("actionRating2"), QLatin1String(action_id::kRating2)},
+        {QStringLiteral("actionRating3"), QLatin1String(action_id::kRating3)},
+        {QStringLiteral("actionRating4"), QLatin1String(action_id::kRating4)},
+        {QStringLiteral("actionRating5"), QLatin1String(action_id::kRating5)},
+        {QStringLiteral("actionColorNone"), QLatin1String(action_id::kColorNone)},
+        {QStringLiteral("actionColorRed"), QLatin1String(action_id::kColorRed)},
+        {QStringLiteral("actionColorYellow"), QLatin1String(action_id::kColorYellow)},
+        {QStringLiteral("actionColorGreen"), QLatin1String(action_id::kColorGreen)},
+        {QStringLiteral("actionColorBlue"), QLatin1String(action_id::kColorBlue)},
+        {QStringLiteral("actionColorPurple"), QLatin1String(action_id::kColorPurple)}};
 }
 
 namespace
@@ -1293,42 +1376,54 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kAlways:
         return {};
     case Condition::kCatalogOpen:
-        return catalog_open ? State{} : State{false, tr_command(QStringLiteral("Open a library first."))};
+        return catalog_open ? State{} :
+                              State{false, tr_command(QStringLiteral("Open a library first."))};
     case Condition::kCatalogReady:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        return ready ? State{} : State{false, tr_command(QStringLiteral("Wait for library work to finish."))};
+        return ready ? State{} :
+                       State{false, tr_command(QStringLiteral("Wait for library work to finish."))};
     case Condition::kSelection:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        return selection ? State{} : State{false, tr_command(QStringLiteral("Select a photo first."))};
+        return selection ? State{} :
+                           State{false, tr_command(QStringLiteral("Select a photo first."))};
     case Condition::kReadySelection:
         if (!ready)
-            return {false, !catalog_open ? tr_command(QStringLiteral("Open a library first.")) :
-                                           tr_command(QStringLiteral("Wait for library work to finish."))};
-        return selection ? State{} : State{false, tr_command(QStringLiteral("Select a photo first."))};
+            return {false, !catalog_open ?
+                               tr_command(QStringLiteral("Open a library first.")) :
+                               tr_command(QStringLiteral("Wait for library work to finish."))};
+        return selection ? State{} :
+                           State{false, tr_command(QStringLiteral("Select a photo first."))};
     case Condition::kNonGrid:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        return presenter.browseMode() != QLatin1String("grid") ? State{} :
-                                                                 State{false, tr_command(QStringLiteral("Open a photo first."))};
+        return presenter.browseMode() != QLatin1String("grid") ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Open a photo first."))};
     case Condition::kDevelop:
-        return presenter.browseMode() == QLatin1String("develop") ? State{} :
-                                                                    State{false, tr_command(QStringLiteral("Open Edit first."))};
+        return presenter.browseMode() == QLatin1String("develop") ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Open Edit first."))};
     case Condition::kDevelopSelection:
         if (!selection)
             return {false, tr_command(QStringLiteral("Select a photo first."))};
-        return presenter.browseMode() == QLatin1String("develop") ? State{} :
-                                                                    State{false, tr_command(QStringLiteral("Open Edit first."))};
+        return presenter.browseMode() == QLatin1String("develop") ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Open Edit first."))};
     case Condition::kCanUndo:
-        return presenter.browseMode() == QLatin1String("develop") && presenter.canUndo() ? State{} :
+        return presenter.browseMode() == QLatin1String("develop") && presenter.canUndo() ?
+                   State{} :
                    State{false, tr_command(QStringLiteral("Nothing to undo."))};
     case Condition::kCanRedo:
-        return presenter.browseMode() == QLatin1String("develop") && presenter.canRedo() ? State{} :
+        return presenter.browseMode() == QLatin1String("develop") && presenter.canRedo() ?
+                   State{} :
                    State{false, tr_command(QStringLiteral("Nothing to redo."))};
     case Condition::kCanDelete:
-        return presenter.canDeleteFromDisk() ? State{} :
-                                               State{false, tr_command(QStringLiteral("The selected originals cannot be deleted."))};
+        return presenter.canDeleteFromDisk() ?
+                   State{} :
+                   State{false,
+                         tr_command(QStringLiteral("The selected originals cannot be deleted."))};
     }
     return {false, tr_command(QStringLiteral("Command unavailable in the current context."))};
 }
@@ -1337,7 +1432,8 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
 QVariantMap StudioCommandController::action(const QString &action_id) const
 {
     const auto found = std::find_if(impl_->actions.cbegin(), impl_->actions.cend(),
-                                    [&action_id](const ActionSpec &candidate) { return candidate.id == action_id; });
+                                    [&action_id](const ActionSpec &candidate)
+                                    { return candidate.id == action_id; });
     if (found == impl_->actions.cend())
         return {};
     const auto command_found = impl_->commands.constFind(found->command_id);
@@ -1357,18 +1453,24 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
         found->id == QLatin1String(command::kViewDevelop))
     {
         checkable = true;
-        checked = (found->id == QLatin1String(command::kViewGrid) && presenter_.browseMode() == QLatin1String("grid")) ||
-                  (found->id == QLatin1String(command::kViewLoupe) && presenter_.browseMode() == QLatin1String("loupe")) ||
-                  (found->id == QLatin1String(command::kViewDevelop) && presenter_.browseMode() == QLatin1String("develop"));
+        checked = (found->id == QLatin1String(command::kViewGrid) &&
+                   presenter_.browseMode() == QLatin1String("grid")) ||
+                  (found->id == QLatin1String(command::kViewLoupe) &&
+                   presenter_.browseMode() == QLatin1String("loupe")) ||
+                  (found->id == QLatin1String(command::kViewDevelop) &&
+                   presenter_.browseMode() == QLatin1String("develop"));
     }
     else if (found->id == QLatin1String(command::kViewFit) ||
              found->id == QLatin1String(command::kViewFill) ||
              found->id == QLatin1String(command::kViewActual))
     {
         checkable = true;
-        checked = (found->id == QLatin1String(command::kViewFit) && presenter_.zoomMode() == QLatin1String("fit")) ||
-                  (found->id == QLatin1String(command::kViewFill) && presenter_.zoomMode() == QLatin1String("fill")) ||
-                  (found->id == QLatin1String(command::kViewActual) && presenter_.zoomMode() == QLatin1String("actual"));
+        checked = (found->id == QLatin1String(command::kViewFit) &&
+                   presenter_.zoomMode() == QLatin1String("fit")) ||
+                  (found->id == QLatin1String(command::kViewFill) &&
+                   presenter_.zoomMode() == QLatin1String("fill")) ||
+                  (found->id == QLatin1String(command::kViewActual) &&
+                   presenter_.zoomMode() == QLatin1String("actual"));
     }
     else if (found->command_id == QLatin1String(command::kPhotoSetRating))
     {
@@ -1395,7 +1497,8 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
         checkable = true;
         checked = presenter_.beforeAfter();
     }
-    const QString shortcut = found->shortcuts.isEmpty() ? QString{} : native_key(found->shortcuts.front().sequence);
+    const QString shortcut =
+        found->shortcuts.isEmpty() ? QString{} : native_key(found->shortcuts.front().sequence);
     return {{QStringLiteral("actionId"), found->id},
             {QStringLiteral("commandId"), found->command_id},
             {QStringLiteral("title"), title},
@@ -1416,8 +1519,12 @@ QVariantList StudioCommandController::menuEntries(const QString &path) const
     for (const auto &definition : impl_->actions)
         if (definition.menu_path == path)
             selected.push_back(&definition);
-    std::sort(selected.begin(), selected.end(), [](const auto *left, const auto *right)
-              { return left->order < right->order || (left->order == right->order && left->id < right->id); });
+    std::sort(selected.begin(), selected.end(),
+              [](const auto *left, const auto *right)
+              {
+                  return left->order < right->order ||
+                         (left->order == right->order && left->id < right->id);
+              });
     QVariantList result;
     for (const auto *definition : selected)
         result.push_back(action(definition->id));
@@ -1445,12 +1552,15 @@ QVariantList StudioCommandController::paletteEntries() const
         if (score >= 0)
             ranked.push_back({value, score, definition.order, definition.id});
     }
-    std::sort(ranked.begin(), ranked.end(), [this](const Ranked &left, const Ranked &right)
+    std::sort(ranked.begin(), ranked.end(),
+              [this](const Ranked &left, const Ranked &right)
               {
                   if (!palette_query_.trimmed().isEmpty() && left.score != right.score)
                       return left.score > right.score;
-                  const auto left_category = left.value.value(QStringLiteral("category")).toString();
-                  const auto right_category = right.value.value(QStringLiteral("category")).toString();
+                  const auto left_category =
+                      left.value.value(QStringLiteral("category")).toString();
+                  const auto right_category =
+                      right.value.value(QStringLiteral("category")).toString();
                   if (left_category != right_category)
                       return left_category.localeAwareCompare(right_category) < 0;
                   if (left.order != right.order)
@@ -1475,13 +1585,14 @@ QVariantList StudioCommandController::shortcutEntries() const
         const auto state = action(definition.id);
         for (const auto &shortcut : definition.shortcuts)
         {
-            const bool enabled = state.value(QStringLiteral("enabled")).toBool() && !palette_open_ &&
-                                 !modal_open_ &&
+            const bool enabled = state.value(QStringLiteral("enabled")).toBool() &&
+                                 !palette_open_ && !modal_open_ &&
                                  (!shortcut.requires_non_text_input || !text_input_active_);
-            result.push_back(QVariantMap{{QStringLiteral("actionId"), definition.id},
-                                         {QStringLiteral("sequence"), shortcut.sequence},
-                                         {QStringLiteral("nativeText"), native_key(shortcut.sequence)},
-                                         {QStringLiteral("enabled"), enabled}});
+            result.push_back(
+                QVariantMap{{QStringLiteral("actionId"), definition.id},
+                            {QStringLiteral("sequence"), shortcut.sequence},
+                            {QStringLiteral("nativeText"), native_key(shortcut.sequence)},
+                            {QStringLiteral("enabled"), enabled}});
         }
     }
     return result;
@@ -1490,7 +1601,8 @@ QVariantList StudioCommandController::shortcutEntries() const
 QVariantMap StudioCommandController::executeAction(const QString &action_id, const QString &source)
 {
     const auto found = std::find_if(impl_->actions.cbegin(), impl_->actions.cend(),
-                                    [&action_id](const ActionSpec &candidate) { return candidate.id == action_id; });
+                                    [&action_id](const ActionSpec &candidate)
+                                    { return candidate.id == action_id; });
     if (found == impl_->actions.cend())
     {
         const auto message = tr_command(QStringLiteral("Unknown action: %1")).arg(action_id);
@@ -1505,12 +1617,12 @@ QVariantMap StudioCommandController::executeAction(const QString &action_id, con
         emit dispatchRejected(action_id, QStringLiteral("unavailable"), message);
         return rejected(QStringLiteral("unavailable"), message);
     }
-    return executeCommandInternal(found->command_id, found->has_argument ? found->argument : QVariant{}, source);
+    return executeCommandInternal(found->command_id,
+                                  found->has_argument ? found->argument : QVariant{}, source);
 }
 
 QVariantMap StudioCommandController::executeCommand(const QString &command_id,
-                                                     const QVariant &argument,
-                                                     const QString &source)
+                                                    const QVariant &argument, const QString &source)
 {
     return executeCommandInternal(command_id, argument, source);
 }
@@ -1525,8 +1637,8 @@ void StudioCommandController::cancelPendingConfirmation(const QString &token)
 }
 
 QVariantMap StudioCommandController::executeCommandInternal(const QString &command_id,
-                                                             const QVariant &argument,
-                                                             const QString &source)
+                                                            const QVariant &argument,
+                                                            const QString &source)
 {
     static const QSet<QString> sources{QStringLiteral("menu"), QStringLiteral("keyboard"),
                                        QStringLiteral("palette"), QStringLiteral("control"),
@@ -1564,12 +1676,30 @@ QVariantMap StudioCommandController::executeCommandInternal(const QString &comma
     return accepted();
 }
 
-QString StudioCommandController::paletteQuery() const { return palette_query_; }
-bool StudioCommandController::paletteOpen() const noexcept { return palette_open_; }
-bool StudioCommandController::textInputActive() const noexcept { return text_input_active_; }
-bool StudioCommandController::settingsOpen() const noexcept { return settings_open_; }
-bool StudioCommandController::modalOpen() const noexcept { return modal_open_; }
-qulonglong StudioCommandController::revision() const noexcept { return revision_; }
+QString StudioCommandController::paletteQuery() const
+{
+    return palette_query_;
+}
+bool StudioCommandController::paletteOpen() const noexcept
+{
+    return palette_open_;
+}
+bool StudioCommandController::textInputActive() const noexcept
+{
+    return text_input_active_;
+}
+bool StudioCommandController::settingsOpen() const noexcept
+{
+    return settings_open_;
+}
+bool StudioCommandController::modalOpen() const noexcept
+{
+    return modal_open_;
+}
+qulonglong StudioCommandController::revision() const noexcept
+{
+    return revision_;
+}
 
 void StudioCommandController::setPaletteQuery(const QString &query)
 {
@@ -1656,8 +1786,8 @@ QStringList StudioCommandController::validateBuiltinDefinitions()
                                  .arg(definition.id, definition.command_id));
         if ((definition.palette_visible || !definition.menu_path.isEmpty()) &&
             (definition.title.trimmed().isEmpty() || definition.category.trimmed().isEmpty()))
-            errors.push_back(QStringLiteral("Action %1 is missing presentation metadata")
-                                 .arg(definition.id));
+            errors.push_back(
+                QStringLiteral("Action %1 is missing presentation metadata").arg(definition.id));
         for (const auto &shortcut : definition.shortcuts)
         {
             const auto owner = shortcut_owners.constFind(shortcut.sequence);
@@ -1676,7 +1806,7 @@ int StudioCommandController::fuzzyScore(const QString &title, const QString &cat
                                         const QString &query)
 {
     const auto tokens = normalize_search(query).split(QRegularExpression(QStringLiteral("\\s+")),
-                                                       Qt::SkipEmptyParts);
+                                                      Qt::SkipEmptyParts);
     if (tokens.isEmpty())
         return 0;
     int total = 0;

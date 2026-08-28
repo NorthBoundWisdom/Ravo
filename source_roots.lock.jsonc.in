@@ -70,7 +70,7 @@
     },
     "GeoControls": {
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
-      "commit": "c207e990898b0aeb2ecc2955c011b5dff4ec3da8",
+      "commit": "76481057a71ef9fbce1a9eb332732185a954b69f",
       "repoName": "GeoControls"
     },
     "LensFun": {

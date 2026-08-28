@@ -3946,7 +3946,8 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     }
     if (section == "detail")
     {
-        return !near(params.sharpen, 0.0) || !near(params.sharpen_radius, identity.sharpen_radius) ||
+        return !near(params.sharpen, 0.0) ||
+               !near(params.sharpen_radius, identity.sharpen_radius) ||
                !near(params.clarity, 0.0) || !near(params.grain, 0.0);
     }
     if (section == "effects")
@@ -4199,22 +4200,24 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
         const int degrees = delta == 3 ? -90 : static_cast<int>(delta) * 90;
         changes.push_back({"rotate", format_signed_amount(static_cast<double>(degrees))});
     }
-    add_named_change(changes, "flip", before.flip_horizontal != after.flip_horizontal ||
-                                          before.flip_vertical != after.flip_vertical);
-    add_named_change(changes, "crop", !near(before.crop_x, after.crop_x) ||
-                                          !near(before.crop_y, after.crop_y) ||
-                                          !near(before.crop_width, after.crop_width) ||
-                                          !near(before.crop_height, after.crop_height));
+    add_named_change(changes, "flip",
+                     before.flip_horizontal != after.flip_horizontal ||
+                         before.flip_vertical != after.flip_vertical);
+    add_named_change(changes, "crop",
+                     !near(before.crop_x, after.crop_x) || !near(before.crop_y, after.crop_y) ||
+                         !near(before.crop_width, after.crop_width) ||
+                         !near(before.crop_height, after.crop_height));
     add_named_change(changes, "toneCurve", before.tone_curve != after.tone_curve);
     add_named_change(changes, "whiteBalance", before.temperature != after.temperature);
     add_named_change(changes, "inputProfile", before.input_color != after.input_color);
     add_named_change(changes, "outputProfile", before.output_color != after.output_color);
     add_named_change(changes, "primaries", before.primaries != after.primaries);
     add_named_change(changes, "mixer", before.channel_mixer != after.channel_mixer);
-    add_named_change(changes, "colorBalance", before.color_balance != after.color_balance ||
-                                                  before.color_balance_enabled !=
-                                                      after.color_balance_enabled);
-    add_named_change(changes, "colorBalanceRgb", before.color_balance_rgb != after.color_balance_rgb);
+    add_named_change(changes, "colorBalance",
+                     before.color_balance != after.color_balance ||
+                         before.color_balance_enabled != after.color_balance_enabled);
+    add_named_change(changes, "colorBalanceRgb",
+                     before.color_balance_rgb != after.color_balance_rgb);
     add_toggle_change(changes, "profileGamma", before.profile_gamma_enabled,
                       after.profile_gamma_enabled);
     add_toggle_change(changes, "sigmoid", before.sigmoid_enabled, after.sigmoid_enabled);
@@ -4282,6 +4285,57 @@ bool apply_crop_aspect(DevelopParams &params, const std::string_view aspect)
     params.crop_y = box_y + (box_h - new_h) * 0.5;
     clamp_develop(params);
     return true;
+}
+
+double develop_crop_min_short_edge_pixels(const double source_width,
+                                          const double source_height) noexcept
+{
+    const double short_edge = std::min(source_width, source_height);
+    if (!(short_edge > 0.0))
+    {
+        return 0.0;
+    }
+    return std::min(kDevelopCropMinShortEdgePixels, short_edge * kDevelopCropMinShortEdgeFraction);
+}
+
+void clamp_develop_crop_min_extent(DevelopParams &params, const double source_width,
+                                   const double source_height) noexcept
+{
+    clamp_develop(params);
+    const double min_px = develop_crop_min_short_edge_pixels(source_width, source_height);
+    if (!(min_px > 0.0) || !(source_width > 0.0) || !(source_height > 0.0))
+    {
+        return;
+    }
+    const double pixel_width = params.crop_width * source_width;
+    const double pixel_height = params.crop_height * source_height;
+    const double short_px = std::min(pixel_width, pixel_height);
+    if (short_px + kEpsilon >= min_px)
+    {
+        return;
+    }
+    const double scale = min_px / std::max(short_px, kEpsilon);
+    const double center_x = params.crop_x + params.crop_width * 0.5;
+    const double center_y = params.crop_y + params.crop_height * 0.5;
+    params.crop_width = std::min(1.0, params.crop_width * scale);
+    params.crop_height = std::min(1.0, params.crop_height * scale);
+    params.crop_x = std::clamp(center_x - params.crop_width * 0.5, 0.0, 1.0 - params.crop_width);
+    params.crop_y = std::clamp(center_y - params.crop_height * 0.5, 0.0, 1.0 - params.crop_height);
+    const double min_w = std::min(1.0, min_px / source_width);
+    const double min_h = std::min(1.0, min_px / source_height);
+    if (params.crop_width + kEpsilon < min_w)
+    {
+        const double cx = params.crop_x + params.crop_width * 0.5;
+        params.crop_width = min_w;
+        params.crop_x = std::clamp(cx - params.crop_width * 0.5, 0.0, 1.0 - params.crop_width);
+    }
+    if (params.crop_height + kEpsilon < min_h)
+    {
+        const double cy = params.crop_y + params.crop_height * 0.5;
+        params.crop_height = min_h;
+        params.crop_y = std::clamp(cy - params.crop_height * 0.5, 0.0, 1.0 - params.crop_height);
+    }
+    clamp_develop(params);
 }
 
 void transform_crop_for_quarter_turns(DevelopParams &params, int turns_cw) noexcept

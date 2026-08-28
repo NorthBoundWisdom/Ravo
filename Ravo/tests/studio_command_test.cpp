@@ -191,11 +191,11 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindName")).toString(), QStringLiteral("none"));
     EXPECT_EQ(harmonizer_mask.value(QStringLiteral("statusCode")).toString(),
               QStringLiteral("no_mask"));
-    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindChoices")).toStringList().size(), 6);
+    EXPECT_EQ(harmonizer_mask.value(QStringLiteral("kindChoices")).toStringList().size(), 9);
     EXPECT_EQ(harmonizer_mask.value(QStringLiteral("sourceChoices")).toStringList().size(), 2);
     EXPECT_EQ(harmonizer_mask.value(QStringLiteral("channelChoices")).toStringList().size(), 4);
     const auto mask_controls = harmonizer_mask.value(QStringLiteral("numericControls")).toList();
-    ASSERT_EQ(mask_controls.size(), 15);
+    ASSERT_EQ(mask_controls.size(), 22);
     const auto radius = std::find_if(
         mask_controls.cbegin(), mask_controls.cend(), [](const QVariant &candidate)
         { return candidate.toMap().value(QStringLiteral("key")) == QStringLiteral("radius"); });
@@ -509,6 +509,52 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     EXPECT_LT(harmonizer, monochrome);
 }
 
+TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const QStringList order{
+        QStringLiteral("geometry"),     QStringLiteral("light"),
+        QStringLiteral("toneEqual"),    QStringLiteral("whiteBalance"),
+        QStringLiteral("color"),        QStringLiteral("graduated"),
+        QStringLiteral("effects"),      QStringLiteral("detail"),
+        QStringLiteral("raw"),          QStringLiteral("calibration"),
+        QStringLiteral("primaries"),    QStringLiteral("inputProfile"),
+        QStringLiteral("profileGamma"), QStringLiteral("outputProfile"),
+    };
+    qsizetype cursor = source.indexOf(QStringLiteral("component DevelopSection"));
+    ASSERT_GE(cursor, 0);
+    for (const auto &id : order)
+    {
+        const auto needle = QStringLiteral("sectionId: \"%1\"").arg(id);
+        const auto found = source.indexOf(needle, cursor);
+        ASSERT_GE(found, 0) << id.toStdString();
+        EXPECT_GT(found, cursor) << id.toStdString();
+        cursor = found + needle.size();
+    }
+}
+
+TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Rotate L\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Flip H\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("RotateCcw.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("RotateCw.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("FlipHorizontal.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("FlipVertical.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Lock.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Unlock.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("AbstractButton.IconOnly")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setCropAspect(checked ? \"locked\" : \"free\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Lock aspect ratio\")")));
+}
+
 TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
 {
     QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
@@ -535,9 +581,46 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(history_source.contains(QStringLiteral("disabledTextColor")));
 }
 
+TEST(StudioCommands, LockingCropAspectKeepsCurrentRatio)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_EQ(presenter.cropAspect(), QStringLiteral("free"));
+    EXPECT_NEAR(presenter.cropAspectRatio(), 0.0, 1e-12);
+    presenter.setCropAspect(QStringLiteral("locked"));
+    EXPECT_EQ(presenter.cropAspect(), QStringLiteral("locked"));
+    EXPECT_NEAR(presenter.cropAspectRatio(), 1.0, 1e-6);
+    presenter.setCropAspect(QStringLiteral("free"));
+    EXPECT_EQ(presenter.cropAspect(), QStringLiteral("free"));
+    EXPECT_NEAR(presenter.cropAspectRatio(), 0.0, 1e-12);
+}
+
 TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
 {
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
+}
+
+TEST(StudioCommands, CropToolShortcutIsRAndDoesNotRequireEditMode)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto crop = controller.ids().value(QStringLiteral("editCropTool")).toString();
+    ASSERT_FALSE(crop.isEmpty());
+    bool found_r = false;
+    for (const auto &entry_value : controller.shortcutEntries())
+    {
+        const auto entry = entry_value.toMap();
+        if (entry.value(QStringLiteral("actionId")).toString() != crop)
+            continue;
+        found_r = true;
+        EXPECT_EQ(entry.value(QStringLiteral("sequence")).toString(), QStringLiteral("R"));
+    }
+    EXPECT_TRUE(found_r);
+    const auto spec = controller.action(crop);
+    EXPECT_FALSE(spec.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(spec.value(QStringLiteral("disabledReason")).toString(),
+              QCoreApplication::translate("StudioCommands", "Open a library first."));
 }
 
 TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
@@ -784,6 +867,34 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
     EXPECT_FALSE(source.contains(QStringLiteral("Math.round")));
     EXPECT_FALSE(source.contains(QStringLiteral("property double jpegQuality: 95")));
     EXPECT_FALSE(source.contains(QStringLiteral("property double tiffResolutionDpi: 300")));
+}
+
+TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    const auto overlay = source.indexOf(QStringLiteral("CropOverlay"));
+    ASSERT_GE(overlay, 0);
+    const auto visible = source.indexOf(QStringLiteral("visible:"), overlay);
+    ASSERT_GE(visible, 0);
+    const auto visible_line =
+        source.mid(visible, source.indexOf(QLatin1Char('\n'), visible) - visible);
+    EXPECT_TRUE(visible_line.contains(QStringLiteral("cropToolActive")));
+    EXPECT_TRUE(visible_line.contains(QStringLiteral("photoPlane.width")));
+    EXPECT_FALSE(visible_line.contains(QStringLiteral("cropGuideReady")));
+    EXPECT_TRUE(source.contains(
+        QStringLiteral("cropToolActive && studio.cropGuideReady ? studio.editStraighten : 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("photoItem: photoPlane")));
+    EXPECT_TRUE(source.contains(QStringLiteral("sourceWidth: studio.selectedWorkingWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("sourceHeight: studio.selectedWorkingHeight")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("minShortEdgePixels: studio.cropMinShortEdgePixels")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("minShortEdgeFraction: studio.cropMinShortEdgeFraction")));
+    EXPECT_TRUE(source.contains(QStringLiteral("onTapped: window.showPhotoMenu()")));
+    EXPECT_FALSE(source.contains(QStringLiteral("onClicked: window.showPhotoMenu()")));
 }
 
 TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)

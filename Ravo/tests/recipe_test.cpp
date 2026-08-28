@@ -1098,6 +1098,52 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(inscribed.crop_width, previous_width, 1e-6);
 }
 
+TEST(RecipeTest, CropMinShortEdgeIsMinOf300AndHalfShortSide)
+{
+    EXPECT_NEAR(kDevelopCropMinShortEdgePixels, 300.0, 1e-12);
+    EXPECT_NEAR(kDevelopCropMinShortEdgeFraction, 0.5, 1e-12);
+    EXPECT_NEAR(develop_crop_min_short_edge_pixels(4000, 3000), 300.0, 1e-9);
+    EXPECT_NEAR(develop_crop_min_short_edge_pixels(400, 300), 150.0, 1e-9);
+    EXPECT_NEAR(develop_crop_min_short_edge_pixels(200, 100), 50.0, 1e-9);
+    EXPECT_NEAR(develop_crop_min_short_edge_pixels(0, 0), 0.0, 1e-12);
+
+    DevelopParams tiny_crop;
+    tiny_crop.crop_width = 0.02;
+    tiny_crop.crop_height = 0.02;
+    tiny_crop.crop_x = 0.4;
+    tiny_crop.crop_y = 0.4;
+    clamp_develop_crop_min_extent(tiny_crop, 4000, 3000);
+    EXPECT_GE(std::min(tiny_crop.crop_width * 4000.0, tiny_crop.crop_height * 3000.0),
+              300.0 - 1e-6);
+    EXPECT_NEAR(tiny_crop.crop_width / tiny_crop.crop_height, 1.0, 1e-6);
+    EXPECT_GE(tiny_crop.crop_x, 0.0);
+    EXPECT_GE(tiny_crop.crop_y, 0.0);
+    EXPECT_LE(tiny_crop.crop_x + tiny_crop.crop_width, 1.0 + 1e-9);
+    EXPECT_LE(tiny_crop.crop_y + tiny_crop.crop_height, 1.0 + 1e-9);
+
+    DevelopParams small_source;
+    small_source.crop_width = 0.1;
+    small_source.crop_height = 0.1;
+    small_source.crop_x = 0.4;
+    small_source.crop_y = 0.4;
+    clamp_develop_crop_min_extent(small_source, 400, 300);
+    const double small_short =
+        std::min(small_source.crop_width * 400.0, small_source.crop_height * 300.0);
+    EXPECT_GE(small_short, 150.0 - 1e-6);
+    EXPECT_LT(small_short, 300.0);
+
+    DevelopParams already_ok;
+    already_ok.crop_width = 0.5;
+    already_ok.crop_height = 0.5;
+    already_ok.crop_x = 0.2;
+    already_ok.crop_y = 0.2;
+    clamp_develop_crop_min_extent(already_ok, 4000, 3000);
+    EXPECT_NEAR(already_ok.crop_width, 0.5, 1e-9);
+    EXPECT_NEAR(already_ok.crop_height, 0.5, 1e-9);
+    EXPECT_NEAR(already_ok.crop_x, 0.2, 1e-9);
+    EXPECT_NEAR(already_ok.crop_y, 0.2, 1e-9);
+}
+
 TEST(RecipeTest, InputColorSchemaRoundTripsAndRejectsEveryUnknownPolicy)
 {
     auto registry = make_phase1_registry();

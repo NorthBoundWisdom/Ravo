@@ -265,7 +265,47 @@ double StudioPresenter::cropAspectRatio() const noexcept
     {
         return 16.0 / 9.0;
     }
+    if (crop_aspect_ == QLatin1String("locked"))
+    {
+        if (locked_crop_ratio_ > 0.0)
+        {
+            return locked_crop_ratio_;
+        }
+        return develop_.crop_width / std::max(develop_.crop_height, 1e-6);
+    }
     return 0.0;
+}
+
+int StudioPresenter::selectedWorkingWidth() const
+{
+    double width = 0.0;
+    double height = 0.0;
+    if (!working_source_size(width, height))
+    {
+        return 0;
+    }
+    return static_cast<int>(width);
+}
+
+int StudioPresenter::selectedWorkingHeight() const
+{
+    double width = 0.0;
+    double height = 0.0;
+    if (!working_source_size(width, height))
+    {
+        return 0;
+    }
+    return static_cast<int>(height);
+}
+
+double StudioPresenter::cropMinShortEdgePixels() const noexcept
+{
+    return kDevelopCropMinShortEdgePixels;
+}
+
+double StudioPresenter::cropMinShortEdgeFraction() const noexcept
+{
+    return kDevelopCropMinShortEdgeFraction;
 }
 
 void StudioPresenter::valid_crop_rect(double &x, double &y, double &width, double &height) const
@@ -1633,6 +1673,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     static_cast<void>(develop_preview_owner_.supersede("develop_save_superseded"));
     pending_save_ = PendingDevelopWork{
         .save = true,
+        .interactive = crop_guides,
         .params = params,
         .previous = previous,
         .push_history = push_history,
@@ -1704,7 +1745,7 @@ void StudioPresenter::enqueue_preview()
     static_cast<void>(develop_preview_owner_.supersede("preview_superseded"));
     const bool crop_guides = crop_tool_active_ && !before_after_;
     pending_preview_ = PendingDevelopWork{
-        .interactive = mask_overlay_visible_,
+        .interactive = mask_overlay_visible_ || crop_guides,
         .params = develop_,
         .history_write = RecipeHistoryWrite::kUnchanged,
         .discard_history_after_seq = {},
@@ -2003,6 +2044,7 @@ void StudioPresenter::setCropRect(const double x, const double y, const double w
     next.crop_height = height;
     clamp_develop(next);
     constrain_geometry_crop(next);
+    clamp_selected_crop(next);
     if (next == develop_)
     {
         return;
@@ -2020,6 +2062,7 @@ void StudioPresenter::previewCropRect(const double x, const double y, const doub
     next.crop_height = height;
     clamp_develop(next);
     constrain_geometry_crop(next);
+    clamp_selected_crop(next);
     if (next == develop_)
     {
         return;
@@ -2030,13 +2073,22 @@ void StudioPresenter::previewCropRect(const double x, const double y, const doub
 
 void StudioPresenter::setCropAspect(const QString &aspect)
 {
+    if (aspect == QLatin1String("locked"))
+    {
+        locked_crop_ratio_ = develop_.crop_width / std::max(develop_.crop_height, 1e-6);
+        crop_aspect_ = QStringLiteral("locked");
+        emit editChanged();
+        return;
+    }
     DevelopParams next = develop_;
     if (!apply_crop_aspect(next, utf8_from_qstring(aspect)))
     {
         return;
     }
     crop_aspect_ = aspect;
+    locked_crop_ratio_ = 0.0;
     fit_geometry_crop(next);
+    clamp_selected_crop(next);
     if (next == develop_)
     {
         emit editChanged();
@@ -2093,6 +2145,8 @@ void StudioPresenter::setCropToolActive(const bool active)
         setZoomMode(QStringLiteral("fit"));
         DevelopParams next = develop_;
         fit_geometry_crop(next);
+        // Overlay paints as soon as the tool is on. crop_guide_ready waits for a
+        // preview with crop/straighten stripped so QML does not rotate twice.
         crop_guide_ready_ = std::abs(next.straighten_degrees) < 1e-4 && next.crop_width >= 0.999 &&
                             next.crop_height >= 0.999 && std::abs(next.crop_x) < 1e-6 &&
                             std::abs(next.crop_y) < 1e-6;
@@ -2152,6 +2206,7 @@ void StudioPresenter::resetSection(const QString &section)
     if (section == QLatin1String("geometry"))
     {
         crop_aspect_ = QStringLiteral("free");
+        locked_crop_ratio_ = 0.0;
     }
     commit_develop(next, true);
 }
@@ -2179,6 +2234,7 @@ void StudioPresenter::setSectionEffectEnabled(const QString &section, const bool
 void StudioPresenter::resetAllEdits()
 {
     crop_aspect_ = QStringLiteral("free");
+    locked_crop_ratio_ = 0.0;
     DevelopParams reset;
     reset.sigmoid_enabled = develop_.sigmoid_enabled;
     commit_develop(reset, true);
@@ -2213,6 +2269,34 @@ void StudioPresenter::toggleBeforeAfter()
     before_after_ = !before_after_;
     emit editChanged();
     enqueue_preview();
+}
+
+bool StudioPresenter::working_source_size(double &width, double &height) const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || !asset->width || !asset->height || *asset->width == 0 || *asset->height == 0)
+    {
+        return false;
+    }
+    width = static_cast<double>(*asset->width);
+    height = static_cast<double>(*asset->height);
+    const auto turns = ((develop_.rotate_quarters % 4) + 4) % 4;
+    if (turns == 1 || turns == 3)
+    {
+        std::swap(width, height);
+    }
+    return true;
+}
+
+void StudioPresenter::clamp_selected_crop(DevelopParams &params) const
+{
+    double width = 0.0;
+    double height = 0.0;
+    if (!working_source_size(width, height))
+    {
+        return;
+    }
+    clamp_develop_crop_min_extent(params, width, height);
 }
 
 double StudioPresenter::selected_source_aspect() const

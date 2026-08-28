@@ -645,12 +645,17 @@ ApplicationWindow {
 
                                 CropOverlay {
                                     anchors.fill: parent
-                                    visible: studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady && photoPlane.width > 1
+                                    visible: studio.browseMode === "develop" && studio.cropToolActive && photoPlane.width > 1
                                     imageX: photoPlane.x
                                     imageY: photoPlane.y
                                     imageWidth: photoPlane.width
                                     imageHeight: photoPlane.height
                                     imageRotation: photoPlane.rotation
+                                    photoItem: photoPlane
+                                    sourceWidth: studio.selectedWorkingWidth
+                                    sourceHeight: studio.selectedWorkingHeight
+                                    minShortEdgePixels: studio.cropMinShortEdgePixels
+                                    minShortEdgeFraction: studio.cropMinShortEdgeFraction
                                     cropX: studio.editCropX
                                     cropY: studio.editCropY
                                     cropWidth: studio.editCropWidth
@@ -680,10 +685,9 @@ ApplicationWindow {
                             }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
+                        TapHandler {
                             acceptedButtons: Qt.RightButton
-                            onClicked: window.showPhotoMenu()
+                            onTapped: window.showPhotoMenu()
                         }
 
                         CustomLabel {

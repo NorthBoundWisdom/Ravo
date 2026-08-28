@@ -107,6 +107,10 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editStraighten READ editStraighten NOTIFY editChanged)
     Q_PROPERTY(QString cropAspect READ cropAspect NOTIFY editChanged)
     Q_PROPERTY(double cropAspectRatio READ cropAspectRatio NOTIFY editChanged)
+    Q_PROPERTY(int selectedWorkingWidth READ selectedWorkingWidth NOTIFY editChanged)
+    Q_PROPERTY(int selectedWorkingHeight READ selectedWorkingHeight NOTIFY editChanged)
+    Q_PROPERTY(double cropMinShortEdgePixels READ cropMinShortEdgePixels CONSTANT)
+    Q_PROPERTY(double cropMinShortEdgeFraction READ cropMinShortEdgeFraction CONSTANT)
     Q_PROPERTY(double validCropX READ validCropX NOTIFY editChanged)
     Q_PROPERTY(double validCropY READ validCropY NOTIFY editChanged)
     Q_PROPERTY(double validCropWidth READ validCropWidth NOTIFY editChanged)
@@ -288,6 +292,10 @@ public:
     [[nodiscard]] double editStraighten() const noexcept;
     [[nodiscard]] QString cropAspect() const;
     [[nodiscard]] double cropAspectRatio() const noexcept;
+    [[nodiscard]] int selectedWorkingWidth() const;
+    [[nodiscard]] int selectedWorkingHeight() const;
+    [[nodiscard]] double cropMinShortEdgePixels() const noexcept;
+    [[nodiscard]] double cropMinShortEdgeFraction() const noexcept;
     [[nodiscard]] double validCropX() const;
     [[nodiscard]] double validCropY() const;
     [[nodiscard]] double validCropWidth() const;
@@ -487,6 +495,8 @@ private:
     void enqueue_preview();
     [[nodiscard]] double selected_source_aspect() const;
     [[nodiscard]] double selected_working_aspect() const;
+    [[nodiscard]] bool working_source_size(double &width, double &height) const;
+    void clamp_selected_crop(DevelopParams &params) const;
     void constrain_geometry_crop(DevelopParams &params) const;
     void fit_geometry_crop(DevelopParams &params) const;
     void valid_crop_rect(double &x, double &y, double &width, double &height) const;
@@ -578,6 +588,7 @@ private:
     bool crop_tool_active_ = false;
     bool crop_guide_ready_ = false;
     QString crop_aspect_{QStringLiteral("free")};
+    double locked_crop_ratio_ = 0.0;
     bool develop_job_in_flight_ = false;
     std::optional<PendingDevelopWork> pending_save_;
     std::optional<PendingDevelopWork> pending_preview_;
