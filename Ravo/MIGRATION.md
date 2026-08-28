@@ -3,10 +3,12 @@
 ## Goal
 
 Ravo will ultimately replace `legacy/src/`. Catalog/import/viewer and Basic
-Develop are already implemented in Ravo. The next stage rewrites items one by
-one according to the root [`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md);
-delete the corresponding old owner only after an item is “Ravo accepted.” New
-ownership lives only in `Ravo/`. Version 0.9 remains prohibited from
+Develop are already implemented in Ravo. The next stage follows the user-value
+queue in the root
+[`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md), bundling the legacy
+owners required for one user-visible outcome instead of walking old source
+order. Delete each corresponding old owner only after it is “Ravo accepted.”
+New ownership lives only in `Ravo/`. Version 0.9 remains prohibited from
 configuration, compilation, and execution.
 
 Under [ADR-0015](docs/adr/0015-migrate-all-non-ui-algorithms.md), every
@@ -110,17 +112,19 @@ capability is final only when all of these are true:
 ## Migration order
 
 1. Keep the accepted catalog/review/develop/export baseline regressible.
-2. Follow the root active migration TODO strictly: first finish cache,
-   save/reopen, and interaction gates for migrated-but-unclosed capabilities,
-   then start the next IOP. Delete an old owner only after its item is “Ravo
-   accepted.”
-3. Raise masks, additional RAW/color/geometry/output algorithms according to
-   dependencies after the queue; old styles/catalog/XMP data compatibility still
-   needs a separate dated product decision.
-4. Accept cross-cutting reliability, three-platform installation, and optional
-   GPU under the TODO gates.
-5. After the queue is empty, demonstrate release transition/rollback, then
-   handle explicit leftover archiving or final cleanup.
+2. Follow the root TODO's user-value queue strictly: finish the active tranche,
+   then take the highest-priority Ready outcome. Do not select the next IOP or
+   cleanup merely because its legacy row comes next.
+3. Bundle the mask, RAW/color/geometry/output, service, data, and UI owners that
+   one outcome genuinely requires. Pull a lower-priority foundation forward
+   only as a named dependency; each owner keeps its own evidence and deletion
+   gate.
+4. Apply data-safety, cache/resource, accessibility, and three-platform gates
+   continuously. Old styles/catalog/XMP compatibility still needs a separate
+   dated product decision, and optional GPU remains behind CPU acceptance.
+5. Delete an old owner only after its capability is Ravo accepted. After the
+   user-value queue is empty, demonstrate release transition/rollback, then
+   handle explicit leftover archiving and final cleanup.
 
 ## Explicit non-algorithm leftovers
 

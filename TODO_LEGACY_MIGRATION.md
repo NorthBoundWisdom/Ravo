@@ -18,8 +18,15 @@ ready for execution.
 
 ## 1. Execution rules
 
-- Advance only the first item in the queue. Do not start another before it is
-  complete.
+- Select the highest-priority **Ready** user outcome in section 2.1. Do not
+  select work merely because its old source file or inventory row comes next.
+- Finish an active tranche before switching. If it is dependency-blocked, the
+  next Ready outcome may advance when owners/files do not overlap and the
+  blocker is recorded explicitly.
+- One product tranche may cover several ALG/CORE/DATA/DELETE IDs when they are
+  jointly required for one user-visible outcome. Acceptance and old-owner
+  retirement still apply to every included owner; bundling is not permission
+  to skip evidence or delete unrelated code.
 - A capability implemented in engine/catalog but not meeting this section's gate
   is not “Ravo accepted.”
 - For every item, statically read old owner/fixtures first; then define Ravo
@@ -35,23 +42,73 @@ ready for execution.
   history or archived TODOs.
 - Reliability findings can block the current item but must not be used to bulk
   clean GTK/OpenCL/shared imageio/fixtures.
+- Cleanup and ABI deletion piggyback on an accepted user outcome or a proven
+  zero-consumer boundary. They never displace a higher-value Ready capability
+  merely to reduce the legacy file count.
 - Mark an unrun platform or manual check as untested; never use historic results
   to represent current acceptance.
 
-## 2. Migration queue
+## 2. User-value execution queue
 
-C14 still requires mask-overlay/group-editor presentation, path/brush
-capability, and every M1 acceptance/retirement gate. S3.1 supplies the bounded
-canonical graph foundation and S3.2 supplies bounded Studio-owned leaf authoring; neither
-accepts M1/C14 or authorizes C15 or cacorrectrgb.
+Priority is based on how often photographers need the outcome, whether it
+blocks the import → edit → export loop, and data-loss/reliability risk. It is
+not based on legacy directory layout, historical IOP order, or ease of deleting
+an old owner. Within a priority, take the first Ready sub-slice after checking
+the dependencies named in the owner inventory.
+
+**Ready** means the named dependencies and evidence prerequisites are
+satisfied, the owner/files do not conflict with active work, and the tranche is
+explicitly authorized. A priority label alone does not waive those conditions.
+
+### 2.1 Priority order
+
+| Priority | User outcome and internal order | Owner IDs / readiness | Acceptance gate |
+| --- | --- | --- | --- |
+| P0 — finish active local-adjustment work | Complete mask overlay/group editing, then path/brush authoring and the current Color Harmonizer closure | `C14`, `S3`, `M1`, `L11`, mask-related `U4`; **In progress**. S3.1/S3.2 are foundations only. `C15` and `R4` remain explicitly unauthorized | One canonical graph/evaluator/service path; Studio creation/edit/overlay, ROI/cancellation/resource and reopen coverage; retire each old owner only with zero-consumer proof |
+| P1 — reliably open and view common photos | First harden JPEG/PNG/TIFF and LibRaw/DNG input, then complete RAW prepare/demosaic and first-frame/cache/job lifecycle | `I5`, `I6`, `I7`, `I2`, `I4`, `R1`, `R2`, `I1`, `S11`, `J1`, `J3`, `J4`; Ready in independent fixture-backed tranches that do not overlap P0 | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
+| P2 — everyday Develop controls | In order: orientation/crop, resize/output dimensions/straighten, RGB curves/levels, RAW denoise/highlight colour, sharpen/dehaze, then basic retouch | `G1`, `G4`, `G3`, `G7`, `G6`, `T2`, `T3`, `R3`, `R5`, `F1`, `F11`, `M2`, with consumer-driven `S1`/`S2`/`S4`; blocked items wait for their stated P0/P1 dependency | One recipe/CLI/Catalog/Studio path per control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
+| P3 — library and delivery workflow | Improve filtering/recent/navigation/scopes; then metadata/history/styles/presets; finish common export/storage, canvas/frame/watermark and output dither | `S8`, `L5`–`L8`, `J5`, `S9`, `S10`, `J6`, `J7`, `L2`, `U5`, `I10`–`I14`, `G5`, `G8`, `M5`, `O1`, `H3`, `H4` | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
+| P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, Color Zones/monochrome/split toning/Velvia, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T6`, `T1`, `C17`, `C18`, `C20`, `C21`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
+| P5 — specialist and low-frequency tools | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until a later exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget and explicit unsupported-state policy; no simplified substitute or speculative shell |
+| P6 — retirement and repository cleanup | Delete dynamic ABI, old UI, shared globals, resources, runners and empty directories only after their last accepted consumer disappears | `D0.*`, remaining `S5`–`S7`/`S12`–`S14`, `J2`, `I15`, `U*`, cleanup-only `L*`, `H*`, `E*`; Not a standalone feature queue | Whole-repository zero-consumer search, synchronized freeze/inventory/docs, three-platform Ravo package/install evidence, and recoverable release transition |
+
+Foundation IDs (`S1`, `S2`, `S4`, calibration data, and job owners) advance
+with the highest-priority consumer that needs them; they are not independent
+porting projects. A lower-priority item may move earlier only when it is a hard
+dependency of a higher-priority outcome, and the same change must state that
+relationship and the smallest validation set.
 
 Independent adapter or reliability work may run only when its dependencies are
 met and its owners and files do not overlap.
 
-## 3. Complete remaining-module inventory and serial order
+### 2.2 Continuous product gates
 
-This section is an execution inventory for the current worktree, not the
-long-term capability authority. Snapshot baseline:
+These gates apply to every priority and can block the affected tranche or a
+release. They are user-safety work, not a second feature queue:
+
+- [ ] Database non-writable/corrupt, schema-migration fixture, cache corruption,
+  full disk, moved source, batch cancellation, crash reopen, backup/rollback,
+  and original safety.
+- [ ] Gallery thumbnail virtualization, long-list memory, explicit worker/
+  preview/cache budgets, import-to-first-frame metrics, and resource destruction
+  after window/catalog close.
+- [ ] Keyboard, focus, HiDPI, and accessibility for each new Studio surface.
+- [ ] Windows/macOS/Linux configure/build/test, staged install, and installed
+  application loop for release-bound changes.
+- [ ] Metadata/ICC and output-colour contracts meet the formats promised by the
+  corresponding P1/P3 outcome.
+- [ ] Name the packaged-release product owner and code-review owner; before
+  release transition prove rollback and no legacy production dependency.
+
+GPU is outside this queue. Create a dedicated TODO under
+`DevDocs/GPU_Baseline.md` only after the relevant CPU path is accepted, goldens
+are stable, and end-to-end measurements prove benefit.
+
+## 3. Complete remaining-module owner inventory
+
+This section is a lookup index for ownership, dependencies, fixtures, and
+deletion gates. **Its section and row order is not execution priority**; only
+section 2.1 chooses work. Snapshot baseline:
 
 - legacy/src/iop/CMakeLists.txt has 51 unconditional IOP registrations plus two
   conditional owners (`liquify`, `watermark`); all 53 have a row in section 3.2.
@@ -66,7 +123,8 @@ long-term capability authority. Snapshot baseline:
 
 Status terms: **paused** means accepted work remains but no new migration
 tranche is authorized until feature convergence is reviewed. **Queued** waits
-for dependencies, all earlier rows, and explicit authorization. **Delete** means no UI/ABI port.
+for its user-value priority, dependencies, and explicit authorization; it does
+not wait merely for an earlier inventory row. **Delete** means no UI/ABI port.
 **Keep evidence** means do not move it before migration completes. When a module
 meets its gate, first update stable truth, then remove its row. Do not leave
 historical checked marks here.
@@ -95,10 +153,11 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry, including shared exposure order/module-group/manual names; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm queue (53 owners: 51 unconditional + 2 conditional)
+### 3.2 IOP algorithm owner index (53 owners: 51 unconditional + 2 conditional)
 
-The group order below is dependency order; rows in a group are serial by
-default. fixture means static evidence exists, not that it is covered.
+The groups below make legacy ownership searchable. They do not define product
+priority or serial order. fixture means static evidence exists, not that it is
+covered.
 
 #### A. Current colour scheduling and foundation
 
@@ -289,37 +348,11 @@ default. fixture means static evidence exists, not that it is covered.
 | E4 | legacy/docs/*, RELEASE_NOTES.md, legacy README | Keep evidence → DELETE | Delete after algorithm/ownership conclusions enter ADR/ARCHITECTURE/TESTING |
 | E5 | legacy/host, legacy/src empty directories, root legacy/ | DELETE | All ALG/CORE/DATA/DELETE rows clear, fixtures move, repository links/package checks pass |
 
-### 3.8 Cross-cutting reliability and release blockers
-
-The following are all unfinished. They are not a second feature queue, but can
-block affected work or release:
-
-- [ ] Gallery thumbnail virtualization, long-list memory, explicit worker/
-  preview/cache budgets.
-- [ ] Database non-writable/corrupt, cache corruption, full disk, moved source,
-  batch cancellation, crash reopen.
-- [ ] Schema-migration fixture, import-to-first-frame metric, and resource
-  destruction after window/catalog close.
-- [ ] Keyboard, focus, HiDPI, and accessibility.
-- [ ] Windows/macOS/Linux configure/build/test, staged install, and installed
-  application loop.
-- [ ] Metadata/ICC and output-colour contract meet promised format gates.
-- [ ] Name packaged-release product owner and code-review owner.
-- [ ] Before release transition, prove backup/rollback, original safety, and no
-  legacy production dependency.
-
-GPU is outside the current queue. Create a dedicated TODO under
-DevDocs/GPU_Baseline.md only after the relevant CPU path is accepted, goldens
-are stable, and end-to-end measurements prove benefit.
-
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
-constraints; it cannot be used to hide modules from this TODO. Remaining C14
-work is mask-overlay/group-editor presentation, path/brush capability, the
-required M1 gates, and atomic retirement. Do not begin C15
-audit/implementation until a later exact tranche is explicitly authorized.
-Independent adapter or reliability work requires satisfied dependencies and
-explicitly non-overlapping owners and files.
+constraints; it cannot be used to hide modules from this TODO. Section 2.1 is
+the sole execution order; these owner tables cannot be used to promote an easy
+legacy deletion over a higher-value Ready outcome.
 
 ## 4. Completion gate for this TODO
 
