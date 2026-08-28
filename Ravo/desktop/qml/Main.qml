@@ -152,6 +152,12 @@ ApplicationWindow {
         id: studioPalette
     }
 
+    Binding {
+        target: Theme
+        property: "helper"
+        value: studioPalette
+    }
+
     StudioActions {
         id: studioActions
         controller: studioCommands

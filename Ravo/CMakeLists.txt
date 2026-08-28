@@ -46,6 +46,11 @@ unset(_ravo_required_qt_runtime_plugins)
 find_package(PNG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(quill CONFIG REQUIRED)
+if(ZLIB_INCLUDE_DIR AND EXISTS "${ZLIB_INCLUDE_DIR}/QtCore/qarraydata.h")
+  message(STATUS
+    "ZLIB include ${ZLIB_INCLUDE_DIR} also contains Qt headers; "
+    "Ravo prepends the selected Qt 6.11 kit so those umbrella headers cannot shadow QList")
+endif()
 
 function(ravo_require_migration_source_root output_variable environment_variable required_path)
   if(NOT DEFINED ENV{${environment_variable}})
@@ -421,7 +426,24 @@ if(NOT TARGET lcms2)
   message(FATAL_ERROR "LittleCMS source root did not provide the lcms2 target")
 endif()
 
+# Homebrew/linuxbrew expose ZLIB/PNG as <prefix>/include. That umbrella also
+# contains a second Qt tree (QtCore/qarraydata.h). If those SYSTEM includes
+# precede the selected Qt kit, QList templates compile against the brew ABI
+# while the binary links the official kit — SIGSEGV on Linux in QStringList.
+function(ravo_prefer_selected_qt_headers target)
+  if(NOT TARGET Qt6::Core)
+    return()
+  endif()
+  set(_ravo_qt_includes "$<TARGET_PROPERTY:Qt6::Core,INTERFACE_INCLUDE_DIRECTORIES>")
+  if(TARGET Qt6::Gui)
+    list(APPEND _ravo_qt_includes
+      "$<TARGET_PROPERTY:Qt6::Gui,INTERFACE_INCLUDE_DIRECTORIES>")
+  endif()
+  target_include_directories(${target} SYSTEM BEFORE PRIVATE ${_ravo_qt_includes})
+endfunction()
+
 function(ravo_configure_target target)
+  ravo_prefer_selected_qt_headers(${target})
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_compile_options(${target} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4>
