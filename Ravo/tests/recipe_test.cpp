@@ -3011,6 +3011,51 @@ TEST(RecipeTest, ToneCurveRoundTripAndRejectsUnknownColourPolicy)
     EXPECT_EQ(rejected_points.error().code, ErrorCode::kValidation);
 }
 
+TEST(RecipeTest, DisplaySrgbRgbCurveRejectsScenePoliciesDuringRecipeValidation)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+
+    DevelopParams params;
+    params.sigmoid_enabled = true;
+    params.rgb_curve.mode = std::string(kRgbLevelsModeIndependent);
+    params.rgb_curve.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    params.rgb_curve.application_space = std::string(kRgbCurveApplicationSpaceDisplaySrgb);
+    params.rgb_curve.channels[0] = {{0.0, 0.0}, {0.5, 0.6}, {1.0, 1.0}};
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, params);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+    auto *curve = operation_by_id(recipe.value(), "ravo.color.rgbcurve");
+    ASSERT_NE(curve, nullptr);
+
+    const auto rejects_policy = [&](const std::string_view parameter,
+                                    const ParameterValue &value)
+    {
+        auto invalid = recipe.value();
+        auto *invalid_curve = operation_by_id(invalid, "ravo.color.rgbcurve");
+        ASSERT_NE(invalid_curve, nullptr);
+        invalid_curve->parameters[std::string(parameter)] = value;
+        auto result = validate_recipe(invalid, registry.value());
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code, ErrorCode::kValidation);
+        EXPECT_EQ(result.error().context.at("reason"),
+                  "unsupported_display_srgb_curve_policy");
+    };
+    rejects_policy("mode", ParameterValue{std::string(kRgbLevelsModeLinked)});
+    rejects_policy("preserve_colors",
+                   ParameterValue{std::string(kToneCurvePreserveColorsLuminance)});
+    rejects_policy("compensate_middle_grey", ParameterValue{true});
+    rejects_policy("parametric_shadows", ParameterValue{0.2});
+
+    auto unknown_preserve = recipe.value();
+    auto *unknown_curve = operation_by_id(unknown_preserve, "ravo.color.rgbcurve");
+    ASSERT_NE(unknown_curve, nullptr);
+    unknown_curve->parameters["preserve_colors"] = ParameterValue{"invented"};
+    auto rejected_preserve = validate_recipe(unknown_preserve, registry.value());
+    ASSERT_FALSE(rejected_preserve);
+    EXPECT_EQ(rejected_preserve.error().code, ErrorCode::kValidation);
+}
+
 TEST(RecipeTest, SigmoidRoundTripRequiresExplicitFiniteColorPolicy)
 {
     auto registry = make_phase1_registry();

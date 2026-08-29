@@ -2887,6 +2887,11 @@ void clamp_rgb_curve(RgbCurveParams &params) noexcept
     {
         params.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
     }
+    if (params.application_space != kRgbCurveApplicationSpaceSceneLinear &&
+        params.application_space != kRgbCurveApplicationSpaceDisplaySrgb)
+    {
+        params.application_space = std::string(kRgbCurveApplicationSpaceSceneLinear);
+    }
     params.parametric_shadows = clamp_value(params.parametric_shadows, -1.0, 1.0);
     params.parametric_darks = clamp_value(params.parametric_darks, -1.0, 1.0);
     params.parametric_lights = clamp_value(params.parametric_lights, -1.0, 1.0);
@@ -3155,6 +3160,7 @@ validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::
 Result<void>
 validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
 {
+    std::string_view mode = kRgbLevelsModeLinked;
     if (const auto found = parameters.find("mode"); found != parameters.end())
     {
         const auto *text = as_string_if(found->second);
@@ -3163,6 +3169,7 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
             return make_error(ErrorCode::kValidation, "RGB curve mode is unsupported",
                               {{"mode", text == nullptr ? std::string() : *text}});
         }
+        mode = *text;
     }
     if (const auto found = parameters.find("interpolation"); found != parameters.end())
     {
@@ -3172,6 +3179,37 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
             return make_error(ErrorCode::kValidation, "RGB curve interpolation is unsupported",
                               {{"interpolation", text == nullptr ? std::string() : *text}});
         }
+    }
+    std::string_view application_space = kRgbCurveApplicationSpaceSceneLinear;
+    if (const auto found = parameters.find("application_space"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr || (*text != kRgbCurveApplicationSpaceSceneLinear &&
+                                *text != kRgbCurveApplicationSpaceDisplaySrgb))
+        {
+            return make_error(ErrorCode::kValidation, "RGB curve application space is unsupported",
+                              {{"application_space", text == nullptr ? std::string() : *text}});
+        }
+        application_space = *text;
+    }
+    std::string_view preserve_colors = kToneCurvePreserveColorsLuminance;
+    if (const auto found = parameters.find("preserve_colors"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr ||
+            (*text != kToneCurvePreserveColorsNone &&
+             *text != kToneCurvePreserveColorsLuminance &&
+             *text != kToneCurvePreserveColorsMax &&
+             *text != kToneCurvePreserveColorsAverage &&
+             *text != kToneCurvePreserveColorsSum &&
+             *text != kToneCurvePreserveColorsNorm &&
+             *text != kToneCurvePreserveColorsPower))
+        {
+            return make_error(
+                ErrorCode::kValidation, "RGB curve preserve_colors is unsupported",
+                {{"preserve_colors", text == nullptr ? std::string() : *text}});
+        }
+        preserve_colors = *text;
     }
     const auto parse_points = [&](const char *name) -> Result<void>
     {
@@ -3198,6 +3236,31 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
     if (auto blue = parse_points("points_b"); !blue)
     {
         return blue.error();
+    }
+    bool compensate = false;
+    if (const auto found = parameters.find("compensate_middle_grey"); found != parameters.end())
+    {
+        if (const auto *flag = std::get_if<bool>(&found->second.value); flag != nullptr)
+            compensate = *flag;
+    }
+    bool parametric_active = false;
+    for (const auto name : {"parametric_shadows", "parametric_darks", "parametric_lights",
+                            "parametric_highlights"})
+    {
+        if (const auto found = parameters.find(name); found != parameters.end())
+        {
+            const double value = as_number(found->second, 0.0);
+            parametric_active = parametric_active || !near(value, 0.0);
+        }
+    }
+    if (application_space == kRgbCurveApplicationSpaceDisplaySrgb &&
+        (mode != kRgbLevelsModeIndependent ||
+         preserve_colors != kToneCurvePreserveColorsNone || compensate || parametric_active))
+    {
+        return make_error(
+            ErrorCode::kValidation,
+            "Display-sRGB RGB curves require independent channels without scene compensation",
+            {{"reason", "unsupported_display_srgb_curve_policy"}});
     }
     return {};
 }
@@ -7321,7 +7384,10 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       rgb_levels_to_parameters(clamped.rgb_levels), 1, std::nullopt,
                       clamped.light_effect_enabled);
     }
-    if (!clamped.rgb_curve.is_identity())
+    const bool has_rgb_curve = !clamped.rgb_curve.is_identity();
+    const bool display_rgb_curve = has_rgb_curve && clamped.rgb_curve.application_space ==
+                                                        kRgbCurveApplicationSpaceDisplaySrgb;
+    if (has_rgb_curve && !display_rgb_curve)
     {
         add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",
                       rgb_curve_to_parameters(clamped.rgb_curve), 1, std::nullopt,
@@ -7551,6 +7617,12 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"display_black_target", ParameterValue{clamped.sigmoid_display_black}},
              {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}},
             1, std::nullopt, clamped.light_effect_enabled);
+    }
+    if (display_rgb_curve)
+    {
+        add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",
+                      rgb_curve_to_parameters(clamped.rgb_curve), 1, std::nullopt,
+                      clamped.curves_effect_enabled);
     }
     if (clamped.color_reconstruction_enabled)
     {
@@ -7906,6 +7978,15 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 {
                     params.rgb_curve.compensate_middle_grey =
                         number("compensate_middle_grey", 0.0) != 0.0;
+                }
+            }
+            if (const auto found = operation.parameters.find("application_space");
+                found != operation.parameters.end())
+            {
+                if (const auto *text = std::get_if<std::string>(&found->second.value);
+                    text != nullptr)
+                {
+                    params.rgb_curve.application_space = *text;
                 }
             }
             const auto take_points = [&](const char *name,
@@ -8848,6 +8929,7 @@ rgb_curve_to_parameters(const RgbCurveParams &params)
         {"mode", ParameterValue{params.mode}},
         {"preserve_colors", ParameterValue{params.preserve_colors}},
         {"interpolation", ParameterValue{params.interpolation}},
+        {"application_space", ParameterValue{params.application_space}},
         {"compensate_middle_grey", ParameterValue{params.compensate_middle_grey}},
         {"points", tone_curve_points_to_parameter(params.channels[0])},
         {"points_g", tone_curve_points_to_parameter(params.channels[1])},

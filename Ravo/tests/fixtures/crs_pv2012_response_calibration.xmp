@@ -1,0 +1,83 @@
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+   crs:Version="17.2"
+   crs:ProcessVersion="15.4"
+   crs:WhiteBalance="As Shot"
+   crs:Temperature="5100"
+   crs:Tint="+18"
+   crs:Exposure2012="0.00"
+   crs:Contrast2012="100"
+   crs:Highlights2012="0"
+   crs:Shadows2012="0"
+   crs:Whites2012="0"
+   crs:Blacks2012="0"
+   crs:ParametricShadows="0"
+   crs:ParametricDarks="0"
+   crs:ParametricLights="0"
+   crs:ParametricHighlights="0"
+   crs:CurveRefineSaturation="100"
+   crs:CameraProfile="Adobe Standard"
+   crs:CameraProfileDigest="7FC6881284297A142534DB6EF4BEC551"
+   crs:HasSettings="True"
+   crs:AlreadyApplied="False"
+   crs:RawFileName="fixture.ARW">
+   <crs:ToneCurvePV2012>
+    <rdf:Seq>
+     <rdf:li>0, 16</rdf:li>
+     <rdf:li>25, 27</rdf:li>
+     <rdf:li>49, 48</rdf:li>
+     <rdf:li>255, 251</rdf:li>
+    </rdf:Seq>
+   </crs:ToneCurvePV2012>
+   <crs:ToneCurvePV2012Red>
+    <rdf:Seq>
+     <rdf:li>0, 0</rdf:li>
+     <rdf:li>21, 4</rdf:li>
+     <rdf:li>56, 20</rdf:li>
+     <rdf:li>118, 122</rdf:li>
+     <rdf:li>176, 205</rdf:li>
+     <rdf:li>255, 255</rdf:li>
+    </rdf:Seq>
+   </crs:ToneCurvePV2012Red>
+   <crs:ToneCurvePV2012Green>
+    <rdf:Seq>
+     <rdf:li>0, 0</rdf:li>
+     <rdf:li>53, 21</rdf:li>
+     <rdf:li>120, 125</rdf:li>
+     <rdf:li>179, 205</rdf:li>
+     <rdf:li>255, 255</rdf:li>
+    </rdf:Seq>
+   </crs:ToneCurvePV2012Green>
+   <crs:ToneCurvePV2012Blue>
+    <rdf:Seq>
+     <rdf:li>0, 0</rdf:li>
+     <rdf:li>48, 20</rdf:li>
+     <rdf:li>121, 122</rdf:li>
+     <rdf:li>175, 200</rdf:li>
+     <rdf:li>255, 255</rdf:li>
+    </rdf:Seq>
+   </crs:ToneCurvePV2012Blue>
+   <crs:PointColors>
+    <rdf:Seq>
+     <rdf:li>-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1</rdf:li>
+    </rdf:Seq>
+   </crs:PointColors>
+   <crs:Look>
+    <rdf:Description crs:Name="Adobe Color" crs:SupportsAmount="false">
+     <crs:Parameters>
+      <rdf:Description crs:ProcessVersion="15.4">
+       <crs:ToneCurvePV2012>
+        <rdf:Seq>
+         <rdf:li>0, 0</rdf:li>
+         <rdf:li>255, 255</rdf:li>
+        </rdf:Seq>
+       </crs:ToneCurvePV2012>
+      </rdf:Description>
+     </crs:Parameters>
+    </rdf:Description>
+   </crs:Look>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>

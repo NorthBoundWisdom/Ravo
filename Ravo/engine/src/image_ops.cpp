@@ -220,6 +220,18 @@ void estimate_exp(const float *x, const float *y, const int num, float coeff[3])
     return eval_exp(coeff, x);
 }
 
+[[nodiscard]] float display_srgb_encode(const float linear) noexcept
+{
+    const float value = std::max(linear, 0.0F);
+    return value <= 0.0031308F ? 12.92F * value : 1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
+}
+
+[[nodiscard]] float display_srgb_decode(const float encoded) noexcept
+{
+    const float value = std::max(encoded, 0.0F);
+    return value <= 0.04045F ? value / 12.92F : std::pow((value + 0.055F) / 1.055F, 2.4F);
+}
+
 void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float> &lut,
                     const std::string_view interpolation = kToneCurveInterpolationMonotoneHermite)
 {
@@ -1042,9 +1054,21 @@ Result<void> apply_highlights_shadows(WorkingImage &image, const double highligh
     {
         return {};
     }
-    const float highlight_ev = static_cast<float>(highlights);
-    const float shadow_ev = static_cast<float>(shadows);
-    const float compress = 0.5F;
+    // Lightroom PV2012 endpoint references are substantially wider than the old Lab-L* masks.
+    // Keep this a Ravo-owned scene-linear exposure envelope: the constants calibrate the
+    // resulting display response without importing Adobe profiles or a PV2012 colour engine.
+    constexpr float kMiddleGrey = 0.1842F;
+    constexpr float kHighlightStartEv = -4.5F;
+    constexpr float kHighlightEndEv = 2.75F;
+    constexpr float kShadowStartEv = -6.0F;
+    constexpr float kShadowEndEv = 0.75F;
+    const float highlight_ev = static_cast<float>(highlights) * (highlights >= 0.0 ? 0.9F : 1.8F);
+    const float shadow_ev = static_cast<float>(shadows) * (shadows >= 0.0 ? 2.0F : 2.9F);
+    const auto smoothstep = [](const float start, const float end, const float value) noexcept
+    {
+        const float t = std::clamp((value - start) / (end - start), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
+    };
     return for_each_row(
         image.height, cancellation,
         [&](const std::uint32_t row)
@@ -1053,17 +1077,21 @@ Result<void> apply_highlights_shadows(WorkingImage &image, const double highligh
             const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
             for (std::size_t index = begin; index < end; index += 3U)
             {
-                float L = 0.0F;
-                float a = 0.0F;
-                float b = 0.0F;
-                rgb_to_lab(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], L, a, b);
-                const float ln = std::clamp(L / 100.0F, 0.0F, 1.0F);
-                const float hmask = std::clamp(
-                    (ln - (0.5F + compress * 0.25F)) / (0.5F - compress * 0.25F), 0.0F, 1.0F);
-                const float smask =
-                    1.0F - std::clamp(ln / std::max(0.15F, 0.5F - compress * 0.25F), 0.0F, 1.0F);
-                L *= std::exp2(highlight_ev * hmask) * std::exp2(shadow_ev * smask);
-                lab_to_rgb(L, a, b, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
+                const float luminance = working_luminance(image.rgb[index], image.rgb[index + 1U],
+                                                          image.rgb[index + 2U]);
+                if (luminance <= 0.0F)
+                {
+                    continue;
+                }
+                const float tone_ev = std::log2(luminance / kMiddleGrey);
+                const float highlight_mask =
+                    smoothstep(kHighlightStartEv, kHighlightEndEv, tone_ev);
+                const float shadow_mask = 1.0F - smoothstep(kShadowStartEv, kShadowEndEv, tone_ev);
+                const float scale =
+                    std::exp2(highlight_ev * highlight_mask + shadow_ev * shadow_mask);
+                image.rgb[index] *= scale;
+                image.rgb[index + 1U] *= scale;
+                image.rgb[index + 2U] *= scale;
             }
         });
 }
@@ -1556,6 +1584,15 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
 [[nodiscard]] Result<void> apply_rgb_curve(WorkingImage &image, const OperationInstance &operation,
                                            const CancellationToken &cancellation)
 {
+    const auto application_space = parameter_string(
+        operation, "application_space", std::string(kRgbCurveApplicationSpaceSceneLinear));
+    if (application_space != kRgbCurveApplicationSpaceSceneLinear &&
+        application_space != kRgbCurveApplicationSpaceDisplaySrgb)
+    {
+        return make_error(ErrorCode::kValidation, "RGB curve application space is unsupported",
+                          {{"application_space", application_space}});
+    }
+    const bool display_srgb = application_space == kRgbCurveApplicationSpaceDisplaySrgb;
     const auto mode = parameter_string(operation, "mode", std::string(kRgbLevelsModeLinked));
     if (mode != kRgbLevelsModeLinked && mode != kRgbLevelsModeIndependent)
     {
@@ -1687,6 +1724,15 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     clamp_rgb_curve(parametric);
     const bool apply_parametric =
         mode == kRgbLevelsModeLinked && !rgb_curve_parametric_is_identity(parametric);
+    if (display_srgb &&
+        (mode != kRgbLevelsModeIndependent || preserve != kToneCurvePreserveColorsNone ||
+         compensate || apply_parametric))
+    {
+        return make_error(
+            ErrorCode::kValidation,
+            "Display-sRGB RGB curves require independent channels without scene compensation",
+            {{"reason", "unsupported_display_srgb_curve_policy"}});
+    }
     const int lut_count = mode == kRgbLevelsModeIndependent ? 3 : 1;
     for (int channel = 0; channel < lut_count; ++channel)
     {
@@ -1736,6 +1782,14 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
                                 xm[static_cast<std::size_t>(channel)],
                                 unbounded[static_cast<std::size_t>(channel)].data());
     };
+    const auto apply_sample = [&](const float sample, const int channel) -> float
+    {
+        if (!display_srgb)
+        {
+            return apply_channel(sample, channel);
+        }
+        return display_srgb_decode(apply_channel(display_srgb_encode(sample), channel));
+    };
     const bool independent_or_none =
         mode == kRgbLevelsModeIndependent || preserve == kToneCurvePreserveColorsNone;
     const auto rows = for_each_row(
@@ -1748,11 +1802,11 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
             {
                 if (independent_or_none)
                 {
-                    image.rgb[index] = apply_channel(image.rgb[index], 0);
-                    image.rgb[index + 1U] = apply_channel(
-                        image.rgb[index + 1U], mode == kRgbLevelsModeIndependent ? 1 : 0);
-                    image.rgb[index + 2U] = apply_channel(
-                        image.rgb[index + 2U], mode == kRgbLevelsModeIndependent ? 2 : 0);
+                    image.rgb[index] = apply_sample(image.rgb[index], 0);
+                    image.rgb[index + 1U] = apply_sample(image.rgb[index + 1U],
+                                                         mode == kRgbLevelsModeIndependent ? 1 : 0);
+                    image.rgb[index + 2U] = apply_sample(image.rgb[index + 2U],
+                                                         mode == kRgbLevelsModeIndependent ? 2 : 0);
                     continue;
                 }
                 const float rgb[3]{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};

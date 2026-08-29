@@ -56,10 +56,14 @@ without a selection, History/context-menu/command wiring, and ADR-0078's
 complete-recipe clipboard (not a history-stack merge or style file).
 Paste Light / Paste Color apply White Balance+Light+Curves or Color+Color
 Equalizer+Camera Calibration from that clipboard. CRS XMP tests pin leftover
-rejection of Camera Raw documents, PV2012 mapping onto Develop owners, overlay
-that keeps destination crop, unknown-key/Kelvin fail-closed, and
-`recipe import-xmp` dialect=crs. The Edit left-rail QML contract pins Presets
-above History with Import and apply commands. Copy Info tests pin the
+rejection of Camera Raw documents, PV2012 mapping onto Develop owners, calibrated
+RAW sigmoid contrast, post-sigmoid display-sRGB curve order, nested Look
+isolation, identity-only Point Colors, overlay that keeps destination crop,
+unknown-key/Kelvin fail-closed, and `recipe import-xmp` dialect=crs. Synthetic
+engine tests pin the scene-EV highlight/shadow endpoints and cancellation;
+recipe validation rejects display-sRGB curves carrying scene-only policies. The
+Edit left-rail QML contract pins Presets above History with Import and apply
+commands. Copy Info tests pin the
 `ravo.debug.photo` / `ravo.debug.preset` clipboard payload, empty
 selection/unknown-file failure, and photo/preset context-menu command wiring
 (QML does not assemble the identity text). QML contract tests pin the

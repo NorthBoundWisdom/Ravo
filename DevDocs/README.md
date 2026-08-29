@@ -13,10 +13,10 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [concepts/p0-library-grid.svg](concepts/p0-library-grid.svg) | Ravo Studio concept-reference artwork |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
 | [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
-| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, progressive-preview lifecycle, metadata-analysis, command, data, and engine-private algorithm boundaries |
+| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, progressive-preview lifecycle, metadata-analysis, command, data, calibrated interchange response, and engine-private algorithm boundaries |
 | [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
-| [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions and supersession relationships |
+| [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions, supersession relationships, and accepted interchange calibration contracts |
 | [../.codex/skills/i18n-translation-workflow/SKILL.md](../.codex/skills/i18n-translation-workflow/SKILL.md) | Ravo Studio source extraction, Chinese translation memory, and catalog workflow |
 | [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Unfinished legacy migration execution |
 | [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |

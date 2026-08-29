@@ -92,7 +92,11 @@ Current implementation status:
   dialogs and ordinary recipe history. Legacy `.dtstyle` is structurally
   unsupported rather than partially dropping unknown IOPs (ADR-0065). Lightroom
   Classic CRS XMP presets import and apply through the same explicit path onto
-  accepted Develop owners; unknown Adobe-only state fails closed (ADR-0086).
+  accepted Develop owners. Exposure retains EV semantics, RAW contrast maps to
+  sigmoid, highlights/shadows use calibrated scene-EV envelopes, and composed
+  point curves run on an explicit display-sRGB axis after sigmoid. Unknown or
+  active Adobe-only state fails closed; built-in Adobe profile/look omissions
+  remain reported rather than emulated (ADR-0086/0088).
 - RAW Repair provides `ravo.raw.hotpixels` v1 on an owned Bayer CFA copy under
   the frozen same-colour four-neighbor path. `ravo.raw.cacorrect` v1 retains
   RawTherapee two-pass tile/polynomial fitting and avoid-color-shift. Unit

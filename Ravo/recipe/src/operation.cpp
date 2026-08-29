@@ -524,6 +524,8 @@ Result<OperationRegistry> make_phase1_registry()
            std::nullopt, std::nullopt},
           {"interpolation", ParameterType::kString, false, ParameterValue{"monotone_hermite"},
            std::nullopt, std::nullopt},
+          {"application_space", ParameterType::kString, false, ParameterValue{"scene_linear"},
+           std::nullopt, std::nullopt},
           {"compensate_middle_grey", ParameterType::kBoolean, false, ParameterValue{false},
            std::nullopt, std::nullopt},
           {"points", ParameterType::kArray, false,

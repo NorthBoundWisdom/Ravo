@@ -1,6 +1,6 @@
 # ADR-0085: Interchange-ready everyday grading tools
 
-- Status: Accepted
+- Status: Accepted; response mapping partially superseded by ADR-0088
 - Date: 2026-08-29
 - Extends: [ADR-0082](0082-studio-develop-grading-workspace.md),
   [ADR-0084](0084-studio-grading-curves.md),
@@ -56,12 +56,12 @@ destination contract:
 | CRS group | Ravo destination | Adapter notes |
 | --- | --- | --- |
 | WhiteBalance As Shot | `temperature.mode = as_shot` | Kelvin/tint storage stays forbidden (ADR-0017). |
-| Exposure2012 / Contrast2012 / Highlights2012 / Shadows2012 / Whites2012 / Blacks2012 | `exposure_ev`, `contrast`, `highlights`, `shadows`, `whites`, `blacks` | PV2012 slider units are not Ravo units. |
+| Exposure2012 / Contrast2012 / Highlights2012 / Shadows2012 / Whites2012 / Blacks2012 | `exposure_ev`, RAW `sigmoid_contrast` or raster `contrast`, `highlights`, `shadows`, `whites`, `blacks` | ADR-0088 owns the calibrated light-response mapping. |
 | Vibrance / Saturation / Clarity2012 / Dehaze | `vibrance`, `saturation`, `clarity`, `dehaze` | Texture remains unsupported. |
 | Hue/Saturation/LuminanceAdjustment Red…Magenta | `color_eq_hue/sat/light` bands 0–7 | Display names are 1:1 with that list. |
 | SplitToning* | `split_toning` | Zero saturation is identity and may be omitted. |
 | ParametricShadows/Darks/Lights/Highlights and splits | `rgb_curve` parametric fields | Linked RGB only. |
-| ToneCurvePV2012 | `rgb_curve` linked or `tone_curve` | Master plus R/G/B can coexist as rgbcurve independent + tonecurve. |
+| ToneCurvePV2012 | `rgb_curve` | ADR-0088 supersedes the provisional master-plus-channel mapping with one composed display-sRGB curve. |
 | ToneCurvePV2012Red/Green/Blue | `rgb_curve` independent channels | |
 | Sharpness / SharpenRadius / SharpenEdgeMasking | `sharpen`, `sharpen_radius`, `sharpen_threshold` | SharpenDetail is not a separate algorithm. |
 | LuminanceSmoothing / ColorNoiseReduction | `denoise`, `denoise_chroma` | Extra NR Detail/Contrast/Smoothness keys stay unsupported. |

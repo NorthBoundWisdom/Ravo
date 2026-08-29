@@ -30,9 +30,21 @@ namespace
            "crs_pv2012_heishijiao.xmp";
 }
 
+[[nodiscard]] std::filesystem::path response_fixture_path()
+{
+    return std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+           "crs_pv2012_response_calibration.xmp";
+}
+
 [[nodiscard]] std::string read_fixture()
 {
     std::ifstream input(fixture_path(), std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(input), {});
+}
+
+[[nodiscard]] std::string read_response_fixture()
+{
+    std::ifstream input(response_fixture_path(), std::ios::binary);
     return std::string(std::istreambuf_iterator<char>(input), {});
 }
 
@@ -68,7 +80,7 @@ TEST(CrsXmpTest, MapsPv2012PresetOntoDevelopOwners)
     EXPECT_TRUE(imported.value().mask.highlights);
     EXPECT_TRUE(imported.value().mask.color_eq_sat);
     EXPECT_TRUE(imported.value().mask.rgb_curve);
-    EXPECT_TRUE(imported.value().mask.tone_curve);
+    EXPECT_FALSE(imported.value().mask.tone_curve);
     EXPECT_TRUE(imported.value().mask.primaries);
     EXPECT_TRUE(imported.value().mask.vignette);
     EXPECT_TRUE(imported.value().mask.sharpen);
@@ -85,7 +97,9 @@ TEST(CrsXmpTest, MapsPv2012PresetOntoDevelopOwners)
     EXPECT_NEAR(look.color_eq_sat[4], -0.50, 1e-9);
     EXPECT_NEAR(look.color_eq_hue[0], 0.15 * 0.5, 1e-9);
     EXPECT_EQ(look.rgb_curve.mode, kRgbLevelsModeIndependent);
-    EXPECT_FALSE(tone_curve_is_identity(look.tone_curve));
+    EXPECT_EQ(look.rgb_curve.application_space, kRgbCurveApplicationSpaceDisplaySrgb);
+    EXPECT_EQ(look.rgb_curve.preserve_colors, kToneCurvePreserveColorsNone);
+    EXPECT_TRUE(tone_curve_is_identity(look.tone_curve));
     EXPECT_FALSE(tone_curve_is_identity(look.rgb_curve.channels[0]));
     EXPECT_NEAR(look.vignette, 0.21, 1e-9);
     EXPECT_NEAR(look.vignette_midpoint, 0.31, 1e-9);
@@ -115,8 +129,91 @@ TEST(CrsXmpTest, MapsPv2012PresetOntoDevelopOwners)
     EXPECT_TRUE(omitted_vignette_style);
     EXPECT_NE(operation_by_id(imported.value().recipe, "ravo.effect.vignette"), nullptr);
     EXPECT_NE(operation_by_id(imported.value().recipe, "ravo.color.rgbcurve"), nullptr);
-    EXPECT_NE(operation_by_id(imported.value().recipe, "ravo.core.tonecurve"), nullptr);
+    EXPECT_EQ(operation_by_id(imported.value().recipe, "ravo.core.tonecurve"), nullptr);
     EXPECT_NE(operation_by_id(imported.value().recipe, "ravo.color.primaries"), nullptr);
+}
+
+TEST(CrsXmpTest, CalibratedSidecarUsesRawSigmoidAndDisplayEncodedPointCurve)
+{
+    const auto xmp = read_response_fixture();
+    ASSERT_FALSE(xmp.empty());
+    auto imported = import_crs_xmp({xmp, {"asset-1", "file:///fixture.ARW", std::nullopt}});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto &look = imported.value().look;
+    EXPECT_TRUE(imported.value().mask.contrast);
+    EXPECT_TRUE(imported.value().mask.rgb_curve);
+    EXPECT_FALSE(imported.value().mask.tone_curve);
+    EXPECT_NEAR(look.contrast, 1.0, 1e-9);
+    EXPECT_NEAR(look.sigmoid_contrast, 3.25, 1e-9);
+    EXPECT_EQ(look.rgb_curve.mode, kRgbLevelsModeIndependent);
+    EXPECT_EQ(look.rgb_curve.preserve_colors, kToneCurvePreserveColorsNone);
+    EXPECT_EQ(look.rgb_curve.application_space, kRgbCurveApplicationSpaceDisplaySrgb);
+    for (const auto &channel : look.rgb_curve.channels)
+        EXPECT_EQ(channel.size(), 20U);
+    EXPECT_NEAR(look.rgb_curve.channels[0].front().y, 0.014607324411245974, 1e-12);
+    EXPECT_NEAR(look.rgb_curve.channels[0][10].y, 0.65808094648711957, 1e-12);
+    EXPECT_NEAR(look.rgb_curve.channels[1][10].y, 0.64032115727543737, 1e-12);
+    EXPECT_NEAR(look.rgb_curve.channels[2][10].y, 0.63515736584290539, 1e-12);
+
+    bool omitted_look = false;
+    bool omitted_temperature = false;
+    for (const auto &item : imported.value().omitted)
+    {
+        omitted_look =
+            omitted_look || (item.key == "Look.Name" && item.reason == "adobe_look_not_applied");
+        omitted_temperature =
+            omitted_temperature || (item.key == "Temperature" &&
+                                    item.reason == "as_shot_white_balance_metadata_not_applied");
+    }
+    EXPECT_TRUE(omitted_look);
+    EXPECT_TRUE(omitted_temperature);
+
+    DevelopParams raw;
+    raw.sigmoid_enabled = true;
+    raw.contrast = 0.4;
+    apply_crs_look(raw, look, imported.value().mask);
+    EXPECT_NEAR(raw.sigmoid_contrast, 3.25, 1e-9);
+    EXPECT_NEAR(raw.contrast, 0.0, 1e-9);
+    auto recipe = recipe_from_develop({"asset-1", "file:///fixture.ARW", std::nullopt}, raw);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    const auto sigmoid = std::find_if(
+        recipe.value().operations.begin(), recipe.value().operations.end(),
+        [](const OperationInstance &operation) { return operation.id == "ravo.display.sigmoid"; });
+    const auto curve = std::find_if(
+        recipe.value().operations.begin(), recipe.value().operations.end(),
+        [](const OperationInstance &operation) { return operation.id == "ravo.color.rgbcurve"; });
+    ASSERT_NE(sigmoid, recipe.value().operations.end());
+    ASSERT_NE(curve, recipe.value().operations.end());
+    EXPECT_LT(std::distance(recipe.value().operations.begin(), sigmoid),
+              std::distance(recipe.value().operations.begin(), curve));
+    auto reopened = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    EXPECT_EQ(reopened.value().rgb_curve.application_space,
+              kRgbCurveApplicationSpaceDisplaySrgb);
+    EXPECT_EQ(reopened.value().rgb_curve.channels, raw.rgb_curve.channels);
+
+    auto negative_xmp = xmp;
+    const auto contrast = negative_xmp.find("crs:Contrast2012=\"100\"");
+    ASSERT_NE(contrast, std::string::npos);
+    negative_xmp.replace(contrast, std::string("crs:Contrast2012=\"100\"").size(),
+                         "crs:Contrast2012=\"-100\"");
+    auto negative =
+        import_crs_xmp({negative_xmp, {"asset-1", "file:///fixture.ARW", std::nullopt}});
+    ASSERT_TRUE(negative) << negative.error().message;
+    EXPECT_NEAR(negative.value().look.sigmoid_contrast,
+                kSigmoidContrastDefault * kSigmoidContrastDefault / 3.25, 1e-12);
+}
+
+TEST(CrsXmpTest, NonIdentityPointColorsStillFailClosed)
+{
+    auto xmp = read_response_fixture();
+    const auto point = xmp.find("-1, -1, -1");
+    ASSERT_NE(point, std::string::npos);
+    xmp.replace(point, 2U, "0");
+    auto imported = import_crs_xmp({xmp, {"asset-1", "file:///fixture.ARW", std::nullopt}});
+    ASSERT_FALSE(imported);
+    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_crs_key");
+    EXPECT_EQ(imported.error().context.at("key"), "PointColors");
 }
 
 TEST(CrsXmpTest, OverlayKeepsDestinationCropAndAppliesLook)

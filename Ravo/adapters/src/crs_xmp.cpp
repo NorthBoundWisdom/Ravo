@@ -34,6 +34,10 @@ constexpr double kCrsCurveMax = 255.0;
 constexpr double kCrsHueToRadians = (std::numbers::pi / 2.0) / kCrsSlider;
 constexpr double kCrsShadowTintGreenHue = 120.0 * std::numbers::pi / 180.0;
 constexpr double kCrsShadowTintMagentaHue = -60.0 * std::numbers::pi / 180.0;
+constexpr double kCrsPositiveContrastSigmoid = 3.25;
+constexpr double kCrsReferenceToneGamma = 0.62;
+constexpr double kCrsCurveDeltaScale = 1.4;
+constexpr std::size_t kCrsComposedCurvePoints = 20;
 
 [[nodiscard]] std::string utf8(const QStringView value)
 {
@@ -125,6 +129,7 @@ struct ParsedCrs
     std::vector<std::string> red_curve;
     std::vector<std::string> green_curve;
     std::vector<std::string> blue_curve;
+    std::vector<std::string> point_colors;
     std::string look_name;
 };
 
@@ -148,6 +153,40 @@ struct ParsedCrs
     if (reader.hasError())
         return crs_error("CRS XMP sequence is malformed", "invalid_crs_xml");
     return items;
+}
+
+[[nodiscard]] Result<std::string> read_crs_look(QXmlStreamReader &reader)
+{
+    std::string name;
+    const auto take_name = [&](const QXmlStreamAttributes &attributes)
+    {
+        for (const auto &attribute : attributes)
+        {
+            if (attribute.namespaceUri() == kCrsNs && attribute.name() == QLatin1String("Name") &&
+                !attribute.value().isEmpty())
+            {
+                name = utf8(attribute.value());
+            }
+        }
+    };
+    take_name(reader.attributes());
+    int depth = 1;
+    while (!reader.atEnd() && depth > 0)
+    {
+        reader.readNext();
+        if (reader.isStartElement())
+        {
+            ++depth;
+            take_name(reader.attributes());
+        }
+        else if (reader.isEndElement())
+        {
+            --depth;
+        }
+    }
+    if (reader.hasError())
+        return crs_error("CRS Look is malformed", "invalid_crs_xml");
+    return name;
 }
 
 [[nodiscard]] Result<ParsedCrs> parse_crs_document(const std::string_view xmp_utf8)
@@ -228,21 +267,20 @@ struct ParsedCrs
             parsed.blue_curve = std::move(items).value();
             continue;
         }
+        if (name == "PointColors")
+        {
+            auto items = read_rdf_seq(reader);
+            if (!items)
+                return items.error();
+            parsed.point_colors = std::move(items).value();
+            continue;
+        }
         if (name == "Look")
         {
-            for (const auto &attribute : reader.attributes())
-            {
-                if (attribute.namespaceUri() != kCrsNs)
-                    continue;
-                if (attribute.name() == QLatin1String("Name"))
-                    parsed.look_name = utf8(attribute.value());
-                else if (!attribute.value().isEmpty())
-                {
-                    return crs_error("CRS Look carries unsupported Adobe look state",
-                                     "unsupported_crs_look", utf8(attribute.name()),
-                                     utf8(attribute.value()));
-                }
-            }
+            auto look_name = read_crs_look(reader);
+            if (!look_name)
+                return look_name.error();
+            parsed.look_name = std::move(look_name).value();
             continue;
         }
         parsed.attributes.emplace(name, utf8(reader.readElementText()));
@@ -308,10 +346,41 @@ map_crs_curve(const std::vector<std::string> &items, const std::string_view key)
     return tone_curve_is_identity(points);
 }
 
+[[nodiscard]] RgbCurveParams
+compose_crs_display_curves(const std::vector<ToneCurvePoint> &master,
+                           const std::array<std::vector<ToneCurvePoint>, 3> &channels)
+{
+    RgbCurveParams result;
+    result.mode = std::string(kRgbLevelsModeIndependent);
+    result.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    result.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
+    result.application_space = std::string(kRgbCurveApplicationSpaceDisplaySrgb);
+    for (std::size_t channel = 0; channel < result.channels.size(); ++channel)
+    {
+        auto &composed = result.channels[channel];
+        composed.clear();
+        composed.reserve(kCrsComposedCurvePoints);
+        for (std::size_t index = 0; index < kCrsComposedCurvePoints; ++index)
+        {
+            const double input =
+                static_cast<double>(index) / static_cast<double>(kCrsComposedCurvePoints - 1U);
+            // Adobe's omitted profile/look places the same scene higher on its encoded tone
+            // axis. Transfer the measured curve delta from that reference axis instead of
+            // baking the unavailable Adobe baseline into every Ravo pixel.
+            const double reference = std::pow(input, kCrsReferenceToneGamma);
+            const double master_value = evaluate_tone_curve(master, reference);
+            const double output = evaluate_tone_curve(channels[channel], master_value);
+            composed.push_back(
+                {input, std::clamp(input + kCrsCurveDeltaScale * (output - reference), 0.0, 1.0)});
+        }
+    }
+    return result;
+}
+
 constexpr std::array<std::string_view, 8> kHslBands = {
     "Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta"};
 
-constexpr std::array<std::string_view, 23> kMetadataKeys = {
+constexpr std::array<std::string_view, 28> kMetadataKeys = {
     "PresetType",
     "Cluster",
     "UUID",
@@ -327,6 +396,11 @@ constexpr std::array<std::string_view, 23> kMetadataKeys = {
     "ContactInfo",
     "Version",
     "HasSettings",
+    "AlreadyApplied",
+    "RawFileName",
+    "CameraProfileDigest",
+    "Temperature",
+    "Tint",
     "OverrideLookVignette",
     "ToneCurveName2012",
     "Name",
@@ -337,7 +411,7 @@ constexpr std::array<std::string_view, 23> kMetadataKeys = {
     "Look",
 };
 
-constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentityKeys = {{
+constexpr std::array<std::pair<std::string_view, std::string_view>, 33> kIdentityKeys = {{
     {"Texture", "0"},
     {"GrainSize", "25"},
     {"GrainFrequency", "50"},
@@ -360,7 +434,13 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
     {"LensProfileEnable", "0"},
     {"LensManualDistortionAmount", "0"},
     {"DefringePurpleAmount", "0"},
+    {"DefringePurpleHueLo", "30"},
+    {"DefringePurpleHueHi", "70"},
     {"DefringeGreenAmount", "0"},
+    {"DefringeGreenHueLo", "40"},
+    {"DefringeGreenHueHi", "60"},
+    {"VignetteAmount", "0"},
+    {"HDREditMode", "0"},
     {"AutoTone", "False"},
     {"ToggleStyleAmount", "0"},
     {"CurveRefineSaturation", "0"},
@@ -373,6 +453,29 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
     return std::find(keys.begin(), keys.end(), key) != keys.end();
 }
 
+[[nodiscard]] Result<void> validate_identity_point_colors(const ParsedCrs &parsed)
+{
+    for (const auto &item : parsed.point_colors)
+    {
+        std::string_view remaining = item;
+        while (!remaining.empty())
+        {
+            const auto comma = remaining.find(',');
+            const auto field = remaining.substr(0, comma);
+            auto value = parse_crs_number(field, "PointColors");
+            if (!value)
+                return value.error();
+            if (!near(value.value(), -1.0))
+                return crs_error("CRS Point Colors has no Ravo mapping at a non-default value",
+                                 "unsupported_crs_key", "PointColors", item);
+            if (comma == std::string_view::npos)
+                break;
+            remaining.remove_prefix(comma + 1U);
+        }
+    }
+    return {};
+}
+
 [[nodiscard]] Result<void> reject_unknown_and_identity(const ParsedCrs &parsed,
                                                        std::vector<CrsOmission> &omitted)
 {
@@ -380,6 +483,7 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
         "6.7", "8.0", "9.0", "10.0", "11.0", "15.0", "15.1", "15.2", "15.3", "15.4", "16.0", "17.0"};
     static constexpr std::array<std::string_view, 5> kDefaultProfiles = {
         "Adobe Standard", "Adobe Color", "Embedded", "Camera Settings", "Default"};
+    static constexpr std::array<std::string_view, 1> kDefaultLooks = {"Adobe Color"};
     static constexpr std::array<std::string_view, 72> kMappedKeys = {
         "ProcessVersion",
         "WhiteBalance",
@@ -468,6 +572,12 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
             return crs_error("CRS white balance is not As Shot; Kelvin/tint is not stored",
                              "unsupported_crs_white_balance", "WhiteBalance", *wb);
     }
+    for (const auto key : {std::string_view{"Temperature"}, std::string_view{"Tint"}})
+    {
+        if (const auto *value = find_attr(parsed, key); value != nullptr)
+            omitted.push_back(
+                {std::string(key), *value, "as_shot_white_balance_metadata_not_applied"});
+    }
 
     if (const auto *profile = find_attr(parsed, "CameraProfile"); profile != nullptr)
     {
@@ -478,8 +588,15 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
     }
 
     if (!parsed.look_name.empty())
-        return crs_error("CRS Look name requires an Adobe look that Ravo does not own",
-                         "unsupported_crs_look", "Look.Name", parsed.look_name);
+    {
+        if (!in_list(parsed.look_name, kDefaultLooks))
+            return crs_error("CRS Look name requires an Adobe look that Ravo does not own",
+                             "unsupported_crs_look", "Look.Name", parsed.look_name);
+        omitted.push_back({"Look.Name", parsed.look_name, "adobe_look_not_applied"});
+    }
+
+    if (auto point_colors = validate_identity_point_colors(parsed); !point_colors)
+        return point_colors.error();
 
     if (const auto *curve_name = find_attr(parsed, "ToneCurveName2012"); curve_name != nullptr)
     {
@@ -491,6 +608,9 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
     for (const auto &[key, value] : parsed.attributes)
     {
         if (in_list(key, kMetadataKeys) || in_list(key, kMappedKeys))
+            continue;
+        if (key == "CurveRefineSaturation" &&
+            (identity_matches(value, "0") || identity_matches(value, "100")))
             continue;
         bool identity = false;
         for (const auto &[name, expected] : kIdentityKeys)
@@ -588,10 +708,21 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
                                     1.0);
         !status)
         return status.error();
-    if (auto status = assign_slider("Contrast2012", &DevelopParams::contrast, &CrsLookMask::contrast,
-                                    1.0 / kCrsSlider);
-        !status)
-        return status.error();
+    if (auto contrast = optional_number(parsed, "Contrast2012"); !contrast)
+    {
+        return contrast.error();
+    }
+    else if (contrast.value())
+    {
+        auto mapped = map_signed_slider(*contrast.value(), "Contrast2012");
+        if (!mapped)
+            return mapped.error();
+        look.contrast = mapped.value();
+        look.sigmoid_contrast =
+            kSigmoidContrastDefault *
+            std::pow(kCrsPositiveContrastSigmoid / kSigmoidContrastDefault, mapped.value());
+        mask.contrast = true;
+    }
     if (auto status = assign_slider("Highlights2012", &DevelopParams::highlights,
                                     &CrsLookMask::highlights, 1.0 / kCrsSlider);
         !status)
@@ -707,25 +838,17 @@ constexpr std::array<std::pair<std::string_view, std::string_view>, 27> kIdentit
             "CRS parametric curve cannot map onto independent RGB point curves together",
             "unsupported_crs_parametric_with_channel_curves");
 
-    if (rgb_custom)
+    if (rgb_custom || (master_custom && !parametric_active))
     {
-        look.rgb_curve.mode = std::string(kRgbLevelsModeIndependent);
-        look.rgb_curve.channels[0] = red.value().empty() ?
-                                         look.rgb_curve.channels[0] :
-                                         std::move(red).value();
-        look.rgb_curve.channels[1] = green.value().empty() ?
-                                         look.rgb_curve.channels[1] :
-                                         std::move(green).value();
-        look.rgb_curve.channels[2] = blue.value().empty() ?
-                                         look.rgb_curve.channels[2] :
-                                         std::move(blue).value();
+        const std::array<std::vector<ToneCurvePoint>, 3> channels{
+            red.value().empty() ? std::vector<ToneCurvePoint>{{0.0, 0.0}, {1.0, 1.0}} : red.value(),
+            green.value().empty() ? std::vector<ToneCurvePoint>{{0.0, 0.0}, {1.0, 1.0}} :
+                                    green.value(),
+            blue.value().empty() ? std::vector<ToneCurvePoint>{{0.0, 0.0}, {1.0, 1.0}} :
+                                   blue.value(),
+        };
+        look.rgb_curve = compose_crs_display_curves(master.value(), channels);
         mask.rgb_curve = true;
-        if (master_custom)
-        {
-            look.tone_curve = std::move(master).value();
-            look.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
-            mask.tone_curve = true;
-        }
     }
     else if (master_custom || parametric_active)
     {
@@ -898,7 +1021,17 @@ void apply_crs_look(DevelopParams &dest, const DevelopParams &look, const CrsLoo
     if (mask.exposure)
         dest.exposure_ev = look.exposure_ev;
     if (mask.contrast)
-        dest.contrast = look.contrast;
+    {
+        if (dest.sigmoid_enabled)
+        {
+            dest.sigmoid_contrast = look.sigmoid_contrast;
+            dest.contrast = 0.0;
+        }
+        else
+        {
+            dest.contrast = look.contrast;
+        }
+    }
     if (mask.highlights)
         dest.highlights = look.highlights;
     if (mask.shadows)

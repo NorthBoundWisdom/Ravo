@@ -6783,6 +6783,97 @@ TEST(EngineFacadeTest, BasicAdjustmentParametersFollowDarktableCpuResponse)
     }
 }
 
+TEST(EngineFacadeTest, HighlightsAndShadowsUseCalibratedSceneEvEnvelopes)
+{
+    constexpr float middle_grey = 0.1842F;
+    constexpr std::array<float, 5> stops{-6.0F, -3.0F, 0.0F, 1.0F, 3.0F};
+    WorkingImage source;
+    source.width = static_cast<std::uint32_t>(stops.size());
+    source.height = 1U;
+    for (const float stop : stops)
+    {
+        const float value = middle_grey * std::exp2(stop);
+        source.rgb.insert(source.rgb.end(), {value, value, value});
+    }
+    const auto apply = [&](const std::string &id, const double amount)
+    {
+        Recipe recipe;
+        recipe.operations.push_back(
+            {id, 1, "calibrated-1", true, {{"amount", ParameterValue{amount}}}, std::nullopt});
+        return apply_recipe_ops(source, recipe, CancellationToken{});
+    };
+    const auto smoothstep = [](const float start, const float end, const float value)
+    {
+        const float t = std::clamp((value - start) / (end - start), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
+    };
+
+    auto highlights = apply("ravo.core.highlights", 1.0);
+    ASSERT_TRUE(highlights) << highlights.error().message;
+    auto shadows = apply("ravo.core.shadows", -1.0);
+    ASSERT_TRUE(shadows) << shadows.error().message;
+    for (std::size_t pixel = 0; pixel < stops.size(); ++pixel)
+    {
+        const float input = source.rgb[pixel * 3U];
+        const float highlight_mask = smoothstep(-4.5F, 2.75F, stops[pixel]);
+        const float shadow_mask = 1.0F - smoothstep(-6.0F, 0.75F, stops[pixel]);
+        const float expected_highlight = input * std::exp2(0.9F * highlight_mask);
+        const float expected_shadow = input * std::exp2(-2.9F * shadow_mask);
+        for (std::size_t channel = 0; channel < 3U; ++channel)
+        {
+            EXPECT_NEAR(highlights.value().rgb[pixel * 3U + channel], expected_highlight, 2e-6F);
+            EXPECT_NEAR(shadows.value().rgb[pixel * 3U + channel], expected_shadow, 2e-6F);
+        }
+    }
+    EXPECT_NEAR(highlights.value().rgb[0], source.rgb[0], 1e-8F);
+    EXPECT_NEAR(shadows.value().rgb.back(), source.rgb.back(), 1e-5F);
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("calibrated light response"));
+    Recipe cancelled_recipe;
+    cancelled_recipe.operations.push_back({"ravo.core.highlights",
+                                           1,
+                                           "calibrated-cancelled-1",
+                                           true,
+                                           {{"amount", ParameterValue{1.0}}},
+                                           std::nullopt});
+    auto stopped = apply_recipe_ops(source, cancelled_recipe, cancelled.token());
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+}
+
+TEST(EngineFacadeTest, DisplaySrgbCurveEvaluatesEncodedIndependentChannels)
+{
+    constexpr float encoded_half_linear = 0.21404114F;
+    const WorkingImage source{
+        1, 1, {encoded_half_linear, encoded_half_linear, encoded_half_linear}, {}, {}, {}, {}};
+    const auto points = tone_curve_points_to_parameter({{0.0, 0.0}, {0.5, 0.25}, {1.0, 1.0}});
+    Recipe recipe;
+    recipe.operations.push_back(
+        {"ravo.color.rgbcurve",
+         1,
+         "display-curve-1",
+         true,
+         {{"mode", ParameterValue{std::string(kRgbLevelsModeIndependent)}},
+          {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsNone)}},
+          {"application_space", ParameterValue{std::string(kRgbCurveApplicationSpaceDisplaySrgb)}},
+          {"points", points},
+          {"points_g", points},
+          {"points_b", points}},
+         std::nullopt});
+    auto curved = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_TRUE(curved) << curved.error().message;
+    constexpr float encoded_quarter_linear = 0.05087609F;
+    for (const float channel : curved.value().rgb)
+        EXPECT_NEAR(channel, encoded_quarter_linear, 2e-6F);
+
+    recipe.operations[0].parameters["mode"] = ParameterValue{std::string(kRgbLevelsModeLinked)};
+    auto unsupported = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_FALSE(unsupported);
+    EXPECT_EQ(unsupported.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(unsupported.error().context.at("reason"), "unsupported_display_srgb_curve_policy");
+}
+
 TEST(EngineFacadeTest, EffectDefaultsAvoidJumpsAndDehazeRequiresSourceStage)
 {
     WorkingImage midtone;

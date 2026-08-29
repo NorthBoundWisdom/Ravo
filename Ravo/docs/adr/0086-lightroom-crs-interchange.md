@@ -1,6 +1,6 @@
 # ADR-0086: Fail-closed Lightroom CRS interchange
 
-- Status: Accepted
+- Status: Accepted; response mapping partially superseded by ADR-0088
 - Date: 2026-08-29
 - Extends: [ADR-0085](0085-interchange-ready-grading-tools.md),
   [ADR-0063](0063-explicit-no-automatic-sidecar-policy.md),
@@ -39,8 +39,8 @@ adapter.
   `PostCropVignetteStyle` is approximated by Ravo radial vignette and listed
   in `omitted`; non-zero Highlight Contrast fails.
 - Parametric amounts plus independent RGB point curves together fail closed.
-  Master PV2012 plus R/G/B point curves map to `tone_curve` plus independent
-  `rgb_curve`.
+  ADR-0088 supersedes the initial master-plus-channel mapping: those curves are
+  composed into one independent display-sRGB `rgb_curve` after sigmoid.
 
 ## Consequences
 

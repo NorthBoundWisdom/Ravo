@@ -362,12 +362,21 @@ it as empty history. Mapping writes `DevelopParams` and `recipe_from_develop`;
 Studio lists imported presets above History on the Edit left rail. Import copies
 a CRS XMP or `.rstyle.json` into `Ravo Presets` next to the library and applies
 it to the selected photo. `catalog develop --from-xmp` is the same overlay
-without replacing crop, masks, or profiles (ADR-0086).
+without replacing crop, masks, or profiles. CRS exposure is exact EV; RAW
+contrast targets sigmoid, while display-referred raster contrast retains the
+core owner. Highlights/shadows use calibrated scene-EV envelopes. Adobe
+profiles and looks remain reported omissions rather than hidden colour-engine
+substitutes (ADR-0086/0088).
 
 Studio's Curves section authors two operations without folding them.
 `ravo.color.rgbcurve` is the default RGB/R/G/B working-space curve, with
 optional preserve-colors, middle-grey uncompensate, and a parametric
 shadows/darks/lights/highlights map composed as `point_curve(parametric(x))`.
+Its optional `application_space` defaults to `scene_linear`. A CRS master plus
+independent channel curves is instead composed into a restricted
+`display_srgb` curve after sigmoid; the engine performs an explicit sRGB
+encode/evaluate/decode round trip and rejects preserve-color, compensation, or
+parametric combinations in that mode (ADR-0088).
 `ravo.core.tonecurve` remains the Lab D50 → ProPhoto RGB-linked default with
 `preserve_colors=average` and explicit `lab` / `xyz` / `lab_independent`
 working spaces. Both share recipe-owned `monotone_hermite`, `catmull_rom`,
@@ -376,8 +385,10 @@ C++ owns points and commits. Histogram bins come from the engine-owned
 display RGB8 histogram plus Rec.709 luma.
 
 The lightweight P1 global controls do not stand in for the later full-module
-migration queue. Contrast, Saturation, and Vibrance use the darktable basic-
-adjustments CPU response;
+migration queue. The raster/old-recipe core Contrast path plus Saturation and
+Vibrance retain the darktable basic-adjustments CPU response. RAW Contrast is
+owned by Sigmoid, and Highlights/Shadows use the calibrated scene-EV response
+from ADR-0088.
 Lab-backed controls share the engine's D50 working conversion; Grain, Bloom,
 and Soften defaults use the corresponding source parameters, while Sharpen and
 post-crop vignette geometry (signed amount, midpoint, falloff, shape, centre)
@@ -432,11 +443,13 @@ freezes these boundaries.
 `ravo.display.sigmoid` v1 is the sole default display transform:
 `working_space=linear_srgb`, `color_processing=per_channel`, middle-grey
 contrast, skew, Standard SDR black/white target, and hue preservation. It is
-the RAW baseline and final scene-referred operation before output-profile
-encoding. RAW
-Studio Contrast belongs to Sigmoid; `ravo.core.contrast` serves
+the RAW baseline and final scene-referred operation. A restricted imported
+display-sRGB point curve may follow it before output-profile encoding. RAW
+Studio and CRS Contrast belong to Sigmoid; CRS maps the signed slider
+logarithmically around the 1.5 default to a +100 endpoint of 3.25.
+`ravo.core.contrast` serves
 display-referred raster input and old recipes. Highlights/shadows/whites/blacks
-are scene controls before the transform.
+are scene controls before the transform (ADR-0088).
 
 RAW may execute `ravo.raw.highlights` before demosaic; default denoise, lens
 correction, dt UCS `colorequal`, graduated filter, and nine-band toneequal

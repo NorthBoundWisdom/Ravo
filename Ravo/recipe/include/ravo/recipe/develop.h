@@ -78,6 +78,8 @@ inline constexpr std::string_view kToneCurvePreserveColorsNorm = "norm";
 inline constexpr std::string_view kToneCurvePreserveColorsPower = "power";
 inline constexpr std::string_view kRgbLevelsModeLinked = "linked";
 inline constexpr std::string_view kRgbLevelsModeIndependent = "independent";
+inline constexpr std::string_view kRgbCurveApplicationSpaceSceneLinear = "scene_linear";
+inline constexpr std::string_view kRgbCurveApplicationSpaceDisplaySrgb = "display_srgb";
 inline constexpr std::size_t kColorEqualizerBandCount = 8;
 inline constexpr std::size_t kChannelMixerChannelCount = 3;
 inline constexpr std::string_view kChannelMixerWorkingSpaceLinearSrgbD50 = "linear_srgb_d50";
@@ -236,6 +238,7 @@ struct RgbCurveParams
     std::string mode{std::string(kRgbLevelsModeLinked)};
     std::string preserve_colors{std::string(kToneCurvePreserveColorsLuminance)};
     std::string interpolation{std::string(kToneCurveInterpolationMonotoneHermite)};
+    std::string application_space{std::string(kRgbCurveApplicationSpaceSceneLinear)};
     bool compensate_middle_grey = false;
     std::array<std::vector<ToneCurvePoint>, 3> channels{
         {{ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}},
