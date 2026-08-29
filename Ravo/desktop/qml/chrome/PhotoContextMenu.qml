@@ -182,6 +182,10 @@ Menu {
     }
     StyledSeparator {}
     StyledItem {
+        action: root.commands.copyPhotoInfo
+    }
+    StyledSeparator {}
+    StyledItem {
         action: root.commands.exportPhoto
     }
     StyledSeparator {}

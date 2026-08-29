@@ -454,6 +454,10 @@ public:
     render_to_export_image(const RenderRequest &request, RenderSampleKind sample_kind,
                            const RasterBuffer *raster = nullptr) const;
     [[nodiscard]] Result<std::vector<std::uint8_t>> encode_png(const RenderedImage &image) const;
+    // Preview-cache PNG is rebuildable intermediate data. It preserves decoded pixels and
+    // colour metadata while asking libpng to favor encode/decode latency over file size.
+    [[nodiscard]] Result<std::vector<std::uint8_t>>
+    encode_preview_png(const RenderedImage &image) const;
     [[nodiscard]] Result<void>
     composite_preview_mask_overlay(std::vector<std::uint8_t> &rgb, std::uint32_t width,
                                    std::uint32_t height, const std::vector<float> &alpha,

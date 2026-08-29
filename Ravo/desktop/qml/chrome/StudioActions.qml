@@ -115,6 +115,7 @@ Item {
     property alias resetEdits: resetEditsAction
     property alias copyEdits: copyEditsAction
     property alias pasteEdits: pasteEditsAction
+    property alias copyPhotoInfo: copyPhotoInfoAction
     property alias cropTool: cropToolAction
     property alias rotateLeft: rotateLeftAction
     property alias rotateRight: rotateRightAction
@@ -160,6 +161,7 @@ Item {
     RegisteredAction { id: resetEditsAction; actionId: root.ids.editResetAll || "" }
     RegisteredAction { id: copyEditsAction; actionId: root.ids.editCopyEdits || "" }
     RegisteredAction { id: pasteEditsAction; actionId: root.ids.editPasteEdits || "" }
+    RegisteredAction { id: copyPhotoInfoAction; actionId: root.ids.photoCopyInfo || "" }
     RegisteredAction { id: cropToolAction; actionId: root.ids.editCropTool || "" }
     RegisteredAction { id: rotateLeftAction; actionId: root.ids.editRotateLeft || "" }
     RegisteredAction { id: rotateRightAction; actionId: root.ids.editRotateRight || "" }

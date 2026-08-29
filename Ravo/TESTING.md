@@ -59,7 +59,10 @@ Equalizer+Camera Calibration from that clipboard. CRS XMP tests pin leftover
 rejection of Camera Raw documents, PV2012 mapping onto Develop owners, overlay
 that keeps destination crop, unknown-key/Kelvin fail-closed, and
 `recipe import-xmp` dialect=crs. The Edit left-rail QML contract pins Presets
-above History with Import and apply commands. QML contract tests pin the
+above History with Import and apply commands. Copy Info tests pin the
+`ravo.debug.photo` / `ravo.debug.preset` clipboard payload, empty
+selection/unknown-file failure, and photo/preset context-menu command wiring
+(QML does not assemble the identity text). QML contract tests pin the
 default grading stack, first-class Curves, Camera Calibration after Color,
 vignette geometry including centre, HSL band names, Detail profile denoise,
 Color Equalizer versus Graduated ND, Color
@@ -398,9 +401,12 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
   1600px processed preview; `prefer_embedded_preview` must not affect
   interactive/develop/export.
 - Interactive preview uses a scene-linear working buffer: CatalogService caches
-  RAW unpack/demosaic and a drag applies a recipe only to the cached linear
-  buffer. Embedded JPEG must not become editable data. CLI/Studio share the
-  `request_preview` contract; late results are dropped by request revision.
+  RAW unpack/demosaic and keeps independent bounded slots for the 640px live
+  and 1600px settled size classes. A drag applies a recipe only to the cached
+  linear buffer. An ordinary committed style/develop change must publish the
+  exact live memory preview before its persisted settled preview. Embedded JPEG
+  must not become editable data. CLI/Studio share the `request_preview`
+  contract; late results are dropped by request revision.
 - Scopes collect from the current declared display-referred RGB preview: RGB
   histogram skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone
   bins. The Gallery grid computes scopes from browse thumbnails to avoid full
@@ -911,6 +917,16 @@ Tests must fix:
 Floating point may have individually recorded tolerances, but geometry,
 orientation, operation order, masks, discrete states, and catalog transaction
 semantics cannot change because of a floating-point difference.
+
+The opt-in `PresetPerformanceProbe` exercises the real CatalogService path
+without touching the source catalog: copy a catalog to a private temporary
+location, then set `RAVO_PRESET_PERF_CATALOG`,
+`RAVO_PRESET_PERF_ASSET_ID`, and `RAVO_PRESET_PERF_XMP` before running the
+probe. It reports parse, save, first-preview, settled-preview, and total
+milliseconds. Optional `RAVO_PRESET_PERF_FIRST_PREVIEW_BUDGET_MS` and
+`RAVO_PRESET_PERF_BUDGET_MS` turn those measurements into explicit local
+gates; the test skips when its fixture variables are absent, so host-specific
+timings do not make the normal contract suite flaky.
 
 ## Local labels and validation cadence
 

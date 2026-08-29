@@ -523,6 +523,10 @@ public:
     Q_INVOKABLE void applyStyleFromPath(const QString &path);
     [[nodiscard]] QVariantList editPresets() const;
     Q_INVOKABLE void importPresetFromPath(const QString &path);
+    [[nodiscard]] QString selectedPhotoDebugInfo() const;
+    [[nodiscard]] QString presetDebugInfo(const QString &path) const;
+    Q_INVOKABLE void copySelectedPhotoDebugInfo();
+    Q_INVOKABLE void copyPresetDebugInfo(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
     Q_INVOKABLE void renameSnapshot(int history_id, const QString &label);
     Q_INVOKABLE void restoreHistory(int history_id);
@@ -631,6 +635,7 @@ private:
         bool ignore_crop = false;
         bool ignore_straighten = false;
         bool refresh_preview = true;
+        bool settle_preview = false;
         std::optional<std::string> overlay_mask_id;
     };
     [[nodiscard]] LibraryQuery current_query() const;
@@ -707,6 +712,7 @@ private:
     int curve_family_ = 0;
     int curve_channel_ = 0;
     DevelopParams saved_develop_{};
+    std::optional<DevelopParams> displayed_develop_;
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;
     std::optional<DevelopParams> copied_edits_;

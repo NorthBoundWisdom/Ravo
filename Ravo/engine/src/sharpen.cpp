@@ -1,6 +1,7 @@
 #include "sharpen.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -10,6 +11,7 @@
 #include <vector>
 
 #include "d50_lab.h"
+#include "parallel_rows.h"
 #include "ravo/recipe/color_input.h"
 
 namespace ravo
@@ -102,7 +104,9 @@ std::uint64_t detail::sharpen_working_bytes(const std::uint32_t width, const std
     }
     const std::uint64_t pixels = static_cast<std::uint64_t>(width) * height;
     std::uint64_t bytes = saturating_multiply(pixels, sizeof(SharpenLabPixel));
-    bytes = saturating_add(bytes, saturating_multiply(width, sizeof(float)));
+    bytes = saturating_add(
+        bytes,
+        saturating_multiply(width, sizeof(float) * detail::parallel_row_worker_bound(height)));
     bytes = saturating_add(bytes, (2U * kMaximumRadius + 1U) * sizeof(float));
     return bytes;
 }
@@ -194,62 +198,134 @@ try
         value /= weight;
     }
 
-    std::vector<float> vertical(width);
-    for (std::uint32_t row = static_cast<std::uint32_t>(radius);
-         row < height - static_cast<std::uint32_t>(radius); ++row)
+    if (control.checkpoint_callback != nullptr)
     {
-        checkpoint(control, SharpenCheckpoint::kVerticalRow, row);
-        active = cancellation.check();
-        if (!active)
+        std::vector<float> vertical(width);
+        for (std::uint32_t row = static_cast<std::uint32_t>(radius);
+             row < height - static_cast<std::uint32_t>(radius); ++row)
         {
-            return active.error();
-        }
-        const std::uint32_t start_row = row - static_cast<std::uint32_t>(radius);
-        const std::uint32_t end_row = row + static_cast<std::uint32_t>(radius);
-        for (std::uint32_t column = 0U; column < width; ++column)
-        {
-            float sum = 0.0F;
-            for (std::uint32_t source_row = start_row; source_row <= end_row; ++source_row)
+            checkpoint(control, SharpenCheckpoint::kVerticalRow, row);
+            active = cancellation.check();
+            if (!active)
             {
-                const std::size_t kernel_index = source_row - start_row;
-                sum += kernel[kernel_index] *
-                       input[static_cast<std::size_t>(source_row) * width + column][0];
+                return active.error();
             }
-            vertical[column] = sum;
-        }
+            const std::uint32_t start_row = row - static_cast<std::uint32_t>(radius);
+            const std::uint32_t end_row = row + static_cast<std::uint32_t>(radius);
+            for (std::uint32_t column = 0U; column < width; ++column)
+            {
+                float sum = 0.0F;
+                for (std::uint32_t source_row = start_row; source_row <= end_row; ++source_row)
+                {
+                    const std::size_t kernel_index = source_row - start_row;
+                    sum += kernel[kernel_index] *
+                           input[static_cast<std::size_t>(source_row) * width + column][0];
+                }
+                vertical[column] = sum;
+            }
 
-        checkpoint(control, SharpenCheckpoint::kHorizontalRow, row);
-        active = cancellation.check();
-        if (!active)
-        {
-            return active.error();
+            checkpoint(control, SharpenCheckpoint::kHorizontalRow, row);
+            active = cancellation.check();
+            if (!active)
+            {
+                return active.error();
+            }
+            for (std::uint32_t column = static_cast<std::uint32_t>(radius);
+                 column < width - static_cast<std::uint32_t>(radius); ++column)
+            {
+                float sum = 0.0F;
+                const std::uint32_t start_column = column - static_cast<std::uint32_t>(radius);
+                const std::uint32_t end_column = column + static_cast<std::uint32_t>(radius);
+                for (std::uint32_t source_column = start_column; source_column <= end_column;
+                     ++source_column)
+                {
+                    const std::size_t kernel_index = source_column - start_column;
+                    sum += kernel[kernel_index] * vertical[source_column];
+                }
+                const std::size_t index = static_cast<std::size_t>(row) * width + column;
+                const float difference = input[index][0] - sum;
+                const float absolute = std::fabs(difference);
+                const float detail =
+                    absolute > data.threshold ?
+                        std::copysign(std::fmax(absolute - data.threshold, 0.0F), difference) :
+                        0.0F;
+                output[index][0] = input[index][0] + detail * data.amount;
+                if (!std::isfinite(output[index][0]))
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "Sharpen produced a non-finite Lab sample",
+                                      {{"pixel", std::to_string(index)},
+                                       {"reason", "nonfinite_sharpen_lab_output"}});
+                }
+            }
         }
-        for (std::uint32_t column = static_cast<std::uint32_t>(radius);
-             column < width - static_cast<std::uint32_t>(radius); ++column)
+    }
+    else
+    {
+        const std::uint32_t border = static_cast<std::uint32_t>(radius);
+        const std::uint32_t rows = height - border * 2U;
+        const unsigned workers = detail::parallel_row_workers(rows);
+        std::vector<float> vertical(static_cast<std::size_t>(width) * workers);
+        std::atomic<std::size_t> nonfinite{std::numeric_limits<std::size_t>::max()};
+        auto sharpened = detail::for_each_row(
+            rows, cancellation,
+            [&](const std::uint32_t offset, const unsigned worker)
+            {
+                const std::uint32_t row = offset + border;
+                float *const vertical_row =
+                    vertical.data() + static_cast<std::size_t>(worker) * width;
+                const std::uint32_t start_row = row - border;
+                const std::uint32_t end_row = row + border;
+                for (std::uint32_t column = 0U; column < width; ++column)
+                {
+                    float sum = 0.0F;
+                    for (std::uint32_t source_row = start_row; source_row <= end_row; ++source_row)
+                    {
+                        const std::size_t kernel_index = source_row - start_row;
+                        sum += kernel[kernel_index] *
+                               input[static_cast<std::size_t>(source_row) * width + column][0];
+                    }
+                    vertical_row[column] = sum;
+                }
+                for (std::uint32_t column = border; column < width - border; ++column)
+                {
+                    float sum = 0.0F;
+                    const std::uint32_t start_column = column - border;
+                    const std::uint32_t end_column = column + border;
+                    for (std::uint32_t source_column = start_column; source_column <= end_column;
+                         ++source_column)
+                    {
+                        const std::size_t kernel_index = source_column - start_column;
+                        sum += kernel[kernel_index] * vertical_row[source_column];
+                    }
+                    const std::size_t index = static_cast<std::size_t>(row) * width + column;
+                    const float difference = input[index][0] - sum;
+                    const float absolute = std::fabs(difference);
+                    const float detail =
+                        absolute > data.threshold ?
+                            std::copysign(std::fmax(absolute - data.threshold, 0.0F), difference) :
+                            0.0F;
+                    output[index][0] = input[index][0] + detail * data.amount;
+                    if (!std::isfinite(output[index][0]))
+                    {
+                        std::size_t previous = nonfinite.load(std::memory_order_relaxed);
+                        while (index < previous && !nonfinite.compare_exchange_weak(
+                                                       previous, index, std::memory_order_relaxed))
+                        {
+                        }
+                    }
+                }
+            });
+        if (!sharpened)
         {
-            float sum = 0.0F;
-            const std::uint32_t start_column = column - static_cast<std::uint32_t>(radius);
-            const std::uint32_t end_column = column + static_cast<std::uint32_t>(radius);
-            for (std::uint32_t source_column = start_column; source_column <= end_column;
-                 ++source_column)
-            {
-                const std::size_t kernel_index = source_column - start_column;
-                sum += kernel[kernel_index] * vertical[source_column];
-            }
-            const std::size_t index = static_cast<std::size_t>(row) * width + column;
-            const float difference = input[index][0] - sum;
-            const float absolute = std::fabs(difference);
-            const float detail =
-                absolute > data.threshold ?
-                    std::copysign(std::fmax(absolute - data.threshold, 0.0F), difference) :
-                    0.0F;
-            output[index][0] = input[index][0] + detail * data.amount;
-            if (!std::isfinite(output[index][0]))
-            {
-                return make_error(
-                    ErrorCode::kValidation, "Sharpen produced a non-finite Lab sample",
-                    {{"pixel", std::to_string(index)}, {"reason", "nonfinite_sharpen_lab_output"}});
-            }
+            return sharpened.error();
+        }
+        const std::size_t bad = nonfinite.load(std::memory_order_relaxed);
+        if (bad != std::numeric_limits<std::size_t>::max())
+        {
+            return make_error(
+                ErrorCode::kValidation, "Sharpen produced a non-finite Lab sample",
+                {{"pixel", std::to_string(bad)}, {"reason", "nonfinite_sharpen_lab_output"}});
         }
     }
     checkpoint(control, SharpenCheckpoint::kBeforePublication, 0U);

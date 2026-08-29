@@ -10,7 +10,9 @@
 #include <QVariantMap>
 
 #include <QColor>
+#include <QColorSpace>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImage>
@@ -33,6 +35,8 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/style.h"
+#include "studio_debug_info.h"
 #include "studio_language_manager.h"
 
 namespace ravo
@@ -426,6 +430,201 @@ TEST(StudioPresenterTest, CopiedEditsClipboardStartsEmptyAndIgnoresEmptySelectio
     presenter.pasteEditsSection(QStringLiteral("light"));
     presenter.pasteEditsSection(QStringLiteral("color"));
     EXPECT_FALSE(presenter.hasCopiedEdits());
+}
+
+TEST(StudioDebugInfo, FormattersEmitStableSingleLineFields)
+{
+    PhotoDebugIdentity photo;
+    photo.catalog = QStringLiteral("/tmp/Ravo Library.sqlite");
+    photo.asset_id = QStringLiteral("ast_642f1d7e545bf6872ee9e3cd8357c877");
+    photo.uri = QStringLiteral("file:///tmp/folder/_DSC5950.jpg");
+    photo.path = QStringLiteral("/tmp/folder/_DSC5950.jpg");
+    photo.fingerprint = QStringLiteral("123-456");
+    photo.media_type = QStringLiteral("image/jpeg");
+    photo.display_name = QStringLiteral("_DSC5950.jpg");
+    photo.width = QStringLiteral("6000");
+    photo.height = QStringLiteral("4000");
+    photo.size_bytes = QStringLiteral("2048");
+    photo.has_edits = true;
+    photo.import_state = QStringLiteral("imported");
+    const auto photo_text = format_photo_debug_info(photo);
+    EXPECT_TRUE(photo_text.startsWith(QStringLiteral("ravo.debug.photo 1\n")));
+    EXPECT_TRUE(
+        photo_text.contains(QStringLiteral("asset_id=ast_642f1d7e545bf6872ee9e3cd8357c877\n")));
+    EXPECT_TRUE(photo_text.contains(QStringLiteral("has_edits=true")));
+    EXPECT_FALSE(photo_text.contains(QStringLiteral("ravo.debug.preset")));
+
+    PhotoDebugIdentity messy;
+    messy.display_name = QStringLiteral("line\nbreak");
+    const auto sanitized = format_photo_debug_info(messy);
+    EXPECT_TRUE(sanitized.contains(QStringLiteral("display_name=line break\n")));
+    EXPECT_FALSE(sanitized.contains(QStringLiteral("display_name=line\nbreak")));
+
+    PresetDebugIdentity preset;
+    preset.name = QStringLiteral("黑石礁大坝");
+    preset.path = QStringLiteral("/tmp/Ravo Presets/黑石礁大坝.xmp");
+    preset.kind = QStringLiteral("crs");
+    preset.sha256 = QStringLiteral("abc");
+    preset.size_bytes = QStringLiteral("12");
+    preset.mtime_unix_ms = QStringLiteral("1");
+    const auto preset_text = format_preset_debug_info(preset);
+    EXPECT_TRUE(preset_text.startsWith(QStringLiteral("ravo.debug.preset 1\n")));
+    EXPECT_TRUE(preset_text.contains(QStringLiteral("name=黑石礁大坝\n")));
+    EXPECT_TRUE(preset_text.contains(QStringLiteral("kind=crs\n")));
+    EXPECT_TRUE(preset_text.contains(QStringLiteral("sha256=abc\n")));
+}
+
+TEST(StudioPresenterTest, PhotoDebugInfoIsEmptyWithoutSelection)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_TRUE(presenter.selectedPhotoDebugInfo().isEmpty());
+    presenter.copySelectedPhotoDebugInfo();
+}
+
+TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("photo.png"));
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(QColor(120, 130, 140));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+
+    const auto text = presenter.selectedPhotoDebugInfo();
+    EXPECT_TRUE(text.startsWith(QStringLiteral("ravo.debug.photo 1\n")));
+    EXPECT_TRUE(
+        text.contains(QStringLiteral("catalog=") + presenter.catalogPath() + QLatin1Char('\n')));
+    EXPECT_TRUE(text.contains(QStringLiteral("asset_id=") + presenter.selectedAssetId() +
+                              QLatin1Char('\n')));
+    EXPECT_TRUE(text.contains(QStringLiteral("display_name=photo.png\n")));
+    EXPECT_TRUE(text.contains(QStringLiteral("width=32\n")));
+    EXPECT_TRUE(text.contains(QStringLiteral("height=24\n")));
+    EXPECT_TRUE(text.contains(QStringLiteral("has_edits=false")));
+    EXPECT_TRUE(text.contains(QStringLiteral("path=")));
+    EXPECT_FALSE(text.contains(QStringLiteral("ravo.debug.preset")));
+}
+
+TEST(StudioPresenterTest, PresetDebugInfoHashesStyleAndRejectsUnknownFiles)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    DevelopParams develop;
+    auto recipe = recipe_from_develop({"asset-a", "file:///source-a.jpg", "hash-a"}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto style = recipe_style_from_recipe("Warm debug", "", recipe.value());
+    ASSERT_TRUE(style) << style.error().message;
+    auto serialized = serialize_recipe_style(style.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    const QString path = directory.filePath(QStringLiteral("Warm debug.rstyle.json"));
+    {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            << file.errorString().toStdString();
+        file.write(QByteArray::fromStdString(serialized.value()));
+    }
+
+    StudioPresenter presenter;
+    const auto text = presenter.presetDebugInfo(path);
+    EXPECT_TRUE(text.startsWith(QStringLiteral("ravo.debug.preset 1\n")));
+    EXPECT_TRUE(text.contains(QStringLiteral("name=Warm debug\n")));
+    EXPECT_TRUE(text.contains(QStringLiteral("kind=style\n")));
+    EXPECT_TRUE(text.contains(QStringLiteral("path=")));
+    QFile hashed(path);
+    ASSERT_TRUE(hashed.open(QIODevice::ReadOnly));
+    const auto digest =
+        QCryptographicHash::hash(hashed.readAll(), QCryptographicHash::Sha256).toHex();
+    EXPECT_TRUE(
+        text.contains(QStringLiteral("sha256=") + QString::fromLatin1(digest) + QLatin1Char('\n')));
+
+    EXPECT_TRUE(presenter.presetDebugInfo(QStringLiteral("/missing/preset.xmp")).isEmpty());
+    const QString junk = directory.filePath(QStringLiteral("notes.txt"));
+    {
+        QFile file(junk);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write("not a preset");
+    }
+    EXPECT_TRUE(presenter.presetDebugInfo(junk).isEmpty());
+}
+
+TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("photo.png"));
+    QImage image(96, 64, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 120, 170));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+
+    DevelopParams style_develop;
+    style_develop.exposure_ev = 1.0;
+    auto recipe = recipe_from_develop({"style", "file:///style.png", "style-hash"}, style_develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto style = recipe_style_from_recipe("Progressive", {}, recipe.value());
+    ASSERT_TRUE(style) << style.error().message;
+    auto serialized = serialize_recipe_style(style.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    const QString style_path = directory.filePath(QStringLiteral("Progressive.rstyle.json"));
+    {
+        QFile file(style_path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(file.write(QByteArray::fromStdString(serialized.value())),
+                  static_cast<qint64>(serialized.value().size()));
+    }
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
+        << presenter.errorText().toStdString();
+
+    bool saw_live = false;
+    bool saw_settled = false;
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+                     [&]
+                     {
+                         const auto url = presenter.previewUrl();
+                         saw_live = saw_live || (url.scheme() == QLatin1String("image") &&
+                                                 url.path() == QLatin1String("/live"));
+                         saw_settled = saw_live && url.isLocalFile();
+                     });
+    presenter.applyStyleFromPath(style_path);
+    ASSERT_TRUE(wait_until([&] { return saw_live && saw_settled; }))
+        << presenter.errorText().toStdString()
+        << " url=" << presenter.previewUrl().toString().toStdString();
+    EXPECT_FALSE(presenter.previewLoading());
+    EXPECT_NEAR(presenter.editExposure(), 1.0, 1e-9);
 }
 
 TEST(StudioPresenterTest, SessionUndoStartsEmptyAndHistoryRestoreWithoutSelectionIsIgnored)
@@ -1171,6 +1370,32 @@ TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
 }
 
+TEST(StudioCommands, CopyInfoRequiresSelectionOrPresetPath)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    const auto ids = controller.ids();
+    const auto photo_copy = ids.value(QStringLiteral("photoCopyInfo")).toString();
+    const auto preset_copy = ids.value(QStringLiteral("presetCopyInfo")).toString();
+    ASSERT_EQ(photo_copy, QStringLiteral("studio.photo.copy_info"));
+    ASSERT_EQ(preset_copy, QStringLiteral("studio.preset.copy_info"));
+
+    const auto photo_action = controller.action(photo_copy);
+    EXPECT_FALSE(photo_action.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(photo_action.value(QStringLiteral("disabledReason")).toString().isEmpty());
+    const auto photo_rejected = controller.executeAction(photo_copy, QStringLiteral("control"));
+    EXPECT_FALSE(photo_rejected.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(photo_rejected.value(QStringLiteral("code")).toString(),
+              QStringLiteral("unavailable"));
+
+    const auto preset_rejected =
+        controller.executeCommand(preset_copy, QString{}, QStringLiteral("control"));
+    EXPECT_FALSE(preset_rejected.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(preset_rejected.value(QStringLiteral("code")).toString(),
+              QStringLiteral("unavailable"));
+}
+
 TEST(StudioCommands, CropToolShortcutIsRAndDoesNotRequireEditMode)
 {
     ensure_qt_core();
@@ -1664,7 +1889,32 @@ TEST(StudioQmlContract, DevelopPresetPanelSitsAboveHistoryAndImportsThroughComma
     EXPECT_TRUE(source.contains(QStringLiteral("editPresets")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImport")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetApplyPath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("acceptedButtons: Qt.LeftButton | Qt.RightButton")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetCopyInfo")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy Info\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.preset")));
     EXPECT_FALSE(source.contains(QStringLiteral("OpenCL")));
+}
+
+TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
+{
+    QFile menu(QStringLiteral(RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML));
+    ASSERT_TRUE(menu.open(QIODevice::ReadOnly | QIODevice::Text))
+        << menu.errorString().toStdString();
+    const auto source = QString::fromUtf8(menu.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("copyEdits")));
+    EXPECT_TRUE(source.contains(QStringLiteral("pasteEdits")));
+    EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoInfo")));
+    EXPECT_LT(source.indexOf(QStringLiteral("copyEdits")),
+              source.indexOf(QStringLiteral("copyPhotoInfo")));
+    EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.photo")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoCopyInfo")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("copyPhotoInfo")));
 }
 
 TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)

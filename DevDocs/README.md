@@ -13,7 +13,7 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [concepts/p0-library-grid.svg](concepts/p0-library-grid.svg) | Ravo Studio concept-reference artwork |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
 | [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
-| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, lifecycle, metadata-analysis, command, data, and engine-private algorithm boundaries |
+| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, progressive-preview lifecycle, metadata-analysis, command, data, and engine-private algorithm boundaries |
 | [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
 | [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions and supersession relationships |

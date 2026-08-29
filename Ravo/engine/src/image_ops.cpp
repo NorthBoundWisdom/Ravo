@@ -2,17 +2,14 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <map>
-#include <mutex>
 #include <new>
 #include <numbers>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include <png.h>
@@ -32,6 +29,7 @@
 #include "mask_evaluator.h"
 #include "monochrome.h"
 #include "output_color.h"
+#include "parallel_rows.h"
 #include "primaries.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
@@ -48,86 +46,7 @@ namespace ravo
 namespace
 {
 
-[[nodiscard]] unsigned parallel_row_workers(const std::uint32_t rows) noexcept
-{
-    if (rows < 32U)
-    {
-        return 1U;
-    }
-    const unsigned hardware = std::max(1U, std::thread::hardware_concurrency());
-    return std::min(std::min(hardware, 8U), rows);
-}
-
-template <typename Fn>
-Result<void> for_each_row(const std::uint32_t height, const CancellationToken &cancellation,
-                          Fn &&fn)
-{
-    auto cancelled = cancellation.check();
-    if (!cancelled)
-    {
-        return cancelled.error();
-    }
-    const unsigned workers = parallel_row_workers(height);
-    if (workers <= 1U)
-    {
-        for (std::uint32_t row = 0; row < height; ++row)
-        {
-            cancelled = cancellation.check();
-            if (!cancelled)
-            {
-                return cancelled.error();
-            }
-            fn(row);
-        }
-        return {};
-    }
-
-    std::atomic<std::uint32_t> next{0};
-    std::atomic<bool> failed{false};
-    TaskError error;
-    std::mutex error_mutex;
-    std::vector<std::thread> threads;
-    threads.reserve(workers);
-    for (unsigned worker = 0; worker < workers; ++worker)
-    {
-        threads.emplace_back(
-            [&]()
-            {
-                for (;;)
-                {
-                    if (failed.load(std::memory_order_acquire))
-                    {
-                        return;
-                    }
-                    const std::uint32_t row = next.fetch_add(1, std::memory_order_relaxed);
-                    if (row >= height)
-                    {
-                        return;
-                    }
-                    auto row_cancelled = cancellation.check();
-                    if (!row_cancelled)
-                    {
-                        std::lock_guard lock(error_mutex);
-                        if (!failed.exchange(true, std::memory_order_acq_rel))
-                        {
-                            error = row_cancelled.error();
-                        }
-                        return;
-                    }
-                    fn(row);
-                }
-            });
-    }
-    for (auto &thread : threads)
-    {
-        thread.join();
-    }
-    if (failed.load(std::memory_order_acquire))
-    {
-        return error;
-    }
-    return {};
-}
+using detail::for_each_row;
 
 [[nodiscard]] bool absorbed_operation(const std::string_view id) noexcept
 {
@@ -312,7 +231,8 @@ void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float
     }
 }
 
-Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &operation)
+Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &operation,
+                              const CancellationToken &cancellation)
 {
     auto space = parse_tone_curve_working_space(
         parameter_string(operation, "working_space", std::string(kToneCurveWorkingSpaceRgb)));
@@ -442,75 +362,91 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
 
     const float low_approximation = table_l[static_cast<std::size_t>(0.01F * kToneCurveLut)];
 
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+    const auto rows = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width * 3U;
+            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
+            for (std::size_t index = begin; index < end; index += 3U)
+            {
+                float xyz[3]{};
+                linear_rgb_to_xyz_d50(image.rgb[index], image.rgb[index + 1U],
+                                      image.rgb[index + 2U], xyz);
+                float lab[3]{};
+                xyz_d50_to_lab(xyz, lab);
+                const float l_in = lab[0] / 100.0F;
+                if (rgb_linked)
+                {
+                    float rgb[3]{};
+                    lab_to_prophoto(lab, rgb);
+                    if (preserve == kToneCurvePreserveColorsNone)
+                    {
+                        for (int c = 0; c < 3; ++c)
+                        {
+                            rgb[c] = lookup_curve_lut(table_l, rgb[c], xm_l, unbounded_l);
+                        }
+                    }
+                    else
+                    {
+                        const float lum = rgb_norm(rgb, preserve);
+                        if (lum > 0.0F)
+                        {
+                            const float curve_lum =
+                                lookup_curve_lut(table_l, lum, xm_l, unbounded_l);
+                            const float ratio = curve_lum / lum;
+                            rgb[0] *= ratio;
+                            rgb[1] *= ratio;
+                            rgb[2] *= ratio;
+                        }
+                    }
+                    prophoto_to_lab(rgb, lab);
+                }
+                else if (xyz_linked)
+                {
+                    for (int c = 0; c < 3; ++c)
+                    {
+                        xyz[c] = lookup_curve_lut(table_l, xyz[c], xm_l, unbounded_l);
+                    }
+                    xyz_d50_to_lab(xyz, lab);
+                }
+                else if (lab_linked)
+                {
+                    const float orig_l = lab[0];
+                    const float orig_a = lab[1];
+                    const float orig_b = lab[2];
+                    lab[0] = lookup_curve_lut(table_l, l_in, xm_l, unbounded_l);
+                    if (l_in > 0.01F)
+                    {
+                        lab[1] = orig_a * lab[0] / orig_l;
+                        lab[2] = orig_b * lab[0] / orig_l;
+                    }
+                    else
+                    {
+                        lab[1] = orig_a * low_approximation;
+                        lab[2] = orig_b * low_approximation;
+                    }
+                }
+                else
+                {
+                    lab[0] = lookup_curve_lut(table_l, l_in, xm_l, unbounded_l);
+                    const float a_in = (lab[1] + 128.0F) / 256.0F;
+                    const float b_in = (lab[2] + 128.0F) / 256.0F;
+                    const int ia =
+                        std::clamp(static_cast<int>(a_in * kToneCurveLut), 0, kToneCurveLut - 1);
+                    const int ib =
+                        std::clamp(static_cast<int>(b_in * kToneCurveLut), 0, kToneCurveLut - 1);
+                    lab[1] = table_a[static_cast<std::size_t>(ia)];
+                    lab[2] = table_b[static_cast<std::size_t>(ib)];
+                }
+                lab_to_xyz_d50(lab, xyz);
+                xyz_d50_to_linear_rgb(xyz, image.rgb[index], image.rgb[index + 1U],
+                                      image.rgb[index + 2U]);
+            }
+        });
+    if (!rows)
     {
-        float xyz[3]{};
-        linear_rgb_to_xyz_d50(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], xyz);
-        float lab[3]{};
-        xyz_d50_to_lab(xyz, lab);
-        const float l_in = lab[0] / 100.0F;
-        if (rgb_linked)
-        {
-            float rgb[3]{};
-            lab_to_prophoto(lab, rgb);
-            if (preserve == kToneCurvePreserveColorsNone)
-            {
-                for (int c = 0; c < 3; ++c)
-                {
-                    rgb[c] = lookup_curve_lut(table_l, rgb[c], xm_l, unbounded_l);
-                }
-            }
-            else
-            {
-                const float lum = rgb_norm(rgb, preserve);
-                if (lum > 0.0F)
-                {
-                    const float curve_lum = lookup_curve_lut(table_l, lum, xm_l, unbounded_l);
-                    const float ratio = curve_lum / lum;
-                    rgb[0] *= ratio;
-                    rgb[1] *= ratio;
-                    rgb[2] *= ratio;
-                }
-            }
-            prophoto_to_lab(rgb, lab);
-        }
-        else if (xyz_linked)
-        {
-            for (int c = 0; c < 3; ++c)
-            {
-                xyz[c] = lookup_curve_lut(table_l, xyz[c], xm_l, unbounded_l);
-            }
-            xyz_d50_to_lab(xyz, lab);
-        }
-        else if (lab_linked)
-        {
-            const float orig_l = lab[0];
-            const float orig_a = lab[1];
-            const float orig_b = lab[2];
-            lab[0] = lookup_curve_lut(table_l, l_in, xm_l, unbounded_l);
-            if (l_in > 0.01F)
-            {
-                lab[1] = orig_a * lab[0] / orig_l;
-                lab[2] = orig_b * lab[0] / orig_l;
-            }
-            else
-            {
-                lab[1] = orig_a * low_approximation;
-                lab[2] = orig_b * low_approximation;
-            }
-        }
-        else
-        {
-            lab[0] = lookup_curve_lut(table_l, l_in, xm_l, unbounded_l);
-            const float a_in = (lab[1] + 128.0F) / 256.0F;
-            const float b_in = (lab[2] + 128.0F) / 256.0F;
-            const int ia = std::clamp(static_cast<int>(a_in * kToneCurveLut), 0, kToneCurveLut - 1);
-            const int ib = std::clamp(static_cast<int>(b_in * kToneCurveLut), 0, kToneCurveLut - 1);
-            lab[1] = table_a[static_cast<std::size_t>(ia)];
-            lab[2] = table_b[static_cast<std::size_t>(ib)];
-        }
-        lab_to_xyz_d50(lab, xyz);
-        xyz_d50_to_linear_rgb(xyz, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
+        return rows.error();
     }
     return {};
 }
@@ -1099,29 +1035,37 @@ void lab_to_rgb(const float L, const float a, const float b_ch, float &r, float 
 void rgb_to_hsl(float r, float g, float b, float &h, float &s, float &l);
 void hsl_to_rgb(float h, float s, float l, float &r, float &g, float &b);
 
-void apply_highlights_shadows(WorkingImage &image, const double highlights, const double shadows)
+Result<void> apply_highlights_shadows(WorkingImage &image, const double highlights,
+                                      const double shadows, const CancellationToken &cancellation)
 {
     if (highlights == 0.0 && shadows == 0.0)
     {
-        return;
+        return {};
     }
     const float highlight_ev = static_cast<float>(highlights);
     const float shadow_ev = static_cast<float>(shadows);
     const float compress = 0.5F;
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float L = 0.0F;
-        float a = 0.0F;
-        float b = 0.0F;
-        rgb_to_lab(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], L, a, b);
-        const float ln = std::clamp(L / 100.0F, 0.0F, 1.0F);
-        const float hmask =
-            std::clamp((ln - (0.5F + compress * 0.25F)) / (0.5F - compress * 0.25F), 0.0F, 1.0F);
-        const float smask =
-            1.0F - std::clamp(ln / std::max(0.15F, 0.5F - compress * 0.25F), 0.0F, 1.0F);
-        L *= std::exp2(highlight_ev * hmask) * std::exp2(shadow_ev * smask);
-        lab_to_rgb(L, a, b, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
-    }
+    return for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width * 3U;
+            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
+            for (std::size_t index = begin; index < end; index += 3U)
+            {
+                float L = 0.0F;
+                float a = 0.0F;
+                float b = 0.0F;
+                rgb_to_lab(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], L, a, b);
+                const float ln = std::clamp(L / 100.0F, 0.0F, 1.0F);
+                const float hmask = std::clamp(
+                    (ln - (0.5F + compress * 0.25F)) / (0.5F - compress * 0.25F), 0.0F, 1.0F);
+                const float smask =
+                    1.0F - std::clamp(ln / std::max(0.15F, 0.5F - compress * 0.25F), 0.0F, 1.0F);
+                L *= std::exp2(highlight_ev * hmask) * std::exp2(shadow_ev * smask);
+                lab_to_rgb(L, a, b, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
+            }
+        });
 }
 
 void apply_whites_blacks(WorkingImage &image, const double whites, const double blacks)
@@ -1609,7 +1553,8 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     return rgb0;
 }
 
-[[nodiscard]] Result<void> apply_rgb_curve(WorkingImage &image, const OperationInstance &operation)
+[[nodiscard]] Result<void> apply_rgb_curve(WorkingImage &image, const OperationInstance &operation,
+                                           const CancellationToken &cancellation)
 {
     const auto mode = parameter_string(operation, "mode", std::string(kRgbLevelsModeLinked));
     if (mode != kRgbLevelsModeLinked && mode != kRgbLevelsModeIndependent)
@@ -1793,27 +1738,38 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     };
     const bool independent_or_none =
         mode == kRgbLevelsModeIndependent || preserve == kToneCurvePreserveColorsNone;
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
+    const auto rows = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width * 3U;
+            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
+            for (std::size_t index = begin; index < end; index += 3U)
+            {
+                if (independent_or_none)
+                {
+                    image.rgb[index] = apply_channel(image.rgb[index], 0);
+                    image.rgb[index + 1U] = apply_channel(
+                        image.rgb[index + 1U], mode == kRgbLevelsModeIndependent ? 1 : 0);
+                    image.rgb[index + 2U] = apply_channel(
+                        image.rgb[index + 2U], mode == kRgbLevelsModeIndependent ? 2 : 0);
+                    continue;
+                }
+                const float rgb[3]{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
+                const float lum = rgb_norm(rgb, preserve);
+                if (lum > 0.0F)
+                {
+                    const float curve_lum = apply_channel(lum, 0);
+                    const float ratio = curve_lum / lum;
+                    image.rgb[index] *= ratio;
+                    image.rgb[index + 1U] *= ratio;
+                    image.rgb[index + 2U] *= ratio;
+                }
+            }
+        });
+    if (!rows)
     {
-        if (independent_or_none)
-        {
-            image.rgb[index] = apply_channel(image.rgb[index], 0);
-            image.rgb[index + 1U] =
-                apply_channel(image.rgb[index + 1U], mode == kRgbLevelsModeIndependent ? 1 : 0);
-            image.rgb[index + 2U] =
-                apply_channel(image.rgb[index + 2U], mode == kRgbLevelsModeIndependent ? 2 : 0);
-            continue;
-        }
-        const float rgb[3]{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
-        const float lum = rgb_norm(rgb, preserve);
-        if (lum > 0.0F)
-        {
-            const float curve_lum = apply_channel(lum, 0);
-            const float ratio = curve_lum / lum;
-            image.rgb[index] *= ratio;
-            image.rgb[index + 1U] *= ratio;
-            image.rgb[index + 2U] *= ratio;
-        }
+        return rows.error();
     }
     return {};
 }
@@ -2926,12 +2882,22 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.core.highlights")
         {
-            apply_highlights_shadows(image, parameter(operation, "amount", 0.0), 0.0);
+            auto adjusted = apply_highlights_shadows(image, parameter(operation, "amount", 0.0),
+                                                     0.0, cancellation);
+            if (!adjusted)
+            {
+                return adjusted.error();
+            }
             continue;
         }
         if (operation.id == "ravo.core.shadows")
         {
-            apply_highlights_shadows(image, 0.0, parameter(operation, "amount", 0.0));
+            auto adjusted = apply_highlights_shadows(
+                image, 0.0, parameter(operation, "amount", 0.0), cancellation);
+            if (!adjusted)
+            {
+                return adjusted.error();
+            }
             continue;
         }
         if (operation.id == "ravo.core.whites")
@@ -3040,7 +3006,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.color.rgbcurve")
         {
-            auto curved = apply_rgb_curve(image, operation);
+            auto curved = apply_rgb_curve(image, operation, cancellation);
             if (!curved)
             {
                 return curved.error();
@@ -3049,7 +3015,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.core.tonecurve")
         {
-            auto curved = apply_tone_curve(image, operation);
+            auto curved = apply_tone_curve(image, operation, cancellation);
             if (!curved)
             {
                 return curved.error();
@@ -3331,7 +3297,7 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
     return image;
 }
 
-Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
+Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image, const bool fast)
 {
     const std::uint64_t pixels =
         static_cast<std::uint64_t>(image.width) * static_cast<std::uint64_t>(image.height);
@@ -3358,15 +3324,15 @@ Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image)
     png.width = image.width;
     png.height = image.height;
     png.format = PNG_FORMAT_RGB;
-    png.flags = standard_srgb ? 0U : PNG_IMAGE_FLAG_COLORSPACE_NOT_sRGB;
-    png_alloc_size_t encoded_size = 0;
-    if (png_image_write_to_memory(&png, nullptr, &encoded_size, 0, image.rgb.data(), 0, nullptr) ==
-        0)
+    png.flags = (standard_srgb ? 0U : PNG_IMAGE_FLAG_COLORSPACE_NOT_sRGB) |
+                (fast ? PNG_IMAGE_FLAG_FAST : 0U);
+    const png_alloc_size_t capacity = PNG_IMAGE_PNG_SIZE_MAX(png);
+    if (capacity == 0U || static_cast<std::size_t>(capacity) < image.rgb.size())
     {
-        return make_error(ErrorCode::kIo, "Unable to size PNG output",
-                          {{"png_error", png.message}});
+        return make_error(ErrorCode::kValidation, "PNG output bound is invalid");
     }
-    std::vector<std::uint8_t> encoded(encoded_size);
+    std::vector<std::uint8_t> encoded(static_cast<std::size_t>(capacity));
+    png_alloc_size_t encoded_size = capacity;
     if (png_image_write_to_memory(&png, encoded.data(), &encoded_size, 0, image.rgb.data(), 0,
                                   nullptr) == 0)
     {

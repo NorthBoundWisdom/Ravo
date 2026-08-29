@@ -55,6 +55,7 @@ void StudioPresenter::clear_displayed_preview()
     }
     preview_base_image_ = QImage();
     preview_mask_alpha_.clear();
+    displayed_develop_.reset();
     clear_scopes();
 }
 

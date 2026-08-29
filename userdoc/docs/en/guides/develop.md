@@ -305,6 +305,9 @@ The Edit left rail lists **Presets** above History. **Import…** copies a
 Lightroom Classic `.xmp` or a Ravo `.rstyle.json` into a `Ravo Presets` folder
 next to the open library, then applies it to the selected photo. Click a listed
 preset to apply it again. **File → Import Preset…** is the same command.
+Right-click a listed preset and choose **Copy Info** to copy its name, path,
+kind, size, and SHA-256. Paste that block together with a photo **Copy Info**
+block to identify the exact library photo and preset file.
 
 **File → Apply Recipe Style…** also accepts a Lightroom Classic `.xmp` preset
 (`crs:` Camera Raw settings). Ravo maps that look onto White Balance, Light,

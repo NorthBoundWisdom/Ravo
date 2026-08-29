@@ -202,6 +202,26 @@ exposure_analysis(const std::initializer_list<std::pair<std::uint16_t, std::uint
     return result;
 }
 
+[[nodiscard]] std::optional<DecodedPng> read_rgb_png(const std::vector<std::uint8_t> &encoded)
+{
+    png_image image{};
+    image.version = PNG_IMAGE_VERSION;
+    if (encoded.empty() ||
+        png_image_begin_read_from_memory(&image, encoded.data(), encoded.size()) == 0)
+    {
+        return std::nullopt;
+    }
+    image.format = PNG_FORMAT_RGB;
+    DecodedPng result{image.width, image.height, std::vector<png_byte>(PNG_IMAGE_SIZE(image))};
+    if (png_image_finish_read(&image, nullptr, result.pixels.data(), 0, nullptr) == 0)
+    {
+        png_image_free(&image);
+        return std::nullopt;
+    }
+    png_image_free(&image);
+    return result;
+}
+
 [[nodiscard]] std::size_t png_chunk_count(const std::string &png_bytes,
                                           const std::string_view chunk_type)
 {
@@ -1616,6 +1636,53 @@ TEST(EngineFacadeTest, RenderWritesBoundedPngAndRejectsOutputConflict)
     ASSERT_FALSE(conflict);
     EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
     std::filesystem::remove(request.output_uri, ignored);
+}
+
+TEST(EngineFacadeTest, FastPreviewPngPreservesPixelsAndSrgbMetadata)
+{
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    RasterBuffer source;
+    source.width = 257U;
+    source.height = 129U;
+    declare_srgb(source);
+    source.srgb.resize(static_cast<std::size_t>(source.width) * source.height * 3U);
+    for (std::uint32_t y = 0; y < source.height; ++y)
+    {
+        for (std::uint32_t x = 0; x < source.width; ++x)
+        {
+            const std::size_t index = (static_cast<std::size_t>(y) * source.width + x) * 3U;
+            source.srgb[index] = static_cast<std::uint8_t>((x * 17U + y * 3U) & 0xffU);
+            source.srgb[index + 1U] = static_cast<std::uint8_t>((x * 5U + y * 19U) & 0xffU);
+            source.srgb[index + 2U] = static_cast<std::uint8_t>((x * 11U + y * 7U) & 0xffU);
+        }
+    }
+    Recipe recipe;
+    recipe.asset = {"png-preview", "memory:png-preview", std::nullopt};
+    declare_input(recipe);
+    RenderRequest request;
+    request.asset = recipe.asset;
+    request.recipe = recipe;
+    auto rendered = engine.value().render_to_image(request, &source);
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    const auto &image = rendered.value();
+
+    auto normal = engine.value().encode_png(image);
+    ASSERT_TRUE(normal) << normal.error().message;
+    auto fast = engine.value().encode_preview_png(image);
+    ASSERT_TRUE(fast) << fast.error().message;
+    auto normal_decoded = read_rgb_png(normal.value());
+    auto fast_decoded = read_rgb_png(fast.value());
+    ASSERT_TRUE(normal_decoded.has_value());
+    ASSERT_TRUE(fast_decoded.has_value());
+    EXPECT_EQ(normal_decoded->width, image.width);
+    EXPECT_EQ(normal_decoded->height, image.height);
+    EXPECT_EQ(normal_decoded->pixels, image.rgb);
+    EXPECT_EQ(fast_decoded->pixels, image.rgb);
+    const std::string normal_bytes(normal.value().begin(), normal.value().end());
+    const std::string fast_bytes(fast.value().begin(), fast.value().end());
+    EXPECT_EQ(png_chunk_count(normal_bytes, "sRGB"), 1U);
+    EXPECT_EQ(png_chunk_count(fast_bytes, "sRGB"), 1U);
 }
 
 TEST(EngineFacadeTest, ExposureOperationRaisesRenderedFixtureBrightness)
@@ -6522,6 +6589,17 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                                 {"radius", ParameterValue{1.5}}},
                                std::nullopt});
     ASSERT_TRUE(denoised) << denoised.error().message;
+    auto denoised_again = render_op(engine.value(), noisy,
+                                    {"ravo.detail.denoiseprofile",
+                                     1,
+                                     "denoise-1",
+                                     true,
+                                     {{"strength", ParameterValue{0.8}},
+                                      {"chroma", ParameterValue{1.0}},
+                                      {"radius", ParameterValue{1.5}}},
+                                     std::nullopt});
+    ASSERT_TRUE(denoised_again) << denoised_again.error().message;
+    EXPECT_EQ(denoised_again.value().rgb, denoised.value().rgb);
 
     auto raw_on_raster = render_op(engine.value(), solid_raster(8, 8, 10, 10, 10),
                                    {"ravo.raw.highlights",

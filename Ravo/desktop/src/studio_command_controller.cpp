@@ -63,6 +63,7 @@ inline constexpr auto kPhotoRequestDelete = "studio.photo.request_delete_from_di
 inline constexpr auto kPhotoDelete = "studio.photo.delete_from_disk";
 inline constexpr auto kPhotoPrevious = "studio.photo.previous";
 inline constexpr auto kPhotoNext = "studio.photo.next";
+inline constexpr auto kPhotoCopyInfo = "studio.photo.copy_info";
 inline constexpr auto kViewGrid = "studio.view.show_grid";
 inline constexpr auto kViewLoupe = "studio.view.show_loupe";
 inline constexpr auto kViewDevelop = "studio.view.show_develop";
@@ -106,6 +107,7 @@ inline constexpr auto kStyleApplyPath = "studio.style.apply_path";
 inline constexpr auto kPresetImport = "studio.preset.import";
 inline constexpr auto kPresetImportPath = "studio.preset.import_path";
 inline constexpr auto kPresetApplyPath = "studio.preset.apply_path";
+inline constexpr auto kPresetCopyInfo = "studio.preset.copy_info";
 inline constexpr auto kWindowSettings = "studio.window.show_settings";
 inline constexpr auto kWindowAssistant = "studio.window.toggle_assistant";
 inline constexpr auto kWindowClose = "studio.window.close";
@@ -353,6 +355,7 @@ QStringList command_ids()
             QLatin1String(command::kPhotoDelete),
             QLatin1String(command::kPhotoPrevious),
             QLatin1String(command::kPhotoNext),
+            QLatin1String(command::kPhotoCopyInfo),
             QLatin1String(command::kViewGrid),
             QLatin1String(command::kViewLoupe),
             QLatin1String(command::kViewDevelop),
@@ -396,6 +399,7 @@ QStringList command_ids()
             QLatin1String(command::kPresetImport),
             QLatin1String(command::kPresetImportPath),
             QLatin1String(command::kPresetApplyPath),
+            QLatin1String(command::kPresetCopyInfo),
             QLatin1String(command::kWindowSettings),
             QLatin1String(command::kWindowAssistant),
             QLatin1String(command::kWindowClose),
@@ -603,6 +607,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reject")), photo,
         {QStringLiteral("review"), QStringLiteral("flag")}, QStringLiteral("photo.review"), 10,
         true, {key(QStringLiteral("X"), true)});
+    add(command::kPhotoCopyInfo, command::kPhotoCopyInfo,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Info")), photo,
+        {QStringLiteral("identity"), QStringLiteral("debug"), QStringLiteral("clipboard")},
+        QStringLiteral("photo.review"), 20, true);
     add(command::kPhotoRequestRemove, command::kPhotoRequestRemove,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove from Catalog...")), photo,
         {QStringLiteral("library"), QStringLiteral("delete")}, QStringLiteral("photo.delete"), 10,
@@ -979,6 +987,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kPresetApplyPath, Condition::kReadySelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.applyStyleFromPath(argument.toString()); });
+    add(command::kPresetCopyInfo, Condition::kCatalogOpen, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.copyPresetDebugInfo(argument.toString()); });
     add(
         command::kLibrarySetTagFilter, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)
@@ -1237,6 +1248,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         { presenter_.restoreHistory(argument.toInt()); });
     add(command::kPhotoToggleReject, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.toggleRejected(); });
+    add(command::kPhotoCopyInfo, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.copySelectedPhotoDebugInfo(); });
     add(command::kPhotoRequestRemove, Condition::kSelection, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestRemove, command::kPhotoRemove); });
@@ -1698,6 +1711,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("photoRemoveFromDiskConfirmed"), QLatin1String(command::kPhotoDelete)},
         {QStringLiteral("photoPrevious"), QLatin1String(command::kPhotoPrevious)},
         {QStringLiteral("photoNext"), QLatin1String(command::kPhotoNext)},
+        {QStringLiteral("photoCopyInfo"), QLatin1String(command::kPhotoCopyInfo)},
         {QStringLiteral("viewGrid"), QLatin1String(command::kViewGrid)},
         {QStringLiteral("viewLoupe"), QLatin1String(command::kViewLoupe)},
         {QStringLiteral("viewDevelop"), QLatin1String(command::kViewDevelop)},
@@ -1743,6 +1757,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("presetImport"), QLatin1String(command::kPresetImport)},
         {QStringLiteral("presetImportPath"), QLatin1String(command::kPresetImportPath)},
         {QStringLiteral("presetApplyPath"), QLatin1String(command::kPresetApplyPath)},
+        {QStringLiteral("presetCopyInfo"), QLatin1String(command::kPresetCopyInfo)},
         {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
         {QStringLiteral("windowAssistant"), QLatin1String(command::kWindowAssistant)},
         {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},

@@ -30,6 +30,20 @@ void testing::CatalogServiceTestControl::set_before_preview_cache_publication(
 {
     service.testing_before_preview_cache_publication_ = std::move(callback);
 }
+
+std::array<std::optional<std::uint32_t>, 2>
+testing::CatalogServiceTestControl::linear_working_max_edges(const CatalogService &service)
+{
+    std::array<std::optional<std::uint32_t>, 2> result;
+    for (std::size_t index = 0; index < service.linear_working_.size(); ++index)
+    {
+        if (service.linear_working_[index])
+        {
+            result[index] = service.linear_working_[index]->max_edge;
+        }
+    }
+    return result;
+}
 namespace
 {
 
@@ -169,7 +183,10 @@ Result<void> CatalogService::close()
     engine_ = nullptr;
     decoded_preview_source_.reset();
     decoded_raw_.reset();
-    linear_working_.reset();
+    for (auto &working : linear_working_)
+    {
+        working.reset();
+    }
     return closed;
 }
 

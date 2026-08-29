@@ -12,6 +12,7 @@
 #include <string_view>
 #include <vector>
 
+#include "parallel_rows.h"
 #include "ravo/recipe/develop.h"
 
 namespace ravo
@@ -38,6 +39,8 @@ constexpr float kGenericNoiseA = 5.0e-5F;
 constexpr float kGenericNoiseB = 1.0e-6F;
 constexpr float kChannelMixerNormMin = 1.52587890625e-05F;
 constexpr float kChannelMixerInverseSqrt3 = 0.5773502691896258F;
+
+using detail::for_each_row;
 
 using ChannelVector = std::array<float, 3>;
 using ChannelMatrix = std::array<ChannelVector, 3>;
@@ -457,12 +460,13 @@ constexpr LensCalibration kLensCalibrations[] = {
     return best;
 }
 
-void blur_plane(std::vector<float> &plane, const std::uint32_t width, const std::uint32_t height,
-                const float sigma)
+Result<void> blur_plane(std::vector<float> &plane, const std::uint32_t width,
+                        const std::uint32_t height, const float sigma,
+                        const CancellationToken &cancellation)
 {
     if (plane.empty() || width == 0 || height == 0 || sigma <= 0.01F)
     {
-        return;
+        return {};
     }
     const int radius = std::max(1, static_cast<int>(std::ceil(static_cast<double>(sigma) * 3.0)));
     std::vector<float> kernel(static_cast<std::size_t>(radius) * 2U + 1U);
@@ -480,136 +484,201 @@ void blur_plane(std::vector<float> &plane, const std::uint32_t width, const std:
     }
 
     std::vector<float> temp(plane.size());
-    for (std::uint32_t y = 0; y < height; ++y)
+    auto horizontal =
+        for_each_row(height, cancellation,
+                     [&](const std::uint32_t y)
+                     {
+                         for (std::uint32_t x = 0; x < width; ++x)
+                         {
+                             float acc = 0.0F;
+                             for (int offset = -radius; offset <= radius; ++offset)
+                             {
+                                 const int sample_x = std::clamp(static_cast<int>(x) + offset, 0,
+                                                                 static_cast<int>(width) - 1);
+                                 acc += plane[static_cast<std::size_t>(y) * width +
+                                              static_cast<std::uint32_t>(sample_x)] *
+                                        kernel[static_cast<std::size_t>(offset + radius)];
+                             }
+                             temp[static_cast<std::size_t>(y) * width + x] = acc;
+                         }
+                     });
+    if (!horizontal)
     {
-        for (std::uint32_t x = 0; x < width; ++x)
-        {
-            float acc = 0.0F;
-            for (int offset = -radius; offset <= radius; ++offset)
-            {
-                const int sample_x =
-                    std::clamp(static_cast<int>(x) + offset, 0, static_cast<int>(width) - 1);
-                acc += plane[static_cast<std::size_t>(y) * width +
-                             static_cast<std::uint32_t>(sample_x)] *
-                       kernel[static_cast<std::size_t>(offset + radius)];
-            }
-            temp[static_cast<std::size_t>(y) * width + x] = acc;
-        }
+        return horizontal.error();
     }
-    for (std::uint32_t x = 0; x < width; ++x)
+
+    auto vertical = for_each_row(
+        width, cancellation,
+        [&](const std::uint32_t x)
+        {
+            for (std::uint32_t y = 0; y < height; ++y)
+            {
+                float acc = 0.0F;
+                for (int offset = -radius; offset <= radius; ++offset)
+                {
+                    const int sample_y =
+                        std::clamp(static_cast<int>(y) + offset, 0, static_cast<int>(height) - 1);
+                    acc += temp[static_cast<std::size_t>(static_cast<std::uint32_t>(sample_y)) *
+                                    width +
+                                x] *
+                           kernel[static_cast<std::size_t>(offset + radius)];
+                }
+                plane[static_cast<std::size_t>(y) * width + x] = acc;
+            }
+        });
+    if (!vertical)
     {
-        for (std::uint32_t y = 0; y < height; ++y)
-        {
-            float acc = 0.0F;
-            for (int offset = -radius; offset <= radius; ++offset)
-            {
-                const int sample_y =
-                    std::clamp(static_cast<int>(y) + offset, 0, static_cast<int>(height) - 1);
-                acc += temp[static_cast<std::size_t>(static_cast<std::uint32_t>(sample_y)) * width +
-                            x] *
-                       kernel[static_cast<std::size_t>(offset + radius)];
-            }
-            plane[static_cast<std::size_t>(y) * width + x] = acc;
-        }
+        return vertical.error();
     }
+    return {};
 }
 
-void box_blur_plane(const std::vector<float> &input, std::vector<float> &output,
-                    const std::uint32_t width, const std::uint32_t height, const int radius)
+Result<void> box_blur_plane(const std::vector<float> &input, std::vector<float> &output,
+                            const std::uint32_t width, const std::uint32_t height, const int radius,
+                            const CancellationToken &cancellation)
 {
     output.assign(input.size(), 0.0F);
     if (input.empty() || width == 0 || height == 0)
     {
-        return;
+        return {};
     }
     if (radius <= 0)
     {
         output = input;
-        return;
+        return {};
     }
     const int window = radius * 2 + 1;
     std::vector<float> temp(input.size());
-    for (std::uint32_t y = 0; y < height; ++y)
+    auto horizontal = for_each_row(
+        height, cancellation,
+        [&](const std::uint32_t y)
+        {
+            double acc = 0.0;
+            for (int x = -radius; x <= radius; ++x)
+            {
+                const int sx = std::clamp(x, 0, static_cast<int>(width) - 1);
+                acc += input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(sx)];
+            }
+            for (std::uint32_t x = 0; x < width; ++x)
+            {
+                temp[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
+                const int drop =
+                    std::clamp(static_cast<int>(x) - radius, 0, static_cast<int>(width) - 1);
+                const int add =
+                    std::clamp(static_cast<int>(x) + radius + 1, 0, static_cast<int>(width) - 1);
+                acc +=
+                    input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(add)] -
+                    input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(drop)];
+            }
+        });
+    if (!horizontal)
     {
-        double acc = 0.0;
-        for (int x = -radius; x <= radius; ++x)
-        {
-            const int sx = std::clamp(x, 0, static_cast<int>(width) - 1);
-            acc += input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(sx)];
-        }
-        for (std::uint32_t x = 0; x < width; ++x)
-        {
-            temp[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
-            const int drop =
-                std::clamp(static_cast<int>(x) - radius, 0, static_cast<int>(width) - 1);
-            const int add =
-                std::clamp(static_cast<int>(x) + radius + 1, 0, static_cast<int>(width) - 1);
-            acc += input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(add)] -
-                   input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(drop)];
-        }
+        return horizontal.error();
     }
-    for (std::uint32_t x = 0; x < width; ++x)
+
+    auto vertical = for_each_row(
+        width, cancellation,
+        [&](const std::uint32_t x)
+        {
+            double acc = 0.0;
+            for (int y = -radius; y <= radius; ++y)
+            {
+                const int sy = std::clamp(y, 0, static_cast<int>(height) - 1);
+                acc += temp[static_cast<std::size_t>(sy) * width + x];
+            }
+            for (std::uint32_t y = 0; y < height; ++y)
+            {
+                output[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
+                const int drop =
+                    std::clamp(static_cast<int>(y) - radius, 0, static_cast<int>(height) - 1);
+                const int add =
+                    std::clamp(static_cast<int>(y) + radius + 1, 0, static_cast<int>(height) - 1);
+                acc += temp[static_cast<std::size_t>(add) * width + x] -
+                       temp[static_cast<std::size_t>(drop) * width + x];
+            }
+        });
+    if (!vertical)
     {
-        double acc = 0.0;
-        for (int y = -radius; y <= radius; ++y)
-        {
-            const int sy = std::clamp(y, 0, static_cast<int>(height) - 1);
-            acc += temp[static_cast<std::size_t>(sy) * width + x];
-        }
-        for (std::uint32_t y = 0; y < height; ++y)
-        {
-            output[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
-            const int drop =
-                std::clamp(static_cast<int>(y) - radius, 0, static_cast<int>(height) - 1);
-            const int add =
-                std::clamp(static_cast<int>(y) + radius + 1, 0, static_cast<int>(height) - 1);
-            acc += temp[static_cast<std::size_t>(add) * width + x] -
-                   temp[static_cast<std::size_t>(drop) * width + x];
-        }
+        return vertical.error();
     }
+    return {};
 }
 
-void guided_filter_plane(std::vector<float> &plane, const std::vector<float> &guide,
-                         const std::uint32_t width, const std::uint32_t height, const int radius,
-                         const float eps)
+Result<void> self_guided_filter_plane(std::vector<float> &plane, const std::uint32_t width,
+                                      const std::uint32_t height, const int radius, const float eps,
+                                      const CancellationToken &cancellation)
 {
-    if (plane.size() != guide.size() || radius <= 0)
+    if (radius <= 0)
     {
-        return;
+        return {};
     }
     const std::size_t count = plane.size();
-    std::vector<float> mean_i;
-    std::vector<float> mean_p;
-    std::vector<float> corr_i;
-    std::vector<float> corr_ip;
-    std::vector<float> prod_i(count);
-    std::vector<float> prod_ip(count);
-    for (std::size_t index = 0; index < count; ++index)
+    std::vector<float> mean;
+    std::vector<float> corr;
+    std::vector<float> squared(count);
+    auto products = for_each_row(height, cancellation,
+                                 [&](const std::uint32_t row)
+                                 {
+                                     const std::size_t begin =
+                                         static_cast<std::size_t>(row) * width;
+                                     const std::size_t end = begin + width;
+                                     for (std::size_t index = begin; index < end; ++index)
+                                     {
+                                         squared[index] = plane[index] * plane[index];
+                                     }
+                                 });
+    if (!products)
     {
-        prod_i[index] = guide[index] * guide[index];
-        prod_ip[index] = guide[index] * plane[index];
+        return products.error();
     }
-    box_blur_plane(guide, mean_i, width, height, radius);
-    box_blur_plane(plane, mean_p, width, height, radius);
-    box_blur_plane(prod_i, corr_i, width, height, radius);
-    box_blur_plane(prod_ip, corr_ip, width, height, radius);
+    if (auto blurred = box_blur_plane(plane, mean, width, height, radius, cancellation); !blurred)
+    {
+        return blurred.error();
+    }
+    if (auto blurred = box_blur_plane(squared, corr, width, height, radius, cancellation); !blurred)
+    {
+        return blurred.error();
+    }
     std::vector<float> a(count);
     std::vector<float> b(count);
-    for (std::size_t index = 0; index < count; ++index)
+    auto coefficients =
+        for_each_row(height, cancellation,
+                     [&](const std::uint32_t row)
+                     {
+                         const std::size_t begin = static_cast<std::size_t>(row) * width;
+                         const std::size_t end = begin + width;
+                         for (std::size_t index = begin; index < end; ++index)
+                         {
+                             const float cov = corr[index] - mean[index] * mean[index];
+                             const float var = std::max(0.0F, cov);
+                             a[index] = cov / (var + eps);
+                             b[index] = mean[index] - a[index] * mean[index];
+                         }
+                     });
+    if (!coefficients)
     {
-        const float var = std::max(0.0F, corr_i[index] - mean_i[index] * mean_i[index]);
-        const float cov = corr_ip[index] - mean_i[index] * mean_p[index];
-        a[index] = cov / (var + eps);
-        b[index] = mean_p[index] - a[index] * mean_i[index];
+        return coefficients.error();
     }
     std::vector<float> mean_a;
     std::vector<float> mean_b;
-    box_blur_plane(a, mean_a, width, height, radius);
-    box_blur_plane(b, mean_b, width, height, radius);
-    for (std::size_t index = 0; index < count; ++index)
+    if (auto blurred = box_blur_plane(a, mean_a, width, height, radius, cancellation); !blurred)
     {
-        plane[index] = mean_a[index] * guide[index] + mean_b[index];
+        return blurred.error();
     }
+    if (auto blurred = box_blur_plane(b, mean_b, width, height, radius, cancellation); !blurred)
+    {
+        return blurred.error();
+    }
+    return for_each_row(height, cancellation,
+                        [&](const std::uint32_t row)
+                        {
+                            const std::size_t begin = static_cast<std::size_t>(row) * width;
+                            const std::size_t end = begin + width;
+                            for (std::size_t index = begin; index < end; ++index)
+                            {
+                                plane[index] = mean_a[index] * plane[index] + mean_b[index];
+                            }
+                        });
 }
 
 bool cholesky_solve(std::vector<float> &a_square, std::vector<float> &y, const std::size_t n)
@@ -1333,44 +1402,10 @@ void float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer, const doubl
     }
 }
 
-void pack_rgb(const WorkingImage &image, std::vector<float> &packed)
-{
-    const std::size_t count = static_cast<std::size_t>(image.width) * image.height;
-    packed.assign(count * 4U, 0.0F);
-    for (std::size_t pixel = 0; pixel < count; ++pixel)
-    {
-        packed[pixel * 4U] = image.rgb[pixel * 3U];
-        packed[pixel * 4U + 1U] = image.rgb[pixel * 3U + 1U];
-        packed[pixel * 4U + 2U] = image.rgb[pixel * 3U + 2U];
-    }
-}
-
-void unpack_rgb(WorkingImage &image, const std::vector<float> &packed)
-{
-    const std::size_t count = static_cast<std::size_t>(image.width) * image.height;
-    for (std::size_t pixel = 0; pixel < count; ++pixel)
-    {
-        image.rgb[pixel * 3U] = packed[pixel * 4U];
-        image.rgb[pixel * 3U + 1U] = packed[pixel * 4U + 1U];
-        image.rgb[pixel * 3U + 2U] = packed[pixel * 4U + 2U];
-    }
-}
-
-float dn_weight(const float *left, const float *right, const float inv_sigma2) noexcept
-{
-    float dot = 0.0F;
-    for (int c = 0; c < 3; ++c)
-    {
-        const float diff = left[c] - right[c];
-        dot += diff * diff;
-    }
-    dot *= inv_sigma2;
-    return std::exp2(-std::max(0.0F, dot * 0.02F - 9.0F));
-}
-
-void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &input,
-                      std::vector<float> &detail, std::array<float, 3> &sum_squared,
-                      const int scale, const float inv_sigma2, const int width, const int height)
+Result<void> eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &input,
+                              std::vector<float> &detail, std::array<float, 3> &sum_squared,
+                              const int scale, const float inv_sigma2, const int width,
+                              const int height, const CancellationToken &cancellation)
 {
     static constexpr float kFilter[25] = {
         1.0F / 256.0F, 4.0F / 256.0F,  6.0F / 256.0F,  4.0F / 256.0F,  1.0F / 256.0F,
@@ -1380,70 +1415,145 @@ void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &inpu
         1.0F / 256.0F, 4.0F / 256.0F,  6.0F / 256.0F,  4.0F / 256.0F,  1.0F / 256.0F};
     const int mult = 1 << scale;
     sum_squared = {};
-    coarse.assign(input.size(), 0.0F);
-    detail.assign(input.size(), 0.0F);
+    if (coarse.size() != input.size())
+    {
+        coarse.assign(input.size(), 0.0F);
+    }
+    if (detail.size() != input.size())
+    {
+        detail.assign(input.size(), 0.0F);
+    }
+    std::vector<int> x_samples(static_cast<std::size_t>(width) * 5U);
+    std::vector<int> y_samples(static_cast<std::size_t>(height) * 5U);
+    for (int x = 0; x < width; ++x)
+    {
+        for (int ii = 0; ii < 5; ++ii)
+        {
+            x_samples[static_cast<std::size_t>(x) * 5U + static_cast<std::size_t>(ii)] =
+                std::clamp(x + mult * (ii - 2), 0, width - 1);
+        }
+    }
     for (int y = 0; y < height; ++y)
     {
-        for (int x = 0; x < width; ++x)
+        for (int jj = 0; jj < 5; ++jj)
         {
-            const float *px = input.data() +
-                              (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                               static_cast<std::size_t>(x)) *
-                                  4U;
-            std::array<float, 3> sum{};
-            std::array<float, 3> wgt{};
-            int filter_idx = 0;
-            for (int jj = 0; jj < 5; ++jj)
+            y_samples[static_cast<std::size_t>(y) * 5U + static_cast<std::size_t>(jj)] =
+                std::clamp(y + mult * (jj - 2), 0, height - 1);
+        }
+    }
+    const auto rows = for_each_row(
+        static_cast<std::uint32_t>(height), cancellation,
+        [&](const std::uint32_t row)
+        {
+            const int y = static_cast<int>(row);
+            const int *const y_indices = y_samples.data() + static_cast<std::size_t>(y) * 5U;
+            for (int x = 0; x < width; ++x)
             {
-                const int sy = std::clamp(y + mult * (jj - 2), 0, height - 1);
-                for (int ii = 0; ii < 5; ++ii)
+                const float *px =
+                    input.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                    static_cast<std::size_t>(x)) *
+                                       3U;
+                float sum0 = 0.0F;
+                float sum1 = 0.0F;
+                float sum2 = 0.0F;
+                float weight_sum = 0.0F;
+                int filter_idx = 0;
+                const int *const x_indices = x_samples.data() + static_cast<std::size_t>(x) * 5U;
+                for (int jj = 0; jj < 5; ++jj)
                 {
-                    const int sx = std::clamp(x + mult * (ii - 2), 0, width - 1);
-                    const float *px2 =
-                        input.data() +
-                        (static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) +
-                         static_cast<std::size_t>(sx)) *
-                            4U;
-                    const float weight = kFilter[filter_idx++] * dn_weight(px, px2, inv_sigma2);
-                    for (int c = 0; c < 3; ++c)
+                    const int sy = y_indices[jj];
+                    for (int ii = 0; ii < 5; ++ii)
                     {
-                        wgt[static_cast<std::size_t>(c)] += weight;
-                        sum[static_cast<std::size_t>(c)] += weight * px2[c];
+                        const int sx = x_indices[ii];
+                        const float *px2 = input.data() + (static_cast<std::size_t>(sy) *
+                                                               static_cast<std::size_t>(width) +
+                                                           static_cast<std::size_t>(sx)) *
+                                                              3U;
+                        const float diff0 = px[0] - px2[0];
+                        const float diff1 = px[1] - px2[1];
+                        const float diff2 = px[2] - px2[2];
+                        float dot = diff0 * diff0;
+                        dot += diff1 * diff1;
+                        dot += diff2 * diff2;
+                        dot *= inv_sigma2;
+                        const float exponent = dot * 0.02F - 9.0F;
+                        const float adaptive = exponent > 0.0F ? std::exp2(-exponent) : 1.0F;
+                        const float weight = kFilter[filter_idx++] * adaptive;
+                        weight_sum += weight;
+                        sum0 += weight * px2[0];
+                        sum1 += weight * px2[1];
+                        sum2 += weight * px2[2];
                     }
                 }
+                const std::size_t index =
+                    (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                     static_cast<std::size_t>(x)) *
+                    3U;
+                const float denominator = std::max(weight_sum, 1.0e-12F);
+                const float mean0 = sum0 / denominator;
+                const float mean1 = sum1 / denominator;
+                const float mean2 = sum2 / denominator;
+                coarse[index] = mean0;
+                coarse[index + 1U] = mean1;
+                coarse[index + 2U] = mean2;
+                detail[index] = px[0] - mean0;
+                detail[index + 1U] = px[1] - mean1;
+                detail[index + 2U] = px[2] - mean2;
             }
-            const std::size_t index =
-                (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                 static_cast<std::size_t>(x)) *
-                4U;
-            for (int c = 0; c < 3; ++c)
-            {
-                const float mean = sum[static_cast<std::size_t>(c)] /
-                                   std::max(wgt[static_cast<std::size_t>(c)], 1.0e-12F);
-                coarse[index + static_cast<std::size_t>(c)] = mean;
-                const float det = px[c] - mean;
-                detail[index + static_cast<std::size_t>(c)] = det;
-                sum_squared[static_cast<std::size_t>(c)] += det * det;
-            }
-        }
+        });
+    if (!rows)
+    {
+        return rows.error();
     }
-}
 
-void eaw_synthesize(std::vector<float> &accum, const std::vector<float> &detail,
-                    const std::array<float, 3> &threshold, const int width, const int height)
-{
-    const std::size_t count =
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    const std::size_t count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    float sum0 = 0.0F;
+    float sum1 = 0.0F;
+    float sum2 = 0.0F;
+    const float *detail_pixel = detail.data();
     for (std::size_t pixel = 0; pixel < count; ++pixel)
     {
-        for (int c = 0; c < 3; ++c)
-        {
-            const float value = detail[pixel * 4U + static_cast<std::size_t>(c)];
-            const float thresh = threshold[static_cast<std::size_t>(c)];
-            const float amount = std::max(value - thresh, 0.0F) + std::min(value + thresh, 0.0F);
-            accum[pixel * 4U + static_cast<std::size_t>(c)] += amount;
-        }
+        sum0 += detail_pixel[0] * detail_pixel[0];
+        sum1 += detail_pixel[1] * detail_pixel[1];
+        sum2 += detail_pixel[2] * detail_pixel[2];
+        detail_pixel += 3;
     }
+    sum_squared = {sum0, sum1, sum2};
+    return {};
+}
+
+Result<void> eaw_synthesize(std::vector<float> &accum, const std::vector<float> &detail,
+                            const std::array<float, 3> &threshold, const int width,
+                            const int height, const CancellationToken &cancellation)
+{
+    const float threshold0 = threshold[0];
+    const float threshold1 = threshold[1];
+    const float threshold2 = threshold[2];
+    return for_each_row(static_cast<std::uint32_t>(height), cancellation,
+                        [&](const std::uint32_t row)
+                        {
+                            const std::size_t begin = static_cast<std::size_t>(row) *
+                                                      static_cast<std::size_t>(width) * 3U;
+                            float *accum_pixel = accum.data() + begin;
+                            const float *detail_pixel = detail.data() + begin;
+                            for (int x = 0; x < width; ++x)
+                            {
+                                const float positive0 = detail_pixel[0] - threshold0;
+                                const float negative0 = detail_pixel[0] + threshold0;
+                                accum_pixel[0] += (positive0 < 0.0F ? 0.0F : positive0) +
+                                                  (0.0F < negative0 ? 0.0F : negative0);
+                                const float positive1 = detail_pixel[1] - threshold1;
+                                const float negative1 = detail_pixel[1] + threshold1;
+                                accum_pixel[1] += (positive1 < 0.0F ? 0.0F : positive1) +
+                                                  (0.0F < negative1 ? 0.0F : negative1);
+                                const float positive2 = detail_pixel[2] - threshold2;
+                                const float negative2 = detail_pixel[2] + threshold2;
+                                accum_pixel[2] += (positive2 < 0.0F ? 0.0F : positive2) +
+                                                  (0.0F < negative2 ? 0.0F : negative2);
+                                accum_pixel += 3;
+                                detail_pixel += 3;
+                            }
+                        });
 }
 
 bool invert_matrix3(const float in[3][3], float out[3][3]) noexcept
@@ -1670,8 +1780,7 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         std::max(0.0, parameter(operation, "noise_b", static_cast<double>(kGenericNoiseB))));
     const int width = static_cast<int>(image.width);
     const int height = static_cast<int>(image.height);
-    const std::size_t npixels =
-        static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    const std::size_t npixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
 
     int max_scale = 0;
     const float supp0 = std::min(2.0F * (2U << (kDenoiseBands - 1)) + 1.0F,
@@ -1743,28 +1852,43 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     const std::array<float, 3> scale{2.0F / ((-p[0] + 2.0F) * std::sqrt(a)),
                                      2.0F / ((-p[1] + 2.0F) * std::sqrt(a)),
                                      2.0F / ((-p[2] + 2.0F) * std::sqrt(a))};
-    std::vector<float> packed;
-    pack_rgb(image, packed);
-    std::vector<float> precond(packed.size(), 0.0F);
-    for (std::size_t pixel = 0; pixel < npixels; ++pixel)
-    {
-        float tmp[3]{};
-        for (int c = 0; c < 3; ++c)
+    // The wavelet buffers carry YUV only. A padded fourth component would be
+    // read across every 5x5 neighbourhood and every scale without contributing
+    // to the result.
+    std::vector<float> precond(npixels * 3U, 0.0F);
+    auto preconditioned = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
         {
-            tmp[c] =
-                std::pow(std::max(packed[pixel * 4U + static_cast<std::size_t>(c)] + noise_b, 0.0F),
-                         expon[static_cast<std::size_t>(c)]) *
-                scale[static_cast<std::size_t>(c)];
-        }
-        float yuv[3]{};
-        apply_matrix(to_yuv, tmp, yuv);
-        precond[pixel * 4U] = yuv[0];
-        precond[pixel * 4U + 1U] = yuv[1];
-        precond[pixel * 4U + 2U] = yuv[2];
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width;
+            const std::size_t end = begin + image.width;
+            for (std::size_t pixel = begin; pixel < end; ++pixel)
+            {
+                float tmp[3]{};
+                for (int c = 0; c < 3; ++c)
+                {
+                    tmp[c] = std::pow(std::max(image.rgb[pixel * 3U + static_cast<std::size_t>(c)] +
+                                                   noise_b,
+                                               0.0F),
+                                      expon[static_cast<std::size_t>(c)]) *
+                             scale[static_cast<std::size_t>(c)];
+                }
+                float yuv[3]{};
+                apply_matrix(to_yuv, tmp, yuv);
+                precond[pixel * 3U] = yuv[0];
+                precond[pixel * 3U + 1U] = yuv[1];
+                precond[pixel * 3U + 2U] = yuv[2];
+            }
+        });
+    if (!preconditioned)
+    {
+        return preconditioned.error();
     }
 
-    std::vector<float> out(packed.size(), 0.0F);
-    std::vector<float> current = precond;
+    std::vector<float> out(precond.size(), 0.0F);
+    std::vector<float> current = std::move(precond);
+    std::vector<float> coarse(current.size(), 0.0F);
+    std::vector<float> detail(current.size(), 0.0F);
     const float varf = std::sqrt(2.0F + 2.0F * 16.0F + 36.0F) / 16.0F;
     for (int scale_index = 0; scale_index < max_scale; ++scale_index)
     {
@@ -1774,11 +1898,14 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
             return cancelled.error();
         }
         const float sigma_band = std::pow(varf, static_cast<float>(scale_index));
-        std::vector<float> coarse;
-        std::vector<float> detail;
         std::array<float, 3> sum_y2{};
-        eaw_dn_decompose(coarse, current, detail, sum_y2, scale_index,
-                         1.0F / (sigma_band * sigma_band), width, height);
+        auto decomposed =
+            eaw_dn_decompose(coarse, current, detail, sum_y2, scale_index,
+                             1.0F / (sigma_band * sigma_band), width, height, cancellation);
+        if (!decomposed)
+        {
+            return decomposed.error();
+        }
         const float sb2 = sigma_band * sigma_band;
         const int offset_scale = kDenoiseBands - max_scale;
         const int band_index = kDenoiseBands - (scale_index + offset_scale + 1);
@@ -1796,39 +1923,48 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
                                         band_adj(uv_force) * sb2 / std_x[1],
                                         band_adj(uv_force) * sb2 / std_x[2]};
         (void)band_index;
-        eaw_synthesize(out, detail, thrs, width, height);
+        auto synthesized = eaw_synthesize(out, detail, thrs, width, height, cancellation);
+        if (!synthesized)
+        {
+            return synthesized.error();
+        }
         current.swap(coarse);
     }
-    for (std::size_t index = 0; index < out.size(); ++index)
-    {
-        out[index] += current[index];
-    }
-
     const std::array<float, 3> back_expon{1.0F / (1.0F - p[0] / 2.0F), 1.0F / (1.0F - p[1] / 2.0F),
                                           1.0F / (1.0F - p[2] / 2.0F)};
     const std::array<float, 3> back_scale{(std::sqrt(a) * (2.0F - p[0])) / 4.0F,
                                           (std::sqrt(a) * (2.0F - p[1])) / 4.0F,
                                           (std::sqrt(a) * (2.0F - p[2])) / 4.0F};
     const float applied_bias = bias - 0.5F * std::log(1.0F);
-    for (std::size_t pixel = 0; pixel < npixels; ++pixel)
-    {
-        float yuv[3]{out[pixel * 4U], out[pixel * 4U + 1U], out[pixel * 4U + 2U]};
-        float rgb[3]{};
-        apply_matrix(to_rgb, yuv, rgb);
-        for (int c = 0; c < 3; ++c)
+    auto restored = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
         {
-            const float x = std::max(rgb[c], 0.0F);
-            const float delta = x * x + applied_bias * wb[static_cast<std::size_t>(c)];
-            const float z1 =
-                (x + std::sqrt(std::max(delta, 0.0F))) * back_scale[static_cast<std::size_t>(c)];
-            rgb[c] =
-                std::pow(std::max(z1, 0.0F), back_expon[static_cast<std::size_t>(c)]) - noise_b;
-        }
-        packed[pixel * 4U] = rgb[0];
-        packed[pixel * 4U + 1U] = rgb[1];
-        packed[pixel * 4U + 2U] = rgb[2];
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width;
+            const std::size_t end = begin + image.width;
+            for (std::size_t pixel = begin; pixel < end; ++pixel)
+            {
+                float yuv[3]{out[pixel * 3U] + current[pixel * 3U],
+                             out[pixel * 3U + 1U] + current[pixel * 3U + 1U],
+                             out[pixel * 3U + 2U] + current[pixel * 3U + 2U]};
+                float rgb[3]{};
+                apply_matrix(to_rgb, yuv, rgb);
+                for (int c = 0; c < 3; ++c)
+                {
+                    const float x = std::max(rgb[c], 0.0F);
+                    const float delta = x * x + applied_bias * wb[static_cast<std::size_t>(c)];
+                    const float z1 = (x + std::sqrt(std::max(delta, 0.0F))) *
+                                     back_scale[static_cast<std::size_t>(c)];
+                    image.rgb[pixel * 3U + static_cast<std::size_t>(c)] =
+                        std::pow(std::max(z1, 0.0F), back_expon[static_cast<std::size_t>(c)]) -
+                        noise_b;
+                }
+            }
+        });
+    if (!restored)
+    {
+        return restored.error();
     }
-    unpack_rgb(image, packed);
     return {};
 }
 
@@ -2239,83 +2375,96 @@ Result<void> apply_color_equalizer(WorkingImage &image, const OperationInstance 
     periodic_rbf_interpolate(bright_nodes, kPi, lut_bright, hue_shift, true);
     const float white = y_to_ucs_l_star(1.0F);
     const std::size_t count = static_cast<std::size_t>(image.width) * image.height;
-    std::vector<float> uv(count * 2U);
     std::vector<float> lstar(count);
-    std::vector<float> saturation(count);
-    for (std::size_t pixel = 0; pixel < count; ++pixel)
+    std::vector<float> u_plane(count);
+    std::vector<float> v_plane(count);
+    auto converted = for_each_row(image.height, cancellation,
+                                  [&](const std::uint32_t row)
+                                  {
+                                      const std::size_t begin =
+                                          static_cast<std::size_t>(row) * image.width;
+                                      const std::size_t end = begin + image.width;
+                                      for (std::size_t pixel = begin; pixel < end; ++pixel)
+                                      {
+                                          const float r = image.rgb[pixel * 3U];
+                                          const float g = image.rgb[pixel * 3U + 1U];
+                                          const float b = image.rgb[pixel * 3U + 2U];
+                                          float x = 0.0F;
+                                          float y = 0.0F;
+                                          float z = 0.0F;
+                                          rgb_to_xyz_d65(r, g, b, x, y, z);
+                                          float xyx = 0.0F;
+                                          float xyy = 0.0F;
+                                          float xy_y = 0.0F;
+                                          xyz_to_xyy(x, y, z, xyx, xyy, xy_y);
+                                          float uv[2]{};
+                                          xyy_to_ucs_uv(xyx, xyy, uv);
+                                          u_plane[pixel] = uv[0];
+                                          v_plane[pixel] = uv[1];
+                                          lstar[pixel] = y_to_ucs_l_star(xy_y);
+                                      }
+                                  });
+    if (!converted)
     {
-        const float r = image.rgb[pixel * 3U];
-        const float g = image.rgb[pixel * 3U + 1U];
-        const float b = image.rgb[pixel * 3U + 2U];
-        const float dmin = std::min(r, std::min(g, b));
-        const float dmax = std::max(r, std::max(g, b));
-        const float delta = dmax - dmin;
-        saturation[pixel] = (dmax > 1.0e-6F && delta > 1.0e-6F) ? delta / dmax : 0.0F;
-        float x = 0.0F;
-        float y = 0.0F;
-        float z = 0.0F;
-        rgb_to_xyz_d65(r, g, b, x, y, z);
-        float xyx = 0.0F;
-        float xyy = 0.0F;
-        float xy_y = 0.0F;
-        xyz_to_xyy(x, y, z, xyx, xyy, xy_y);
-        xyy_to_ucs_uv(xyx, xyy, uv.data() + pixel * 2U);
-        lstar[pixel] = y_to_ucs_l_star(xy_y);
+        return converted.error();
     }
     const float hue_sigma =
         0.5F * static_cast<float>(std::clamp(parameter(operation, "chroma_size", 1.5), 1.0, 10.0));
-    std::vector<float> u_plane(count);
-    std::vector<float> v_plane(count);
-    for (std::size_t pixel = 0; pixel < count; ++pixel)
+    if (auto blurred = blur_plane(u_plane, image.width, image.height, hue_sigma, cancellation);
+        !blurred)
     {
-        u_plane[pixel] = uv[pixel * 2U];
-        v_plane[pixel] = uv[pixel * 2U + 1U];
+        return blurred.error();
     }
-    blur_plane(u_plane, image.width, image.height, hue_sigma);
-    blur_plane(v_plane, image.width, image.height, hue_sigma);
+    if (auto blurred = blur_plane(v_plane, image.width, image.height, hue_sigma, cancellation);
+        !blurred)
+    {
+        return blurred.error();
+    }
     const int guide_radius = std::max(1, static_cast<int>(std::lround(hue_sigma)));
-    guided_filter_plane(u_plane, u_plane, image.width, image.height, guide_radius, 1.0e-5F);
-    guided_filter_plane(v_plane, v_plane, image.width, image.height, guide_radius, 1.0e-5F);
-    for (std::size_t pixel = 0; pixel < count; ++pixel)
+    if (auto filtered = self_guided_filter_plane(u_plane, image.width, image.height, guide_radius,
+                                                 1.0e-5F, cancellation);
+        !filtered)
     {
-        uv[pixel * 2U] = u_plane[pixel];
-        uv[pixel * 2U + 1U] = v_plane[pixel];
+        return filtered.error();
     }
-
-    for (std::uint32_t y = 0; y < image.height; ++y)
+    if (auto filtered = self_guided_filter_plane(v_plane, image.width, image.height, guide_radius,
+                                                 1.0e-5F, cancellation);
+        !filtered)
     {
-        auto cancelled = cancellation.check();
-        if (!cancelled)
+        return filtered.error();
+    }
+    return for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t y)
         {
-            return cancelled.error();
-        }
-        for (std::uint32_t x = 0; x < image.width; ++x)
-        {
-            const std::size_t pixel = static_cast<std::size_t>(y) * image.width + x;
-            float jch[3]{};
-            ucs_luv_to_jch(lstar[pixel], white, uv.data() + pixel * 2U, jch);
-            float hsb[3]{};
-            ucs_jch_to_hsb(jch, hsb);
-            if (jch[1] > 1.0e-6F)
+            for (std::uint32_t x = 0; x < image.width; ++x)
             {
-                const float hue = hsb[0];
-                const float sat = hsb[1];
-                hsb[0] += lookup_lut_periodic(lut_hue, hue);
-                hsb[1] = std::max(
-                    0.0F, sat * (1.0F + kSatEffect * (lookup_lut_periodic(lut_sat, hue) - 1.0F)));
-                const float bright_corr = sat * (lookup_lut_periodic(lut_bright, hue) - 1.0F);
-                hsb[2] = std::max(0.0F, hsb[2] * (1.0F + kBrightEffect * bright_corr));
+                const std::size_t pixel = static_cast<std::size_t>(y) * image.width + x;
+                float jch[3]{};
+                const float uv[2]{u_plane[pixel], v_plane[pixel]};
+                ucs_luv_to_jch(lstar[pixel], white, uv, jch);
+                float hsb[3]{};
+                ucs_jch_to_hsb(jch, hsb);
+                if (jch[1] > 1.0e-6F)
+                {
+                    const float hue = hsb[0];
+                    const float sat = hsb[1];
+                    hsb[0] += lookup_lut_periodic(lut_hue, hue);
+                    hsb[1] = std::max(
+                        0.0F,
+                        sat * (1.0F + kSatEffect * (lookup_lut_periodic(lut_sat, hue) - 1.0F)));
+                    const float bright_corr = sat * (lookup_lut_periodic(lut_bright, hue) - 1.0F);
+                    hsb[2] = std::max(0.0F, hsb[2] * (1.0F + kBrightEffect * bright_corr));
+                }
+                float r = 0.0F;
+                float g = 0.0F;
+                float b = 0.0F;
+                ucs_hsb_to_rgb(hsb, white, r, g, b);
+                image.rgb[pixel * 3U] = r;
+                image.rgb[pixel * 3U + 1U] = g;
+                image.rgb[pixel * 3U + 2U] = b;
             }
-            float r = 0.0F;
-            float g = 0.0F;
-            float b = 0.0F;
-            ucs_hsb_to_rgb(hsb, white, r, g, b);
-            image.rgb[pixel * 3U] = r;
-            image.rgb[pixel * 3U + 1U] = g;
-            image.rgb[pixel * 3U + 2U] = b;
-        }
-    }
-    return {};
+        });
 }
 
 Result<void> apply_graduated_nd(WorkingImage &image, const OperationInstance &operation,
@@ -2514,7 +2663,12 @@ Result<void> apply_tone_equalizer(WorkingImage &image, const OperationInstance &
     {
         const float feathering =
             1.0F / static_cast<float>(std::max(0.01, parameter(operation, "feathering", 1.0)));
-        guided_filter_plane(luminance, luminance, image.width, image.height, radius, feathering);
+        auto filtered = self_guided_filter_plane(luminance, image.width, image.height, radius,
+                                                 feathering, cancellation);
+        if (!filtered)
+        {
+            return filtered.error();
+        }
     }
     auto cancelled = cancellation.check();
     if (!cancelled)

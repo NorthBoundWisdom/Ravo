@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -149,7 +150,10 @@ private:
     std::unique_ptr<PreviewCache> cache_;
     std::optional<DecodedPreviewSource> decoded_preview_source_;
     std::optional<CachedRawFrame> decoded_raw_;
-    std::optional<CachedLinearWorking> linear_working_;
+    // Preview interaction alternates between the 640px live frame and the
+    // 1600px settled frame. Keep one bounded slot for each size class so the
+    // live request cannot evict the already-prepared settled working buffer.
+    std::array<std::optional<CachedLinearWorking>, 2> linear_working_;
     std::function<void()> testing_before_import_publication_;
     std::function<void()> testing_before_preview_cache_publication_;
 

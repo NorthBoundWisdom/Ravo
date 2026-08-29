@@ -78,10 +78,14 @@ Current implementation status:
   Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
   plus before/after, session undo/redo, and Paste Light / Paste Color.
-  RAW interactive preview reuses a scene-linear working image; superseded
-  requests cancel and late results are dropped by revision; recipe/history/
-  revision save atomically, and catalog unit tests cover L2–L9 parameters and
-  pixel reopen contracts.
+  RAW preview retains bounded 640px interactive and 1600px settled
+  scene-linear working images. An ordinary committed edit publishes the exact
+  640px in-memory result first, then replaces it with the exact persisted
+  1600px result. Superseded requests cancel and late results are dropped by
+  revision; recipe/history/revision save atomically. Preview-cache PNG favors
+  latency because it is rebuildable, while export encoding is unchanged
+  (ADR-0087). Catalog unit tests cover L2–L9 parameters and pixel reopen
+  contracts.
 - Reusable presets use `.rstyle.json` schema v1: a complete canonical Recipe
   template including masks, profiles, and enabled/bypass state. CLI can create,
   validate, and apply styles; Studio saves/applies them through explicit file

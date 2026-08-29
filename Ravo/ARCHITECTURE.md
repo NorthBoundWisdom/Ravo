@@ -149,9 +149,16 @@ cancels the old token; stale results are dropped by revision and asset, while
 failure retains the prior verified preview. During a drag, the presenter only
 forwards in-memory parameters. Services apply effects to cached scene-linear
 working images at `kInteractivePreviewMaxEdge`, return memory pixels, and do
-not write PNG/cache. CatalogService caches RAW unpack and demosaic, invalidating
-them when highlight reconstruction changes; it must not fall back to embedded
-JPEG. Save and request a complete preview after release.
+not write PNG/cache. For an ordinary commit whose parameters are not already
+displayed, Studio first saves atomically, publishes that exact 640px memory
+preview, then queues the same revision for an exact 1600px persisted preview.
+CatalogService owns one linear-working slot for each size class so the first
+stage cannot evict the settled buffer; a new decoded RAW, incompatible
+preprocess key, close, or destruction invalidates the applicable state. It
+must not fall back to embedded JPEG. CPU pixel rows use deterministic static
+partitions with at most 16 workers and caller participation; cancellation is
+checked per row and worker-start failure is structured rather than falling
+back silently (ADR-0087).
 
 Develop crop is interactive: crop-tool preview removes crop and straighten,
 while Qt Quick rotates the working image. Photo and overlay share the GPU
@@ -244,9 +251,11 @@ startup orders that time and key deterministically, and commits evict the
 least-recently-used PNGs before atomic publication. Database preview rows are
 hints and may outlive eviction. Single entries above budget and real directory,
 measurement, timestamp, or removal errors fail structurally. Catalog checks
-cancellation after encode and before commit. `CatalogService::close` drops the
+cancellation after encode and before commit. Rebuildable preview PNG uses one
+bounded libpng write with its latency-first flag; normal output/export PNG
+keeps the ordinary encoder. `CatalogService::close` drops the
 repository, raster, cache index, and decoded RAW/working buffers while bounded
-disk entries remain available to reopen (ADR-0067).
+disk entries remain available to reopen (ADR-0067, ADR-0087).
 
 Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the

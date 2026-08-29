@@ -130,7 +130,7 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     {
         return rendered.error();
     }
-    auto encoded = engine_->encode_png(rendered.value());
+    auto encoded = engine_->encode_preview_png(rendered.value());
     if (!encoded)
     {
         return encoded.error();
@@ -477,7 +477,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         return result;
     }
 
-    auto encoded = engine_->encode_png(rendered);
+    auto encoded = engine_->encode_preview_png(rendered);
     if (!encoded)
     {
         return encoded.error();
@@ -571,7 +571,10 @@ Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &a
     }
     decoded_raw_ = CachedRawFrame{std::string(asset.id), fingerprint, std::string(path),
                                   std::move(decoded).value()};
-    linear_working_.reset();
+    for (auto &working : linear_working_)
+    {
+        working.reset();
+    }
     return &decoded_raw_->raw;
 }
 
@@ -595,12 +598,15 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         (is_raw_media_type(asset.media_type) ? raw_preprocess_key(recipe) :
                                                input_color_preprocess_key(recipe)) +
         ":" + color_fingerprint.value();
-    if (linear_working_.has_value() && linear_working_->asset_id == asset.id &&
-        linear_working_->fingerprint == fingerprint && linear_working_->max_edge == max_edge &&
-        linear_working_->preprocess_key == preprocess_key &&
-        linear_working_->buffer.width == width && linear_working_->buffer.height == height)
+    for (auto &working : linear_working_)
     {
-        return &linear_working_->buffer;
+        if (working.has_value() && working->asset_id == asset.id &&
+            working->fingerprint == fingerprint && working->max_edge == max_edge &&
+            working->preprocess_key == preprocess_key && working->buffer.width == width &&
+            working->buffer.height == height)
+        {
+            return &working->buffer;
+        }
     }
 
     LinearWorkingBuffer buffer;
@@ -634,9 +640,10 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         buffer = std::move(working).value();
     }
 
-    linear_working_ = CachedLinearWorking{std::string(asset.id), fingerprint, max_edge,
-                                          preprocess_key, std::move(buffer)};
-    return &linear_working_->buffer;
+    const std::size_t slot = max_edge <= kInteractivePreviewMaxEdge ? 0U : 1U;
+    linear_working_[slot] = CachedLinearWorking{std::string(asset.id), fingerprint, max_edge,
+                                                preprocess_key, std::move(buffer)};
+    return &linear_working_[slot]->buffer;
 }
 
 Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,

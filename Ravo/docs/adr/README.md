@@ -94,3 +94,4 @@ supersession relationship when direction changes.
 | [0084](0084-studio-grading-curves.md) | Accepted | First-class Curves section authors RGB and Tone operations; interpolators, histogram, and parametric regions. |
 | [0085](0085-interchange-ready-grading-tools.md) | Accepted | Vignette geometry, Camera Calibration on the grading path, HSL band names, and Detail NR before any Lightroom CRS adapter. |
 | [0086](0086-lightroom-crs-interchange.md) | Accepted | Fail-closed Camera Raw XMP import/apply onto accepted Develop owners; leftover empty-history swallow is rejected. |
+| [0087](0087-progressive-develop-preview.md) | Accepted | Committed edits publish an exact 640px memory preview before an exact persisted 1600px result, backed by two bounded linear buffers, latency-first cache PNG, and deterministic CPU row partitions. |

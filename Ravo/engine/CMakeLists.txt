@@ -40,6 +40,7 @@ target_sources(ravo_engine
     src/output_color.h
     src/output_dither.cpp
     src/output_dither.h
+    src/parallel_rows.h
     src/profile_gamma.cpp
     src/profile_gamma.h
     src/primaries.cpp

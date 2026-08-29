@@ -960,4 +960,9 @@ Result<std::vector<std::uint8_t>> EngineFacade::encode_png(const RenderedImage &
     return encode_png_bytes(image);
 }
 
+Result<std::vector<std::uint8_t>> EngineFacade::encode_preview_png(const RenderedImage &image) const
+{
+    return encode_png_bytes(image, true);
+}
+
 } // namespace ravo

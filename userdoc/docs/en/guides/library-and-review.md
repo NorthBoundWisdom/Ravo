@@ -121,6 +121,10 @@ Use the bottom review bar, the **Photo** menu, or the photo context menu:
 - Set a rating from `0` to `5` stars.
 - Apply **No Color**, **Red**, **Yellow**, **Green**, **Blue**, or **Purple**.
 - Set **Reject** or **Keep**.
+- Choose **Copy Info** to copy a stable identity block for the selected photo
+  to the system clipboard. The block names the open library, asset ID, file
+  URI/path, fingerprint, and basic file metadata so a later debug session can
+  target that exact photo.
 
 These states are catalog values. They do not modify the original image. Rating,
 label, and reject state are also visible in the thumbnail and filmstrip when

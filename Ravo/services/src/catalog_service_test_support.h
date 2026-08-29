@@ -14,6 +14,8 @@ public:
                                               std::function<void()> callback);
     static void set_before_preview_cache_publication(CatalogService &service,
                                                      std::function<void()> callback);
+    [[nodiscard]] static std::array<std::optional<std::uint32_t>, 2>
+    linear_working_max_edges(const CatalogService &service);
 };
 
 } // namespace ravo::testing

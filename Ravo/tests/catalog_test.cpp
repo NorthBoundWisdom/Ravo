@@ -1,8 +1,11 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <string>
 #include <system_error>
@@ -25,8 +28,10 @@
 #include <gtest/gtest.h>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
+#include "ravo/adapters/text_file.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/log.h"
@@ -387,6 +392,43 @@ TEST_F(CatalogServiceTest, RawImportCachesEmbeddedThumbnailSeparatelyFromProcess
     EXPECT_NE(full.value().cache_path, thumb.value().cache_path);
     EXPECT_GT(std::max(full.value().width, full.value().height),
               std::max(thumb.value().width, thumb.value().height));
+}
+
+TEST_F(CatalogServiceTest, InteractiveAndSettledRawWorkingBuffersRemainIndependentlyBounded)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+
+    PreviewRequest settled;
+    settled.asset_id = imported.value().asset->id;
+    settled.max_edge = kDefaultPreviewMaxEdge;
+    settled.prefer_embedded_preview = false;
+    auto full = service->request_preview(settled);
+    ASSERT_TRUE(full) << full.error().message;
+    auto cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_FALSE(cache_state[0].has_value());
+    EXPECT_EQ(cache_state[1], kDefaultPreviewMaxEdge);
+
+    auto develop = service->load_recipe(settled.asset_id);
+    ASSERT_TRUE(develop) << develop.error().message;
+    auto live_develop = develop_from_recipe(develop.value());
+    ASSERT_TRUE(live_develop) << live_develop.error().message;
+    PreviewRequest interactive = settled;
+    interactive.max_edge = kInteractivePreviewMaxEdge;
+    interactive.persist_preview_record = false;
+    auto first = service->request_preview(interactive, live_develop.value());
+    ASSERT_TRUE(first) << first.error().message;
+    EXPECT_FALSE(first.value().rgb.empty());
+    cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_EQ(cache_state[0], kInteractivePreviewMaxEdge);
+    EXPECT_EQ(cache_state[1], kDefaultPreviewMaxEdge);
+
+    ASSERT_TRUE(service->close());
+    cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_FALSE(cache_state[0].has_value());
+    EXPECT_FALSE(cache_state[1].has_value());
 }
 
 TEST_F(CatalogServiceTest, ImportJpegAndDirectorySkipsSidecars)
@@ -5002,6 +5044,85 @@ TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "metadata_mode_not_applicable");
     EXPECT_FALSE(std::filesystem::exists(original.output_path));
+}
+
+TEST(PresetPerformanceProbe, AppliesCrsToWarmRawPreviewWithinRequestedBudget)
+{
+    const char *catalog_path = std::getenv("RAVO_PRESET_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_PRESET_PERF_ASSET_ID");
+    const char *preset_path = std::getenv("RAVO_PRESET_PERF_XMP");
+    if (catalog_path == nullptr || asset_id == nullptr || preset_path == nullptr)
+    {
+        GTEST_SKIP() << "set the RAVO_PRESET_PERF_* environment variables";
+    }
+
+    auto created_engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(created_engine) << created_engine.error().message;
+    auto repository = SqliteCatalogRepository::open(catalog_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    const auto cache_root = make_temp_root();
+    auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
+    ASSERT_TRUE(cache) << cache.error().message;
+    CatalogService measured(created_engine.value(), std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+
+    auto baseline_recipe = measured.load_baseline_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto baseline = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    ASSERT_TRUE(measured.save_develop(asset_id, baseline.value()));
+
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = kDefaultPreviewMaxEdge;
+    request.persist_preview_record = true;
+    request.prefer_embedded_preview = false;
+    auto warmed = measured.request_preview(request);
+    ASSERT_TRUE(warmed) << warmed.error().message;
+
+    const auto started = std::chrono::steady_clock::now();
+    auto text = read_utf8_text_file(preset_path, 8U * 1024U * 1024U);
+    ASSERT_TRUE(text) << text.error().message;
+    auto imported = import_crs_xmp({text.value(), baseline_recipe.value().asset});
+    ASSERT_TRUE(imported) << imported.error().message;
+    auto applied = baseline.value();
+    apply_crs_look(applied, imported.value().look, imported.value().mask);
+    const auto parsed_at = std::chrono::steady_clock::now();
+    ASSERT_TRUE(measured.save_develop(asset_id, applied));
+    const auto saved_at = std::chrono::steady_clock::now();
+    PreviewRequest interactive = request;
+    interactive.max_edge = kInteractivePreviewMaxEdge;
+    interactive.persist_preview_record = false;
+    auto first_preview = measured.request_preview(interactive, applied);
+    ASSERT_TRUE(first_preview) << first_preview.error().message;
+    const auto first_preview_at = std::chrono::steady_clock::now();
+    auto preview = measured.request_preview(request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    const auto finished = std::chrono::steady_clock::now();
+    const auto parse_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(parsed_at - started).count();
+    const auto save_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(saved_at - parsed_at).count();
+    const auto first_preview_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(first_preview_at - saved_at).count();
+    const auto settled_preview_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(finished - first_preview_at).count();
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(finished - started);
+    std::cerr << "preset_apply_elapsed_ms=" << elapsed.count() << " parse_ms=" << parse_ms
+              << " save_ms=" << save_ms << " first_preview_ms=" << first_preview_ms
+              << " settled_preview_ms=" << settled_preview_ms << '\n';
+
+    if (const char *budget = std::getenv("RAVO_PRESET_PERF_BUDGET_MS"))
+    {
+        EXPECT_LT(elapsed.count(), std::stoll(budget));
+    }
+    if (const char *budget = std::getenv("RAVO_PRESET_PERF_FIRST_PREVIEW_BUDGET_MS"))
+    {
+        EXPECT_LT(first_preview_ms, std::stoll(budget));
+    }
+    ASSERT_TRUE(measured.close());
+    std::error_code ignored;
+    std::filesystem::remove_all(cache_root, ignored);
 }
 
 } // namespace

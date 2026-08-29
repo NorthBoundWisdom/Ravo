@@ -9,6 +9,8 @@
 #include <utility>
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -27,6 +29,7 @@
 #include "ravo/recipe/style.h"
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/text_file.h"
+#include "studio_debug_info.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -2295,12 +2298,16 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     develop_ = params;
     emit editChanged();
     const bool crop_guides = crop_tool_active_ && !before_after_;
+    const bool overlay = mask_overlay_visible_ && !before_after_;
+    const bool needs_first_preview =
+        refresh_preview && !crop_guides && !overlay && !before_after_ &&
+        (!displayed_develop_.has_value() || *displayed_develop_ != params);
     preview_loading_ = refresh_preview;
     emit previewChanged();
     static_cast<void>(develop_preview_owner_.supersede("develop_save_superseded"));
     pending_save_ = PendingDevelopWork{
         .save = true,
-        .interactive = crop_guides,
+        .interactive = crop_guides || overlay || needs_first_preview,
         .params = params,
         .previous = previous,
         .push_history = push_history,
@@ -2311,6 +2318,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .ignore_crop = crop_guides,
         .ignore_straighten = crop_guides,
         .refresh_preview = refresh_preview,
+        .settle_preview = needs_first_preview,
         .overlay_mask_id = current_overlay_mask_id(params),
     };
     pending_preview_.reset();
@@ -2597,7 +2605,29 @@ void StudioPresenter::kick_develop_work()
                         crop_guide_ready_ = true;
                     }
                     show_preview_result(preview.value(), revision);
+                    displayed_develop_ = job.ignore_edits ?
+                                             std::optional<DevelopParams>{} :
+                                             std::optional<DevelopParams>{job.params};
                     emit previewChanged();
+                    if (job.settle_preview)
+                    {
+                        pending_preview_ = PendingDevelopWork{
+                            .save = false,
+                            .interactive = false,
+                            .params = job.params,
+                            .previous = {},
+                            .push_history = false,
+                            .history_write = RecipeHistoryWrite::kUnchanged,
+                            .discard_history_after_seq = {},
+                            .asset_id = job.asset_id,
+                            .ignore_edits = job.ignore_edits,
+                            .ignore_crop = job.ignore_crop,
+                            .ignore_straighten = job.ignore_straighten,
+                            .refresh_preview = true,
+                            .settle_preview = false,
+                            .overlay_mask_id = {},
+                        };
+                    }
                     kick_develop_work();
                 },
                 Qt::QueuedConnection);
@@ -2898,6 +2928,136 @@ void StudioPresenter::importPresetFromPath(const QString &path)
     }
     reload_presets();
     applyStyleFromPath(destination);
+}
+
+QString StudioPresenter::selectedPhotoDebugInfo() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset)
+        return {};
+    PhotoDebugIdentity identity;
+    identity.catalog = catalog_path_;
+    identity.asset_id = selected_asset_id_;
+    identity.uri = qstring_from_utf8(asset->normalized_uri);
+    identity.path = QUrl(identity.uri).toLocalFile();
+    if (asset->content_fingerprint)
+        identity.fingerprint = qstring_from_utf8(*asset->content_fingerprint);
+    identity.media_type = qstring_from_utf8(asset->media_type);
+    identity.display_name = qstring_from_utf8(asset_display_name(*asset));
+    if (asset->width)
+        identity.width = QString::number(*asset->width);
+    if (asset->height)
+        identity.height = QString::number(*asset->height);
+    identity.size_bytes = QString::number(asset->size_bytes);
+    identity.has_edits = asset->has_edits;
+    identity.import_state = qstring_from_utf8(asset->import_state);
+    return format_photo_debug_info(identity);
+}
+
+QString StudioPresenter::presetDebugInfo(const QString &path) const
+{
+    QString input_path = path.trimmed();
+    if (input_path.startsWith(QStringLiteral("file:")))
+        input_path = QUrl(input_path).toLocalFile();
+    const QFileInfo info(input_path);
+    if (!info.exists() || !info.isFile())
+        return {};
+    if (info.size() > static_cast<qint64>(kRecipeStyleFileMaxBytes))
+        return {};
+    const QString canonical =
+        info.canonicalFilePath().isEmpty() ? info.absoluteFilePath() : info.canonicalFilePath();
+    QString name = info.completeBaseName();
+    QString kind;
+    for (const auto &entry : develop_presets_)
+    {
+        const auto listed = entry.toMap();
+        const QFileInfo listed_info(listed.value(QStringLiteral("path")).toString());
+        const QString listed_path = listed_info.canonicalFilePath().isEmpty() ?
+                                        listed_info.absoluteFilePath() :
+                                        listed_info.canonicalFilePath();
+        if (listed_path == canonical)
+        {
+            name = listed.value(QStringLiteral("name")).toString();
+            kind = listed.value(QStringLiteral("kind")).toString();
+            break;
+        }
+    }
+    if (kind.isEmpty())
+    {
+        auto text = read_utf8_text_file(utf8_from_qstring(canonical), kRecipeStyleFileMaxBytes);
+        if (!text)
+            return {};
+        if (is_crs_xmp_document(text.value()))
+        {
+            kind = QStringLiteral("crs");
+            auto parsed_name = crs_xmp_preset_name(text.value());
+            if (parsed_name && !parsed_name.value().empty())
+                name = QString::fromStdString(parsed_name.value());
+        }
+        else
+        {
+            auto style = parse_recipe_style_json(text.value());
+            if (!style)
+                return {};
+            kind = QStringLiteral("style");
+            name = QString::fromStdString(style.value().name);
+        }
+    }
+    QFile file(canonical);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    const QByteArray bytes = file.readAll();
+    if (bytes.size() != info.size())
+        return {};
+    PresetDebugIdentity identity;
+    identity.name = name;
+    identity.path = canonical;
+    identity.kind = kind;
+    identity.sha256 =
+        QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    identity.size_bytes = QString::number(bytes.size());
+    identity.mtime_unix_ms = QString::number(info.lastModified().toMSecsSinceEpoch());
+    return format_preset_debug_info(identity);
+}
+
+void StudioPresenter::copySelectedPhotoDebugInfo()
+{
+    const QString text = selectedPhotoDebugInfo();
+    if (text.isEmpty())
+        return;
+    if (!write_clipboard_text(text))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Photo information could not be copied to the clipboard."));
+        return;
+    }
+    setStatus(QCoreApplication::translate("StudioPresenter", "Photo information copied."));
+}
+
+void StudioPresenter::copyPresetDebugInfo(const QString &path)
+{
+    QString input_path = path.trimmed();
+    if (input_path.startsWith(QStringLiteral("file:")))
+        input_path = QUrl(input_path).toLocalFile();
+    if (!QFileInfo::exists(input_path) || !QFileInfo(input_path).isFile())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        return;
+    }
+    const QString text = presetDebugInfo(input_path);
+    if (text.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "Preset information could not be read."));
+        return;
+    }
+    if (!write_clipboard_text(text))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Preset information could not be copied to the clipboard."));
+        return;
+    }
+    setStatus(QCoreApplication::translate("StudioPresenter", "Preset information copied."));
 }
 
 void StudioPresenter::addRetouchRegion(const QVariantMap &values)
