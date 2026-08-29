@@ -51,11 +51,12 @@ instead of third-party handles. Qt value types may be used inside a target with
 a clear benefit, but recipes, CLI JSON, catalog schema, and public persisted
 contracts must not serialize Qt/C++ object memory layout.
 
-Exiv2, LensFun, LibJpegTurbo, and LibTIFF are pinned migration source roots.
-Configure validates the exact materialized sources. The accepted engine-private
-RAW metadata adapter is the only Exiv2 consumer; other roots do not link a
-product target until their corresponding lens-database or codec adapter is
-accepted. Ravo does not expose Exiv2's upstream CMake options.
+Exiv2, LensFun, LibJpegTurbo, LibTIFF, and RawSpeed are pinned migration
+source roots. Configure validates the exact materialized sources. The accepted
+engine-private RAW metadata adapter is the only Exiv2 consumer; other roots do
+not link a product target until their corresponding lens-database or codec
+adapter is accepted. RawSpeed remains an unused I3 input and must not silently
+replace or fall back to LibRaw. Ravo does not expose Exiv2's upstream CMake options.
 `ravo_add_private_exiv2()` compiles one frozen private profile:
 
 | Surface | Frozen value |

@@ -78,6 +78,8 @@ ravo_require_migration_source_root(
   RAVO_LENSFUN_SOURCE_ROOT LENSFUN_SOURCE_ROOT data/db/timestamp.txt)
 ravo_require_migration_source_root(
   RAVO_LIBTIFF_SOURCE_ROOT LIBTIFF_SOURCE_ROOT libtiff/tiffio.h)
+ravo_require_migration_source_root(
+  RAVO_RAWSPEED_SOURCE_ROOT RAWSPEED_SOURCE_ROOT src/librawspeed/RawSpeed-API.h)
 
 # libjpeg-turbo intentionally rejects add_subdirectory integration. Build the
 # pinned source root in an isolated ExternalProject and import only its static

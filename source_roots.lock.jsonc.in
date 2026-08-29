@@ -47,6 +47,7 @@
     "Exiv2": "",
     "LibJpegTurbo": "",
     "LibRaw": "",
+    "RawSpeed": "",
     "GeoControls": "",
     "LensFun": "",
     "LibTIFF": "",
@@ -67,6 +68,11 @@
       "remote": "https://github.com/LibRaw/LibRaw.git",
       "commit": "df226ea4178ccd74245f4f13c23adddfa01411c9",
       "repoName": "LibRaw"
+    },
+    "RawSpeed": {
+      "remote": "https://github.com/darktable-org/rawspeed.git",
+      "commit": "c835b05aecfacb7343f7c424abd620aa12116c3f",
+      "repoName": "rawspeed"
     },
     "GeoControls": {
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",

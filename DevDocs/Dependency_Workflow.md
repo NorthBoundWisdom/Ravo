@@ -25,12 +25,14 @@ template declares a sibling, FreeCM resolves the transitive closure recursively
 from local seeds. Do not repeat every transitive dependency in the root lock.
 
 Current direct dependencies are LibRaw, GeoControls, LittleCMS, Exiv2, LensFun,
-LibJpegTurbo, and LibTIFF. LibRaw, GeoControls, and LittleCMS are linked by
-current product targets. The other four are approved migration inputs:
-configure verifies their exact materialized roots, while product code does not
-link them until the owning metadata, lens-database, or codec adapter reaches
-its migration gate. This prevents host-selected source from becoming an
-interim fallback without claiming an unfinished capability.
+LibJpegTurbo, LibTIFF, and RawSpeed. LibRaw, GeoControls, and LittleCMS are
+linked by current product targets. The other five are approved migration
+inputs: configure verifies their exact materialized roots, while product code
+does not link them until the owning metadata, lens-database, or codec adapter
+reaches its migration gate. This prevents host-selected source from becoming
+an interim fallback without claiming an unfinished capability. RawSpeed is
+reserved for the I3 independent-decoder decision and must not silently replace
+or fall back to LibRaw.
 
 SQLite/QSQLITE, zlib/libpng, and the current Qt JPEG/TIFF imageformat plugins
 remain real host/Qt-kit dependencies; duplicating them in the root lock would
