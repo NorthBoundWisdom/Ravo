@@ -233,7 +233,7 @@ TEST(CrsXmpTest, OverlayKeepsDestinationCropAndAppliesLook)
     EXPECT_NEAR(dest.vibrance, 0.13, 1e-9);
 }
 
-TEST(CrsXmpTest, UnknownKeyAndKelvinFailClosed)
+TEST(CrsXmpTest, UnknownKeyKelvinAndMalformedNumberFailClosed)
 {
     auto unknown = read_fixture();
     const auto marker = unknown.find("crs:HasSettings=\"True\"");
@@ -252,6 +252,17 @@ TEST(CrsXmpTest, UnknownKeyAndKelvinFailClosed)
     auto wb_rejected = import_crs_xmp({kelvin, {"asset-1", "file:///fixture.jpg", std::nullopt}});
     ASSERT_FALSE(wb_rejected);
     EXPECT_EQ(wb_rejected.error().context.at("reason"), "unsupported_crs_white_balance");
+
+    auto malformed_number = read_fixture();
+    const auto exposure = malformed_number.find("crs:Exposure2012=\"-0.41\"");
+    ASSERT_NE(exposure, std::string::npos);
+    malformed_number.replace(exposure, std::string("crs:Exposure2012=\"-0.41\"").size(),
+                             "crs:Exposure2012=\"-0.41junk\"");
+    auto number_rejected =
+        import_crs_xmp({malformed_number, {"asset-1", "file:///fixture.jpg", std::nullopt}});
+    ASSERT_FALSE(number_rejected);
+    EXPECT_EQ(number_rejected.error().context.at("reason"), "invalid_crs_number");
+    EXPECT_EQ(number_rejected.error().context.at("key"), "Exposure2012");
 }
 
 TEST(CrsXmpTest, ImportXmpCliWritesMappedRecipe)

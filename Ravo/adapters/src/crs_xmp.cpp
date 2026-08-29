@@ -3,14 +3,15 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <locale>
 #include <map>
 #include <numbers>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -98,9 +99,12 @@ constexpr std::size_t kCrsComposedCurvePoints = 20;
     if (body.front() == '+')
         body.remove_prefix(1);
     body = trim_view(body);
+    std::istringstream stream{std::string(body)};
+    stream.imbue(std::locale::classic());
+    stream >> std::noskipws;
     double value = 0.0;
-    const auto parsed = std::from_chars(body.data(), body.data() + body.size(), value);
-    if (parsed.ec != std::errc{} || parsed.ptr != body.data() + body.size() || !std::isfinite(value))
+    if (!(stream >> value) || stream.peek() != std::char_traits<char>::eof() ||
+        !std::isfinite(value))
         return crs_error("CRS numeric field is invalid", "invalid_crs_number", key, text);
     return value;
 }
