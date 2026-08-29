@@ -60,6 +60,8 @@ public:
     append_recipe_history(std::string_view asset_id, std::string_view kind,
                           std::optional<std::string_view> label,
                           std::string_view recipe_json) override;
+    [[nodiscard]] Result<void> update_recipe_history_label(std::int64_t history_id,
+                                                           std::string_view label) override;
     [[nodiscard]] Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const override;

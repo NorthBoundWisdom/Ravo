@@ -184,6 +184,22 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
     EXPECT_EQ(newer.error().code, ErrorCode::kUnsupported);
 }
 
+TEST_F(CatalogServiceTest, SnapshotRevisionObservesWritesFromAnotherConnection)
+{
+    ASSERT_TRUE(open_service(true));
+    auto before = service->snapshot();
+    ASSERT_TRUE(before) << before.error().message;
+    auto other = SqliteCatalogRepository::open(database_path);
+    ASSERT_TRUE(other) << other.error().message;
+    auto bumped = other.value()->bump_revision();
+    ASSERT_TRUE(bumped) << bumped.error().message;
+    EXPECT_EQ(bumped.value(), before.value().revision + 1);
+    auto after = service->snapshot();
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_EQ(after.value().revision, bumped.value());
+    ASSERT_TRUE(other.value()->close());
+}
+
 TEST_F(CatalogServiceTest, ImportPngAndRawThenReopenPreview)
 {
     const auto png_path = png_fixture_path();
@@ -1090,6 +1106,63 @@ TEST_F(CatalogServiceTest, TagsMetadataAndHistoryPersistThroughReopen)
     ASSERT_TRUE(develop) << develop.error().message;
     EXPECT_NEAR(develop.value().exposure_ev, 0.4, 1e-6);
     EXPECT_NEAR(develop.value().graduated_density, 0.6, 1e-6);
+}
+
+TEST_F(CatalogServiceTest, RenameRecipeSnapshotUpdatesLabelAndRejectsHistoryRows)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "snapshot-rename.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(8, 16, 32));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams params;
+    params.exposure_ev = 0.4;
+    ASSERT_TRUE(service->save_develop(asset_id, params));
+    auto snapshot = service->create_recipe_snapshot(asset_id, "keep");
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    auto history = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history) << history.error().message;
+    std::int64_t snapshot_id = 0;
+    std::int64_t history_id = 0;
+    for (const auto &entry : history.value())
+    {
+        if (entry.kind == kRecipeHistoryKindSnapshot)
+            snapshot_id = entry.id;
+        else if (history_id == 0)
+            history_id = entry.id;
+    }
+    ASSERT_NE(snapshot_id, 0);
+    ASSERT_NE(history_id, 0);
+
+    auto renamed = service->rename_recipe_snapshot(asset_id, snapshot_id, "  look-a  ");
+    ASSERT_TRUE(renamed) << renamed.error().message;
+    auto after = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(after) << after.error().message;
+    bool found = false;
+    for (const auto &entry : after.value())
+    {
+        if (entry.id != snapshot_id)
+            continue;
+        found = true;
+        ASSERT_TRUE(entry.label.has_value());
+        EXPECT_EQ(*entry.label, "look-a");
+    }
+    EXPECT_TRUE(found);
+
+    auto empty = service->rename_recipe_snapshot(asset_id, snapshot_id, "   ");
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().code, ErrorCode::kValidation);
+
+    auto history_row = service->rename_recipe_snapshot(asset_id, history_id, "nope");
+    ASSERT_FALSE(history_row);
+    EXPECT_EQ(history_row.error().code, ErrorCode::kValidation);
 }
 
 TEST_F(CatalogServiceTest, ReopenUpgradesStoredRecipeV1ToExplicitColorBoundaries)

@@ -31,7 +31,9 @@ presenter contracts.
 
 Ravo stores a versioned recipe for a non-baseline edit in the catalog. The
 original file is not changed. Preview, `ravo catalog`, and export use the same
-engine path, so an edit shown in Studio is the edit sent to local export.
+engine path, so an edit shown in Studio is the edit sent to local export. When
+`ravo catalog develop` (or another catalog client) commits while Studio is
+open, Studio reloads that photo's recipe and history from the catalog.
 
 Interactive slider movement can show a lower-size preview while the control is
 being moved. A committed change is saved atomically and then a normal preview
@@ -51,9 +53,10 @@ action; each section can also be reset from its section menu.
 - Choose a free, 1:1, 3:2, 4:3, 5:4, or 16:9 crop aspect.
 - Drag the crop frame to crop.
 - Drag outside the crop frame, or use Option/Alt-drag, to straighten.
-- Set the straighten angle between −45 and +45 degrees.
-- Enable **Canvas** and set independent left, right, top, and bottom growth from
-  0 through 100 percent, using Green, Red, Blue, Black, or White fill.
+- Enable **Enlarge Canvas** to reveal independent left, right, top, and bottom
+  growth from 0 through 100 percent, using Green, Red, Blue, Black, or White
+  fill. The checkbox is off by default; those extra controls stay hidden until
+  it is enabled.
 
 Crop and straighten values are normalized recipe coordinates. The crop overlay
 is a preview aid; commit the frame to store the change.
@@ -287,8 +290,17 @@ rewrite the preview cache as a new edit.
 
 ## Undo, redo, reset, and snapshots
 
-- **Undo** and **Redo** operate on the current Studio editing session and save
-  the resulting recipe state through the same catalog transaction.
+- **Undo**, **Redo**, **Before / After**, **Reset all**, **Copy**, and **Paste**
+  live on the left History rail. Undo and Redo are the session stack for
+  Develop-panel commits, history restore, Original, snapshot restore, paste,
+  and reset. Live slider or crop drags stay in memory until they are committed.
+  Undo and Redo then save the resulting recipe through the same catalog
+  transaction.
+- **Copy Edits** (`Cmd/Ctrl+Shift+C`) stores the current complete develop
+  recipe in a session clipboard. **Paste Edits** (`Cmd/Ctrl+Alt+V`) applies
+  that recipe to the active photo as a normal history step. The clipboard is
+  not a file and is not the system pasteboard. Style save/apply remains the
+  portable artifact.
 - A control reset changes one field back to its default.
 - A mask-control reset keeps its attached editable mask. **Reset to all**
   changes that mask to All, while **Detach mask** removes only the current
@@ -297,9 +309,11 @@ rewrite the preview cache as a new edit.
 - A section reset clears the fields owned by that section.
 - **Reset all** returns the photo to the product baseline. RAW keeps its default
   Sigmoid display behavior.
-- **Snapshot** stores the current recipe with a label.
-- The Photo panel lists history and snapshots. Choose **Restore** beside an
-  entry to make that recipe the current edit.
+- **Snapshot** stores the current recipe into the separate Snapshots list as
+  `Snapshot 1`, `Snapshot 2`, and so on. Double-click a snapshot name to rename
+  it. History keeps only sequential edits. The bottom row is **Original**; click
+  it to restore the product baseline. Click any later edit or a snapshot to
+  restore that recipe as the current edit.
 
 ## Result
 

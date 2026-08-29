@@ -21,7 +21,9 @@ Settings page.
 Choose **File → Settings**, or use the command palette to search for
 **Settings…**. Press **Back** or `Esc` to return to the workspace.
 
-## Current setting: Language
+## Current settings
+
+### Language
 
 Studio currently supports:
 
@@ -42,12 +44,29 @@ If the Chinese translation package was not included in a build, selecting
 Simplified Chinese shows a clear package-missing error. Reinstall or rebuild the
 translation target before retrying.
 
+### Assistant
+
+The Assistant panel uses an OpenAI-compatible HTTP endpoint. Settings stores:
+
+- **URL** — API base, default `https://api.x.ai/v1`
+- **Model** — model identifier, default `grok-4.5`
+- **API key** — optional stored secret. If empty, Studio uses the process
+  environment `XAI_API_KEY` at send time only.
+
+Invalid URL or model values are rejected and do not overwrite a good stored
+value. A malformed stored URL or model is removed and replaced with the
+default. The key is never written to logs.
+
+Open or hide the floating panel from the top toolbar **Assistant** button
+(next to Gallery/Edit), **View → Assistant**, or `Cmd/Ctrl+Shift+A`. It does
+not block Gallery or Edit. Ask about the selected photo or a Develop edit; it
+does not change the catalog by itself.
+
 ## What is not a Studio setting yet
 
-The current Settings page does not provide account, cloud, AI, monitor-profile,
-or general photo-library synchronization settings. Ravo's catalog and preview
-paths are local. Color management is chosen per recipe in the Edit pane, not by
-guessing the monitor profile from QML.
+The Settings page does not provide monitor-profile guessing or general
+photo-library synchronization. Color management is chosen per recipe in the
+Edit pane.
 
 ## Result
 

@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <numbers>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -3038,6 +3039,83 @@ TEST(RecipeStyleTest, RejectsLegacyUnknownNewerAndNonPlaceholderState)
     rejected = parse_recipe_style_json(wrong_asset);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "invalid_recipe_style_asset");
+}
+
+TEST(DevelopSetFieldsTest, ListsAcceptedCliFieldsWithBoundsAndRejectsUnknownNames)
+{
+    const auto fields = list_develop_set_fields();
+    ASSERT_FALSE(fields.empty());
+    std::set<std::string> names;
+    bool has_exposure = false;
+    bool has_canvas = false;
+    bool has_watermark_text = false;
+    bool has_color_correction = false;
+    bool has_color_contrast = false;
+    bool has_color_reconstruction = false;
+    for (const auto &field : fields)
+    {
+        EXPECT_TRUE(names.insert(field.name).second) << field.name;
+        if (field.name == "exposure")
+        {
+            has_exposure = true;
+            EXPECT_EQ(field.kind, DevelopSetFieldKind::Number);
+            ASSERT_TRUE(field.minimum);
+            ASSERT_TRUE(field.maximum);
+            EXPECT_LT(*field.minimum, 0.0);
+            EXPECT_GT(*field.maximum, 0.0);
+            DevelopParams at_min;
+            EXPECT_TRUE(apply_develop_field_strict(at_min, field.name, *field.minimum));
+            DevelopParams at_max;
+            EXPECT_TRUE(apply_develop_field_strict(at_max, field.name, *field.maximum));
+            EXPECT_FALSE(apply_develop_field_strict(at_max, field.name, *field.maximum + 1.0));
+        }
+        if (field.name == "canvasEnabled")
+        {
+            has_canvas = true;
+            EXPECT_EQ(field.kind, DevelopSetFieldKind::Toggle);
+            EXPECT_EQ(field.minimum, 0.0);
+            EXPECT_EQ(field.maximum, 1.0);
+        }
+        if (field.name == "watermarkText")
+        {
+            has_watermark_text = true;
+            EXPECT_EQ(field.kind, DevelopSetFieldKind::Text);
+        }
+        if (field.name == "colorCorrectionHighlightA")
+        {
+            has_color_correction = true;
+        }
+        if (field.name == "colorContrastASteepness")
+        {
+            has_color_contrast = true;
+        }
+        if (field.name == "colorReconstructionThreshold")
+        {
+            has_color_reconstruction = true;
+        }
+        if (field.kind != DevelopSetFieldKind::Text)
+        {
+            ASSERT_TRUE(field.minimum);
+            ASSERT_TRUE(field.maximum);
+            EXPECT_LE(*field.minimum, *field.maximum) << field.name;
+            DevelopParams at_min;
+            EXPECT_TRUE(apply_develop_field_strict(at_min, field.name, *field.minimum))
+                << field.name;
+            DevelopParams at_max;
+            EXPECT_TRUE(apply_develop_field_strict(at_max, field.name, *field.maximum))
+                << field.name;
+        }
+    }
+    EXPECT_TRUE(has_exposure);
+    EXPECT_TRUE(has_canvas);
+    EXPECT_TRUE(has_watermark_text);
+    EXPECT_TRUE(has_color_correction);
+    EXPECT_TRUE(has_color_contrast);
+    EXPECT_TRUE(has_color_reconstruction);
+    DevelopParams unknown;
+    EXPECT_FALSE(apply_develop_field_strict(unknown, "notADevelopField", 1.0));
+    const auto prefixes = develop_set_field_prefixes();
+    EXPECT_GE(prefixes.size(), 2U);
 }
 
 } // namespace

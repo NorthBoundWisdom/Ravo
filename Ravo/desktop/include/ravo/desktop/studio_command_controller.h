@@ -24,6 +24,7 @@ class StudioCommandController final : public QObject
     Q_PROPERTY(bool paletteOpen READ paletteOpen WRITE setPaletteOpen NOTIFY paletteOpenChanged)
     Q_PROPERTY(bool textInputActive READ textInputActive WRITE setTextInputActive NOTIFY commandsChanged)
     Q_PROPERTY(bool settingsOpen READ settingsOpen WRITE setSettingsOpen NOTIFY commandsChanged)
+    Q_PROPERTY(bool assistantOpen READ assistantOpen WRITE setAssistantOpen NOTIFY assistantOpenChanged)
     Q_PROPERTY(bool modalOpen READ modalOpen WRITE setModalOpen NOTIFY commandsChanged)
     Q_PROPERTY(qulonglong revision READ revision NOTIFY commandsChanged)
 
@@ -38,6 +39,7 @@ public:
     [[nodiscard]] bool paletteOpen() const noexcept;
     [[nodiscard]] bool textInputActive() const noexcept;
     [[nodiscard]] bool settingsOpen() const noexcept;
+    [[nodiscard]] bool assistantOpen() const noexcept;
     [[nodiscard]] bool modalOpen() const noexcept;
     [[nodiscard]] qulonglong revision() const noexcept;
 
@@ -45,6 +47,7 @@ public:
     void setPaletteOpen(bool open);
     void setTextInputActive(bool active);
     void setSettingsOpen(bool open);
+    void setAssistantOpen(bool open);
     void setModalOpen(bool open);
     void retranslate();
 
@@ -67,6 +70,7 @@ signals:
     void commandsChanged();
     void paletteQueryChanged();
     void paletteOpenChanged();
+    void assistantOpenChanged();
     void presentationCommandRequested(const QString &id, const QVariant &argument);
     void dispatchRejected(const QString &id, const QString &code, const QString &message);
 
@@ -84,6 +88,7 @@ private:
     bool palette_open_ = false;
     bool text_input_active_ = false;
     bool settings_open_ = false;
+    bool assistant_open_ = false;
     bool modal_open_ = false;
     qulonglong revision_ = 0;
 };

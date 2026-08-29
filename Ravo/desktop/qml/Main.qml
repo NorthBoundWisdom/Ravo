@@ -41,13 +41,44 @@ ApplicationWindow {
     property var pendingExportOptions: ({})
     property string pendingExportFilenameTemplate: ""
     property string viewportAssetId: ""
+    property var inspectViewportFocus: null
+    property var inspectViewportRestore: null
+    property var pendingInspectStagePos: null
+    property var inspectZoomFrom: null
+    property var inspectZoomCommit: null
+    property real savedInspectContentX: 0
+    property real savedInspectContentY: 0
+    property bool inspectZoomPending: false
+    property bool inspectZoomAnimating: false
+    property bool inspectZoomIgnoreStop: false
+    property real inspectStageLockW: -1
+    property real inspectStageLockH: -1
+    property real inspectAnimScale: 1
+    property real inspectAnimOriginX: 0
+    property real inspectAnimOriginY: 0
+    readonly property int inspectZoomDurationMs: 240
+    readonly property bool photoInspectEnabled: {
+        if (studio.browseMode === "grid" ||
+                (studio.browseMode === "develop" && studio.cropToolActive))
+            return false;
+        if (typeof previewImage === "undefined")
+            return false;
+        return previewImage.status === Image.Ready && studio.previewUrl.toString().length > 0;
+    }
     readonly property rect navigatorVisible: {
         if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
             return Qt.rect(0, 0, 1, 1);
-        const visL = Math.max(scroller.contentX, photoPlane.x);
-        const visT = Math.max(scroller.contentY, photoPlane.y);
-        const visR = Math.min(scroller.contentX + scroller.width, photoPlane.x + photoPlane.width);
-        const visB = Math.min(scroller.contentY + scroller.height, photoPlane.y + photoPlane.height);
+        const s = Math.max(window.inspectAnimScale, 0.0001);
+        const ox = window.inspectAnimOriginX;
+        const oy = window.inspectAnimOriginY;
+        const stageL = ox + (scroller.contentX - ox) / s;
+        const stageT = oy + (scroller.contentY - oy) / s;
+        const stageR = ox + (scroller.contentX + scroller.width - ox) / s;
+        const stageB = oy + (scroller.contentY + scroller.height - oy) / s;
+        const visL = Math.max(stageL, photoPlane.x);
+        const visT = Math.max(stageT, photoPlane.y);
+        const visR = Math.min(stageR, photoPlane.x + photoPlane.width);
+        const visB = Math.min(stageB, photoPlane.y + photoPlane.height);
         const w = Math.max(1, photoPlane.width);
         const h = Math.max(1, photoPlane.height);
         return Qt.rect(Math.max(0, Math.min(1, (visL - photoPlane.x) / w)),
@@ -69,11 +100,276 @@ ApplicationWindow {
         if (typeof scroller === "undefined")
             return;
         Qt.callLater(function () {
+            window.centerPhotoViewportNow();
+        });
+    }
+
+    function centerPhotoViewportNow() {
+        if (typeof scroller === "undefined")
+            return;
+        const maxX = Math.max(0, scroller.contentWidth - scroller.width);
+        const maxY = Math.max(0, scroller.contentHeight - scroller.height);
+        scroller.contentX = maxX / 2;
+        scroller.contentY = maxY / 2;
+    }
+
+    function applyPhotoViewportAfterZoom() {
+        Qt.callLater(function () {
+            if (typeof scroller === "undefined" || typeof photoPlane === "undefined")
+                return;
             const maxX = Math.max(0, scroller.contentWidth - scroller.width);
             const maxY = Math.max(0, scroller.contentHeight - scroller.height);
-            scroller.contentX = maxX / 2;
-            scroller.contentY = maxY / 2;
+            if (window.inspectViewportFocus) {
+                const focus = window.inspectViewportFocus;
+                window.inspectViewportFocus = null;
+                scroller.contentX = Math.max(0, Math.min(maxX, photoPlane.x + focus.fx * photoPlane.width - focus.anchorX));
+                scroller.contentY = Math.max(0, Math.min(maxY, photoPlane.y + focus.fy * photoPlane.height - focus.anchorY));
+                return;
+            }
+            if (window.inspectViewportRestore) {
+                const restore = window.inspectViewportRestore;
+                window.inspectViewportRestore = null;
+                scroller.contentX = Math.max(0, Math.min(maxX, restore.x));
+                scroller.contentY = Math.max(0, Math.min(maxY, restore.y));
+                return;
+            }
+            window.centerPhotoViewportNow();
         });
+    }
+
+    function unlockedPhotoStageSize(mode, factor) {
+        const srcW = Math.max(previewImage.implicitWidth, 1);
+        const srcH = Math.max(previewImage.implicitHeight, 1);
+        if (mode === "fit")
+            return { "w": scroller.width, "h": scroller.height };
+        if (mode === "fill")
+            return {
+                "w": Math.max(scroller.width, srcW * (scroller.height / srcH)),
+                "h": Math.max(scroller.height, srcH * (scroller.width / srcW))
+            };
+        if (mode === "actual")
+            return { "w": srcW, "h": srcH };
+        return { "w": Math.max(1, srcW * factor), "h": Math.max(1, srcH * factor) };
+    }
+
+    function photoPlaneRectForStage(stageW, stageH) {
+        const srcW = Math.max(previewImage.implicitWidth, 1);
+        const srcH = Math.max(previewImage.implicitHeight, 1);
+        const contain = Math.min(stageW / srcW, stageH / srcH);
+        const planeW = srcW * contain;
+        const planeH = srcH * contain;
+        return {
+            "x": (stageW - planeW) / 2,
+            "y": (stageH - planeH) / 2,
+            "w": planeW,
+            "h": planeH
+        };
+    }
+
+    function clearInspectZoomVisual() {
+        inspectZoomAnimating = false;
+        inspectZoomPending = false;
+        inspectZoomFrom = null;
+        inspectZoomCommit = null;
+        inspectZoomAnim.stop();
+        inspectAnimScale = 1;
+        inspectStageLockW = -1;
+        inspectStageLockH = -1;
+    }
+
+    function abortInspectZoomAnimation() {
+        clearInspectZoomVisual();
+        inspectViewportFocus = null;
+        inspectViewportRestore = null;
+    }
+
+    function commitInspectZoomAnimation() {
+        const commit = inspectZoomCommit;
+        inspectZoomAnimating = false;
+        inspectZoomPending = false;
+        inspectZoomFrom = null;
+        inspectZoomCommit = null;
+        inspectViewportFocus = null;
+        inspectViewportRestore = null;
+        inspectZoomAnim.stop();
+        inspectAnimScale = 1;
+        inspectStageLockW = -1;
+        inspectStageLockH = -1;
+        if (!commit || typeof scroller === "undefined")
+            return;
+        const maxX = Math.max(0, scroller.contentWidth - scroller.width);
+        const maxY = Math.max(0, scroller.contentHeight - scroller.height);
+        scroller.contentX = Math.max(0, Math.min(maxX, commit.x));
+        scroller.contentY = Math.max(0, Math.min(maxY, commit.y));
+    }
+
+    function beginInspectZoomAnimation() {
+        inspectZoomPending = false;
+        const from = inspectZoomFrom;
+        if (!from || typeof scroller === "undefined" || typeof previewImage === "undefined") {
+            clearInspectZoomVisual();
+            applyPhotoViewportAfterZoom();
+            return;
+        }
+        const targetStage = unlockedPhotoStageSize(studio.zoomMode, studio.zoomFactor);
+        const targetPlane = photoPlaneRectForStage(targetStage.w, targetStage.h);
+        const startW = Math.max(1, from.planeW);
+        const sEnd = targetPlane.w / startW;
+        if (!isFinite(sEnd) || sEnd <= 0 || !isFinite(targetPlane.w) || targetPlane.w < 1) {
+            clearInspectZoomVisual();
+            applyPhotoViewportAfterZoom();
+            return;
+        }
+
+        let targetX = 0;
+        let targetY = 0;
+        if (from.goingToActual) {
+            targetX = targetPlane.x + from.fx * targetPlane.w - from.anchorX;
+            targetY = targetPlane.y + from.fy * targetPlane.h - from.anchorY;
+        } else {
+            targetX = from.restoreX;
+            targetY = from.restoreY;
+        }
+        const maxTargetX = Math.max(0, targetStage.w - scroller.width);
+        const maxTargetY = Math.max(0, targetStage.h - scroller.height);
+        targetX = Math.max(0, Math.min(maxTargetX, targetX));
+        targetY = Math.max(0, Math.min(maxTargetY, targetY));
+
+        const ox = from.originX;
+        const oy = from.originY;
+        const cEndX = ox * (1 - sEnd) + from.planeX * sEnd - targetPlane.x + targetX;
+        const cEndY = oy * (1 - sEnd) + from.planeY * sEnd - targetPlane.y + targetY;
+        if (!isFinite(cEndX) || !isFinite(cEndY) || !isFinite(ox) || !isFinite(oy)) {
+            clearInspectZoomVisual();
+            applyPhotoViewportAfterZoom();
+            return;
+        }
+        inspectZoomCommit = { "x": targetX, "y": targetY };
+
+        const scaleDelta = Math.abs(sEnd - 1);
+        const panDelta = Math.abs(cEndX - scroller.contentX) + Math.abs(cEndY - scroller.contentY);
+        if (scaleDelta < 0.01 && panDelta < 1) {
+            commitInspectZoomAnimation();
+            return;
+        }
+
+        inspectAnimOriginX = ox;
+        inspectAnimOriginY = oy;
+        inspectAnimScale = 1;
+        inspectZoomAnimating = true;
+        const maxPanX = Math.max(0, scroller.contentWidth - scroller.width);
+        const maxPanY = Math.max(0, scroller.contentHeight - scroller.height);
+        inspectZoomScaleAnim.from = 1;
+        inspectZoomScaleAnim.to = sEnd;
+        inspectZoomPanXAnim.from = scroller.contentX;
+        inspectZoomPanXAnim.to = Math.max(0, Math.min(maxPanX, cEndX));
+        inspectZoomPanYAnim.from = scroller.contentY;
+        inspectZoomPanYAnim.to = Math.max(0, Math.min(maxPanY, cEndY));
+        inspectZoomIgnoreStop = true;
+        inspectZoomAnim.stop();
+        inspectZoomIgnoreStop = false;
+        inspectZoomAnim.start();
+    }
+
+    function inspectPointInPhoto(pos) {
+        if (typeof photoPlane === "undefined" || photoPlane.width < 1 || photoPlane.height < 1)
+            return false;
+        return pos.x >= photoPlane.x && pos.x <= photoPlane.x + photoPlane.width &&
+               pos.y >= photoPlane.y && pos.y <= photoPlane.y + photoPlane.height;
+    }
+
+    function togglePhotoInspectZoom(stagePos) {
+        if (!window.photoInspectEnabled || !studioActions.ids.viewToggleActualSize)
+            return;
+        if (window.inspectZoomAnimating)
+            return;
+        const goingToActual = studio.zoomMode !== "actual";
+        const w = Math.max(1, photoPlane.width);
+        const h = Math.max(1, photoPlane.height);
+        const fx = (stagePos.x - photoPlane.x) / w;
+        const fy = (stagePos.y - photoPlane.y) / h;
+        const anchorX = stagePos.x - scroller.contentX;
+        const anchorY = stagePos.y - scroller.contentY;
+        if (goingToActual) {
+            window.inspectViewportRestore = null;
+            window.inspectViewportFocus = {
+                "fx": fx,
+                "fy": fy,
+                "anchorX": anchorX,
+                "anchorY": anchorY
+            };
+            window.savedInspectContentX = scroller.contentX;
+            window.savedInspectContentY = scroller.contentY;
+        } else {
+            window.inspectViewportFocus = null;
+            window.inspectViewportRestore = {
+                "x": window.savedInspectContentX,
+                "y": window.savedInspectContentY
+            };
+        }
+        window.inspectZoomFrom = {
+            "goingToActual": goingToActual,
+            "planeX": photoPlane.x,
+            "planeY": photoPlane.y,
+            "planeW": w,
+            "planeH": h,
+            "originX": stagePos.x,
+            "originY": stagePos.y,
+            "fx": fx,
+            "fy": fy,
+            "anchorX": anchorX,
+            "anchorY": anchorY,
+            "restoreX": window.savedInspectContentX,
+            "restoreY": window.savedInspectContentY
+        };
+        window.inspectStageLockW = previewStage.width;
+        window.inspectStageLockH = previewStage.height;
+        window.inspectZoomPending = true;
+        studioActions.run(studioActions.ids.viewToggleActualSize);
+        if (window.inspectZoomPending)
+            window.abortInspectZoomAnimation();
+    }
+
+    Timer {
+        id: inspectClickTimer
+        interval: Math.max(180, Qt.styleHints.mouseDoubleClickInterval)
+        repeat: false
+        onTriggered: {
+            if (window.pendingInspectStagePos)
+                window.togglePhotoInspectZoom(window.pendingInspectStagePos);
+            window.pendingInspectStagePos = null;
+        }
+    }
+
+    ParallelAnimation {
+        id: inspectZoomAnim
+        NumberAnimation {
+            id: inspectZoomScaleAnim
+            target: window
+            property: "inspectAnimScale"
+            duration: window.inspectZoomDurationMs
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            id: inspectZoomPanXAnim
+            target: scroller
+            property: "contentX"
+            duration: window.inspectZoomDurationMs
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            id: inspectZoomPanYAnim
+            target: scroller
+            property: "contentY"
+            duration: window.inspectZoomDurationMs
+            easing.type: Easing.OutCubic
+        }
+        onStopped: {
+            if (window.inspectZoomIgnoreStop)
+                return;
+            if (window.inspectZoomAnimating)
+                window.commitInspectZoomAnimation();
+        }
     }
 
     Connections {
@@ -81,11 +377,26 @@ ApplicationWindow {
         function onSelectionChanged() {
             if (window.viewportAssetId !== studio.selectedAssetId) {
                 window.viewportAssetId = studio.selectedAssetId;
+                window.abortInspectZoomAnimation();
+                window.inspectViewportFocus = null;
+                window.inspectViewportRestore = null;
                 window.centerPhotoViewport();
             }
         }
-        function onZoomChanged() { window.centerPhotoViewport(); }
-        function onBrowseModeChanged() { window.centerPhotoViewport(); }
+        function onZoomChanged() {
+            if (window.inspectZoomPending) {
+                window.beginInspectZoomAnimation();
+                return;
+            }
+            window.abortInspectZoomAnimation();
+            window.applyPhotoViewportAfterZoom();
+        }
+        function onBrowseModeChanged() {
+            window.abortInspectZoomAnimation();
+            window.inspectViewportFocus = null;
+            window.inspectViewportRestore = null;
+            window.centerPhotoViewport();
+        }
     }
 
     readonly property var colorChoices: ["red", "yellow", "green", "blue", "purple"]
@@ -320,149 +631,13 @@ ApplicationWindow {
                 anchors.rightMargin: Fonts.standardMargin
                 spacing: Fonts.smallSpacing
 
-                CustomCheckBox {
-                    id: filterToggle
-                    Layout.alignment: Qt.AlignVCenter
-                    text: qsTr("Filter")
-                    checked: false
-                    onCheckedChanged: {
-                        if (!checked && studio.filtersActive)
-                            studioActions.run(studioActions.ids.libraryClearFilters);
-                    }
-                }
-
-                CustomTextField {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: 150
-                    Layout.preferredHeight: Fonts.inputFieldHeight
-                    enabled: filterToggle.checked
-                    showEmptyIndicator: false
-                    showClipIndicator: false
-                    alignRightWhenFocused: false
-                    placeholderText: qsTr("Search photos")
-                    text: studio.filterText
-                    onEditingFinished: studioActions.setTextFilter(text)
-                }
-
-                CustomComboBox {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: 105
-                    enabled: filterToggle.checked
-                    model: [qsTr("Any type"), qsTr("RAW"), qsTr("JPEG"), qsTr("PNG"), qsTr("TIFF")]
-                    currentIndex: studio.mediaFilter === "raw" ? 1
-                                  : studio.mediaFilter === "jpeg" ? 2
-                                  : studio.mediaFilter === "png" ? 3
-                                  : studio.mediaFilter === "tiff" ? 4 : 0
-                    onActivated: function (index) {
-                        studioActions.setMediaFilter(["any", "raw", "jpeg", "png", "tiff"][index]);
-                    }
-                }
-
-                CustomComboBox {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: 115
-                    enabled: filterToggle.checked
-                    model: [qsTr("Any edits"), qsTr("Edited"), qsTr("Unedited")]
-                    currentIndex: studio.editFilter === "edited" ? 1
-                                  : studio.editFilter === "unedited" ? 2 : 0
-                    onActivated: function (index) {
-                        studioActions.setEditFilter(index === 1 ? "edited" : (index === 2 ? "unedited" : "any"));
-                    }
-                }
-
-                CustomLabel {
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    text: qsTr("Rating")
-                }
-                CustomComboBox {
-                    id: ratingFilter
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    model: [qsTr("Any"), qsTr("≥ 1"), qsTr("≥ 2"), qsTr("≥ 3"), qsTr("≥ 4"), qsTr("≥ 5"), qsTr("Exact 0"), qsTr("Exact 1"), qsTr("Exact 2"), qsTr("Exact 3"), qsTr("Exact 4"), qsTr("Exact 5")]
-                    Layout.preferredWidth: 140
-                    onActivated: function (index) {
-                        if (index === 0)
-                            studioActions.run(studioActions.ids.librarySetRatingFilter, {"mode": "any", "value": 0});
-                        else if (index <= 5)
-                            studioActions.run(studioActions.ids.librarySetRatingFilter, {"mode": "min", "value": index});
-                        else
-                            studioActions.run(studioActions.ids.librarySetRatingFilter, {"mode": "exact", "value": index - 6});
-                    }
-                }
-
-                CustomLabel {
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    text: qsTr("Color")
-                }
-                Repeater {
-                    model: window.colorChoices
-                    delegate: Rectangle {
-                        required property string modelData
-                        Layout.alignment: Qt.AlignVCenter
-                        enabled: filterToggle.checked
-                        opacity: enabled ? 1 : 0.45
-                        width: 18
-                        height: 18
-                        radius: 9
-                        color: window.swatchColor(modelData)
-                        border.width: studio.colorFilters.indexOf(modelData) >= 0 ? 2 : 1
-                        border.color: studio.colorFilters.indexOf(modelData) >= 0 ? Theme.textColor : Theme.dividerColor
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: filterToggle.checked
-                            onClicked: studioActions.run(studioActions.ids.libraryToggleColorFilter, modelData)
-                        }
-                    }
-                }
-
-                CustomLabel {
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    text: qsTr("Rejected")
-                }
-                CustomComboBox {
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    model: [qsTr("Include"), qsTr("Exclude"), qsTr("Only")]
-                    Layout.preferredWidth: 120
-                    currentIndex: studio.rejectFilter === "exclude" ? 1 : (studio.rejectFilter === "only" ? 2 : 0)
-                    onActivated: function (index) {
-                        studioActions.run(studioActions.ids.librarySetRejectFilter, index === 1 ? "exclude" : (index === 2 ? "only" : "include"));
-                    }
-                }
-
-                CustomButton {
-                    Layout.alignment: Qt.AlignVCenter
-                    text: qsTr("Clear filters")
-                    enabled: filterToggle.checked && studio.filtersActive
-                    onClicked: studioActions.run(studioActions.ids.libraryClearFilters)
-                }
-
-                CustomComboBox {
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    model: [qsTr("Import time"), qsTr("Capture time"), qsTr("Filename"), qsTr("Rating"), qsTr("File size")]
-                    Layout.preferredWidth: 140
-                    currentIndex: studio.sortField === "captured" ? 1
-                                  : studio.sortField === "name" ? 2
-                                  : studio.sortField === "rating" ? 3
-                                  : studio.sortField === "size" ? 4 : 0
-                    onActivated: function (index) {
-                        const field = ["imported", "captured", "name", "rating", "size"][index];
-                        studioActions.run(studioActions.ids.librarySetSort, {"field": field, "direction": studio.sortDirection});
-                    }
-                }
-                CustomButton {
-                    Layout.alignment: Qt.AlignVCenter
-                    enabled: filterToggle.checked
-                    text: studio.sortDirection === "asc" ? qsTr("Asc") : qsTr("Desc")
-                    onClicked: studioActions.run(studioActions.ids.librarySetSort, {"field": studio.sortField, "direction": studio.sortDirection === "asc" ? "desc" : "asc"})
-                }
-
-                Item {
+                LibraryFilterBar {
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    presenter: studio
+                    commands: studioActions
+                    colorChoices: window.colorChoices
+                    swatchColor: window.swatchColor
                 }
 
                 SegmentedControl {
@@ -477,6 +652,16 @@ ApplicationWindow {
                         }
                         studioActions.openGallery(window.lastGalleryMode);
                     }
+                }
+
+                CustomButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: qsTr("Assistant")
+                    checkable: true
+                    checked: studioCommands.assistantOpen
+                    tooltipText: qsTr("Show or hide the Assistant panel")
+                    Accessible.name: qsTr("Assistant")
+                    onClicked: studioActions.trigger(studioActions.ids.windowAssistant)
                 }
             }
         }
@@ -639,6 +824,7 @@ ApplicationWindow {
                     spacing: 0
 
                     Item {
+                        id: photoInspectLayer
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
@@ -647,7 +833,7 @@ ApplicationWindow {
                             anchors.fill: parent
                             anchors.margins: Fonts.size8
                             clip: true
-                            interactive: !(studio.browseMode === "develop" && studio.cropToolActive)
+                            interactive: !(studio.browseMode === "develop" && studio.cropToolActive) && !window.inspectZoomAnimating
                             contentWidth: previewStage.width
                             contentHeight: previewStage.height
                             boundsBehavior: Flickable.StopAtBounds
@@ -655,6 +841,8 @@ ApplicationWindow {
                             Item {
                                 id: previewStage
                                 width: {
+                                    if (window.inspectStageLockW >= 0)
+                                        return window.inspectStageLockW;
                                     if (studio.zoomMode === "fit")
                                         return scroller.width;
                                     if (studio.zoomMode === "fill")
@@ -664,6 +852,8 @@ ApplicationWindow {
                                     return Math.max(1, previewImage.implicitWidth * studio.zoomFactor);
                                 }
                                 height: {
+                                    if (window.inspectStageLockH >= 0)
+                                        return window.inspectStageLockH;
                                     if (studio.zoomMode === "fit")
                                         return scroller.height;
                                     if (studio.zoomMode === "fill")
@@ -671,6 +861,12 @@ ApplicationWindow {
                                     if (studio.zoomMode === "actual")
                                         return Math.max(1, previewImage.implicitHeight);
                                     return Math.max(1, previewImage.implicitHeight * studio.zoomFactor);
+                                }
+                                transform: Scale {
+                                    origin.x: window.inspectAnimOriginX
+                                    origin.y: window.inspectAnimOriginY
+                                    xScale: window.inspectAnimScale
+                                    yScale: window.inspectAnimScale
                                 }
 
                                 readonly property real sourceW: Math.max(previewImage.implicitWidth, 1)
@@ -710,6 +906,12 @@ ApplicationWindow {
                                         antialiasing: true
                                     }
 
+                                    HoverHandler {
+                                        id: photoInspectHover
+                                        enabled: window.photoInspectEnabled
+                                        cursorShape: Qt.BlankCursor
+                                    }
+
                                     Rectangle {
                                         anchors.fill: parent
                                         color: "transparent"
@@ -721,9 +923,27 @@ ApplicationWindow {
                                 }
 
                                 TapHandler {
-                                    enabled: studio.browseMode === "loupe"
+                                    id: photoSurfaceTap
                                     acceptedButtons: Qt.LeftButton
-                                    onDoubleTapped: studioActions.openGallery("grid")
+                                    enabled: studio.browseMode !== "grid"
+                                    onTapped: function (eventPoint, button) {
+                                        if (photoSurfaceTap.tapCount > 1)
+                                            return;
+                                        if (!window.photoInspectEnabled || !window.inspectPointInPhoto(eventPoint.position))
+                                            return;
+                                        if (studio.browseMode === "loupe") {
+                                            window.pendingInspectStagePos = eventPoint.position;
+                                            inspectClickTimer.restart();
+                                            return;
+                                        }
+                                        window.togglePhotoInspectZoom(eventPoint.position);
+                                    }
+                                    onDoubleTapped: function (eventPoint, button) {
+                                        inspectClickTimer.stop();
+                                        window.pendingInspectStagePos = null;
+                                        if (studio.browseMode === "loupe")
+                                            studioActions.openGallery("grid");
+                                    }
                                 }
 
                                 CropOverlay {
@@ -762,9 +982,65 @@ ApplicationWindow {
 
                             WheelHandler {
                                 onWheel: function (event) {
+                                    window.abortInspectZoomAnimation();
+                                    window.inspectViewportFocus = null;
+                                    window.inspectViewportRestore = null;
                                     studioActions.run(studioActions.ids.viewAdjustZoom, event.angleDelta.y);
                                     event.accepted = true;
                                 }
+                            }
+                        }
+
+                        Canvas {
+                            id: magnifierCursor
+                            width: 28
+                            height: 28
+                            z: 20
+                            antialiasing: true
+                            visible: photoInspectHover.hovered && window.photoInspectEnabled
+                            property bool zoomOut: studio.zoomMode === "actual"
+                            x: {
+                                if (!visible)
+                                    return 0;
+                                return photoPlane.mapToItem(photoInspectLayer, photoInspectHover.point.position.x, photoInspectHover.point.position.y).x - 11;
+                            }
+                            y: {
+                                if (!visible)
+                                    return 0;
+                                return photoPlane.mapToItem(photoInspectLayer, photoInspectHover.point.position.x, photoInspectHover.point.position.y).y - 11;
+                            }
+                            onZoomOutChanged: requestPaint()
+                            Component.onCompleted: requestPaint()
+                            onPaint: {
+                                const ctx = getContext("2d");
+                                ctx.reset();
+                                const cx = 11;
+                                const cy = 11;
+                                const r = 7;
+                                ctx.lineCap = "round";
+                                ctx.lineJoin = "round";
+                                ctx.strokeStyle = "#111111";
+                                ctx.lineWidth = 3.6;
+                                ctx.beginPath();
+                                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                                ctx.moveTo(cx + r * 0.72, cy + r * 0.72);
+                                ctx.lineTo(22, 22);
+                                ctx.stroke();
+                                ctx.strokeStyle = "#f4f4f4";
+                                ctx.lineWidth = 1.8;
+                                ctx.beginPath();
+                                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                                ctx.moveTo(cx + r * 0.72, cy + r * 0.72);
+                                ctx.lineTo(22, 22);
+                                ctx.stroke();
+                                ctx.beginPath();
+                                ctx.moveTo(cx - 3.2, cy);
+                                ctx.lineTo(cx + 3.2, cy);
+                                if (!magnifierCursor.zoomOut) {
+                                    ctx.moveTo(cx, cy - 3.2);
+                                    ctx.lineTo(cx, cy + 3.2);
+                                }
+                                ctx.stroke();
                             }
                         }
 
@@ -862,7 +1138,18 @@ ApplicationWindow {
         z: 20
         presenter: studio
         languageManager: studioLanguage
+        assistant: studioAssistant
         onCloseRequested: window.settingsOpen = false
+    }
+
+    AssistantPanel {
+        id: assistantPanel
+        assistant: studioAssistant
+        presenter: studio
+        windowHost: window
+        z: 30
+        visible: studioCommands.assistantOpen
+        onCloseRequested: studioCommands.assistantOpen = false
     }
 
     StudioCommandPalette {

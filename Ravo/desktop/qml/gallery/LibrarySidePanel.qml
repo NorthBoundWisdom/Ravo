@@ -217,17 +217,75 @@ Rectangle {
             Layout.bottomMargin: Fonts.size8
             spacing: Fonts.smallSpacing
 
-            SegmentedControl {
+            Rectangle {
+                id: zoomModeBar
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
-                model: [qsTr("Fit"), qsTr("Fill"), qsTr("100%")]
-                currentIndex: root.presenter && root.presenter.zoomMode === "fill" ? 1 : (root.presenter && root.presenter.zoomMode === "actual" ? 2 : 0)
+                implicitHeight: ControlState.minInputHeight
+                radius: ControlState.radiusSmall
+                color: Theme.baseColor
+                border.color: Theme.midColor
+                border.width: ControlState.borderThin
                 enabled: root.presenter && root.presenter.browseMode !== "grid" && root.presenter.previewUrl.toString().length > 0
-                onActivated: function (index) {
-                    if (!root.presenter)
+                readonly property int currentIndex: root.presenter && root.presenter.zoomMode === "fill" ? 1 : (root.presenter && root.presenter.zoomMode === "actual" ? 2 : 0)
+                function activate(index) {
+                    if (!root.presenter || !root.commands)
                         return;
                     root.commands.run(root.commands.ids.viewSetZoomMode,
                                       index === 1 ? "fill" : (index === 2 ? "actual" : "fit"));
+                }
+
+                Item {
+                    anchors.fill: parent
+                    anchors.margins: zoomModeBar.border.width
+                    clip: true
+
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 0
+
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: 1
+                            Layout.minimumWidth: 0
+                            text: qsTr("Fit")
+                            selected: zoomModeBar.currentIndex === 0
+                            onClicked: zoomModeBar.activate(0)
+                        }
+                        Rectangle {
+                            Layout.preferredWidth: ControlState.borderThin
+                            Layout.fillHeight: true
+                            Layout.topMargin: Fonts.size2
+                            Layout.bottomMargin: Fonts.size2
+                            color: Theme.midColor
+                        }
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: 1
+                            Layout.minimumWidth: 0
+                            text: qsTr("Fill")
+                            selected: zoomModeBar.currentIndex === 1
+                            onClicked: zoomModeBar.activate(1)
+                        }
+                        Rectangle {
+                            Layout.preferredWidth: ControlState.borderThin
+                            Layout.fillHeight: true
+                            Layout.topMargin: Fonts.size2
+                            Layout.bottomMargin: Fonts.size2
+                            color: Theme.midColor
+                        }
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: 1
+                            Layout.minimumWidth: 0
+                            text: qsTr("1:1")
+                            selected: zoomModeBar.currentIndex === 2
+                            onClicked: zoomModeBar.activate(2)
+                        }
+                    }
                 }
             }
             CustomLabel {

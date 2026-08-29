@@ -1,6 +1,7 @@
 #include "ravo/adapters/text_file.h"
 
 #include <limits>
+#include <span>
 
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -80,15 +81,15 @@ Result<std::string> read_utf8_text_file(const std::string_view path_utf8,
     return std::string(content.constData(), static_cast<std::size_t>(content.size()));
 }
 
-Result<void> write_utf8_text_file_atomically(const std::string_view path_utf8,
-                                             const std::string_view content_utf8)
+Result<void> write_file_bytes_atomically(const std::string_view path_utf8,
+                                         const std::span<const std::uint8_t> bytes)
 {
     auto path = to_qt_path(path_utf8);
     if (!path)
     {
         return path.error();
     }
-    if (content_utf8.size() > static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
+    if (bytes.size() > static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
     {
         return make_error(ErrorCode::kInvalidArgument, "Output content is too large");
     }
@@ -105,8 +106,8 @@ Result<void> write_utf8_text_file_atomically(const std::string_view path_utf8,
                           {{"path", std::string(path_utf8)},
                            {"qt_error", output.errorString().toUtf8().toStdString()}});
     }
-    const auto data =
-        QByteArray::fromRawData(content_utf8.data(), static_cast<qsizetype>(content_utf8.size()));
+    const auto data = QByteArray::fromRawData(reinterpret_cast<const char *>(bytes.data()),
+                                              static_cast<qsizetype>(bytes.size()));
     if (output.write(data) != data.size())
     {
         return make_error(ErrorCode::kIo, "Unable to write complete atomic output",
@@ -120,6 +121,15 @@ Result<void> write_utf8_text_file_atomically(const std::string_view path_utf8,
                            {"qt_error", output.errorString().toUtf8().toStdString()}});
     }
     return {};
+}
+
+Result<void> write_utf8_text_file_atomically(const std::string_view path_utf8,
+                                             const std::string_view content_utf8)
+{
+    return write_file_bytes_atomically(
+        path_utf8, std::span<const std::uint8_t>(
+                       reinterpret_cast<const std::uint8_t *>(content_utf8.data()),
+                       content_utf8.size()));
 }
 
 } // namespace ravo

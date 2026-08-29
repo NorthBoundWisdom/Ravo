@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -16,5 +17,9 @@ namespace ravo
 // Writes one complete UTF-8 byte sequence or leaves the prior target untouched.
 [[nodiscard]] Result<void> write_utf8_text_file_atomically(std::string_view path_utf8,
                                                            std::string_view content_utf8);
+
+// Writes one complete byte sequence or leaves the prior target untouched.
+[[nodiscard]] Result<void> write_file_bytes_atomically(std::string_view path_utf8,
+                                                       std::span<const std::uint8_t> bytes);
 
 } // namespace ravo

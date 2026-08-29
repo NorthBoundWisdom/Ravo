@@ -14,8 +14,10 @@
 #include <numbers>
 #include <set>
 #include <sstream>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace ravo
 {
@@ -3504,10 +3506,16 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         if (value != 0.0 && value != 1.0)
             return false;
-        params.canvas_present = true;
         params.canvas_enabled = value == 1.0;
         if (params.canvas_enabled)
+        {
+            params.canvas_present = true;
             params.geometry_effect_enabled = true;
+        }
+        else if (params.canvas.is_identity())
+        {
+            params.canvas_present = false;
+        }
     }
     else if (name == "canvasLeft" || name == "canvasRight" || name == "canvasTop" ||
              name == "canvasBottom")
@@ -4068,6 +4076,341 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     return true;
 }
 
+[[nodiscard]] bool develop_set_field_accepts(const std::string_view name, const double value)
+{
+    DevelopParams params;
+    return static_cast<bool>(apply_develop_field_strict(params, name, value));
+}
+
+[[nodiscard]] std::optional<double> first_accepted_develop_set_value(const std::string_view name)
+{
+    static constexpr double kSeeds[] = {0.0,  1.0,  0.5,  -1.0, 2.0,  -0.5, 0.1,  0.01, 0.2,
+                                        3.0,  4.0,  5.0,  8.0,  10.0, 18.0, -18.0, 45.0, -45.0,
+                                        90.0, 100.0, 180.0, 360.0, -100.0, 0.25, -0.25, 1.5};
+    for (const double seed : kSeeds)
+    {
+        if (develop_set_field_accepts(name, seed))
+        {
+            return seed;
+        }
+    }
+    for (int index = 0; index <= 32; ++index)
+    {
+        const double seed = static_cast<double>(index);
+        if (develop_set_field_accepts(name, seed))
+        {
+            return seed;
+        }
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] double develop_set_field_extreme(const std::string_view name, const double seed,
+                                               const double direction, const bool integer)
+{
+    double accepted = seed;
+    double step = integer ? 1.0 : std::max(1.0e-3, std::abs(seed) * 0.25 + 1.0e-3);
+    for (int grow = 0; grow < 40; ++grow)
+    {
+        const double candidate = accepted + direction * step;
+        if (develop_set_field_accepts(name, candidate))
+        {
+            accepted = candidate;
+            step *= 2.0;
+            if (std::abs(accepted) > 1.0e7)
+            {
+                return accepted;
+            }
+            continue;
+        }
+        double low = direction > 0.0 ? accepted : candidate;
+        double high = direction > 0.0 ? candidate : accepted;
+        for (int refine = 0; refine < 48; ++refine)
+        {
+            double mid = (low + high) * 0.5;
+            if (integer)
+            {
+                mid = direction > 0.0 ? std::floor(mid) : std::ceil(mid);
+            }
+            if (mid == low || mid == high)
+            {
+                break;
+            }
+            if (develop_set_field_accepts(name, mid))
+            {
+                if (direction > 0.0)
+                {
+                    low = mid;
+                }
+                else
+                {
+                    high = mid;
+                }
+            }
+            else if (direction > 0.0)
+            {
+                high = mid;
+            }
+            else
+            {
+                low = mid;
+            }
+        }
+        const double edge = direction > 0.0 ? low : high;
+        return develop_set_field_accepts(name, edge) ? edge : accepted;
+    }
+    return accepted;
+}
+
+[[nodiscard]] std::vector<std::string> candidate_develop_set_names()
+{
+    static constexpr std::string_view kQuoted[] = {
+        "blacks",
+        "bloom",
+        "blueMapping",
+        "canvasBottom",
+        "canvasColorIndex",
+        "canvasEnabled",
+        "canvasLeft",
+        "canvasRight",
+        "canvasTop",
+        "channelMixerBB",
+        "channelMixerBG",
+        "channelMixerBR",
+        "channelMixerGB",
+        "channelMixerGG",
+        "channelMixerGR",
+        "channelMixerRB",
+        "channelMixerRG",
+        "channelMixerRR",
+        "clarity",
+        "colorBalanceFormula",
+        "colorCheckerEnabled",
+        "colorCheckerPatch",
+        "colorCheckerPreset",
+        "colorCheckerSourceA",
+        "colorCheckerSourceB",
+        "colorCheckerSourceL",
+        "colorCheckerTargetA",
+        "colorCheckerTargetB",
+        "colorCheckerTargetL",
+        "colorContrastEnabled",
+        "colorContrastUnbound",
+        "colorCorrectionEnabled",
+        "colorEqBand",
+        "colorEqHue",
+        "colorEqLight",
+        "colorEqSat",
+        "colorHarmonizerAnchorHueDegrees",
+        "colorHarmonizerCustomNodeCount",
+        "colorHarmonizerEnabled",
+        "colorHarmonizerRuleIndex",
+        "colorReconstructionEnabled",
+        "colorReconstructionHueDegrees",
+        "colorReconstructionPrecedenceIndex",
+        "colorZonesBandIndex",
+        "colorZonesChroma",
+        "colorZonesChromaInterpolationIndex",
+        "colorZonesEnabled",
+        "colorZonesHue",
+        "colorZonesHueInterpolationIndex",
+        "colorZonesLightness",
+        "colorZonesLightnessInterpolationIndex",
+        "colorZonesSelectByIndex",
+        "colorZonesStrength",
+        "contrast",
+        "cropHeight",
+        "cropWidth",
+        "cropX",
+        "cropY",
+        "dehaze",
+        "dehazeAdaptive",
+        "dehazeDistance",
+        "denoise",
+        "denoiseChroma",
+        "denoiseRadius",
+        "exposure",
+        "exposureBlack",
+        "exposureCompensateBias",
+        "exposureCompensateHighlight",
+        "exposureDeflickerPercentile",
+        "exposureDeflickerTarget",
+        "exposureMode",
+        "gamma",
+        "gamutNormalize",
+        "graduatedDensity",
+        "graduatedHardness",
+        "graduatedOffset",
+        "graduatedRotation",
+        "grain",
+        "highlights",
+        "hotPixelsPermissive",
+        "hotPixelsStrength",
+        "hotPixelsThreshold",
+        "inputProfile",
+        "legacyColorBalanceMode",
+        "lensFocal",
+        "lensK1",
+        "lensK2",
+        "lensMode",
+        "lensTcaB",
+        "lensTcaR",
+        "lensVignetting",
+        "monochrome",
+        "monochromeEnabled",
+        "monochromeFilterA",
+        "monochromeFilterB",
+        "monochromeHighlights",
+        "monochromeMix",
+        "monochromeSize",
+        "outputBlackPointCompensation",
+        "outputDitherDamping",
+        "outputDitherEnabled",
+        "outputDitherMethodIndex",
+        "outputFrameAspect",
+        "outputFrameBasisIndex",
+        "outputFrameBorderBlue",
+        "outputFrameBorderGreen",
+        "outputFrameBorderRed",
+        "outputFrameEnabled",
+        "outputFrameLineBlue",
+        "outputFrameLineGreen",
+        "outputFrameLineOffset",
+        "outputFrameLineRed",
+        "outputFrameLineSize",
+        "outputFrameOrientationIndex",
+        "outputFramePositionH",
+        "outputFramePositionV",
+        "outputFrameSize",
+        "outputProfile",
+        "outputRenderingIntent",
+        "primariesAchromaticHueDegrees",
+        "primariesAchromaticPurity",
+        "primariesBlueHueDegrees",
+        "primariesBluePurity",
+        "primariesGreenHueDegrees",
+        "primariesGreenPurity",
+        "primariesRedHueDegrees",
+        "primariesRedPurity",
+        "profileGammaDynamicRange",
+        "profileGammaEnabled",
+        "profileGammaGamma",
+        "profileGammaGreyPoint",
+        "profileGammaLinear",
+        "profileGammaModeIndex",
+        "profileGammaSecurityFactor",
+        "profileGammaShadowsRange",
+        "proofIntent",
+        "proofMode",
+        "proofProfile",
+        "rawCaAvoidShift",
+        "rawCaIterations",
+        "rawHighlights",
+        "rawHighlightsClip",
+        "rawHighlightsMode",
+        "renderingIntent",
+        "rgbLevelsMode",
+        "rgbLevelsPreserve",
+        "saturation",
+        "shadows",
+        "sharpen",
+        "sharpenRadius",
+        "sharpenThreshold",
+        "sigmoidContrast",
+        "sigmoidHuePreservation",
+        "sigmoidSkew",
+        "soften",
+        "splitAmount",
+        "splitBalance",
+        "splitCompress",
+        "splitHighlightSaturation",
+        "splitHighlightsHue",
+        "splitMix",
+        "splitShadowSaturation",
+        "splitShadowsHue",
+        "splitToningEnabled",
+        "straighten",
+        "toneEqBlacks",
+        "toneEqHighlights",
+        "toneEqMidtones",
+        "toneEqShadows",
+        "toneEqWhites",
+        "velvia",
+        "vibrance",
+        "vignette",
+        "watermarkAlignmentIndex",
+        "watermarkBlue",
+        "watermarkEnabled",
+        "watermarkGreen",
+        "watermarkOffsetX",
+        "watermarkOffsetY",
+        "watermarkOpacity",
+        "watermarkRed",
+        "watermarkRotation",
+        "watermarkScale",
+        "whiteBalanceBlue",
+        "whiteBalanceFourth",
+        "whiteBalanceGreen",
+        "whiteBalanceMode",
+        "whiteBalanceRed",
+        "whites",
+        "workingProfile",
+    };
+    std::vector<std::string> names;
+    names.reserve(std::size(kQuoted) + 80U);
+    for (const auto name : kQuoted)
+    {
+        names.emplace_back(name);
+    }
+    for (const auto &field : rgb_levels_stop_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &field : color_balance_numeric_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &field : legacy_color_balance_numeric_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &field : color_correction_numeric_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &field : color_contrast_numeric_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &field : color_reconstruction_numeric_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &field : color_harmonizer_linear_fields())
+    {
+        names.emplace_back(field.develop_name);
+    }
+    for (const auto &[field, index] : color_harmonizer_custom_hue_fields())
+    {
+        static_cast<void>(index);
+        names.emplace_back(field);
+    }
+    for (const auto &[field, index] : color_harmonizer_node_saturation_fields())
+    {
+        static_cast<void>(index);
+        names.emplace_back(field);
+    }
+    for (int band = 0; band <= 7; ++band)
+    {
+        names.push_back("colorEqHue" + std::to_string(band));
+        names.push_back("colorEqSat" + std::to_string(band));
+        names.push_back("colorEqLight" + std::to_string(band));
+    }
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    return names;
+}
+
 } // namespace
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -4125,6 +4468,69 @@ Result<void> apply_develop_text_field_strict(DevelopParams &params, const std::s
         return valid.error();
     params = std::move(candidate);
     return {};
+}
+
+std::string_view develop_set_field_kind_name(const DevelopSetFieldKind kind) noexcept
+{
+    switch (kind)
+    {
+    case DevelopSetFieldKind::Number:
+        return "number";
+    case DevelopSetFieldKind::Integer:
+        return "integer";
+    case DevelopSetFieldKind::Toggle:
+        return "toggle";
+    case DevelopSetFieldKind::Text:
+        return "text";
+    }
+    return "number";
+}
+
+std::vector<std::string_view> develop_set_field_prefixes() noexcept
+{
+    return {kColorHarmonizerMaskFieldPrefix, kGraduatedMaskFieldPrefix};
+}
+
+std::vector<DevelopSetField> list_develop_set_fields()
+{
+    std::vector<DevelopSetField> fields;
+    for (const auto &name : candidate_develop_set_names())
+    {
+        const auto seed = first_accepted_develop_set_value(name);
+        if (!seed)
+        {
+            continue;
+        }
+        const bool half = develop_set_field_accepts(name, *seed + 0.5) ||
+                          develop_set_field_accepts(name, *seed - 0.5);
+        const bool integer = !half;
+        const bool toggle = develop_set_field_accepts(name, 0.0) &&
+                            develop_set_field_accepts(name, 1.0) &&
+                            !develop_set_field_accepts(name, 0.5) &&
+                            !develop_set_field_accepts(name, 2.0) &&
+                            !develop_set_field_accepts(name, -1.0);
+        DevelopSetField field;
+        field.name = name;
+        field.kind = toggle  ? DevelopSetFieldKind::Toggle :
+                     integer ? DevelopSetFieldKind::Integer :
+                               DevelopSetFieldKind::Number;
+        field.minimum = develop_set_field_extreme(name, *seed, -1.0, integer || toggle);
+        field.maximum = develop_set_field_extreme(name, *seed, 1.0, integer || toggle);
+        if (toggle)
+        {
+            field.minimum = 0.0;
+            field.maximum = 1.0;
+        }
+        fields.push_back(std::move(field));
+    }
+    DevelopSetField text;
+    text.name = "watermarkText";
+    text.kind = DevelopSetFieldKind::Text;
+    fields.push_back(std::move(text));
+    std::sort(fields.begin(), fields.end(),
+              [](const DevelopSetField &left, const DevelopSetField &right)
+              { return left.name < right.name; });
+    return fields;
 }
 
 bool reset_develop_field(DevelopParams &params, const std::string_view name)

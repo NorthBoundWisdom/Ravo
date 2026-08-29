@@ -43,7 +43,8 @@ Item {
     function setColorLabel(value) { root.run(root.ids.photoColor, value); }
     function setTags(value) { root.run(root.ids.photoSetTags, value); }
     function setMetadata(name, value) { root.run(root.ids.photoSetMetadata, {"name": name, "value": value}); }
-    function createSnapshot(label) { root.run(root.ids.photoCreateSnapshot, label); }
+    function createSnapshot(label) { root.run(root.ids.photoCreateSnapshot, label === undefined ? "" : label); }
+    function renameSnapshot(id, label) { root.run(root.ids.photoRenameSnapshot, {"id": id, "label": label}); }
     function restoreHistory(id) { root.run(root.ids.photoRestoreHistory, id); }
     function setTagFilter(value) { root.run(root.ids.librarySetTagFilter, value); }
     function setTextFilter(value) { root.run(root.ids.librarySetTextFilter, value); }
@@ -86,6 +87,7 @@ Item {
     property alias exportPhoto: exportPhotoAction
     property alias closeWindow: closeWindowAction
     property alias preferences: preferencesAction
+    property alias assistant: assistantAction
     property alias quitApp: quitAction
     property alias undo: undoAction
     property alias redo: redoAction
@@ -100,6 +102,8 @@ Item {
     property alias nextPhoto: nextAction
     property alias reject: rejectAction
     property alias resetEdits: resetEditsAction
+    property alias copyEdits: copyEditsAction
+    property alias pasteEdits: pasteEditsAction
     property alias cropTool: cropToolAction
     property alias rotateLeft: rotateLeftAction
     property alias rotateRight: rotateRightAction
@@ -128,6 +132,7 @@ Item {
     RegisteredAction { id: exportPhotoAction; actionId: root.ids.libraryExport || "" }
     RegisteredAction { id: closeWindowAction; actionId: root.ids.windowClose || "" }
     RegisteredAction { id: preferencesAction; actionId: root.ids.windowSettings || "" }
+    RegisteredAction { id: assistantAction; actionId: root.ids.windowAssistant || "" }
     RegisteredAction { id: quitAction; actionId: root.ids.windowQuit || "" }
     RegisteredAction { id: undoAction; actionId: root.ids.editUndo || "" }
     RegisteredAction { id: redoAction; actionId: root.ids.editRedo || "" }
@@ -142,6 +147,8 @@ Item {
     RegisteredAction { id: nextAction; actionId: root.ids.photoNext || "" }
     RegisteredAction { id: rejectAction; actionId: root.ids.photoReject || "" }
     RegisteredAction { id: resetEditsAction; actionId: root.ids.editResetAll || "" }
+    RegisteredAction { id: copyEditsAction; actionId: root.ids.editCopyEdits || "" }
+    RegisteredAction { id: pasteEditsAction; actionId: root.ids.editPasteEdits || "" }
     RegisteredAction { id: cropToolAction; actionId: root.ids.editCropTool || "" }
     RegisteredAction { id: rotateLeftAction; actionId: root.ids.editRotateLeft || "" }
     RegisteredAction { id: rotateRightAction; actionId: root.ids.editRotateRight || "" }

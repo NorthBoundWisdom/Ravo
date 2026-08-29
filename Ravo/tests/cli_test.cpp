@@ -3621,6 +3621,77 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
 
     stdout_stream.str({});
     stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"develop-fields", "--json"}), 0)
+        << stdout_stream.str();
+    auto field_list = parse_json(stdout_stream.str());
+    ASSERT_TRUE(field_list) << field_list.error().message;
+    const auto *field_data = field_list.value().find("data");
+    ASSERT_NE(field_data, nullptr);
+    const auto *listed = field_data->find("fields");
+    ASSERT_NE(listed, nullptr);
+    ASSERT_NE(listed->array_if(), nullptr);
+    EXPECT_GE(listed->array_if()->size(), 50U);
+    bool listed_exposure = false;
+    for (const auto &field : *listed->array_if())
+    {
+        const auto *name = field.find("name");
+        if (name != nullptr && name->string_if() != nullptr && *name->string_if() == "exposure")
+        {
+            listed_exposure = true;
+        }
+    }
+    EXPECT_TRUE(listed_exposure);
+    const auto *prefixes = field_data->find("prefixes");
+    ASSERT_NE(prefixes, nullptr);
+    ASSERT_NE(prefixes->array_if(), nullptr);
+    EXPECT_GE(prefixes->array_if()->size(), 2U);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "fields", "--json"}), 0)
+        << stdout_stream.str();
+    auto catalog_fields = parse_json(stdout_stream.str());
+    ASSERT_TRUE(catalog_fields) << catalog_fields.error().message;
+    const auto *catalog_field_data = catalog_fields.value().find("data");
+    ASSERT_NE(catalog_field_data, nullptr);
+    const auto *catalog_listed = catalog_field_data->find("fields");
+    ASSERT_NE(catalog_listed, nullptr);
+    ASSERT_NE(catalog_listed->array_if(), nullptr);
+    EXPECT_EQ(catalog_listed->array_if()->size(), listed->array_if()->size());
+
+    const auto probe_png = (root / "probe.png").generic_string();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "probe", "--catalog", catalog, "--asset-id", id, "--baseline",
+                  "--set", "exposure=1", "--max-edge", "64", "--output", probe_png, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto probed_file = parse_json(stdout_stream.str());
+    ASSERT_TRUE(probed_file) << probed_file.error().message;
+    const auto *probe_data = probed_file.value().find("data");
+    ASSERT_NE(probe_data, nullptr);
+    const auto *output = probe_data->find("output");
+    ASSERT_NE(output, nullptr);
+    ASSERT_NE(output->string_if(), nullptr);
+    EXPECT_EQ(*output->string_if(), probe_png);
+    EXPECT_TRUE(std::filesystem::exists(probe_png));
+    EXPECT_GT(std::filesystem::file_size(probe_png), 8U);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "probe", "--catalog", catalog, "--asset-id", id, "--output",
+                  (root / "probe.jpg").generic_string(), "--json"}),
+              2);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "probe", "--catalog", catalog, "--asset-id", id, "--output", probe_png,
+                  "--json"}),
+              6);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
     EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "probe", "--catalog",
                                                             catalog, "--asset-id", id, "--baseline",
                                                             "--set", "exposure=19", "--json"}),

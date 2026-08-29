@@ -36,9 +36,12 @@ modifier.
 | Export Photo | `Cmd/Ctrl+Shift+E` |
 | Close Window | `Cmd/Ctrl+W` |
 | Settings | `Cmd/Ctrl+,` |
+| Assistant | `Cmd/Ctrl+Shift+A` (also the top-toolbar Assistant button) |
 | Quit Ravo Studio | `Cmd/Ctrl+Q` |
 | Undo | `Cmd/Ctrl+Z` |
 | Redo | `Cmd/Ctrl+Shift+Z` |
+| Copy Edits | `Cmd/Ctrl+Shift+C` |
+| Paste Edits | `Cmd/Ctrl+Alt+V` |
 | Reset All Edits | `Cmd/Ctrl+Shift+R` |
 | Gallery | `1` |
 | Loupe | `2` |

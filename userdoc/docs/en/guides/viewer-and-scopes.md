@@ -41,6 +41,11 @@ The left navigator shows the whole preview and the current viewport rectangle.
 At a zoom that is larger than the available surface, drag the image or drag the
 navigator rectangle to pan.
 
+Hovering the photo (not the surrounding letterbox) shows a magnifying glass.
+Click the photo to animate to **1:1** with the clicked point kept under the
+cursor. Click again to animate back to the Fit, Fill, or custom zoom that was
+current before 1:1. Wheel, Fit, Fill, and the 1:1 control still jump to the
+requested zoom. Crop mode keeps pointer ownership for crop gestures.
 Double-clicking the Loupe image returns to Gallery.
 
 ## Zoom modes
@@ -51,7 +56,7 @@ The left panel provides these modes:
 | --- | --- |
 | Fit | Shows the complete preview inside the available surface. |
 | Fill | Fills the available surface while preserving the image aspect ratio; edges may be outside the viewport. |
-| 100% | Shows one image pixel at the actual preview scale; panning is expected for large images. |
+| 1:1 | Shows one image pixel at the actual preview scale; panning is expected for large images. |
 
 The mouse wheel adjusts a custom zoom around the current view. The command
 palette and View menu expose the same zoom actions. Zoom changes affect the
@@ -64,7 +69,9 @@ bounds; crop mode temporarily gives drag ownership to the crop overlay.
 
 ## Preview scopes
 
-The top of the right Inspector contains the scope panel. Switch between:
+The top of the right Inspector contains the scope panel. Histogram is the
+default. The triangle control at the top-left of the plot opens a menu to
+switch between:
 
 - **Histogram**, with red, green, and blue channel distributions.
 - **Waveform**, with overlaid RGB intensity across image width.
@@ -94,14 +101,14 @@ the original is available at its recorded path.
 ## Result
 
 You can move from a library-wide view to a pixel-level review without changing
-the source file. Fit/Fill/100%, pan, the navigator, and all five scopes operate on
-the current preview.
+the source file. Fit/Fill/1:1, click-to-1:1, pan, the navigator, and all five
+scopes operate on the current preview.
 
 ## Common questions
 
-### Why is 100% not the same as the camera's original resolution?
+### Why is 1:1 not the same as the camera's original resolution?
 
-100% refers to the current Ravo preview. Preview generation may fit an image to
+1:1 refers to the current Ravo preview. Preview generation may fit an image to
 the requested preview size; it is not an unbounded raw sensor viewer.
 
 ### Why do the scopes change after I switch from Gallery to Loupe?

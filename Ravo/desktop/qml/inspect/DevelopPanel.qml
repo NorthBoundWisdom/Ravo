@@ -461,33 +461,6 @@ ColumnLayout {
         Layout.bottomMargin: Fonts.size12
         spacing: Fonts.smallSpacing
 
-        RowLayout {
-            CustomButton {
-                text: qsTr("Undo")
-                enabled: root.hasPresenter && root.presenter.canUndo
-                onClicked: if (root.commands)
-                    root.commands.undo.trigger()
-            }
-            CustomButton {
-                text: qsTr("Redo")
-                enabled: root.hasPresenter && root.presenter.canRedo
-                onClicked: if (root.commands)
-                    root.commands.redo.trigger()
-            }
-            CustomButton {
-                text: root.hasPresenter && root.presenter.beforeAfter ? qsTr("After") : qsTr("Before")
-                enabled: root.hasSelection
-                onClicked: if (root.commands)
-                    root.commands.beforeAfter.trigger()
-            }
-            CustomButton {
-                text: qsTr("Reset all")
-                enabled: root.hasSelection
-                onClicked: if (root.commands)
-                    root.commands.resetEdits.trigger()
-            }
-        }
-
         DevelopSection {
             title: qsTr("Geometry")
             sectionId: "geometry"
@@ -496,6 +469,7 @@ ColumnLayout {
                 width: parent.width
                 spacing: Fonts.smallSpacing
                 RowLayout {
+                    Layout.fillWidth: true
                     spacing: Fonts.size6
                     CustomButton {
                         display: AbstractButton.IconOnly
@@ -506,6 +480,7 @@ ColumnLayout {
                         implicitHeight: Fonts.iconButtonSize
                         Layout.preferredWidth: implicitWidth
                         Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
                         defaultPadding: 0
                         onClicked: if (root.commands)
                             root.commands.rotateLeft.trigger()
@@ -519,6 +494,7 @@ ColumnLayout {
                         implicitHeight: Fonts.iconButtonSize
                         Layout.preferredWidth: implicitWidth
                         Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
                         defaultPadding: 0
                         onClicked: if (root.commands)
                             root.commands.rotateRight.trigger()
@@ -532,6 +508,7 @@ ColumnLayout {
                         implicitHeight: Fonts.iconButtonSize
                         Layout.preferredWidth: implicitWidth
                         Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
                         defaultPadding: 0
                         onClicked: if (root.commands)
                             root.commands.flipHorizontal.trigger()
@@ -545,15 +522,14 @@ ColumnLayout {
                         implicitHeight: Fonts.iconButtonSize
                         Layout.preferredWidth: implicitWidth
                         Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
                         defaultPadding: 0
                         onClicked: if (root.commands)
                             root.commands.flipVertical.trigger()
                     }
-                    Item {
-                        Layout.fillWidth: true
-                    }
                 }
                 CustomButton {
+                    Layout.fillWidth: true
                     text: root.hasPresenter && root.presenter.cropToolActive ? qsTr("Done") : qsTr("Crop & Rotate")
                     enabled: root.hasSelection
                     onClicked: if (root.commands)
@@ -597,39 +573,25 @@ ColumnLayout {
                             root.commands.setCropAspect(checked ? "locked" : "free")
                     }
                 }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Angle")
-                    from: -45
-                    to: 45
-                    stepSize: 0.1
-                    validatorDecimals: 1
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editStraighten : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("straighten", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("straighten", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("straighten")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Enlarge Canvas")
-                    font.bold: true
-                }
                 CustomCheckBox {
+                    id: canvasEnabledBox
                     objectName: "canvasEnabled"
-                    text: qsTr("Enable enlarged canvas")
+                    text: qsTr("Enlarge Canvas")
                     enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editCanvas.enabled
+                    checked: root.hasPresenter && root.presenter.editCanvasEnabled
                     onToggled: if (root.liveReady && root.commands)
                         root.commands.setDevelopNumber("canvasEnabled", checked ? 1 : 0)
+                }
+                Connections {
+                    target: root.presenter
+                    function onEditChanged() {
+                        const enabled = root.hasPresenter && root.presenter.editCanvasEnabled;
+                        if (canvasEnabledBox.checked !== enabled)
+                            canvasEnabledBox.checked = enabled;
+                    }
+                    function onSelectionChanged() {
+                        canvasEnabledBox.checked = root.hasPresenter && root.presenter.editCanvasEnabled;
+                    }
                 }
                 Repeater {
                     model: [
@@ -641,6 +603,9 @@ ColumnLayout {
                     delegate: CustomSlider {
                         required property var modelData
                         Layout.fillWidth: true
+                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        Layout.maximumHeight: visible ? 65535 : 0
+                        visible: canvasEnabledBox.checked
                         title: modelData.title
                         from: 0
                         to: 100
@@ -661,6 +626,9 @@ ColumnLayout {
                 CustomComboBox {
                     objectName: "canvasColor"
                     Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    Layout.maximumHeight: visible ? 65535 : 0
+                    visible: canvasEnabledBox.checked
                     enabled: root.hasSelection
                     textRole: "label"
                     model: root.hasPresenter ? root.presenter.editCanvas.colorChoices : []
@@ -672,6 +640,9 @@ ColumnLayout {
                     }
                 }
                 CustomButton {
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    Layout.maximumHeight: visible ? 65535 : 0
+                    visible: canvasEnabledBox.checked
                     text: qsTr("Reset canvas")
                     enabled: root.hasSelection
                     onClicked: if (root.commands)

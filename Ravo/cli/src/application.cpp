@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -1051,6 +1052,50 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     }};
 }
 
+[[nodiscard]] JsonValue develop_fields_json()
+{
+    JsonValue::Array fields;
+    for (const auto &field : list_develop_set_fields())
+    {
+        JsonValue::Object item{{"kind", std::string(develop_set_field_kind_name(field.kind))},
+                               {"name", field.name}};
+        if (field.minimum)
+        {
+            item.emplace("minimum", JsonValue::number(std::to_string(*field.minimum)));
+        }
+        if (field.maximum)
+        {
+            item.emplace("maximum", JsonValue::number(std::to_string(*field.maximum)));
+        }
+        fields.push_back(JsonValue{std::move(item)});
+    }
+    JsonValue::Array prefixes;
+    for (const auto prefix : develop_set_field_prefixes())
+    {
+        prefixes.push_back(JsonValue{JsonValue::Object{
+            {"kind", "number"},
+            {"prefix", std::string(prefix)},
+        }});
+    }
+    return JsonValue{JsonValue::Object{
+        {"fields", std::move(fields)},
+        {"prefixes", std::move(prefixes)},
+        {"set", "--set name=value"},
+        {"text", "--watermark-text"},
+    }};
+}
+
+[[nodiscard]] bool ends_with_png(const std::string_view path) noexcept
+{
+    if (path.size() < 4U)
+    {
+        return false;
+    }
+    const auto suffix = path.substr(path.size() - 4U);
+    return (suffix[0] == '.' && (suffix[1] == 'p' || suffix[1] == 'P') &&
+            (suffix[2] == 'n' || suffix[2] == 'N') && (suffix[3] == 'g' || suffix[3] == 'G'));
+}
+
 [[nodiscard]] Result<JsonValue>
 run_catalog_command(const EngineFacade &engine, const std::span<const std::string_view> positional)
 {
@@ -1058,7 +1103,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(
             ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|rate|"
+            "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|fields|rate|"
             "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore> "
             "--catalog <path>");
     }
@@ -1068,10 +1113,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return flags.error();
     }
+    if (subcommand == "fields")
+    {
+        return develop_fields_json();
+    }
     if (flags.value().catalog.empty())
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "Catalog commands require --catalog or --path");
+    }
+    if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--output is only valid for catalog export or catalog probe",
+                          {{"subcommand", std::string(subcommand)}});
     }
     if (flags.value().baseline && subcommand != "probe")
     {
@@ -1218,6 +1273,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return make_error(ErrorCode::kInvalidArgument, "catalog probe requires --asset-id");
         }
+        if (!flags.value().output.empty())
+        {
+            if (!ends_with_png(flags.value().output))
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "catalog probe --output must be a .png path",
+                                  {{"path", std::string(flags.value().output)}});
+            }
+            if (std::filesystem::exists(std::filesystem::path(std::string(flags.value().output))))
+            {
+                return make_error(ErrorCode::kConflict, "Output path already exists",
+                                  {{"path", std::string(flags.value().output)}});
+            }
+        }
         auto stored_before = service.load_recipe(flags.value().asset_id);
         if (!stored_before)
         {
@@ -1303,7 +1372,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             else
                 overrides.emplace(item.name, JsonValue{std::get<std::string>(item.value)});
         }
-        return JsonValue{JsonValue::Object{
+        JsonValue::Object payload{
             {"asset_id", previewed.value().asset_id},
             {"baseline", flags.value().baseline},
             {"color_profile", previewed.value().color_profile.identifier},
@@ -1314,7 +1383,27 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"recipe_unchanged", true},
             {"statistics", std::move(statistics).value()},
             {"width", JsonValue::number(std::to_string(previewed.value().width))},
-        }};
+        };
+        if (!flags.value().output.empty())
+        {
+            RenderedImage image;
+            image.width = previewed.value().width;
+            image.height = previewed.value().height;
+            image.rgb = previewed.value().rgb;
+            image.color_profile = previewed.value().color_profile;
+            auto encoded = engine.encode_png(image);
+            if (!encoded)
+            {
+                return encoded.error();
+            }
+            auto written = write_file_bytes_atomically(flags.value().output, encoded.value());
+            if (!written)
+            {
+                return written.error();
+            }
+            payload.emplace("output", std::string(flags.value().output));
+        }
+        return JsonValue{std::move(payload)};
     }
     if (subcommand == "recipe")
     {
@@ -1719,6 +1808,10 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         return emit(JsonValue{JsonValue::Object{
                         {"name", "Ravo"}, {"protocol", "ravo-cli/v1"}, {"version", RAVO_VERSION}}},
                     json);
+    }
+    if (positional.size() == 1 && positional.front() == "develop-fields")
+    {
+        return emit(develop_fields_json(), json);
     }
     if (positional.size() == 1 && positional.front() == "operations")
     {

@@ -31,7 +31,7 @@ contracts.
 ## Viewer and Develop
 
 - [ ] Open Gallery, Loupe, and Edit.
-- [ ] Exercise Fit, Fill, 100%, wheel zoom, pan, and navigator seeking.
+- [ ] Exercise Fit, Fill, 1:1, click-to-1:1 restore (smooth zoom, not a camera jump), wheel zoom, pan, and navigator seeking.
 - [ ] Switch Histogram, Waveform, Parade, Vectorscope, and Split scopes.
 - [ ] Confirm a missing original shows Missing without losing catalog state.
 - [ ] Commit a geometry, Light, and Color change.
@@ -48,7 +48,7 @@ contracts.
       compression, mix, and an attached mask.
 - [ ] Confirm interactive preview cannot replace a newer committed request.
 - [ ] Exercise Before/After, per-control reset, section reset, Reset all,
-      Undo, and Redo.
+      Undo, Redo, and Copy/Paste Edits onto a second photo.
 - [ ] Create, list, and restore a labeled snapshot.
 - [ ] Close and reopen; confirm recipe, history, and Edited state persist.
 

@@ -509,6 +509,27 @@ rgb_curve_to_parameters(const RgbCurveParams &params);
 raw_denoise_to_parameters(double threshold, const std::array<std::array<double, 5>, 4> &bands);
 
 void clamp_develop(DevelopParams &params) noexcept;
+enum class DevelopSetFieldKind : std::uint8_t
+{
+    Number = 0,
+    Integer = 1,
+    Toggle = 2,
+    Text = 3,
+};
+
+// Names accepted by catalog develop/probe `--set`, plus `watermarkText`.
+// Bounds come from `apply_develop_field_strict` on an identity DevelopParams.
+struct DevelopSetField
+{
+    std::string name;
+    DevelopSetFieldKind kind = DevelopSetFieldKind::Number;
+    std::optional<double> minimum;
+    std::optional<double> maximum;
+};
+
+[[nodiscard]] std::string_view develop_set_field_kind_name(DevelopSetFieldKind kind) noexcept;
+[[nodiscard]] std::vector<DevelopSetField> list_develop_set_fields();
+[[nodiscard]] std::vector<std::string_view> develop_set_field_prefixes() noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);
 [[nodiscard]] Result<void> apply_develop_field_strict(DevelopParams &params, std::string_view name,
                                                       double value);

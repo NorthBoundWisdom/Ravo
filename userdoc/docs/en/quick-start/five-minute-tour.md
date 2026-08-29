@@ -26,7 +26,8 @@ QML workspace.
 3. Set a rating or color label in the bottom review bar. Toggle **Keep / Reject**
    once, then return the photo to the state you want to keep.
 4. Double-click the thumbnail, or choose **View → Loupe**. Try **Fit**, **Fill**,
-   and **100%**. At a non-grid zoom, pan the image and use the navigator in the
+   and **1:1**. Click the photo to animate to 1:1, then click again to restore
+   the previous zoom. At a non-grid zoom, pan the image and use the navigator in the
    left panel to move to another area.
 5. Switch the right-side scope through **Histogram**, **Waveform**, **Parade**,
    **Vectorscope**, and **Split**.
@@ -44,7 +45,7 @@ QML workspace.
 | Area | Use it for |
 | --- | --- |
 | Menu bar | Library, view, photo, edit, settings, and command-palette actions. |
-| Filter bar | Photo search, media/edit state, rating, color, reject, stable sort, and filter reset. |
+| Filter bar | Optional Filter checkbox, default rating stars, add/remove extra filters, and stable sort. |
 | Library panel | Folders, tag filtering, import, export, and a small navigator. |
 | Center stage | Gallery grid, Loupe preview, or Edit image/crop surface. |
 | Review bar | Thumbnail size, rating, color label, Keep/Reject, Previous, and Next. |

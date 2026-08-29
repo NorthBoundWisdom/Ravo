@@ -54,6 +54,7 @@ inline constexpr auto kPhotoSetTags = "studio.photo.set_tags";
 inline constexpr auto kPhotoSetMetadata = "studio.photo.set_metadata";
 inline constexpr auto kPhotoRefreshMetadata = "studio.photo.refresh_metadata";
 inline constexpr auto kPhotoCreateSnapshot = "studio.photo.create_snapshot";
+inline constexpr auto kPhotoRenameSnapshot = "studio.photo.rename_snapshot";
 inline constexpr auto kPhotoRestoreHistory = "studio.photo.restore_history";
 inline constexpr auto kPhotoToggleReject = "studio.photo.toggle_reject";
 inline constexpr auto kPhotoRequestRemove = "studio.photo.request_remove";
@@ -68,12 +69,15 @@ inline constexpr auto kViewDevelop = "studio.view.show_develop";
 inline constexpr auto kViewFit = "studio.view.fit";
 inline constexpr auto kViewFill = "studio.view.fill";
 inline constexpr auto kViewActual = "studio.view.actual_size";
+inline constexpr auto kViewToggleActualSize = "studio.view.toggle_actual_size";
 inline constexpr auto kViewSetZoomMode = "studio.view.set_zoom_mode";
 inline constexpr auto kViewAdjustZoom = "studio.view.adjust_zoom";
 inline constexpr auto kViewSetThumbnailSize = "studio.view.set_thumbnail_size";
 inline constexpr auto kViewSetScopeMode = "studio.view.set_scope_mode";
 inline constexpr auto kEditUndo = "studio.edit.undo";
 inline constexpr auto kEditRedo = "studio.edit.redo";
+inline constexpr auto kEditCopyEdits = "studio.edit.copy_edits";
+inline constexpr auto kEditPasteEdits = "studio.edit.paste_edits";
 inline constexpr auto kEditResetAll = "studio.edit.reset_all";
 inline constexpr auto kEditResetSection = "studio.edit.reset_section";
 inline constexpr auto kEditSetSectionEnabled = "studio.edit.set_section_enabled";
@@ -96,6 +100,7 @@ inline constexpr auto kStyleSavePath = "studio.style.save_path";
 inline constexpr auto kStyleApply = "studio.style.apply";
 inline constexpr auto kStyleApplyPath = "studio.style.apply_path";
 inline constexpr auto kWindowSettings = "studio.window.show_settings";
+inline constexpr auto kWindowAssistant = "studio.window.toggle_assistant";
 inline constexpr auto kWindowClose = "studio.window.close";
 inline constexpr auto kWindowQuit = "studio.window.quit";
 inline constexpr auto kWindowAbout = "studio.window.show_about";
@@ -133,6 +138,7 @@ enum class Condition
     kDevelopSelection,
     kCanUndo,
     kCanRedo,
+    kCanPasteEdits,
     kCanDelete
 };
 
@@ -204,6 +210,7 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown color label."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown writable metadata field."),
     QT_TRANSLATE_NOOP("StudioCommands", "A non-negative integer history ID is required."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Snapshot label must be a string."),
     QT_TRANSLATE_NOOP("StudioCommands", "Navigation argument must be 'range'."),
     QT_TRANSLATE_NOOP("StudioCommands", "Thumbnail size must be an integer between 120 and 320."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop control name must not be empty."),
@@ -221,6 +228,7 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Open Edit first."),
     QT_TRANSLATE_NOOP("StudioCommands", "Nothing to undo."),
     QT_TRANSLATE_NOOP("StudioCommands", "Nothing to redo."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Copy edits first."),
     QT_TRANSLATE_NOOP("StudioCommands", "The selected originals cannot be deleted."),
     QT_TRANSLATE_NOOP("StudioCommands", "Command unavailable in the current context."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unreject"),
@@ -327,6 +335,7 @@ QStringList command_ids()
             QLatin1String(command::kPhotoSetMetadata),
             QLatin1String(command::kPhotoRefreshMetadata),
             QLatin1String(command::kPhotoCreateSnapshot),
+            QLatin1String(command::kPhotoRenameSnapshot),
             QLatin1String(command::kPhotoRestoreHistory),
             QLatin1String(command::kPhotoToggleReject),
             QLatin1String(command::kPhotoRequestRemove),
@@ -341,12 +350,15 @@ QStringList command_ids()
             QLatin1String(command::kViewFit),
             QLatin1String(command::kViewFill),
             QLatin1String(command::kViewActual),
+            QLatin1String(command::kViewToggleActualSize),
             QLatin1String(command::kViewSetZoomMode),
             QLatin1String(command::kViewAdjustZoom),
             QLatin1String(command::kViewSetThumbnailSize),
             QLatin1String(command::kViewSetScopeMode),
             QLatin1String(command::kEditUndo),
             QLatin1String(command::kEditRedo),
+            QLatin1String(command::kEditCopyEdits),
+            QLatin1String(command::kEditPasteEdits),
             QLatin1String(command::kEditResetAll),
             QLatin1String(command::kEditResetSection),
             QLatin1String(command::kEditSetSectionEnabled),
@@ -369,6 +381,7 @@ QStringList command_ids()
             QLatin1String(command::kStyleApply),
             QLatin1String(command::kStyleApplyPath),
             QLatin1String(command::kWindowSettings),
+            QLatin1String(command::kWindowAssistant),
             QLatin1String(command::kWindowClose),
             QLatin1String(command::kWindowQuit),
             QLatin1String(command::kWindowAbout),
@@ -445,6 +458,16 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Redo")), edit,
         {QStringLiteral("history")}, QStringLiteral("edit.history"), 20, true,
         {key(primary_key(QStringLiteral("Z"), true)), key(QStringLiteral("Shift+Z"), true)});
+    add(command::kEditCopyEdits, command::kEditCopyEdits,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Edits")), edit,
+        {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("paste")},
+        QStringLiteral("edit.history"), 30, true,
+        {key(primary_key(QStringLiteral("C"), true), true)});
+    add(command::kEditPasteEdits, command::kEditPasteEdits,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Paste Edits")), edit,
+        {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("copy")},
+        QStringLiteral("edit.history"), 40, true,
+        {key(primary_key(QStringLiteral("V"), false, true), true)});
     add(command::kEditResetAll, command::kEditResetAll,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reset All Edits")), edit,
         {QStringLiteral("develop"), QStringLiteral("clear")}, QStringLiteral("edit.reset"), 10,
@@ -473,7 +496,8 @@ QVector<ActionSpec> builtin_actions()
         {key(primary_key(QStringLiteral("9")))});
     add(command::kViewActual, command::kViewActual,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Actual Size")), view,
-        {QStringLiteral("100%"), QStringLiteral("zoom")}, QStringLiteral("view.zoom"), 30, true,
+        {QStringLiteral("100%"), QStringLiteral("1:1"), QStringLiteral("zoom")},
+        QStringLiteral("view.zoom"), 30, true,
         {key(primary_key(QStringLiteral("0"), false, true)), key(QStringLiteral("Shift+1"), true)});
     add(command::kEditBeforeAfter, command::kEditBeforeAfter,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Before / After")), view,
@@ -483,6 +507,11 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Show Command Palette")), view,
         {QStringLiteral("commands"), QStringLiteral("search")}, QStringLiteral("view.commands"), 10,
         false, {key(primary_key(QStringLiteral("P"), true))});
+    add(command::kWindowAssistant, command::kWindowAssistant,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Assistant")), view,
+        {QStringLiteral("chat"), QStringLiteral("ai"), QStringLiteral("model")},
+        QStringLiteral("view.commands"), 20, true,
+        {key(primary_key(QStringLiteral("A"), true))});
 
     add(command::kPhotoPrevious, command::kPhotoPrevious,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Previous Photo")), photo,
@@ -1132,9 +1161,39 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(command::kPhotoRefreshMetadata, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.refreshSelectedMetadata(); });
-    add(command::kPhotoCreateSnapshot, Condition::kDevelopSelection, non_empty_string,
+    add(command::kPhotoCreateSnapshot, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            if (!argument.isValid() || argument.metaType().id() == QMetaType::QString)
+                return QString{};
+            return QStringLiteral("Snapshot label must be a string.");
+        },
         [this](const QVariant &argument, const QString &)
         { presenter_.createSnapshot(argument.toString()); });
+    add(
+        command::kPhotoRenameSnapshot, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("id"), QStringLiteral("label")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            const auto id = fields.value(QStringLiteral("id"));
+            const double number = id.toDouble();
+            if (!(numeric_argument(id) && std::isfinite(number) && std::floor(number) == number &&
+                  number >= 0.0))
+                return QStringLiteral("A non-negative integer history ID is required.");
+            if (fields.value(QStringLiteral("label")).metaType().id() != QMetaType::QString)
+                return QStringLiteral("Snapshot label must be a string.");
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.renameSnapshot(fields.value(QStringLiteral("id")).toInt(),
+                                      fields.value(QStringLiteral("label")).toString());
+        });
     add(
         command::kPhotoRestoreHistory, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -1213,6 +1272,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kViewActual, Condition::kNonGrid, no_argument,
         [this](const QVariant &, const QString &)
         { presenter_.setZoomMode(QStringLiteral("actual")); });
+    add(command::kViewToggleActualSize, Condition::kNonGrid, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.toggleActualSize(); });
     add(
         command::kViewSetZoomMode, Condition::kNonGrid,
         [](const QVariant &argument)
@@ -1256,6 +1317,10 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.undoEdit(); });
     add(command::kEditRedo, Condition::kCanRedo, no_argument,
         [this](const QVariant &, const QString &) { presenter_.redoEdit(); });
+    add(command::kEditCopyEdits, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.copyEdits(); });
+    add(command::kEditPasteEdits, Condition::kCanPasteEdits, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.pasteEdits(); });
     add(command::kEditResetAll, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
@@ -1433,6 +1498,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kWindowSettings, Condition::kAlways, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kWindowSettings, argument); });
+    add(command::kWindowAssistant, Condition::kAlways, no_argument,
+        [this](const QVariant &, const QString &) { setAssistantOpen(!assistant_open_); });
     add(command::kWindowClose, Condition::kAlways, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kWindowClose, argument); });
@@ -1449,6 +1516,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         {
             if (settings_open_)
                 present(command::kWindowDismiss, argument);
+            else if (assistant_open_)
+                setAssistantOpen(false);
             else if (presenter_.catalogOpen())
                 presenter_.returnToGrid();
         });
@@ -1468,6 +1537,7 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(&presenter_, &StudioPresenter::zoomChanged, this, changed);
     connect(&presenter_, &StudioPresenter::editChanged, this, changed);
+    connect(&presenter_, &StudioPresenter::copiedEditsChanged, this, changed);
 }
 
 StudioCommandController::~StudioCommandController() = default;
@@ -1506,6 +1576,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("photoSetMetadata"), QLatin1String(command::kPhotoSetMetadata)},
         {QStringLiteral("photoRefreshMetadata"), QLatin1String(command::kPhotoRefreshMetadata)},
         {QStringLiteral("photoCreateSnapshot"), QLatin1String(command::kPhotoCreateSnapshot)},
+        {QStringLiteral("photoRenameSnapshot"), QLatin1String(command::kPhotoRenameSnapshot)},
         {QStringLiteral("photoRestoreHistory"), QLatin1String(command::kPhotoRestoreHistory)},
         {QStringLiteral("photoReject"), QLatin1String(command::kPhotoToggleReject)},
         {QStringLiteral("photoRemove"), QLatin1String(command::kPhotoRequestRemove)},
@@ -1520,12 +1591,15 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("viewFit"), QLatin1String(command::kViewFit)},
         {QStringLiteral("viewFill"), QLatin1String(command::kViewFill)},
         {QStringLiteral("viewActual"), QLatin1String(command::kViewActual)},
+        {QStringLiteral("viewToggleActualSize"), QLatin1String(command::kViewToggleActualSize)},
         {QStringLiteral("viewSetZoomMode"), QLatin1String(command::kViewSetZoomMode)},
         {QStringLiteral("viewAdjustZoom"), QLatin1String(command::kViewAdjustZoom)},
         {QStringLiteral("viewSetThumbnailSize"), QLatin1String(command::kViewSetThumbnailSize)},
         {QStringLiteral("viewSetScopeMode"), QLatin1String(command::kViewSetScopeMode)},
         {QStringLiteral("editUndo"), QLatin1String(command::kEditUndo)},
         {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
+        {QStringLiteral("editCopyEdits"), QLatin1String(command::kEditCopyEdits)},
+        {QStringLiteral("editPasteEdits"), QLatin1String(command::kEditPasteEdits)},
         {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
         {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
         {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
@@ -1549,10 +1623,12 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("styleApply"), QLatin1String(command::kStyleApply)},
         {QStringLiteral("styleApplyPath"), QLatin1String(command::kStyleApplyPath)},
         {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
+        {QStringLiteral("windowAssistant"), QLatin1String(command::kWindowAssistant)},
         {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},
         {QStringLiteral("windowQuit"), QLatin1String(command::kWindowQuit)},
         {QStringLiteral("windowAbout"), QLatin1String(command::kWindowAbout)},
         {QStringLiteral("windowCommandPalette"), QLatin1String(command::kWindowPalette)},
+        {QStringLiteral("windowDismiss"), QLatin1String(command::kWindowDismiss)},
         {QStringLiteral("actionRating0"), QLatin1String(action_id::kRating0)},
         {QStringLiteral("actionRating1"), QLatin1String(action_id::kRating1)},
         {QStringLiteral("actionRating2"), QLatin1String(action_id::kRating2)},
@@ -1625,6 +1701,14 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
         return presenter.browseMode() == QLatin1String("develop") && presenter.canRedo() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Nothing to redo."))};
+    case Condition::kCanPasteEdits:
+        if (!catalog_open)
+            return {false, tr_command(QStringLiteral("Open a library first."))};
+        if (!selection)
+            return {false, tr_command(QStringLiteral("Select a photo first."))};
+        return presenter.hasCopiedEdits() ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Copy edits first."))};
     case Condition::kCanDelete:
         return presenter.canDeleteFromDisk() ?
                    State{} :
@@ -1702,6 +1786,11 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     {
         checkable = true;
         checked = presenter_.beforeAfter();
+    }
+    else if (found->id == QLatin1String(command::kWindowAssistant))
+    {
+        checkable = true;
+        checked = assistant_open_;
     }
     const QString shortcut =
         found->shortcuts.isEmpty() ? QString{} : native_key(found->shortcuts.front().sequence);
@@ -1898,6 +1987,10 @@ bool StudioCommandController::settingsOpen() const noexcept
 {
     return settings_open_;
 }
+bool StudioCommandController::assistantOpen() const noexcept
+{
+    return assistant_open_;
+}
 bool StudioCommandController::modalOpen() const noexcept
 {
     return modal_open_;
@@ -1943,6 +2036,15 @@ void StudioCommandController::setSettingsOpen(const bool open)
     if (settings_open_ == open)
         return;
     settings_open_ = open;
+    refresh();
+}
+
+void StudioCommandController::setAssistantOpen(const bool open)
+{
+    if (assistant_open_ == open)
+        return;
+    assistant_open_ = open;
+    emit assistantOpenChanged();
     refresh();
 }
 

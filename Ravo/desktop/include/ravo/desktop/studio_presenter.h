@@ -16,6 +16,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
 #include <QUrl>
 #include <QVariant>
 #include <QVariantList>
@@ -83,6 +84,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool beforeAfter READ beforeAfter NOTIFY editChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY editChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
+    Q_PROPERTY(bool hasCopiedEdits READ hasCopiedEdits NOTIFY copiedEditsChanged)
     Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editInputColor READ editInputColor NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editProfileGamma READ editProfileGamma NOTIFY editChanged)
@@ -111,6 +113,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
     Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editCanvas READ editCanvas NOTIFY editChanged)
+    Q_PROPERTY(bool editCanvasEnabled READ editCanvasEnabled NOTIFY editChanged)
     Q_PROPERTY(double editStraighten READ editStraighten NOTIFY editChanged)
     Q_PROPERTY(QString cropAspect READ cropAspect NOTIFY editChanged)
     Q_PROPERTY(double cropAspectRatio READ cropAspectRatio NOTIFY editChanged)
@@ -290,6 +293,7 @@ public:
     [[nodiscard]] bool beforeAfter() const noexcept;
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
+    [[nodiscard]] bool hasCopiedEdits() const noexcept;
     [[nodiscard]] QVariantMap editWhiteBalance() const;
     [[nodiscard]] QVariantMap editInputColor() const;
     [[nodiscard]] QVariantMap editProfileGamma() const;
@@ -318,6 +322,7 @@ public:
     [[nodiscard]] double editCropWidth() const noexcept;
     [[nodiscard]] double editCropHeight() const noexcept;
     [[nodiscard]] QVariantMap editCanvas() const;
+    [[nodiscard]] bool editCanvasEnabled() const noexcept;
     [[nodiscard]] double editStraighten() const noexcept;
     [[nodiscard]] QString cropAspect() const;
     [[nodiscard]] double cropAspectRatio() const noexcept;
@@ -476,12 +481,15 @@ public:
     Q_INVOKABLE bool sectionEffectEnabled(const QString &section) const;
     Q_INVOKABLE void setSectionEffectEnabled(const QString &section, bool enabled);
     Q_INVOKABLE void resetAllEdits();
+    Q_INVOKABLE void copyEdits();
+    Q_INVOKABLE void pasteEdits();
     Q_INVOKABLE void undoEdit();
     Q_INVOKABLE void redoEdit();
     Q_INVOKABLE void toggleBeforeAfter();
     Q_INVOKABLE void setZoomMode(const QString &mode);
     Q_INVOKABLE void setZoomFactor(double factor);
     Q_INVOKABLE void adjustZoom(int wheel_delta);
+    Q_INVOKABLE void toggleActualSize();
     Q_INVOKABLE void setThumbnailSize(int size);
     Q_INVOKABLE void setAssetTags(const QString &text);
     Q_INVOKABLE void setMetadataField(const QString &name, const QString &value);
@@ -489,6 +497,7 @@ public:
     Q_INVOKABLE void saveStyleToPath(const QString &path);
     Q_INVOKABLE void applyStyleFromPath(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
+    Q_INVOKABLE void renameSnapshot(int history_id, const QString &label);
     Q_INVOKABLE void restoreHistory(int history_id);
     Q_INVOKABLE void setTagFilter(const QString &tag);
     Q_INVOKABLE void setRating(int rating);
@@ -504,6 +513,7 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
+    void pollCatalogRevision();
 signals:
     void catalogChanged();
     void busyChanged();
@@ -518,6 +528,7 @@ signals:
     void filterChanged();
     void folderChanged();
     void editChanged();
+    void copiedEditsChanged();
     void libraryWorkChanged();
     void thumbnailsChanged();
 
@@ -533,6 +544,7 @@ private:
     void applyFolders(std::vector<FolderRecord> folders);
     void requestPreviewForSelection();
     void reloadVisibleAssets();
+    void start_catalog_revision_watch(std::int64_t revision);
     void queuePreviewWarmup();
     void kickPreviewWarmup();
     void setImportWork(int completed, int total, bool active);
@@ -542,7 +554,17 @@ private:
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
     void reload_recipe_history();
     void sync_active_history();
+    [[nodiscard]] DevelopParams baseline_develop() const;
     [[nodiscard]] DevelopParams develop_from_history_entry(const RecipeHistoryEntry &entry) const;
+    enum class DevelopEdit : std::uint8_t
+    {
+        Preview,
+        Overlay,
+        Commit,
+        Restore,
+        Revert
+    };
+    bool mutate_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true);
     void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true,
                         RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew);
     void preview_develop(DevelopParams params);
@@ -595,6 +617,9 @@ private:
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;
+    QTimer *catalog_revision_timer_ = nullptr;
+    bool catalog_poll_in_flight_ = false;
+    std::int64_t observed_catalog_revision_ = -1;
     AssetListModel assets_;
     FolderListModel folders_;
     LibraryQuery query_;
@@ -634,6 +659,8 @@ private:
     QString browse_mode_{QStringLiteral("grid")};
     QString zoom_mode_{QStringLiteral("fit")};
     double zoom_factor_ = 1.0;
+    QString last_non_actual_zoom_mode_{QStringLiteral("fit")};
+    double last_non_actual_zoom_factor_ = 1.0;
     int thumbnail_size_ = 180;
     bool busy_ = false;
     bool preview_loading_ = false;
@@ -644,6 +671,7 @@ private:
     DevelopParams saved_develop_{};
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;
+    std::optional<DevelopParams> copied_edits_;
     bool before_after_ = false;
     bool crop_tool_active_ = false;
     bool crop_guide_ready_ = false;

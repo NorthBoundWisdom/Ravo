@@ -28,7 +28,7 @@ scripts, CI, and headless workflows.
 - Create or open a local library and import individual files or directories.
 - Browse a Gallery grid, select one or more photos, and inspect a primary photo
   in Loupe.
-- Use Fit, Fill, 100%, pan, a navigator, an RGB histogram, and an RGB parade.
+- Use Fit, Fill, 1:1, click-to-1:1, pan, a navigator, an RGB histogram, and an RGB parade.
 - Rate photos from 0 to 5, apply color labels, reject or keep photos, search and
   filter by media/edit/review/tag/folder/capture fields, and sort deterministically.
 - Edit a selected photo with geometry, profile, exposure, color, detail,
@@ -39,6 +39,8 @@ scripts, CI, and headless workflows.
 - Export a rendered photo as PNG, JPEG, or TIFF, or make an exact original
   copy. Existing destination files are never overwritten implicitly.
 - Run the same catalog, preview, recipe, and export paths through `ravo`.
+- Open a floating Assistant panel and configure its URL, model, and API key in
+  Settings.
 
 ## Quick entry points
 

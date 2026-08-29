@@ -2,15 +2,31 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <functional>
+#include <memory>
+#include <string>
 
 #include <QVariantMap>
 
+#include <QColor>
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QImage>
 #include <QKeySequence>
+#include <QThread>
 #include <QTranslator>
 #include <QSettings>
 #include <QTemporaryDir>
+
+#include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/adapters/sqlite_catalog.h"
+#include "ravo/engine/engine.h"
+#include "ravo/foundation/log.h"
+#include "ravo/recipe/develop.h"
+#include "ravo/services/catalog_service.h"
 
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -99,6 +115,22 @@ void ensure_qt_core()
     static char *argv[] = {executable, nullptr};
     static auto *application = new QCoreApplication(argc, argv);
     static_cast<void>(application);
+}
+
+[[nodiscard]] bool wait_until(const std::function<bool()> &ready, const int timeout_ms = 15000)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < timeout_ms)
+    {
+        if (ready())
+        {
+            return true;
+        }
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+    return ready();
 }
 
 [[nodiscard]] QString qml_model_entry(const QString &source, const char *field)
@@ -364,6 +396,109 @@ TEST(StudioPresenterTest, ZoomModesAndFactorBoundsHaveOneDeterministicOwner)
     EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 8.0);
     presenter.setZoomMode(QStringLiteral("future"));
     EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+    presenter.setZoomMode(QStringLiteral("fill"));
+    presenter.toggleActualSize();
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
+    presenter.toggleActualSize();
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fill"));
+    presenter.setZoomFactor(2.0);
+    presenter.toggleActualSize();
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
+    presenter.toggleActualSize();
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("custom"));
+    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 2.0);
+    presenter.setZoomMode(QStringLiteral("fit"));
+    presenter.setZoomMode(QStringLiteral("actual"));
+    presenter.toggleActualSize();
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+}
+
+TEST(StudioPresenterTest, CopiedEditsClipboardStartsEmptyAndIgnoresEmptySelection)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_FALSE(presenter.hasCopiedEdits());
+    presenter.copyEdits();
+    EXPECT_FALSE(presenter.hasCopiedEdits());
+    presenter.pasteEdits();
+    EXPECT_FALSE(presenter.hasCopiedEdits());
+}
+
+TEST(StudioPresenterTest, SessionUndoStartsEmptyAndHistoryRestoreWithoutSelectionIsIgnored)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_FALSE(presenter.canUndo());
+    EXPECT_FALSE(presenter.canRedo());
+    presenter.restoreHistory(0);
+    presenter.undoEdit();
+    presenter.redoEdit();
+    EXPECT_FALSE(presenter.canUndo());
+    EXPECT_FALSE(presenter.canRedo());
+}
+
+TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("photo.png"));
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(QColor(120, 130, 140));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    {
+        QElapsedTimer settle;
+        settle.start();
+        while (settle.elapsed() < 500)
+        {
+            QCoreApplication::processEvents();
+            QThread::msleep(10);
+        }
+    }
+    EXPECT_NEAR(presenter.editExposure(), 0.0, 1e-9);
+    const auto asset_id = presenter.selectedAssetId().toStdString();
+
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto catalog_utf8 = catalog.toUtf8().toStdString();
+    auto repository = SqliteCatalogRepository::open(catalog_utf8);
+    ASSERT_TRUE(repository) << repository.error().message;
+    auto cache = FilesystemPreviewCache::create(catalog_utf8 + ".preview");
+    ASSERT_TRUE(cache) << cache.error().message;
+    CatalogService writer(engine.value(), std::move(repository).value(),
+                          std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+    DevelopParams params;
+    params.exposure_ev = 1.0;
+    auto saved = writer.save_develop(asset_id, params);
+    ASSERT_TRUE(saved) << saved.error().message;
+    ASSERT_TRUE(writer.close());
+
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            presenter.pollCatalogRevision();
+            return std::abs(presenter.editExposure() - 1.0) < 1e-6;
+        }))
+        << presenter.errorText().toStdString() << " exposure=" << presenter.editExposure();
+    EXPECT_TRUE(presenter.selectedHasEdits());
+    EXPECT_FALSE(presenter.canUndo());
 }
 
 TEST(StudioPresenterTest, ScopeModeOwnsAllAcceptedDiagnosticsAndRejectsFutureState)
@@ -722,6 +857,11 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
     EXPECT_TRUE(source.contains(QStringLiteral("Auto dithers integer exports")));
     EXPECT_FALSE(source.contains(QStringLiteral("7.0 / 16.0")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"canvasEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: canvasEnabledBox")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editCanvasEnabled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Enlarge Canvas\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Enable enlarged canvas\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("visible: canvasEnabledBox.checked")));
     EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editCanvas.colorChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("canvasColorIndex")));
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"canvas\")")));
@@ -782,6 +922,8 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
     ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
         << panel.errorString().toStdString();
     const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Undo\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Reset all\")")));
     const QStringList order{
         QStringLiteral("geometry"),     QStringLiteral("light"),
         QStringLiteral("toneEqual"),    QStringLiteral("whiteBalance"),
@@ -820,6 +962,15 @@ TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
     EXPECT_TRUE(source.contains(QStringLiteral("AbstractButton.IconOnly")));
     EXPECT_TRUE(source.contains(QStringLiteral("setCropAspect(checked ? \"locked\" : \"free\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Lock aspect ratio\")")));
+    const auto geometry_begin = source.indexOf(QStringLiteral("sectionId: \"geometry\""));
+    const auto geometry_end = source.indexOf(QStringLiteral("sectionId: \"light\""), geometry_begin);
+    ASSERT_GE(geometry_begin, 0);
+    ASSERT_GT(geometry_end, geometry_begin);
+    const auto geometry = source.mid(geometry_begin, geometry_end - geometry_begin);
+    EXPECT_TRUE(geometry.contains(QStringLiteral("Layout.fillWidth: true")));
+    EXPECT_FALSE(geometry.contains(QStringLiteral("qsTr(\"Angle\")")));
+    EXPECT_FALSE(geometry.contains(QStringLiteral("previewDevelopNumber(\"straighten\"")));
+    EXPECT_FALSE(geometry.contains(QStringLiteral("resetControl(\"straighten\")")));
 }
 
 TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
@@ -831,6 +982,12 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(library_source.contains(QStringLiteral("DevelopHistoryPanel")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("developOpen")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("visible: !root.developOpen")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("id: zoomModeBar")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("Layout.preferredWidth: 1")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fit\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fill\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"1:1\")")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("Layout.preferredWidth: ControlState.borderThin")));
 
     QFile history(QStringLiteral(RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML));
     ASSERT_TRUE(history.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -841,6 +998,37 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(history_source.contains(QStringLiteral("activeHistorySeq")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("restoreHistory")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("createSnapshot")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("createSnapshot(\"\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("renameSnapshot")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("onDoubleClicked")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("commitRename")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("historyEntries")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Original\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("\"id\": 0")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("snapshotEntries")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("id: snapshotList")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Snapshots\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("kind === \"snapshot\"")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Undo\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Redo\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Reset all\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("beforeAfter")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Copy\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste\")")));
+    EXPECT_LT(history_source.indexOf(QStringLiteral("qsTr(\"Snapshot\")")),
+              history_source.indexOf(QStringLiteral("qsTr(\"Copy\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("Layout.preferredWidth: 1")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("copyEdits")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteEdits")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("hasCopiedEdits")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoRenameSnapshot")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyEdits")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteEdits")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("maximumLineCount: 1")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("entryText")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("inactive")));
@@ -1121,6 +1309,7 @@ TEST(StudioPresenterTest, OutputDitherPresentationOwnsAllFrozenMethods)
     EXPECT_EQ(choices.back().toMap().value(QStringLiteral("id")).toString(),
               QStringLiteral("posterize_8"));
     const auto canvas = presenter.editCanvas();
+    EXPECT_FALSE(presenter.editCanvasEnabled());
     EXPECT_FALSE(canvas.value(QStringLiteral("enabled")).toBool());
     EXPECT_EQ(canvas.value(QStringLiteral("colorChoices")).toList().size(), 5);
     const auto frame = presenter.editOutputFrame();
@@ -1250,6 +1439,20 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("Math.min(maxY")));
     EXPECT_TRUE(source.contains(QStringLiteral("WheelHandler")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.viewAdjustZoom")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.viewToggleActualSize")));
+    EXPECT_TRUE(source.contains(QStringLiteral("photoInspectEnabled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("cropToolActive")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function togglePhotoInspectZoom(stagePos)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: inspectZoomAnim")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectStageLockW")));
+    EXPECT_TRUE(source.contains(QStringLiteral("inspectAnimScale")));
+    EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
+    EXPECT_TRUE(source.contains(QStringLiteral("cursorShape: Qt.BlankCursor")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
+    EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
+    EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
 }
 
 TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
@@ -1279,16 +1482,30 @@ TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
     QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
     ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
         << main.errorString().toStdString();
-    const auto source = QString::fromUtf8(main.readAll());
+    const auto main_source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("LibraryFilterBar")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("qsTr(\"Search photos\")")));
+    EXPECT_FALSE(main_source.contains(QStringLiteral("qsTr(\"Clear filters\")")));
+
+    QFile bar(QStringLiteral(RAVO_STUDIO_LIBRARY_FILTER_BAR_QML));
+    ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text)) << bar.errorString().toStdString();
+    const auto source = QString::fromUtf8(bar.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Search photos\")")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.filterText")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studioActions.setTextFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studioActions.setMediaFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studioActions.setEditFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.mediaFilter")));
-    EXPECT_TRUE(source.contains(QStringLiteral("studio.editFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setTextFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setMediaFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setEditFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.mediaFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.editFilter")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Capture time\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"File size\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setRatingExact")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Unrated\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add filter\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function extraOpen(id)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function addExtra(id)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function removeExtra(id)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qrc:/GeoControls/icons/Plus.svg")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qrc:/GeoControls/icons/Close.svg")));
 
     QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
     ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -1331,6 +1548,12 @@ TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)
     EXPECT_TRUE(source.contains(QStringLiteral("scopeVectorscopeUrl")));
     EXPECT_TRUE(source.contains(QStringLiteral("scopeSplitUrl")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.viewSetScopeMode")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: scopeModeButton")));
+    EXPECT_TRUE(source.contains(QStringLiteral("anchors.left: plot.left")));
+    EXPECT_TRUE(source.contains(QStringLiteral("anchors.top: plot.top")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: scopeModeMenu")));
+    EXPECT_TRUE(source.contains(QStringLiteral("modeId: \"histogram\"")));
+    EXPECT_FALSE(source.contains(QStringLiteral("SegmentedControl")));
     EXPECT_FALSE(source.contains(QStringLiteral("srgb_to_linear")));
     EXPECT_FALSE(source.contains(QStringLiteral("rgb_to_d50_uv")));
 }

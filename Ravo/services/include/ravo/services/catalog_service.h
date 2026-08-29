@@ -72,6 +72,9 @@ public:
     list_recipe_history(std::string_view asset_id) const;
     [[nodiscard]] Result<AssetRecord> create_recipe_snapshot(std::string_view asset_id,
                                                              std::string_view label);
+    [[nodiscard]] Result<AssetRecord> rename_recipe_snapshot(std::string_view asset_id,
+                                                             std::int64_t history_id,
+                                                             std::string_view label);
     [[nodiscard]] Result<AssetRecord> restore_recipe_history(std::string_view asset_id,
                                                              std::int64_t history_id);
     [[nodiscard]] Result<ImportItemResult> import_one(std::string_view path,

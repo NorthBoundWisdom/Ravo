@@ -1019,6 +1019,13 @@ Result<CatalogSnapshot> SqliteCatalogRepository::snapshot() const
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !query.next())
+    {
+        return map_sql_error(query, "read_revision");
+    }
+    impl_->snapshot.revision = query.value(0).toLongLong();
     return impl_->snapshot;
 }
 
@@ -1876,6 +1883,31 @@ Result<RecipeHistoryEntry> SqliteCatalogRepository::append_recipe_history(
     entry.recipe_json = std::string(recipe_json);
     entry.created_unix_ms = now;
     return entry;
+}
+
+Result<void> SqliteCatalogRepository::update_recipe_history_label(const std::int64_t history_id,
+                                                                  const std::string_view label)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "UPDATE asset_recipe_history SET label = ? WHERE id = ? AND kind = ?"));
+    query.addBindValue(qstring_from_utf8(label));
+    query.addBindValue(static_cast<qlonglong>(history_id));
+    query.addBindValue(qstring_from_utf8(kRecipeHistoryKindSnapshot));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "update_recipe_history_label");
+    }
+    if (query.numRowsAffected() == 0)
+    {
+        return make_error(ErrorCode::kNotFound, "Recipe snapshot does not exist",
+                          {{"history_id", std::to_string(history_id)}});
+    }
+    return {};
 }
 
 Result<std::int64_t> SqliteCatalogRepository::bump_revision()

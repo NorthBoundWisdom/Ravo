@@ -127,6 +127,36 @@ TEST(CanvasFrameRecipeTest, SchemasDevelopAndOrderAreStrict)
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "canvas_later_geometry_unsupported");
 
+    DevelopParams disabled = invalid;
+    disabled.canvas_enabled = false;
+    auto disabled_recipe =
+        recipe_from_develop({"asset", "file:///fixture.raw", std::nullopt}, disabled);
+    ASSERT_TRUE(disabled_recipe) << disabled_recipe.error().message;
+    auto disabled_ok = engine.value().validate(disabled_recipe.value());
+    ASSERT_TRUE(disabled_ok) << disabled_ok.error().message;
+    auto disabled_restored = develop_from_recipe(disabled_recipe.value());
+    ASSERT_TRUE(disabled_restored) << disabled_restored.error().message;
+    EXPECT_TRUE(disabled_restored.value().canvas_present);
+    EXPECT_FALSE(disabled_restored.value().canvas_enabled);
+
+    DevelopParams toggle;
+    ASSERT_TRUE(apply_develop_field(toggle, "canvasEnabled", 1.0));
+    EXPECT_TRUE(toggle.canvas_present);
+    EXPECT_TRUE(toggle.canvas_enabled);
+    ASSERT_TRUE(apply_develop_field(toggle, "canvasEnabled", 0.0));
+    EXPECT_FALSE(toggle.canvas_present);
+    EXPECT_FALSE(toggle.canvas_enabled);
+    auto cleared_recipe =
+        recipe_from_develop({"asset", "file:///fixture.raw", std::nullopt}, toggle);
+    ASSERT_TRUE(cleared_recipe) << cleared_recipe.error().message;
+    EXPECT_TRUE(std::none_of(
+        cleared_recipe.value().operations.begin(), cleared_recipe.value().operations.end(),
+        [](const OperationInstance &operation) { return operation.id == kCanvasOperationId; }));
+    auto cleared = develop_from_recipe(cleared_recipe.value());
+    ASSERT_TRUE(cleared) << cleared.error().message;
+    EXPECT_FALSE(cleared.value().canvas_present);
+    EXPECT_FALSE(cleared.value().canvas_enabled);
+
     frame.aspect = std::numeric_limits<double>::denorm_min();
     auto underflowed_aspect = frame_to_parameters(frame);
     ASSERT_FALSE(underflowed_aspect);

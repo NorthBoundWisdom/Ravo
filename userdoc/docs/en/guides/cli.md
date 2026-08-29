@@ -5,7 +5,7 @@
 Use `ravo` for inspection, catalog automation, recipe validation, preview
 diagnostics, and local export with machine-readable results.
 
-**Last verified:** 2026-08-27 against the current `ravo-cli/v1` implementation
+**Last verified:** 2026-08-29 against the current `ravo-cli/v1` implementation
 and macOS Debug binary.
 
 ## Applies to
@@ -83,12 +83,17 @@ CATALOG="/work/Ravo Library.sqlite"
 Directory import is recursive and returns item-level statuses. Keep the asset
 ID returned by `catalog list` or an imported item for later commands.
 
+If Ravo Studio already has that library open, committed CLI writes appear in
+the window within about one second. Studio does not expose a remote-control
+socket; `ravo --json` remains the machine client.
+
 ## Top-level commands
 
 | Command | Purpose |
 | --- | --- |
 | `--version` | Return the Ravo version and `ravo-cli/v1` protocol name. |
 | `operations` | List registered versioned engine operations and their descriptors. |
+| `develop-fields` | List every closed Develop `--set` field name, kind, and range. |
 | `inspect <input>` | Inspect a supported RAW input's format, dimensions, and camera identity. |
 | `recipe validate <recipe>` | Parse and validate a recipe without rendering it. |
 | `recipe import-xmp <xmp> ...` | Convert a strictly supported legacy XMP subset into a versioned recipe file. |
@@ -115,6 +120,20 @@ ravo operations --json
 The command is useful for tooling that wants the current versioned operation
 descriptors instead of hard-coding an assumed registry. Operation availability
 does not make an unsupported legacy mask, blend, or history state importable.
+
+## Discover Develop `--set` fields
+
+```text
+ravo develop-fields --json
+ravo catalog fields --json
+```
+
+Both commands return the same inventory. Neither needs a catalog. Each closed
+numeric or toggle field includes `name`, `kind`, `minimum`, and `maximum`.
+`watermarkText` is the one text field and is set with `--watermark-text`.
+Canonical-mask names are not a closed list; the result includes `prefixes` for
+`colorHarmonizerMask` and `graduatedMask`. Unknown, duplicate, non-finite, or
+out-of-range `--set` values fail closed.
 
 ## Validate or import a recipe
 
@@ -205,6 +224,16 @@ counts, and display-luma mean. Unknown, duplicate, non-finite, or out-of-range
 Develop fields fail before publication. The command guarantees
 `recipe_unchanged: true` and `preview_records_unchanged: true` on success.
 
+Optional `--output` writes a throwaway display PNG of the in-memory probe
+pixels. It is not a catalog preview record, must end in `.png`, and never
+replaces an existing file:
+
+```text
+ravo catalog probe --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --baseline --set exposure=0.5 \
+  --output "/tmp/probe.png" --json
+```
+
 ## Save Develop values
 
 `catalog develop` applies values and saves the resulting recipe:
@@ -220,7 +249,8 @@ Convenience flags are available for `--exposure-ev`, `--saturation`, and
 `--contrast`. Use repeated `--set name=value` for the numeric Develop fields
 exposed by the current recipe contract, including geometry, profiles, white
 balance, color, RAW repair, lens, tone, and effect fields. Values must be finite
-and each field keeps its own validation bounds.
+and each field keeps its own validation bounds. Discover the current names and
+ranges with `ravo develop-fields --json`.
 
 `--watermark-text` sets the one bounded text field. The current fixed-font
 contract accepts its documented ASCII subset plus newline and the `{stem}` and
@@ -399,14 +429,17 @@ array in the current protocol, and service logs stay out of stdout.
 
 ### Why did `catalog probe` not create a preview file?
 
-That is its purpose. Probe is a read-only diagnostic and promises not to change
-the stored recipe or preview-record set.
+Probe does not write a catalog preview record or change the stored recipe.
+Pass `--output /path/to/probe.png` when you want a throwaway display PNG of the
+in-memory result. That file is still not a catalog cache entry, and an existing
+path returns `conflict`.
 
 ### Why did an unknown `--set` field fail?
 
-Develop fields are versioned and validated. Discover the current registered
-operations with `ravo operations --json`, and use the field names documented by
-the current recipe contract; Ravo does not ignore a typo.
+Develop fields are versioned and validated. Discover the current names, kinds,
+and ranges with `ravo develop-fields --json`. `ravo operations --json` lists
+engine operation descriptors, not `--set` field names. Ravo does not ignore a
+typo.
 
 ### Can the CLI export high-precision PNG and TIFF files?
 

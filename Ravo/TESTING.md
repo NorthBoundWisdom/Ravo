@@ -22,10 +22,11 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 
 The dependency-boundary checker covers the product target graph:
 `Qt6::Sql` is adapters-only, `Qt6::Gui` is raster adapters/desktop-only,
-`Qt6::Qml`/`Qt6::Quick`, `QtQuick.Controls`/`QtQuick.Dialogs`/
-`QtQuick.Layouts`, `GeoControls`/`GeoControls.AppShell` imports, and production
-`.qml` are desktop-only; every Ravo target rejects Qt Widgets. Do not remove a
-check to admit a new dependency.
+`Qt6::Network` is desktop-only for the Assistant endpoint, `Qt6::Qml`/`Qt6::Quick`,
+`QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts`,
+`GeoControls`/`GeoControls.AppShell` imports, and production `.qml` are
+desktop-only; every Ravo target rejects Qt Widgets. Do not remove a check to
+admit a new dependency.
 
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
 integration, including first-frame Bayer RAW/DNG errors and preview-cache miss
@@ -45,10 +46,24 @@ ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
 text/range state, deterministic capture/file-size sorting, Catalog validation
 propagation, Studio command/QML wiring, clear state, translations, and QML
 smoke. They also pin the ADR-0059 decision not to persist recent filters or
-silently map legacy-only bookkeeping fields. Navigation tests cover the single
-presenter zoom owner, 0.1–8 clamps, wheel step, bounded Flickable/navigator
-seek, active-asset comparison, recenter triggers, crop pan exclusion, and QML
-smoke; same-asset review notifications are required not to reset pan. Scope
+silently map legacy-only bookkeeping fields, and the ADR-0077 compact filter
+bar (default rating stars, opt-in extra chips, command-owned query).
+Assistant tests pin default xAI endpoint/model, reject non-http(s) URLs and
+blank models, persist valid URL/model/key, repair malformed stored URL, and
+toggle the floating panel command. Copy/paste edit tests pin an empty session
+clipboard, copy/paste no-ops
+without a selection, History/context-menu/command wiring, and ADR-0078's
+complete-recipe clipboard (not a history-stack merge or style file).
+Session undo is the single stack for right-panel Develop commits and
+left-rail history/Original/snapshot restore; live preview/overlay drags do
+not push that stack.
+Navigation tests cover the single
+presenter zoom owner, 0.1–8 clamps, wheel step, Actual-size toggle restoring
+the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier
+click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
+and QML smoke; same-asset review notifications are required not to reset pan.
+Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
+than a C++ timing contract. Scope
 tests pin histogram bins/max, Waveform/Parade 8/9 white placement and RGB
 composition, neutral-center versus saturated-red D50 u*v*, exact image sizes,
 Split left equality and max-preserved right signal, exact-buffer rejection,
@@ -103,9 +118,18 @@ The real `ravo` process is also a protocol contract: `--json` stdout contains
 exactly one parseable envelope and logging remains file-only. `catalog probe`
 drives the same non-persistent Develop preview used by Studio, supports strict
 repeatable numeric overrides, reports deterministic display-RGB statistics, and
-proves the stored recipe serialization and preview-record set are unchanged. It
-is the preferred local entry point for parameter-response sweeps; external image
-decoders and manual UI observations are not pixel or persistence oracles.
+proves the stored recipe serialization and preview-record set are unchanged.
+Optional probe `--output` writes a throwaway PNG of that in-memory RGB without
+creating a preview record, rejects a non-PNG path, and returns `conflict` when
+the destination exists. `develop-fields` / `catalog fields` list the recipe-owned
+`--set` inventory, including kind and measured bounds, and reject unknown names
+through the same `apply_develop_field_strict` path. Probe is the preferred local
+entry point for parameter-response sweeps; external image decoders and manual UI
+observations are not pixel or persistence oracles.
+Catalog snapshot tests prove `revision` is re-read from SQLite so a second
+connection's bump is visible. Desktop presenter tests open a library, apply a
+second CatalogService `save_develop`, call `pollCatalogRevision`, and require
+the selected Develop values to match the committed recipe.
 
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,
@@ -156,7 +180,7 @@ QML source and Qt Quick Test appear only in desktop/test owners.
 | Service integration | Real use case without UI | create → import PNG/RAW → list → preview → reopen |
 | Engine reference | Pixels/metadata | RAW/raster size, orientation, colour, finite values, bounded output |
 | Failure/recovery | Trusted state | duplicate, unsupported, missing, cancellation, transaction failure, cache corruption |
-| Desktop acceptance | Minimum product loop | create/open, import, list, selection, fit/100%, restart |
+| Desktop acceptance | Minimum product loop | create/open, import, list, selection, fit/100%/click-to-1:1, restart |
 | Resource/performance | Deliverability | import-to-preview, peak memory, long list, window close, cache budget |
 | Platform/package | Real deployment | Windows/macOS/Linux configure/build and staged-install runtime loop |
 
@@ -377,7 +401,7 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
 - After window or catalog close, there is no detached task, late UI update,
   uncommitted transaction, or temporary preview.
 - Manual viewer acceptance covers at least loading/ready/missing/unsupported/
-  failed, fit, 100%, and pan.
+  failed, fit, 100%, click-to-1:1 restore, and pan.
 - Gallery-grid scrolling uses browse thumbnails only; it must not queue a
   1600px processed preview for the selected grid item. Opening a catalog with
   existing cache must not rerun an `ensureThumbnail` work queue for every image.

@@ -73,7 +73,7 @@ supersession relationship when direction changes.
 | [0063](0063-explicit-no-automatic-sidecar-policy.md) | Accepted | Catalog edits never automatically read/write sidecars; legacy XMP import is explicit and export XMP is newly embedded. |
 | [0064](0064-atomic-metadata-refresh-and-export-privacy.md) | Accepted | Capture metadata refresh publishes atomically; JPEG/PNG/TIFF share full/no-location/none privacy modes while original-copy stays exact. |
 | [0065](0065-versioned-recipe-style-artifact.md) | Accepted; legacy resource cleanup extended by 0072 | `.rstyle.json` is a complete canonical Recipe template; CLI/Studio create, validate, and apply it while legacy dtstyle rejects. |
-| [0066](0066-typed-desktop-language-setting.md) | Accepted | The only persistent Studio preference is a typed, normalized language value; corrupt/write failures are explicit and no old configuration keys migrate. |
+| [0066](0066-typed-desktop-language-setting.md) | Accepted; assistant settings added by 0081 | Typed desktop language; 0081 adds assistant endpoint/model/key. Corrupt/write failures stay explicit and no old configuration keys migrate. |
 | [0067](0067-bounded-preview-cache-lru.md) | Accepted | Preview PNGs use a 512 MiB hard byte budget with deterministic persistent LRU, atomic commits, explicit I/O errors, and cancellation before publication. |
 | [0068](0068-typed-batch-export-storage.md) | Accepted | Batch export preflights strict portable filename templates and preserves per-item atomic no-replace publication with explicit partial-delivery errors. |
 | [0069](0069-post-output-dither-posterize.md) | Accepted | All frozen Dither/Posterize methods run after Output Color and before target-aware packing with deterministic serial TEA random state. |
@@ -83,3 +83,9 @@ supersession relationship when direction changes.
 | [0073](0073-color-zones-lab-curve-contract.md) | Accepted | Optional Color Zones owns three source-quantized D50 Lab curves, all frozen interpolation modes, canonical masks, and strict v5 import. |
 | [0074](0074-monochrome-lab-filter-contract.md) | Accepted | Monochrome replaces the chroma shortcut with the frozen Lab colour filter, shared bilateral base, highlight envelope, masks, and strict v2 import. |
 | [0075](0075-split-toning-hsl-contract.md) | Accepted | Split Toning replaces fixed saturation/compression with the full frozen shadow/highlight HSL pivot, masks, and strict v1 import. |
+| [0076](0076-photo-inspect-toggle-actual-size.md) | Accepted | Inspect photo click toggles Actual 1:1 and restores the last Fit/Fill/custom view; QML owns the magnifier pointer, click pan, and GPU scale animation. |
+| [0077](0077-compact-library-filter-bar.md) | Accepted | Filter checkbox reveals a default rating-star strip; other library predicates are added and removed as session chips. |
+| [0078](0078-copy-paste-develop-edits.md) | Accepted | Copy/Paste Edits use a session clipboard of complete DevelopParams and commit through ordinary history/undo. |
+| [0079](0079-develop-set-inventory-and-probe-png.md) | Accepted; Studio observation added by 0080 | Recipe owns the CLI `--set` field inventory; `catalog probe --output` writes a throwaway PNG without mutating recipe or preview records. |
+| [0080](0080-studio-observes-catalog-revision.md) | Accepted | Studio polls live catalog revision on the existing snapshot contract; MCP around `ravo` is not the control plane. |
+| [0081](0081-studio-assistant-endpoint-panel.md) | Accepted | Typed assistant URL/model/key settings and a floating non-modal Studio panel; Qt Network is desktop-only. |

@@ -22,7 +22,8 @@ paths.
 3. Confirm the asset appears in Gallery and its folder appears in the Library
    tree.
 4. Select the asset and enter Loupe.
-5. Exercise Fit, Fill, 100%, pan, and the left navigator.
+5. Exercise Fit, Fill, 1:1, pan, the left navigator, and click-to-1:1 on the
+   photo (the click animates; a second click restores the previous zoom).
 6. Switch the right scope through Histogram, Waveform, Parade, Vectorscope, and Split.
 7. Set a rating, a color label, and Reject/Keep; confirm the tile updates.
 8. Enter Edit, change one Light or Color control, then enable Canvas, Output
@@ -54,6 +55,7 @@ ravo catalog create --path <test-catalog.sqlite> --json
 ravo catalog import --catalog <test-catalog.sqlite> --input <known-good-input> --json
 ravo catalog list --catalog <test-catalog.sqlite> --json
 ravo catalog preview --catalog <test-catalog.sqlite> --asset-id <id> --json
+ravo develop-fields --json
 ravo catalog probe --catalog <test-catalog.sqlite> --asset-id <id> --baseline --json
 ravo catalog export --catalog <test-catalog.sqlite> --asset-id <id> \
   --output <test-output.png> --format png --json

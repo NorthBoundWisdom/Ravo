@@ -15,6 +15,7 @@
 #include <QSurfaceFormat>
 #include <QUrl>
 
+#include "ravo/desktop/studio_assistant_controller.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
@@ -264,6 +265,13 @@ int main(int argc, char *argv[])
     }
     ravo::StudioPresenter presenter;
     ravo::StudioCommandController command_controller(presenter);
+    ravo::StudioAssistantController assistant_controller;
+    if (!assistant_controller.initialize())
+    {
+        LOG_ERROR(ravo::logger(), "assistant settings failed to initialize");
+        ravo::shutdown_logging();
+        return 1;
+    }
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
                      &command_controller, &ravo::StudioCommandController::retranslate);
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &presenter,
@@ -284,6 +292,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("studio"), &presenter);
     engine.rootContext()->setContextProperty(QStringLiteral("studioCommands"), &command_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioAssistant"),
+                                             &assistant_controller);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &application,
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);

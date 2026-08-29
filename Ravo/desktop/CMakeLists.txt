@@ -9,6 +9,7 @@ target_sources(ravo_desktop
     src/folder_list_model.cpp
     src/preview_request_owner.cpp
     src/studio_command_controller.cpp
+    src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_presenter.cpp
     src/studio_preview.cpp
@@ -18,6 +19,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/export_option_conversion.h
     include/ravo/desktop/folder_list_model.h
     include/ravo/desktop/preview_request_owner.h
+    include/ravo/desktop/studio_assistant_controller.h
     include/ravo/desktop/studio_command_controller.h
     include/ravo/desktop/studio_presenter.h
     src/studio_language_manager.h)
@@ -28,7 +30,7 @@ target_include_directories(ravo_desktop
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 target_link_libraries(ravo_desktop
-  PUBLIC ravo_services ravo_adapters
+  PUBLIC ravo_services ravo_adapters Qt6::Network
   PRIVATE Qt6::Gui Qt6::Qml)
 
 set_target_properties(ravo_desktop PROPERTIES AUTOMOC ON)
@@ -115,6 +117,7 @@ qt_add_qml_module(ravo_studio
   QML_FILES
     qml/Main.qml
     qml/theme/DarkThemePalette.qml
+    qml/gallery/LibraryFilterBar.qml
     qml/gallery/LibrarySidePanel.qml
     qml/gallery/FilmStripBar.qml
     qml/gallery/GalleryReviewBar.qml
@@ -128,6 +131,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/FolderDialogPage.qml
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
+    qml/chrome/AssistantPanel.qml
     qml/chrome/StudioActions.qml
     qml/chrome/StudioCommandMenuItems.qml
     qml/chrome/StudioCommandPalette.qml

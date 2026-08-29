@@ -174,6 +174,12 @@ Menu {
     StyledItem {
         action: root.commands.resetEdits
     }
+    StyledItem {
+        action: root.commands.copyEdits
+    }
+    StyledItem {
+        action: root.commands.pasteEdits
+    }
     StyledSeparator {}
     StyledItem {
         action: root.commands.exportPhoto

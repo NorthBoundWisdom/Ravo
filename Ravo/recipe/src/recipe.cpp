@@ -1392,7 +1392,7 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                                {"reason", "invalid_watermark_order"}});
         }
     }
-    if (canvas_index)
+    if (canvas_index && recipe.operations[*canvas_index].enabled)
     {
         for (std::size_t index = *canvas_index + 1U; index < recipe.operations.size(); ++index)
         {

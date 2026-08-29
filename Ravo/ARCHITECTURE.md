@@ -142,9 +142,12 @@ JPEG. Save and request a complete preview after release.
 Develop crop is interactive: crop-tool preview removes crop and straighten,
 while Qt Quick rotates the working image. Photo and overlay share the GPU
 transform; the crop frame remains screen-axis aligned and inscribed in the
-rotated image. Selection and Angle dragging change in-memory parameters only;
-release writes the recipe. Export continues to use CPU straighten, not an
-engine GPU adapter. Deleting a photo normally removes only the catalog record
+rotated image. Selection and crop-handle dragging change in-memory parameters
+only; release writes the recipe through the same Develop commit path as the
+right-panel controls. History restore, Original, and snapshot restore use that
+path with a session undo step and without appending a new history row. Export
+continues to use CPU straighten, not an engine GPU adapter. Deleting a photo
+normally removes only the catalog record
 and preview cache. The explicit “Delete from Disk” command deletes the source
 after confirmation, then removes the catalog record. QML resources are built
 and deployed with `qt_add_qml_module`; the first version links no Qt Widgets
@@ -827,8 +830,10 @@ First-version services provide:
   immutable catalog snapshot;
 - `ImportAssets`: enumerate inputs, call codec/engine, transactionally publish
   assets, and schedule preview;
-- `ListAssets` / `ObserveCatalog`: return stable order and revision without
-  SQL cursors;
+- `ListAssets` / `ObserveCatalog`: return stable order and live
+  `CatalogSnapshot.revision` without SQL cursors. Studio's presenter polls
+  that revision on a 1 s timer and reloads listing/recipe/history when another
+  client commits; QML does not poll or read the database;
 - `RequestPreview` / `CancelPreview`: request bounded previews by viewport
   and discard stale results;
 - `CloseCatalog`: stop associated tasks and release connection/cache handles
@@ -845,7 +850,8 @@ assemble the same services, ports, and adapters.
   presentation state. Scanning, metadata, decode, preview, cache, and database
   I/O run only in C++ owner-managed tasks; detached threads are prohibited.
 - Catalog, asset, recipe, descriptor, and cross-thread results are immutable
-  snapshots; writes make a new revision.
+  snapshots; writes make a new revision. `snapshot().revision` is read from
+  SQLite on each call so a second connection's commit is visible.
 - Database connections are never bare-shared across threads. Adapters use an
   explicit serial owner or a controlled connection per worker and finish or
   roll back transactions before close.
@@ -880,7 +886,9 @@ The Ravo Studio first version owns:
   Vectorscope, and Waveform/Vectorscope Split. Engine owns pixels; QML owns
   only grids and selection;
 - progress, cancellation, and recoverable-error presentation;
-- window, focus, keyboard, HiDPI, and basic accessibility.
+- window, focus, keyboard, HiDPI, and basic accessibility;
+- a floating Assistant popup whose URL, model, and API key are typed desktop
+  settings. Qt Network and chat JSON stay in C++; QML only presents.
 
 QML sends only intents to desktop-owned C++ presenters and observes immutable,
 revisioned view state. Visible controls use GeoControls (buttons, labels, list
@@ -905,7 +913,12 @@ commands validate the same services; human logs must not pollute JSON stdout.
 The read-only catalog Develop probe applies strict numeric field overrides to a
 current or synthesized baseline recipe, calls the non-persistent interactive
 preview contract, reports display-referred pixel statistics, and verifies that
-the stored recipe and preview records are unchanged before returning.
+the stored recipe and preview records are unchanged before returning. Optional
+`--output` encodes those in-memory RGB8 pixels to a throwaway PNG through the
+atomic no-replace byte writer; it must not create a preview record. Recipe owns
+the closed `--set` inventory (`list_develop_set_fields`) so CLI
+`develop-fields` / `catalog fields` cannot drift from
+`apply_develop_field_strict`. Canonical-mask `--set` names remain prefix-based.
 
 Original-copy export is separate from pixel encoding. CatalogService passes one
 explicit local source and destination to a bounded 64 KiB streaming owner,

@@ -1,6 +1,7 @@
 # ADR-0066: Product settings are typed and consumer-owned
 
-- Status: Accepted
+- Status: Accepted; assistant endpoint settings added by
+  [ADR-0081](0081-studio-assistant-endpoint-panel.md)
 - Date: 2026-08-29
 - Extends: [ADR-0007](0007-first-usable-catalog-viewer.md)
 

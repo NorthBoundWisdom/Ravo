@@ -20,6 +20,7 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS
   Core
   Gui
   Sql
+  Network
   Qml
   Quick
   QuickControls2

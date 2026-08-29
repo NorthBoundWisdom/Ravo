@@ -41,6 +41,11 @@ bool StudioPresenter::canRedo() const noexcept
     return !redo_stack_.empty();
 }
 
+bool StudioPresenter::hasCopiedEdits() const noexcept
+{
+    return copied_edits_.has_value();
+}
+
 QVariantMap StudioPresenter::editWhiteBalance() const
 {
     const auto &params = develop_.temperature;
@@ -261,6 +266,11 @@ QVariantMap StudioPresenter::editCanvas() const
             {QStringLiteral("bottom"), develop_.canvas.percent_bottom},
             {QStringLiteral("colorIndex"), static_cast<int>(develop_.canvas.color)},
             {QStringLiteral("colorChoices"), choices}};
+}
+
+bool StudioPresenter::editCanvasEnabled() const noexcept
+{
+    return develop_.canvas_enabled;
 }
 
 double StudioPresenter::editStraighten() const noexcept
@@ -1751,23 +1761,34 @@ DevelopParams develop_from_history_json(const std::string &recipe_json)
 
 } // namespace
 
+DevelopParams StudioPresenter::baseline_develop() const
+{
+    DevelopParams params;
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (asset)
+    {
+        params.sigmoid_enabled = is_raw_media_type(asset->media_type);
+    }
+    return params;
+}
+
 DevelopParams StudioPresenter::develop_from_history_entry(const RecipeHistoryEntry &entry) const
 {
     if (entry.recipe_json.empty())
     {
-        DevelopParams params;
-        const auto asset = assets_.assetById(selected_asset_id_);
-        if (asset)
-        {
-            params.sigmoid_enabled = is_raw_media_type(asset->media_type);
-        }
-        return params;
+        return baseline_develop();
     }
     return develop_from_history_json(entry.recipe_json);
 }
 
 void StudioPresenter::sync_active_history()
 {
+    if (develop_ == baseline_develop())
+    {
+        active_history_id_ = 0;
+        active_history_seq_ = 0;
+        return;
+    }
     if (recipe_history_entries_.empty())
     {
         active_history_id_ = 0;
@@ -1984,7 +2005,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     }
     std::optional<std::int64_t> discard_after;
     if (push_history && history_write == RecipeHistoryWrite::kAppendIfNew &&
-        !recipe_history_entries_.empty() && active_history_seq_ > 0 &&
+        !recipe_history_entries_.empty() &&
         active_history_seq_ < recipe_history_entries_.front().seq)
     {
         discard_after = active_history_seq_;
@@ -2070,6 +2091,54 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .overlay_mask_id = current_overlay_mask_id(params),
     };
     kick_develop_work();
+}
+
+bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
+                                     const bool refresh_preview)
+{
+    clamp_develop(next);
+    switch (edit)
+    {
+    case DevelopEdit::Overlay:
+        if (next == develop_)
+        {
+            return false;
+        }
+        develop_ = std::move(next);
+        emit editChanged();
+        return true;
+    case DevelopEdit::Preview:
+        preview_develop(std::move(next));
+        return true;
+    case DevelopEdit::Commit:
+        if (next == saved_develop_ && next == develop_)
+        {
+            return false;
+        }
+        if (next == saved_develop_)
+        {
+            develop_ = std::move(next);
+            emit editChanged();
+            if (refresh_preview)
+            {
+                enqueue_preview();
+            }
+            return true;
+        }
+        commit_develop(std::move(next), true, refresh_preview, RecipeHistoryWrite::kAppendIfNew);
+        return true;
+    case DevelopEdit::Restore:
+        if (next == develop_ && next == saved_develop_)
+        {
+            return false;
+        }
+        commit_develop(std::move(next), true, refresh_preview, RecipeHistoryWrite::kUnchanged);
+        return true;
+    case DevelopEdit::Revert:
+        commit_develop(std::move(next), false, refresh_preview, RecipeHistoryWrite::kUnchanged);
+        return true;
+    }
+    return false;
 }
 
 void StudioPresenter::enqueue_preview()
@@ -2206,11 +2275,15 @@ void StudioPresenter::kick_develop_work()
                             assets_.updateAsset(saved.value());
                             emit selectionChanged();
                             emit editChanged();
-                            if (job.push_history)
+                            if (job.history_write == RecipeHistoryWrite::kAppendIfNew)
                             {
                                 active_history_id_ = 0;
                                 active_history_seq_ = 0;
                                 reload_recipe_history();
+                            }
+                            else
+                            {
+                                sync_active_history();
                             }
                         }
                     }
@@ -2291,21 +2364,9 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     {
         fit_geometry_crop(next);
     }
-    clamp_develop(next);
-    if (next == saved_develop_ && next == develop_)
-    {
-        return;
-    }
-    if (next == saved_develop_)
-    {
-        develop_ = next;
-        emit editChanged();
-        enqueue_preview();
-        return;
-    }
     const bool keep_crop_guide =
         crop_tool_active_ && crop_guide_ready_ && name == QLatin1String("straighten");
-    commit_develop(next, true, !keep_crop_guide);
+    mutate_develop(std::move(next), DevelopEdit::Commit, !keep_crop_guide);
 }
 
 void StudioPresenter::setDevelopText(const QString &name, const QString &value)
@@ -2318,16 +2379,7 @@ void StudioPresenter::setDevelopText(const QString &name, const QString &value)
         setError(qstring_from_utf8(applied.error().message));
         return;
     }
-    if (next == saved_develop_ && next == develop_)
-        return;
-    if (next == saved_develop_)
-    {
-        develop_ = std::move(next);
-        emit editChanged();
-        enqueue_preview();
-        return;
-    }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::saveStyleToPath(const QString &path)
@@ -2428,7 +2480,7 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
         setError(qstring_from_utf8(params.error().message));
         return;
     }
-    commit_develop(std::move(params).value(), true);
+    mutate_develop(std::move(params).value(), DevelopEdit::Commit);
 }
 
 void StudioPresenter::addRetouchRegion(const QVariantMap &values)
@@ -2526,8 +2578,7 @@ void StudioPresenter::addRetouchRegion(const QVariantMap &values)
     region.fill_color = {*fill_r, *fill_g, *fill_b};
     region.fill_brightness = *fill_brightness;
     next.retouch.regions.push_back(std::move(region));
-    clamp_develop(next);
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::removeRetouchRegion(const int index)
@@ -2562,33 +2613,21 @@ void StudioPresenter::removeRetouchRegion(const int index)
                                         { return mask.id == mask_id; }),
                          next.masks.end());
     }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::setToneCurve(const QVariantList &points)
 {
     DevelopParams next = develop_;
     next.tone_curve = tone_curve_from_variant(points);
-    clamp_develop(next);
-    if (next == saved_develop_ && next == develop_)
-    {
-        return;
-    }
-    if (next == saved_develop_)
-    {
-        develop_ = next;
-        emit editChanged();
-        enqueue_preview();
-        return;
-    }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::previewToneCurve(const QVariantList &points)
 {
     DevelopParams next = develop_;
     next.tone_curve = tone_curve_from_variant(points);
-    preview_develop(next);
+    mutate_develop(std::move(next), DevelopEdit::Preview);
 }
 
 void StudioPresenter::previewDevelopNumber(const QString &name, const double value)
@@ -2618,17 +2657,11 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
         fit_geometry_crop(next);
         if (crop_tool_active_)
         {
-            clamp_develop(next);
-            if (next == develop_)
-            {
-                return;
-            }
-            develop_ = next;
-            emit editChanged();
+            mutate_develop(std::move(next), DevelopEdit::Overlay);
             return;
         }
     }
-    preview_develop(next);
+    mutate_develop(std::move(next), DevelopEdit::Preview);
 }
 
 void StudioPresenter::setCropRect(const double x, const double y, const double width,
@@ -2642,11 +2675,7 @@ void StudioPresenter::setCropRect(const double x, const double y, const double w
     clamp_develop(next);
     constrain_geometry_crop(next);
     clamp_selected_crop(next);
-    if (next == develop_)
-    {
-        return;
-    }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::previewCropRect(const double x, const double y, const double width,
@@ -2660,12 +2689,7 @@ void StudioPresenter::previewCropRect(const double x, const double y, const doub
     clamp_develop(next);
     constrain_geometry_crop(next);
     clamp_selected_crop(next);
-    if (next == develop_)
-    {
-        return;
-    }
-    develop_ = next;
-    emit editChanged();
+    mutate_develop(std::move(next), DevelopEdit::Overlay);
 }
 
 void StudioPresenter::setCropAspect(const QString &aspect)
@@ -2686,12 +2710,10 @@ void StudioPresenter::setCropAspect(const QString &aspect)
     locked_crop_ratio_ = 0.0;
     fit_geometry_crop(next);
     clamp_selected_crop(next);
-    if (next == develop_)
+    if (!mutate_develop(std::move(next), DevelopEdit::Commit))
     {
         emit editChanged();
-        return;
     }
-    commit_develop(next, true);
 }
 
 void StudioPresenter::rotateLeft()
@@ -2700,7 +2722,7 @@ void StudioPresenter::rotateLeft()
     next.rotate_quarters = (next.rotate_quarters + 3) % 4;
     transform_crop_for_quarter_turns(next, 3);
     fit_geometry_crop(next);
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::rotateRight()
@@ -2709,7 +2731,7 @@ void StudioPresenter::rotateRight()
     next.rotate_quarters = (next.rotate_quarters + 1) % 4;
     transform_crop_for_quarter_turns(next, 1);
     fit_geometry_crop(next);
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::flipHorizontal()
@@ -2718,7 +2740,7 @@ void StudioPresenter::flipHorizontal()
     next.flip_horizontal = next.flip_horizontal == 0 ? 1 : 0;
     transform_crop_for_flip(next, true, false);
     fit_geometry_crop(next);
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::flipVertical()
@@ -2727,7 +2749,7 @@ void StudioPresenter::flipVertical()
     next.flip_vertical = next.flip_vertical == 0 ? 1 : 0;
     transform_crop_for_flip(next, false, true);
     fit_geometry_crop(next);
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::setCropToolActive(const bool active)
@@ -2747,11 +2769,8 @@ void StudioPresenter::setCropToolActive(const bool active)
         crop_guide_ready_ = std::abs(next.straighten_degrees) < 1e-4 && next.crop_width >= 0.999 &&
                             next.crop_height >= 0.999 && std::abs(next.crop_x) < 1e-6 &&
                             std::abs(next.crop_y) < 1e-6;
-        if (next != develop_)
+        if (mutate_develop(std::move(next), DevelopEdit::Commit))
         {
-            emit editChanged();
-            emit previewChanged();
-            commit_develop(next, true);
             return;
         }
     }
@@ -2790,7 +2809,7 @@ void StudioPresenter::resetControl(const QString &name)
     {
         fit_geometry_crop(next);
     }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::resetSection(const QString &section)
@@ -2805,7 +2824,7 @@ void StudioPresenter::resetSection(const QString &section)
         crop_aspect_ = QStringLiteral("free");
         locked_crop_ratio_ = 0.0;
     }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 bool StudioPresenter::sectionModified(const QString &section) const
@@ -2825,7 +2844,7 @@ void StudioPresenter::setSectionEffectEnabled(const QString &section, const bool
     {
         return;
     }
-    commit_develop(next, true);
+    mutate_develop(std::move(next), DevelopEdit::Commit);
 }
 
 void StudioPresenter::resetAllEdits()
@@ -2834,7 +2853,31 @@ void StudioPresenter::resetAllEdits()
     locked_crop_ratio_ = 0.0;
     DevelopParams reset;
     reset.sigmoid_enabled = develop_.sigmoid_enabled;
-    commit_develop(reset, true);
+    mutate_develop(std::move(reset), DevelopEdit::Commit);
+}
+
+void StudioPresenter::copyEdits()
+{
+    if (selected_asset_id_.isEmpty())
+    {
+        return;
+    }
+    copied_edits_ = before_after_ ? saved_develop_ : develop_;
+    emit copiedEditsChanged();
+    setStatus(QCoreApplication::translate("StudioPresenter", "Edits copied."));
+}
+
+void StudioPresenter::pasteEdits()
+{
+    if (selected_asset_id_.isEmpty() || !copied_edits_)
+    {
+        return;
+    }
+    DevelopParams next = *copied_edits_;
+    if (mutate_develop(std::move(next), DevelopEdit::Commit))
+    {
+        setStatus(QCoreApplication::translate("StudioPresenter", "Edits pasted."));
+    }
 }
 
 void StudioPresenter::undoEdit()
@@ -2846,7 +2889,7 @@ void StudioPresenter::undoEdit()
     redo_stack_.push_back(develop_);
     const auto previous = undo_stack_.back();
     undo_stack_.pop_back();
-    commit_develop(previous, false);
+    mutate_develop(previous, DevelopEdit::Revert);
 }
 
 void StudioPresenter::redoEdit()
@@ -2858,7 +2901,7 @@ void StudioPresenter::redoEdit()
     undo_stack_.push_back(develop_);
     const auto next = redo_stack_.back();
     redo_stack_.pop_back();
-    commit_develop(next, false);
+    mutate_develop(next, DevelopEdit::Revert);
 }
 
 void StudioPresenter::toggleBeforeAfter()

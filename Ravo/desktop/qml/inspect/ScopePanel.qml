@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
@@ -32,7 +33,7 @@ Rectangle {
         anchors.leftMargin: Fonts.size8
         anchors.rightMargin: Fonts.size8
         anchors.topMargin: Fonts.size4
-        anchors.bottomMargin: Fonts.size8 + Fonts.inputFieldHeight
+        anchors.bottomMargin: Fonts.size4
 
         Canvas {
             id: histogramCanvas
@@ -142,33 +143,86 @@ Rectangle {
         }
     }
 
-    RowLayout {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: Fonts.size8
-        anchors.rightMargin: Fonts.size8
-        anchors.bottomMargin: Fonts.size4
-        height: Fonts.inputFieldHeight
-        spacing: Fonts.smallSpacing
+    component ScopeModeItem: MenuItem {
+        id: item
+        required property string modeId
+        implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
+        leftPadding: Fonts.size12
+        rightPadding: Fonts.size12
+        readonly property bool current: root.hasPresenter ? root.presenter.scopeMode === modeId : modeId === "histogram"
+        contentItem: Text {
+            text: (item.current ? "\u2713  " : "    ") + item.text
+            font: Fonts.standardFont
+            color: item.enabled ? Theme.textColor : Theme.disabledTextColor
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+        background: Rectangle {
+            color: item.highlighted ? Theme.buttonHoveredColor : Theme.popupSurfaceColor
+        }
+        onTriggered: {
+            if (root.commands)
+                root.commands.run(root.commands.ids.viewSetScopeMode, item.modeId);
+        }
+    }
 
-        SegmentedControl {
-            Layout.alignment: Qt.AlignVCenter
-            model: [qsTr("Histogram"), qsTr("Waveform"), qsTr("Parade"), qsTr("Vectorscope"), qsTr("Split")]
-            currentIndex: root.waveformMode ? 1
-                          : root.paradeMode ? 2
-                          : root.vectorscopeMode ? 3
-                          : root.splitMode ? 4 : 0
-            enabled: root.hasPresenter
-            onActivated: function (index) {
-                if (root.commands)
-                    root.commands.run(root.commands.ids.viewSetScopeMode,
-                                      ["histogram", "waveform", "parade", "vectorscope", "split"][index]);
-            }
+    Item {
+        id: scopeModeButton
+        z: 4
+        width: Fonts.scaledUiSize(24)
+        height: Fonts.scaledUiSize(24)
+        anchors.left: plot.left
+        anchors.top: plot.top
+        anchors.leftMargin: Fonts.size2
+        anchors.topMargin: Fonts.size2
+        enabled: root.hasPresenter
+        opacity: enabled ? 1 : 0.45
+        Accessible.name: qsTr("Scope type")
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: Qt.rgba(0, 0, 0, 0.5)
         }
 
-        Item {
-            Layout.fillWidth: true
+        Text {
+            anchors.centerIn: parent
+            text: "\u25BC"
+            font.pixelSize: Fonts.size16
+            color: "#f4f4f4"
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: scopeModeMenu.popup()
+        }
+
+        Menu {
+            id: scopeModeMenu
+            y: scopeModeButton.height
+            modal: true
+            dim: false
+            padding: Fonts.size4
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+            palette.window: Theme.popupSurfaceColor
+            palette.windowText: Theme.textColor
+            palette.text: Theme.textColor
+            palette.highlight: Theme.buttonHoveredColor
+            palette.highlightedText: Theme.textColor
+            background: Rectangle {
+                implicitWidth: 180
+                color: Theme.popupSurfaceColor
+                border.color: Theme.dividerColor
+                border.width: 1
+                radius: 4
+            }
+            ScopeModeItem { text: qsTr("Histogram"); modeId: "histogram" }
+            ScopeModeItem { text: qsTr("Waveform"); modeId: "waveform" }
+            ScopeModeItem { text: qsTr("Parade"); modeId: "parade" }
+            ScopeModeItem { text: qsTr("Vectorscope"); modeId: "vectorscope" }
+            ScopeModeItem { text: qsTr("Split"); modeId: "split" }
         }
     }
 

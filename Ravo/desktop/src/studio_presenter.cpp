@@ -16,7 +16,9 @@
 #include <QFileInfo>
 #include <QList>
 #include <QMetaObject>
+#include <QRegularExpression>
 #include <QStringList>
+#include <QTimer>
 #include <QUrl>
 #include <QVariant>
 #include <QVariantMap>
@@ -36,6 +38,8 @@ namespace ravo
 namespace
 {
 
+inline constexpr int kCatalogRevisionPollMs = 1000;
+
 struct CatalogListing
 {
     Result<std::vector<AssetRecord>> assets =
@@ -43,6 +47,7 @@ struct CatalogListing
     Result<std::vector<FolderRecord>> folders = std::vector<FolderRecord>{};
     std::unordered_map<std::string, QUrl> thumbnail_urls;
     std::unordered_map<std::string, QString> thumbnail_states;
+    std::int64_t revision = -1;
 };
 
 void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
@@ -101,6 +106,11 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     {
         return listing;
     }
+    auto snapshot = service->snapshot();
+    if (snapshot)
+    {
+        listing.revision = snapshot.value().revision;
+    }
     listing.assets = service->list_assets(query);
     listing.folders = service->list_folders();
     fill_thumbnail_maps(*service, listing);
@@ -114,6 +124,11 @@ StudioPresenter::StudioPresenter(QObject *parent)
     , assets_(this)
     , folders_(this)
 {
+    catalog_revision_timer_ = new QTimer(this);
+    catalog_revision_timer_->setInterval(kCatalogRevisionPollMs);
+    catalog_revision_timer_->setTimerType(Qt::CoarseTimer);
+    QObject::connect(catalog_revision_timer_, &QTimer::timeout, this,
+                     &StudioPresenter::pollCatalogRevision);
     const auto created = executor_.submit(
         [this]() -> Result<void>
         {
@@ -134,6 +149,10 @@ StudioPresenter::StudioPresenter(QObject *parent)
 
 StudioPresenter::~StudioPresenter()
 {
+    if (catalog_revision_timer_ != nullptr)
+    {
+        catalog_revision_timer_->stop();
+    }
     static_cast<void>(shutdown_.cancel("window_closed"));
     develop_preview_owner_.cancel("window_closed");
     executor_.submit(
@@ -870,6 +889,148 @@ void StudioPresenter::reloadVisibleAssets()
         });
 }
 
+void StudioPresenter::start_catalog_revision_watch(const std::int64_t revision)
+{
+    observed_catalog_revision_ = revision;
+    catalog_poll_in_flight_ = false;
+    if (catalog_revision_timer_ != nullptr)
+    {
+        catalog_revision_timer_->start();
+    }
+}
+
+void StudioPresenter::pollCatalogRevision()
+{
+    if (catalog_path_.isEmpty() || busy_ || catalog_poll_in_flight_ || develop_job_in_flight_ ||
+        pending_save_ || pending_preview_)
+    {
+        return;
+    }
+    catalog_poll_in_flight_ = true;
+    const auto query = current_query();
+    const auto selected = utf8_from_qstring(selected_asset_id_);
+    const auto observed = observed_catalog_revision_;
+    executor_.post(
+        [this, query, selected, observed]()
+        {
+            Result<CatalogSnapshot> snapshot =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            CatalogListing listing;
+            Result<Recipe> recipe = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<std::vector<RecipeHistoryEntry>> history =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            bool changed = false;
+            if (service_ != nullptr)
+            {
+                snapshot = service_->snapshot();
+                if (snapshot && snapshot.value().revision != observed)
+                {
+                    changed = true;
+                    listing = load_catalog_listing(service_.get(), query);
+                    if (!selected.empty())
+                    {
+                        recipe = service_->load_recipe(selected);
+                        history = service_->list_recipe_history(selected);
+                    }
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, snapshot = std::move(snapshot), listing = std::move(listing),
+                 recipe = std::move(recipe), history = std::move(history), selected,
+                 changed]() mutable
+                {
+                    catalog_poll_in_flight_ = false;
+                    if (catalog_path_.isEmpty() || busy_ || develop_job_in_flight_ ||
+                        pending_save_ || pending_preview_)
+                    {
+                        return;
+                    }
+                    if (!snapshot)
+                    {
+                        setError(catalog_error_text(snapshot.error()));
+                        return;
+                    }
+                    if (!changed || snapshot.value().revision == observed_catalog_revision_)
+                    {
+                        return;
+                    }
+                    if (!listing.assets)
+                    {
+                        setError(catalog_error_text(listing.assets.error()));
+                        return;
+                    }
+                    if (!listing.folders)
+                    {
+                        setError(catalog_error_text(listing.folders.error()));
+                        return;
+                    }
+                    const QString previous_selection = selected_asset_id_;
+                    applyFolders(std::move(listing.folders).value());
+                    applyAssets(std::move(listing.assets).value(), true,
+                                std::move(listing.thumbnail_urls),
+                                std::move(listing.thumbnail_states));
+                    observed_catalog_revision_ = snapshot.value().revision;
+                    if (selected.empty() || selected_asset_id_ != previous_selection ||
+                        utf8_from_qstring(selected_asset_id_) != selected)
+                    {
+                        setStatus(QCoreApplication::translate(
+                            "StudioPresenter", "Library updated from another client."));
+                        return;
+                    }
+                    if (history)
+                    {
+                        apply_recipe_history(history.value());
+                    }
+                    else
+                    {
+                        recipe_history_.clear();
+                        recipe_history_entries_.clear();
+                    }
+                    if (!recipe)
+                    {
+                        setError(catalog_error_text(recipe.error()));
+                        sync_active_history();
+                        emit editChanged();
+                        return;
+                    }
+                    auto params = develop_from_recipe(recipe.value());
+                    if (!params)
+                    {
+                        setError(catalog_error_text(params.error()));
+                        sync_active_history();
+                        emit editChanged();
+                        return;
+                    }
+                    const bool same_recipe =
+                        params.value() == develop_ && params.value() == saved_develop_ &&
+                        !crop_tool_active_;
+                    if (!same_recipe)
+                    {
+                        undo_stack_.clear();
+                        redo_stack_.clear();
+                        before_after_ = false;
+                        crop_tool_active_ = false;
+                        crop_guide_ready_ = false;
+                        develop_ = params.value();
+                        saved_develop_ = develop_;
+                        static_cast<void>(develop_preview_owner_.supersede("catalog_revision"));
+                        pending_preview_.reset();
+                        requestPreviewForSelection();
+                    }
+                    else
+                    {
+                        saved_develop_ = params.value();
+                    }
+                    sync_active_history();
+                    emit editChanged();
+                    setStatus(QCoreApplication::translate(
+                        "StudioPresenter", "Library updated from another client."));
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 void StudioPresenter::createCatalog(const QUrl &file_url)
 {
     if (busy_)
@@ -934,6 +1095,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                     applyAssets(std::move(listing.assets).value(), true,
                                 std::move(listing.thumbnail_urls),
                                 std::move(listing.thumbnail_states));
+                    start_catalog_revision_watch(listing.revision);
                 },
                 Qt::QueuedConnection);
         });
@@ -1024,6 +1186,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     applyAssets(std::move(listing.assets).value(), true,
                                 std::move(listing.thumbnail_urls),
                                 std::move(listing.thumbnail_states));
+                    start_catalog_revision_watch(listing.revision);
                 },
                 Qt::QueuedConnection);
         });
@@ -1533,6 +1696,11 @@ void StudioPresenter::setZoomMode(const QString &mode)
     }
     zoom_mode_ = normalized;
     zoom_factor_ = factor;
+    if (zoom_mode_ != QStringLiteral("actual"))
+    {
+        last_non_actual_zoom_mode_ = zoom_mode_;
+        last_non_actual_zoom_factor_ = zoom_factor_;
+    }
     emit zoomChanged();
 }
 
@@ -1545,6 +1713,8 @@ void StudioPresenter::setZoomFactor(const double factor)
     }
     zoom_mode_ = QStringLiteral("custom");
     zoom_factor_ = clamped;
+    last_non_actual_zoom_mode_ = zoom_mode_;
+    last_non_actual_zoom_factor_ = zoom_factor_;
     emit zoomChanged();
 }
 
@@ -1553,6 +1723,21 @@ void StudioPresenter::adjustZoom(const int wheel_delta)
     const double step = wheel_delta > 0 ? 1.1 : 1.0 / 1.1;
     const double current = zoom_mode_ == QStringLiteral("actual") ? 1.0 : zoom_factor_;
     setZoomFactor(current * step);
+}
+
+void StudioPresenter::toggleActualSize()
+{
+    if (zoom_mode_ == QStringLiteral("actual"))
+    {
+        if (last_non_actual_zoom_mode_ == QStringLiteral("custom"))
+        {
+            setZoomFactor(last_non_actual_zoom_factor_);
+            return;
+        }
+        setZoomMode(last_non_actual_zoom_mode_);
+        return;
+    }
+    setZoomMode(QStringLiteral("actual"));
 }
 
 void StudioPresenter::setThumbnailSize(const int size)
@@ -1739,12 +1924,78 @@ void StudioPresenter::refreshSelectedMetadata()
         });
 }
 
+[[nodiscard]] QString next_snapshot_label(const std::vector<RecipeHistoryEntry> &entries)
+{
+    const QString format =
+        QCoreApplication::translate("DevelopHistoryPanel", "Snapshot %1");
+    QString pattern = QRegularExpression::escape(format);
+    pattern.replace(QLatin1String("%1"), QStringLiteral("(\\d+)"));
+    const QRegularExpression re(QStringLiteral("^") + pattern + QStringLiteral("$"));
+    int next = 1;
+    for (const auto &entry : entries)
+    {
+        if (entry.kind != kRecipeHistoryKindSnapshot || !entry.label)
+        {
+            continue;
+        }
+        const auto match = re.match(qstring_from_utf8(*entry.label));
+        if (match.hasMatch())
+        {
+            next = std::max(next, match.captured(1).toInt() + 1);
+        }
+    }
+    return format.arg(next);
+}
+
 void StudioPresenter::createSnapshot(const QString &label)
 {
-    const auto text = utf8_from_qstring(label);
+    QString trimmed = label.trimmed();
+    const QString generic =
+        QCoreApplication::translate("DevelopHistoryPanel", "Snapshot");
+    if (trimmed.isEmpty() || trimmed.compare(generic, Qt::CaseInsensitive) == 0)
+    {
+        trimmed = next_snapshot_label(recipe_history_entries_);
+    }
+    const auto text = utf8_from_qstring(trimmed);
     mutate_selected_review([text](CatalogService &service, const std::string_view asset_id)
                            { return service.create_recipe_snapshot(asset_id, text); });
     load_develop_for_selection();
+}
+
+void StudioPresenter::renameSnapshot(const int history_id, const QString &label)
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    {
+        return;
+    }
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    const auto text = utf8_from_qstring(label);
+    executor_.post(
+        [this, asset_id, history_id, text]()
+        {
+            Result<AssetRecord> renamed =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                renamed = service_->rename_recipe_snapshot(asset_id, history_id, text);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, renamed = std::move(renamed)]() mutable
+                {
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    {
+                        return;
+                    }
+                    if (!renamed)
+                    {
+                        setError(qstring_from_utf8(renamed.error().message));
+                        return;
+                    }
+                    reload_recipe_history();
+                },
+                Qt::QueuedConnection);
+        });
 }
 
 void StudioPresenter::restoreHistory(const int history_id)
@@ -1753,31 +2004,38 @@ void StudioPresenter::restoreHistory(const int history_id)
     {
         return;
     }
-    const RecipeHistoryEntry *found = nullptr;
-    for (const auto &entry : recipe_history_entries_)
+    DevelopParams params;
+    std::int64_t seq = 0;
+    if (history_id == 0)
     {
-        if (entry.id == history_id)
+        params = baseline_develop();
+    }
+    else
+    {
+        const RecipeHistoryEntry *found = nullptr;
+        for (const auto &entry : recipe_history_entries_)
         {
-            found = &entry;
-            break;
+            if (entry.id == history_id)
+            {
+                found = &entry;
+                break;
+            }
         }
+        if (found == nullptr)
+        {
+            setError(QCoreApplication::translate("DevelopHistoryPanel",
+                                                 "Recipe history entry does not exist."));
+            return;
+        }
+        params = develop_from_history_entry(*found);
+        seq = found->seq;
     }
-    if (found == nullptr)
+    active_history_id_ = history_id;
+    active_history_seq_ = seq;
+    if (!mutate_develop(std::move(params), StudioPresenter::DevelopEdit::Restore))
     {
-        setError(QCoreApplication::translate("DevelopHistoryPanel",
-                                             "Recipe history entry does not exist."));
-        return;
+        emit editChanged();
     }
-    const auto params = develop_from_history_entry(*found);
-    if (found->id == active_history_id_ && params == develop_)
-    {
-        return;
-    }
-    undo_stack_.clear();
-    redo_stack_.clear();
-    active_history_id_ = found->id;
-    active_history_seq_ = found->seq;
-    commit_develop(params, false, true, RecipeHistoryWrite::kUnchanged);
 }
 
 void StudioPresenter::setTagFilter(const QString &tag)

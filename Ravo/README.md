@@ -40,14 +40,16 @@ Current implementation status:
 - Browse & Review includes catalog schema v2; ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid and shows number/rating/flags in its letterbox;
-  collapsible folder tree; left Import/Export; Fit/Fill/100%; validated
+  collapsible folder tree; left Import/Export; Fit/Fill/1:1; validated
   filename/metadata/camera text, media, edit/review/folder/tag/capture/numeric
   filtering and stable import/capture/name/rating/size sorting; additive
   Cmd/Ctrl click and range Shift selection; plus RGB
   Histogram/Waveform/Parade/D50-u*v*-Vectorscope/Split scopes in the right panel.
   Photo navigation uses bounded Flickable pan plus a normalized left
-  navigator; active-photo, browse-mode, and zoom changes recenter, while review
-  edits on the same photo preserve the current pan (ADR-0060).
+  navigator; hovering the inspect photo shows a magnifier and a click animates
+  to 1:1 while restoring the last Fit/Fill/custom view (ADR-0076). Active-photo,
+  browse-mode, and zoom changes recenter, while review edits on the same photo
+  preserve the current pan (ADR-0060).
   Capture metadata can be explicitly refreshed from the current original; the
   asset identity, capture row, and catalog revision publish transactionally.
 - Studio built-in commands are projected by one C++ registry into menus,
@@ -60,7 +62,8 @@ Current implementation status:
   and leaves the prior language active on package or persistence failure.
   Service/engine machine errors remain outside the translation contract. Other
   current view controls are session state rather than hidden settings
-  (ADR-0066).
+  (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
+  key (ADR-0081) for the floating chat panel; Qt Network stays desktop-only.
 - Basic Develop provides catalog schema v5 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
@@ -403,7 +406,7 @@ The first version must complete the following:
 1. Create or open a catalog database in Ravo Studio.
 2. Import local files/directories, carrying at least one PNG and real
    `mire1.cr2` through tests.
-3. Show assets in Gallery; select one and view it at fit, 100%, and with pan.
+3. Show assets in Gallery; select one and view it at fit, 1:1, and with pan.
 4. Restart and reopen the same catalog for viewing.
 5. Duplicates, corruption, missing files, non-writable paths, and cancellation
    have visible, recoverable structured results.
@@ -528,6 +531,9 @@ and publication order.
 ## Current CLI capabilities
 
 ```text
+ravo --version --json
+ravo operations --json
+ravo develop-fields --json
 ravo inspect <input> --json
 ravo recipe import-xmp <legacy.xmp> --asset-id <id> --input <input-uri> --output <recipe> --json
 ravo recipe validate <recipe> --json
@@ -539,11 +545,17 @@ ravo catalog create --path <library.sqlite> --json
 ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--max-edge N] --json
+ravo catalog fields --json
+ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--max-edge N] [--output <file.png>] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
+ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--set <field>=<number>]... [--exposure-ev N] [--watermark-text <text>] --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog tag --catalog <library.sqlite> --asset-id <id> [--add <tags>] [--remove <tags>] --json
+ravo catalog metadata --catalog <library.sqlite> --asset-id <id> [--title <text>] [--description <text>] [--creator <text>] [--copyright <text>] --json
+ravo catalog history --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog snapshot --catalog <library.sqlite> --asset-id <id> --label <label> --json
+ravo catalog restore --catalog <library.sqlite> --asset-id <id> --history-id <id> --json
 ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|tif|original [--quality 5..100] [--jpeg-subsampling auto|444|440|422|420] \
   [--png-bit-depth 8|16] [--png-compression 0..9] \
   [--tiff-sample-type uint8|uint16|float16|float32] [--tiff-compression none|deflate|deflate_predictor] \
@@ -558,15 +570,22 @@ An existing output path returns structured `conflict`; it is never overwritten
 implicitly. Catalog commands call the same services as Studio and serve as the
 headless acceptance client.
 
-`catalog probe` is a read-only Develop diagnostic. It renders the current recipe,
-or the synthesized product baseline with `--baseline`, through the same
-non-persistent interactive-preview path as Studio. Repeated `--set name=value`
-overrides accept every numeric Develop field, reject unknown, duplicate,
-non-finite, or out-of-range values, and return dimensions, output-profile ID,
-RGB sums/means/extrema/clipping counts, and display-luma mean. The command
-reloads the stored recipe and preview-record set after rendering and fails if
-either changed; it writes neither a recipe nor a preview record. CLI logging
-remains file-only so machine JSON is the only stdout content.
+`ravo develop-fields` and `ravo catalog fields` list every closed `--set` name,
+kind, and range owned by `apply_develop_field_strict`, plus `watermarkText` and
+the canonical-mask prefixes. They do not require a catalog. `catalog probe` is
+a read-only Develop diagnostic. It renders the current recipe, or the
+synthesized product baseline with `--baseline`, through the same non-persistent
+interactive-preview path as Studio. Repeated `--set name=value` overrides
+accept every numeric Develop field, reject unknown, duplicate, non-finite, or
+out-of-range values, and return dimensions, output-profile ID, RGB
+sums/means/extrema/clipping counts, and display-luma mean. Optional
+`--output <file.png>` writes a throwaway display PNG of that in-memory preview
+with atomic no-replace publication; it is not a catalog preview record. The
+command reloads the stored recipe and preview-record set after rendering and
+fails if either changed. CLI logging remains file-only so machine JSON is the
+only stdout content. An open Ravo Studio window observes the same catalog
+revision: another client's committed write is applied within one second
+without an MCP or process-control channel.
 
 ## Names and directories
 
@@ -591,7 +610,7 @@ works like GeoDebugger/DwgParser: first run
 `cmake --build --preset … --target ravo_studio`, then start the GUI directly.
 The first manual loop is: Create Library → Import
 `legacy/tests/0000-nop/expected.png` and `legacy/tests/images/mire1.cr2` →
-select an asset → Fit / 100%.
+select an asset → Fit / 1:1.
 
 ## Relationship to frozen `legacy/src/`
 

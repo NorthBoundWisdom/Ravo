@@ -87,7 +87,16 @@ ALLOWED_QT_COMPONENTS = {
     "services": frozenset(),
     "cli": frozenset({"Core"}),
     "desktop": frozenset(
-        {"Core", "Gui", "Qml", "Quick", "QuickControls2", "QuickDialogs2", "QuickLayouts"}
+        {
+            "Core",
+            "Gui",
+            "Network",
+            "Qml",
+            "Quick",
+            "QuickControls2",
+            "QuickDialogs2",
+            "QuickLayouts",
+        }
     ),
 }
 QT_FREE_OWNERS = frozenset({"foundation", "recipe", "domain", "services"})

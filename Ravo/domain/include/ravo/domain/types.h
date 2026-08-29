@@ -408,6 +408,7 @@ struct CatalogSnapshot
     std::string database_path;
     std::string cache_root;
     std::int64_t schema_version = kCatalogSchemaVersion;
+    // Live SQLite value; snapshot() re-reads it so other connections are visible.
     std::int64_t revision = 0;
 };
 

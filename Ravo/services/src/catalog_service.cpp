@@ -919,6 +919,57 @@ Result<AssetRecord> CatalogService::create_recipe_snapshot(const std::string_vie
     return *asset.value();
 }
 
+Result<AssetRecord> CatalogService::rename_recipe_snapshot(const std::string_view asset_id,
+                                                           const std::int64_t history_id,
+                                                           const std::string_view label)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto trimmed = normalize_tag_name(label);
+    if (!trimmed)
+    {
+        return trimmed.error();
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    auto entry = repository_->find_recipe_history(history_id);
+    if (!entry)
+    {
+        return entry.error();
+    }
+    if (!entry.value() || entry.value()->asset_id != asset_id)
+    {
+        return make_error(ErrorCode::kNotFound, "Recipe snapshot does not exist",
+                          {{"history_id", std::to_string(history_id)}});
+    }
+    if (entry.value()->kind != kRecipeHistoryKindSnapshot)
+    {
+        return make_error(ErrorCode::kValidation, "Only snapshots can be renamed",
+                          {{"kind", entry.value()->kind}});
+    }
+    auto updated = repository_->update_recipe_history_label(history_id, trimmed.value());
+    if (!updated)
+    {
+        return updated.error();
+    }
+    const auto revision = repository_->bump_revision();
+    if (!revision)
+    {
+        return revision.error();
+    }
+    return *asset.value();
+}
+
 Result<AssetRecord> CatalogService::restore_recipe_history(const std::string_view asset_id,
                                                            const std::int64_t history_id)
 {

@@ -67,22 +67,31 @@ reject, and tag filters.
 
 ## Filter and sort the library
 
-Enable **Filter** in the top bar to expose the review controls.
+Enable **Filter** in the top bar. The default control is a star strip:
+
+- The empty star keeps only unrated photos.
+- Stars 1–5 keep photos with that exact rating.
+- Click the active value again to return to Any.
+
+Use **+** to add Search, Type, Edits, Color, or Rejected. Each added control
+has a close button that removes it and clears that predicate. Unchecking
+**Filter** hides the extras and clears active filters.
+
+Sort stays on the right of the bar even when Filter is off.
 
 | Control | Available values |
 | --- | --- |
+| Rating | Unrated (exact 0) or exact 1–5. |
 | Search | Case-insensitive filename, URI, media type, tags, catalog metadata, and camera text. |
 | Type | Any, RAW, JPEG, PNG, or TIFF. |
 | Edit state | Any, Edited, or Unedited. |
-| Rating | Any, minimum 1–5, or exact 0–5. |
 | Color | Red, yellow, green, blue, and purple; more than one color can be selected. |
 | Rejected | Include, Exclude, or Only. |
 | Sort | Import time, capture time, filename, rating, or file size. Photos without capture time sort after dated photos. |
 | Direction | Ascending or descending. |
 | Tag | A tag name entered in the left-panel field. |
 
-Use **Clear filters** to return to the full current folder/library view. If no
-photo matches, Studio says so instead of showing stale thumbnails.
+If no photo matches, Studio says so instead of showing stale thumbnails.
 
 Filter state belongs to the current open session and is not written as a
 recent-search history. Closing the catalog discards it. Service integrations
