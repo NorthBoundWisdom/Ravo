@@ -3133,16 +3133,19 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     };
     if (apply_temperature_field(params.temperature, name, value))
     {
+        return true;
     }
-    else if (name == "profileGammaEnabled")
+    if (name == "profileGammaEnabled")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma_enabled = value >= 0.5;
+
+        return true;
     }
-    else if (name == "profileGammaModeIndex")
+    if (name == "profileGammaModeIndex")
     {
         auto mode = selected(kSelectableProfileGammaModes);
         if (!mode)
@@ -3150,56 +3153,70 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.profile_gamma.mode = std::move(*mode);
+
+        return true;
     }
-    else if (name == "profileGammaLinear")
+    if (name == "profileGammaLinear")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma.linear = value;
+
+        return true;
     }
-    else if (name == "profileGammaGamma")
+    if (name == "profileGammaGamma")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma.gamma = value;
+
+        return true;
     }
-    else if (name == "profileGammaDynamicRange")
+    if (name == "profileGammaDynamicRange")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma.dynamic_range = value;
+
+        return true;
     }
-    else if (name == "profileGammaGreyPoint")
+    if (name == "profileGammaGreyPoint")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma.grey_point = value;
+
+        return true;
     }
-    else if (name == "profileGammaShadowsRange")
+    if (name == "profileGammaShadowsRange")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma.shadows_range = value;
+
+        return true;
     }
-    else if (name == "profileGammaSecurityFactor")
+    if (name == "profileGammaSecurityFactor")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.profile_gamma.security_factor = value;
+
+        return true;
     }
-    else if (name == "inputProfile")
+    if (name == "inputProfile")
     {
         auto profile = selected(kSelectableInputProfiles);
         if (!profile)
@@ -3208,8 +3225,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         }
         params.input_color.input_profile = std::move(*profile);
         params.input_color.input_profile_filename.clear();
+
+        return true;
     }
-    else if (name == "workingProfile")
+    if (name == "workingProfile")
     {
         auto profile = selected(kSelectableWorkingProfiles);
         if (!profile)
@@ -3218,8 +3237,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         }
         params.input_color.working_profile = std::move(*profile);
         params.input_color.working_profile_filename.clear();
+
+        return true;
     }
-    else if (name == "renderingIntent")
+    if (name == "renderingIntent")
     {
         auto intent = selected(kSelectableColorIntents);
         if (!intent)
@@ -3227,8 +3248,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.input_color.rendering_intent = std::move(*intent);
+
+        return true;
     }
-    else if (name == "gamutNormalize")
+    if (name == "gamutNormalize")
     {
         auto normalize = selected(kSelectableColorNormalizations);
         if (!normalize)
@@ -3236,12 +3259,16 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.input_color.gamut_normalize = std::move(*normalize);
+
+        return true;
     }
-    else if (name == "blueMapping")
+    if (name == "blueMapping")
     {
         params.input_color.blue_mapping = value >= 0.5;
+
+        return true;
     }
-    else if (name == "outputProfile")
+    if (name == "outputProfile")
     {
         auto profile = selected(kSelectableOutputProfiles);
         if (!profile)
@@ -3250,8 +3277,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         }
         params.output_color.output_profile = std::move(*profile);
         params.output_color.output_profile_filename.clear();
+
+        return true;
     }
-    else if (name == "outputRenderingIntent")
+    if (name == "outputRenderingIntent")
     {
         auto intent = selected(kSelectableColorIntents);
         if (!intent)
@@ -3259,8 +3288,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.output_color.rendering_intent = std::move(*intent);
+
+        return true;
     }
-    else if (name == "proofMode")
+    if (name == "proofMode")
     {
         auto mode = selected(kSelectableProofModes);
         if (!mode)
@@ -3268,8 +3299,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.output_color.proof_mode = std::move(*mode);
+
+        return true;
     }
-    else if (name == "proofProfile")
+    if (name == "proofProfile")
     {
         auto profile = selected(kSelectableProofProfiles);
         if (!profile)
@@ -3278,8 +3311,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         }
         params.output_color.proof_profile = std::move(*profile);
         params.output_color.proof_profile_filename.clear();
+
+        return true;
     }
-    else if (name == "proofIntent")
+    if (name == "proofIntent")
     {
         auto intent = selected(kSelectableColorIntents);
         if (!intent)
@@ -3287,112 +3322,150 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.output_color.proof_intent = std::move(*intent);
+
+        return true;
     }
-    else if (name == "outputBlackPointCompensation")
+    if (name == "outputBlackPointCompensation")
     {
         params.output_color.black_point_compensation = value >= 0.5;
+
+        return true;
     }
-    else if (name == "primariesAchromaticHueDegrees")
+    if (name == "primariesAchromaticHueDegrees")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.achromatic_tint_hue = value * std::numbers::pi / 180.0;
+
+        return true;
     }
-    else if (name == "primariesAchromaticPurity")
+    if (name == "primariesAchromaticPurity")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.achromatic_tint_purity = value;
+
+        return true;
     }
-    else if (name == "primariesRedHueDegrees")
+    if (name == "primariesRedHueDegrees")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.red_hue = value * std::numbers::pi / 180.0;
+
+        return true;
     }
-    else if (name == "primariesRedPurity")
+    if (name == "primariesRedPurity")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.red_purity = value;
+
+        return true;
     }
-    else if (name == "primariesGreenHueDegrees")
+    if (name == "primariesGreenHueDegrees")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.green_hue = value * std::numbers::pi / 180.0;
+
+        return true;
     }
-    else if (name == "primariesGreenPurity")
+    if (name == "primariesGreenPurity")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.green_purity = value;
+
+        return true;
     }
-    else if (name == "primariesBlueHueDegrees")
+    if (name == "primariesBlueHueDegrees")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.blue_hue = value * std::numbers::pi / 180.0;
+
+        return true;
     }
-    else if (name == "primariesBluePurity")
+    if (name == "primariesBluePurity")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.primaries.blue_purity = value;
+
+        return true;
     }
-    else if (name == "channelMixerRR")
+    if (name == "channelMixerRR")
     {
         params.channel_mixer.red[0] = value;
+
+        return true;
     }
-    else if (name == "channelMixerRG")
+    if (name == "channelMixerRG")
     {
         params.channel_mixer.red[1] = value;
+
+        return true;
     }
-    else if (name == "channelMixerRB")
+    if (name == "channelMixerRB")
     {
         params.channel_mixer.red[2] = value;
+
+        return true;
     }
-    else if (name == "channelMixerGR")
+    if (name == "channelMixerGR")
     {
         params.channel_mixer.green[0] = value;
+
+        return true;
     }
-    else if (name == "channelMixerGG")
+    if (name == "channelMixerGG")
     {
         params.channel_mixer.green[1] = value;
+
+        return true;
     }
-    else if (name == "channelMixerGB")
+    if (name == "channelMixerGB")
     {
         params.channel_mixer.green[2] = value;
+
+        return true;
     }
-    else if (name == "channelMixerBR")
+    if (name == "channelMixerBR")
     {
         params.channel_mixer.blue[0] = value;
+
+        return true;
     }
-    else if (name == "channelMixerBG")
+    if (name == "channelMixerBG")
     {
         params.channel_mixer.blue[1] = value;
+
+        return true;
     }
-    else if (name == "channelMixerBB")
+    if (name == "channelMixerBB")
     {
         params.channel_mixer.blue[2] = value;
+
+        return true;
     }
-    else if (name == "exposureMode")
+    if (name == "exposureMode")
     {
         if (value != 0.0 && value != 1.0)
         {
@@ -3400,16 +3473,20 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         }
         params.exposure_mode =
             value == 0.0 ? std::string(kExposureModeManual) : std::string(kExposureModeDeflicker);
+
+        return true;
     }
-    else if (name == "exposureBlack")
+    if (name == "exposureBlack")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.exposure_black = value;
+
+        return true;
     }
-    else if (name == "exposure")
+    if (name == "exposure")
     {
         if (!std::isfinite(value))
         {
@@ -3421,88 +3498,122 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         {
             params.exposure_black = std::max(kExposureBlackMin, white - 0.01);
         }
+
+        return true;
     }
-    else if (name == "exposureDeflickerPercentile")
+    if (name == "exposureDeflickerPercentile")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.exposure_deflicker_percentile = value;
+
+        return true;
     }
-    else if (name == "exposureDeflickerTarget")
+    if (name == "exposureDeflickerTarget")
     {
         if (!std::isfinite(value))
         {
             return false;
         }
         params.exposure_deflicker_target_ev = value;
+
+        return true;
     }
-    else if (name == "exposureCompensateBias")
+    if (name == "exposureCompensateBias")
     {
         if (value != 0.0 && value != 1.0)
         {
             return false;
         }
         params.exposure_compensate_exposure_bias = value == 1.0;
+
+        return true;
     }
-    else if (name == "exposureCompensateHighlight")
+    if (name == "exposureCompensateHighlight")
     {
         if (value != 0.0 && value != 1.0)
         {
             return false;
         }
         params.exposure_compensate_highlight_preservation = value == 1.0;
+
+        return true;
     }
-    else if (name == "contrast")
+    if (name == "contrast")
     {
         params.contrast = value;
+
+        return true;
     }
-    else if (name == "highlights")
+    if (name == "highlights")
     {
         params.highlights = value;
+
+        return true;
     }
-    else if (name == "shadows")
+    if (name == "shadows")
     {
         params.shadows = value;
+
+        return true;
     }
-    else if (name == "whites")
+    if (name == "whites")
     {
         params.whites = value;
+
+        return true;
     }
-    else if (name == "blacks")
+    if (name == "blacks")
     {
         params.blacks = value;
+
+        return true;
     }
-    else if (name == "vibrance")
+    if (name == "vibrance")
     {
         params.vibrance = value;
+
+        return true;
     }
-    else if (name == "saturation")
+    if (name == "saturation")
     {
         params.saturation = value;
+
+        return true;
     }
-    else if (name == "straighten")
+    if (name == "straighten")
     {
         params.straighten_degrees = value;
+
+        return true;
     }
-    else if (name == "cropX")
+    if (name == "cropX")
     {
         params.crop_x = value;
+
+        return true;
     }
-    else if (name == "cropY")
+    if (name == "cropY")
     {
         params.crop_y = value;
+
+        return true;
     }
-    else if (name == "cropWidth")
+    if (name == "cropWidth")
     {
         params.crop_width = value;
+
+        return true;
     }
-    else if (name == "cropHeight")
+    if (name == "cropHeight")
     {
         params.crop_height = value;
+
+        return true;
     }
-    else if (name == "canvasEnabled")
+    if (name == "canvasEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3516,8 +3627,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         {
             params.canvas_present = false;
         }
+
+        return true;
     }
-    else if (name == "canvasLeft" || name == "canvasRight" || name == "canvasTop" ||
+    if (name == "canvasLeft" || name == "canvasRight" || name == "canvasTop" ||
              name == "canvasBottom")
     {
         params.canvas_present = true;
@@ -3528,8 +3641,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
                          name == "canvasTop"   ? &params.canvas.percent_top :
                                                  &params.canvas.percent_bottom;
         *target = value;
+
+        return true;
     }
-    else if (name == "canvasColorIndex")
+    if (name == "canvasColorIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 4.0)
             return false;
@@ -3537,56 +3652,80 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.canvas_enabled = true;
         params.geometry_effect_enabled = true;
         params.canvas.color = static_cast<CanvasColor>(static_cast<std::uint8_t>(value));
+
+        return true;
     }
-    else if (name == "sharpen")
+    if (name == "sharpen")
     {
         params.sharpen = value;
+
+        return true;
     }
-    else if (name == "sharpenRadius")
+    if (name == "sharpenRadius")
     {
         params.sharpen_radius = value;
+
+        return true;
     }
-    else if (name == "sharpenThreshold")
+    if (name == "sharpenThreshold")
     {
         params.sharpen_threshold = value;
+
+        return true;
     }
-    else if (name == "clarity")
+    if (name == "clarity")
     {
         params.clarity = value;
+
+        return true;
     }
-    else if (name == "vignette")
+    if (name == "vignette")
     {
         params.vignette = value;
+
+        return true;
     }
-    else if (name == "grain")
+    if (name == "grain")
     {
         params.grain = value;
+
+        return true;
     }
-    else if (name == "bloom")
+    if (name == "bloom")
     {
         params.bloom = value;
+
+        return true;
     }
-    else if (name == "soften")
+    if (name == "soften")
     {
         params.soften = value;
+
+        return true;
     }
-    else if (name == "dehaze")
+    if (name == "dehaze")
     {
         params.dehaze = value;
+
+        return true;
     }
-    else if (name == "dehazeDistance")
+    if (name == "dehazeDistance")
     {
         params.dehaze_distance = value;
+
+        return true;
     }
-    else if (name == "dehazeAdaptive")
+    if (name == "dehazeAdaptive")
     {
         if (value != 0.0 && value != 1.0)
         {
             return false;
         }
         params.dehaze_adaptive = value == 1.0;
+
+        return true;
     }
-    else if (name == "outputDitherEnabled")
+    if (name == "outputDitherEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3594,8 +3733,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.output_dither_enabled = value == 1.0;
         if (params.output_dither_enabled)
             params.effects_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "outputDitherMethodIndex")
+    if (name == "outputDitherMethodIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value)
             return false;
@@ -3606,8 +3747,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.output_dither_enabled = true;
         params.effects_effect_enabled = true;
         params.output_dither.method = method.value();
+
+        return true;
     }
-    else if (name == "outputDitherDamping")
+    if (name == "outputDitherDamping")
     {
         if (!std::isfinite(value))
             return false;
@@ -3615,8 +3758,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.output_dither_enabled = true;
         params.effects_effect_enabled = true;
         params.output_dither.random_damping_db = value;
+
+        return true;
     }
-    else if (name == "outputFrameEnabled")
+    if (name == "outputFrameEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3624,8 +3769,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.frame_enabled = value == 1.0;
         if (params.frame_enabled)
             params.effects_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "outputFrameBorderRed" || name == "outputFrameBorderGreen" ||
+    if (name == "outputFrameBorderRed" || name == "outputFrameBorderGreen" ||
              name == "outputFrameBorderBlue" || name == "outputFrameLineRed" ||
              name == "outputFrameLineGreen" || name == "outputFrameLineBlue")
     {
@@ -3636,15 +3783,19 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         auto &color = line ? params.frame.frame_color : params.frame.border_color;
         const std::size_t channel = name.ends_with("Red") ? 0U : name.ends_with("Green") ? 1U : 2U;
         color[channel] = value;
+
+        return true;
     }
-    else if (name == "outputFrameAspect")
+    if (name == "outputFrameAspect")
     {
         params.frame_present = true;
         params.frame_enabled = true;
         params.effects_effect_enabled = true;
         params.frame.aspect = value;
+
+        return true;
     }
-    else if (name == "outputFrameOrientationIndex")
+    if (name == "outputFrameOrientationIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
             return false;
@@ -3652,8 +3803,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.frame_enabled = true;
         params.effects_effect_enabled = true;
         params.frame.orientation = static_cast<FrameOrientation>(static_cast<std::uint8_t>(value));
+
+        return true;
     }
-    else if (name == "outputFrameSize" || name == "outputFramePositionH" ||
+    if (name == "outputFrameSize" || name == "outputFramePositionH" ||
              name == "outputFramePositionV" || name == "outputFrameLineSize" ||
              name == "outputFrameLineOffset")
     {
@@ -3666,8 +3819,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
                          name == "outputFrameLineSize"  ? &params.frame.frame_size :
                                                           &params.frame.frame_offset;
         *target = value;
+
+        return true;
     }
-    else if (name == "outputFrameBasisIndex")
+    if (name == "outputFrameBasisIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 4.0)
             return false;
@@ -3675,8 +3830,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.frame_enabled = true;
         params.effects_effect_enabled = true;
         params.frame.basis = static_cast<FrameBasis>(static_cast<std::uint8_t>(value));
+
+        return true;
     }
-    else if (name == "watermarkEnabled")
+    if (name == "watermarkEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3684,16 +3841,20 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.watermark_enabled = value == 1.0;
         if (params.watermark_enabled)
             params.effects_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "watermarkRed" || name == "watermarkGreen" || name == "watermarkBlue")
+    if (name == "watermarkRed" || name == "watermarkGreen" || name == "watermarkBlue")
     {
         params.watermark_present = true;
         params.watermark_enabled = true;
         params.effects_effect_enabled = true;
         const std::size_t channel = name.ends_with("Red") ? 0U : name.ends_with("Green") ? 1U : 2U;
         params.watermark.color[channel] = value;
+
+        return true;
     }
-    else if (name == "watermarkOpacity" || name == "watermarkScale" || name == "watermarkOffsetX" ||
+    if (name == "watermarkOpacity" || name == "watermarkScale" || name == "watermarkOffsetX" ||
              name == "watermarkOffsetY" || name == "watermarkRotation")
     {
         params.watermark_present = true;
@@ -3705,8 +3866,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
                          name == "watermarkOffsetY" ? &params.watermark.y_offset :
                                                       &params.watermark.rotation_degrees;
         *target = value;
+
+        return true;
     }
-    else if (name == "watermarkAlignmentIndex")
+    if (name == "watermarkAlignmentIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 8.0)
             return false;
@@ -3715,42 +3878,62 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.effects_effect_enabled = true;
         params.watermark.alignment =
             static_cast<WatermarkAlignment>(static_cast<std::uint8_t>(value));
+
+        return true;
     }
-    else if (name == "velvia")
+    if (name == "velvia")
     {
         params.velvia = value;
+
+        return true;
     }
-    else if (apply_legacy_color_balance_field(params.color_balance, name, value))
+    if (apply_legacy_color_balance_field(params.color_balance, name, value))
     {
         params.color_balance_enabled = true;
+
+        return true;
     }
-    else if (apply_color_checker_field(params, name, value))
+    if (apply_color_checker_field(params, name, value))
     {
+
+        return true;
     }
-    else if (apply_color_balance_field(params.color_balance_rgb, name, value))
+    if (apply_color_balance_field(params.color_balance_rgb, name, value))
     {
+
+        return true;
     }
-    else if (apply_color_correction_field(params, name, value))
+    if (apply_color_correction_field(params, name, value))
     {
+
+        return true;
     }
-    else if (apply_color_contrast_field(params, name, value))
+    if (apply_color_contrast_field(params, name, value))
     {
+
+        return true;
     }
-    else if (apply_color_reconstruction_field(params, name, value))
+    if (apply_color_reconstruction_field(params, name, value))
     {
+
+        return true;
     }
-    else if (apply_color_harmonizer_field(params, name, value))
+    if (apply_color_harmonizer_field(params, name, value))
     {
+
+        return true;
     }
-    else if (name == "monochrome")
+    if (name == "monochrome")
     {
         params.monochrome_present = true;
         params.monochrome_enabled = value > 0.0;
         params.monochrome.mix = value;
         if (params.monochrome_enabled)
             params.color_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "monochromeEnabled")
+    if (name == "monochromeEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3758,8 +3941,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.monochrome_enabled = value == 1.0;
         if (params.monochrome_enabled)
             params.color_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "monochromeFilterA" || name == "monochromeFilterB" ||
+    if (name == "monochromeFilterA" || name == "monochromeFilterB" ||
              name == "monochromeSize" || name == "monochromeHighlights" || name == "monochromeMix")
     {
         params.monochrome_present = true;
@@ -3771,37 +3956,47 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
                          name == "monochromeHighlights" ? &params.monochrome.highlights :
                                                           &params.monochrome.mix;
         *target = value;
+
+        return true;
     }
-    else if (name == "splitShadowsHue")
+    if (name == "splitShadowsHue")
     {
         params.split_toning_present = true;
         params.split_toning_enabled = true;
         params.color_effect_enabled = true;
         params.split_toning.shadow_hue = value;
+
+        return true;
     }
-    else if (name == "splitHighlightsHue")
+    if (name == "splitHighlightsHue")
     {
         params.split_toning_present = true;
         params.split_toning_enabled = true;
         params.color_effect_enabled = true;
         params.split_toning.highlight_hue = value;
+
+        return true;
     }
-    else if (name == "splitBalance")
+    if (name == "splitBalance")
     {
         params.split_toning_present = true;
         params.split_toning_enabled = true;
         params.color_effect_enabled = true;
         params.split_toning.balance = value;
+
+        return true;
     }
-    else if (name == "splitAmount")
+    if (name == "splitAmount")
     {
         params.split_toning_present = true;
         params.split_toning_enabled = value > 0.0;
         params.split_toning.mix = value;
         if (params.split_toning_enabled)
             params.color_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "splitToningEnabled")
+    if (name == "splitToningEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3809,8 +4004,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.split_toning_enabled = value == 1.0;
         if (params.split_toning_enabled)
             params.color_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "splitShadowSaturation" || name == "splitHighlightSaturation" ||
+    if (name == "splitShadowSaturation" || name == "splitHighlightSaturation" ||
              name == "splitCompress" || name == "splitMix")
     {
         params.split_toning_present = true;
@@ -3822,104 +4019,152 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             name == "splitCompress"            ? &params.split_toning.compress :
                                                  &params.split_toning.mix;
         *target = value;
+
+        return true;
     }
-    else if (name == "gamma")
+    if (name == "gamma")
     {
         params.gamma = value;
+
+        return true;
     }
-    else if (apply_rgb_levels_field(params, name, value))
+    if (apply_rgb_levels_field(params, name, value))
     {
+
+        return true;
     }
-    else if (name == "sigmoidContrast")
+    if (name == "sigmoidContrast")
     {
         params.sigmoid_enabled = true;
         params.sigmoid_contrast = value;
+
+        return true;
     }
-    else if (name == "sigmoidSkew")
+    if (name == "sigmoidSkew")
     {
         params.sigmoid_enabled = true;
         params.sigmoid_skew = value;
+
+        return true;
     }
-    else if (name == "sigmoidHuePreservation")
+    if (name == "sigmoidHuePreservation")
     {
         params.sigmoid_enabled = true;
         params.sigmoid_hue_preservation = value;
+
+        return true;
     }
-    else if (name == "rawHighlights")
+    if (name == "rawHighlights")
     {
         params.raw_highlights = value;
+
+        return true;
     }
-    else if (name == "rawHighlightsClip")
+    if (name == "rawHighlightsClip")
     {
         params.raw_highlights_clip = value;
+
+        return true;
     }
-    else if (name == "rawHighlightsMode")
+    if (name == "rawHighlightsMode")
     {
         params.raw_highlights_mode = value >= 0.5 ? std::string(kRawHighlightsModeInpaint) :
                                                     std::string(kRawHighlightsModeClip);
+
+        return true;
     }
-    else if (name == "hotPixelsStrength")
+    if (name == "hotPixelsStrength")
     {
         params.hot_pixels_strength = value;
+
+        return true;
     }
-    else if (name == "hotPixelsThreshold")
+    if (name == "hotPixelsThreshold")
     {
         params.hot_pixels_threshold = value;
+
+        return true;
     }
-    else if (name == "hotPixelsPermissive")
+    if (name == "hotPixelsPermissive")
     {
         params.hot_pixels_permissive = value >= 0.5;
+
+        return true;
     }
-    else if (name == "rawCaIterations")
+    if (name == "rawCaIterations")
     {
         params.raw_ca_iterations = static_cast<std::int64_t>(std::llround(value));
+
+        return true;
     }
-    else if (name == "rawCaAvoidShift")
+    if (name == "rawCaAvoidShift")
     {
         params.raw_ca_avoid_shift = value >= 0.5;
+
+        return true;
     }
-    else if (name == "denoise")
+    if (name == "denoise")
     {
         params.denoise = value;
+
+        return true;
     }
-    else if (name == "denoiseChroma")
+    if (name == "denoiseChroma")
     {
         params.denoise_chroma = value;
+
+        return true;
     }
-    else if (name == "denoiseRadius")
+    if (name == "denoiseRadius")
     {
         params.denoise_radius = value;
+
+        return true;
     }
-    else if (name == "lensK1")
+    if (name == "lensK1")
     {
         params.lens_k1 = value;
+
+        return true;
     }
-    else if (name == "lensK2")
+    if (name == "lensK2")
     {
         params.lens_k2 = value;
+
+        return true;
     }
-    else if (name == "lensTcaR")
+    if (name == "lensTcaR")
     {
         params.lens_tca_r = value;
+
+        return true;
     }
-    else if (name == "lensTcaB")
+    if (name == "lensTcaB")
     {
         params.lens_tca_b = value;
+
+        return true;
     }
-    else if (name == "lensVignetting")
+    if (name == "lensVignetting")
     {
         params.lens_vignetting = value;
+
+        return true;
     }
-    else if (name == "lensMode")
+    if (name == "lensMode")
     {
         params.lens_mode =
             value >= 0.5 ? std::string(kLensModeLookup) : std::string(kLensModeManual);
+
+        return true;
     }
-    else if (name == "lensFocal")
+    if (name == "lensFocal")
     {
         params.lens_focal_mm = value;
+
+        return true;
     }
-    else if (name == "colorZonesEnabled")
+    if (name == "colorZonesEnabled")
     {
         if (value != 0.0 && value != 1.0)
             return false;
@@ -3929,8 +4174,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.color_zones_enabled = value == 1.0;
         if (params.color_zones_enabled)
             params.color_effect_enabled = true;
+
+        return true;
     }
-    else if (name == "colorZonesSelectByIndex")
+    if (name == "colorZonesSelectByIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
             return false;
@@ -3941,14 +4188,18 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.color_effect_enabled = true;
         params.color_zones.select_by =
             static_cast<ColorZonesChannel>(static_cast<std::uint8_t>(value));
+
+        return true;
     }
-    else if (name == "colorZonesBandIndex")
+    if (name == "colorZonesBandIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 7.0)
             return false;
         params.color_zones_band = static_cast<std::int64_t>(value);
+
+        return true;
     }
-    else if (name == "colorZonesStrength")
+    if (name == "colorZonesStrength")
     {
         if (!params.color_zones_present)
             make_studio_color_zones_curves(params.color_zones);
@@ -3956,8 +4207,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.color_zones_enabled = true;
         params.color_effect_enabled = true;
         params.color_zones.strength = value;
+
+        return true;
     }
-    else if (name == "colorZonesLightnessInterpolationIndex" ||
+    if (name == "colorZonesLightnessInterpolationIndex" ||
              name == "colorZonesChromaInterpolationIndex" ||
              name == "colorZonesHueInterpolationIndex")
     {
@@ -3973,8 +4226,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
                                                                               2U;
         params.color_zones.curves[channel].interpolation =
             static_cast<ColorZonesInterpolation>(static_cast<std::uint8_t>(value));
+
+        return true;
     }
-    else if (name == "colorZonesLightness" || name == "colorZonesChroma" || name == "colorZonesHue")
+    if (name == "colorZonesLightness" || name == "colorZonesChroma" || name == "colorZonesHue")
     {
         if (!params.color_zones_present)
             make_studio_color_zones_curves(params.color_zones);
@@ -3989,92 +4244,117 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         const auto band = static_cast<std::size_t>(
             std::clamp(params.color_zones_band, std::int64_t{0}, std::int64_t{7}));
         params.color_zones.curves[channel].points[band].y = value;
+
+        return true;
     }
-    else if (name == "colorEqBand")
+    if (name == "colorEqBand")
     {
         params.color_eq_band = static_cast<std::int64_t>(std::llround(value));
+
+        return true;
     }
-    else if (name == "colorEqHue")
+    if (name == "colorEqHue")
     {
         params.color_eq_hue[static_cast<std::size_t>(
             std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+
+        return true;
     }
-    else if (name == "colorEqSat")
+    if (name == "colorEqSat")
     {
         params.color_eq_sat[static_cast<std::size_t>(
             std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+
+        return true;
     }
-    else if (name == "colorEqLight")
+    if (name == "colorEqLight")
     {
         params.color_eq_light[static_cast<std::size_t>(
             std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+
+        return true;
     }
-    else if (name == "graduatedDensity")
+    if (name == "graduatedDensity")
     {
         params.graduated_present = true;
         params.graduated_enabled = true;
         params.graduated_density = value;
+
+        return true;
     }
-    else if (name == "graduatedHardness")
+    if (name == "graduatedHardness")
     {
         params.graduated_present = true;
         params.graduated_enabled = true;
         params.graduated_hardness = value;
+
+        return true;
     }
-    else if (name == "graduatedRotation")
+    if (name == "graduatedRotation")
     {
         params.graduated_present = true;
         params.graduated_enabled = true;
         params.graduated_rotation = value;
+
+        return true;
     }
-    else if (name == "graduatedOffset")
+    if (name == "graduatedOffset")
     {
         params.graduated_present = true;
         params.graduated_enabled = true;
         params.graduated_offset = value;
+
+        return true;
     }
-    else if (name == "toneEqBlacks")
+    if (name == "toneEqBlacks")
     {
         params.tone_eq_blacks = value;
+
+        return true;
     }
-    else if (name == "toneEqShadows")
+    if (name == "toneEqShadows")
     {
         params.tone_eq_shadows = value;
+
+        return true;
     }
-    else if (name == "toneEqMidtones")
+    if (name == "toneEqMidtones")
     {
         params.tone_eq_midtones = value;
+
+        return true;
     }
-    else if (name == "toneEqHighlights")
+    if (name == "toneEqHighlights")
     {
         params.tone_eq_highlights = value;
+
+        return true;
     }
-    else if (name == "toneEqWhites")
+    if (name == "toneEqWhites")
     {
         params.tone_eq_whites = value;
+
+        return true;
     }
-    else
+    std::size_t band = 0;
+    if (parse_band_field(name, "colorEqHue", band))
     {
-        std::size_t band = 0;
-        if (parse_band_field(name, "colorEqHue", band))
-        {
-            params.color_eq_hue[band] = value;
-        }
-        else if (parse_band_field(name, "colorEqSat", band))
-        {
-            params.color_eq_sat[band] = value;
-        }
-        else if (parse_band_field(name, "colorEqLight", band))
-        {
-            params.color_eq_light[band] = value;
-        }
-        else
-        {
-            return false;
-        }
+        params.color_eq_hue[band] = value;
+        return true;
     }
-    return true;
+    if (parse_band_field(name, "colorEqSat", band))
+    {
+        params.color_eq_sat[band] = value;
+        return true;
+    }
+    if (parse_band_field(name, "colorEqLight", band))
+    {
+        params.color_eq_light[band] = value;
+        return true;
+    }
+    return false;
 }
+
 
 [[nodiscard]] bool develop_set_field_accepts(const std::string_view name, const double value)
 {
