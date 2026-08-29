@@ -213,6 +213,7 @@ struct CatalogCliArguments
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
     std::vector<std::pair<std::string, double>> develop_sets;
+    std::optional<std::pair<double, double>> pick_white;
     std::optional<std::string_view> watermark_text;
     std::string_view output;
     std::string_view output_directory;
@@ -386,6 +387,27 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return parsed.error();
             }
             result.contrast = parsed.value();
+        }
+        else if (option == "--pick-white")
+        {
+            const auto owned = std::string(value);
+            const auto split = owned.find(',');
+            if (split == std::string::npos || split == 0 || split + 1 == owned.size())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "--pick-white requires x,y",
+                                  {{"value", owned}});
+            }
+            auto x = parse_double_flag(owned.substr(0, split), option);
+            if (!x)
+            {
+                return x.error();
+            }
+            auto y = parse_double_flag(owned.substr(split + 1), option);
+            if (!y)
+            {
+                return y.error();
+            }
+            result.pick_white = std::pair<double, double>{x.value(), y.value()};
         }
         else if (option == "--set")
         {
@@ -1453,6 +1475,33 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return params.error();
         }
+        if (flags.value().pick_white)
+        {
+            if (std::abs(params.value().straighten_degrees) > 1.0e-4 ||
+                params.value().canvas_enabled)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "White-balance pick is unavailable with straighten or Canvas");
+            }
+            WhiteBalancePickRequest request;
+            request.preview_x = flags.value().pick_white->first;
+            request.preview_y = flags.value().pick_white->second;
+            request.crop_x = params.value().crop_x;
+            request.crop_y = params.value().crop_y;
+            request.crop_width = params.value().crop_width;
+            request.crop_height = params.value().crop_height;
+            request.rotate_quarters = static_cast<int>(params.value().rotate_quarters);
+            request.flip_horizontal = params.value().flip_horizontal != 0;
+            request.flip_vertical = params.value().flip_vertical != 0;
+            auto sampled = service.sample_white_balance(flags.value().asset_id, request,
+                                                        CancellationToken{});
+            if (!sampled)
+            {
+                return sampled.error();
+            }
+            params.value().temperature.mode = std::string(kTemperatureModeManual);
+            params.value().temperature.coefficients = sampled.value();
+        }
         auto applied = apply_develop_overrides(params.value(), flags.value());
         if (!applied)
         {
@@ -1981,15 +2030,32 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         {
             return emit(inspected.error(), json);
         }
-        return emit(JsonValue{JsonValue::Object{
-                        {"format", inspected.value().format},
-                        {"height", JsonValue::number(std::to_string(inspected.value().height))},
-                        {"input_uri", inspected.value().input_uri},
-                        {"is_raw", inspected.value().is_raw},
-                        {"make", inspected.value().make},
-                        {"model", inspected.value().model},
-                        {"width", JsonValue::number(std::to_string(inspected.value().width))}}},
-                    json);
+        JsonValue::Object data{{"format", inspected.value().format},
+                               {"height", JsonValue::number(std::to_string(inspected.value().height))},
+                               {"input_uri", inspected.value().input_uri},
+                               {"is_raw", inspected.value().is_raw},
+                               {"make", inspected.value().make},
+                               {"model", inspected.value().model},
+                               {"width", JsonValue::number(std::to_string(inspected.value().width))}};
+        if (inspected.value().is_raw)
+        {
+            const auto coeffs = [](const std::array<double, 4> &values)
+            {
+                JsonValue::Array items;
+                for (const double value : values)
+                {
+                    items.push_back(JsonValue::number(std::to_string(value)));
+                }
+                return items;
+            };
+            data.emplace("has_as_shot_white_balance", inspected.value().has_as_shot_white_balance);
+            data.emplace("as_shot_white_balance", coeffs(inspected.value().as_shot_white_balance));
+            data.emplace("has_camera_reference_white_balance",
+                         inspected.value().has_camera_reference_white_balance);
+            data.emplace("camera_reference_white_balance",
+                         coeffs(inspected.value().camera_reference_white_balance));
+        }
+        return emit(JsonValue{std::move(data)}, json);
     }
     if (positional.front() == "render")
     {

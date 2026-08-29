@@ -52,6 +52,11 @@ Item {
     function setEditFilter(value) { root.run(root.ids.librarySetEditFilter, value); }
     function previewDevelopNumber(name, value) { root.run(root.ids.editSetNumber, {"name": name, "value": value, "live": true}); }
     function setDevelopNumber(name, value) { root.run(root.ids.editSetNumber, {"name": name, "value": value}); }
+    function previewDevelopNumbers(fields) { root.run(root.ids.editSetNumbers, {"fields": fields, "live": true}); }
+    function setDevelopNumbers(fields) { root.run(root.ids.editSetNumbers, {"fields": fields}); }
+    function pasteEditsSection(section) { root.run(root.ids.editPasteEditsSection, section); }
+    function pickWhiteBalance(x, y) { root.run(root.ids.editPickWhiteBalance, {"x": x, "y": y}); }
+    function setWhiteBalancePickActive(active) { root.run(root.ids.editSetWhiteBalancePick, active); }
     function setDevelopText(name, value) { root.run(root.ids.editSetText, {"name": name, "value": value}); }
     function previewToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points, "live": true}); }
     function setToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points}); }

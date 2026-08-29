@@ -60,7 +60,10 @@ QVariantMap StudioPresenter::editWhiteBalance() const
             {QStringLiteral("red"), coefficients[0]},
             {QStringLiteral("green"), coefficients[1]},
             {QStringLiteral("blue"), coefficients[2]},
-            {QStringLiteral("fourth"), coefficients[3]}};
+            {QStringLiteral("fourth"), coefficients[3]},
+            {QStringLiteral("canPick"),
+             selectedMediaType() == QLatin1String("image/x-raw") &&
+                 std::abs(develop_.straighten_degrees) <= 1.0e-4 && !develop_.canvas_enabled}};
 }
 
 QVariantMap StudioPresenter::editInputColor() const
@@ -1536,6 +1539,122 @@ double StudioPresenter::editColorEqLight() const noexcept
         std::clamp(develop_.color_eq_band, std::int64_t{0}, std::int64_t{7}))];
 }
 
+QVariantList StudioPresenter::editColorEqBands() const
+{
+    static const char *titles[] = {QT_TRANSLATE_NOOP("DevelopPanel", "Red"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Orange"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Yellow"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Green"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Cyan"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Blue"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Lavender"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Magenta")};
+    QVariantList bands;
+    for (int index = 0; index < static_cast<int>(kColorEqualizerBandCount); ++index)
+    {
+        const auto i = static_cast<std::size_t>(index);
+        bands.push_back(QVariantMap{
+            {QStringLiteral("index"), index},
+            {QStringLiteral("title"),
+             QCoreApplication::translate("DevelopPanel", titles[index])},
+            {QStringLiteral("hueField"), QStringLiteral("colorEqHue%1").arg(index)},
+            {QStringLiteral("satField"), QStringLiteral("colorEqSat%1").arg(index)},
+            {QStringLiteral("lightField"), QStringLiteral("colorEqLight%1").arg(index)},
+            {QStringLiteral("hue"), develop_.color_eq_hue[i]},
+            {QStringLiteral("sat"), develop_.color_eq_sat[i]},
+            {QStringLiteral("light"), develop_.color_eq_light[i]}});
+    }
+    return bands;
+}
+
+bool StudioPresenter::whiteBalancePickActive() const noexcept
+{
+    return white_balance_pick_active_;
+}
+
+void StudioPresenter::setWhiteBalancePickActive(const bool active)
+{
+    const bool enabled = active && selectedMediaType() == QLatin1String("image/x-raw") &&
+                         std::abs(develop_.straighten_degrees) <= 1.0e-4 && !develop_.canvas_enabled;
+    if (white_balance_pick_active_ == enabled)
+    {
+        return;
+    }
+    white_balance_pick_active_ = enabled;
+    if (enabled)
+    {
+        setCropToolActive(false);
+    }
+    emit editChanged();
+}
+
+void StudioPresenter::pickWhiteBalance(const double preview_x, const double preview_y)
+{
+    if (selected_asset_id_.isEmpty() || service_ == nullptr)
+    {
+        return;
+    }
+    if (selectedMediaType() != QLatin1String("image/x-raw"))
+    {
+        setError(QCoreApplication::translate("DevelopPanel",
+                                             "White-balance pick requires a Bayer RAW original"));
+        setWhiteBalancePickActive(false);
+        return;
+    }
+    if (std::abs(develop_.straighten_degrees) > 1.0e-4 || develop_.canvas_enabled)
+    {
+        setError(QCoreApplication::translate(
+            "DevelopPanel", "White-balance pick is unavailable with straighten or Canvas"));
+        setWhiteBalancePickActive(false);
+        return;
+    }
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    WhiteBalancePickRequest request;
+    request.preview_x = preview_x;
+    request.preview_y = preview_y;
+    request.crop_x = develop_.crop_x;
+    request.crop_y = develop_.crop_y;
+    request.crop_width = develop_.crop_width;
+    request.crop_height = develop_.crop_height;
+    request.rotate_quarters = static_cast<int>(develop_.rotate_quarters);
+    request.flip_horizontal = develop_.flip_horizontal != 0;
+    request.flip_vertical = develop_.flip_vertical != 0;
+    executor_.post(
+        [this, asset_id, request]()
+        {
+            Result<std::array<double, 4>> sampled =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+            {
+                sampled = service_->sample_white_balance(asset_id, request, CancellationToken{});
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, sampled = std::move(sampled)]() mutable
+                {
+                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    {
+                        return;
+                    }
+                    setWhiteBalancePickActive(false);
+                    if (!sampled)
+                    {
+                        setError(qstring_from_utf8(sampled.error().message));
+                        return;
+                    }
+                    DevelopParams next = develop_;
+                    next.temperature.mode = std::string(kTemperatureModeManual);
+                    next.temperature.coefficients = sampled.value();
+                    if (mutate_develop(std::move(next), DevelopEdit::Commit))
+                    {
+                        setStatus(QCoreApplication::translate("StudioPresenter",
+                                                              "White balance sampled."));
+                    }
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 double StudioPresenter::editGraduatedDensity() const noexcept
 {
     return develop_.graduated_density;
@@ -1664,6 +1783,8 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Highlights");
     if (field == "toneEqWhites")
         return QCoreApplication::translate("DevelopPanel", "Whites");
+    if (field == "colorEqualizer")
+        return QCoreApplication::translate("DevelopPanel", "Color Equalizer");
     if (field == "graduated")
         return QCoreApplication::translate("DevelopPanel", "Graduated ND");
     if (field == "rotate")
@@ -1916,6 +2037,7 @@ void StudioPresenter::load_develop_for_selection()
 {
     develop_ = {};
     saved_develop_ = {};
+    white_balance_pick_active_ = false;
     undo_stack_.clear();
     redo_stack_.clear();
     recipe_history_.clear();
@@ -2761,6 +2883,10 @@ void StudioPresenter::setCropToolActive(const bool active)
     crop_tool_active_ = active;
     if (active)
     {
+        if (white_balance_pick_active_)
+        {
+            white_balance_pick_active_ = false;
+        }
         setZoomMode(QStringLiteral("fit"));
         DevelopParams next = develop_;
         fit_geometry_crop(next);
@@ -2869,15 +2995,63 @@ void StudioPresenter::copyEdits()
 
 void StudioPresenter::pasteEdits()
 {
+    pasteEditsSection(QStringLiteral("all"));
+}
+
+void StudioPresenter::pasteEditsSection(const QString &section)
+{
     if (selected_asset_id_.isEmpty() || !copied_edits_)
     {
         return;
     }
-    DevelopParams next = *copied_edits_;
+    const auto grade = utf8_from_qstring(section.trimmed().isEmpty() ? QStringLiteral("all")
+                                                                     : section.trimmed());
+    DevelopParams next = develop_;
+    if (!apply_develop_grade(next, *copied_edits_, grade))
+    {
+        return;
+    }
     if (mutate_develop(std::move(next), DevelopEdit::Commit))
     {
         setStatus(QCoreApplication::translate("StudioPresenter", "Edits pasted."));
     }
+}
+
+void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const DevelopEdit edit)
+{
+    if (fields.isEmpty())
+    {
+        return;
+    }
+    DevelopParams next = develop_;
+    for (auto it = fields.constBegin(); it != fields.constEnd(); ++it)
+    {
+        if (it.key().trimmed().isEmpty())
+        {
+            return;
+        }
+        bool ok = false;
+        const double value = it.value().toDouble(&ok);
+        if (!ok || !std::isfinite(value))
+        {
+            return;
+        }
+        if (!apply_develop_field(next, utf8_from_qstring(it.key()), value))
+        {
+            return;
+        }
+    }
+    mutate_develop(std::move(next), edit);
+}
+
+void StudioPresenter::previewDevelopNumbers(const QVariantMap &fields)
+{
+    applyDevelopNumbers(fields, DevelopEdit::Preview);
+}
+
+void StudioPresenter::setDevelopNumbers(const QVariantMap &fields)
+{
+    applyDevelopNumbers(fields, DevelopEdit::Commit);
 }
 
 void StudioPresenter::undoEdit()

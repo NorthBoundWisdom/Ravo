@@ -1,6 +1,7 @@
 #include "ravo/services/catalog_service.h"
 
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -731,6 +732,49 @@ Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id
         return recipe.error();
     }
     return save_recipe(asset_id, recipe.value(), options);
+}
+
+Result<std::array<double, 4>>
+CatalogService::sample_white_balance(const std::string_view asset_id,
+                                     const WhiteBalancePickRequest &request,
+                                     const CancellationToken &cancellation)
+{
+    if (repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return asset.error();
+    }
+    if (!asset.value())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    if (!is_raw_media_type(asset.value()->media_type))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "White-balance pick requires a Bayer RAW original",
+                          {{"media_type", asset.value()->media_type}});
+    }
+    auto location = normalize_local_input(asset.value()->normalized_uri);
+    if (!location)
+    {
+        return location.error();
+    }
+    auto decoded = engine_->decode_raw_frame(location.value().path, cancellation);
+    if (!decoded)
+    {
+        return decoded.error();
+    }
+    return engine_->sample_white_balance(decoded.value(), request);
 }
 
 Result<AssetRecord> CatalogService::reset_recipe(const std::string_view asset_id)

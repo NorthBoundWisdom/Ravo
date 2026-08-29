@@ -63,6 +63,9 @@ public:
     [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,
                                                    const DevelopParams &params,
                                                    RecipeSaveOptions options = {});
+    [[nodiscard]] Result<std::array<double, 4>>
+    sample_white_balance(std::string_view asset_id, const WhiteBalancePickRequest &request,
+                         const CancellationToken &cancellation);
     [[nodiscard]] Result<AssetRecord> reset_recipe(std::string_view asset_id);
     [[nodiscard]] Result<AssetRecord> set_tags(std::string_view asset_id,
                                                const std::vector<std::string> &tags);

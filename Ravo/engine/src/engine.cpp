@@ -233,6 +233,13 @@ Result<InspectionResult> EngineFacade::inspect(const std::string_view input_uri,
     return identify_raw(input_uri);
 }
 
+Result<std::array<double, 4>>
+EngineFacade::sample_white_balance(const DecodedRaw &raw,
+                                   const WhiteBalancePickRequest &request) const
+{
+    return sample_white_balance_coefficients(raw, request);
+}
+
 Result<EmbeddedPreview>
 EngineFacade::extract_embedded_preview(const std::string_view input_uri,
                                        const std::uint32_t max_edge,

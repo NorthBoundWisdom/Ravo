@@ -89,3 +89,5 @@ supersession relationship when direction changes.
 | [0079](0079-develop-set-inventory-and-probe-png.md) | Accepted; Studio observation added by 0080 | Recipe owns the CLI `--set` field inventory; `catalog probe --output` writes a throwaway PNG without mutating recipe or preview records. |
 | [0080](0080-studio-observes-catalog-revision.md) | Accepted | Studio polls live catalog revision on the existing snapshot contract; MCP around `ravo` is not the control plane. |
 | [0081](0081-studio-assistant-endpoint-panel.md) | Accepted | Typed assistant URL/model/key settings and a floating non-modal Studio panel; Qt Network is desktop-only. |
+| [0082](0082-studio-develop-grading-workspace.md) | Accepted | Studio default Develop order is a grading stack; Color EQ is separate from Graduated ND; Color Balance RGB uses wheels; paste can apply Light or Color from a complete clipboard. |
+| [0083](0083-color-eq-bands-and-white-balance-pick.md) | Accepted | Eight-band Color Equalizer editor; RAW inspect reports WB coefficients; Bayer CFA pick writes manual temperature coefficients. |

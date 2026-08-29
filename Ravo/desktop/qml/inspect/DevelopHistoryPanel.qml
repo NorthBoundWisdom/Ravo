@@ -316,5 +316,25 @@ ColumnLayout {
             onClicked: if (root.commands)
                 root.commands.pasteEdits.trigger()
         }
+        CustomButton {
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            Layout.minimumWidth: 0
+            text: qsTr("Paste Light")
+            enabled: root.hasPresenter && root.presenter.hasCopiedEdits && root.hasSelection &&
+                     root.commands
+            onClicked: if (root.commands)
+                root.commands.pasteEditsSection("light")
+        }
+        CustomButton {
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+            Layout.minimumWidth: 0
+            text: qsTr("Paste Color")
+            enabled: root.hasPresenter && root.presenter.hasCopiedEdits && root.hasSelection &&
+                     root.commands
+            onClicked: if (root.commands)
+                root.commands.pasteEditsSection("color")
+        }
     }
 }

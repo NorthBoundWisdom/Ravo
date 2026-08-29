@@ -4250,6 +4250,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     if (name == "colorEqBand")
     {
         params.color_eq_band = static_cast<std::int64_t>(std::llround(value));
+        params.color_eq_effect_enabled = true;
 
         return true;
     }
@@ -4257,6 +4258,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.color_eq_hue[static_cast<std::size_t>(
             std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+        params.color_eq_effect_enabled = true;
 
         return true;
     }
@@ -4264,6 +4266,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.color_eq_sat[static_cast<std::size_t>(
             std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+        params.color_eq_effect_enabled = true;
 
         return true;
     }
@@ -4271,6 +4274,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.color_eq_light[static_cast<std::size_t>(
             std::clamp(params.color_eq_band, std::int64_t{0}, std::int64_t{7}))] = value;
+        params.color_eq_effect_enabled = true;
 
         return true;
     }
@@ -5386,6 +5390,9 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.color_zones = identity.color_zones;
         params.color_zones_mask_id = identity.color_zones_mask_id;
         params.color_zones_band = identity.color_zones_band;
+    }
+    else if (section == "colorEqualizer")
+    {
         params.color_eq_hue = {};
         params.color_eq_sat = {};
         params.color_eq_light = {};
@@ -5456,10 +5463,6 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.graduated_hardness = identity.graduated_hardness;
         params.graduated_rotation = identity.graduated_rotation;
         params.graduated_offset = identity.graduated_offset;
-        params.color_eq_hue = {};
-        params.color_eq_sat = {};
-        params.color_eq_light = {};
-        params.color_eq_band = 0;
     }
     else
     {
@@ -5471,6 +5474,231 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     }
     clamp_develop(params);
     return true;
+}
+
+bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
+                           const std::string_view section)
+{
+    if (section == "geometry")
+    {
+        dest.rotate_quarters = source.rotate_quarters;
+        dest.flip_horizontal = source.flip_horizontal;
+        dest.flip_vertical = source.flip_vertical;
+        dest.straighten_degrees = source.straighten_degrees;
+        dest.crop_x = source.crop_x;
+        dest.crop_y = source.crop_y;
+        dest.crop_width = source.crop_width;
+        dest.crop_height = source.crop_height;
+        dest.lens_k1 = source.lens_k1;
+        dest.lens_k2 = source.lens_k2;
+        dest.lens_tca_r = source.lens_tca_r;
+        dest.lens_tca_b = source.lens_tca_b;
+        dest.lens_vignetting = source.lens_vignetting;
+        dest.lens_mode = source.lens_mode;
+        dest.lens_focal_mm = source.lens_focal_mm;
+        dest.geometry_effect_enabled = source.geometry_effect_enabled;
+    }
+    else if (section == "whiteBalance")
+    {
+        dest.temperature = source.temperature;
+        dest.white_balance_effect_enabled = source.white_balance_effect_enabled;
+    }
+    else if (section == "profileGamma")
+    {
+        dest.profile_gamma_enabled = source.profile_gamma_enabled;
+        dest.profile_gamma = source.profile_gamma;
+    }
+    else if (section == "inputProfile")
+    {
+        dest.input_color = source.input_color;
+        dest.input_profile_effect_enabled = source.input_profile_effect_enabled;
+    }
+    else if (section == "outputProfile")
+    {
+        dest.output_color = source.output_color;
+        dest.output_profile_effect_enabled = source.output_profile_effect_enabled;
+    }
+    else if (section == "calibration")
+    {
+        dest.channel_mixer = source.channel_mixer;
+        dest.calibration_effect_enabled = source.calibration_effect_enabled;
+    }
+    else if (section == "primaries")
+    {
+        dest.primaries = source.primaries;
+        dest.primaries_effect_enabled = source.primaries_effect_enabled;
+    }
+    else if (section == "light")
+    {
+        dest.exposure_mode = source.exposure_mode;
+        dest.exposure_black = source.exposure_black;
+        dest.exposure_ev = source.exposure_ev;
+        dest.exposure_deflicker_percentile = source.exposure_deflicker_percentile;
+        dest.exposure_deflicker_target_ev = source.exposure_deflicker_target_ev;
+        dest.exposure_compensate_exposure_bias = source.exposure_compensate_exposure_bias;
+        dest.exposure_compensate_highlight_preservation =
+            source.exposure_compensate_highlight_preservation;
+        dest.contrast = source.contrast;
+        dest.highlights = source.highlights;
+        dest.shadows = source.shadows;
+        dest.whites = source.whites;
+        dest.blacks = source.blacks;
+        dest.gamma = source.gamma;
+        dest.rgb_levels = source.rgb_levels;
+        dest.rgb_curve = source.rgb_curve;
+        dest.tone_curve = source.tone_curve;
+        dest.tone_curve_working_space = source.tone_curve_working_space;
+        dest.sigmoid_contrast = source.sigmoid_contrast;
+        dest.sigmoid_skew = source.sigmoid_skew;
+        dest.sigmoid_display_white = source.sigmoid_display_white;
+        dest.sigmoid_display_black = source.sigmoid_display_black;
+        dest.sigmoid_hue_preservation = source.sigmoid_hue_preservation;
+        dest.sigmoid_enabled = source.sigmoid_enabled;
+        dest.light_effect_enabled = source.light_effect_enabled;
+    }
+    else if (section == "color")
+    {
+        dest.vibrance = source.vibrance;
+        dest.saturation = source.saturation;
+        dest.velvia = source.velvia;
+        dest.color_balance_enabled = source.color_balance_enabled;
+        dest.color_balance = source.color_balance;
+        dest.color_checker_enabled = source.color_checker_enabled;
+        dest.color_checker = source.color_checker;
+        dest.color_checker_patch = source.color_checker_patch;
+        dest.color_balance_rgb = source.color_balance_rgb;
+        dest.color_correction_enabled = source.color_correction_enabled;
+        dest.color_correction = source.color_correction;
+        dest.color_contrast_enabled = source.color_contrast_enabled;
+        dest.color_contrast = source.color_contrast;
+        dest.color_reconstruction_enabled = source.color_reconstruction_enabled;
+        dest.color_reconstruction = source.color_reconstruction;
+        dest.color_harmonizer_present = source.color_harmonizer_present;
+        dest.color_harmonizer_enabled = source.color_harmonizer_enabled;
+        dest.color_harmonizer = source.color_harmonizer;
+        dest.monochrome_present = source.monochrome_present;
+        dest.monochrome_enabled = source.monochrome_enabled;
+        dest.monochrome = source.monochrome;
+        dest.split_toning_present = source.split_toning_present;
+        dest.split_toning_enabled = source.split_toning_enabled;
+        dest.split_toning = source.split_toning;
+        dest.color_zones_present = source.color_zones_present;
+        dest.color_zones_enabled = source.color_zones_enabled;
+        dest.color_zones = source.color_zones;
+        dest.color_zones_band = source.color_zones_band;
+        dest.color_effect_enabled = source.color_effect_enabled;
+    }
+    else if (section == "colorEqualizer")
+    {
+        dest.color_eq_hue = source.color_eq_hue;
+        dest.color_eq_sat = source.color_eq_sat;
+        dest.color_eq_light = source.color_eq_light;
+        dest.color_eq_band = source.color_eq_band;
+        dest.color_eq_effect_enabled = source.color_eq_effect_enabled;
+    }
+    else if (section == "colorHarmonizer")
+    {
+        dest.color_harmonizer_present = source.color_harmonizer_present;
+        dest.color_harmonizer_enabled = source.color_harmonizer_enabled;
+        dest.color_harmonizer = source.color_harmonizer;
+        dest.color_effect_enabled = source.color_effect_enabled;
+    }
+    else if (section == "detail")
+    {
+        dest.sharpen = source.sharpen;
+        dest.sharpen_radius = source.sharpen_radius;
+        dest.sharpen_threshold = source.sharpen_threshold;
+        dest.retouch = source.retouch;
+        dest.clarity = source.clarity;
+        dest.grain = source.grain;
+        dest.denoise = source.denoise;
+        dest.denoise_chroma = source.denoise_chroma;
+        dest.denoise_radius = source.denoise_radius;
+        dest.detail_effect_enabled = source.detail_effect_enabled;
+    }
+    else if (section == "effects")
+    {
+        dest.vignette = source.vignette;
+        dest.bloom = source.bloom;
+        dest.soften = source.soften;
+        dest.dehaze = source.dehaze;
+        dest.dehaze_distance = source.dehaze_distance;
+        dest.dehaze_adaptive = source.dehaze_adaptive;
+        dest.output_dither_present = source.output_dither_present;
+        dest.output_dither_enabled = source.output_dither_enabled;
+        dest.output_dither = source.output_dither;
+        dest.graduated_density = source.graduated_density;
+        dest.graduated_hardness = source.graduated_hardness;
+        dest.graduated_rotation = source.graduated_rotation;
+        dest.graduated_offset = source.graduated_offset;
+        dest.effects_effect_enabled = source.effects_effect_enabled;
+    }
+    else if (section == "raw")
+    {
+        dest.raw_highlights = source.raw_highlights;
+        dest.raw_highlights_clip = source.raw_highlights_clip;
+        dest.raw_highlights_mode = source.raw_highlights_mode;
+        dest.hot_pixels_strength = source.hot_pixels_strength;
+        dest.hot_pixels_threshold = source.hot_pixels_threshold;
+        dest.hot_pixels_permissive = source.hot_pixels_permissive;
+        dest.raw_ca_iterations = source.raw_ca_iterations;
+        dest.raw_ca_avoid_shift = source.raw_ca_avoid_shift;
+        dest.raw_denoise_threshold = source.raw_denoise_threshold;
+        dest.raw_denoise_bands = source.raw_denoise_bands;
+        dest.denoise = source.denoise;
+        dest.denoise_chroma = source.denoise_chroma;
+        dest.denoise_radius = source.denoise_radius;
+        dest.lens_k1 = source.lens_k1;
+        dest.lens_vignetting = source.lens_vignetting;
+        dest.raw_effect_enabled = source.raw_effect_enabled;
+    }
+    else if (section == "toneEqual")
+    {
+        dest.tone_eq_blacks = source.tone_eq_blacks;
+        dest.tone_eq_shadows = source.tone_eq_shadows;
+        dest.tone_eq_midtones = source.tone_eq_midtones;
+        dest.tone_eq_highlights = source.tone_eq_highlights;
+        dest.tone_eq_whites = source.tone_eq_whites;
+        dest.tone_equal_effect_enabled = source.tone_equal_effect_enabled;
+    }
+    else if (section == "graduated")
+    {
+        dest.graduated_present = source.graduated_present;
+        dest.graduated_enabled = source.graduated_enabled;
+        dest.graduated_density = source.graduated_density;
+        dest.graduated_hardness = source.graduated_hardness;
+        dest.graduated_rotation = source.graduated_rotation;
+        dest.graduated_offset = source.graduated_offset;
+        dest.graduated_effect_enabled = source.graduated_effect_enabled;
+    }
+    else
+    {
+        return false;
+    }
+    clamp_develop(dest);
+    return true;
+}
+
+bool apply_develop_grade(DevelopParams &dest, const DevelopParams &source,
+                         const std::string_view grade)
+{
+    if (grade == "all")
+    {
+        dest = source;
+        clamp_develop(dest);
+        return true;
+    }
+    if (grade == "light")
+    {
+        return apply_develop_section(dest, source, "whiteBalance") &&
+               apply_develop_section(dest, source, "light");
+    }
+    if (grade == "color")
+    {
+        return apply_develop_section(dest, source, "color") &&
+               apply_develop_section(dest, source, "colorEqualizer");
+    }
+    return false;
 }
 
 bool develop_section_modified(const DevelopParams &params, const std::string_view section)
@@ -5580,8 +5808,12 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     if (section == "graduated")
     {
         return params.graduated_present || params.graduated_enabled ||
-               !near(params.graduated_density, 0.0) || !bands_near_zero(params.color_eq_hue) ||
-               !bands_near_zero(params.color_eq_sat) || !bands_near_zero(params.color_eq_light);
+               !near(params.graduated_density, 0.0);
+    }
+    if (section == "colorEqualizer")
+    {
+        return !bands_near_zero(params.color_eq_hue) || !bands_near_zero(params.color_eq_sat) ||
+               !bands_near_zero(params.color_eq_light);
     }
     return false;
 }
@@ -5644,6 +5876,10 @@ bool develop_section_effect_enabled(const DevelopParams &params, const std::stri
     {
         return params.graduated_effect_enabled;
     }
+    if (section == "colorEqualizer")
+    {
+        return params.color_eq_effect_enabled;
+    }
     return false;
 }
 
@@ -5705,6 +5941,10 @@ bool set_develop_section_effect_enabled(DevelopParams &params, const std::string
     else if (section == "graduated")
     {
         params.graduated_effect_enabled = enabled;
+    }
+    else if (section == "colorEqualizer")
+    {
+        params.color_eq_effect_enabled = enabled;
     }
     else
     {
@@ -5880,6 +6120,8 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                       after.effects_effect_enabled);
     add_toggle_change(changes, "geometry", before.geometry_effect_enabled,
                       after.geometry_effect_enabled);
+    add_toggle_change(changes, "colorEqualizer", before.color_eq_effect_enabled,
+                      after.color_eq_effect_enabled);
     return changes;
 }
 
@@ -6439,7 +6681,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       {{"hue_shift", band_array_parameter(clamped.color_eq_hue)},
                        {"saturation", band_array_parameter(clamped.color_eq_sat)},
                        {"lightness", band_array_parameter(clamped.color_eq_light)}},
-                      1, std::nullopt, clamped.graduated_effect_enabled);
+                      1, std::nullopt, clamped.color_eq_effect_enabled);
     }
     if (clamped.color_zones_present || clamped.color_zones_enabled ||
         clamped.color_zones_mask_id.has_value())
@@ -7406,7 +7648,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 }
                 params.color_eq_light = parsed.value();
             }
-            note_section("graduated", operation.enabled);
+            note_section("colorEqualizer", operation.enabled);
         }
         else if (operation.id == "ravo.effect.graduatednd")
         {

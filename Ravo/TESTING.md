@@ -54,6 +54,12 @@ toggle the floating panel command. Copy/paste edit tests pin an empty session
 clipboard, copy/paste no-ops
 without a selection, History/context-menu/command wiring, and ADR-0078's
 complete-recipe clipboard (not a history-stack merge or style file).
+Paste Light / Paste Color apply White Balance+Light or Color+Color Equalizer
+from that clipboard; QML contract tests pin the default grading stack, Color
+Equalizer versus Graduated ND, Color Balance RGB wheels, Color · Advanced,
+the eight-band Color Equalizer mixer, and RAW white-balance pick wiring.
+Engine tests pin CFA sampling of a warm Bayer patch to manual coefficients;
+catalog tests reject raster pick.
 Session undo is the single stack for right-panel Develop commits and
 left-rail history/Original/snapshot restore; live preview/overlay drags do
 not push that stack.

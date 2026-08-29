@@ -1422,6 +1422,9 @@ TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)
     EXPECT_FALSE(inspected.value().model.empty());
     EXPECT_GT(inspected.value().width, 0U);
     EXPECT_GT(inspected.value().height, 0U);
+    EXPECT_TRUE(inspected.value().has_as_shot_white_balance);
+    EXPECT_GT(inspected.value().as_shot_white_balance[0], 0.0);
+    EXPECT_NEAR(inspected.value().as_shot_white_balance[1], 1.0, 1.0e-6);
 }
 
 TEST(EngineFacadeTest, ClassifiesMissingDirectoryTruncatedAndUnrecognizedRaw)
@@ -3758,6 +3761,41 @@ TEST(TemperatureTest, ScalesBayerXtransAndFourthChannelWithoutMutatingInput)
                                          invalid_coefficients, CancellationToken{});
     ASSERT_FALSE(invalid);
     EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
+}
+
+TEST(TemperatureTest, SampleWhiteBalanceNeutralizesAWarmBayerPatch)
+{
+    DecodedRaw raw;
+    raw.width = 16;
+    raw.height = 16;
+    raw.cfa_width = 2;
+    raw.cfa_height = 2;
+    raw.black_level = 0;
+    raw.white_level = 1000;
+    raw.cfa_channels = {0, 1, 1, 2};
+    raw.pixels.resize(static_cast<std::size_t>(raw.width) * raw.height);
+    for (std::uint32_t y = 0; y < raw.height; ++y)
+    {
+        for (std::uint32_t x = 0; x < raw.width; ++x)
+        {
+            const auto channel = raw.cfa_channels[(y % 2U) * 2U + (x % 2U)];
+            const std::uint16_t value = channel == 0 ? 400 : channel == 2 ? 100 : 200;
+            raw.pixels[static_cast<std::size_t>(y) * raw.width + x] = value;
+        }
+    }
+    WhiteBalancePickRequest request;
+    request.preview_x = 0.5;
+    request.preview_y = 0.5;
+    auto sampled = sample_white_balance_coefficients(raw, request);
+    ASSERT_TRUE(sampled) << sampled.error().message;
+    EXPECT_NEAR(sampled.value()[0], 0.5, 1.0e-3);
+    EXPECT_NEAR(sampled.value()[1], 1.0, 1.0e-6);
+    EXPECT_NEAR(sampled.value()[2], 2.0, 1.0e-3);
+    EXPECT_NEAR(sampled.value()[3], 1.0, 1.0e-3);
+    request.preview_x = -0.1;
+    auto invalid = sample_white_balance_coefficients(raw, request);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kInvalidArgument);
 }
 
 TEST(TemperatureTest, ResolvesMetadataModesAndManualRgbFailsFast)

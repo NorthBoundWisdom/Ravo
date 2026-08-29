@@ -24,6 +24,9 @@ struct ResolvedTemperature
                                                  const OperationInstance &operation,
                                                  const CancellationToken &cancellation);
 
+[[nodiscard]] Result<std::array<double, kTemperatureChannelCount>>
+sample_white_balance_coefficients(const DecodedRaw &raw, const WhiteBalancePickRequest &request);
+
 [[nodiscard]] Result<std::vector<float>>
 scale_temperature_cfa(const std::vector<float> &input, std::uint32_t width, std::uint32_t height,
                       std::uint32_t cfa_width, std::uint32_t cfa_height,

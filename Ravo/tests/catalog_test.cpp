@@ -324,6 +324,31 @@ TEST(QtRasterDecoderTest, KeepsEmbeddedIccAndRejectsImplicitOutputProfiles)
     EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
 }
 
+TEST_F(CatalogServiceTest, SampleWhiteBalanceReturnsManualCoefficientsForBayerRaw)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    WhiteBalancePickRequest request;
+    request.preview_x = 0.5;
+    request.preview_y = 0.5;
+    auto sampled =
+        service->sample_white_balance(imported.value().asset->id, request, CancellationToken{});
+    ASSERT_TRUE(sampled) << sampled.error().message;
+    EXPECT_GT(sampled.value()[0], 0.0);
+    EXPECT_NEAR(sampled.value()[1], 1.0, 1.0e-6);
+    EXPECT_GT(sampled.value()[2], 0.0);
+    EXPECT_GT(sampled.value()[3], 0.0);
+    auto png = service->import_one(png_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(png) << png.error().message;
+    ASSERT_TRUE(png.value().asset);
+    auto raster = service->sample_white_balance(png.value().asset->id, request, CancellationToken{});
+    ASSERT_FALSE(raster);
+    EXPECT_EQ(raster.error().code, ErrorCode::kUnsupported);
+}
+
 TEST_F(CatalogServiceTest, RawImportCachesEmbeddedThumbnailSeparatelyFromProcessedPreview)
 {
     auto created = open_service(true);

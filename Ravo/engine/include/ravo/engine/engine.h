@@ -289,6 +289,19 @@ struct DecodedRaw
     std::vector<std::uint16_t> pixels;
 };
 
+struct WhiteBalancePickRequest
+{
+    double preview_x = 0.5;
+    double preview_y = 0.5;
+    double crop_x = 0.0;
+    double crop_y = 0.0;
+    double crop_width = 1.0;
+    double crop_height = 1.0;
+    int rotate_quarters = 0;
+    bool flip_horizontal = false;
+    bool flip_vertical = false;
+};
+
 struct InspectionResult
 {
     std::string input_uri;
@@ -298,6 +311,10 @@ struct InspectionResult
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     bool is_raw = false;
+    bool has_as_shot_white_balance = false;
+    std::array<double, 4> as_shot_white_balance{1.0, 1.0, 1.0, 1.0};
+    bool has_camera_reference_white_balance = false;
+    std::array<double, 4> camera_reference_white_balance{1.0, 1.0, 1.0, 1.0};
     std::optional<double> iso;
     std::optional<double> aperture;
     std::optional<double> focal_length_mm;
@@ -411,6 +428,8 @@ public:
                                                         const RasterBuffer *raster = nullptr) const;
     [[nodiscard]] Result<DecodedRaw> decode_raw_frame(std::string_view input_uri,
                                                       const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<std::array<double, 4>>
+    sample_white_balance(const DecodedRaw &raw, const WhiteBalancePickRequest &request) const;
     [[nodiscard]] Result<LinearWorkingBuffer>
     linear_working_from_raw(const DecodedRaw &raw, const Recipe &recipe, std::uint32_t width,
                             std::uint32_t height, const CancellationToken &cancellation) const;

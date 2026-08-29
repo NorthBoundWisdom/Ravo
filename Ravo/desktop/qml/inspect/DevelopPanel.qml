@@ -462,195 +462,89 @@ ColumnLayout {
         spacing: Fonts.smallSpacing
 
         DevelopSection {
-            title: qsTr("Geometry")
-            sectionId: "geometry"
+            title: qsTr("White Balance")
+            sectionId: "whiteBalance"
             ColumnLayout {
                 Layout.fillWidth: true
                 width: parent.width
-                spacing: Fonts.smallSpacing
-                RowLayout {
+                CustomComboBox {
                     Layout.fillWidth: true
-                    spacing: Fonts.size6
-                    CustomButton {
-                        display: AbstractButton.IconOnly
-                        icon.source: "qrc:/GeoControls/icons/RotateCcw.svg"
-                        tooltipText: qsTr("Rotate Left")
-                        enabled: root.hasSelection
-                        implicitWidth: Fonts.iconButtonSize
-                        implicitHeight: Fonts.iconButtonSize
-                        Layout.preferredWidth: implicitWidth
-                        Layout.preferredHeight: implicitHeight
-                        Layout.fillWidth: true
-                        defaultPadding: 0
-                        onClicked: if (root.commands)
-                            root.commands.rotateLeft.trigger()
-                    }
-                    CustomButton {
-                        display: AbstractButton.IconOnly
-                        icon.source: "qrc:/GeoControls/icons/RotateCw.svg"
-                        tooltipText: qsTr("Rotate Right")
-                        enabled: root.hasSelection
-                        implicitWidth: Fonts.iconButtonSize
-                        implicitHeight: Fonts.iconButtonSize
-                        Layout.preferredWidth: implicitWidth
-                        Layout.preferredHeight: implicitHeight
-                        Layout.fillWidth: true
-                        defaultPadding: 0
-                        onClicked: if (root.commands)
-                            root.commands.rotateRight.trigger()
-                    }
-                    CustomButton {
-                        display: AbstractButton.IconOnly
-                        icon.source: "qrc:/GeoControls/icons/FlipHorizontal.svg"
-                        tooltipText: qsTr("Flip Horizontal")
-                        enabled: root.hasSelection
-                        implicitWidth: Fonts.iconButtonSize
-                        implicitHeight: Fonts.iconButtonSize
-                        Layout.preferredWidth: implicitWidth
-                        Layout.preferredHeight: implicitHeight
-                        Layout.fillWidth: true
-                        defaultPadding: 0
-                        onClicked: if (root.commands)
-                            root.commands.flipHorizontal.trigger()
-                    }
-                    CustomButton {
-                        display: AbstractButton.IconOnly
-                        icon.source: "qrc:/GeoControls/icons/FlipVertical.svg"
-                        tooltipText: qsTr("Flip Vertical")
-                        enabled: root.hasSelection
-                        implicitWidth: Fonts.iconButtonSize
-                        implicitHeight: Fonts.iconButtonSize
-                        Layout.preferredWidth: implicitWidth
-                        Layout.preferredHeight: implicitHeight
-                        Layout.fillWidth: true
-                        defaultPadding: 0
-                        onClicked: if (root.commands)
-                            root.commands.flipVertical.trigger()
-                    }
-                }
-                CustomButton {
-                    Layout.fillWidth: true
-                    text: root.hasPresenter && root.presenter.cropToolActive ? qsTr("Done") : qsTr("Crop & Rotate")
+                    model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
                     enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.toggleCropTool()
+                    currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
                 }
                 CustomLabel {
-                    text: qsTr("Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.")
-                    wrapMode: Text.WordWrap
                     Layout.fillWidth: true
+                    text: qsTr("Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.")
+                    wrapMode: Text.WordWrap
                     opacity: 0.75
                 }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Fonts.size6
-                    CustomComboBox {
-                        Layout.fillWidth: true
-                        model: ["free", "1:1", "3:2", "4:3", "5:4", "16:9"]
-                        enabled: root.hasSelection
-                        displayText: root.hasPresenter && root.presenter.cropAspect === "locked" ? qsTr("Custom") : currentText
-                        currentIndex: {
-                            const aspects = ["free", "1:1", "3:2", "4:3", "5:4", "16:9"];
-                            const current = root.hasPresenter ? root.presenter.cropAspect : "free";
-                            return aspects.indexOf(current);
-                        }
-                        onActivated: if (root.commands)
-                            root.commands.setCropAspect(currentText)
-                    }
-                    CustomButton {
-                        display: AbstractButton.IconOnly
-                        checkable: true
-                        checked: root.hasPresenter && root.presenter.cropAspect !== "free"
-                        icon.source: checked ? "qrc:/GeoControls/icons/Lock.svg" : "qrc:/GeoControls/icons/Unlock.svg"
-                        tooltipText: checked ? qsTr("Unlock aspect ratio") : qsTr("Lock aspect ratio")
-                        enabled: root.hasSelection
-                        implicitWidth: Fonts.iconButtonSize
-                        implicitHeight: Fonts.iconButtonSize
-                        Layout.preferredWidth: implicitWidth
-                        Layout.preferredHeight: implicitHeight
-                        defaultPadding: 0
-                        onToggled: if (root.commands)
-                            root.commands.setCropAspect(checked ? "locked" : "free")
-                    }
-                }
                 CustomCheckBox {
-                    id: canvasEnabledBox
-                    objectName: "canvasEnabled"
-                    text: qsTr("Enlarge Canvas")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editCanvasEnabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("canvasEnabled", checked ? 1 : 0)
+                    objectName: "whiteBalancePickActive"
+                    text: qsTr("Pick white on photo")
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editWhiteBalance.canPick
+                    checked: root.hasPresenter && root.presenter.whiteBalancePickActive
+                    onToggled: if (root.commands)
+                        root.commands.setWhiteBalancePickActive(checked)
                 }
-                Connections {
-                    target: root.presenter
-                    function onEditChanged() {
-                        const enabled = root.hasPresenter && root.presenter.editCanvasEnabled;
-                        if (canvasEnabledBox.checked !== enabled)
-                            canvasEnabledBox.checked = enabled;
-                    }
-                    function onSelectionChanged() {
-                        canvasEnabledBox.checked = root.hasPresenter && root.presenter.editCanvasEnabled;
-                    }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    visible: root.hasPresenter && root.presenter.whiteBalancePickActive
+                    text: qsTr("Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.")
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Canvas left (%)"), "key": "left", "field": "canvasLeft"},
-                        {"title": qsTr("Canvas right (%)"), "key": "right", "field": "canvasRight"},
-                        {"title": qsTr("Canvas top (%)"), "key": "top", "field": "canvasTop"},
-                        {"title": qsTr("Canvas bottom (%)"), "key": "bottom", "field": "canvasBottom"}
+                        {
+                            "title": qsTr("Red coefficient"),
+                            "key": "red",
+                            "field": "whiteBalanceRed"
+                        },
+                        {
+                            "title": qsTr("Green coefficient"),
+                            "key": "green",
+                            "field": "whiteBalanceGreen"
+                        },
+                        {
+                            "title": qsTr("Blue coefficient"),
+                            "key": "blue",
+                            "field": "whiteBalanceBlue"
+                        },
+                        {
+                            "title": qsTr("Fourth coefficient"),
+                            "key": "fourth",
+                            "field": "whiteBalanceFourth"
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
                         Layout.fillWidth: true
-                        Layout.preferredHeight: visible ? implicitHeight : 0
-                        Layout.maximumHeight: visible ? 65535 : 0
-                        visible: canvasEnabledBox.checked
+                        visible: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3 || root.presenter.editWhiteBalance.hasCoefficients)
                         title: modelData.title
-                        from: 0
-                        to: 100
-                        stepSize: 0.1
-                        validatorDecimals: 1
-                        showReset: false
+                        from: 0.000001
+                        to: 8
+                        stepSize: 0.01
+                        validatorDecimals: 3
+                        showReset: true
+                        resetValue: 1
                         delayedCommit: true
                         enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editCanvas[modelData.key] : 0
+                        value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
                         onValueChanged: if (root.liveReady && root.commands)
                             root.commands.previewDevelopNumber(modelData.field, value)
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
                         }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(modelData.field)
                     }
-                }
-                CustomComboBox {
-                    objectName: "canvasColor"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: visible ? implicitHeight : 0
-                    Layout.maximumHeight: visible ? 65535 : 0
-                    visible: canvasEnabledBox.checked
-                    enabled: root.hasSelection
-                    textRole: "label"
-                    model: root.hasPresenter ? root.presenter.editCanvas.colorChoices : []
-                    currentIndex: root.hasPresenter ? root.presenter.editCanvas.colorIndex : 0
-                    Accessible.name: qsTr("Canvas color")
-                    onActivated: function (index) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("canvasColorIndex", model[index].index);
-                    }
-                }
-                CustomButton {
-                    Layout.preferredHeight: visible ? implicitHeight : 0
-                    Layout.maximumHeight: visible ? 65535 : 0
-                    visible: canvasEnabledBox.checked
-                    text: qsTr("Reset canvas")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("canvas")
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Light")
             sectionId: "light"
@@ -1148,191 +1042,53 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
-            title: qsTr("Tone equalizer")
-            sectionId: "toneEqual"
-            ColumnLayout {
-                Layout.fillWidth: true
-                width: parent.width
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Blacks")
-                    from: -2
-                    to: 2
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editToneEqBlacks : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqBlacks", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("toneEqBlacks", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("toneEqBlacks")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Shadows")
-                    from: -2
-                    to: 2
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editToneEqShadows : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqShadows", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("toneEqShadows", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("toneEqShadows")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Midtones")
-                    from: -2
-                    to: 2
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editToneEqMidtones : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqMidtones", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("toneEqMidtones", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("toneEqMidtones")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Highlights")
-                    from: -2
-                    to: 2
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editToneEqHighlights : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqHighlights", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("toneEqHighlights", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("toneEqHighlights")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Whites")
-                    from: -2
-                    to: 2
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editToneEqWhites : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqWhites", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("toneEqWhites", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("toneEqWhites")
-                }
-            }
-        }
-
-        DevelopSection {
-            title: qsTr("White Balance")
-            sectionId: "whiteBalance"
+            title: qsTr("Color Equalizer")
+            sectionId: "colorEqualizer"
             ColumnLayout {
                 Layout.fillWidth: true
                 width: parent.width
                 CustomComboBox {
+                    id: colorEqChannel
+                    objectName: "colorEqChannel"
                     Layout.fillWidth: true
-                    model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
+                    model: [qsTr("Saturation"), qsTr("Hue"), qsTr("Lightness")]
                     enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.")
-                    wrapMode: Text.WordWrap
-                    opacity: 0.75
+                    currentIndex: 0
                 }
                 Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Red coefficient"),
-                            "key": "red",
-                            "field": "whiteBalanceRed"
-                        },
-                        {
-                            "title": qsTr("Green coefficient"),
-                            "key": "green",
-                            "field": "whiteBalanceGreen"
-                        },
-                        {
-                            "title": qsTr("Blue coefficient"),
-                            "key": "blue",
-                            "field": "whiteBalanceBlue"
-                        },
-                        {
-                            "title": qsTr("Fourth coefficient"),
-                            "key": "fourth",
-                            "field": "whiteBalanceFourth"
-                        }
-                    ]
+                    id: colorEqBands
+                    model: root.hasPresenter ? root.presenter.editColorEqBands : []
                     delegate: CustomSlider {
                         required property var modelData
+                        objectName: "colorEqBand" + modelData.index
                         Layout.fillWidth: true
-                        visible: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3 || root.presenter.editWhiteBalance.hasCoefficients)
                         title: modelData.title
-                        from: 0.000001
-                        to: 8
-                        stepSize: 0.01
-                        validatorDecimals: 3
+                        from: colorEqChannel.currentIndex === 1 ? -0.5 : -1
+                        to: colorEqChannel.currentIndex === 1 ? 0.5 : 1
+                        stepSize: colorEqChannel.currentIndex === 1 ? 0.005 : 0.05
+                        validatorDecimals: colorEqChannel.currentIndex === 1 ? 3 : 2
                         showReset: true
-                        resetValue: 1
+                        resetValue: 0
                         delayedCommit: true
                         enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
+                        value: colorEqChannel.currentIndex === 0 ? modelData.sat :
+                               colorEqChannel.currentIndex === 1 ? modelData.hue : modelData.light
+                        readonly property string fieldName: colorEqChannel.currentIndex === 0 ? modelData.satField :
+                                                            colorEqChannel.currentIndex === 1 ? modelData.hueField :
+                                                                                                modelData.lightField
                         onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                            root.commands.previewDevelopNumber(fieldName, value)
                         onValueCommitted: function (value) {
                             if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
+                                root.commands.setDevelopNumber(fieldName, value);
                         }
                         onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
+                            root.commands.resetControl(fieldName)
                     }
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Color")
             sectionId: "color"
@@ -1398,1267 +1154,432 @@ ColumnLayout {
                 }
                 CustomLabel {
                     Layout.fillWidth: true
-                    text: qsTr("Color look-up table · D50 Lab")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    text: qsTr("Enable color look-up table")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editColorChecker.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("colorCheckerEnabled", checked ? 1 : 0)
-                }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("IT8 skin tones"), qsTr("Expanded color checker"), qsTr("Helmholtz/Kohlrausch monochrome"), qsTr("Fuji Astia emulation"), qsTr("Fuji Classic Chrome emulation"), qsTr("Fuji Monochrome emulation"), qsTr("Fuji Provia emulation"), qsTr("Fuji Velvia emulation")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editColorChecker.presetIndex : -1
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("colorCheckerPreset", currentIndex)
-                }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: {
-                        const labels = [];
-                        const count = root.hasPresenter ? root.presenter.editColorChecker.patchCount : 0;
-                        for (let index = 0; index < count; ++index)
-                            labels.push(qsTr("Patch %1").arg(index + 1));
-                        return labels;
-                    }
-                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorChecker.patchCount > 0
-                    currentIndex: root.hasPresenter ? root.presenter.editColorChecker.patchIndex : -1
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("colorCheckerPatch", currentIndex)
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Source · L*"),
-                            "key": "sourceL",
-                            "field": "colorCheckerSourceL"
-                        },
-                        {
-                            "title": qsTr("Source · a*"),
-                            "key": "sourceA",
-                            "field": "colorCheckerSourceA"
-                        },
-                        {
-                            "title": qsTr("Source · b*"),
-                            "key": "sourceB",
-                            "field": "colorCheckerSourceB"
-                        },
-                        {
-                            "title": qsTr("Target · L*"),
-                            "key": "targetL",
-                            "field": "colorCheckerTargetL"
-                        },
-                        {
-                            "title": qsTr("Target · a*"),
-                            "key": "targetA",
-                            "field": "colorCheckerTargetA"
-                        },
-                        {
-                            "title": qsTr("Target · b*"),
-                            "key": "targetB",
-                            "field": "colorCheckerTargetB"
-                        }
-                    ]
-                    delegate: ColorCheckerNumberField {}
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset color look-up table")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("colorChecker")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Color Balance · legacy Lab / ProPhoto RGB")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: root.hasPresenter && root.presenter.editLegacyColorBalance.enabled ? qsTr("Enabled") : qsTr("Inactive until edited")
-                    opacity: 0.75
-                }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("Lift / Gamma / Gain"), qsTr("Slope / Offset / Power")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editLegacyColorBalance.modeIndex : 1
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("legacyColorBalanceMode", currentIndex)
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Lift · Factor"),
-                            "key": "liftFactor",
-                            "field": "legacyColorBalanceLiftFactor",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.0001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Lift · Red"),
-                            "key": "liftRed",
-                            "field": "legacyColorBalanceLiftRed",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Lift · Green"),
-                            "key": "liftGreen",
-                            "field": "legacyColorBalanceLiftGreen",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Lift · Blue"),
-                            "key": "liftBlue",
-                            "field": "legacyColorBalanceLiftBlue",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Gamma · Factor"),
-                            "key": "gammaFactor",
-                            "field": "legacyColorBalanceGammaFactor",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.0001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Gamma · Red"),
-                            "key": "gammaRed",
-                            "field": "legacyColorBalanceGammaRed",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Gamma · Green"),
-                            "key": "gammaGreen",
-                            "field": "legacyColorBalanceGammaGreen",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Gamma · Blue"),
-                            "key": "gammaBlue",
-                            "field": "legacyColorBalanceGammaBlue",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Gain · Factor"),
-                            "key": "gainFactor",
-                            "field": "legacyColorBalanceGainFactor",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.0001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Gain · Red"),
-                            "key": "gainRed",
-                            "field": "legacyColorBalanceGainRed",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Gain · Green"),
-                            "key": "gainGreen",
-                            "field": "legacyColorBalanceGainGreen",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Gain · Blue"),
-                            "key": "gainBlue",
-                            "field": "legacyColorBalanceGainBlue",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.00001,
-                            "decimals": 5
-                        },
-                        {
-                            "title": qsTr("Input saturation"),
-                            "key": "inputSaturation",
-                            "field": "legacyColorBalanceInputSaturation",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.0001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Contrast"),
-                            "key": "contrast",
-                            "field": "legacyColorBalanceContrast",
-                            "minimum": 0.01,
-                            "maximum": 1.99,
-                            "reset": 1,
-                            "step": 0.0001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Contrast fulcrum (%)"),
-                            "key": "greyFulcrum",
-                            "field": "legacyColorBalanceGreyFulcrum",
-                            "minimum": 0.1,
-                            "maximum": 100,
-                            "reset": 18,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Output saturation"),
-                            "key": "outputSaturation",
-                            "field": "legacyColorBalanceOutputSaturation",
-                            "minimum": 0,
-                            "maximum": 2,
-                            "reset": 1,
-                            "step": 0.0001,
-                            "decimals": 4
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editLegacyColorBalance[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset legacy Color Balance")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("legacyColorBalance")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
                     text: qsTr("Color Balance RGB · linear sRGB D50 / Filmlight Yrg")
                     font.bold: true
                     wrapMode: Text.WordWrap
                 }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("darktable UCS (2022)"), qsTr("JzAzBz (2021)")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editColorBalanceRgb.formulaIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("colorBalanceFormula", currentIndex)
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Global · Luminance"),
-                            "key": "globalY",
-                            "field": "colorBalanceGlobalY",
-                            "minimum": -0.05,
-                            "maximum": 0.05,
-                            "reset": 0,
-                            "step": 0.001,
-                            "decimals": 3
-                        },
-                        {
-                            "title": qsTr("Global · Chroma"),
-                            "key": "globalChroma",
-                            "field": "colorBalanceGlobalChroma",
-                            "minimum": 0,
-                            "maximum": 0.01,
-                            "reset": 0,
-                            "step": 0.0001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Global · Hue"),
-                            "key": "globalHue",
-                            "field": "colorBalanceGlobalHue",
-                            "minimum": 0,
-                            "maximum": 360,
-                            "reset": 0,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Shadows · Luminance"),
-                            "key": "shadowsY",
-                            "field": "colorBalanceShadowsY",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Shadows · Chroma"),
-                            "key": "shadowsChroma",
-                            "field": "colorBalanceShadowsChroma",
-                            "minimum": 0,
-                            "maximum": 0.5,
-                            "reset": 0,
-                            "step": 0.005,
-                            "decimals": 3
-                        },
-                        {
-                            "title": qsTr("Shadows · Hue"),
-                            "key": "shadowsHue",
-                            "field": "colorBalanceShadowsHue",
-                            "minimum": 0,
-                            "maximum": 360,
-                            "reset": 0,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Midtones · Luminance"),
-                            "key": "midtonesY",
-                            "field": "colorBalanceMidtonesY",
-                            "minimum": -0.25,
-                            "maximum": 0.25,
-                            "reset": 0,
-                            "step": 0.005,
-                            "decimals": 3
-                        },
-                        {
-                            "title": qsTr("Midtones · Chroma"),
-                            "key": "midtonesChroma",
-                            "field": "colorBalanceMidtonesChroma",
-                            "minimum": 0,
-                            "maximum": 0.1,
-                            "reset": 0,
-                            "step": 0.001,
-                            "decimals": 3
-                        },
-                        {
-                            "title": qsTr("Midtones · Hue"),
-                            "key": "midtonesHue",
-                            "field": "colorBalanceMidtonesHue",
-                            "minimum": 0,
-                            "maximum": 360,
-                            "reset": 0,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Highlights · Luminance"),
-                            "key": "highlightsY",
-                            "field": "colorBalanceHighlightsY",
-                            "minimum": -0.5,
-                            "maximum": 0.5,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Highlights · Chroma"),
-                            "key": "highlightsChroma",
-                            "field": "colorBalanceHighlightsChroma",
-                            "minimum": 0,
-                            "maximum": 0.2,
-                            "reset": 0,
-                            "step": 0.002,
-                            "decimals": 3
-                        },
-                        {
-                            "title": qsTr("Highlights · Hue"),
-                            "key": "highlightsHue",
-                            "field": "colorBalanceHighlightsHue",
-                            "minimum": 0,
-                            "maximum": 360,
-                            "reset": 0,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Shadows fall-off"),
-                            "key": "shadowsFalloff",
-                            "field": "colorBalanceShadowsFalloff",
-                            "minimum": 0,
-                            "maximum": 3,
-                            "reset": 1,
-                            "step": 0.05,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Highlights fall-off"),
-                            "key": "highlightsFalloff",
-                            "field": "colorBalanceHighlightsFalloff",
-                            "minimum": 0,
-                            "maximum": 3,
-                            "reset": 1,
-                            "step": 0.05,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Mask grey fulcrum"),
-                            "key": "maskGreyFulcrum",
-                            "field": "colorBalanceMaskGreyFulcrum",
-                            "minimum": 0.000001,
-                            "maximum": 1,
-                            "reset": 0.1845,
-                            "step": 0.001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("White fulcrum · EV"),
-                            "key": "whiteFulcrumEv",
-                            "field": "colorBalanceWhiteFulcrumEv",
-                            "minimum": -2,
-                            "maximum": 2,
-                            "reset": 0,
-                            "step": 0.05,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Grey fulcrum"),
-                            "key": "greyFulcrum",
-                            "field": "colorBalanceGreyFulcrum",
-                            "minimum": 0.1,
-                            "maximum": 0.5,
-                            "reset": 0.1845,
-                            "step": 0.001,
-                            "decimals": 4
-                        },
-                        {
-                            "title": qsTr("Chroma · Global"),
-                            "key": "chromaGlobal",
-                            "field": "colorBalanceChromaGlobal",
-                            "minimum": -0.5,
-                            "maximum": 0.5,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Chroma · Shadows"),
-                            "key": "chromaShadows",
-                            "field": "colorBalanceChromaShadows",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Chroma · Midtones"),
-                            "key": "chromaMidtones",
-                            "field": "colorBalanceChromaMidtones",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Chroma · Highlights"),
-                            "key": "chromaHighlights",
-                            "field": "colorBalanceChromaHighlights",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Saturation · Global"),
-                            "key": "saturationGlobal",
-                            "field": "colorBalanceSaturationGlobal",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Saturation · Shadows"),
-                            "key": "saturationShadows",
-                            "field": "colorBalanceSaturationShadows",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Saturation · Midtones"),
-                            "key": "saturationMidtones",
-                            "field": "colorBalanceSaturationMidtones",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Saturation · Highlights"),
-                            "key": "saturationHighlights",
-                            "field": "colorBalanceSaturationHighlights",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Brilliance · Global"),
-                            "key": "brillianceGlobal",
-                            "field": "colorBalanceBrillianceGlobal",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Brilliance · Shadows"),
-                            "key": "brillianceShadows",
-                            "field": "colorBalanceBrillianceShadows",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Brilliance · Midtones"),
-                            "key": "brillianceMidtones",
-                            "field": "colorBalanceBrillianceMidtones",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Brilliance · Highlights"),
-                            "key": "brillianceHighlights",
-                            "field": "colorBalanceBrillianceHighlights",
-                            "minimum": -1,
-                            "maximum": 1,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Vibrance"),
-                            "key": "vibrance",
-                            "field": "colorBalanceVibrance",
-                            "minimum": -0.5,
-                            "maximum": 0.5,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Hue rotation"),
-                            "key": "hueRotation",
-                            "field": "colorBalanceHueRotation",
-                            "minimum": -180,
-                            "maximum": 180,
-                            "reset": 0,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Contrast"),
-                            "key": "contrast",
-                            "field": "colorBalanceContrast",
-                            "minimum": -0.5,
-                            "maximum": 0.5,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editColorBalanceRgb[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Color Correction · D50 Lab")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    objectName: "colorCorrectionEnabled"
-                    text: qsTr("Enable Color Correction")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editColorCorrection.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("colorCorrectionEnabled", checked ? 1 : 0)
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Highlights · a*"),
-                            "key": "highlightA",
-                            "field": "colorCorrectionHighlightA",
-                            "minimum": -40,
-                            "maximum": 40,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Highlights · b*"),
-                            "key": "highlightB",
-                            "field": "colorCorrectionHighlightB",
-                            "minimum": -40,
-                            "maximum": 40,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Shadows · a*"),
-                            "key": "shadowA",
-                            "field": "colorCorrectionShadowA",
-                            "minimum": -40,
-                            "maximum": 40,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Shadows · b*"),
-                            "key": "shadowB",
-                            "field": "colorCorrectionShadowB",
-                            "minimum": -40,
-                            "maximum": 40,
-                            "reset": 0,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Saturation"),
-                            "key": "saturation",
-                            "field": "colorCorrectionSaturation",
-                            "minimum": -3,
-                            "maximum": 3,
-                            "reset": 1,
-                            "step": 0.01,
-                            "decimals": 2
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editColorCorrection[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset Color Correction")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("colorCorrection")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Color contrast")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    objectName: "colorContrastEnabled"
-                    text: qsTr("Enable Color contrast")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editColorContrast.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("colorContrastEnabled", checked ? 1 : 0)
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": "a* ×",
-                            "key": "aSteepness",
-                            "field": "colorContrastASteepness",
-                            "minimum": 0,
-                            "maximum": 5,
-                            "reset": 1
-                        },
-                        {
-                            "title": "b* ×",
-                            "key": "bSteepness",
-                            "field": "colorContrastBSteepness",
-                            "minimum": 0,
-                            "maximum": 5,
-                            "reset": 1
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: 0.01
-                        validatorDecimals: 3
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editColorContrast[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": "a* +",
-                            "key": "aOffset",
-                            "field": "colorContrastAOffset"
-                        },
-                        {
-                            "title": "b* +",
-                            "key": "bOffset",
-                            "field": "colorContrastBOffset"
-                        }
-                    ]
-                    delegate: ColorContrastOffsetField {}
-                }
                 RowLayout {
                     Layout.fillWidth: true
-                    CustomCheckBox {
-                        Layout.fillWidth: true
-                        text: qsTr("Allow extended chroma")
-                        enabled: root.hasSelection
-                        checked: root.hasPresenter && root.presenter.editColorContrast.unbound
-                        onToggled: if (root.liveReady && root.commands)
-                            root.commands.setDevelopNumber("colorContrastUnbound", checked ? 1 : 0)
+                    spacing: Fonts.size6
+                    ColorGradeWheel {
+                        objectName: "colorBalanceShadowsWheel"
+                        title: qsTr("Shadows")
+                        hueField: "colorBalanceShadowsHue"
+                        chromaField: "colorBalanceShadowsChroma"
+                        luminanceField: "colorBalanceShadowsY"
+                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsHue : 0
+                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsChroma : 0
+                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.shadowsY : 0
+                        maxChroma: 0.5
+                        luminanceFrom: -1
+                        luminanceTo: 1
+                        luminanceStep: 0.01
+                        luminanceDecimals: 2
+                        editorEnabled: root.hasSelection
+                        commands: root.commands
+                        liveReady: root.liveReady
                     }
-                    CustomButton {
-                        text: qsTr("Reset")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.resetControl("colorContrastUnbound")
+                    ColorGradeWheel {
+                        objectName: "colorBalanceMidtonesWheel"
+                        title: qsTr("Midtones")
+                        hueField: "colorBalanceMidtonesHue"
+                        chromaField: "colorBalanceMidtonesChroma"
+                        luminanceField: "colorBalanceMidtonesY"
+                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesHue : 0
+                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesChroma : 0
+                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.midtonesY : 0
+                        maxChroma: 0.1
+                        luminanceFrom: -0.25
+                        luminanceTo: 0.25
+                        luminanceStep: 0.005
+                        luminanceDecimals: 3
+                        editorEnabled: root.hasSelection
+                        commands: root.commands
+                        liveReady: root.liveReady
                     }
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset Color contrast")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("colorContrast")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Color Harmonizer")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    objectName: "colorHarmonizerEnabled"
-                    text: qsTr("Enable Color Harmonizer")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editColorHarmonizer.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("colorHarmonizerEnabled", checked ? 1 : 0)
-                }
-                CustomComboBox {
-                    objectName: "colorHarmonizerRuleIndex"
-                    Layout.fillWidth: true
-                    model: root.hasPresenter ? root.presenter.editColorHarmonizer.ruleChoices : []
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editColorHarmonizer.ruleIndex : 3
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("colorHarmonizerRuleIndex", currentIndex)
-                }
-                Repeater {
-                    model: root.hasPresenter ? root.presenter.editColorHarmonizer.sharedControls : []
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        visible: modelData.visible
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    readonly property var nodeControl: root.hasPresenter ? root.presenter.editColorHarmonizer.customNodeControl : ({})
-                    title: nodeControl.title !== undefined ? nodeControl.title : qsTr("Custom nodes")
-                    from: nodeControl.minimum !== undefined ? nodeControl.minimum : 2
-                    to: nodeControl.maximum !== undefined ? nodeControl.maximum : 4
-                    stepSize: nodeControl.step !== undefined ? nodeControl.step : 1
-                    validatorDecimals: nodeControl.decimals !== undefined ? nodeControl.decimals : 0
-                    showReset: true
-                    resetValue: nodeControl.reset !== undefined ? nodeControl.reset : 4
-                    delayedCommit: true
-                    visible: root.hasPresenter ? nodeControl.visible : false
-                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorHarmonizer.customRule
-                    value: root.hasPresenter ? root.presenter.editColorHarmonizer.customNodeCount : 4
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber(nodeControl.field, value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber(nodeControl.field, value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl(nodeControl.field)
-                }
-                Repeater {
-                    model: root.hasPresenter ? root.presenter.editColorHarmonizer.customHueControls : []
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        visible: modelData.visible
-                        enabled: root.hasSelection && modelData.visible
-                        value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                Repeater {
-                    model: root.hasPresenter ? root.presenter.editColorHarmonizer.nodeSaturationControls : []
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        visible: modelData.visible
-                        enabled: root.hasSelection && modelData.visible
-                        value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
+                    ColorGradeWheel {
+                        objectName: "colorBalanceHighlightsWheel"
+                        title: qsTr("Highlights")
+                        hueField: "colorBalanceHighlightsHue"
+                        chromaField: "colorBalanceHighlightsChroma"
+                        luminanceField: "colorBalanceHighlightsY"
+                        hue: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsHue : 0
+                        chroma: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsChroma : 0
+                        luminance: root.hasPresenter ? root.presenter.editColorBalanceRgb.highlightsY : 0
+                        maxChroma: 0.2
+                        luminanceFrom: -0.5
+                        luminanceTo: 0.5
+                        luminanceStep: 0.01
+                        luminanceDecimals: 2
+                        editorEnabled: root.hasSelection
+                        commands: root.commands
+                        liveReady: root.liveReady
                     }
                 }
                 CustomButton {
-                    text: qsTr("Disable and reset Color Harmonizer")
+                    text: qsTr("Reset Color Balance RGB")
                     enabled: root.hasSelection
                     onClicked: if (root.commands)
-                        root.commands.resetControl("colorHarmonizer")
+                        root.commands.resetControl("colorBalance")
                 }
-                MaskEditor {
-                    objectName: "colorHarmonizerMaskEditor"
-                    mask: root.hasPresenter ? root.presenter.editColorHarmonizerMask : ({})
-                }
-                CustomLabel {
+                Expander {
                     Layout.fillWidth: true
-                    text: qsTr("Color Reconstruction")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    objectName: "colorReconstructionEnabled"
-                    text: qsTr("Enable Color Reconstruction")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editColorReconstruction.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("colorReconstructionEnabled", checked ? 1 : 0)
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Precedence")
-                    wrapMode: Text.WordWrap
-                }
-                CustomComboBox {
-                    objectName: "colorReconstructionPrecedence"
-                    Layout.fillWidth: true
-                    model: root.hasPresenter ? root.presenter.editColorReconstruction.precedenceChoices : []
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editColorReconstruction.precedenceIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("colorReconstructionPrecedenceIndex", currentIndex)
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Threshold"),
-                            "key": "threshold",
-                            "field": "colorReconstructionThreshold",
-                            "minimum": 50,
-                            "maximum": 150,
-                            "reset": 100,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Spatial extent"),
-                            "key": "spatial",
-                            "field": "colorReconstructionSpatial",
-                            "minimum": 0,
-                            "maximum": 1000,
-                            "reset": 400,
-                            "step": 1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Range extent"),
-                            "key": "range",
-                            "field": "colorReconstructionRange",
-                            "minimum": 0,
-                            "maximum": 50,
-                            "reset": 10,
-                            "step": 0.1,
-                            "decimals": 1
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.minimum
-                        to: modelData.maximum
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: true
-                        resetValue: modelData.reset
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editColorReconstruction[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Hue")
-                    from: 0
-                    to: 360
-                    stepSize: 0.1
-                    validatorDecimals: 1
-                    showReset: true
-                    resetValue: 237.6
-                    delayedCommit: true
-                    visible: root.hasPresenter && root.presenter.editColorReconstruction.precedenceIndex === 2
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editColorReconstruction.hueDegrees : 237.6
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("colorReconstructionHueDegrees", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("colorReconstructionHueDegrees", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("colorReconstructionHueDegrees")
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset Color Reconstruction")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("colorReconstruction")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Color Zones")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    objectName: "colorZonesEnabled"
-                    text: qsTr("Enable Color Zones")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editColorZones.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("colorZonesEnabled", checked ? 1 : 0)
-                }
-                RowLayout {
-                    Layout.fillWidth: true
+                    title: qsTr("Color Balance RGB · more")
+                    expanded: false
                     CustomComboBox {
-                        objectName: "colorZonesSelectBy"
                         Layout.fillWidth: true
-                        textRole: "label"
-                        model: root.hasPresenter ? root.presenter.editColorZones.selectByChoices : []
-                        currentIndex: root.hasPresenter ? root.presenter.editColorZones.selectByIndex : 2
-                        Accessible.name: qsTr("Color Zones select by")
-                        onActivated: function (index) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber("colorZonesSelectByIndex", model[index].index);
-                        }
+                        model: [qsTr("darktable UCS (2022)"), qsTr("JzAzBz (2021)")]
+                        enabled: root.hasSelection
+                        currentIndex: root.hasPresenter ? root.presenter.editColorBalanceRgb.formulaIndex : 0
+                        onActivated: if (root.commands)
+                            root.commands.setDevelopNumber("colorBalanceFormula", currentIndex)
                     }
-                    CustomComboBox {
-                        objectName: "colorZonesBand"
-                        Layout.fillWidth: true
-                        textRole: "label"
-                        model: root.hasPresenter ? root.presenter.editColorZones.bandChoices : []
-                        currentIndex: root.hasPresenter ? root.presenter.editColorZones.bandIndex : 0
-                        Accessible.name: qsTr("Color Zones band")
-                        onActivated: function (index) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber("colorZonesBandIndex", model[index].index);
-                        }
-                    }
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Color Zones mix")
-                    from: -200
-                    to: 200
-                    stepSize: 1
-                    validatorDecimals: 0
-                    showReset: false
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editColorZones.strength : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("colorZonesStrength", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("colorZonesStrength", value);
-                    }
-                }
-                Repeater {
-                    model: [
-                        {"title": qsTr("Lightness curve"), "key": "lightness", "field": "colorZonesLightness"},
-                        {"title": qsTr("Chroma curve"), "key": "chroma", "field": "colorZonesChroma"},
-                        {"title": qsTr("Hue curve"), "key": "hue", "field": "colorZonesHue"}
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: 0
-                        to: 1
-                        stepSize: 0.01
-                        validatorDecimals: 2
-                        showReset: false
-                        delayedCommit: true
-                        enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorZones.editable
-                        value: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 0.5
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                    }
-                }
-                Repeater {
-                    model: [
-                        {"title": qsTr("Lightness interpolation"), "key": "lightnessInterpolationIndex", "field": "colorZonesLightnessInterpolationIndex"},
-                        {"title": qsTr("Chroma interpolation"), "key": "chromaInterpolationIndex", "field": "colorZonesChromaInterpolationIndex"},
-                        {"title": qsTr("Hue interpolation"), "key": "hueInterpolationIndex", "field": "colorZonesHueInterpolationIndex"}
-                    ]
-                    delegate: RowLayout {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        CustomLabel {
-                            Layout.fillWidth: true
-                            text: modelData.title
-                        }
-                        CustomComboBox {
-                            Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 20
-                            textRole: "label"
-                            model: root.hasPresenter ? root.presenter.editColorZones.interpolationChoices : []
-                            currentIndex: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 1
-                            enabled: root.hasSelection
-                            onActivated: function (index) {
-                                if (root.commands)
-                                    root.commands.setDevelopNumber(modelData.field, model[index].index);
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Global · Luminance"),
+                                "key": "globalY",
+                                "field": "colorBalanceGlobalY",
+                                "minimum": -0.05,
+                                "maximum": 0.05,
+                                "reset": 0,
+                                "step": 0.001,
+                                "decimals": 3
+                            },
+                            {
+                                "title": qsTr("Global · Chroma"),
+                                "key": "globalChroma",
+                                "field": "colorBalanceGlobalChroma",
+                                "minimum": 0,
+                                "maximum": 0.01,
+                                "reset": 0,
+                                "step": 0.0001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Global · Hue"),
+                                "key": "globalHue",
+                                "field": "colorBalanceGlobalHue",
+                                "minimum": 0,
+                                "maximum": 360,
+                                "reset": 0,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Shadows · Luminance"),
+                                "key": "shadowsY",
+                                "field": "colorBalanceShadowsY",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Shadows · Chroma"),
+                                "key": "shadowsChroma",
+                                "field": "colorBalanceShadowsChroma",
+                                "minimum": 0,
+                                "maximum": 0.5,
+                                "reset": 0,
+                                "step": 0.005,
+                                "decimals": 3
+                            },
+                            {
+                                "title": qsTr("Shadows · Hue"),
+                                "key": "shadowsHue",
+                                "field": "colorBalanceShadowsHue",
+                                "minimum": 0,
+                                "maximum": 360,
+                                "reset": 0,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Midtones · Luminance"),
+                                "key": "midtonesY",
+                                "field": "colorBalanceMidtonesY",
+                                "minimum": -0.25,
+                                "maximum": 0.25,
+                                "reset": 0,
+                                "step": 0.005,
+                                "decimals": 3
+                            },
+                            {
+                                "title": qsTr("Midtones · Chroma"),
+                                "key": "midtonesChroma",
+                                "field": "colorBalanceMidtonesChroma",
+                                "minimum": 0,
+                                "maximum": 0.1,
+                                "reset": 0,
+                                "step": 0.001,
+                                "decimals": 3
+                            },
+                            {
+                                "title": qsTr("Midtones · Hue"),
+                                "key": "midtonesHue",
+                                "field": "colorBalanceMidtonesHue",
+                                "minimum": 0,
+                                "maximum": 360,
+                                "reset": 0,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Highlights · Luminance"),
+                                "key": "highlightsY",
+                                "field": "colorBalanceHighlightsY",
+                                "minimum": -0.5,
+                                "maximum": 0.5,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Highlights · Chroma"),
+                                "key": "highlightsChroma",
+                                "field": "colorBalanceHighlightsChroma",
+                                "minimum": 0,
+                                "maximum": 0.2,
+                                "reset": 0,
+                                "step": 0.002,
+                                "decimals": 3
+                            },
+                            {
+                                "title": qsTr("Highlights · Hue"),
+                                "key": "highlightsHue",
+                                "field": "colorBalanceHighlightsHue",
+                                "minimum": 0,
+                                "maximum": 360,
+                                "reset": 0,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Shadows fall-off"),
+                                "key": "shadowsFalloff",
+                                "field": "colorBalanceShadowsFalloff",
+                                "minimum": 0,
+                                "maximum": 3,
+                                "reset": 1,
+                                "step": 0.05,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Highlights fall-off"),
+                                "key": "highlightsFalloff",
+                                "field": "colorBalanceHighlightsFalloff",
+                                "minimum": 0,
+                                "maximum": 3,
+                                "reset": 1,
+                                "step": 0.05,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Mask grey fulcrum"),
+                                "key": "maskGreyFulcrum",
+                                "field": "colorBalanceMaskGreyFulcrum",
+                                "minimum": 0.000001,
+                                "maximum": 1,
+                                "reset": 0.1845,
+                                "step": 0.001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("White fulcrum · EV"),
+                                "key": "whiteFulcrumEv",
+                                "field": "colorBalanceWhiteFulcrumEv",
+                                "minimum": -2,
+                                "maximum": 2,
+                                "reset": 0,
+                                "step": 0.05,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Grey fulcrum"),
+                                "key": "greyFulcrum",
+                                "field": "colorBalanceGreyFulcrum",
+                                "minimum": 0.1,
+                                "maximum": 0.5,
+                                "reset": 0.1845,
+                                "step": 0.001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Chroma · Global"),
+                                "key": "chromaGlobal",
+                                "field": "colorBalanceChromaGlobal",
+                                "minimum": -0.5,
+                                "maximum": 0.5,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Chroma · Shadows"),
+                                "key": "chromaShadows",
+                                "field": "colorBalanceChromaShadows",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Chroma · Midtones"),
+                                "key": "chromaMidtones",
+                                "field": "colorBalanceChromaMidtones",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Chroma · Highlights"),
+                                "key": "chromaHighlights",
+                                "field": "colorBalanceChromaHighlights",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Saturation · Global"),
+                                "key": "saturationGlobal",
+                                "field": "colorBalanceSaturationGlobal",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Saturation · Shadows"),
+                                "key": "saturationShadows",
+                                "field": "colorBalanceSaturationShadows",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Saturation · Midtones"),
+                                "key": "saturationMidtones",
+                                "field": "colorBalanceSaturationMidtones",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Saturation · Highlights"),
+                                "key": "saturationHighlights",
+                                "field": "colorBalanceSaturationHighlights",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Brilliance · Global"),
+                                "key": "brillianceGlobal",
+                                "field": "colorBalanceBrillianceGlobal",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Brilliance · Shadows"),
+                                "key": "brillianceShadows",
+                                "field": "colorBalanceBrillianceShadows",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Brilliance · Midtones"),
+                                "key": "brillianceMidtones",
+                                "field": "colorBalanceBrillianceMidtones",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Brilliance · Highlights"),
+                                "key": "brillianceHighlights",
+                                "field": "colorBalanceBrillianceHighlights",
+                                "minimum": -1,
+                                "maximum": 1,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Vibrance"),
+                                "key": "vibrance",
+                                "field": "colorBalanceVibrance",
+                                "minimum": -0.5,
+                                "maximum": 0.5,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Hue rotation"),
+                                "key": "hueRotation",
+                                "field": "colorBalanceHueRotation",
+                                "minimum": -180,
+                                "maximum": 180,
+                                "reset": 0,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Contrast"),
+                                "key": "contrast",
+                                "field": "colorBalanceContrast",
+                                "minimum": -0.5,
+                                "maximum": 0.5,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
                             }
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorBalanceRgb[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
                         }
                     }
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.72
-                    visible: root.hasPresenter && (!root.presenter.editColorZones.editable || root.presenter.editColorZones.masked)
-                    text: root.hasPresenter && root.presenter.editColorZones.masked
-                          ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.")
-                          : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset Color Zones")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("colorZones")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Monochrome")
-                    font.bold: true
-                    wrapMode: Text.WordWrap
-                }
-                CustomCheckBox {
-                    objectName: "monochromeEnabled"
-                    text: qsTr("Enable Monochrome")
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editMonochromeFilter.enabled
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("monochromeEnabled", checked ? 1 : 0)
-                }
-                Repeater {
-                    model: [
-                        {"title": qsTr("Filter a*"), "key": "filterA", "field": "monochromeFilterA", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
-                        {"title": qsTr("Filter b*"), "key": "filterB", "field": "monochromeFilterB", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
-                        {"title": qsTr("Filter size"), "key": "size", "field": "monochromeSize", "from": 0.5, "to": 3, "reset": 2, "step": 0.1, "decimals": 1},
-                        {"title": qsTr("Keep highlights"), "key": "highlights", "field": "monochromeHighlights", "from": 0, "to": 1, "reset": 0, "step": 0.01, "decimals": 2},
-                        {"title": qsTr("Monochrome mix"), "key": "mix", "field": "monochromeMix", "from": 0, "to": 1, "reset": 1, "step": 0.01, "decimals": 2}
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        title: modelData.title
-                        from: modelData.from
-                        to: modelData.to
-                        stepSize: modelData.step
-                        validatorDecimals: modelData.decimals
-                        showReset: false
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editMonochromeFilter[modelData.key] : modelData.reset
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                    }
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.72
-                    visible: root.hasPresenter && root.presenter.editMonochromeFilter.masked
-                    text: qsTr("Loaded Monochrome mask is preserved but edited outside this panel.")
-                }
-                CustomButton {
-                    text: qsTr("Disable and reset Monochrome")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("monochrome")
                 }
                 CustomLabel {
                     Layout.fillWidth: true
@@ -2812,11 +1733,1221 @@ ColumnLayout {
                     onClicked: if (root.commands)
                         root.commands.resetControl("splitToning")
                 }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Monochrome")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomCheckBox {
+                    objectName: "monochromeEnabled"
+                    text: qsTr("Enable Monochrome")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editMonochromeFilter.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("monochromeEnabled", checked ? 1 : 0)
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Filter a*"), "key": "filterA", "field": "monochromeFilterA", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
+                        {"title": qsTr("Filter b*"), "key": "filterB", "field": "monochromeFilterB", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
+                        {"title": qsTr("Filter size"), "key": "size", "field": "monochromeSize", "from": 0.5, "to": 3, "reset": 2, "step": 0.1, "decimals": 1},
+                        {"title": qsTr("Keep highlights"), "key": "highlights", "field": "monochromeHighlights", "from": 0, "to": 1, "reset": 0, "step": 0.01, "decimals": 2},
+                        {"title": qsTr("Monochrome mix"), "key": "mix", "field": "monochromeMix", "from": 0, "to": 1, "reset": 1, "step": 0.01, "decimals": 2}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: modelData.from
+                        to: modelData.to
+                        stepSize: modelData.step
+                        validatorDecimals: modelData.decimals
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editMonochromeFilter[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    visible: root.hasPresenter && root.presenter.editMonochromeFilter.masked
+                    text: qsTr("Loaded Monochrome mask is preserved but edited outside this panel.")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset Monochrome")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("monochrome")
+                }
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Color · Advanced")
+                    expanded: false
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color look-up table · D50 Lab")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomCheckBox {
+                        text: qsTr("Enable color look-up table")
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editColorChecker.enabled
+                        onToggled: if (root.liveReady && root.commands)
+                            root.commands.setDevelopNumber("colorCheckerEnabled", checked ? 1 : 0)
+                    }
+                    CustomComboBox {
+                        Layout.fillWidth: true
+                        model: [qsTr("IT8 skin tones"), qsTr("Expanded color checker"), qsTr("Helmholtz/Kohlrausch monochrome"), qsTr("Fuji Astia emulation"), qsTr("Fuji Classic Chrome emulation"), qsTr("Fuji Monochrome emulation"), qsTr("Fuji Provia emulation"), qsTr("Fuji Velvia emulation")]
+                        enabled: root.hasSelection
+                        currentIndex: root.hasPresenter ? root.presenter.editColorChecker.presetIndex : -1
+                        onActivated: if (root.commands)
+                            root.commands.setDevelopNumber("colorCheckerPreset", currentIndex)
+                    }
+                    CustomComboBox {
+                        Layout.fillWidth: true
+                        model: {
+                            const labels = [];
+                            const count = root.hasPresenter ? root.presenter.editColorChecker.patchCount : 0;
+                            for (let index = 0; index < count; ++index)
+                                labels.push(qsTr("Patch %1").arg(index + 1));
+                            return labels;
+                        }
+                        enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorChecker.patchCount > 0
+                        currentIndex: root.hasPresenter ? root.presenter.editColorChecker.patchIndex : -1
+                        onActivated: if (root.commands)
+                            root.commands.setDevelopNumber("colorCheckerPatch", currentIndex)
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Source · L*"),
+                                "key": "sourceL",
+                                "field": "colorCheckerSourceL"
+                            },
+                            {
+                                "title": qsTr("Source · a*"),
+                                "key": "sourceA",
+                                "field": "colorCheckerSourceA"
+                            },
+                            {
+                                "title": qsTr("Source · b*"),
+                                "key": "sourceB",
+                                "field": "colorCheckerSourceB"
+                            },
+                            {
+                                "title": qsTr("Target · L*"),
+                                "key": "targetL",
+                                "field": "colorCheckerTargetL"
+                            },
+                            {
+                                "title": qsTr("Target · a*"),
+                                "key": "targetA",
+                                "field": "colorCheckerTargetA"
+                            },
+                            {
+                                "title": qsTr("Target · b*"),
+                                "key": "targetB",
+                                "field": "colorCheckerTargetB"
+                            }
+                        ]
+                        delegate: ColorCheckerNumberField {}
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset color look-up table")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("colorChecker")
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color Balance · legacy Lab / ProPhoto RGB")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: root.hasPresenter && root.presenter.editLegacyColorBalance.enabled ? qsTr("Enabled") : qsTr("Inactive until edited")
+                        opacity: 0.75
+                    }
+                    CustomComboBox {
+                        Layout.fillWidth: true
+                        model: [qsTr("Lift / Gamma / Gain"), qsTr("Slope / Offset / Power")]
+                        enabled: root.hasSelection
+                        currentIndex: root.hasPresenter ? root.presenter.editLegacyColorBalance.modeIndex : 1
+                        onActivated: if (root.commands)
+                            root.commands.setDevelopNumber("legacyColorBalanceMode", currentIndex)
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Lift · Factor"),
+                                "key": "liftFactor",
+                                "field": "legacyColorBalanceLiftFactor",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.0001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Lift · Red"),
+                                "key": "liftRed",
+                                "field": "legacyColorBalanceLiftRed",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Lift · Green"),
+                                "key": "liftGreen",
+                                "field": "legacyColorBalanceLiftGreen",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Lift · Blue"),
+                                "key": "liftBlue",
+                                "field": "legacyColorBalanceLiftBlue",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Gamma · Factor"),
+                                "key": "gammaFactor",
+                                "field": "legacyColorBalanceGammaFactor",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.0001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Gamma · Red"),
+                                "key": "gammaRed",
+                                "field": "legacyColorBalanceGammaRed",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Gamma · Green"),
+                                "key": "gammaGreen",
+                                "field": "legacyColorBalanceGammaGreen",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Gamma · Blue"),
+                                "key": "gammaBlue",
+                                "field": "legacyColorBalanceGammaBlue",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Gain · Factor"),
+                                "key": "gainFactor",
+                                "field": "legacyColorBalanceGainFactor",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.0001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Gain · Red"),
+                                "key": "gainRed",
+                                "field": "legacyColorBalanceGainRed",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Gain · Green"),
+                                "key": "gainGreen",
+                                "field": "legacyColorBalanceGainGreen",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Gain · Blue"),
+                                "key": "gainBlue",
+                                "field": "legacyColorBalanceGainBlue",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.00001,
+                                "decimals": 5
+                            },
+                            {
+                                "title": qsTr("Input saturation"),
+                                "key": "inputSaturation",
+                                "field": "legacyColorBalanceInputSaturation",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.0001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Contrast"),
+                                "key": "contrast",
+                                "field": "legacyColorBalanceContrast",
+                                "minimum": 0.01,
+                                "maximum": 1.99,
+                                "reset": 1,
+                                "step": 0.0001,
+                                "decimals": 4
+                            },
+                            {
+                                "title": qsTr("Contrast fulcrum (%)"),
+                                "key": "greyFulcrum",
+                                "field": "legacyColorBalanceGreyFulcrum",
+                                "minimum": 0.1,
+                                "maximum": 100,
+                                "reset": 18,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Output saturation"),
+                                "key": "outputSaturation",
+                                "field": "legacyColorBalanceOutputSaturation",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "reset": 1,
+                                "step": 0.0001,
+                                "decimals": 4
+                            }
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editLegacyColorBalance[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset legacy Color Balance")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("legacyColorBalance")
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color Correction · D50 Lab")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomCheckBox {
+                        objectName: "colorCorrectionEnabled"
+                        text: qsTr("Enable Color Correction")
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editColorCorrection.enabled
+                        onToggled: if (root.liveReady && root.commands)
+                            root.commands.setDevelopNumber("colorCorrectionEnabled", checked ? 1 : 0)
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Highlights · a*"),
+                                "key": "highlightA",
+                                "field": "colorCorrectionHighlightA",
+                                "minimum": -40,
+                                "maximum": 40,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Highlights · b*"),
+                                "key": "highlightB",
+                                "field": "colorCorrectionHighlightB",
+                                "minimum": -40,
+                                "maximum": 40,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Shadows · a*"),
+                                "key": "shadowA",
+                                "field": "colorCorrectionShadowA",
+                                "minimum": -40,
+                                "maximum": 40,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Shadows · b*"),
+                                "key": "shadowB",
+                                "field": "colorCorrectionShadowB",
+                                "minimum": -40,
+                                "maximum": 40,
+                                "reset": 0,
+                                "step": 0.01,
+                                "decimals": 2
+                            },
+                            {
+                                "title": qsTr("Saturation"),
+                                "key": "saturation",
+                                "field": "colorCorrectionSaturation",
+                                "minimum": -3,
+                                "maximum": 3,
+                                "reset": 1,
+                                "step": 0.01,
+                                "decimals": 2
+                            }
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorCorrection[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset Color Correction")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("colorCorrection")
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color contrast")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomCheckBox {
+                        objectName: "colorContrastEnabled"
+                        text: qsTr("Enable Color contrast")
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editColorContrast.enabled
+                        onToggled: if (root.liveReady && root.commands)
+                            root.commands.setDevelopNumber("colorContrastEnabled", checked ? 1 : 0)
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": "a* ×",
+                                "key": "aSteepness",
+                                "field": "colorContrastASteepness",
+                                "minimum": 0,
+                                "maximum": 5,
+                                "reset": 1
+                            },
+                            {
+                                "title": "b* ×",
+                                "key": "bSteepness",
+                                "field": "colorContrastBSteepness",
+                                "minimum": 0,
+                                "maximum": 5,
+                                "reset": 1
+                            }
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: 0.01
+                            validatorDecimals: 3
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorContrast[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": "a* +",
+                                "key": "aOffset",
+                                "field": "colorContrastAOffset"
+                            },
+                            {
+                                "title": "b* +",
+                                "key": "bOffset",
+                                "field": "colorContrastBOffset"
+                            }
+                        ]
+                        delegate: ColorContrastOffsetField {}
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        CustomCheckBox {
+                            Layout.fillWidth: true
+                            text: qsTr("Allow extended chroma")
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter && root.presenter.editColorContrast.unbound
+                            onToggled: if (root.liveReady && root.commands)
+                                root.commands.setDevelopNumber("colorContrastUnbound", checked ? 1 : 0)
+                        }
+                        CustomButton {
+                            text: qsTr("Reset")
+                            enabled: root.hasSelection
+                            onClicked: if (root.commands)
+                                root.commands.resetControl("colorContrastUnbound")
+                        }
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset Color contrast")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("colorContrast")
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color Harmonizer")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomCheckBox {
+                        objectName: "colorHarmonizerEnabled"
+                        text: qsTr("Enable Color Harmonizer")
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editColorHarmonizer.enabled
+                        onToggled: if (root.liveReady && root.commands)
+                            root.commands.setDevelopNumber("colorHarmonizerEnabled", checked ? 1 : 0)
+                    }
+                    CustomComboBox {
+                        objectName: "colorHarmonizerRuleIndex"
+                        Layout.fillWidth: true
+                        model: root.hasPresenter ? root.presenter.editColorHarmonizer.ruleChoices : []
+                        enabled: root.hasSelection
+                        currentIndex: root.hasPresenter ? root.presenter.editColorHarmonizer.ruleIndex : 3
+                        onActivated: if (root.commands)
+                            root.commands.setDevelopNumber("colorHarmonizerRuleIndex", currentIndex)
+                    }
+                    Repeater {
+                        model: root.hasPresenter ? root.presenter.editColorHarmonizer.sharedControls : []
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            visible: modelData.visible
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        readonly property var nodeControl: root.hasPresenter ? root.presenter.editColorHarmonizer.customNodeControl : ({})
+                        title: nodeControl.title !== undefined ? nodeControl.title : qsTr("Custom nodes")
+                        from: nodeControl.minimum !== undefined ? nodeControl.minimum : 2
+                        to: nodeControl.maximum !== undefined ? nodeControl.maximum : 4
+                        stepSize: nodeControl.step !== undefined ? nodeControl.step : 1
+                        validatorDecimals: nodeControl.decimals !== undefined ? nodeControl.decimals : 0
+                        showReset: true
+                        resetValue: nodeControl.reset !== undefined ? nodeControl.reset : 4
+                        delayedCommit: true
+                        visible: root.hasPresenter ? nodeControl.visible : false
+                        enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorHarmonizer.customRule
+                        value: root.hasPresenter ? root.presenter.editColorHarmonizer.customNodeCount : 4
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(nodeControl.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(nodeControl.field, value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(nodeControl.field)
+                    }
+                    Repeater {
+                        model: root.hasPresenter ? root.presenter.editColorHarmonizer.customHueControls : []
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            visible: modelData.visible
+                            enabled: root.hasSelection && modelData.visible
+                            value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    Repeater {
+                        model: root.hasPresenter ? root.presenter.editColorHarmonizer.nodeSaturationControls : []
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            visible: modelData.visible
+                            enabled: root.hasSelection && modelData.visible
+                            value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset Color Harmonizer")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("colorHarmonizer")
+                    }
+                    MaskEditor {
+                        objectName: "colorHarmonizerMaskEditor"
+                        mask: root.hasPresenter ? root.presenter.editColorHarmonizerMask : ({})
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color Reconstruction")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomCheckBox {
+                        objectName: "colorReconstructionEnabled"
+                        text: qsTr("Enable Color Reconstruction")
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editColorReconstruction.enabled
+                        onToggled: if (root.liveReady && root.commands)
+                            root.commands.setDevelopNumber("colorReconstructionEnabled", checked ? 1 : 0)
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Precedence")
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomComboBox {
+                        objectName: "colorReconstructionPrecedence"
+                        Layout.fillWidth: true
+                        model: root.hasPresenter ? root.presenter.editColorReconstruction.precedenceChoices : []
+                        enabled: root.hasSelection
+                        currentIndex: root.hasPresenter ? root.presenter.editColorReconstruction.precedenceIndex : 0
+                        onActivated: if (root.commands)
+                            root.commands.setDevelopNumber("colorReconstructionPrecedenceIndex", currentIndex)
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Threshold"),
+                                "key": "threshold",
+                                "field": "colorReconstructionThreshold",
+                                "minimum": 50,
+                                "maximum": 150,
+                                "reset": 100,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Spatial extent"),
+                                "key": "spatial",
+                                "field": "colorReconstructionSpatial",
+                                "minimum": 0,
+                                "maximum": 1000,
+                                "reset": 400,
+                                "step": 1,
+                                "decimals": 1
+                            },
+                            {
+                                "title": qsTr("Range extent"),
+                                "key": "range",
+                                "field": "colorReconstructionRange",
+                                "minimum": 0,
+                                "maximum": 50,
+                                "reset": 10,
+                                "step": 0.1,
+                                "decimals": 1
+                            }
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: modelData.minimum
+                            to: modelData.maximum
+                            stepSize: modelData.step
+                            validatorDecimals: modelData.decimals
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editColorReconstruction[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Hue")
+                        from: 0
+                        to: 360
+                        stepSize: 0.1
+                        validatorDecimals: 1
+                        showReset: true
+                        resetValue: 237.6
+                        delayedCommit: true
+                        visible: root.hasPresenter && root.presenter.editColorReconstruction.precedenceIndex === 2
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editColorReconstruction.hueDegrees : 237.6
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("colorReconstructionHueDegrees", value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("colorReconstructionHueDegrees", value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl("colorReconstructionHueDegrees")
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset Color Reconstruction")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("colorReconstruction")
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Color Zones")
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+                    CustomCheckBox {
+                        objectName: "colorZonesEnabled"
+                        text: qsTr("Enable Color Zones")
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editColorZones.enabled
+                        onToggled: if (root.liveReady && root.commands)
+                            root.commands.setDevelopNumber("colorZonesEnabled", checked ? 1 : 0)
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        CustomComboBox {
+                            objectName: "colorZonesSelectBy"
+                            Layout.fillWidth: true
+                            textRole: "label"
+                            model: root.hasPresenter ? root.presenter.editColorZones.selectByChoices : []
+                            currentIndex: root.hasPresenter ? root.presenter.editColorZones.selectByIndex : 2
+                            Accessible.name: qsTr("Color Zones select by")
+                            onActivated: function (index) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("colorZonesSelectByIndex", model[index].index);
+                            }
+                        }
+                        CustomComboBox {
+                            objectName: "colorZonesBand"
+                            Layout.fillWidth: true
+                            textRole: "label"
+                            model: root.hasPresenter ? root.presenter.editColorZones.bandChoices : []
+                            currentIndex: root.hasPresenter ? root.presenter.editColorZones.bandIndex : 0
+                            Accessible.name: qsTr("Color Zones band")
+                            onActivated: function (index) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber("colorZonesBandIndex", model[index].index);
+                            }
+                        }
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Color Zones mix")
+                        from: -200
+                        to: 200
+                        stepSize: 1
+                        validatorDecimals: 0
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editColorZones.strength : 0
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("colorZonesStrength", value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("colorZonesStrength", value);
+                        }
+                    }
+                    Repeater {
+                        model: [
+                            {"title": qsTr("Lightness curve"), "key": "lightness", "field": "colorZonesLightness"},
+                            {"title": qsTr("Chroma curve"), "key": "chroma", "field": "colorZonesChroma"},
+                            {"title": qsTr("Hue curve"), "key": "hue", "field": "colorZonesHue"}
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            title: modelData.title
+                            from: 0
+                            to: 1
+                            stepSize: 0.01
+                            validatorDecimals: 2
+                            showReset: false
+                            delayedCommit: true
+                            enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorZones.editable
+                            value: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 0.5
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                        }
+                    }
+                    Repeater {
+                        model: [
+                            {"title": qsTr("Lightness interpolation"), "key": "lightnessInterpolationIndex", "field": "colorZonesLightnessInterpolationIndex"},
+                            {"title": qsTr("Chroma interpolation"), "key": "chromaInterpolationIndex", "field": "colorZonesChromaInterpolationIndex"},
+                            {"title": qsTr("Hue interpolation"), "key": "hueInterpolationIndex", "field": "colorZonesHueInterpolationIndex"}
+                        ]
+                        delegate: RowLayout {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            CustomLabel {
+                                Layout.fillWidth: true
+                                text: modelData.title
+                            }
+                            CustomComboBox {
+                                Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 20
+                                textRole: "label"
+                                model: root.hasPresenter ? root.presenter.editColorZones.interpolationChoices : []
+                                currentIndex: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 1
+                                enabled: root.hasSelection
+                                onActivated: function (index) {
+                                    if (root.commands)
+                                        root.commands.setDevelopNumber(modelData.field, model[index].index);
+                                }
+                            }
+                        }
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        opacity: 0.72
+                        visible: root.hasPresenter && (!root.presenter.editColorZones.editable || root.presenter.editColorZones.masked)
+                        text: root.hasPresenter && root.presenter.editColorZones.masked
+                              ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.")
+                              : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
+                    }
+                    CustomButton {
+                        text: qsTr("Disable and reset Color Zones")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("colorZones")
+                    }
+                }
             }
         }
-
         DevelopSection {
-            title: qsTr("Graduated ND / Color EQ")
+            title: qsTr("Geometry")
+            sectionId: "geometry"
+            ColumnLayout {
+                Layout.fillWidth: true
+                width: parent.width
+                spacing: Fonts.smallSpacing
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.size6
+                    CustomButton {
+                        display: AbstractButton.IconOnly
+                        icon.source: "qrc:/GeoControls/icons/RotateCcw.svg"
+                        tooltipText: qsTr("Rotate Left")
+                        enabled: root.hasSelection
+                        implicitWidth: Fonts.iconButtonSize
+                        implicitHeight: Fonts.iconButtonSize
+                        Layout.preferredWidth: implicitWidth
+                        Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
+                        defaultPadding: 0
+                        onClicked: if (root.commands)
+                            root.commands.rotateLeft.trigger()
+                    }
+                    CustomButton {
+                        display: AbstractButton.IconOnly
+                        icon.source: "qrc:/GeoControls/icons/RotateCw.svg"
+                        tooltipText: qsTr("Rotate Right")
+                        enabled: root.hasSelection
+                        implicitWidth: Fonts.iconButtonSize
+                        implicitHeight: Fonts.iconButtonSize
+                        Layout.preferredWidth: implicitWidth
+                        Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
+                        defaultPadding: 0
+                        onClicked: if (root.commands)
+                            root.commands.rotateRight.trigger()
+                    }
+                    CustomButton {
+                        display: AbstractButton.IconOnly
+                        icon.source: "qrc:/GeoControls/icons/FlipHorizontal.svg"
+                        tooltipText: qsTr("Flip Horizontal")
+                        enabled: root.hasSelection
+                        implicitWidth: Fonts.iconButtonSize
+                        implicitHeight: Fonts.iconButtonSize
+                        Layout.preferredWidth: implicitWidth
+                        Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
+                        defaultPadding: 0
+                        onClicked: if (root.commands)
+                            root.commands.flipHorizontal.trigger()
+                    }
+                    CustomButton {
+                        display: AbstractButton.IconOnly
+                        icon.source: "qrc:/GeoControls/icons/FlipVertical.svg"
+                        tooltipText: qsTr("Flip Vertical")
+                        enabled: root.hasSelection
+                        implicitWidth: Fonts.iconButtonSize
+                        implicitHeight: Fonts.iconButtonSize
+                        Layout.preferredWidth: implicitWidth
+                        Layout.preferredHeight: implicitHeight
+                        Layout.fillWidth: true
+                        defaultPadding: 0
+                        onClicked: if (root.commands)
+                            root.commands.flipVertical.trigger()
+                    }
+                }
+                CustomButton {
+                    Layout.fillWidth: true
+                    text: root.hasPresenter && root.presenter.cropToolActive ? qsTr("Done") : qsTr("Crop & Rotate")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.toggleCropTool()
+                }
+                CustomLabel {
+                    text: qsTr("Drag the frame to crop. Drag outside it, or Option/Alt-drag, to straighten.")
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    opacity: 0.75
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.size6
+                    CustomComboBox {
+                        Layout.fillWidth: true
+                        model: ["free", "1:1", "3:2", "4:3", "5:4", "16:9"]
+                        enabled: root.hasSelection
+                        displayText: root.hasPresenter && root.presenter.cropAspect === "locked" ? qsTr("Custom") : currentText
+                        currentIndex: {
+                            const aspects = ["free", "1:1", "3:2", "4:3", "5:4", "16:9"];
+                            const current = root.hasPresenter ? root.presenter.cropAspect : "free";
+                            return aspects.indexOf(current);
+                        }
+                        onActivated: if (root.commands)
+                            root.commands.setCropAspect(currentText)
+                    }
+                    CustomButton {
+                        display: AbstractButton.IconOnly
+                        checkable: true
+                        checked: root.hasPresenter && root.presenter.cropAspect !== "free"
+                        icon.source: checked ? "qrc:/GeoControls/icons/Lock.svg" : "qrc:/GeoControls/icons/Unlock.svg"
+                        tooltipText: checked ? qsTr("Unlock aspect ratio") : qsTr("Lock aspect ratio")
+                        enabled: root.hasSelection
+                        implicitWidth: Fonts.iconButtonSize
+                        implicitHeight: Fonts.iconButtonSize
+                        Layout.preferredWidth: implicitWidth
+                        Layout.preferredHeight: implicitHeight
+                        defaultPadding: 0
+                        onToggled: if (root.commands)
+                            root.commands.setCropAspect(checked ? "locked" : "free")
+                    }
+                }
+                CustomCheckBox {
+                    id: canvasEnabledBox
+                    objectName: "canvasEnabled"
+                    text: qsTr("Enlarge Canvas")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editCanvasEnabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("canvasEnabled", checked ? 1 : 0)
+                }
+                Connections {
+                    target: root.presenter
+                    function onEditChanged() {
+                        const enabled = root.hasPresenter && root.presenter.editCanvasEnabled;
+                        if (canvasEnabledBox.checked !== enabled)
+                            canvasEnabledBox.checked = enabled;
+                    }
+                    function onSelectionChanged() {
+                        canvasEnabledBox.checked = root.hasPresenter && root.presenter.editCanvasEnabled;
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Canvas left (%)"), "key": "left", "field": "canvasLeft"},
+                        {"title": qsTr("Canvas right (%)"), "key": "right", "field": "canvasRight"},
+                        {"title": qsTr("Canvas top (%)"), "key": "top", "field": "canvasTop"},
+                        {"title": qsTr("Canvas bottom (%)"), "key": "bottom", "field": "canvasBottom"}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        Layout.maximumHeight: visible ? 65535 : 0
+                        visible: canvasEnabledBox.checked
+                        title: modelData.title
+                        from: 0
+                        to: 100
+                        stepSize: 0.1
+                        validatorDecimals: 1
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editCanvas[modelData.key] : 0
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                CustomComboBox {
+                    objectName: "canvasColor"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    Layout.maximumHeight: visible ? 65535 : 0
+                    visible: canvasEnabledBox.checked
+                    enabled: root.hasSelection
+                    textRole: "label"
+                    model: root.hasPresenter ? root.presenter.editCanvas.colorChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editCanvas.colorIndex : 0
+                    Accessible.name: qsTr("Canvas color")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("canvasColorIndex", model[index].index);
+                    }
+                }
+                CustomButton {
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    Layout.maximumHeight: visible ? 65535 : 0
+                    visible: canvasEnabledBox.checked
+                    text: qsTr("Reset canvas")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("canvas")
+                }
+            }
+        }
+        DevelopSection {
+            title: qsTr("Tone equalizer")
+            sectionId: "toneEqual"
+            ColumnLayout {
+                Layout.fillWidth: true
+                width: parent.width
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Blacks")
+                    from: -2
+                    to: 2
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editToneEqBlacks : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("toneEqBlacks", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("toneEqBlacks", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("toneEqBlacks")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Shadows")
+                    from: -2
+                    to: 2
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editToneEqShadows : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("toneEqShadows", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("toneEqShadows", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("toneEqShadows")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Midtones")
+                    from: -2
+                    to: 2
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editToneEqMidtones : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("toneEqMidtones", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("toneEqMidtones", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("toneEqMidtones")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Highlights")
+                    from: -2
+                    to: 2
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editToneEqHighlights : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("toneEqHighlights", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("toneEqHighlights", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("toneEqHighlights")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Whites")
+                    from: -2
+                    to: 2
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editToneEqWhites : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("toneEqWhites", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("toneEqWhites", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("toneEqWhites")
+                }
+            }
+        }
+        DevelopSection {
+            title: qsTr("Graduated ND")
             sectionId: "graduated"
             ColumnLayout {
                 Layout.fillWidth: true
@@ -2867,59 +2998,8 @@ ColumnLayout {
                     objectName: "graduatedMaskEditor"
                     mask: root.hasPresenter ? root.presenter.editGraduatedMask : ({})
                 }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: ["0", "1", "2", "3", "4", "5", "6", "7"]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editColorEqBand : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("colorEqBand", Number(currentText))
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Band saturation")
-                    from: -1
-                    to: 1
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editColorEqSat : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("colorEqSat", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("colorEqSat", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("colorEqSat")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Band hue")
-                    from: -0.5
-                    to: 0.5
-                    stepSize: 0.005
-                    validatorDecimals: 3
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editColorEqHue : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("colorEqHue", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("colorEqHue", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("colorEqHue")
-                }
             }
         }
-
         DevelopSection {
             title: qsTr("Effects")
             sectionId: "effects"
@@ -3307,7 +3387,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Detail")
             sectionId: "detail"
@@ -3650,7 +3729,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("RAW Repair / Denoise / Lens")
             sectionId: "raw"
@@ -3820,7 +3898,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Color Calibration")
             sectionId: "calibration"
@@ -3892,7 +3969,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("RGB Primaries")
             sectionId: "primaries"
@@ -3986,7 +4062,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Input Profile")
             sectionId: "inputProfile"
@@ -4040,7 +4115,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Unbreak input profile")
             sectionId: "profileGamma"
@@ -4168,7 +4242,6 @@ ColumnLayout {
                 }
             }
         }
-
         DevelopSection {
             title: qsTr("Output & Soft Proof")
             sectionId: "outputProfile"

@@ -28,7 +28,8 @@ a file or merging history stacks.
 
 Copy/paste is a Studio session gesture over the existing recipe contract. CLI
 style-create/apply is unchanged. Multi-photo paste and OS clipboard exchange
-are later work.
+are later work. ADR-0082 keeps the clipboard complete and adds Paste Light /
+Paste Color as named grade-group apply, not a second clipboard.
 
 ## Rejected alternatives
 

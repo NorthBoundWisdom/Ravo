@@ -11,8 +11,11 @@
 > P3's remaining work is zero-consumer cleanup blocked on the named shared
 > owners. C17 Color Zones is accepted and its old owner retired (ADR-0073).
 > C18 Monochrome is accepted and its old owner retired (ADR-0074). Next Ready
-> C20 Split Toning is accepted and its old owner retired (ADR-0075). Next Ready
-> is P4's C21 Velvia contract. Shared S8–S11, J5–J7,
+> C20 Split Toning is accepted and its old owner retired (ADR-0075). Studio's
+> default Develop grading workspace is accepted (ADR-0082) and is not leftover
+> consumption. ADR-0083 accepts the eight-band Color Equalizer editor and Bayer
+> CFA white-balance pick. Next leftover Ready remains P4's C21 Velvia contract;
+> do not start it from this workspace round. Shared S8–S11, J5–J7,
 > U5/U10/J2, format-wrapper,
 > and dynamic-storage deletion still waits for their named old consumers to
 > reach zero. Leftover GTK `mask_manager` / `libs/masks.c` wait for zero

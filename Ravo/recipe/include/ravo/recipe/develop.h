@@ -407,6 +407,7 @@ struct DevelopParams
     bool raw_effect_enabled = true;
     bool tone_equal_effect_enabled = true;
     bool graduated_effect_enabled = true;
+    bool color_eq_effect_enabled = true; // Color Equalizer is independent of Graduated ND.
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;
@@ -538,6 +539,10 @@ struct DevelopSetField
                                                            std::string_view value);
 [[nodiscard]] bool reset_develop_field(DevelopParams &params, std::string_view name);
 [[nodiscard]] bool reset_develop_section(DevelopParams &params, std::string_view section);
+[[nodiscard]] bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
+                                         std::string_view section);
+[[nodiscard]] bool apply_develop_grade(DevelopParams &dest, const DevelopParams &source,
+                                       std::string_view grade);
 [[nodiscard]] bool develop_section_modified(const DevelopParams &params, std::string_view section);
 [[nodiscard]] bool develop_section_effect_enabled(const DevelopParams &params,
                                                   std::string_view section);

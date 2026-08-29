@@ -1247,6 +1247,8 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(bands.graduated_density, 0.8, 1e-6);
     EXPECT_TRUE(reset_develop_section(bands, "graduated"));
     EXPECT_NEAR(bands.graduated_density, 0.0, 1e-6);
+    EXPECT_EQ(bands.color_eq_band, 3);
+    EXPECT_TRUE(reset_develop_section(bands, "colorEqualizer"));
     EXPECT_EQ(bands.color_eq_band, 0);
     EXPECT_TRUE(apply_develop_field(bands, "channelMixerRG", 0.25));
     EXPECT_NEAR(bands.channel_mixer.red[1], 0.25, 1e-6);
@@ -1266,6 +1268,57 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(bands.color_balance_rgb.global_y, 0.0, 1e-6);
     EXPECT_TRUE(reset_develop_section(bands, "color"));
     EXPECT_TRUE(bands.color_balance_rgb.is_identity());
+
+    DevelopParams grade_source;
+    grade_source.exposure_ev = 0.4;
+    grade_source.vibrance = 0.2;
+    grade_source.color_eq_sat[1] = 0.3;
+    grade_source.vignette = 0.5;
+    DevelopParams grade_dest;
+    grade_dest.exposure_ev = -0.2;
+    grade_dest.vibrance = -0.1;
+    grade_dest.color_eq_sat[1] = -0.4;
+    grade_dest.vignette = 0.9;
+    EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "light"));
+    EXPECT_NEAR(grade_dest.exposure_ev, 0.4, 1e-6);
+    EXPECT_NEAR(grade_dest.vibrance, -0.1, 1e-6);
+    EXPECT_NEAR(grade_dest.color_eq_sat[1], -0.4, 1e-6);
+    EXPECT_NEAR(grade_dest.vignette, 0.9, 1e-6);
+    EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "color"));
+    EXPECT_NEAR(grade_dest.exposure_ev, 0.4, 1e-6);
+    EXPECT_NEAR(grade_dest.vibrance, 0.2, 1e-6);
+    EXPECT_NEAR(grade_dest.color_eq_sat[1], 0.3, 1e-6);
+    EXPECT_NEAR(grade_dest.vignette, 0.9, 1e-6);
+    EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "all"));
+    EXPECT_NEAR(grade_dest.vignette, 0.5, 1e-6);
+    EXPECT_FALSE(apply_develop_grade(grade_dest, grade_source, "geometry"));
+    DevelopParams keep_eq;
+    keep_eq.color_eq_band = 2;
+    keep_eq.vibrance = 0.3;
+    EXPECT_TRUE(reset_develop_section(keep_eq, "color"));
+    EXPECT_NEAR(keep_eq.vibrance, 0.0, 1e-6);
+    EXPECT_EQ(keep_eq.color_eq_band, 2);
+
+    DevelopParams split_bypass;
+    split_bypass.color_eq_sat[0] = 0.25;
+    split_bypass.color_eq_effect_enabled = false;
+    split_bypass.graduated_density = 0.6;
+    split_bypass.graduated_effect_enabled = true;
+    auto split_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, split_bypass);
+    ASSERT_TRUE(split_recipe) << split_recipe.error().message;
+    const auto *eq_op = operation_by_id(split_recipe.value(), "ravo.color.colorequal");
+    const auto *nd_op = operation_by_id(split_recipe.value(), "ravo.effect.graduatednd");
+    ASSERT_NE(eq_op, nullptr);
+    ASSERT_NE(nd_op, nullptr);
+    EXPECT_FALSE(eq_op->enabled);
+    EXPECT_TRUE(nd_op->enabled);
+    auto split_restored = develop_from_recipe(split_recipe.value());
+    ASSERT_TRUE(split_restored) << split_restored.error().message;
+    EXPECT_FALSE(split_restored.value().color_eq_effect_enabled);
+    EXPECT_TRUE(split_restored.value().graduated_effect_enabled);
+    EXPECT_TRUE(develop_section_modified(split_restored.value(), "colorEqualizer"));
+    EXPECT_TRUE(develop_section_modified(split_restored.value(), "graduated"));
 
     DevelopParams angled;
     angled.straighten_degrees = 12.5;

@@ -909,7 +909,7 @@ ApplicationWindow {
                                     HoverHandler {
                                         id: photoInspectHover
                                         enabled: window.photoInspectEnabled
-                                        cursorShape: Qt.BlankCursor
+                                        cursorShape: studio.whiteBalancePickActive ? Qt.CrossCursor : Qt.BlankCursor
                                     }
 
                                     Rectangle {
@@ -931,6 +931,13 @@ ApplicationWindow {
                                             return;
                                         if (!window.photoInspectEnabled || !window.inspectPointInPhoto(eventPoint.position))
                                             return;
+                                        if (studio.browseMode === "develop" && studio.whiteBalancePickActive) {
+                                            const w = Math.max(1, photoPlane.width);
+                                            const h = Math.max(1, photoPlane.height);
+                                            studioActions.pickWhiteBalance((eventPoint.position.x - photoPlane.x) / w,
+                                                                           (eventPoint.position.y - photoPlane.y) / h);
+                                            return;
+                                        }
                                         if (studio.browseMode === "loupe") {
                                             window.pendingInspectStagePos = eventPoint.position;
                                             inspectClickTimer.restart();
@@ -997,7 +1004,7 @@ ApplicationWindow {
                             height: 28
                             z: 20
                             antialiasing: true
-                            visible: photoInspectHover.hovered && window.photoInspectEnabled
+                            visible: photoInspectHover.hovered && window.photoInspectEnabled && !studio.whiteBalancePickActive
                             property bool zoomOut: studio.zoomMode === "actual"
                             x: {
                                 if (!visible)

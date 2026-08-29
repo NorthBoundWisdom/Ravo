@@ -471,6 +471,24 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
     {
         result.captured_unix_s = static_cast<std::int64_t>(raw.other.timestamp);
     }
+    std::array<float, 4> as_shot{};
+    std::array<float, 4> camera_reference{};
+    if (raw.color.as_shot_wb_applied)
+    {
+        result.has_as_shot_white_balance = true;
+        result.as_shot_white_balance = {1.0, 1.0, 1.0, 1.0};
+    }
+    else if (normalize_white_balance(raw.color.cam_mul, raw.idata.colors, as_shot))
+    {
+        result.has_as_shot_white_balance = true;
+        result.as_shot_white_balance = {as_shot[0], as_shot[1], as_shot[2], as_shot[3]};
+    }
+    if (normalize_white_balance(raw.color.pre_mul, raw.idata.colors, camera_reference))
+    {
+        result.has_camera_reference_white_balance = true;
+        result.camera_reference_white_balance = {camera_reference[0], camera_reference[1],
+                                                camera_reference[2], camera_reference[3]};
+    }
     return result;
 }
 

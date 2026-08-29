@@ -78,6 +78,10 @@ inline constexpr auto kEditUndo = "studio.edit.undo";
 inline constexpr auto kEditRedo = "studio.edit.redo";
 inline constexpr auto kEditCopyEdits = "studio.edit.copy_edits";
 inline constexpr auto kEditPasteEdits = "studio.edit.paste_edits";
+inline constexpr auto kEditPasteEditsSection = "studio.edit.paste_edits_section";
+inline constexpr auto kEditSetNumbers = "studio.edit.set_numbers";
+inline constexpr auto kEditPickWhiteBalance = "studio.edit.pick_white_balance";
+inline constexpr auto kEditSetWhiteBalancePick = "studio.edit.set_white_balance_pick";
 inline constexpr auto kEditResetAll = "studio.edit.reset_all";
 inline constexpr auto kEditResetSection = "studio.edit.reset_section";
 inline constexpr auto kEditSetSectionEnabled = "studio.edit.set_section_enabled";
@@ -214,6 +218,8 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Navigation argument must be 'range'."),
     QT_TRANSLATE_NOOP("StudioCommands", "Thumbnail size must be an integer between 120 and 320."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop control name must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Develop fields must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "White-balance pick state must be boolean."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop section name must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop section enabled must be boolean."),
     QT_TRANSLATE_NOOP("StudioCommands", "Develop value must be finite."),
@@ -359,11 +365,15 @@ QStringList command_ids()
             QLatin1String(command::kEditRedo),
             QLatin1String(command::kEditCopyEdits),
             QLatin1String(command::kEditPasteEdits),
+            QLatin1String(command::kEditPasteEditsSection),
             QLatin1String(command::kEditResetAll),
             QLatin1String(command::kEditResetSection),
             QLatin1String(command::kEditSetSectionEnabled),
             QLatin1String(command::kEditResetControl),
             QLatin1String(command::kEditSetNumber),
+            QLatin1String(command::kEditSetNumbers),
+            QLatin1String(command::kEditPickWhiteBalance),
+            QLatin1String(command::kEditSetWhiteBalancePick),
             QLatin1String(command::kEditSetText),
             QLatin1String(command::kEditSetToneCurve),
             QLatin1String(command::kEditAddRetouchRegion),
@@ -1321,6 +1331,16 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.copyEdits(); });
     add(command::kEditPasteEdits, Condition::kCanPasteEdits, no_argument,
         [this](const QVariant &, const QString &) { presenter_.pasteEdits(); });
+    add(
+        command::kEditPasteEditsSection, Condition::kCanPasteEdits,
+        [](const QVariant &argument)
+        {
+            static const QSet<QString> values{QStringLiteral("all"), QStringLiteral("light"),
+                                              QStringLiteral("color")};
+            return one_of(argument, values, QStringLiteral("edit section"));
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.pasteEditsSection(argument.toString()); });
     add(command::kEditResetAll, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
@@ -1381,6 +1401,66 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.setDevelopNumber(name, value);
         });
+    add(
+        command::kEditSetNumbers, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const auto error = required_fields(argument, {QStringLiteral("fields")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap().value(QStringLiteral("fields")).toMap();
+            if (fields.isEmpty())
+                return QStringLiteral("Develop fields must not be empty.");
+            for (auto it = fields.constBegin(); it != fields.constEnd(); ++it)
+            {
+                if (it.key().trimmed().isEmpty())
+                    return QStringLiteral("Develop control name must not be empty.");
+                const auto number_error =
+                    finite_number(it.value(), QStringLiteral("Develop value"));
+                if (!number_error.isEmpty())
+                    return number_error;
+            }
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto payload = argument.toMap();
+            const auto fields = payload.value(QStringLiteral("fields")).toMap();
+            if (payload.value(QStringLiteral("live")).toBool())
+                presenter_.previewDevelopNumbers(fields);
+            else
+                presenter_.setDevelopNumbers(fields);
+        });
+    add(
+        command::kEditPickWhiteBalance, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const auto error = required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            const auto x_error = finite_number(fields.value(QStringLiteral("x")),
+                                               QStringLiteral("White-balance X"));
+            if (!x_error.isEmpty())
+                return x_error;
+            return finite_number(fields.value(QStringLiteral("y")), QStringLiteral("White-balance Y"));
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.pickWhiteBalance(fields.value(QStringLiteral("x")).toDouble(),
+                                       fields.value(QStringLiteral("y")).toDouble());
+        });
+    add(
+        command::kEditSetWhiteBalancePick, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            return argument.metaType().id() == QMetaType::Bool || argument.canConvert<bool>() ?
+                       QString{} :
+                       QStringLiteral("White-balance pick state must be boolean.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setWhiteBalancePickActive(argument.toBool()); });
     add(
         command::kEditSetToneCurve, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -1600,11 +1680,16 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
         {QStringLiteral("editCopyEdits"), QLatin1String(command::kEditCopyEdits)},
         {QStringLiteral("editPasteEdits"), QLatin1String(command::kEditPasteEdits)},
+        {QStringLiteral("editPasteEditsSection"), QLatin1String(command::kEditPasteEditsSection)},
         {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
         {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
         {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
         {QStringLiteral("editResetControl"), QLatin1String(command::kEditResetControl)},
         {QStringLiteral("editSetNumber"), QLatin1String(command::kEditSetNumber)},
+        {QStringLiteral("editSetNumbers"), QLatin1String(command::kEditSetNumbers)},
+        {QStringLiteral("editPickWhiteBalance"), QLatin1String(command::kEditPickWhiteBalance)},
+        {QStringLiteral("editSetWhiteBalancePick"),
+         QLatin1String(command::kEditSetWhiteBalancePick)},
         {QStringLiteral("editSetText"), QLatin1String(command::kEditSetText)},
         {QStringLiteral("editSetToneCurve"), QLatin1String(command::kEditSetToneCurve)},
         {QStringLiteral("editAddRetouchRegion"), QLatin1String(command::kEditAddRetouchRegion)},

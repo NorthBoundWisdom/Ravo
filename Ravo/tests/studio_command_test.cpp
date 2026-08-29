@@ -324,13 +324,15 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("blueHueDegrees")).toDouble(), 0.0);
     EXPECT_DOUBLE_EQ(primaries.value(QStringLiteral("bluePurity")).toDouble(), 1.0);
     const auto white_balance = presenter.editWhiteBalance();
-    EXPECT_EQ(white_balance.size(), 6);
+    EXPECT_EQ(white_balance.size(), 7);
     EXPECT_EQ(white_balance.value(QStringLiteral("modeIndex")).toInt(), 0);
     EXPECT_FALSE(white_balance.value(QStringLiteral("hasCoefficients")).toBool());
+    EXPECT_FALSE(white_balance.value(QStringLiteral("canPick")).toBool());
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("red")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("green")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("blue")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("fourth")).toDouble(), 1.0);
+    EXPECT_EQ(presenter.editColorEqBands().size(), 8);
     const auto input_color = presenter.editInputColor();
     EXPECT_EQ(input_color.size(), 7);
     EXPECT_EQ(input_color.value(QStringLiteral("inputProfileIndex")).toInt(), 0);
@@ -421,6 +423,8 @@ TEST(StudioPresenterTest, CopiedEditsClipboardStartsEmptyAndIgnoresEmptySelectio
     presenter.copyEdits();
     EXPECT_FALSE(presenter.hasCopiedEdits());
     presenter.pasteEdits();
+    presenter.pasteEditsSection(QStringLiteral("light"));
+    presenter.pasteEditsSection(QStringLiteral("color"));
     EXPECT_FALSE(presenter.hasCopiedEdits());
 }
 
@@ -648,7 +652,7 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     }
 
     const auto section_begin = source.indexOf(QStringLiteral("colorContrastEnabled"));
-    const auto section_end = source.indexOf(QStringLiteral("monochrome"), section_begin);
+    const auto section_end = source.indexOf(QStringLiteral("colorHarmonizerEnabled"), section_begin);
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
@@ -699,7 +703,8 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     const auto source = QString::fromUtf8(panel.readAll());
 
     const auto section_begin = source.indexOf(QStringLiteral("colorHarmonizerEnabled"));
-    const auto section_end = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"), section_begin);
+    const auto section_end =
+        source.indexOf(QStringLiteral("qsTr(\"Color Reconstruction\")"), section_begin);
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
@@ -750,12 +755,13 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
 
     const auto contrast = source.indexOf(QStringLiteral("colorContrastEnabled"));
     const auto harmonizer = source.indexOf(QStringLiteral("colorHarmonizerEnabled"), contrast);
-    const auto monochrome = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"), harmonizer);
+    const auto reconstruction =
+        source.indexOf(QStringLiteral("qsTr(\"Color Reconstruction\")"), harmonizer);
     ASSERT_GE(contrast, 0);
     ASSERT_GE(harmonizer, 0);
-    ASSERT_GE(monochrome, 0);
+    ASSERT_GE(reconstruction, 0);
     EXPECT_LT(contrast, harmonizer);
-    EXPECT_LT(harmonizer, monochrome);
+    EXPECT_LT(harmonizer, reconstruction);
 }
 
 TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
@@ -766,7 +772,7 @@ TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
     const auto source = QString::fromUtf8(panel.readAll());
 
     const auto section_begin = source.indexOf(QStringLiteral("colorReconstructionEnabled"));
-    const auto section_end = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"), section_begin);
+    const auto section_end = source.indexOf(QStringLiteral("qsTr(\"Color Zones\")"), section_begin);
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
@@ -788,14 +794,20 @@ TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
     EXPECT_FALSE(section.contains(QStringLiteral("picker"), Qt::CaseInsensitive));
     EXPECT_FALSE(section.contains(QStringLiteral("GTK"), Qt::CaseInsensitive));
 
+    const auto monochrome = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"));
+    const auto split_toning = source.indexOf(QStringLiteral("qsTr(\"Split Toning\")"));
+    const auto advanced = source.indexOf(QStringLiteral("qsTr(\"Color · Advanced\")"));
     const auto harmonizer = source.indexOf(QStringLiteral("colorHarmonizerEnabled"));
     const auto reconstruction = source.indexOf(QStringLiteral("colorReconstructionEnabled"));
-    const auto monochrome = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"));
+    ASSERT_GE(monochrome, 0);
+    ASSERT_GE(split_toning, 0);
+    ASSERT_GE(advanced, 0);
     ASSERT_GE(harmonizer, 0);
     ASSERT_GE(reconstruction, 0);
-    ASSERT_GE(monochrome, 0);
+    EXPECT_LT(split_toning, monochrome);
+    EXPECT_LT(monochrome, advanced);
+    EXPECT_LT(advanced, harmonizer);
     EXPECT_LT(harmonizer, reconstruction);
-    EXPECT_LT(reconstruction, monochrome);
 }
 
 TEST(StudioQmlContract, SharpenExposesAmountRadiusAndThresholdFromOnePresenter)
@@ -891,6 +903,60 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"splitToning\")")));
 }
 
+TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto white_balance = source.indexOf(QStringLiteral("sectionId: \"whiteBalance\""));
+    const auto light = source.indexOf(QStringLiteral("sectionId: \"light\""));
+    const auto color_eq = source.indexOf(QStringLiteral("sectionId: \"colorEqualizer\""));
+    const auto color = source.indexOf(QStringLiteral("sectionId: \"color\""));
+    const auto geometry = source.indexOf(QStringLiteral("sectionId: \"geometry\""));
+    const auto graduated = source.indexOf(QStringLiteral("sectionId: \"graduated\""));
+    ASSERT_GE(white_balance, 0);
+    ASSERT_GE(light, 0);
+    ASSERT_GE(color_eq, 0);
+    ASSERT_GE(color, 0);
+    ASSERT_GE(geometry, 0);
+    ASSERT_GE(graduated, 0);
+    EXPECT_LT(white_balance, light);
+    EXPECT_LT(light, color_eq);
+    EXPECT_LT(color_eq, color);
+    EXPECT_LT(color, geometry);
+    EXPECT_LT(geometry, graduated);
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color Equalizer\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Graduated ND\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Graduated ND / Color EQ")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceShadowsWheel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceMidtonesWheel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorBalanceHighlightsWheel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("hueField: \"colorBalanceShadowsHue\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("chromaField: \"colorBalanceShadowsChroma\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color Balance RGB · more\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color · Advanced\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorEqChannel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorEqBand\" + modelData.index")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editColorEqBands")));
+    EXPECT_TRUE(source.contains(QStringLiteral("satField")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"whiteBalancePickActive\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setWhiteBalancePickActive")));
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("pickWhiteBalance")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("whiteBalancePickActive")));
+    QFile wheel(QStringLiteral(RAVO_STUDIO_COLOR_GRADE_WHEEL_QML));
+    ASSERT_TRUE(wheel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << wheel.errorString().toStdString();
+    const auto wheel_source = QString::fromUtf8(wheel.readAll());
+    EXPECT_TRUE(wheel_source.contains(QStringLiteral("previewDevelopNumbers")));
+    EXPECT_TRUE(wheel_source.contains(QStringLiteral("setDevelopNumbers")));
+    EXPECT_FALSE(wheel_source.contains(QStringLiteral("OpenCL")));
+}
+
 TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
@@ -925,13 +991,14 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Undo\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Reset all\")")));
     const QStringList order{
-        QStringLiteral("geometry"),     QStringLiteral("light"),
-        QStringLiteral("toneEqual"),    QStringLiteral("whiteBalance"),
-        QStringLiteral("color"),        QStringLiteral("graduated"),
-        QStringLiteral("effects"),      QStringLiteral("detail"),
-        QStringLiteral("raw"),          QStringLiteral("calibration"),
-        QStringLiteral("primaries"),    QStringLiteral("inputProfile"),
-        QStringLiteral("profileGamma"), QStringLiteral("outputProfile"),
+        QStringLiteral("whiteBalance"), QStringLiteral("light"),
+        QStringLiteral("colorEqualizer"), QStringLiteral("color"),
+        QStringLiteral("geometry"),     QStringLiteral("toneEqual"),
+        QStringLiteral("graduated"),    QStringLiteral("effects"),
+        QStringLiteral("detail"),       QStringLiteral("raw"),
+        QStringLiteral("calibration"),  QStringLiteral("primaries"),
+        QStringLiteral("inputProfile"), QStringLiteral("profileGamma"),
+        QStringLiteral("outputProfile"),
     };
     qsizetype cursor = source.indexOf(QStringLiteral("component DevelopSection"));
     ASSERT_GE(cursor, 0);
@@ -963,7 +1030,8 @@ TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
     EXPECT_TRUE(source.contains(QStringLiteral("setCropAspect(checked ? \"locked\" : \"free\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Lock aspect ratio\")")));
     const auto geometry_begin = source.indexOf(QStringLiteral("sectionId: \"geometry\""));
-    const auto geometry_end = source.indexOf(QStringLiteral("sectionId: \"light\""), geometry_begin);
+    const auto geometry_end =
+        source.indexOf(QStringLiteral("sectionId: \"toneEqual\""), geometry_begin);
     ASSERT_GE(geometry_begin, 0);
     ASSERT_GT(geometry_end, geometry_begin);
     const auto geometry = source.mid(geometry_begin, geometry_end - geometry_begin);
@@ -1015,6 +1083,10 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(history_source.contains(QStringLiteral("beforeAfter")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Copy\")")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste Light\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste Color\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteEditsSection(\"light\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteEditsSection(\"color\")")));
     EXPECT_LT(history_source.indexOf(QStringLiteral("qsTr(\"Snapshot\")")),
               history_source.indexOf(QStringLiteral("qsTr(\"Copy\")")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("Layout.preferredWidth: 1")));
@@ -1029,6 +1101,15 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoRenameSnapshot")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyEdits")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteEdits")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteEditsSection")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetNumbers")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPickWhiteBalance")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetWhiteBalancePick")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("previewDevelopNumbers(fields)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("setDevelopNumbers(fields)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("pasteEditsSection(section)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPickWhiteBalance")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("pickWhiteBalance(x, y)")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("maximumLineCount: 1")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("entryText")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("inactive")));
@@ -1449,7 +1530,7 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("inspectStageLockW")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectAnimScale")));
     EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
-    EXPECT_TRUE(source.contains(QStringLiteral("cursorShape: Qt.BlankCursor")));
+    EXPECT_TRUE(source.contains(QStringLiteral("cursorShape: studio.whiteBalancePickActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));

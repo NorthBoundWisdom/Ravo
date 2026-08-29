@@ -86,6 +86,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
     Q_PROPERTY(bool hasCopiedEdits READ hasCopiedEdits NOTIFY copiedEditsChanged)
     Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
+    Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
+    Q_PROPERTY(QVariantList editColorEqBands READ editColorEqBands NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editInputColor READ editInputColor NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editProfileGamma READ editProfileGamma NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editOutputColor READ editOutputColor NOTIFY editChanged)
@@ -393,6 +395,7 @@ public:
     [[nodiscard]] double editColorEqHue() const noexcept;
     [[nodiscard]] double editColorEqSat() const noexcept;
     [[nodiscard]] double editColorEqLight() const noexcept;
+    [[nodiscard]] QVariantList editColorEqBands() const;
     [[nodiscard]] double editGraduatedDensity() const noexcept;
     [[nodiscard]] double editGraduatedHardness() const noexcept;
     [[nodiscard]] double editGraduatedRotation() const noexcept;
@@ -475,6 +478,9 @@ public:
     Q_INVOKABLE void flipHorizontal();
     Q_INVOKABLE void flipVertical();
     Q_INVOKABLE void setCropToolActive(bool active);
+    [[nodiscard]] bool whiteBalancePickActive() const noexcept;
+    Q_INVOKABLE void setWhiteBalancePickActive(bool active);
+    Q_INVOKABLE void pickWhiteBalance(double preview_x, double preview_y);
     Q_INVOKABLE void resetControl(const QString &name);
     Q_INVOKABLE void resetSection(const QString &section);
     Q_INVOKABLE bool sectionModified(const QString &section) const;
@@ -483,6 +489,9 @@ public:
     Q_INVOKABLE void resetAllEdits();
     Q_INVOKABLE void copyEdits();
     Q_INVOKABLE void pasteEdits();
+    Q_INVOKABLE void pasteEditsSection(const QString &section);
+    Q_INVOKABLE void previewDevelopNumbers(const QVariantMap &fields);
+    Q_INVOKABLE void setDevelopNumbers(const QVariantMap &fields);
     Q_INVOKABLE void undoEdit();
     Q_INVOKABLE void redoEdit();
     Q_INVOKABLE void toggleBeforeAfter();
@@ -565,6 +574,7 @@ private:
         Revert
     };
     bool mutate_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true);
+    void applyDevelopNumbers(const QVariantMap &fields, DevelopEdit edit);
     void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true,
                         RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew);
     void preview_develop(DevelopParams params);
@@ -674,6 +684,7 @@ private:
     std::optional<DevelopParams> copied_edits_;
     bool before_after_ = false;
     bool crop_tool_active_ = false;
+    bool white_balance_pick_active_ = false;
     bool crop_guide_ready_ = false;
     QString crop_aspect_{QStringLiteral("free")};
     double locked_crop_ratio_ = 0.0;

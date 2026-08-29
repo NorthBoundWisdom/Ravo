@@ -42,8 +42,13 @@ cancelled or discarded; a late result must not replace the newest edit.
 
 ## Edit pane controls
 
-The current Edit pane groups controls by task. Every numeric control has a reset
-action; each section can also be reset from its section menu.
+The current Edit pane is a grading stack first: White Balance, Light, Color
+Equalizer, then Color. Geometry, Tone equalizer, Graduated ND, Detail, Effects,
+RAW repair, and profiles follow. Every numeric control has a reset action; each
+section can also be reset from its section menu.
+
+Scopes stay above the Edit list, so they remain visible while you change White
+Balance, Color Equalizer, or Color Balance RGB.
 
 ### Geometry
 
@@ -109,9 +114,14 @@ reference**, and **Manual coefficients**. Automatic modes use camera metadata
 before demosaic. Manual mode exposes four coefficients: Red, Green, Blue, and
 Fourth (G1/G2 or the relevant fourth CFA channel).
 
+On Bayer RAW, enable **Pick white on photo** and click a neutral patch. Ravo
+samples the CFA around that point and writes manual coefficients. Straighten
+and Canvas must be off. JPEG/PNG/TIFF originals report an unsupported pick.
+
 If the source does not provide the metadata required by an automatic mode, Ravo
 reports the missing state rather than reverting to a generic Kelvin/tint
-approximation.
+approximation. `ravo inspect` reports as-shot and camera-reference coefficients
+for RAW. `ravo catalog develop --pick-white=x,y` uses the same sample path.
 
 ### Color Calibration and RGB Primaries
 
@@ -142,18 +152,37 @@ RAW Sigmoid is not itself marked as a user edit.
 Deflicker is a RAW analysis mode. It does not synthesize an automatic result for
 unsupported raster analysis cases.
 
+### Color Equalizer
+
+**Color Equalizer** is the default eight-band hue partition (Red, Orange,
+Yellow, Green, Cyan, Blue, Lavender, Magenta). Choose Saturation, Hue, or
+Lightness, then edit all eight bands. It is separate from Graduated ND;
+bypassing one does not bypass the other.
+
 ### Color
 
 The Color section currently exposes:
 
 - Vibrance, Saturation, and Velvia.
+- **Color Balance RGB · linear sRGB D50 / Filmlight Yrg**, with Shadows /
+  Midtones / Highlights wheels for hue and chroma plus a luminance slider.
+  Formula, global, and extra numeric fields stay under **Color Balance RGB ·
+  more**.
+- **Split Toning**, with independent shadow/highlight hue and saturation,
+  balance pivot, midtone compression, and mix. It preserves HSL lightness while
+  blending the selected endpoint outside the compressed midtone band. Imported
+  canonical masks remain preserved/read-only in this panel.
+- **Monochrome**, with a D50 Lab a*/b* virtual colour filter, filter size,
+  highlight preservation, and mix. It uses a scale-aware bilateral base before
+  neutral output; it is not a simple saturation slider. Imported canonical
+  masks remain preserved/read-only in this panel.
+
+**Color · Advanced** keeps the overlapping tools off the default path:
+
 - A D50 Lab **Color look-up table** with eight built-in presets and direct source
   and target patch fields.
 - **Color Balance · legacy Lab / ProPhoto RGB**, with Lift/Gamma/Gain or
   Slope/Offset/Power paths.
-- **Color Balance RGB · linear sRGB D50 / Filmlight Yrg**, with darktable UCS
-  (2022) or JzAzBz (2021) formula selection and global/shadow/midtone/highlight
-  grading controls.
 - **Color Correction · D50 Lab**, with highlight/shadow a*/b* endpoints and
   saturation.
 - **Color contrast**, with independent a*/b* slopes and offsets plus an
@@ -175,21 +204,13 @@ The Color section currently exposes:
   monotone interpolation for each curve, and set mix strength. Imported custom
   2–20-node curves and masks remain visible/read-only in the eight-band Studio
   projection so ordinary edits do not reshape them.
-- **Monochrome**, with a D50 Lab a*/b* virtual colour filter, filter size,
-  highlight preservation, and mix. It uses a scale-aware bilateral base before
-  neutral output; it is not a simple saturation slider. Imported canonical
-  masks remain preserved/read-only in this panel.
-- **Split Toning**, with independent shadow/highlight hue and saturation,
-  balance pivot, midtone compression, and mix. It preserves HSL lightness while
-  blending the selected endpoint outside the compressed midtone band. Imported
-  canonical masks remain preserved/read-only in this panel.
 
 The two Color Balance paths are separate operations. Ravo does not treat one as
 an automatic fallback or alias for the other.
 
 ### Canonical masks for Color Harmonizer and Graduated ND
 
-Both **Color Harmonizer** and **Graduated ND / Color EQ** include a **Mask**
+Both **Color Harmonizer** and **Graduated ND** include a **Mask**
 editor. Choose None, All, Linear gradient, Circle, Ellipse, Parametric, Group,
 Path, or Brush. The available controls change with the selected kind; parametric
 thresholds remain ordered while you edit them. Selecting a non-None kind makes
@@ -271,15 +292,15 @@ RAW-only operations can return an explicit unsupported result for raster,
 non-Bayer, X-Trans, or otherwise unsupported sources. They are not replaced by
 a raster approximation.
 
-### Tone equalizer and Graduated ND / Color EQ
+### Tone equalizer and Graduated ND
 
 **Tone equalizer** has five bands: Blacks, Shadows, Midtones, Highlights, and
 Whites.
 
-**Graduated ND / Color EQ** provides graduated density and rotation, eight color
-equalizer bands, and band saturation/hue. A positive graduated density follows
-the current gradient orientation; use the on-image crop/edit surface and the
-control values together when checking the result.
+**Graduated ND** provides graduated density and rotation. A positive graduated
+density follows the current gradient orientation; use the on-image crop/edit
+surface and the control values together when checking the result. Color
+Equalizer is a separate earlier section.
 
 ## Before and After
 
@@ -297,10 +318,12 @@ rewrite the preview cache as a new edit.
   Undo and Redo then save the resulting recipe through the same catalog
   transaction.
 - **Copy Edits** (`Cmd/Ctrl+Shift+C`) stores the current complete develop
-  recipe in a session clipboard. **Paste Edits** (`Cmd/Ctrl+Alt+V`) applies
-  that recipe to the active photo as a normal history step. The clipboard is
-  not a file and is not the system pasteboard. Style save/apply remains the
-  portable artifact.
+  recipe in a session clipboard. **Paste** (`Cmd/Ctrl+Alt+V`) applies that
+  whole recipe to the active photo as a normal history step, including masks.
+  **Paste Light** applies White Balance and Light only. **Paste Color** applies
+  Color and Color Equalizer parameters and keeps the destination photo's mask
+  attachments. The clipboard is not a file and is not the system pasteboard.
+  Style save/apply remains the portable artifact.
 - A control reset changes one field back to its default.
 - A mask-control reset keeps its attached editable mask. **Reset to all**
   changes that mask to All, while **Detach mask** removes only the current

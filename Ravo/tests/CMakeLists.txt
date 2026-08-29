@@ -320,6 +320,7 @@ target_include_directories(ravo_desktop_command_tests PRIVATE
 target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n"
   RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml"
+  RAVO_STUDIO_COLOR_GRADE_WHEEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ColorGradeWheel.qml"
   RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopHistoryPanel.qml"
   RAVO_STUDIO_SCOPE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ScopePanel.qml"
   RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibrarySidePanel.qml"

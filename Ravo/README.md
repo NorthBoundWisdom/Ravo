@@ -73,8 +73,11 @@ Current implementation status:
   recipe without appending; newer steps dim until a later parameter edit
   discards them in the same recipe transaction. Section lamps are gray at
   identity, green when modified, and black when those parameters are kept but
-  bypassed;
-  plus before/after and session undo/redo.
+  bypassed. The default grading stack is White Balance, Light, Color Equalizer,
+  and Color Balance RGB wheels (ADR-0082). Color Equalizer is an eight-band
+  named mixer; Bayer RAW white-balance pick writes manual coefficients
+  (ADR-0083);
+  plus before/after, session undo/redo, and Paste Light / Paste Color.
   RAW interactive preview reuses a scene-linear working image; superseded
   requests cancel and late results are dropped by revision; recipe/history/
   revision save atomically, and catalog unit tests cover L2–L9 parameters and

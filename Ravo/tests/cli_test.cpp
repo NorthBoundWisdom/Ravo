@@ -842,6 +842,10 @@ TEST_F(CliTest, InspectCommandReturnsFrozenRawMetadata)
     ASSERT_NE(raw, nullptr);
     ASSERT_NE(raw->boolean_if(), nullptr);
     EXPECT_TRUE(*raw->boolean_if());
+    const auto *as_shot = data->find("has_as_shot_white_balance");
+    ASSERT_NE(as_shot, nullptr);
+    ASSERT_NE(as_shot->boolean_if(), nullptr);
+    EXPECT_TRUE(*as_shot->boolean_if());
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 

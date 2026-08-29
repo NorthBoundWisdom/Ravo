@@ -893,11 +893,15 @@ The Ravo Studio first version owns:
   format/dimension, and flag overlays. Gallery's left rail is the folder tree,
   tag filter, and Import/Export; Edit's left rail is the selected photo's
   recipe history and snapshots. Clicking a step previews that recipe and dims
-  newer rows; a subsequent parameter edit discards the dimmed rows;
-- shared scopes above the right Gallery/Edit panel: frozen 256-bin RGB
-  Histogram, overlaid Waveform, RGB Parade, fixed linear D50 CIE u*v*
-  Vectorscope, and Waveform/Vectorscope Split. Engine owns pixels; QML owns
-  only grids and selection;
+  newer rows; a subsequent parameter edit discards the dimmed rows. The default
+  Edit grading stack is White Balance, Light, Color Equalizer, and Color
+  Balance RGB wheels; overlapping Lab color tools stay under Color · Advanced
+  (ADR-0082). Color Equalizer exposes eight named bands; Bayer white-balance
+  pick writes manual temperature coefficients (ADR-0083);
+- shared scopes above the right Gallery/Edit panel, remaining visible while
+  the Edit list scrolls: frozen 256-bin RGB Histogram, overlaid Waveform, RGB
+  Parade, fixed linear D50 CIE u*v* Vectorscope, and Waveform/Vectorscope
+  Split. Engine owns pixels; QML owns only grids and selection;
 - progress, cancellation, and recoverable-error presentation;
 - window, focus, keyboard, HiDPI, and basic accessibility;
 - a floating Assistant popup whose URL, model, and API key are typed desktop
