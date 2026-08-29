@@ -63,10 +63,12 @@ void dwt_denoise_vert(std::vector<float> &out, const std::vector<float> &in, con
         const int row = dwt_interleave_rows(rowid, height, vscale);
         const int below_row =
             (row + vscale < height) ? (row + vscale) : 2 * (height - 1) - (row + vscale);
-        const float *center = in.data() + static_cast<std::size_t>(row) * width;
-        const float *above = in.data() + static_cast<std::size_t>(std::abs(row - vscale)) * width;
-        const float *below = in.data() + static_cast<std::size_t>(below_row) * width;
-        float *outrow = out.data() + static_cast<std::size_t>(row) * width;
+        const auto width_sz = static_cast<std::size_t>(width);
+        const float *center = in.data() + static_cast<std::size_t>(row) * width_sz;
+        const float *above =
+            in.data() + static_cast<std::size_t>(std::abs(row - vscale)) * width_sz;
+        const float *below = in.data() + static_cast<std::size_t>(below_row) * width_sz;
+        float *outrow = out.data() + static_cast<std::size_t>(row) * width_sz;
         for (int col = 0; col < width; ++col)
         {
             outrow[col] = 2.0F * center[col] + above[col] + below[col];
@@ -81,7 +83,7 @@ void dwt_denoise_horiz(std::vector<float> &coarse, std::vector<float> &img,
     const int hscale = std::min(1 << lev, width);
     for (int row = 0; row < height; ++row)
     {
-        const std::size_t rowindex = static_cast<std::size_t>(row) * width;
+        const std::size_t rowindex = static_cast<std::size_t>(row) * static_cast<std::size_t>(width);
         float *detail_row = img.data() + rowindex;
         float *coarse_row = coarse.data() + rowindex;
         float *accum_row = accum.data() + rowindex;
@@ -128,7 +130,8 @@ void dwt_denoise_horiz(std::vector<float> &coarse, std::vector<float> &img,
     {
         return make_error(ErrorCode::kValidation, "RAW denoise plane is empty");
     }
-    const std::size_t plane = static_cast<std::size_t>(width) * height;
+    const std::size_t plane =
+        static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     std::vector<float> accum(plane, 0.0F);
     std::vector<float> interm(plane);
     for (int lev = 0; lev < kRawDenoiseBands; ++lev)
@@ -234,12 +237,15 @@ Result<void> apply_raw_denoise(DecodedRaw &raw, const OperationInstance &operati
         compute_channel_noise(noise, color, threshold, force);
         const int halfwidth = width / 2 + (width & (~(c >> 1)) & 1);
         const int halfheight = height / 2 + (height & (~c) & 1);
-        std::vector<float> mono(static_cast<std::size_t>(halfwidth) * halfheight, 0.0F);
+        std::vector<float> mono(
+            static_cast<std::size_t>(halfwidth) * static_cast<std::size_t>(halfheight), 0.0F);
         const int offset = (c & 2) >> 1;
+        const auto halfwidth_sz = static_cast<std::size_t>(halfwidth);
+        const auto width_sz = static_cast<std::size_t>(width);
         for (int row = c & 1; row < height; row += 2)
         {
-            float *row_out = mono.data() + static_cast<std::size_t>(row / 2) * halfwidth;
-            const float *row_in = plane.data() + static_cast<std::size_t>(row) * width + offset;
+            float *row_out = mono.data() + static_cast<std::size_t>(row / 2) * halfwidth_sz;
+            const float *row_in = plane.data() + static_cast<std::size_t>(row) * width_sz + offset;
             const int senselwidth = (width - offset + 1) / 2;
             for (int col = 0; col < senselwidth; ++col)
             {
@@ -253,8 +259,8 @@ Result<void> apply_raw_denoise(DecodedRaw &raw, const OperationInstance &operati
         }
         for (int row = c & 1; row < height; row += 2)
         {
-            const float *row_in = mono.data() + static_cast<std::size_t>(row / 2) * halfwidth;
-            float *row_out = plane.data() + static_cast<std::size_t>(row) * width + offset;
+            const float *row_in = mono.data() + static_cast<std::size_t>(row / 2) * halfwidth_sz;
+            float *row_out = plane.data() + static_cast<std::size_t>(row) * width_sz + offset;
             const int senselwidth = (width - offset + 1) / 2;
             for (int col = 0; col < senselwidth; ++col)
             {

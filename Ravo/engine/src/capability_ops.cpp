@@ -950,7 +950,8 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     }
     for (int c = 0; c < 3; ++c)
     {
-        mean[c] = count[c] > 0.0F ? std::cbrt(mean[c] / count[c]) : 0.0F;
+        const auto channel = static_cast<std::size_t>(c);
+        mean[channel] = count[channel] > 0.0F ? std::cbrt(mean[channel] / count[channel]) : 0.0F;
     }
     const std::array<float, 3> opp{0.5F * (mean[1] + mean[2]), 0.5F * (mean[0] + mean[2]),
                                    0.5F * (mean[0] + mean[1])};
@@ -1385,7 +1386,10 @@ void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &inpu
     {
         for (int x = 0; x < width; ++x)
         {
-            const float *px = input.data() + (static_cast<std::size_t>(y) * width + x) * 4U;
+            const float *px = input.data() +
+                              (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                               static_cast<std::size_t>(x)) *
+                                  4U;
             std::array<float, 3> sum{};
             std::array<float, 3> wgt{};
             int filter_idx = 0;
@@ -1396,7 +1400,10 @@ void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &inpu
                 {
                     const int sx = std::clamp(x + mult * (ii - 2), 0, width - 1);
                     const float *px2 =
-                        input.data() + (static_cast<std::size_t>(sy) * width + sx) * 4U;
+                        input.data() +
+                        (static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) +
+                         static_cast<std::size_t>(sx)) *
+                            4U;
                     const float weight = kFilter[filter_idx++] * dn_weight(px, px2, inv_sigma2);
                     for (int c = 0; c < 3; ++c)
                     {
@@ -1405,7 +1412,10 @@ void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &inpu
                     }
                 }
             }
-            const std::size_t index = (static_cast<std::size_t>(y) * width + x) * 4U;
+            const std::size_t index =
+                (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                 static_cast<std::size_t>(x)) *
+                4U;
             for (int c = 0; c < 3; ++c)
             {
                 const float mean = sum[static_cast<std::size_t>(c)] /
@@ -1422,7 +1432,8 @@ void eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &inpu
 void eaw_synthesize(std::vector<float> &accum, const std::vector<float> &detail,
                     const std::array<float, 3> &threshold, const int width, const int height)
 {
-    const std::size_t count = static_cast<std::size_t>(width) * height;
+    const std::size_t count =
+        static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     for (std::size_t pixel = 0; pixel < count; ++pixel)
     {
         for (int c = 0; c < 3; ++c)
@@ -1659,7 +1670,8 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         std::max(0.0, parameter(operation, "noise_b", static_cast<double>(kGenericNoiseB))));
     const int width = static_cast<int>(image.width);
     const int height = static_cast<int>(image.height);
-    const std::size_t npixels = static_cast<std::size_t>(width) * height;
+    const std::size_t npixels =
+        static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
 
     int max_scale = 0;
     const float supp0 = std::min(2.0F * (2U << (kDenoiseBands - 1)) + 1.0F,
