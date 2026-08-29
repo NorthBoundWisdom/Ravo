@@ -7,6 +7,7 @@
 #include <iterator>
 #include <limits>
 #include <map>
+#include <mutex>
 #include <new>
 #include <numbers>
 #include <string>
