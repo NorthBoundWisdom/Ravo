@@ -173,6 +173,10 @@ namespace ravo
         return QStringLiteral("name");
     case AssetSortField::kRating:
         return QStringLiteral("rating");
+    case AssetSortField::kCaptureTime:
+        return QStringLiteral("captured");
+    case AssetSortField::kFileSize:
+        return QStringLiteral("size");
     case AssetSortField::kImportTime:
         break;
     }

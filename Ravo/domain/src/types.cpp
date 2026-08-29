@@ -325,6 +325,182 @@ Result<ExportFormat> parse_export_format(const std::string_view name)
                       {{"format", std::string(name)}});
 }
 
+std::string_view export_metadata_mode_name(const ExportMetadataMode mode) noexcept
+{
+    switch (mode)
+    {
+    case ExportMetadataMode::kFull:
+        return "full";
+    case ExportMetadataMode::kNoLocation:
+        return "no-location";
+    case ExportMetadataMode::kNone:
+        return "none";
+    }
+    return "full";
+}
+
+Result<ExportMetadataMode> parse_export_metadata_mode(const std::string_view name)
+{
+    if (name == "full")
+        return ExportMetadataMode::kFull;
+    if (name == "no-location")
+        return ExportMetadataMode::kNoLocation;
+    if (name == "none")
+        return ExportMetadataMode::kNone;
+    return make_error(
+        ErrorCode::kValidation, "Unknown export metadata mode",
+        {{"metadata_mode", std::string(name)}, {"reason", "invalid_export_metadata_mode"}});
+}
+
+Result<std::string> expand_export_filename_template(const std::string_view filename_template,
+                                                    const std::string_view source_stem,
+                                                    const std::string_view asset_id,
+                                                    const std::size_t sequence,
+                                                    const std::string_view extension)
+{
+    if (filename_template.empty() || filename_template.size() > kExportFilenameTemplateMaxBytes ||
+        !is_valid_utf8(filename_template))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Export filename template must be bounded UTF-8 text",
+                          {{"reason", "invalid_export_filename_template"},
+                           {"max_bytes", std::to_string(kExportFilenameTemplateMaxBytes)}});
+    }
+    if (source_stem.empty() || source_stem.size() > kExportFilenameMaxBytes || asset_id.empty() ||
+        asset_id.size() > kExportFilenameMaxBytes || !is_valid_utf8(source_stem) ||
+        !is_valid_utf8(asset_id))
+    {
+        return make_error(ErrorCode::kValidation, "Export filename inputs are invalid",
+                          {{"reason", "invalid_export_filename_input"}});
+    }
+    if (sequence == 0 || sequence > kExportBatchMaxAssets)
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export sequence is out of range",
+            {{"reason", "invalid_export_sequence"}, {"sequence", std::to_string(sequence)}});
+    }
+    if (extension.size() > kExportFilenameMaxBytes ||
+        (!extension.empty() &&
+         (extension.front() != '.' ||
+          extension.find_first_of("/\\{}") != std::string_view::npos ||
+          !is_valid_utf8(extension))))
+    {
+        return make_error(
+            ErrorCode::kValidation, "Export extension is invalid",
+            {{"reason", "invalid_export_extension"}, {"extension", std::string(extension)}});
+    }
+
+    std::string sequence_text = std::to_string(sequence);
+    if (sequence_text.size() < 4U)
+        sequence_text.insert(sequence_text.begin(), 4U - sequence_text.size(), '0');
+    std::string filename;
+    filename.reserve(std::min<std::size_t>(kExportFilenameMaxBytes,
+                                           filename_template.size() + source_stem.size() +
+                                               asset_id.size() + extension.size() + 8U));
+    bool has_extension_token = false;
+    for (std::size_t offset = 0; offset < filename_template.size();)
+    {
+        if (filename_template[offset] == '}')
+        {
+            return make_error(ErrorCode::kValidation, "Export filename template has stray brace",
+                              {{"reason", "invalid_export_filename_template"},
+                               {"offset", std::to_string(offset)}});
+        }
+        if (filename_template[offset] != '{')
+        {
+            filename.push_back(filename_template[offset++]);
+            if (filename.size() > kExportFilenameMaxBytes)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Expanded export filename is too large",
+                                  {{"reason", "invalid_expanded_export_filename"},
+                                   {"max_bytes", std::to_string(kExportFilenameMaxBytes)}});
+            }
+            continue;
+        }
+        const auto close = filename_template.find('}', offset + 1U);
+        if (close == std::string_view::npos)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Export filename template has an unterminated token",
+                              {{"reason", "invalid_export_filename_template"},
+                               {"offset", std::to_string(offset)}});
+        }
+        const auto token = filename_template.substr(offset + 1U, close - offset - 1U);
+        if (token == "stem")
+            filename.append(source_stem);
+        else if (token == "asset_id")
+            filename.append(asset_id);
+        else if (token == "sequence")
+            filename.append(sequence_text);
+        else if (token == "ext")
+        {
+            filename.append(extension);
+            has_extension_token = true;
+        }
+        else
+        {
+            return make_error(
+                ErrorCode::kValidation, "Unknown export filename template token",
+                {{"reason", "unknown_export_filename_token"}, {"token", std::string(token)}});
+        }
+        if (filename.size() > kExportFilenameMaxBytes)
+        {
+            return make_error(ErrorCode::kValidation, "Expanded export filename is too large",
+                              {{"reason", "invalid_expanded_export_filename"},
+                               {"max_bytes", std::to_string(kExportFilenameMaxBytes)}});
+        }
+        offset = close + 1U;
+    }
+    if (!has_extension_token)
+    {
+        filename.append(extension);
+        if (filename.size() > kExportFilenameMaxBytes)
+        {
+            return make_error(ErrorCode::kValidation, "Expanded export filename is too large",
+                              {{"reason", "invalid_expanded_export_filename"},
+                               {"max_bytes", std::to_string(kExportFilenameMaxBytes)}});
+        }
+    }
+
+    if (filename.empty() || filename.size() > kExportFilenameMaxBytes || !is_valid_utf8(filename) ||
+        filename == "." || filename == ".." || filename.back() == '.' || filename.back() == ' ')
+    {
+        return make_error(ErrorCode::kValidation, "Expanded export filename is invalid",
+                          {{"reason", "invalid_expanded_export_filename"},
+                           {"filename", filename},
+                           {"max_bytes", std::to_string(kExportFilenameMaxBytes)}});
+    }
+    for (const char raw_character : filename)
+    {
+        const auto character = static_cast<unsigned char>(raw_character);
+        if (character < 0x20U || character == 0x7fU || character == '/' || character == '\\' ||
+            character == ':' || character == '*' || character == '?' || character == '"' ||
+            character == '<' || character == '>' || character == '|')
+        {
+            return make_error(ErrorCode::kValidation, "Expanded export filename is not portable",
+                              {{"reason", "nonportable_export_filename"}, {"filename", filename}});
+        }
+    }
+    std::string device_name = filename.substr(0, filename.find('.'));
+    std::transform(device_name.begin(), device_name.end(), device_name.begin(),
+                   [](const unsigned char character)
+                   {
+                       return character >= 'a' && character <= 'z' ?
+                                  static_cast<char>(character - 'a' + 'A') :
+                                  static_cast<char>(character);
+                   });
+    static const std::set<std::string, std::less<>> reserved{
+        "CON",  "PRN",  "AUX",  "NUL",  "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+        "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"};
+    if (reserved.contains(device_name))
+    {
+        return make_error(ErrorCode::kValidation, "Expanded export filename is reserved",
+                          {{"reason", "reserved_export_filename"}, {"filename", filename}});
+    }
+    return filename;
+}
+
 std::string_view jpeg_subsampling_name(const JpegSubsampling subsampling) noexcept
 {
     switch (subsampling)
@@ -1078,6 +1254,19 @@ Result<void> validate_export_metadata(const ExportMetadataSnapshot &metadata,
     {
         return active.error();
     }
+    if (!metadata.embed_metadata)
+    {
+        const bool has_payload = !metadata.destination_document_name.empty() ||
+                                 metadata.writable != WritableMetadata{} ||
+                                 metadata.capture != CaptureMetadata{} || !metadata.tags.empty();
+        if (has_payload)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Disabled export metadata snapshot must not retain payload fields",
+                              {{"reason", "disabled_export_metadata_has_payload"}});
+        }
+        return {};
+    }
 
     const auto writable_reason = "invalid_export_metadata";
     for (const auto &[name, value] :
@@ -1219,6 +1408,161 @@ std::string asset_display_name(const AssetRecord &asset)
     return asset.normalized_uri.substr(slash + 1U);
 }
 
+namespace
+{
+
+[[nodiscard]] std::string ascii_fold(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](const unsigned char ch)
+                   {
+                       return ch >= 'A' && ch <= 'Z' ? static_cast<char>(ch - 'A' + 'a') :
+                                                       static_cast<char>(ch);
+                   });
+    return value;
+}
+
+[[nodiscard]] bool folded_contains(const std::string_view value, const std::string &folded_needle)
+{
+    return ascii_fold(std::string(value)).find(folded_needle) != std::string::npos;
+}
+
+[[nodiscard]] bool numeric_range_matches(const std::optional<double> value,
+                                         const LibraryNumericRange &range) noexcept
+{
+    if (!range.minimum && !range.maximum)
+        return true;
+    if (!value || !std::isfinite(*value))
+        return false;
+    return (!range.minimum || *value >= *range.minimum) &&
+           (!range.maximum || *value <= *range.maximum);
+}
+
+[[nodiscard]] Result<void> validate_library_range(const LibraryNumericRange &range,
+                                                  const std::string_view name, const bool positive)
+{
+    const auto invalid = [&](const std::optional<double> value)
+    { return value && (!std::isfinite(*value) || (positive && *value < 0.0)); };
+    if (invalid(range.minimum) || invalid(range.maximum) ||
+        (range.minimum && range.maximum && *range.minimum > *range.maximum))
+    {
+        return make_error(
+            ErrorCode::kValidation, "Library numeric filter range is invalid",
+            {{"field", std::string(name)}, {"reason", "invalid_library_filter_range"}});
+    }
+    return {};
+}
+
+[[nodiscard]] bool asset_text_matches(const AssetRecord &asset, const std::string &folded_needle)
+{
+    if (folded_needle.empty())
+        return true;
+    const auto optional_matches = [&](const std::optional<std::string> &value)
+    { return value && folded_contains(*value, folded_needle); };
+    if (folded_contains(asset_display_name(asset), folded_needle) ||
+        folded_contains(asset.normalized_uri, folded_needle) ||
+        folded_contains(asset.media_type, folded_needle) ||
+        optional_matches(asset.metadata.title) || optional_matches(asset.metadata.description) ||
+        optional_matches(asset.metadata.creator) || optional_matches(asset.metadata.copyright) ||
+        optional_matches(asset.capture.camera_make) || optional_matches(asset.capture.camera_model))
+        return true;
+    return std::any_of(asset.tags.begin(), asset.tags.end(),
+                       [&](const std::string &tag) { return folded_contains(tag, folded_needle); });
+}
+
+} // namespace
+
+Result<void> validate_library_query(const LibraryQuery &query)
+{
+    if (query.rating_value < 0 || query.rating_value > 5)
+    {
+        return make_error(ErrorCode::kValidation, "Library rating filter is outside 0 to 5",
+                          {{"field", "rating"}, {"reason", "invalid_library_rating_filter"}});
+    }
+    std::set<ColorLabel> labels;
+    for (const auto label : query.color_labels)
+    {
+        if (label == ColorLabel::kNone || !labels.insert(label).second)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Library color filters must be unique non-empty labels",
+                {{"field", "color_labels"}, {"reason", "invalid_library_color_filter"}});
+        }
+    }
+    constexpr std::size_t kMaxFilterText = 512U;
+    const auto validate_text = [&](const std::string &value,
+                                   const std::string_view field) -> Result<void>
+    {
+        if (value.size() > kMaxFilterText || value.find('\0') != std::string::npos ||
+            value.find('\n') != std::string::npos || value.find('\r') != std::string::npos)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Library text filter is invalid",
+                {{"field", std::string(field)}, {"reason", "invalid_library_text_filter"}});
+        }
+        return {};
+    };
+    for (const auto &[value, field] :
+         std::array<std::pair<const std::string *, std::string_view>, 4>{
+             std::pair{&query.folder_uri, std::string_view{"folder_uri"}},
+             std::pair{&query.tag, std::string_view{"tag"}},
+             std::pair{&query.text, std::string_view{"text"}},
+             std::pair{&query.camera, std::string_view{"camera"}}})
+    {
+        auto valid = validate_text(*value, field);
+        if (!valid)
+            return valid.error();
+    }
+    if (!query.tag.empty())
+    {
+        auto normalized = normalize_tag_name(query.tag);
+        if (!normalized || normalized.value() != query.tag)
+        {
+            return make_error(ErrorCode::kValidation, "Library tag filter is not canonical",
+                              {{"field", "tag"}, {"reason", "invalid_library_tag_filter"}});
+        }
+    }
+    if (query.media_types.size() > 32U)
+    {
+        return make_error(ErrorCode::kValidation, "Library media filter is too large",
+                          {{"field", "media_types"}, {"reason", "invalid_library_media_filter"}});
+    }
+    std::set<std::string, std::less<>> media;
+    for (const auto &type : query.media_types)
+    {
+        auto valid = validate_text(type, "media_types");
+        if (!valid)
+            return valid.error();
+        if (type.empty() || !media.insert(type).second)
+        {
+            return make_error(
+                ErrorCode::kValidation, "Library media filters must be unique and non-empty",
+                {{"field", "media_types"}, {"reason", "invalid_library_media_filter"}});
+        }
+    }
+    for (const auto &[range, name] :
+         std::array<std::pair<const LibraryNumericRange *, std::string_view>, 5>{
+             std::pair{&query.iso, std::string_view{"iso"}},
+             std::pair{&query.aperture, std::string_view{"aperture"}},
+             std::pair{&query.focal_length_mm, std::string_view{"focal_length_mm"}},
+             std::pair{&query.shutter_s, std::string_view{"shutter_s"}},
+             std::pair{&query.aspect_ratio, std::string_view{"aspect_ratio"}}})
+    {
+        auto valid = validate_library_range(*range, name, true);
+        if (!valid)
+            return valid.error();
+    }
+    const auto invalid_time = [](const auto &after, const auto &before)
+    { return after && before && *after > *before; };
+    if (invalid_time(query.imported_after_unix_ms, query.imported_before_unix_ms) ||
+        invalid_time(query.captured_after_unix_s, query.captured_before_unix_s))
+    {
+        return make_error(ErrorCode::kValidation, "Library time filter range is invalid",
+                          {{"reason", "invalid_library_time_filter"}});
+    }
+    return {};
+}
+
 bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
 {
     switch (query.rating_mode)
@@ -1277,6 +1621,46 @@ bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
         {
             return false;
         }
+    }
+    if (!query.text.empty() && !asset_text_matches(asset, ascii_fold(query.text)))
+        return false;
+    if (!query.media_types.empty() && std::find(query.media_types.begin(), query.media_types.end(),
+                                                asset.media_type) == query.media_types.end())
+        return false;
+    if ((query.edit_filter == EditFilter::kEdited && !asset.has_edits) ||
+        (query.edit_filter == EditFilter::kUnedited && asset.has_edits))
+        return false;
+    if (!query.camera.empty())
+    {
+        const std::string needle = ascii_fold(query.camera);
+        const bool make =
+            asset.capture.camera_make && folded_contains(*asset.capture.camera_make, needle);
+        const bool model =
+            asset.capture.camera_model && folded_contains(*asset.capture.camera_model, needle);
+        if (!make && !model)
+            return false;
+    }
+    if (!numeric_range_matches(asset.capture.iso, query.iso) ||
+        !numeric_range_matches(asset.capture.aperture, query.aperture) ||
+        !numeric_range_matches(asset.capture.focal_length_mm, query.focal_length_mm) ||
+        !numeric_range_matches(asset.capture.shutter_s, query.shutter_s))
+        return false;
+    std::optional<double> ratio;
+    if (asset.width && asset.height && *asset.height != 0U)
+        ratio = static_cast<double>(*asset.width) / static_cast<double>(*asset.height);
+    if (!numeric_range_matches(ratio, query.aspect_ratio))
+        return false;
+    if ((query.imported_after_unix_ms && asset.created_unix_ms < *query.imported_after_unix_ms) ||
+        (query.imported_before_unix_ms && asset.created_unix_ms > *query.imported_before_unix_ms))
+        return false;
+    if (query.captured_after_unix_s || query.captured_before_unix_s)
+    {
+        if (!asset.capture.captured_unix_s ||
+            (query.captured_after_unix_s &&
+             *asset.capture.captured_unix_s < *query.captured_after_unix_s) ||
+            (query.captured_before_unix_s &&
+             *asset.capture.captured_unix_s > *query.captured_before_unix_s))
+            return false;
     }
     return true;
 }
@@ -1472,6 +1856,12 @@ std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
     std::sort(assets.begin(), assets.end(),
               [&query](const AssetRecord &left, const AssetRecord &right)
               {
+                  if (query.sort_field == AssetSortField::kCaptureTime &&
+                      left.capture.captured_unix_s.has_value() !=
+                          right.capture.captured_unix_s.has_value())
+                  {
+                      return left.capture.captured_unix_s.has_value();
+                  }
                   int comparison = 0;
                   switch (query.sort_field)
                   {
@@ -1485,11 +1875,26 @@ std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
                           comparison = 1;
                       }
                       break;
+                  case AssetSortField::kCaptureTime:
+                      if (left.capture.captured_unix_s && right.capture.captured_unix_s)
+                      {
+                          if (*left.capture.captured_unix_s < *right.capture.captured_unix_s)
+                              comparison = -1;
+                          else if (*left.capture.captured_unix_s > *right.capture.captured_unix_s)
+                              comparison = 1;
+                      }
+                      break;
                   case AssetSortField::kDisplayName:
                       comparison = asset_display_name(left).compare(asset_display_name(right));
                       break;
                   case AssetSortField::kRating:
                       comparison = left.review.rating - right.review.rating;
+                      break;
+                  case AssetSortField::kFileSize:
+                      if (left.size_bytes < right.size_bytes)
+                          comparison = -1;
+                      else if (left.size_bytes > right.size_bytes)
+                          comparison = 1;
                       break;
                   }
                   if (comparison == 0)

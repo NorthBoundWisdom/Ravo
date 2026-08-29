@@ -2966,74 +2966,6 @@ flip(read_only image2d_t in,
   }
 }
 
-float
-envelope(const float L)
-{
-  const float x = clipf(L/100.0f);
-  // const float alpha = 2.0f;
-  const float beta = 0.6f;
-  if(x < beta)
-  {
-    // return 1.0f-fabsf(x/beta-1.0f)^2
-    const float tmp = fabs(x/beta-1.0f);
-    return 1.0f-tmp*tmp;
-  }
-  else
-  {
-    const float tmp1 = (1.0f-x)/(1.0f-beta);
-    const float tmp2 = tmp1*tmp1;
-    const float tmp3 = tmp2*tmp1;
-    return 3.0f*tmp2 - 2.0f*tmp3;
-  }
-}
-
-/* kernel for monochrome */
-kernel void
-monochrome_filter(read_only image2d_t in,
-                  write_only image2d_t out,
-                  const int width,
-                  const int height,
-                  const float a,
-                  const float b,
-                  const float size)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x >= width || y >= height) return;
-
-  float4 pixel = readpixel(in, x, y);
-  // TODO: this could be a native_expf, or exp2f, need to evaluate comparisons with cpu though:
-  pixel.x = 100.0f*dt_fast_expf(-clipf((fsquare(pixel.y - a) + fsquare(pixel.z - b)) / (2.0f * size)));
-  write_imagef (out, (int2)(x, y), pixel);
-}
-
-kernel void
-monochrome(read_only image2d_t in,
-           read_only image2d_t base,
-           write_only image2d_t out,
-           const int width,
-           const int height,
-           const float a,
-           const float b,
-           const float size,
-           float highlights)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x >= width || y >= height) return;
-
-  float4 pixel = readpixel(in, x, y);
-  float4 basep = readpixel(base, x, y);
-  float filter  = dt_fast_expf(-clipf((fsquare(pixel.y - a) + fsquare(pixel.z - b)) / (2.0f * size)));
-  float tt = envelope(pixel.x);
-  float t  = tt + (1.0f-tt)*(1.0f-highlights);
-  pixel.x = mix(pixel.x, pixel.x*basep.x/100.0f, t);
-  pixel.y = pixel.z = 0.0f;
-  write_imagef (out, (int2)(x, y), pixel);
-}
-
 /* kernel for the plugin colorout, fast matrix + shaper path only */
 kernel void
 colorout (read_only image2d_t in,
@@ -3118,69 +3050,6 @@ levels (read_only image2d_t in,
   write_imagef (out, (int2)(x, y), pixel);
 }
 
-/* kernel for the colorzones plugin */
-enum
-{
-  DT_IOP_COLORZONES_L = 0,
-  DT_IOP_COLORZONES_C = 1,
-  DT_IOP_COLORZONES_h = 2
-};
-
-
-kernel void
-colorzones_v3 (read_only image2d_t in,
-               write_only image2d_t out,
-               const int width,
-               const int height,
-               const int channel,
-               read_only image2d_t table_L,
-               read_only image2d_t table_a,
-               read_only image2d_t table_b)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x >= width || y >= height) return;
-
-  float4 pixel = readpixel(in, x, y);
-
-  const float a = pixel.y;
-  const float b = pixel.z;
-  const float h = fmod(atan2(b, a) + DT_2PI_F, DT_2PI_F) / DT_2PI_F;
-  const float C = dt_fast_hypot(b, a);
-
-  float select = 0.0f;
-  float blend = 0.0f;
-
-  switch(channel)
-  {
-    case DT_IOP_COLORZONES_L:
-      select = fmin(1.0f, pixel.x/100.0f);
-      break;
-    case DT_IOP_COLORZONES_C:
-      select = fmin(1.0f, C/128.0f);
-      break;
-    default:
-    case DT_IOP_COLORZONES_h:
-      select = h;
-      blend = fsquare(1.0f - C/128.0f);
-      break;
-  }
-
-  const float Lm = (blend * 0.5f + (1.0f-blend)*lookup(table_L, select)) - 0.5f;
-  const float hm = (blend * 0.5f + (1.0f-blend)*lookup(table_b, select)) - 0.5f;
-  blend *= blend; // saturation isn't as prone to artifacts:
-  // const float Cm = 2.0f* (blend*0.5f + (1.0f-blend)*lookup(d->lut[1], select));
-  const float Cm = 2.0f * lookup(table_a, select);
-  const float L = pixel.x * dtcl_pow(2.0f, 4.0f*Lm);
-
-  pixel.x = L;
-  pixel.y = dtcl_cos(DT_2PI_F*(h + hm)) * Cm * C;
-  pixel.z = dtcl_sin(DT_2PI_F*(h + hm)) * Cm * C;
-
-  write_imagef (out, (int2)(x, y), pixel);
-}
-
 /* kernel for the zonesystem plugin */
 kernel void
 zonesystem (read_only image2d_t in,
@@ -3206,29 +3075,6 @@ zonesystem (read_only image2d_t in,
 
   write_imagef (out, (int2)(x, y), pixel);
 }
-
-
-
-
-/* kernel to fill an image with a color (for the borders plugin). */
-kernel void
-borders_fill (write_only image2d_t out,
-              const int left,
-              const int top,
-              const int width,
-              const int height,
-              const float4 color)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x < left || y < top) return;
-  if(x >= width + left || y >= height + top) return;
-
-  write_imagef (out, (int2)(x, y), color);
-}
-
-
 /* kernel for the overexposed plugin. */
 typedef enum dt_clipping_preview_mode_t
 {

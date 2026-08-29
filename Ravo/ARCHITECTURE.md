@@ -90,16 +90,19 @@ second table of IDs, titles, shortcuts, or enablement.
 Desktop localization is likewise presentation-only. The desktop-owned language
 manager selects only en_US or zh_CN, persists that UI preference locally, and
 owns the QTranslator lifetime. It installs a verified candidate before
-discarding the prior translator, then asks the QML engine and command controller
-to retranslate. Source TS catalogs and the Chinese translation memory are
-repository assets; CMake validates and compiles them to build-local QM files,
-which are the only files deployed with Studio. Missing Chinese artifacts are
-reported and leave the active language unchanged; no catalog, service, task, or
-engine state is translated or altered.
+discarding the prior translator, synchronously persists a normalized value,
+then asks the QML engine and command controller to retranslate. A malformed
+stored value is removed and falls back to English; a package or settings-write
+failure is reported and leaves active state unchanged. Source TS catalogs and
+the Chinese translation memory are repository assets; CMake validates and
+compiles them to build-local QM files, which are the only files deployed with
+Studio. This is the only persistent Studio preference: view controls remain
+session state, and catalog, service, recipe, export, task, and engine values
+stay in typed owning contracts. No old configuration key is read (ADR-0066).
 
 Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
-1600px processed preview merely for a selected grid item; histogram and parade
-are calculated from that thumbnail. Loupe/develop requests full decode. On
+1600px processed preview merely for a selected grid item; all scopes are
+calculated from that thumbnail. Loupe/develop requests full decode. On
 open/import, presenters seed ready cache paths from the preview table so grid
 delegates do not saturate a single-thread queue. The Library panel separately
 shows import and preview-build progress. After system file/folder selection,
@@ -110,6 +113,21 @@ Grid cells fit available width in the 120–320 range and have a vertical scroll
 bar. `positionViewAtIndex` runs only when the selected item leaves the
 viewport. C++ passes `--catalog <library.sqlite>` to the presenter; QML opens
 it at session start rather than a default library.
+
+Library filtering is a value boundary, not UI-built SQL. `LibraryQuery` owns
+validated review, folder/tag, text/media/edit, camera/capture/numeric ranges
+and stable sort state; CatalogService rejects an invalid query before loading
+and delegates matching/sorting to domain. Studio keeps only the active query,
+reloads the visible model through the service, and forwards changes through
+the command registry. It intentionally records no recent-query history. QML
+never sees catalog columns or legacy rule strings.
+
+Reusable style/preset state reuses Recipe rather than introducing another
+parameter model. A RecipeStyle replaces the asset with a fixed template
+identity; application restores only the target identity and then enters the
+same Engine validation, Develop, Catalog history, undo, preview, and export
+lifecycle. Filesystem adapters own bounded reads and complete writes; QML only
+opens save/open dialogs and forwards paths.
 
 Develop preview is bounded and coalesced: at most one render is in flight, plus
 one recipe waiting to save and one preview request waiting. A new revision
@@ -203,8 +221,15 @@ RGB8 thumbnail. A recognized raster error never becomes a RAW inspect except
 Preview cache is atomically written outside the database, keyed by source
 fingerprint, target dimensions, and contract version. A cached PNG without the
 8-byte PNG signature is a miss and is deleted. Corrupt or missing cache
-rebuilds from the read-only source. `CatalogService::close` drops repository,
-raster, cache, and decoded RAW/working buffers.
+rebuilds from the read-only source. The filesystem adapter serializes access
+and owns a 512 MiB hard byte budget. Valid hits refresh persistent access time;
+startup orders that time and key deterministically, and commits evict the
+least-recently-used PNGs before atomic publication. Database preview rows are
+hints and may outlive eviction. Single entries above budget and real directory,
+measurement, timestamp, or removal errors fail structurally. Catalog checks
+cancellation after encode and before commit. `CatalogService::close` drops the
+repository, raster, cache index, and decoded RAW/working buffers while bounded
+disk entries remain available to reopen (ADR-0067).
 
 Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
@@ -276,8 +301,11 @@ state or mask mathematics.
 The engine-private evaluator accepts full attached-input dimensions plus an
 explicit ROI and borrowed input/optional operation-output RGB planes. Pixel
 centres are normalized in that full frame, so independently evaluated tiles
-join exactly; geometry operations naturally establish the next operation's
-attached input frame. It owns only an alpha result and depth-first group
+join exactly. Canvas may additionally attach an immutable photo-content
+subframe: evaluation runs against that original content rectangle and pads the
+added area with alpha zero. Attached-subframe evaluation is currently
+full-frame only; a sub-ROI rejects rather than translating coordinates
+implicitly. It owns only an alpha result and depth-first group
 accumulator/child scratch through RAII; stored and expanded graph-work limits
 bound shared-DAG recomputation. Invalid ROI/stride/sample count,
 non-finite values, missing parametric operation output, cancellation, overflow,
@@ -310,13 +338,24 @@ is an explicit C mode; Inspector forwards points and recipe/engine evaluates.
 The lightweight P1 global controls do not stand in for the later full-module
 migration queue. Contrast, Saturation, and Vibrance use the darktable basic-
 adjustments CPU response;
-Lab-backed controls share the engine's D50 working conversion; and hidden
-Sharpen, Grain, Vignette, Bloom, and Soften defaults use the corresponding
-source parameters. Studio presents darktable-equivalent soft ranges while
-recipe validation retains the explicit hard bounds. Full `shadhi`, `gamma`,
-`sharpen`, `grain`, `vignette`, `bloom`, `soften`, and
-`hazeremoval` capability acceptance remains governed by the root migration
-queue rather than inferred from these global controls.
+Lab-backed controls share the engine's D50 working conversion; hidden Grain,
+Vignette, Bloom, and Soften defaults use the corresponding source parameters,
+while Sharpen is now independently accepted below. Studio presents
+darktable-equivalent soft ranges while recipe validation retains the explicit
+hard bounds. Full `shadhi`, `gamma`, `grain`, `vignette`, `bloom`, and `soften`
+capability acceptance remains governed by the root migration queue rather than
+inferred from these global controls. Dehaze is independently accepted below.
+
+`ravo.repair.retouch` is the first operation with an ordered set of internal
+mask attachments rather than one operation-level blend mask. Recipe owns the
+region array and canonical leaf references; engine evaluates each leaf and
+publishes clone/heal/blur/fill results sequentially on an owned working image.
+Normalized source points are converted against the attached frame, while
+à-trous original/detail/residual layers and merge state remain engine-private.
+Services persist and schedule the immutable recipe, and Studio forwards only
+bounded add/remove intents through the command controller. No QML pixel math,
+legacy form pointer, preview-pipe cache, or global repair state crosses this
+boundary.
 
 `ravo.core.exposure` v2 owns the frozen legacy exposure CPU contract. Manual
 mode resolves optional camera metadata into
@@ -421,7 +460,33 @@ depends only on input/working state. The engine PNG writer and Qt raster adapter
 embed the same state or fail before publication. Studio attaches it to QImage
 and only presents engine-computed soft-proof/gamut pixels.
 
-Final RGB8 packing is a private engine boundary after output colour. It accepts
+`ravo.geometry.canvas` v1 grows the linear Rec.709 working buffer before later
+colour/effect operations. Its frozen integer placement owns four percentage
+extents, five opaque fill colours, dimension caps, and the attached photo
+content frame used by masks and Retouch. Nested Canvas, Canvas masks, attached
+sub-ROI evaluation, and enabled geometry after Canvas reject explicitly; G1/G4/
+G6 must supply a composed transform before that ordering is accepted.
+
+`ravo.output.dither` v1 consumes profiled encoded RGB immediately after Output
+Color. Random TEA, source-order Floyd–Steinberg, posterize, and target-aware auto
+remain engine-private and run before packing. `ravo.output.frame` v1 then owns
+the final encoded-output dimensions, border/aspect/orientation/basis/position,
+and optional line. It pads preview overlays to the same final layout and
+retains the exact output profile. Encoders receive one already framed pixel
+product and do not repeat layout mathematics. Both stages validate finite
+input, memory bounds, and cancellation before publication.
+
+`ravo.output.watermark` v1 is the final encoded-output operation after Frame.
+Recipe owns bounded text and placement state; the engine expands only source
+stem/asset ID, evaluates the compiled 5×7 glyph table, samples deterministic
+four-point coverage, rotates about the watermark centre, and alpha-composites
+onto its owned profiled float buffer. No filesystem resource, host font,
+metadata service, Qt/Pango glyph object, or mutable configuration state crosses
+the boundary. Unsupported characters/tokens and the legacy missing-resource
+record fail instead of producing an invisible edit.
+
+Final RGB8 packing is a private engine boundary after output colour, optional
+dither, optional frame, and optional watermark. It accepts
 only finite profiled float RGB, clamps negative values, multiplies by 255,
 rounds, clamps super-white, and publishes an owned RGB-order `RenderedImage`
 with the exact `ColorProfileState`; it performs no additional transfer curve.
@@ -546,8 +611,9 @@ history position only names the instance. Every unsupported version, disabled,
 duplicate, mask, custom blend, multi/name/priority, unknown, malformed, or
 non-finite state rejects structurally. Studio exposes the five numeric intents,
 not the old GTK 2D plane/picker, three presets, blend UI, or OpenCL path. Shared
-`basic.cl`, order/modulegroup/usermanual names, example style, and pixmap remain
-D0.3/D0.4 or later cleanup owners. [ADR-0029](docs/adr/0029-colorcorrection-contract.md)
+`basic.cl`, order/modulegroup/usermanual names, and pixmap remain D0.3/D0.4 or
+later cleanup owners. Bundled `.dtstyle` examples are retired by ADR-0072.
+[ADR-0029](docs/adr/0029-colorcorrection-contract.md)
 freezes this boundary.
 
 `ravo.color.colorcontrast` v2 is the independent frozen Color Contrast owner.
@@ -652,6 +718,102 @@ authorize C15. The frozen `iop/colorharmonizer.c` owner is retired.
 extends it with the first product surface; [ADR-0042](docs/adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
 accepts canonical positive smoothing.
 
+`ravo.color.colorzones` v1 is an optional D50 Lab/LCh curve owner, distinct
+from the default dt-UCS Color Equalizer. Recipe owns one selection axis plus
+three independent ordered curves and interpolation types. Engine owns their
+source-quantized 65,536-entry LUTs, periodic hue geometry, low-chroma blend,
+Lab formula, normal-mask dispatch, cancellation, and 768 KiB LUT resource
+term. Studio's eight-band view is a bounded editor projection; custom canonical
+nodes and attached masks remain immutable unless an owner capable of editing
+their full graph is used.
+
+`ravo.color.monochrome` v2 owns the creative Lab colour-filter path. It creates
+a source-fast-exp filter plane from a*/b*, runs the engine-private shared
+bilateral lightness grid at canonical original-pixel scale, applies the frozen
+lightness envelope/highlight blend, clears chroma, and optionally mixes in Lab.
+Retouch and Monochrome call the same bilateral primitive; mask dispatch,
+cancellation, finite checks, and resource estimates remain outer-engine
+contracts. Camera monochrome flags and demosaic passthrough are unrelated
+source-workflow state.
+
+`ravo.color.splittoning` v2 consumes linear Rec.709 through the engine-private
+shared HSL value helpers. Its shadow/highlight hue+saturation, balance pivot,
+compression band, and mix remain canonical state; row processing owns the
+frozen HSL lightness preservation and clamp order. Masks and publication use
+the same outer dispatcher as other accepted creative colour operations.
+
+`ravo.color.colorreconstruct` v1 is the post-demosaic highlight-colour owner.
+Its exact schema declares `working_space=lab_d50`,
+`algorithm=bilateral_grid_v3`, threshold, spatial/range extent, normalized hue,
+and none/chroma/hue precedence. Develop places it immediately before Output
+Color. The engine therefore receives the explicit linear-Rec709 compatibility
+working state, converts privately through the accepted D50 Lab bridge, and
+retains the input profile on the separately owned result.
+
+The CPU path sees the complete attached frame. It splats only samples at or
+below threshold into the bounded 3D grid, applies the frozen in-place five-tap
+blur in x/y/lightness order, and trilinearly slices replacement a*/b* through
+the frozen 95%-threshold blend ramp while preserving L*. Spatial extent is in
+original-input pixels and consumes `CanonicalRoiScale`; unknown or
+non-proportional scale rejects instead of guessing or evaluating a local tile.
+The RAW preflight accounts for the one owned grid next to the ordinary working
+buffers. Splat-row, blur-line, slice-row, and pre-publication cancellation,
+invalid dimensions/buffer/profile/scale, non-finite samples, overflow, and
+allocation return a structured failure without changing the borrowed input.
+
+The strict XMP adapter accepts only the one evidenced 0052 enabled-v3,
+priority-zero, unnamed, default-unmasked singleton and exact built-in RAW blend
+tuples in that document. Studio exposes the same threshold, spatial/range,
+hue, and precedence values through the existing revisioned Develop task path.
+No GTK preview-grid cache, historic blend graph, tile-local approximation, or
+OpenCL owner enters Ravo. [ADR-0055](docs/adr/0055-colorreconstruction-bilateral-grid-contract.md)
+freezes these boundaries.
+
+`ravo.detail.sharpen` schema v2 is the accepted scale-aware D50 Lab L* USM.
+The explicit schema fixes `working_space=lab_d50`,
+`algorithm=separable_gaussian_usm_v1`, radius, amount, and threshold. Current
+Ravo schema-v1 values upgrade to v2 in one recipe owner; the former approximate
+whole-plane RGB implementation has no compatibility runtime. Canonical Develop
+places the operation before effects/geometry/display packing and both CLI and
+Studio forward the same three numeric intents.
+
+The engine-private owner narrows parameters once, multiplies radius by 2.5,
+scales it by current/original pixel density, and caps only the convolution
+support at 12. The requested radius continues to control the truncated Gaussian
+sigma. A complete Lab plane and row scratch preserve source-order vertical then
+horizontal convolution; only L* receives the signed, threshold-subtracted
+detail, while a*/b* and kernel-width borders remain unchanged. Invalid scale is
+explicit for a positive radius. Input/output conversion rows, both convolution
+stages, and pre-publication are cancellable; all failure paths retain the
+borrowed input and publish no partial output. RAW memory preflight includes the
+Lab plane, row, and bounded kernel. Strict import accepts only the three
+evidenced enabled-v1 singleton records with their exact v9/v11 default-unmasked
+blends. Demosaic capture sharpening in fixture 0171 is a separate R2/S2 owner.
+[ADR-0056](docs/adr/0056-source-exact-lab-sharpen.md) freezes these boundaries.
+
+`ravo.effect.dehaze` schema v2 is a RAW source-preprocess operation with
+`working_space=source_linear_rgb`, `algorithm=dark_channel_guided_v4`,
+strength, distance, and adaptive window state. It executes after demosaic and
+before profile-gamma/Input Color on the declared camera-matrix RGB buffer.
+`linear_working_from_raw` applies it once, RAW preprocess/cache identity owns
+every parameter, and both engine and services disable it before ordinary RGB
+recipe dispatch. Encoded raster and a caller that tries to run it on an
+already-converted working buffer fail structurally.
+
+The CPU owner computes full-frame dark-channel min windows, deterministic 95%
+hazy/bright quantiles, ambient RGB and characteristic haze distance. It then
+uses max/min transition windows and a private S2 RGB guided filter: 512-pixel
+tiles, rounded `3*w` overlap, source-order Kahan box means, all RGB covariance
+terms, Cramer's-rule coefficients, and the frozen singular fallback. Adaptive
+window radii consume canonical current/original scale; non-adaptive keeps
+full-scale radii. Complete transition planes and bounded tile statistics enter
+RAW memory preflight. Dark-channel, selection, transition, guided statistics/
+solve, output and prepublication checkpoints share the render cancellation
+token; every invalid ambient/profile/scale/buffer/non-finite/allocation path
+publishes no output. The generic old guided-filter owner remains frozen for
+other unaccepted consumers. [ADR-0057](docs/adr/0057-source-linear-dark-channel-dehaze.md)
+freezes these boundaries.
+
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked
 buffer must not implicitly select colour strategy. See
@@ -695,6 +857,11 @@ assemble the same services, ports, and adapters.
   returns failure; it must not display partial output.
 - Originals stay read-only. Database and previews become visible only after
   transaction or atomic publication succeeds.
+- Explicit capture refresh reads one source generation and publishes asset
+  identity, capture row, and revision in one repository transaction. Export
+  privacy is a typed request: location removal happens before the prepared
+  metadata boundary, while disabled metadata reaches encoders only as an empty
+  snapshot; ICC remains part of pixel color state.
 
 ## Desktop boundary
 
@@ -708,8 +875,10 @@ The Ravo Studio first version owns:
   tag filter, and Import/Export; Edit's left rail is the selected photo's
   recipe history and snapshots. Clicking a step previews that recipe and dims
   newer rows; a subsequent parameter edit discards the dimmed rows;
-- shared scopes above the right Gallery/Edit panel: frozen-C 256-bin RGB
-  histogram (linear Y) and RGB-parade component plot;
+- shared scopes above the right Gallery/Edit panel: frozen 256-bin RGB
+  Histogram, overlaid Waveform, RGB Parade, fixed linear D50 CIE u*v*
+  Vectorscope, and Waveform/Vectorscope Split. Engine owns pixels; QML owns
+  only grids and selection;
 - progress, cancellation, and recoverable-error presentation;
 - window, focus, keyboard, HiDPI, and basic accessibility.
 
@@ -744,7 +913,7 @@ which creates an exclusive adjacent temporary, synchronizes it, and atomically
 publishes with no replacement. Existing or racing targets win. The service
 copies exact media bytes only: it neither mutates the source nor creates XMP or
 inherits source mode, timestamps, or xattrs. Stable cancellation and I/O errors
-identify both paths; I14 retains path-template, batch, and storage policy.
+identify both paths.
 
 Encoded pixel output uses the same private destination primitives without
 entering the original-copy source stream. A complete immutable byte vector is
@@ -753,9 +922,14 @@ synchronized, closed, and atomically moved with no replacement; an empty vector
 publishes an exact empty file. Existing, symlink, non-regular, or racing targets
 win, and stable cancellation or I/O failures identify the output and stage.
 The legacy-compatible `path` context remains alongside the explicit `output`.
-This boundary does not synchronize the parent directory or own codec metadata,
-path templates, batch scheduling, storage collision policy, or sidecars. See
-[ADR-0032](docs/adr/0032-encoded-byte-publication-contract.md).
+This primitive does not synchronize the parent directory or own codec metadata,
+path templates, batch scheduling, or sidecars. CatalogService owns the higher
+I14 batch policy: strict flat `{stem}`/`{asset_id}`/`{sequence}`/`{ext}`
+expansion, complete known-conflict preflight, ordered calls to the same
+no-replace item owner, and explicit non-rollback partial-delivery context.
+CLI and Studio project that contract without expanding paths themselves. See
+[ADR-0032](docs/adr/0032-encoded-byte-publication-contract.md) and
+[ADR-0068](docs/adr/0068-typed-batch-export-storage.md).
 
 ## Current non-goals
 
@@ -770,14 +944,14 @@ path templates, batch scheduling, storage collision policy, or sidecars. See
   requests to engine-owned RGB16 or finite RGB float; JPEG/PNG8/TIFF uint8
   stay on RGB8. Rendered JPEG/PNG/TIFF embed the ADR-0038 Catalog-owned public
   metadata snapshot before publication, including validated capture time,
-  source UTC offset, and GPS from Catalog schema v5. XMP
-  attach/history/sidecar policy, metadata refresh, privacy stripping, TIFF
-  multipage masks, path-template and batch/storage policy, and old export
-  presets remain out of scope. Studio
-  now collects one explicit format plus the matching typed options before the
-  native save dialog; it does not infer format from a localized filter.
-- The first version does not implement full history/styles, historic blend
-  modes, every operation, or old-catalog migration.
+  source UTC offset, and GPS from Catalog schema v5. Explicit source metadata
+  refresh, privacy stripping, no-automatic-sidecar policy, recipe styles, and
+  typed batch/path-template storage are accepted. TIFF multipage masks and
+  shared old export consumers remain out of scope. Studio collects one explicit
+  format plus matching typed options before the native file/folder dialog; it
+  does not infer format from a localized filter.
+- The first version does not implement every historic blend/operation or
+  old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex
   query language without consumers.

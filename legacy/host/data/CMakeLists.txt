@@ -1,18 +1,9 @@
 add_subdirectory(pixmaps ${DARKTABLE_DATADIR}/pixmaps)
-add_subdirectory(styles ${DARKTABLE_DATADIR}/styles)
-
 add_subdirectory(kernels ${DARKTABLE_DATADIR}/kernels)
 
 FILE(GLOB THEME_FILES "themes/*.css")
 FILE(COPY ${THEME_FILES} DESTINATION "${DARKTABLE_DATADIR}/themes")
 install(FILES ${THEME_FILES} DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable/themes COMPONENT DTApplication)
-
-#
-# Install watermarks
-#
-FILE(GLOB WATERMARKS "watermarks/*.svg")
-FILE(COPY ${WATERMARKS} DESTINATION "${DARKTABLE_DATADIR}/watermarks")
-install(FILES ${WATERMARKS} DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/darktable/watermarks COMPONENT DTApplication)
 
 #
 # Install the default shortcuts with extra key+mouse combinations.

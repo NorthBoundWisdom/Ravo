@@ -5,7 +5,7 @@
 Make non-destructive edits to a selected photo, inspect their effect, and keep
 or recover the result through the catalog recipe and history.
 
-**Last verified:** 2026-08-28 against the current Develop recipe and Studio
+**Last verified:** 2026-08-29 against the current Develop recipe and Studio
 presenter contracts.
 
 ## Applies to
@@ -52,9 +52,16 @@ action; each section can also be reset from its section menu.
 - Drag the crop frame to crop.
 - Drag outside the crop frame, or use Option/Alt-drag, to straighten.
 - Set the straighten angle between −45 and +45 degrees.
+- Enable **Canvas** and set independent left, right, top, and bottom growth from
+  0 through 100 percent, using Green, Red, Blue, Black, or White fill.
 
 Crop and straighten values are normalized recipe coordinates. The crop overlay
 is a preview aid; commit the frame to store the change.
+
+Canvas keeps masks and Retouch coordinates attached to the original photo and
+does not select the added area. A recipe that enables rotate, flip, straighten,
+crop, or lens geometry after Canvas currently reports an explicit unsupported
+composition instead of applying stale coordinates.
 
 ### Input Profile
 
@@ -153,8 +160,26 @@ The Color section currently exposes:
   four custom hues, four node saturations, and smoothing from 0 through 2.
   The engine applies positive smoothing through its canonical working-image
   scale and private recursive path.
-- Monochrome and split-toning controls for amount, shadow/highlight hue, and
-  balance.
+- **Color Reconstruction**, with an enable switch, none/saturated-color/hue
+  precedence, highlight threshold, spatial and lightness range extents, and a
+  hue selector when hue precedence is active. It propagates surrounding D50
+  Lab colour through a full-frame bilateral grid immediately before Output
+  Color. A non-proportional preview fails explicitly instead of using a
+  tile-local approximation.
+- **Color Zones**, an optional D50 Lab editor separate from the default Color
+  Equalizer. Choose lightness, chroma, or hue as the selection axis; edit the
+  current band's lightness/chroma/hue curves, choose cubic, Catmull–Rom, or
+  monotone interpolation for each curve, and set mix strength. Imported custom
+  2–20-node curves and masks remain visible/read-only in the eight-band Studio
+  projection so ordinary edits do not reshape them.
+- **Monochrome**, with a D50 Lab a*/b* virtual colour filter, filter size,
+  highlight preservation, and mix. It uses a scale-aware bilateral base before
+  neutral output; it is not a simple saturation slider. Imported canonical
+  masks remain preserved/read-only in this panel.
+- **Split Toning**, with independent shadow/highlight hue and saturation,
+  balance pivot, midtone compression, and mix. It preserves HSL lightness while
+  blending the selected endpoint outside the compressed midtone band. Imported
+  canonical masks remain preserved/read-only in this panel.
 
 The two Color Balance paths are separate operations. Ravo does not treat one as
 an automatic fallback or alias for the other.
@@ -187,10 +212,47 @@ created. Use the operation's enable/reset control separately when needed.
 
 The current pane exposes:
 
-- **Detail**: Sharpen, Radius, Clarity, and Grain.
-- **Effects**: Vignette, Bloom, Soften, and Dehaze.
+- **Detail**: Sharpen, Radius, Threshold, Retouch, Clarity, and Grain. Sharpen applies a
+  scale-aware separable unsharp mask to D50 Lab lightness only; Radius uses a
+  0–8 Studio working range while versioned recipes retain the full 0–99 source
+  range. Borders and chroma remain unchanged. Retouch adds ordered circle
+  regions for Clone, Heal, Gaussian/Bilateral Blur, or Erase/Color Fill. Target
+  position, radius/feather/opacity, clone/heal source position, blur radius,
+  fill color, and fill brightness are explicit. Remove deletes that region;
+  reset of the Detail section removes all Retouch regions.
+- **Effects**: Vignette, Bloom, Soften, Dehaze, Output Dither / Posterize,
+  Output Frame, and Text Watermark. Dehaze exposes Strength, Distance, and
+  adaptive window scaling. It runs on source-linear RAW using
+  dark-channel ambient/depth estimation and a guided transmission filter;
+  encoded raster input returns an explicit unsupported result. Output Dither
+  runs after Output Color and offers deterministic random noise, all supported
+  Floyd–Steinberg bit-depth/gray/RGB modes, and 2–8-level posterization. Auto
+  applies Floyd–Steinberg only to integer export targets; preview and float
+  output are range-clipped without automatic diffusion. Random damping is in
+  dB, and **Reset output dither** removes the explicit operation. Output Frame
+  runs after Dither and exposes orientation, dimension basis, constant/image/
+  custom aspect, size, horizontal and vertical image position, border colour,
+  plus optional line size, offset, and colour. It is visible in preview and is
+  part of JPEG, PNG, and TIFF export dimensions. Text Watermark runs after the
+  frame and uses a portable fixed 5×7 font. Set its text, colour, opacity,
+  short-side height, rotation, alignment, and offsets. `{stem}` and
+  `{asset_id}` expand from the current recipe source; unsupported characters or
+  tokens fail explicitly.
 
 Use the reset button beside a control when you want to remove only that effect.
+
+## Reuse edits as a Recipe Style
+
+Use **File → Save Edits as Style…** to write the selected photo's complete
+canonical edit state to `.rstyle.json`. The artifact includes operation order,
+profiles, masks, Retouch regions, and section bypass state, but not the source
+asset identity. Use **File → Apply Recipe Style…** on another selected photo to
+replace its current edit recipe; the result enters normal history and can be
+undone during the session.
+
+Ravo validates the complete template before applying it. Legacy `.dtstyle`
+files are not partially imported because their dynamic IOP parameters may not
+have accepted Ravo equivalents.
 
 ### RAW Repair / Denoise / Lens
 

@@ -11,10 +11,13 @@
 #include <variant>
 
 #include "capability_ops.h"
+#include "canvas_frame.h"
+#include "dehaze.h"
 #include "image_ops.h"
 #include "input_color.h"
 #include "mask_evaluator.h"
 #include "output_color.h"
+#include "output_dither.h"
 #include "profile_gamma.h"
 #include "primaries.h"
 #include "raw_ca.h"
@@ -22,6 +25,7 @@
 #include "raw_pipeline.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/color_output.h"
+#include "watermark.h"
 
 namespace ravo
 {
@@ -468,6 +472,29 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     profiled.channels = std::move(demosaiced.value().rgb);
     profiled.color_profile = std::move(demosaiced.value().color_profile);
     profiled.canonical_roi_scale = demosaiced.value().canonical_roi_scale;
+    profiled.mask_attached_frame = demosaiced.value().mask_attached_frame;
+    WorkingImage source_working{profiled.width,
+                                profiled.height,
+                                std::move(profiled.channels),
+                                std::move(profiled.color_profile),
+                                nullptr,
+                                profiled.canonical_roi_scale,
+                                profiled.mask_attached_frame};
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDehazeOperationId)
+        {
+            continue;
+        }
+        auto dehazed = apply_dehaze(source_working, operation, cancellation);
+        if (!dehazed)
+        {
+            return dehazed.error();
+        }
+        source_working = std::move(dehazed).value();
+    }
+    profiled.channels = std::move(source_working.rgb);
+    profiled.color_profile = std::move(source_working.color_profile);
     if (profile_gamma.value())
     {
         auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
@@ -521,6 +548,16 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
     profiled.channels = std::move(encoded.value().rgb);
     profiled.color_profile = std::move(encoded.value().color_profile);
     profiled.canonical_roi_scale = encoded.value().canonical_roi_scale;
+    profiled.mask_attached_frame = encoded.value().mask_attached_frame;
+    for (const auto &operation : recipe.operations)
+    {
+        if (operation.enabled && operation.id == kDehazeOperationId)
+        {
+            return make_error(
+                ErrorCode::kUnsupported, "Dehaze requires a source-linear RAW buffer",
+                {{"operation_id", operation.id}, {"reason", "dehaze_raster_source_unsupported"}});
+        }
+    }
     if (profile_gamma.value())
     {
         auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
@@ -599,6 +636,7 @@ namespace
             .roi_height = adjusted.value().height,
             .input = MaskRgbPlaneView{adjusted.value().rgb, stride},
             .operation_output = MaskRgbPlaneView{adjusted.value().rgb, stride},
+            .attached_frame = adjusted.value().mask_attached_frame,
             .cancellation = cancellation,
         };
         auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
@@ -617,12 +655,107 @@ namespace
     {
         if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
             operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
-            operation.id == "ravo.raw.denoise" || operation.id == kProfileGammaOperationId)
+            operation.id == "ravo.raw.denoise" || operation.id == kProfileGammaOperationId ||
+            operation.id == kDehazeOperationId)
         {
             operation.enabled = false;
         }
     }
     return recipe;
+}
+
+[[nodiscard]] Result<ProfiledOutputBuffer>
+apply_recipe_output_dither(ProfiledOutputBuffer output, const Recipe &recipe,
+                           const OutputDitherTarget target, const CancellationToken &cancellation)
+{
+    const OperationInstance *selected = nullptr;
+    for (const auto &operation : recipe.operations)
+    {
+        if (operation.id != kOutputDitherOperationId)
+            continue;
+        if (selected != nullptr)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Recipe contains duplicate Output Dither operations",
+                              {{"operation_id", std::string(kOutputDitherOperationId)},
+                               {"reason", "duplicate_output_dither"}});
+        }
+        selected = &operation;
+    }
+    if (selected == nullptr || !selected->enabled)
+        return output;
+    return apply_output_dither(std::move(output), *selected, target, cancellation);
+}
+
+[[nodiscard]] Result<ProfiledOutputBuffer> apply_recipe_frame(ProfiledOutputBuffer output,
+                                                              const Recipe &recipe,
+                                                              const CancellationToken &cancellation,
+                                                              AlphaPlane *overlay = nullptr)
+{
+    const OperationInstance *selected = nullptr;
+    for (const auto &operation : recipe.operations)
+    {
+        if (operation.id != kFrameOperationId)
+            continue;
+        if (selected != nullptr)
+            return make_error(ErrorCode::kValidation, "Recipe contains duplicate Frame operations",
+                              {{"reason", "duplicate_output_frame"}});
+        selected = &operation;
+    }
+    if (selected == nullptr || !selected->enabled)
+        return output;
+    auto params = frame_from_parameters(selected->parameters);
+    if (!params)
+        return params.error();
+    auto layout = compute_frame_layout(output.width, output.height, params.value());
+    if (!layout)
+        return layout.error();
+    if (overlay != nullptr && overlay->width == output.width && overlay->height == output.height)
+    {
+        const std::uint64_t pixels =
+            static_cast<std::uint64_t>(layout.value().output_width) * layout.value().output_height;
+        if (pixels > std::vector<float>{}.max_size())
+            return make_error(ErrorCode::kValidation, "Framed mask overlay is too large");
+        std::vector<float> framed(static_cast<std::size_t>(pixels), 0.0F);
+        for (std::uint32_t row = 0U; row < overlay->height; ++row)
+        {
+            auto active = cancellation.check();
+            if (!active)
+                return active.error();
+            std::copy_n(
+                overlay->alpha.begin() +
+                    static_cast<std::ptrdiff_t>(static_cast<std::size_t>(row) * overlay->width),
+                overlay->width,
+                framed.begin() + static_cast<std::ptrdiff_t>(
+                                     static_cast<std::size_t>(layout.value().image_y + row) *
+                                         layout.value().output_width +
+                                     layout.value().image_x));
+        }
+        overlay->width = layout.value().output_width;
+        overlay->height = layout.value().output_height;
+        overlay->alpha = std::move(framed);
+    }
+    return apply_frame(std::move(output), *selected, cancellation);
+}
+
+[[nodiscard]] Result<ProfiledOutputBuffer>
+apply_recipe_watermark(ProfiledOutputBuffer output, const Recipe &recipe,
+                       const CancellationToken &cancellation)
+{
+    const OperationInstance *selected = nullptr;
+    for (const auto &operation : recipe.operations)
+    {
+        if (operation.id != kWatermarkOperationId)
+            continue;
+        if (selected != nullptr)
+            return make_error(ErrorCode::kValidation,
+                              "Recipe contains duplicate Watermark operations",
+                              {{"reason", "duplicate_watermark"}});
+        selected = &operation;
+    }
+    if (selected == nullptr || !selected->enabled)
+        return output;
+    return apply_watermark(std::move(output), *selected, recipe.asset, cancellation);
 }
 
 } // namespace
@@ -660,7 +793,20 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
     {
         return output.error();
     }
-    auto packed = encode_profiled_output(output.value(), RenderSampleKind::kRgb8, cancellation);
+    auto dithered = apply_recipe_output_dither(std::move(output).value(), recipe,
+                                               OutputDitherTarget::kPreviewRgb8, cancellation);
+    if (!dithered)
+    {
+        return dithered.error();
+    }
+    auto framed = apply_recipe_frame(std::move(dithered).value(), recipe, cancellation, &overlay);
+    if (!framed)
+        return framed.error();
+    auto watermarked = apply_recipe_watermark(std::move(framed).value(), recipe, cancellation);
+    if (!watermarked)
+        return watermarked.error();
+    auto packed =
+        encode_profiled_output(watermarked.value(), RenderSampleKind::kRgb8, cancellation);
     if (!packed)
     {
         return packed.error();
@@ -704,7 +850,23 @@ try
     {
         return output.error();
     }
-    return encode_profiled_output(output.value(), sample_kind, cancellation);
+    const auto target =
+        sample_kind == RenderSampleKind::kRgb8  ? OutputDitherTarget::kExportRgb8 :
+        sample_kind == RenderSampleKind::kRgb16 ? OutputDitherTarget::kExportRgb16 :
+                                                  OutputDitherTarget::kExportRgbFloat;
+    auto dithered =
+        apply_recipe_output_dither(std::move(output).value(), recipe, target, cancellation);
+    if (!dithered)
+    {
+        return dithered.error();
+    }
+    auto framed = apply_recipe_frame(std::move(dithered).value(), recipe, cancellation);
+    if (!framed)
+        return framed.error();
+    auto watermarked = apply_recipe_watermark(std::move(framed).value(), recipe, cancellation);
+    if (!watermarked)
+        return watermarked.error();
+    return encode_profiled_output(watermarked.value(), sample_kind, cancellation);
 }
 catch (const std::bad_alloc &)
 {

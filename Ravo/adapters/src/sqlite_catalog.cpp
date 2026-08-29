@@ -1213,18 +1213,43 @@ Result<void> SqliteCatalogRepository::remove_asset(const std::string_view asset_
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to begin asset removal transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral("DELETE FROM asset WHERE id = ?"));
     query.addBindValue(qstring_from_utf8(asset_id));
     if (!query.exec())
     {
-        return map_sql_error(query, "remove_asset");
+        return impl_->abort_transaction(map_sql_error(query, "remove_asset"));
     }
     if (query.numRowsAffected() == 0)
     {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kNotFound, "Asset does not exist",
+                       {{"asset_id", std::string(asset_id)}}));
     }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(
+            QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+    {
+        return impl_->abort_transaction(map_sql_error(revision, "bump_remove_revision"));
+    }
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+    {
+        return impl_->abort_transaction(map_sql_error(revision, "read_remove_revision"));
+    }
+    const auto next_revision = revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit asset removal transaction",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
     return {};
 }
 
@@ -1707,6 +1732,42 @@ Result<void> SqliteCatalogRepository::commit_imported_asset(const AssetRecord &a
                        {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
     impl_->snapshot.revision = revision;
+    return {};
+}
+
+Result<void> SqliteCatalogRepository::commit_refreshed_asset(const AssetRecord &asset)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    auto valid = validate_capture_metadata(asset.capture);
+    if (!valid)
+        return valid.error();
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to begin metadata refresh transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+    auto updated = update_asset(asset);
+    if (!updated)
+        return impl_->abort_transaction(updated.error());
+    auto captured = upsert_capture_metadata(asset.id, asset.capture);
+    if (!captured)
+        return impl_->abort_transaction(captured.error());
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(
+            QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+        return impl_->abort_transaction(map_sql_error(revision, "bump_refresh_revision"));
+    if (!revision.exec(QStringLiteral("SELECT revision FROM schema_info WHERE id = 1")) ||
+        !revision.next())
+        return impl_->abort_transaction(map_sql_error(revision, "read_refresh_revision"));
+    const auto next_revision = revision.value(0).toLongLong();
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit metadata refresh transaction",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    impl_->snapshot.revision = next_revision;
     return {};
 }
 

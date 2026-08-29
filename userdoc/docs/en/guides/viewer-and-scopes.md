@@ -57,17 +57,28 @@ The mouse wheel adjusts a custom zoom around the current view. The command
 palette and View menu expose the same zoom actions. Zoom changes affect the
 preview surface, not the original or the stored recipe.
 
-## RGB histogram and parade
+Changing the active photo, browse mode, or zoom mode recenters the viewport.
+Changing rating, metadata, or another review value on the same active photo
+keeps the current pan. Every navigator seek and direct drag stops at the image
+bounds; crop mode temporarily gives drag ownership to the crop overlay.
+
+## Preview scopes
 
 The top of the right Inspector contains the scope panel. Switch between:
 
 - **Histogram**, with red, green, and blue channel distributions.
+- **Waveform**, with overlaid RGB intensity across image width.
 - **Parade**, with separate RGB channel columns across the image width.
+- **Vectorscope**, with a fixed linear D50 CIE u*v* chromaticity plot.
+- **Split**, with Waveform and Vectorscope together.
 
 Scopes are calculated from the current processed preview. In Edit, they update
 after a committed or interactive Develop change. They are diagnostic displays;
 Ravo does not treat them as a legacy picker, mask, or automatic exposure
 decision.
+
+The Vectorscope is diagnostic-only. It does not expose the old AzBz/RYB,
+logarithmic, harmony, profile-selection, picker, or exposure-drag modes.
 
 ## Preview loading and missing originals
 
@@ -83,7 +94,7 @@ the original is available at its recorded path.
 ## Result
 
 You can move from a library-wide view to a pixel-level review without changing
-the source file. Fit/Fill/100%, pan, the navigator, and RGB scopes all operate on
+the source file. Fit/Fill/100%, pan, the navigator, and all five scopes operate on
 the current preview.
 
 ## Common questions

@@ -60,21 +60,23 @@ full legacy parameter compatibility. Unknown legacy operations remain
 | `ravo.detail.denoiseprofile` | `denoiseprofile` | default wavelets + Y0U0V0 profile denoise on linear RGB |
 | `ravo.geometry.lens` | `lens` | lensfun poly3/poly5 + linear TCA + manual vignette spline; lookup uses a versioned calibration table |
 | `ravo.color.colorequal` | `colorequal` | selected 8-node dt UCS 22 RBF equalizer |
+| `ravo.color.colorzones` | `colorzones` | optional three-curve D50 Lab/LCh zoning with full interpolation and mask contract; old owner retired |
 | `ravo.effect.graduatednd` | `graduatednd` | `_compute_density` graduated exposure as the first local adjustment |
 | `ravo.core.toneequal` | `toneequal` | 9-band [-8,0] EV RBF equalizer under Sigmoid |
 | `ravo.color.colorbalance` | `colorbalance` | complete frozen v4 Lab D50/ProPhoto lift/gamma/gain and slope/offset/power contract; independent from Color Balance RGB |
 | `ravo.color.colorbalancergb` | `colorbalancergb` | full Filmlight Yrg grading, DT UCS default and explicit JzAzBz; the old lift/gamma/gain approximation was removed |
 | `ravo.color.colorcontrast` | `colorcontrast` | explicit schema-v2 D50 Lab per-axis affine contrast, both v1 upgrades, and strict 0038 default-unmasked import |
 | `ravo.color.velvia` | `velvia` | saturation weighted toward low-sat pixels |
-| `ravo.color.monochrome` | `monochrome` | luma mix |
-| `ravo.color.splittoning` | `splittoning` | shadow/highlight hue mix |
-| `ravo.detail.sharpen` | `sharpen` | unsharp mask |
+| `ravo.color.monochrome` | `monochrome` | D50 Lab colour filter, shared bilateral base, highlight envelope and mask; old owner retired |
+| `ravo.color.splittoning` | `splittoning` | full shadow/highlight HSL hue+saturation, balance, compression, mix and mask; old owner retired |
+| `ravo.detail.sharpen` | `sharpen` | source-exact scale-aware D50 Lab unsharp mask; old owner retired |
+| `ravo.repair.retouch` | `retouch` | ordered canonical-mask clone/heal/blur/fill with source geometry and wavelet scales; old owner retired |
 | `ravo.detail.clarity` | `highpass` | large-radius local contrast |
 | `ravo.effect.vignette` | `vignette` | radial darkening |
 | `ravo.effect.grain` | `grain` | deterministic luminance noise |
 | `ravo.effect.bloom` | `bloom` | highlight glow |
 | `ravo.effect.soften` | `soften` | blur mix |
-| `ravo.effect.dehaze` | `hazeremoval` | simple airlight mix |
+| `ravo.effect.dehaze` | `hazeremoval` | source-linear dark-channel/guided-filter dehaze; old owner retired |
 | `ravo.color.output` | `colorout` | first colour-chain planning |
 | `ravo.output.scale` | `finalscale` | output request negotiation |
 
@@ -95,30 +97,23 @@ struct bytes or call the old dynamic module ABI.
 | `bilateral` | yes | defer until shared denoise facilities exist |
 | `bloom` | yes | queued by ADR-0015; existing simplified Ravo bloom is not frozen-owner acceptance |
 | `blurs` | yes | defer until shared blur facilities exist |
-| `borders` | yes | queued by ADR-0015; requires canvas/export geometry contract |
 | `cacorrectrgb` | no | defer with RAW geometry capability |
 | `censorize` | yes | queued by ADR-0015; requires mask/ROI graph |
 | `colorize` | yes | defer until colour operation policy exists |
 | `colormapping` | yes | defer until colour operation policy exists |
-| `colorreconstruct` | yes | defer with RAW reconstruction capability |
-| `colorzones` | yes | queued by ADR-0015 as optional HSL zoning; `colorequal` remains default |
 | `crop` | yes | defer until geometry/ROI contract exists |
 | `demosaic` | yes | reserved `ravo.raw.demosaic`; the exact frozen nop baseline currently selects the first 3×3 Bayer implementation only |
 | `diffuse` | yes | defer until shared denoise facilities exist |
-| `dither` | yes | defer until output quantisation contract exists |
-| `enlargecanvas` | yes | defer until geometry/ROI contract exists |
 | `filmicrgb` | yes | queued by ADR-0015 as an explicit optional transform; Sigmoid remains default |
 | `finalscale` | no | reserved `ravo.output.scale`; render width/height currently drive the first bounded nearest-sample output path, not a complete scaling operation |
 | `flip` | yes | defer until geometry/ROI contract exists |
 | `grain` | yes | queued by ADR-0015; existing simplified Ravo grain is not frozen-owner acceptance |
-| `hazeremoval` | yes | defer until shared dehaze facilities exist |
 | `highpass` | yes | defer until shared blur facilities exist |
 | `liquify` | yes | queued by ADR-0015; requires deformation/ROI and mask contracts |
 | `lowlight` | yes | defer until colour operation policy exists |
 | `lowpass` | yes | defer until shared blur facilities exist |
 | `lut3d` | yes | defer until LUT adapter and colour policy exist |
 | `mask_manager` | yes | defer until canonical mask graph exists |
-| `monochrome` | yes | defer until colour operation policy exists |
 | `negadoctor` | yes | queued by ADR-0015; requires negative-input color contract |
 | `nlmeans` | yes | defer until shared denoise facilities exist |
 | `overexposed` | no | diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |
@@ -127,18 +122,14 @@ struct bytes or call the old dynamic module ABI.
 | `rawdenoise` | yes | defer with RAW decode capability |
 | `rawoverexposed` | no | RAW diagnostic computation queued by ADR-0015; legacy presentation UI is deleted |
 | `rawprepare` | yes | reserved `ravo.raw.prepare`; the exact frozen nop baseline is absorbed into crop and black/white normalization in the first RAW slice |
-| `retouch` | yes | queued by ADR-0015; requires canonical mask graph and patch-source ownership |
 | `rgbcurve` | yes | defer until curve schema and colour policy exist |
 | `rgblevels` | yes | defer until colour operation policy exists |
 | `rotatepixels` | no | defer until geometry/ROI contract exists |
 | `scalepixels` | no | defer until geometry/ROI contract exists |
 | `shadhi` | yes | defer until shared denoise facilities exist |
-| `sharpen` | yes | defer until shared convolution facilities exist |
 | `soften` | yes | queued by ADR-0015; existing simplified Ravo soften is not frozen-owner acceptance |
-| `splittoning` | yes | queued by ADR-0015; existing simplified Ravo split toning is not frozen-owner acceptance |
 | `velvia` | yes | queued by ADR-0015; existing simplified Ravo velvia is not frozen-owner acceptance |
 | `vignette` | yes | queued by ADR-0015; existing simplified Ravo vignette is not frozen-owner acceptance |
-| `watermark` | yes | queued by ADR-0015; requires deterministic resource/font and export contract |
 
 ## Data and export inventory
 
@@ -146,11 +137,12 @@ struct bytes or call the old dynamic module ABI.
 | --- | --- | --- |
 | Legacy XMP input | Parse only bounded strict mappings; exposure selects the greatest v5/v6/v7 revision independently of XML order, Color Checker accepts its sole evidenced enabled-v2 default-unmasked singleton plus a synthetic v1 upgrade, Color Correction accepts the enabled-v1 singleton/priority-zero/unnamed/default-unmasked envelope represented by 0029/0092, and Color Contrast accepts the evidenced enabled-v2 singleton/priority-zero/unnamed/default-unmasked record from 0038 plus a synthetic legacy-v1 upgrade under that presentation envelope | Modified payload/version/enabled/blend/mask/multi/conflicting-revision state returns structured incompatibility; inactive Color Checker v2 tail planes are intentionally ignored and no old ABI bytes cross the boundary |
 | Canonical recipe | Versioned JSON, immutable snapshots, explicit schema upgrades and operation presence, plus the bounded S3.1 typed mask-schema-v2 DAG | Mask v1 identity `all` upgrades strictly; graph bounds, topology, attached-frame ROI and normal mix are owned by ADR-0043. Existing operation-specific schema upgrades remain unchanged |
-| RAW/JPEG/PNG/TIFF decode | 16-bit Bayer RAW inspect/decode implemented through fixed LibRaw; raster inputs remain unsupported | Real `mire1.cr2` contract coverage exists, but other sensors and JPEG/PNG/TIFF still need fixture-backed behaviour |
+| RAW/JPEG/PNG/TIFF decode | Pinned LibRaw owns bounded Bayer RAW/DNG first-frame decode; private raster adapters own validated JPEG/PNG/TIFF decode and publication | X-Trans full decode, complete demosaic/GainMap, and old wrapper zero-consumer deletion remain; recognized raster failures never silently fall through except TIFF RAW-container routing |
 | Default display transform | `ravo.display.sigmoid` v1 on RAW; no implicit transform on display-referred raster inputs | Fixed per-channel linear-sRGB/Standard-SDR policy keeps CLI, Studio and export deterministic; advanced primaries and alternate transforms are unsupported |
-| JPEG/PNG/TIFF/original export | Catalog export writes typed JPEG, typed PNG through private bounded libpng RGB8/RGB16 paths, typed TIFF through a bounded pinned private LibTIFF RGB8/RGB16/float encoder, or an original-byte copy; existing or racing targets win without replacement | CLI `catalog export` and Studio File → Export Photo share CatalogService and atomic no-replace publication. PNG defaults to 8-bit/compression 5, embeds resolved ICC plus known built-in cICP, and exposes PNG-qualified bit-depth/compression CLI flags. Its private RGB16 path consumes real host-endian samples; product PNG16 now uses engine-owned RGB16, while an RGB8 source still returns structured unsupported. TIFF defaults to uint8/Deflate-predictor/level 6/RGB/300 dpi, accepts 72–9600 inch resolution, embeds exact ICC, optionally applies the frozen grayscale test, and writes uint16/float16/float32 from engine-owned sources while still rejecting those requests from RGB8. After asset lookup, Catalog snapshots writable metadata, capture values, and sorted tags once for every rendered JPEG/PNG/TIFF export. JPEG embeds Exif/XMP/optional IPTC APP markers, PNG embeds eXIf plus XMP iTXt and still writes no pHYs, and TIFF keeps baseline tags plus EXIFIFD/XMP/optional IPTC. Source and sidecar are never changed. CLI exposes JPEG quality/subsampling, PNG bit-depth/compression, and TIFF sample/compression/level/grayscale/resolution flags under their owning formats, isolated before Catalog open. Studio File → Export Photo collects one explicit format plus the matching typed options, then the native save dialog. Validated capture time/offset/GPS from Catalog schema v5 now embed on rendered JPEG/PNG/TIFF. XMP attach/history/sidecar policy, PNG pHYs, TIFF multipage masks, shared consumers, and format-plugin retirement remain later. S9/J6 are not complete. |
+| JPEG/PNG/TIFF/original export | Catalog export writes typed JPEG, typed PNG through private bounded libpng RGB8/RGB16 paths, typed TIFF through a bounded pinned private LibTIFF RGB8/RGB16/float encoder, or an original-byte copy; existing or racing targets win without replacement | CLI `catalog export` and Studio File → Export Photo share CatalogService and atomic no-replace publication. PNG defaults to 8-bit/compression 5, embeds resolved ICC plus known built-in cICP, and exposes PNG-qualified bit-depth/compression CLI flags. Its private RGB16 path consumes real host-endian samples; product PNG16 now uses engine-owned RGB16, while an RGB8 source still returns structured unsupported. TIFF defaults to uint8/Deflate-predictor/level 6/RGB/300 dpi, accepts 72–9600 inch resolution, embeds exact ICC, optionally applies the frozen grayscale test, and writes uint16/float16/float32 from engine-owned sources while still rejecting those requests from RGB8. Catalog snapshots writable metadata, capture values, and sorted tags once per rendered export; full/no-location/none privacy filters the JPEG/PNG/TIFF Exif/XMP/IPTC payload while retaining ICC. Source and sidecar are never changed, and no sidecar is generated automatically. Studio single- and multi-selection export share the same typed options. Remaining work is PNG pHYs, TIFF multipage masks, shared consumers, and format-plugin retirement. |
+| Batch local storage | CatalogService owns strict portable filename expansion, complete known-conflict preflight, ordered typed item export, and partial-delivery error context | CLI `catalog export-batch` and Studio multi-selection share `{stem}`/`{asset_id}`/`{sequence}`/`{ext}` plus atomic no-replace publication. The GTK disk module is retired; its shared dynamic ABI waits for U10/J2 zero consumers (ADR-0068) |
 | Masks and blending | Canonical all/linear-gradient/circle/ellipse/parametric/path/brush/group graphs, normal attachments, Studio overlay, and owned group-child authoring for Color Harmonizer and Graduated ND. Exposure, Color Checker, Color Correction, and Color Contrast retain exact default-unmasked legacy boundaries | Further blend modes, leftover GTK mask-manager consumers, and strict legacy mask/custom-blend import remain deferred |
-| Catalog, history, styles | New SQLite catalog/viewer authorized for M1; history and styles remain later work | The first product imports originals by reference and does not migrate the legacy catalog |
+| Catalog, history, styles | SQLite schema v5 owns reference assets, review, metadata, recipes, transactional history/snapshots, and portable complete `.rstyle.json` artifacts | Legacy catalog/dtstyle databases do not migrate; strict explicit XMP conversion is the only accepted old edit interchange |
 | GPU/OpenCL/Metal | Explicitly out of Phase 1 | CPU-only reference work precedes any backend adapter |
 
 The next inventory update must cite the Ravo test, legacy mapping, fixture, and

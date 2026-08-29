@@ -567,6 +567,13 @@ encode_png_rgb8(const std::uint32_t width, const std::uint32_t height,
     {
         return png_cancellation_error(cancellation);
     }
+    if (!metadata.embed_metadata)
+    {
+        auto valid = validate_export_metadata(metadata, cancellation);
+        if (!valid)
+            return valid.error();
+        return encode_png_rgb8(width, height, rgb, color_metadata, options, cancellation, control);
+    }
     auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
     if (!prepared)
     {
@@ -598,6 +605,14 @@ encode_png_rgb16(const std::uint32_t width, const std::uint32_t height,
     if (cancellation.is_cancellation_requested())
     {
         return png_cancellation_error(cancellation);
+    }
+    if (!metadata.embed_metadata)
+    {
+        auto valid = validate_export_metadata(metadata, cancellation);
+        if (!valid)
+            return valid.error();
+        return encode_png_rgb16(width, height, rgb, color_metadata, options, cancellation,
+                                control);
     }
     auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
     if (!prepared)

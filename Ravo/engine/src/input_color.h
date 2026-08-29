@@ -20,6 +20,7 @@ struct ProfiledColorBuffer
     std::vector<float> channels;
     ColorProfileState color_profile;
     CanonicalRoiScale canonical_roi_scale{};
+    std::optional<AttachedPixelFrame> mask_attached_frame;
 };
 
 [[nodiscard]] Result<InputColorParams> resolve_input_color(const Recipe &recipe);

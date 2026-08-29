@@ -212,7 +212,8 @@ Develop fields fail before publication. The command guarantees
 ```text
 ravo catalog develop --catalog "/work/Ravo Library.sqlite" \
   --asset-id asset-123 --exposure-ev 0.5 \
-  --set highlights=-0.2 --set toneEqMidtones=0.15 --json
+  --set highlights=-0.2 --set toneEqMidtones=0.15 \
+  --set watermarkEnabled=1 --watermark-text "RAVO {stem}" --json
 ```
 
 Convenience flags are available for `--exposure-ev`, `--saturation`, and
@@ -220,6 +221,11 @@ Convenience flags are available for `--exposure-ev`, `--saturation`, and
 exposed by the current recipe contract, including geometry, profiles, white
 balance, color, RAW repair, lens, tone, and effect fields. Values must be finite
 and each field keeps its own validation bounds.
+
+`--watermark-text` sets the one bounded text field. The current fixed-font
+contract accepts its documented ASCII subset plus newline and the `{stem}` and
+`{asset_id}` tokens; arbitrary SVG paths, system fonts, and EXIF variables are
+not CLI compatibility inputs.
 
 To read the stored versioned recipe without changing it:
 
@@ -286,7 +292,8 @@ Render a selected asset:
 ```text
 ravo catalog export --catalog "/work/Ravo Library.sqlite" \
   --asset-id asset-123 --output "/exports/photo.jpg" \
-  --format jpeg --quality 92 --jpeg-subsampling auto --json
+  --format jpeg --quality 92 --jpeg-subsampling auto \
+  --metadata no-location --json
 ```
 
 Export an exact original copy:
@@ -315,9 +322,45 @@ ravo catalog export --catalog "/work/Ravo Library.sqlite" \
   --tiff-grayscale-if-neutral --tiff-resolution-dpi 300 --json
 ```
 
+Batch example with deterministic portable names:
+
+```text
+ravo catalog export-batch --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --asset-id asset-456 \
+  --output-dir "/exports/delivery" \
+  --filename-template '{stem}-{sequence}{ext}' \
+  --format jpeg --quality 92 --metadata no-location --json
+```
+
+The output directory must already exist. Batch preflight rejects duplicate
+asset IDs, duplicate expanded names, missing sources, and any existing target
+before writing the first item. Runtime failure or cancellation stops at the
+failed item and reports any earlier completed outputs in structured context.
+
 Accepted format spellings are `png`, `jpeg`/`jpg`, `tiff`/`tif`, and
 `original`/`copy`/`original-copy`. Existing output files return `conflict` and
 are never overwritten implicitly.
+
+Refresh capture metadata from the current original without touching the file:
+
+```text
+ravo catalog refresh-metadata --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --json
+```
+
+## Create and apply a Recipe Style
+
+```text
+ravo recipe style-create source.recipe.json --name "Warm repair" \
+  --output warm-repair.rstyle.json --json
+ravo recipe style-validate warm-repair.rstyle.json --json
+ravo recipe style-apply warm-repair.rstyle.json --asset-id target-asset \
+  --input file:///photos/target.jpg --output target.recipe.json --json
+```
+
+Styles are complete versioned Recipe templates. Output paths must be new;
+unknown/newer/malformed state and legacy `.dtstyle` fail instead of dropping
+operations.
 
 ## Render a standalone recipe to PNG
 

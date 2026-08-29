@@ -105,7 +105,6 @@ FILE(GLOB SOURCE_FILES
   "develop/blends/blendif_raw.c"
   "develop/blends/blendif_rgb_hsl.c"
   "develop/blends/blendif_rgb_jzczhz.c"
-  "develop/borders_helper.c"
   "develop/develop.c"
   "develop/format.c"
   "develop/imageop.c"
@@ -471,25 +470,6 @@ add_custom_command(
   COMMENT "Generating configuration min/max/default/type"
 )
 
-# Only the generic example styles are bundled.  Per-camera presets were
-# intentionally removed from the product baseline.
-file(GLOB darktable_STYLES
-     "${DARKTABLE_DATADIR}/styles/examples*.dtstyle"
-)
-
-add_custom_command(
-  DEPENDS ${darktable_STYLES} ${CMAKE_SOURCE_DIR}/tools/generate_styles_string.sh
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/styles_string.h
-  COMMAND bash ${CMAKE_SOURCE_DIR}/tools/generate_styles_string.sh ${DARKTABLE_DATADIR}/styles ${CMAKE_CURRENT_BINARY_DIR}/styles_string.h
-  COMMENT "Generating styles strings for translation"
-)
-
-add_custom_target(
-  generate_styles_string ALL
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/styles_string.h
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-
 add_custom_target(
   generate_preferences ALL
   DEPENDS ${CMAKE_SOURCE_DIR}/tools/generate_prefs.xsl ${CMAKE_SOURCE_DIR}/data/darktableconfig.dtd ${DARKTABLE_DATADIR}/darktableconfig.xml ${CMAKE_CURRENT_BINARY_DIR}/preferences_gen.h
@@ -511,7 +491,6 @@ add_library(lib_darktable SHARED ${DARKTABLE_BINDIR}/preferences_gen.h ${DARKTAB
 # since this isn't the same directory we do have to manually set it
 set_source_files_properties(${DARKTABLE_BINDIR}/version_gen.c PROPERTIES GENERATED TRUE)
 
-add_dependencies(lib_darktable generate_styles_string)
 add_dependencies(lib_darktable generate_conf)
 add_dependencies(lib_darktable generate_version)
 add_dependencies(lib_darktable generate_preferences)

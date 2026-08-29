@@ -132,6 +132,44 @@ TEST(ExportFormatTest, ParsesNamesAndRejectsUnknownValues)
     EXPECT_EQ(export_format_name(ExportFormat::kOriginalCopy), "original");
     EXPECT_EQ(export_format_extension(ExportFormat::kPng), ".png");
     EXPECT_FALSE(parse_export_format("heif"));
+    EXPECT_EQ(parse_export_metadata_mode("full").value(), ExportMetadataMode::kFull);
+    EXPECT_EQ(parse_export_metadata_mode("no-location").value(), ExportMetadataMode::kNoLocation);
+    EXPECT_EQ(parse_export_metadata_mode("none").value(), ExportMetadataMode::kNone);
+    EXPECT_EQ(export_metadata_mode_name(ExportMetadataMode::kNoLocation), "no-location");
+    auto bad_metadata = parse_export_metadata_mode("private-ish");
+    ASSERT_FALSE(bad_metadata);
+    EXPECT_EQ(bad_metadata.error().context.at("reason"), "invalid_export_metadata_mode");
+}
+
+TEST(ExportFormatTest, ExpandsOnlyBoundedPortableFilenameTemplateTokens)
+{
+    auto expanded = expand_export_filename_template("{stem}-{asset_id}-{sequence}{ext}", "portrait",
+                                                    "ast_123", 7, ".jpg");
+    ASSERT_TRUE(expanded) << expanded.error().message;
+    EXPECT_EQ(expanded.value(), "portrait-ast_123-0007.jpg");
+    auto appended =
+        expand_export_filename_template("delivery-{sequence}", "portrait", "ast_123", 42, ".tif");
+    ASSERT_TRUE(appended) << appended.error().message;
+    EXPECT_EQ(appended.value(), "delivery-0042.tif");
+
+    auto unknown =
+        expand_export_filename_template("{camera}{ext}", "portrait", "ast_123", 1, ".png");
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().context.at("reason"), "unknown_export_filename_token");
+    auto traversal =
+        expand_export_filename_template("../{stem}{ext}", "portrait", "ast_123", 1, ".png");
+    ASSERT_FALSE(traversal);
+    EXPECT_EQ(traversal.error().context.at("reason"), "nonportable_export_filename");
+    auto reserved = expand_export_filename_template("CON{ext}", "portrait", "ast_123", 1, ".png");
+    ASSERT_FALSE(reserved);
+    EXPECT_EQ(reserved.error().context.at("reason"), "reserved_export_filename");
+    EXPECT_FALSE(expand_export_filename_template("{stem", "portrait", "ast_123", 1, ".png"));
+    EXPECT_FALSE(expand_export_filename_template("{stem}{ext}", "bad/name", "ast_123", 1, ".png"));
+    EXPECT_FALSE(expand_export_filename_template("{stem}{ext}", "portrait", "ast_123", 0, ".png"));
+    auto too_large = expand_export_filename_template("{stem}{stem}{ext}", std::string(200, 'a'),
+                                                     "ast_123", 1, ".png");
+    ASSERT_FALSE(too_large);
+    EXPECT_EQ(too_large.error().context.at("reason"), "invalid_expanded_export_filename");
 }
 
 TEST(ExportFormatTest, OwnsTypedJpegOptionsAndRejectsInvalidValues)
@@ -367,6 +405,8 @@ TEST(ExportFormatTest, OwnsTypedTiffOptionsAndRejectsInvalidValues)
     EXPECT_EQ(noncanonical_compression.error().context.at("compression"), "predictor");
 }
 
+[[nodiscard]] std::string utf8_text(const char8_t *text);
+
 TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
 {
     AssetRecord first;
@@ -415,6 +455,128 @@ TEST(ReviewStateTest, FiltersAndSortsLibraryQuery)
     folder.folder_uri = "file:///photos";
     filtered = filter_and_sort_assets({first, second, third}, folder);
     EXPECT_EQ(filtered.size(), 3U);
+}
+
+TEST(LibraryQueryTest, MatchesProductTextMediaEditCaptureAndNumericFields)
+{
+    AssetRecord photo;
+    photo.id = "ast_match";
+    photo.normalized_uri = "file:///photos/Trip/Sunrise.CR2";
+    photo.media_type = "image/x-canon-cr2";
+    photo.width = 6000U;
+    photo.height = 4000U;
+    photo.size_bytes = 42000000U;
+    photo.created_unix_ms = 2000;
+    photo.has_edits = true;
+    photo.tags = {"Landscape", utf8_text(u8"旅行")};
+    photo.metadata.title = "Golden hour";
+    photo.capture.camera_make = "Canon";
+    photo.capture.camera_model = "EOS R5";
+    photo.capture.iso = 400.0;
+    photo.capture.aperture = 5.6;
+    photo.capture.focal_length_mm = 35.0;
+    photo.capture.shutter_s = 0.008;
+    photo.capture.captured_unix_s = 1700000000;
+
+    LibraryQuery query;
+    query.text = "golden";
+    query.media_types = {"image/x-canon-cr2"};
+    query.edit_filter = EditFilter::kEdited;
+    query.camera = "eos r5";
+    query.iso = {399.0, 401.0};
+    query.aperture = {5.5, 5.7};
+    query.focal_length_mm = {34.0, 36.0};
+    query.shutter_s = {0.007, 0.009};
+    query.aspect_ratio = {1.49, 1.51};
+    query.imported_after_unix_ms = 1999;
+    query.imported_before_unix_ms = 2001;
+    query.captured_after_unix_s = 1699999999;
+    query.captured_before_unix_s = 1700000001;
+    ASSERT_TRUE(validate_library_query(query));
+    EXPECT_TRUE(asset_matches_query(photo, query));
+
+    query.text = utf8_text(u8"旅行");
+    EXPECT_TRUE(asset_matches_query(photo, query));
+    query.text = "missing";
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    query.text.clear();
+    query.media_types = {"image/jpeg"};
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    query.media_types = {photo.media_type};
+    query.edit_filter = EditFilter::kUnedited;
+    EXPECT_FALSE(asset_matches_query(photo, query));
+    query.edit_filter = EditFilter::kEdited;
+    query.iso = {401.0, std::nullopt};
+    EXPECT_FALSE(asset_matches_query(photo, query));
+
+    AssetRecord missing = photo;
+    missing.capture.iso.reset();
+    query.iso = {1.0, 1000.0};
+    EXPECT_FALSE(asset_matches_query(missing, query));
+}
+
+TEST(LibraryQueryTest, RejectsInvalidStateAndSortsCaptureOrSizeDeterministically)
+{
+    LibraryQuery query;
+    query.rating_value = 6;
+    auto invalid = validate_library_query(query);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_rating_filter");
+
+    query = {};
+    query.color_labels = {ColorLabel::kRed, ColorLabel::kRed};
+    invalid = validate_library_query(query);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("reason"), "invalid_library_color_filter");
+
+    query = {};
+    query.iso = {800.0, 100.0};
+    invalid = validate_library_query(query);
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().context.at("field"), "iso");
+
+    query = {};
+    query.media_types = {"image/jpeg", "image/jpeg"};
+    EXPECT_FALSE(validate_library_query(query));
+    query = {};
+    query.text = std::string(513U, 'x');
+    EXPECT_FALSE(validate_library_query(query));
+    query = {};
+    query.imported_after_unix_ms = 20;
+    query.imported_before_unix_ms = 10;
+    EXPECT_FALSE(validate_library_query(query));
+
+    AssetRecord first;
+    first.id = "first";
+    first.size_bytes = 200U;
+    first.capture.captured_unix_s = 20;
+    AssetRecord second;
+    second.id = "second";
+    second.size_bytes = 100U;
+    second.capture.captured_unix_s = 10;
+    AssetRecord missing;
+    missing.id = "missing";
+    missing.size_bytes = 300U;
+
+    query = {};
+    query.sort_field = AssetSortField::kCaptureTime;
+    query.sort_direction = SortDirection::kAscending;
+    auto sorted = filter_and_sort_assets({first, missing, second}, query);
+    ASSERT_EQ(sorted.size(), 3U);
+    EXPECT_EQ(sorted[0].id, "second");
+    EXPECT_EQ(sorted[1].id, "first");
+    EXPECT_EQ(sorted[2].id, "missing");
+    query.sort_direction = SortDirection::kDescending;
+    sorted = filter_and_sort_assets({first, missing, second}, query);
+    EXPECT_EQ(sorted[0].id, "first");
+    EXPECT_EQ(sorted[1].id, "second");
+    EXPECT_EQ(sorted[2].id, "missing");
+
+    query.sort_field = AssetSortField::kFileSize;
+    query.sort_direction = SortDirection::kAscending;
+    sorted = filter_and_sort_assets({first, missing, second}, query);
+    EXPECT_EQ(sorted[0].id, "second");
+    EXPECT_EQ(sorted[2].id, "missing");
 }
 
 [[nodiscard]] std::string utf8_text(const char8_t *text)
@@ -639,6 +801,17 @@ TEST(ExportMetadataDomainTest, ValidatesSnapshotFieldsBoundsAndOmitsIptcWhenAbse
                   .error()
                   .context.at("reason"),
               "invalid_tiff_document_name");
+}
+
+TEST(ExportMetadataDomainTest, DisabledSnapshotRejectsRetainedPayload)
+{
+    ExportMetadataSnapshot stripped;
+    stripped.embed_metadata = false;
+    EXPECT_TRUE(validate_export_metadata(stripped));
+    stripped.writable.title = "leak";
+    auto rejected = validate_export_metadata(stripped);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "disabled_export_metadata_has_payload");
 }
 
 TEST(ExportMetadataDomainTest, EstimatesPacketsAgainstJpegSafeBounds)

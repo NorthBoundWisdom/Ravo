@@ -46,10 +46,16 @@ Item {
     function createSnapshot(label) { root.run(root.ids.photoCreateSnapshot, label); }
     function restoreHistory(id) { root.run(root.ids.photoRestoreHistory, id); }
     function setTagFilter(value) { root.run(root.ids.librarySetTagFilter, value); }
+    function setTextFilter(value) { root.run(root.ids.librarySetTextFilter, value); }
+    function setMediaFilter(value) { root.run(root.ids.librarySetMediaFilter, value); }
+    function setEditFilter(value) { root.run(root.ids.librarySetEditFilter, value); }
     function previewDevelopNumber(name, value) { root.run(root.ids.editSetNumber, {"name": name, "value": value, "live": true}); }
     function setDevelopNumber(name, value) { root.run(root.ids.editSetNumber, {"name": name, "value": value}); }
+    function setDevelopText(name, value) { root.run(root.ids.editSetText, {"name": name, "value": value}); }
     function previewToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points, "live": true}); }
     function setToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points}); }
+    function addRetouchRegion(region) { root.run(root.ids.editAddRetouchRegion, region); }
+    function removeRetouchRegion(index) { root.run(root.ids.editRemoveRetouchRegion, index); }
     function resetSection(section) { root.run(root.ids.editResetSection, section); }
     function setSectionEnabled(section, enabled) {
         root.run(root.ids.editSetSectionEnabled, {"section": section, "enabled": enabled});

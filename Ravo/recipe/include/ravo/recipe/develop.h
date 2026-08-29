@@ -11,14 +11,24 @@
 
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_checker.h"
+#include "ravo/recipe/canvas_frame.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_output.h"
+#include "ravo/recipe/color_reconstruction.h"
+#include "ravo/recipe/color_zones.h"
+#include "ravo/recipe/dehaze.h"
+#include "ravo/recipe/monochrome.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/output_dither.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/recipe/retouch.h"
+#include "ravo/recipe/sharpen.h"
+#include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/watermark.h"
 
 namespace ravo
 {
@@ -212,7 +222,8 @@ struct RgbLevelsParams
 {
     std::string mode{std::string(kRgbLevelsModeLinked)};
     std::string preserve_colors{std::string(kToneCurvePreserveColorsLuminance)};
-    std::array<std::array<double, 3>, 3> levels{{{0.0, 0.5, 1.0}, {0.0, 0.5, 1.0}, {0.0, 0.5, 1.0}}};
+    std::array<std::array<double, 3>, 3> levels{
+        {{0.0, 0.5, 1.0}, {0.0, 0.5, 1.0}, {0.0, 0.5, 1.0}}};
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const RgbLevelsParams &) const noexcept = default;
@@ -224,12 +235,10 @@ struct RgbCurveParams
     std::string preserve_colors{std::string(kToneCurvePreserveColorsLuminance)};
     std::string interpolation{std::string(kToneCurveInterpolationMonotoneHermite)};
     bool compensate_middle_grey = false;
-    std::array<std::vector<ToneCurvePoint>, 3> channels{{{ToneCurvePoint{0.0, 0.0},
-                                                          ToneCurvePoint{1.0, 1.0}},
-                                                         {ToneCurvePoint{0.0, 0.0},
-                                                          ToneCurvePoint{1.0, 1.0}},
-                                                         {ToneCurvePoint{0.0, 0.0},
-                                                          ToneCurvePoint{1.0, 1.0}}}};
+    std::array<std::vector<ToneCurvePoint>, 3> channels{
+        {{ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}},
+         {ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}},
+         {ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}}}};
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const RgbCurveParams &) const noexcept = default;
@@ -270,14 +279,30 @@ struct DevelopParams
     double crop_y = 0.0;
     double crop_width = 1.0;
     double crop_height = 1.0;
+    bool canvas_present = false;
+    bool canvas_enabled = false;
+    CanvasParams canvas;
     double sharpen = 0.0;
     double sharpen_radius = 2.0;
+    double sharpen_threshold = 0.5;
+    RetouchParams retouch;
     double clarity = 0.0;
     double vignette = 0.0;
     double grain = 0.0;
     double bloom = 0.0;
     double soften = 0.0;
     double dehaze = 0.0;
+    double dehaze_distance = 0.2;
+    bool dehaze_adaptive = true;
+    bool output_dither_present = false;
+    bool output_dither_enabled = false;
+    OutputDitherParams output_dither;
+    bool frame_present = false;
+    bool frame_enabled = false;
+    FrameParams frame;
+    bool watermark_present = false;
+    bool watermark_enabled = false;
+    WatermarkParams watermark;
     double velvia = 0.0;
     bool color_balance_enabled = false;
     ColorBalanceParams color_balance;
@@ -289,17 +314,27 @@ struct DevelopParams
     ColorCorrectionParams color_correction;
     bool color_contrast_enabled = false;
     ColorContrastParams color_contrast;
+    bool color_reconstruction_enabled = false;
+    ColorReconstructionParams color_reconstruction;
+    bool color_zones_present = false;
+    bool color_zones_enabled = false;
+    ColorZonesParams color_zones;
+    std::optional<std::string> color_zones_mask_id;
+    std::int64_t color_zones_band = 0;
     bool color_harmonizer_present = false;
     bool color_harmonizer_enabled = false;
     ColorHarmonizerParams color_harmonizer;
     std::optional<std::string> color_harmonizer_mask_id;
     std::int64_t color_harmonizer_mask_child_index = 0;
     std::int64_t color_harmonizer_mask_point_index = 0;
-    double monochrome = 0.0;
-    double split_shadows_hue = 0.0;
-    double split_highlights_hue = 0.2;
-    double split_balance = 0.5;
-    double split_amount = 0.0;
+    bool monochrome_present = false;
+    bool monochrome_enabled = false;
+    MonochromeParams monochrome;
+    std::optional<std::string> monochrome_mask_id;
+    bool split_toning_present = false;
+    bool split_toning_enabled = false;
+    SplitToningParams split_toning;
+    std::optional<std::string> split_toning_mask_id;
     double gamma = kDevelopGammaDefault;
     RgbLevelsParams rgb_levels;
     RgbCurveParams rgb_curve;
@@ -477,6 +512,9 @@ void clamp_develop(DevelopParams &params) noexcept;
 [[nodiscard]] bool apply_develop_field(DevelopParams &params, std::string_view name, double value);
 [[nodiscard]] Result<void> apply_develop_field_strict(DevelopParams &params, std::string_view name,
                                                       double value);
+[[nodiscard]] Result<void> apply_develop_text_field_strict(DevelopParams &params,
+                                                           std::string_view name,
+                                                           std::string_view value);
 [[nodiscard]] bool reset_develop_field(DevelopParams &params, std::string_view name);
 [[nodiscard]] bool reset_develop_section(DevelopParams &params, std::string_view section);
 [[nodiscard]] bool develop_section_modified(const DevelopParams &params, std::string_view section);

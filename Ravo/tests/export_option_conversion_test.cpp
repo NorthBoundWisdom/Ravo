@@ -13,24 +13,29 @@ namespace ravo
 namespace
 {
 
-[[nodiscard]] QVariantMap jpeg_options(const int quality, const QString &subsampling)
+[[nodiscard]] QVariantMap jpeg_options(const int quality, const QString &subsampling,
+                                       const QString &metadata = QStringLiteral("full"))
 {
     QVariantMap options;
     options.insert(QStringLiteral("quality"), quality);
     options.insert(QStringLiteral("jpegSubsampling"), subsampling);
+    options.insert(QStringLiteral("metadataMode"), metadata);
     return options;
 }
 
-[[nodiscard]] QVariantMap png_options(const QString &bit_depth, const int compression)
+[[nodiscard]] QVariantMap png_options(const QString &bit_depth, const int compression,
+                                      const QString &metadata = QStringLiteral("full"))
 {
     QVariantMap options;
     options.insert(QStringLiteral("pngBitDepth"), bit_depth);
     options.insert(QStringLiteral("pngCompression"), compression);
+    options.insert(QStringLiteral("metadataMode"), metadata);
     return options;
 }
 
 [[nodiscard]] QVariantMap tiff_options(const QString &sample, const QString &compression,
-                                       const int level, const bool grayscale, const int dpi)
+                                       const int level, const bool grayscale, const int dpi,
+                                       const QString &metadata = QStringLiteral("full"))
 {
     QVariantMap options;
     options.insert(QStringLiteral("tiffSampleType"), sample);
@@ -38,6 +43,7 @@ namespace
     options.insert(QStringLiteral("tiffCompressionLevel"), level);
     options.insert(QStringLiteral("tiffGrayscaleIfNeutral"), grayscale);
     options.insert(QStringLiteral("tiffResolutionDpi"), dpi);
+    options.insert(QStringLiteral("metadataMode"), metadata);
     return options;
 }
 
@@ -60,6 +66,7 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     EXPECT_EQ(jpeg.value().format, ExportFormat::kJpeg);
     EXPECT_EQ(jpeg.value().jpeg_options.quality, kDefaultJpegQuality);
     EXPECT_EQ(jpeg.value().jpeg_options.subsampling, JpegSubsampling::kAuto);
+    EXPECT_EQ(jpeg.value().metadata_mode, ExportMetadataMode::kFull);
 
     auto png = studio_export_options_from_presentation(
         QStringLiteral("png"),
@@ -82,10 +89,29 @@ TEST(ExportOptionConversion, DefaultsMatchDomainDefaults)
     EXPECT_EQ(tiff.value().tiff_options.compression_level, kDefaultTiffCompressionLevel);
     EXPECT_FALSE(tiff.value().tiff_options.grayscale_if_neutral);
     EXPECT_EQ(tiff.value().tiff_options.resolution_dpi, kDefaultTiffResolutionDpi);
+    EXPECT_EQ(defaults.value(QStringLiteral("metadataMode")).toString(), QStringLiteral("full"));
 
     auto original = studio_export_options_from_presentation(QStringLiteral("original"), {});
     ASSERT_TRUE(original) << original.error().message;
     EXPECT_EQ(original.value().format, ExportFormat::kOriginalCopy);
+}
+
+TEST(ExportOptionConversion, MetadataPrivacyModesMapAndRejectUnknownValues)
+{
+    auto no_location = studio_export_options_from_presentation(
+        QStringLiteral("jpeg"),
+        jpeg_options(95, QStringLiteral("auto"), QStringLiteral("no-location")));
+    ASSERT_TRUE(no_location) << no_location.error().message;
+    EXPECT_EQ(no_location.value().metadata_mode, ExportMetadataMode::kNoLocation);
+    auto none = studio_export_options_from_presentation(
+        QStringLiteral("png"), png_options(QStringLiteral("8"), 5, QStringLiteral("none")));
+    ASSERT_TRUE(none) << none.error().message;
+    EXPECT_EQ(none.value().metadata_mode, ExportMetadataMode::kNone);
+    auto unknown = studio_export_options_from_presentation(
+        QStringLiteral("tiff"), tiff_options(QStringLiteral("uint8"), QStringLiteral("deflate"), 6,
+                                             false, 300, QStringLiteral("private-ish")));
+    ASSERT_FALSE(unknown);
+    expect_reason(unknown.error(), "invalid_export_metadata_mode");
 }
 
 TEST(ExportOptionConversion, ExplicitCanonicalValuesMapToTypedOptions)
@@ -330,6 +356,13 @@ TEST(ExportOptionConversion, RequestHelperCopiesTypedSnapshot)
     EXPECT_EQ(request.value().jpeg_options.quality, 80);
     EXPECT_EQ(request.value().jpeg_options.subsampling, JpegSubsampling::k420);
     EXPECT_FALSE(request.value().cancellation.is_cancellation_requested());
+
+    auto batch_options =
+        make_studio_export_options(QStringLiteral("png"), png_options(QStringLiteral("16"), 7));
+    ASSERT_TRUE(batch_options) << batch_options.error().message;
+    EXPECT_EQ(batch_options.value().format, ExportFormat::kPng);
+    EXPECT_EQ(batch_options.value().png_options.bit_depth, PngBitDepth::k16);
+    EXPECT_EQ(batch_options.value().png_options.compression, 7);
 }
 
 TEST(ExportOptionConversion, PresentationCatalogExposesCanonicalIds)

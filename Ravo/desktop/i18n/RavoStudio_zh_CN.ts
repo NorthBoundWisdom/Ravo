@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>DevelopHistoryPanel</name>
+    <message>
+        <source>Snapshot #%1</source>
+        <translation>快照 #%1</translation>
+    </message>
+    <message>
+        <source>Edit #%1</source>
+        <translation>编辑 #%1</translation>
+    </message>
+    <message>
+        <source>History</source>
+        <translation>历史</translation>
+    </message>
+    <message>
+        <source>Select a photo to see its edit history.</source>
+        <translation>选择照片以查看其编辑历史。</translation>
+    </message>
+    <message>
+        <source>No saved edits yet. Changes appear here after they are stored.</source>
+        <translation>尚无已保存的编辑。更改保存后会显示在这里。</translation>
+    </message>
+    <message>
+        <source>Snapshot</source>
+        <translation>快照</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>原始版本</translation>
+    </message>
+    <message>
+        <source>on</source>
+        <translation>开启</translation>
+    </message>
+    <message>
+        <source>off</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Recipe history entry does not exist.</source>
+        <translation>配方历史条目不存在。</translation>
+    </message>
+</context>
+<context>
     <name>DevelopPanel</name>
     <message>
         <source>Reset this section</source>
@@ -34,22 +77,6 @@
     <message>
         <source>Geometry</source>
         <translation>几何</translation>
-    </message>
-    <message>
-        <source>Rotate L</source>
-        <translation>向左旋转</translation>
-    </message>
-    <message>
-        <source>Rotate R</source>
-        <translation>向右旋转</translation>
-    </message>
-    <message>
-        <source>Flip H</source>
-        <translation>水平翻转</translation>
-    </message>
-    <message>
-        <source>Flip V</source>
-        <translation>垂直翻转</translation>
     </message>
     <message>
         <source>Done</source>
@@ -284,6 +311,418 @@
         <translation>重置</translation>
     </message>
     <message>
+        <source>Color Reconstruction</source>
+        <translation>色彩重建</translation>
+    </message>
+    <message>
+        <source>Enable Color Reconstruction</source>
+        <translation>启用色彩重建</translation>
+    </message>
+    <message>
+        <source>Precedence</source>
+        <translation>优先依据</translation>
+    </message>
+    <message>
+        <source>Threshold</source>
+        <translation>阈值</translation>
+    </message>
+    <message>
+        <source>Spatial extent</source>
+        <translation>空间范围</translation>
+    </message>
+    <message>
+        <source>Range extent</source>
+        <translation>明度范围</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>色相</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color Reconstruction</source>
+        <translation>禁用并重置色彩重建</translation>
+    </message>
+    <message>
+        <source>Color Zones</source>
+        <translation>色彩分区</translation>
+    </message>
+    <message>
+        <source>Enable Color Zones</source>
+        <translation>启用色彩分区</translation>
+    </message>
+    <message>
+        <source>Color Zones select by</source>
+        <translation>色彩分区选择依据</translation>
+    </message>
+    <message>
+        <source>Color Zones band</source>
+        <translation>色彩分区段</translation>
+    </message>
+    <message>
+        <source>Color Zones mix</source>
+        <translation>色彩分区混合</translation>
+    </message>
+    <message>
+        <source>Lightness curve</source>
+        <translation>明度曲线</translation>
+    </message>
+    <message>
+        <source>Chroma curve</source>
+        <translation>彩度曲线</translation>
+    </message>
+    <message>
+        <source>Hue curve</source>
+        <translation>色相曲线</translation>
+    </message>
+    <message>
+        <source>Lightness interpolation</source>
+        <translation>明度插值</translation>
+    </message>
+    <message>
+        <source>Chroma interpolation</source>
+        <translation>彩度插值</translation>
+    </message>
+    <message>
+        <source>Hue interpolation</source>
+        <translation>色相插值</translation>
+    </message>
+    <message>
+        <source>Loaded Color Zones mask is preserved but edited outside this panel.</source>
+        <translation>已加载的色彩分区遮罩会保留，但需在此面板之外编辑。</translation>
+    </message>
+    <message>
+        <source>Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.</source>
+        <translation>已加载的自定义节点曲线会保留；重置色彩分区后可使用八段编辑器。</translation>
+    </message>
+    <message>
+        <source>Disable and reset Color Zones</source>
+        <translation>禁用并重置色彩分区</translation>
+    </message>
+    <message>
+        <source>Enable Monochrome</source>
+        <translation>启用单色</translation>
+    </message>
+    <message>
+        <source>Filter a*</source>
+        <translation>滤镜 a*</translation>
+    </message>
+    <message>
+        <source>Filter b*</source>
+        <translation>滤镜 b*</translation>
+    </message>
+    <message>
+        <source>Filter size</source>
+        <translation>滤镜尺寸</translation>
+    </message>
+    <message>
+        <source>Keep highlights</source>
+        <translation>保留高光</translation>
+    </message>
+    <message>
+        <source>Monochrome mix</source>
+        <translation>单色混合</translation>
+    </message>
+    <message>
+        <source>Loaded Monochrome mask is preserved but edited outside this panel.</source>
+        <translation>已加载的单色遮罩会保留，但需在此面板之外编辑。</translation>
+    </message>
+    <message>
+        <source>Disable and reset Monochrome</source>
+        <translation>禁用并重置单色</translation>
+    </message>
+    <message>
+        <source>Split Toning</source>
+        <translation>分离色调</translation>
+    </message>
+    <message>
+        <source>Enable Split Toning</source>
+        <translation>启用分离色调</translation>
+    </message>
+    <message>
+        <source>Split Toning mix</source>
+        <translation>分离色调混合</translation>
+    </message>
+    <message>
+        <source>Shadow saturation</source>
+        <translation>阴影饱和度</translation>
+    </message>
+    <message>
+        <source>Highlight saturation</source>
+        <translation>高光饱和度</translation>
+    </message>
+    <message>
+        <source>Midtone compression</source>
+        <translation>中间调压缩</translation>
+    </message>
+    <message>
+        <source>Loaded Split Toning mask is preserved but edited outside this panel.</source>
+        <translation>已加载的分离色调遮罩会保留，但需在此面板之外编辑。</translation>
+    </message>
+    <message>
+        <source>Disable and reset Split Toning</source>
+        <translation>禁用并重置分离色调</translation>
+    </message>
+    <message>
+        <source>Distance</source>
+        <translation>距离</translation>
+    </message>
+    <message>
+        <source>Adaptive window scale</source>
+        <translation>自适应窗口缩放</translation>
+    </message>
+    <message>
+        <source>Output Dither / Posterize</source>
+        <translation>输出抖动 / 色阶化</translation>
+    </message>
+    <message>
+        <source>Enable output dither</source>
+        <translation>启用输出抖动</translation>
+    </message>
+    <message>
+        <source>Output dither method</source>
+        <translation>输出抖动方法</translation>
+    </message>
+    <message>
+        <source>Random damping (dB)</source>
+        <translation>随机抖动衰减 (dB)</translation>
+    </message>
+    <message>
+        <source>Auto dithers integer exports; previews and float output are only clipped.</source>
+        <translation>自动模式对整数导出应用抖动；预览和浮点输出仅裁切范围。</translation>
+    </message>
+    <message>
+        <source>Reset output dither</source>
+        <translation>重置输出抖动</translation>
+    </message>
+    <message>
+        <source>Frame / Border</source>
+        <translation>相框 / 边框</translation>
+    </message>
+    <message>
+        <source>Enable frame</source>
+        <translation>启用相框</translation>
+    </message>
+    <message>
+        <source>Frame orientation</source>
+        <translation>相框方向</translation>
+    </message>
+    <message>
+        <source>Frame size basis</source>
+        <translation>相框尺寸基准</translation>
+    </message>
+    <message>
+        <source>Outer aspect (-1 constant, 0 image)</source>
+        <translation>外框宽高比（-1 等宽边框，0 跟随图像）</translation>
+    </message>
+    <message>
+        <source>Border size</source>
+        <translation>边框尺寸</translation>
+    </message>
+    <message>
+        <source>Horizontal position</source>
+        <translation>水平位置</translation>
+    </message>
+    <message>
+        <source>Vertical position</source>
+        <translation>垂直位置</translation>
+    </message>
+    <message>
+        <source>Frame line size</source>
+        <translation>框线尺寸</translation>
+    </message>
+    <message>
+        <source>Frame line offset</source>
+        <translation>框线偏移</translation>
+    </message>
+    <message>
+        <source>Border red</source>
+        <translation>边框红色</translation>
+    </message>
+    <message>
+        <source>Border green</source>
+        <translation>边框绿色</translation>
+    </message>
+    <message>
+        <source>Border blue</source>
+        <translation>边框蓝色</translation>
+    </message>
+    <message>
+        <source>Frame red</source>
+        <translation>框线红色</translation>
+    </message>
+    <message>
+        <source>Frame green</source>
+        <translation>框线绿色</translation>
+    </message>
+    <message>
+        <source>Frame blue</source>
+        <translation>框线蓝色</translation>
+    </message>
+    <message>
+        <source>Reset frame</source>
+        <translation>重置相框</translation>
+    </message>
+    <message>
+        <source>Text Watermark</source>
+        <translation>文字水印</translation>
+    </message>
+    <message>
+        <source>Enable watermark</source>
+        <translation>启用水印</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>文本</translation>
+    </message>
+    <message>
+        <source>Watermark alignment</source>
+        <translation>水印对齐</translation>
+    </message>
+    <message>
+        <source>Watermark opacity</source>
+        <translation>水印不透明度</translation>
+    </message>
+    <message>
+        <source>Text height (% short side)</source>
+        <translation>文字高度（短边百分比）</translation>
+    </message>
+    <message>
+        <source>Horizontal offset</source>
+        <translation>水平偏移</translation>
+    </message>
+    <message>
+        <source>Vertical offset</source>
+        <translation>垂直偏移</translation>
+    </message>
+    <message>
+        <source>Watermark rotation</source>
+        <translation>水印旋转</translation>
+    </message>
+    <message>
+        <source>Watermark red</source>
+        <translation>水印红色</translation>
+    </message>
+    <message>
+        <source>Watermark green</source>
+        <translation>水印绿色</translation>
+    </message>
+    <message>
+        <source>Watermark blue</source>
+        <translation>水印蓝色</translation>
+    </message>
+    <message>
+        <source>Portable fixed 5×7 text. Supported tokens: {stem}, {asset_id}.</source>
+        <translation>便携式固定 5×7 文字。支持的标记：{stem}、{asset_id}。</translation>
+    </message>
+    <message>
+        <source>Reset watermark</source>
+        <translation>重置水印</translation>
+    </message>
+    <message>
+        <source>Retouch</source>
+        <translation>修复</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>仿制</translation>
+    </message>
+    <message>
+        <source>Heal</source>
+        <translation>修复</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>模糊</translation>
+    </message>
+    <message>
+        <source>Fill</source>
+        <translation>填充</translation>
+    </message>
+    <message>
+        <source>Retouch mode</source>
+        <translation>修复模式</translation>
+    </message>
+    <message>
+        <source>Target X</source>
+        <translation>目标 X</translation>
+    </message>
+    <message>
+        <source>Target Y</source>
+        <translation>目标 Y</translation>
+    </message>
+    <message>
+        <source>Spot radius</source>
+        <translation>修复点半径</translation>
+    </message>
+    <message>
+        <source>Spot feather</source>
+        <translation>修复点羽化</translation>
+    </message>
+    <message>
+        <source>Spot opacity</source>
+        <translation>修复点不透明度</translation>
+    </message>
+    <message>
+        <source>Source X</source>
+        <translation>源点 X</translation>
+    </message>
+    <message>
+        <source>Source Y</source>
+        <translation>源点 Y</translation>
+    </message>
+    <message>
+        <source>Gaussian</source>
+        <translation>高斯</translation>
+    </message>
+    <message>
+        <source>Bilateral</source>
+        <translation>双边</translation>
+    </message>
+    <message>
+        <source>Blur type</source>
+        <translation>模糊类型</translation>
+    </message>
+    <message>
+        <source>Blur radius</source>
+        <translation>模糊半径</translation>
+    </message>
+    <message>
+        <source>Erase</source>
+        <translation>擦除</translation>
+    </message>
+    <message>
+        <source>Fill mode</source>
+        <translation>填充模式</translation>
+    </message>
+    <message>
+        <source>Fill red</source>
+        <translation>填充红色</translation>
+    </message>
+    <message>
+        <source>Fill green</source>
+        <translation>填充绿色</translation>
+    </message>
+    <message>
+        <source>Fill blue</source>
+        <translation>填充蓝色</translation>
+    </message>
+    <message>
+        <source>Fill brightness</source>
+        <translation>填充亮度</translation>
+    </message>
+    <message>
+        <source>Add retouch region</source>
+        <translation>添加修复区域</translation>
+    </message>
+    <message>
+        <source>Regions: %1</source>
+        <translation>区域：%1</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>移除</translation>
+    </message>
+    <message>
         <source>Input Profile</source>
         <translation>输入配置文件</translation>
     </message>
@@ -470,6 +909,190 @@
     <message>
         <source>Velvia</source>
         <translation>Velvia</translation>
+    </message>
+    <message>
+        <source>Click to bypass this panel</source>
+        <translation>点击旁路此面板</translation>
+    </message>
+    <message>
+        <source>Click to enable this panel</source>
+        <translation>点击启用此面板</translation>
+    </message>
+    <message>
+        <source>Show mask overlay</source>
+        <translation>显示蒙版叠加</translation>
+    </message>
+    <message>
+        <source>Group child</source>
+        <translation>组子项</translation>
+    </message>
+    <message>
+        <source>Child %1</source>
+        <translation>子项 %1</translation>
+    </message>
+    <message>
+        <source>Child kind</source>
+        <translation>子项类型</translation>
+    </message>
+    <message>
+        <source>Combine</source>
+        <translation>组合方式</translation>
+    </message>
+    <message>
+        <source>Invert child</source>
+        <translation>反转子项</translation>
+    </message>
+    <message>
+        <source>Add circle</source>
+        <translation>添加圆形</translation>
+    </message>
+    <message>
+        <source>Remove child</source>
+        <translation>移除子项</translation>
+    </message>
+    <message>
+        <source>Point</source>
+        <translation>控制点</translation>
+    </message>
+    <message>
+        <source>Point %1</source>
+        <translation>控制点 %1</translation>
+    </message>
+    <message>
+        <source>Add point</source>
+        <translation>添加控制点</translation>
+    </message>
+    <message>
+        <source>Remove point</source>
+        <translation>移除控制点</translation>
+    </message>
+    <message>
+        <source>Rotate Left</source>
+        <translation>向左旋转</translation>
+    </message>
+    <message>
+        <source>Rotate Right</source>
+        <translation>向右旋转</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>水平翻转</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>垂直翻转</translation>
+    </message>
+    <message>
+        <source>Unlock aspect ratio</source>
+        <translation>解锁宽高比</translation>
+    </message>
+    <message>
+        <source>Lock aspect ratio</source>
+        <translation>锁定宽高比</translation>
+    </message>
+    <message>
+        <source>Enlarge Canvas</source>
+        <translation>扩展画布</translation>
+    </message>
+    <message>
+        <source>Enable enlarged canvas</source>
+        <translation>启用扩展画布</translation>
+    </message>
+    <message>
+        <source>Canvas left (%)</source>
+        <translation>左侧画布 (%)</translation>
+    </message>
+    <message>
+        <source>Canvas right (%)</source>
+        <translation>右侧画布 (%)</translation>
+    </message>
+    <message>
+        <source>Canvas top (%)</source>
+        <translation>顶部画布 (%)</translation>
+    </message>
+    <message>
+        <source>Canvas bottom (%)</source>
+        <translation>底部画布 (%)</translation>
+    </message>
+    <message>
+        <source>Canvas color</source>
+        <translation>画布颜色</translation>
+    </message>
+    <message>
+        <source>Reset canvas</source>
+        <translation>重置画布</translation>
+    </message>
+    <message>
+        <source>RGB levels</source>
+        <translation>RGB 色阶</translation>
+    </message>
+    <message>
+        <source>RGB, linked</source>
+        <translation>RGB，联动</translation>
+    </message>
+    <message>
+        <source>RGB, independent</source>
+        <translation>RGB，独立</translation>
+    </message>
+    <message>
+        <source>Max RGB</source>
+        <translation>最大 RGB</translation>
+    </message>
+    <message>
+        <source>Average RGB</source>
+        <translation>平均 RGB</translation>
+    </message>
+    <message>
+        <source>Sum RGB</source>
+        <translation>RGB 总和</translation>
+    </message>
+    <message>
+        <source>Norm RGB</source>
+        <translation>RGB 范数</translation>
+    </message>
+    <message>
+        <source>Basic power</source>
+        <translation>基础幂值</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <translation>黑点</translation>
+    </message>
+    <message>
+        <source>Grey</source>
+        <translation>灰点</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>白点</translation>
+    </message>
+    <message>
+        <source>Green black</source>
+        <translation>绿色黑点</translation>
+    </message>
+    <message>
+        <source>Green grey</source>
+        <translation>绿色灰点</translation>
+    </message>
+    <message>
+        <source>Green white</source>
+        <translation>绿色白点</translation>
+    </message>
+    <message>
+        <source>Blue black</source>
+        <translation>蓝色黑点</translation>
+    </message>
+    <message>
+        <source>Blue grey</source>
+        <translation>蓝色灰点</translation>
+    </message>
+    <message>
+        <source>Blue white</source>
+        <translation>蓝色白点</translation>
+    </message>
+    <message>
+        <source>Reset RGB levels</source>
+        <translation>重置 RGB 色阶</translation>
     </message>
     <message>
         <source>Color look-up table · D50 Lab</source>
@@ -876,10 +1499,6 @@
         <translation>单色</translation>
     </message>
     <message>
-        <source>Split amount</source>
-        <translation>分离量</translation>
-    </message>
-    <message>
         <source>Shadow hue</source>
         <translation>阴影色相</translation>
     </message>
@@ -1044,6 +1663,166 @@
         <translation>无</translation>
     </message>
     <message>
+        <source>Random noise</source>
+        <translation>随机噪声</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 1-bit B&amp;W</source>
+        <translation>Floyd–Steinberg 1 位黑白</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 1-bit RGB</source>
+        <translation>Floyd–Steinberg 1 位 RGB</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 2-bit gray</source>
+        <translation>Floyd–Steinberg 2 位灰度</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 2-bit RGB</source>
+        <translation>Floyd–Steinberg 2 位 RGB</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 4-bit gray</source>
+        <translation>Floyd–Steinberg 4 位灰度</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 4-bit RGB</source>
+        <translation>Floyd–Steinberg 4 位 RGB</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 6-bit gray</source>
+        <translation>Floyd–Steinberg 6 位灰度</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 8-bit RGB</source>
+        <translation>Floyd–Steinberg 8 位 RGB</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg 16-bit RGB</source>
+        <translation>Floyd–Steinberg 16 位 RGB</translation>
+    </message>
+    <message>
+        <source>Floyd–Steinberg auto</source>
+        <translation>Floyd–Steinberg 自动</translation>
+    </message>
+    <message>
+        <source>Posterize 2 levels</source>
+        <translation>色阶化：每通道 2 级</translation>
+    </message>
+    <message>
+        <source>Posterize 3 levels</source>
+        <translation>色阶化：每通道 3 级</translation>
+    </message>
+    <message>
+        <source>Posterize 4 levels</source>
+        <translation>色阶化：每通道 4 级</translation>
+    </message>
+    <message>
+        <source>Posterize 5 levels</source>
+        <translation>色阶化：每通道 5 级</translation>
+    </message>
+    <message>
+        <source>Posterize 6 levels</source>
+        <translation>色阶化：每通道 6 级</translation>
+    </message>
+    <message>
+        <source>Posterize 7 levels</source>
+        <translation>色阶化：每通道 7 级</translation>
+    </message>
+    <message>
+        <source>Posterize 8 levels</source>
+        <translation>色阶化：每通道 8 级</translation>
+    </message>
+    <message>
+        <source>Auto</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <source>Portrait</source>
+        <translation>纵向</translation>
+    </message>
+    <message>
+        <source>Landscape</source>
+        <translation>横向</translation>
+    </message>
+    <message>
+        <source>Width</source>
+        <translation>宽度</translation>
+    </message>
+    <message>
+        <source>Height</source>
+        <translation>高度</translation>
+    </message>
+    <message>
+        <source>Shorter side</source>
+        <translation>短边</translation>
+    </message>
+    <message>
+        <source>Longer side</source>
+        <translation>长边</translation>
+    </message>
+    <message>
+        <source>Top left</source>
+        <translation>左上</translation>
+    </message>
+    <message>
+        <source>Top center</source>
+        <translation>顶部居中</translation>
+    </message>
+    <message>
+        <source>Top right</source>
+        <translation>右上</translation>
+    </message>
+    <message>
+        <source>Center left</source>
+        <translation>左侧居中</translation>
+    </message>
+    <message>
+        <source>Center</source>
+        <translation>居中</translation>
+    </message>
+    <message>
+        <source>Center right</source>
+        <translation>右侧居中</translation>
+    </message>
+    <message>
+        <source>Bottom left</source>
+        <translation>左下</translation>
+    </message>
+    <message>
+        <source>Bottom center</source>
+        <translation>底部居中</translation>
+    </message>
+    <message>
+        <source>Bottom right</source>
+        <translation>右下</translation>
+    </message>
+    <message>
+        <source>Saturated colors</source>
+        <translation>饱和色彩</translation>
+    </message>
+    <message>
+        <source>Lightness</source>
+        <translation>明度</translation>
+    </message>
+    <message>
+        <source>Chroma</source>
+        <translation>彩度</translation>
+    </message>
+    <message>
+        <source>Cubic spline</source>
+        <translation>三次样条</translation>
+    </message>
+    <message>
+        <source>Catmull–Rom</source>
+        <translation>Catmull–Rom</translation>
+    </message>
+    <message>
+        <source>Monotone Hermite</source>
+        <translation>单调 Hermite</translation>
+    </message>
+    <message>
         <source>All</source>
         <translation>全部</translation>
     </message>
@@ -1066,6 +1845,14 @@
     <message>
         <source>Group</source>
         <translation>组</translation>
+    </message>
+    <message>
+        <source>Path</source>
+        <translation>路径</translation>
+    </message>
+    <message>
+        <source>Brush</source>
+        <translation>画笔</translation>
     </message>
     <message>
         <source>Unknown</source>
@@ -1152,6 +1939,54 @@
         <translation>阈值 4</translation>
     </message>
     <message>
+        <source>Path feather</source>
+        <translation>路径羽化</translation>
+    </message>
+    <message>
+        <source>Point X</source>
+        <translation>控制点 X</translation>
+    </message>
+    <message>
+        <source>Point Y</source>
+        <translation>控制点 Y</translation>
+    </message>
+    <message>
+        <source>Point radius</source>
+        <translation>控制点半径</translation>
+    </message>
+    <message>
+        <source>Point hardness</source>
+        <translation>控制点硬度</translation>
+    </message>
+    <message>
+        <source>Point density</source>
+        <translation>控制点密度</translation>
+    </message>
+    <message>
+        <source>Child opacity</source>
+        <translation>子项不透明度</translation>
+    </message>
+    <message>
+        <source>Replace</source>
+        <translation>替换</translation>
+    </message>
+    <message>
+        <source>Union</source>
+        <translation>并集</translation>
+    </message>
+    <message>
+        <source>Intersection</source>
+        <translation>交集</translation>
+    </message>
+    <message>
+        <source>Difference</source>
+        <translation>差集</translation>
+    </message>
+    <message>
+        <source>Exclusion</source>
+        <translation>排除</translation>
+    </message>
+    <message>
         <source>Input</source>
         <translation>输入</translation>
     </message>
@@ -1176,8 +2011,52 @@
         <translation>蓝色</translation>
     </message>
     <message>
+        <source>Graduated ND</source>
+        <translation>渐变中灰镜</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>旋转</translation>
+    </message>
+    <message>
+        <source>Flip</source>
+        <translation>翻转</translation>
+    </message>
+    <message>
+        <source>Crop</source>
+        <translation>裁剪</translation>
+    </message>
+    <message>
+        <source>Tone curve</source>
+        <translation>色调曲线</translation>
+    </message>
+    <message>
+        <source>Output Profile</source>
+        <translation>输出配置文件</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>通道混合器</translation>
+    </message>
+    <message>
+        <source>Color Balance</source>
+        <translation>色彩平衡</translation>
+    </message>
+    <message>
+        <source>Color Balance RGB</source>
+        <translation>色彩平衡 RGB</translation>
+    </message>
+    <message>
+        <source>Sigmoid</source>
+        <translation>Sigmoid</translation>
+    </message>
+    <message>
         <source>Mask edit was rejected</source>
         <translation>蒙版编辑被拒绝</translation>
+    </message>
+    <message>
+        <source>Retouch region was rejected</source>
+        <translation>修复区域已被拒绝</translation>
     </message>
     <message>
         <source>Mask reset was rejected</source>
@@ -1191,8 +2070,32 @@
         <translation>导出照片</translation>
     </message>
     <message>
+        <source>Export Selected Photos</source>
+        <translation>导出所选照片</translation>
+    </message>
+    <message>
+        <source>Filename template</source>
+        <translation>文件名模板</translation>
+    </message>
+    <message>
+        <source>Batch export filename template</source>
+        <translation>批量导出文件名模板</translation>
+    </message>
+    <message>
+        <source>{stem}-{sequence}{ext}</source>
+        <translation>{stem}-{sequence}{ext}</translation>
+    </message>
+    <message>
         <source>Format</source>
         <translation>格式</translation>
+    </message>
+    <message>
+        <source>Metadata</source>
+        <translation>元数据</translation>
+    </message>
+    <message>
+        <source>Metadata privacy</source>
+        <translation>元数据隐私</translation>
     </message>
     <message>
         <source>Quality</source>
@@ -1342,6 +2245,18 @@
         <source>Deflate + predictor</source>
         <translation>Deflate + 预测器</translation>
     </message>
+    <message>
+        <source>Full metadata</source>
+        <translation>完整元数据</translation>
+    </message>
+    <message>
+        <source>Without location</source>
+        <translation>不含位置</translation>
+    </message>
+    <message>
+        <source>No public metadata</source>
+        <translation>不含公开元数据</translation>
+    </message>
 </context>
 <context>
     <name>FolderDialogPage</name>
@@ -1475,6 +2390,42 @@
         <translation>筛选</translation>
     </message>
     <message>
+        <source>Search photos</source>
+        <translation>搜索照片</translation>
+    </message>
+    <message>
+        <source>Any type</source>
+        <translation>任意类型</translation>
+    </message>
+    <message>
+        <source>RAW</source>
+        <translation>RAW</translation>
+    </message>
+    <message>
+        <source>JPEG</source>
+        <translation>JPEG</translation>
+    </message>
+    <message>
+        <source>PNG</source>
+        <translation>PNG</translation>
+    </message>
+    <message>
+        <source>TIFF</source>
+        <translation>TIFF</translation>
+    </message>
+    <message>
+        <source>Any edits</source>
+        <translation>任意编辑状态</translation>
+    </message>
+    <message>
+        <source>Edited</source>
+        <translation>已编辑</translation>
+    </message>
+    <message>
+        <source>Unedited</source>
+        <translation>未编辑</translation>
+    </message>
+    <message>
         <source>Rating</source>
         <translation>评分</translation>
     </message>
@@ -1557,6 +2508,14 @@
     <message>
         <source>Filename</source>
         <translation>文件名</translation>
+    </message>
+    <message>
+        <source>Capture time</source>
+        <translation>拍摄时间</translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation>文件大小</translation>
     </message>
     <message>
         <source>Asc</source>
@@ -1662,6 +2621,22 @@
         <source>Save Export</source>
         <translation>保存导出</translation>
     </message>
+    <message>
+        <source>Select Batch Export Folder</source>
+        <translation>选择批量导出文件夹</translation>
+    </message>
+    <message>
+        <source>Save Recipe Style</source>
+        <translation>保存配方样式</translation>
+    </message>
+    <message>
+        <source>Ravo recipe style (*.rstyle.json)</source>
+        <translation>Ravo 配方样式 (*.rstyle.json)</translation>
+    </message>
+    <message>
+        <source>Apply Recipe Style</source>
+        <translation>应用配方样式</translation>
+    </message>
 </context>
 <context>
     <name>PhotoContextMenu</name>
@@ -1732,18 +2707,6 @@
         <source>Copyright</source>
         <translation>版权</translation>
     </message>
-    <message>
-        <source>Snapshot</source>
-        <translation>快照</translation>
-    </message>
-    <message>
-        <source>History</source>
-        <translation>历史</translation>
-    </message>
-    <message>
-        <source>Restore</source>
-        <translation>恢复</translation>
-    </message>
 </context>
 <context>
     <name>ScopePanel</name>
@@ -1754,6 +2717,18 @@
     <message>
         <source>Parade</source>
         <translation>波形图</translation>
+    </message>
+    <message>
+        <source>Waveform</source>
+        <translation>波形图</translation>
+    </message>
+    <message>
+        <source>Vectorscope</source>
+        <translation>矢量示波器</translation>
+    </message>
+    <message>
+        <source>Split</source>
+        <translation>分屏</translation>
     </message>
 </context>
 <context>
@@ -1845,6 +2820,14 @@
         <translation>导出路径不能为空。</translation>
     </message>
     <message>
+        <source>Export directory must not be empty.</source>
+        <translation>导出目录不能为空。</translation>
+    </message>
+    <message>
+        <source>Export filename template must not be empty.</source>
+        <translation>导出文件名模板不能为空。</translation>
+    </message>
+    <message>
         <source>Unknown rating filter mode.</source>
         <translation>未知的评分筛选模式。</translation>
     </message>
@@ -1891,6 +2874,14 @@
     <message>
         <source>Develop control name must not be empty.</source>
         <translation>编辑控制项名称不能为空。</translation>
+    </message>
+    <message>
+        <source>Develop section name must not be empty.</source>
+        <translation>开发分区名称不能为空。</translation>
+    </message>
+    <message>
+        <source>Develop section enabled must be boolean.</source>
+        <translation>开发分区的启用状态必须为布尔值。</translation>
     </message>
     <message>
         <source>Develop value must be finite.</source>
@@ -2001,8 +2992,32 @@
         <translation>导入文件夹…</translation>
     </message>
     <message>
-        <source>Export Photo...</source>
-        <translation>导出照片…</translation>
+        <source>Export Selected...</source>
+        <translation>导出所选项…</translation>
+    </message>
+    <message>
+        <source>Develop text control name must not be empty.</source>
+        <translation>Develop 文本控件名称不能为空。</translation>
+    </message>
+    <message>
+        <source>Develop text value must be text.</source>
+        <translation>Develop 文本值必须是文本。</translation>
+    </message>
+    <message>
+        <source>Export directory must be a string.</source>
+        <translation>导出目录必须是字符串。</translation>
+    </message>
+    <message>
+        <source>Export filename template must be a string.</source>
+        <translation>导出文件名模板必须是字符串。</translation>
+    </message>
+    <message>
+        <source>Save Edits as Style...</source>
+        <translation>将编辑保存为样式...</translation>
+    </message>
+    <message>
+        <source>Apply Recipe Style...</source>
+        <translation>应用配方样式...</translation>
     </message>
     <message>
         <source>Close Window</source>
@@ -2133,6 +3148,10 @@
         <translation>从磁盘删除…</translation>
     </message>
     <message>
+        <source>Refresh Capture Metadata</source>
+        <translation>刷新拍摄元数据</translation>
+    </message>
+    <message>
         <source>Clear Library Filters</source>
         <translation>清除图库筛选</translation>
     </message>
@@ -2259,6 +3278,14 @@
         <translation>不支持的语言：%1</translation>
     </message>
     <message>
+        <source>Unable to repair the stored language setting.</source>
+        <translation>无法修复已保存的语言设置。</translation>
+    </message>
+    <message>
+        <source>Unable to save the language setting.</source>
+        <translation>无法保存语言设置。</translation>
+    </message>
+    <message>
         <source>Unable to load translation package: %1</source>
         <translation>无法加载翻译包：%1</translation>
     </message>
@@ -2349,6 +3376,22 @@
         <translation>已导出 %1（%2×%3）</translation>
     </message>
     <message>
+        <source>Exporting selected photos…</source>
+        <translation>正在导出所选照片…</translation>
+    </message>
+    <message>
+        <source>Export stopped after %1 of %2 selected photos.</source>
+        <translation>导出已停止：%2 张所选照片中已完成 %1 张。</translation>
+    </message>
+    <message>
+        <source>Batch export failed.</source>
+        <translation>批量导出失败。</translation>
+    </message>
+    <message>
+        <source>Exported %1 selected photos to %2</source>
+        <translation>已将 %1 张所选照片导出到 %2</translation>
+    </message>
+    <message>
         <source>No local files selected.</source>
         <translation>未选择本地文件。</translation>
     </message>
@@ -2363,6 +3406,18 @@
     <message>
         <source>Import failed.</source>
         <translation>导入失败。</translation>
+    </message>
+    <message>
+        <source>Capture metadata refreshed.</source>
+        <translation>拍摄元数据已刷新。</translation>
+    </message>
+    <message>
+        <source>Unknown media filter mode.</source>
+        <translation>未知的媒体筛选模式。</translation>
+    </message>
+    <message>
+        <source>Unknown edit filter mode.</source>
+        <translation>未知的编辑状态筛选模式。</translation>
     </message>
     <message>
         <source>Removed from catalog. Original file was not deleted.</source>
@@ -2383,6 +3438,14 @@
     <message>
         <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
         <translation>已导入 %1，重复 %2，不支持 %3，失败 %4</translation>
+    </message>
+    <message>
+        <source>Style path must not be empty.</source>
+        <translation>样式路径不能为空。</translation>
+    </message>
+    <message>
+        <source>Recipe style saved.</source>
+        <translation>配方样式已保存。</translation>
     </message>
 </context>
 <context>

@@ -651,6 +651,83 @@ Result<AlphaPlane> evaluate_canonical_mask(const std::vector<Mask> &masks,
                                            const std::string_view root_mask_id,
                                            const MaskEvaluationRequest &request)
 {
+    if (request.attached_frame.has_value())
+    {
+        const auto &frame = *request.attached_frame;
+        const std::uint64_t right = static_cast<std::uint64_t>(frame.x) + frame.width;
+        const std::uint64_t bottom = static_cast<std::uint64_t>(frame.y) + frame.height;
+        if (frame.width == 0U || frame.height == 0U || right > request.full_width ||
+            bottom > request.full_height)
+        {
+            return make_error(ErrorCode::kValidation, "Mask attached frame is invalid",
+                              {{"reason", "invalid_mask_attached_frame"}});
+        }
+        if (request.roi_x != 0U || request.roi_y != 0U || request.roi_width != request.full_width ||
+            request.roi_height != request.full_height)
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Mask attached-frame evaluation requires a full-frame ROI",
+                              {{"reason", "attached_mask_subroi_unsupported"}});
+        }
+        const std::size_t input_offset =
+            static_cast<std::size_t>(frame.y) * request.input.row_stride_samples +
+            static_cast<std::size_t>(frame.x) * 3U;
+        if (input_offset > request.input.samples.size())
+        {
+            return make_error(ErrorCode::kValidation, "Mask attached input frame is invalid",
+                              {{"reason", "invalid_mask_attached_frame"}});
+        }
+        MaskEvaluationRequest attached;
+        attached.full_width = frame.width;
+        attached.full_height = frame.height;
+        attached.roi_width = frame.width;
+        attached.roi_height = frame.height;
+        attached.input = MaskRgbPlaneView{request.input.samples.subspan(input_offset),
+                                          request.input.row_stride_samples};
+        if (request.operation_output.has_value())
+        {
+            const std::size_t output_offset =
+                static_cast<std::size_t>(frame.y) * request.operation_output->row_stride_samples +
+                static_cast<std::size_t>(frame.x) * 3U;
+            if (output_offset > request.operation_output->samples.size())
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Mask attached operation-output frame is invalid",
+                                  {{"reason", "invalid_mask_attached_frame"}});
+            }
+            attached.operation_output =
+                MaskRgbPlaneView{request.operation_output->samples.subspan(output_offset),
+                                 request.operation_output->row_stride_samples};
+        }
+        attached.cancellation = request.cancellation;
+        auto evaluated =
+            detail::evaluate_canonical_mask_controlled(masks, root_mask_id, attached, {});
+        if (!evaluated)
+            return evaluated.error();
+        const std::uint64_t pixels =
+            static_cast<std::uint64_t>(request.full_width) * request.full_height;
+        if (pixels > std::vector<float>{}.max_size())
+        {
+            return make_error(ErrorCode::kValidation, "Mask attached frame is too large",
+                              {{"reason", "mask_dimensions_overflow"}});
+        }
+        std::vector<float> alpha(static_cast<std::size_t>(pixels), 0.0F);
+        for (std::uint32_t row = 0U; row < frame.height; ++row)
+        {
+            auto active = request.cancellation.check();
+            if (!active)
+                return active.error();
+            const auto source =
+                evaluated.value().alpha.begin() +
+                static_cast<std::ptrdiff_t>(static_cast<std::size_t>(row) * frame.width);
+            auto destination =
+                alpha.begin() +
+                static_cast<std::ptrdiff_t>(
+                    static_cast<std::size_t>(frame.y + row) * request.full_width + frame.x);
+            std::copy_n(source, frame.width, destination);
+        }
+        return AlphaPlane{request.full_width, request.full_height, std::move(alpha)};
+    }
     return detail::evaluate_canonical_mask_controlled(masks, root_mask_id, request, {});
 }
 

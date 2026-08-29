@@ -34,13 +34,14 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 
 ## Current capabilities and scope
 
-Ravo is actively developed and already supports the core loop of creating or opening a local library, reference-only import, browsing and review, non-destructive Develop, and local export. Current editing operations include RAW highlight reconstruction, hot-pixel and chromatic-aberration correction, denoising, lens correction, white balance, color calibration, Color Balance RGB, a graduated filter, tone curves, and tone equalizer.
+Ravo is actively developed and already supports the core loop of creating or opening a local library, reference-only import, browsing and review, non-destructive Develop, and local export. Current editing operations include RAW highlight reconstruction, post-demosaic Color Reconstruction, source-exact D50 Lab sharpening, ordered mask-based clone/heal/blur/fill Retouch, source-linear dark-channel dehazing, Canvas, final Output Frame, Dither/Posterize and deterministic text Watermark, hot-pixel and chromatic-aberration correction, denoising, lens correction, white balance, color calibration, Color Balance RGB, Color Equalizer plus optional Color Zones, source-filtered Monochrome, full Split Toning, a graduated filter, tone curves, and tone equalizer. Single and bounded multi-selection exports share typed JPEG/PNG/TIFF/original-copy options and atomic no-replace publication.
 
-Ravo is not yet a complete darktable replacement. Its bounded S3.1 canonical
-mask graph and S3.2 Studio-owned leaf authoring do not yet include mask
-overlays, group editing, or path/brush masks. Full ICC and metadata export, additional
-image operations, and end-to-end installation verification on every platform
-also remain in progress. [The Ravo product document](Ravo/README.md) and the
+Ravo is not yet a complete darktable replacement. Its bounded canonical mask
+graph includes Studio overlay, owned group editing, and path/brush authoring;
+historic blend modes and the leftover GTK mask-manager consumers remain.
+Additional image operations, sidecar/history metadata policy, and end-to-end
+installation verification on every platform also remain in progress.
+[The Ravo product document](Ravo/README.md) and the
 [active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
 validation status, and next work item.
 

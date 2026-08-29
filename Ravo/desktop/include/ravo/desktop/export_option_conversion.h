@@ -23,6 +23,7 @@ inline constexpr std::string_view kStudioExportOptionTiffCompressionLevel = "tif
 inline constexpr std::string_view kStudioExportOptionTiffGrayscaleIfNeutral =
     "tiffGrayscaleIfNeutral";
 inline constexpr std::string_view kStudioExportOptionTiffResolutionDpi = "tiffResolutionDpi";
+inline constexpr std::string_view kStudioExportOptionMetadataMode = "metadataMode";
 
 struct StudioExportSelection
 {
@@ -30,6 +31,7 @@ struct StudioExportSelection
     JpegExportOptions jpeg_options;
     PngExportOptions png_options;
     TiffExportOptions tiff_options;
+    ExportMetadataMode metadata_mode = ExportMetadataMode::kFull;
 };
 
 [[nodiscard]] Result<StudioExportSelection>
@@ -37,6 +39,9 @@ studio_export_options_from_presentation(const QString &format_name, const QVaria
 
 [[nodiscard]] Result<QString> normalize_studio_export_path(const QString &path,
                                                            ExportFormat format);
+
+[[nodiscard]] Result<ExportOptions> make_studio_export_options(const QString &format_name,
+                                                               const QVariantMap &options);
 
 [[nodiscard]] Result<ExportRequest> make_studio_export_request(std::string asset_id,
                                                                const QString &path,
@@ -48,6 +53,7 @@ studio_export_options_from_presentation(const QString &format_name, const QVaria
 [[nodiscard]] QVariantList studio_png_bit_depth_choices();
 [[nodiscard]] QVariantList studio_tiff_sample_type_choices();
 [[nodiscard]] QVariantList studio_tiff_compression_choices();
+[[nodiscard]] QVariantList studio_export_metadata_mode_choices();
 [[nodiscard]] QVariantMap studio_export_default_options();
 [[nodiscard]] QVariantMap studio_export_option_bounds();
 

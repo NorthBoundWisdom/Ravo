@@ -12,6 +12,7 @@
 
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
+#include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
 
 namespace ravo
@@ -274,7 +275,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
         if (!operation.enabled ||
             (operation.id != "ravo.color.temperature" && operation.id != "ravo.raw.hotpixels" &&
              operation.id != "ravo.raw.highlights" && operation.id != "ravo.raw.cacorrect" &&
-             operation.id != "ravo.raw.denoise"))
+             operation.id != "ravo.raw.denoise" && operation.id != kDehazeOperationId))
         {
             continue;
         }
@@ -283,6 +284,7 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
                operation.id == "ravo.raw.hotpixels"     ? ":hot" :
                operation.id == "ravo.raw.highlights"    ? ":hl" :
                operation.id == "ravo.raw.denoise"       ? ":rdn" :
+               operation.id == kDehazeOperationId       ? ":dehaze" :
                                                           ":ca";
         static constexpr std::array<std::string_view, 3> highlight_names{"mode", "amount", "clip"};
         static constexpr std::array<std::string_view, 3> hot_pixel_names{"strength", "threshold",
@@ -322,6 +324,17 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
             }
             continue;
         }
+        if (operation.id == kDehazeOperationId)
+        {
+            for (const auto &[name, value] : operation.parameters)
+            {
+                key.push_back(':');
+                key += name;
+                key.push_back('=');
+                key += parameter_key_part(value);
+            }
+            continue;
+        }
         const auto &names =
             operation.id == "ravo.raw.hotpixels" ? hot_pixel_names : highlight_names;
         for (const auto name : names)
@@ -340,7 +353,8 @@ void disable_raw_preprocess(Recipe &recipe)
     {
         if (operation.id == "ravo.color.temperature" || operation.id == "ravo.raw.hotpixels" ||
             operation.id == "ravo.raw.highlights" || operation.id == "ravo.raw.cacorrect" ||
-            operation.id == "ravo.raw.denoise" || operation.id == kProfileGammaOperationId)
+            operation.id == "ravo.raw.denoise" || operation.id == kProfileGammaOperationId ||
+            operation.id == kDehazeOperationId)
         {
             operation.enabled = false;
         }

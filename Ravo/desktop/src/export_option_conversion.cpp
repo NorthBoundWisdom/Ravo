@@ -241,6 +241,16 @@ QVariantList studio_tiff_compression_choices()
                QCoreApplication::translate("ExportOptionsDialog", "Deflate + predictor"))};
 }
 
+QVariantList studio_export_metadata_mode_choices()
+{
+    return {choice(QStringLiteral("full"),
+                   QCoreApplication::translate("ExportOptionsDialog", "Full metadata")),
+            choice(QStringLiteral("no-location"),
+                   QCoreApplication::translate("ExportOptionsDialog", "Without location")),
+            choice(QStringLiteral("none"),
+                   QCoreApplication::translate("ExportOptionsDialog", "No public metadata"))};
+}
+
 QVariantMap studio_export_default_options()
 {
     QVariantMap options;
@@ -279,6 +289,10 @@ QVariantMap studio_export_default_options()
         QString::fromUtf8(kStudioExportOptionTiffResolutionDpi.data(),
                           static_cast<qsizetype>(kStudioExportOptionTiffResolutionDpi.size())),
         kDefaultTiffResolutionDpi);
+    options.insert(
+        QString::fromUtf8(kStudioExportOptionMetadataMode.data(),
+                          static_cast<qsizetype>(kStudioExportOptionMetadataMode.size())),
+        QStringLiteral("full"));
     return options;
 }
 
@@ -331,8 +345,10 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     {
     case ExportFormat::kJpeg:
     {
-        auto keys = require_keys(
-            input, {kStudioExportOptionQuality, kStudioExportOptionJpegSubsampling}, "jpeg");
+        auto keys = require_keys(input,
+                                 {kStudioExportOptionQuality, kStudioExportOptionJpegSubsampling,
+                                  kStudioExportOptionMetadataMode},
+                                 "jpeg");
         if (!keys)
         {
             return keys.error();
@@ -366,8 +382,10 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
     }
     case ExportFormat::kPng:
     {
-        auto keys = require_keys(
-            input, {kStudioExportOptionPngBitDepth, kStudioExportOptionPngCompression}, "png");
+        auto keys = require_keys(input,
+                                 {kStudioExportOptionPngBitDepth, kStudioExportOptionPngCompression,
+                                  kStudioExportOptionMetadataMode},
+                                 "png");
         if (!keys)
         {
             return keys.error();
@@ -405,7 +423,7 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
             input,
             {kStudioExportOptionTiffSampleType, kStudioExportOptionTiffCompression,
              kStudioExportOptionTiffCompressionLevel, kStudioExportOptionTiffGrayscaleIfNeutral,
-             kStudioExportOptionTiffResolutionDpi},
+             kStudioExportOptionTiffResolutionDpi, kStudioExportOptionMetadataMode},
             "tiff");
         if (!keys)
         {
@@ -474,6 +492,18 @@ Result<StudioExportSelection> studio_export_options_from_presentation(const QStr
         }
         break;
     }
+    }
+    if (selection.format != ExportFormat::kOriginalCopy)
+    {
+        auto mode =
+            exact_string(input.value(QStringLiteral("metadataMode")),
+                         kStudioExportOptionMetadataMode, export_format_name(selection.format));
+        if (!mode)
+            return mode.error();
+        auto parsed = parse_export_metadata_mode(mode.value());
+        if (!parsed)
+            return parsed.error();
+        selection.metadata_mode = parsed.value();
     }
     if (input != options)
     {
@@ -545,24 +575,34 @@ Result<ExportRequest> make_studio_export_request(std::string asset_id, const QSt
                                                  const QString &format_name,
                                                  const QVariantMap &options)
 {
-    auto selection = studio_export_options_from_presentation(format_name, options);
-    if (!selection)
-    {
-        return selection.error();
-    }
-    auto normalized = normalize_studio_export_path(path, selection.value().format);
+    auto export_options = make_studio_export_options(format_name, options);
+    if (!export_options)
+        return export_options.error();
+    auto normalized = normalize_studio_export_path(path, export_options.value().format);
     if (!normalized)
     {
         return normalized.error();
     }
     ExportRequest request;
+    static_cast<ExportOptions &>(request) = std::move(export_options).value();
     request.asset_id = std::move(asset_id);
     request.output_path = utf8(normalized.value());
-    request.format = selection.value().format;
-    request.jpeg_options = selection.value().jpeg_options;
-    request.png_options = selection.value().png_options;
-    request.tiff_options = selection.value().tiff_options;
     return request;
+}
+
+Result<ExportOptions> make_studio_export_options(const QString &format_name,
+                                                 const QVariantMap &options)
+{
+    auto selection = studio_export_options_from_presentation(format_name, options);
+    if (!selection)
+        return selection.error();
+    ExportOptions result;
+    result.format = selection.value().format;
+    result.jpeg_options = selection.value().jpeg_options;
+    result.png_options = selection.value().png_options;
+    result.tiff_options = selection.value().tiff_options;
+    result.metadata_mode = selection.value().metadata_mode;
+    return result;
 }
 
 } // namespace ravo

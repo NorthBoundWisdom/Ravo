@@ -14,14 +14,25 @@
 #include <utility>
 
 #include "ravo/recipe/color_contrast.h"
+#include "ravo/recipe/canvas_frame.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/color_input.h"
 #include "ravo/recipe/color_output.h"
+#include "ravo/recipe/color_reconstruction.h"
+#include "ravo/recipe/color_zones.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/dehaze.h"
+#include "ravo/recipe/monochrome.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/output_dither.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
+#include "ravo/recipe/retouch.h"
+#include "ravo/recipe/sharpen.h"
+#include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/watermark.h"
+#include "ravo/recipe/velvia.h"
 
 namespace ravo
 {
@@ -606,6 +617,40 @@ Result<Recipe> upgrade_recipe(Recipe recipe)
                 return upgraded.error();
             }
         }
+        else if (operation.id == kSharpenOperationId)
+        {
+            auto upgraded = upgrade_sharpen_operation(operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+        }
+        else if (operation.id == kDehazeOperationId)
+        {
+            auto upgraded = upgrade_dehaze_operation(operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+        }
+        else if (operation.id == kMonochromeOperationId)
+        {
+            auto upgraded = upgrade_monochrome_operation(operation);
+            if (!upgraded)
+                return upgraded.error();
+        }
+        else if (operation.id == kSplitToningOperationId)
+        {
+            auto upgraded = upgrade_split_toning_operation(operation);
+            if (!upgraded)
+                return upgraded.error();
+        }
+        else if (operation.id == kVelviaOperationId)
+        {
+            auto upgraded = upgrade_velvia_operation(operation);
+            if (!upgraded)
+                return upgraded.error();
+        }
     }
     if (recipe.schema_version == 1)
     {
@@ -800,6 +845,52 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             {
                 return upgraded.error();
             }
+            operation_pointer = &upgraded_operation;
+        }
+        else if (stored_operation.id == kSharpenOperationId && stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_sharpen_operation(upgraded_operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            operation_pointer = &upgraded_operation;
+        }
+        else if (stored_operation.id == kDehazeOperationId && stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_dehaze_operation(upgraded_operation);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            operation_pointer = &upgraded_operation;
+        }
+        else if (stored_operation.id == kMonochromeOperationId &&
+                 stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_monochrome_operation(upgraded_operation);
+            if (!upgraded)
+                return upgraded.error();
+            operation_pointer = &upgraded_operation;
+        }
+        else if (stored_operation.id == kSplitToningOperationId &&
+                 stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_split_toning_operation(upgraded_operation);
+            if (!upgraded)
+                return upgraded.error();
+            operation_pointer = &upgraded_operation;
+        }
+        else if (stored_operation.id == kVelviaOperationId && stored_operation.schema_version == 1)
+        {
+            upgraded_operation = stored_operation;
+            auto upgraded = upgrade_velvia_operation(upgraded_operation);
+            if (!upgraded)
+                return upgraded.error();
             operation_pointer = &upgraded_operation;
         }
         const auto &operation = *operation_pointer;
@@ -1012,6 +1103,97 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == kColorReconstructionOperationId)
+        {
+            auto color_reconstruction =
+                validate_color_reconstruction_parameters(operation.parameters);
+            if (!color_reconstruction)
+            {
+                auto error = color_reconstruction.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kSharpenOperationId)
+        {
+            auto sharpen = validate_sharpen_parameters(operation.parameters);
+            if (!sharpen)
+            {
+                auto error = sharpen.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kDehazeOperationId)
+        {
+            auto dehaze = validate_dehaze_parameters(operation.parameters);
+            if (!dehaze)
+            {
+                auto error = dehaze.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kRetouchOperationId)
+        {
+            auto retouch = validate_retouch_operation(operation, recipe.masks);
+            if (!retouch)
+            {
+                return retouch.error();
+            }
+        }
+        if (operation.id == kOutputDitherOperationId)
+        {
+            auto dither = validate_output_dither_parameters(operation.parameters);
+            if (!dither)
+            {
+                auto error = dither.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
+        if (operation.id == kCanvasOperationId)
+        {
+            auto canvas = canvas_from_parameters(operation.parameters);
+            if (!canvas)
+                return canvas.error();
+        }
+        if (operation.id == kFrameOperationId)
+        {
+            auto frame = frame_from_parameters(operation.parameters);
+            if (!frame)
+                return frame.error();
+        }
+        if (operation.id == kWatermarkOperationId)
+        {
+            auto watermark = watermark_from_parameters(operation.parameters);
+            if (!watermark)
+                return watermark.error();
+        }
+        if (operation.id == kColorZonesOperationId)
+        {
+            auto zones = color_zones_from_parameters(operation.parameters);
+            if (!zones)
+                return zones.error();
+        }
+        if (operation.id == kMonochromeOperationId)
+        {
+            auto monochrome = monochrome_from_parameters(operation.parameters);
+            if (!monochrome)
+                return monochrome.error();
+        }
+        if (operation.id == kSplitToningOperationId)
+        {
+            auto split = split_toning_from_parameters(operation.parameters);
+            if (!split)
+                return split.error();
+        }
+        if (operation.id == kVelviaOperationId)
+        {
+            auto velvia = velvia_from_parameters(operation.parameters);
+            if (!velvia)
+                return velvia.error();
+        }
         if (operation.id == "ravo.raw.highlights")
         {
             if (const auto found = operation.parameters.find("mode");
@@ -1102,13 +1284,18 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     }
 
     std::optional<std::size_t> output_color_index;
+    std::optional<std::size_t> any_output_color_index;
     for (std::size_t index = 0; index < recipe.operations.size(); ++index)
     {
         const auto &operation = recipe.operations[index];
-        if (!operation.enabled || operation.id != "ravo.color.output")
+        if (operation.id != "ravo.color.output")
         {
             continue;
         }
+        if (!any_output_color_index)
+            any_output_color_index = index;
+        if (!operation.enabled)
+            continue;
         if (output_color_index)
         {
             return make_error(ErrorCode::kConflict,
@@ -1116,6 +1303,112 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                               {{"operation_id", operation.id}});
         }
         output_color_index = index;
+    }
+
+    std::optional<std::size_t> output_dither_index;
+    std::optional<std::size_t> frame_index;
+    std::optional<std::size_t> watermark_index;
+    std::optional<std::size_t> canvas_index;
+    for (std::size_t index = 0; index < recipe.operations.size(); ++index)
+    {
+        const auto &operation = recipe.operations[index];
+        if (operation.id == kOutputDitherOperationId)
+        {
+            if (output_dither_index)
+                return make_error(
+                    ErrorCode::kConflict, "Recipe contains more than one Output Dither operation",
+                    {{"operation_id", operation.id}, {"reason", "duplicate_output_dither"}});
+            output_dither_index = index;
+        }
+        else if (operation.id == kFrameOperationId)
+        {
+            if (frame_index)
+                return make_error(
+                    ErrorCode::kConflict, "Recipe contains more than one Frame",
+                    {{"operation_id", operation.id}, {"reason", "duplicate_output_frame"}});
+            frame_index = index;
+        }
+        else if (operation.id == kWatermarkOperationId)
+        {
+            if (watermark_index)
+                return make_error(
+                    ErrorCode::kConflict, "Recipe contains more than one Watermark",
+                    {{"operation_id", operation.id}, {"reason", "duplicate_watermark"}});
+            watermark_index = index;
+        }
+        else if (operation.id == kCanvasOperationId)
+        {
+            if (canvas_index)
+                return make_error(ErrorCode::kConflict, "Recipe contains more than one Canvas",
+                                  {{"operation_id", operation.id}, {"reason", "duplicate_canvas"}});
+            canvas_index = index;
+        }
+    }
+    if (output_dither_index)
+    {
+        std::size_t next = *output_dither_index + 1U;
+        if (frame_index)
+            next = *frame_index == next ? next + 1U : recipe.operations.size() + 1U;
+        if (watermark_index)
+            next = *watermark_index == next ? next + 1U : recipe.operations.size() + 1U;
+        if (!any_output_color_index || *output_dither_index != *any_output_color_index + 1U ||
+            next != recipe.operations.size())
+        {
+            return make_error(
+                ErrorCode::kValidation,
+                "Output Dither must follow Output Color and precede only Frame and Watermark",
+                {{"operation_id", std::string(kOutputDitherOperationId)},
+                 {"reason", "invalid_output_dither_order"}});
+        }
+    }
+    if (frame_index)
+    {
+        const std::size_t expected =
+            output_dither_index ? *output_dither_index + 1U :
+                                  any_output_color_index.value_or(recipe.operations.size()) + 1U;
+        const std::size_t next = *frame_index + 1U;
+        if (!any_output_color_index || *frame_index != expected ||
+            (watermark_index ? *watermark_index != next || next + 1U != recipe.operations.size() :
+                               next != recipe.operations.size()))
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Frame must follow Output Color or Dither and precede only Watermark",
+                              {{"operation_id", std::string(kFrameOperationId)},
+                               {"reason", "invalid_output_frame_order"}});
+        }
+    }
+    if (watermark_index)
+    {
+        const std::size_t expected =
+            frame_index         ? *frame_index + 1U :
+            output_dither_index ? *output_dither_index + 1U :
+                                  any_output_color_index.value_or(recipe.operations.size()) + 1U;
+        if (!any_output_color_index || *watermark_index != expected ||
+            *watermark_index + 1U != recipe.operations.size())
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Watermark must be final after Output Color, Dither, or Frame",
+                              {{"operation_id", std::string(kWatermarkOperationId)},
+                               {"reason", "invalid_watermark_order"}});
+        }
+    }
+    if (canvas_index)
+    {
+        for (std::size_t index = *canvas_index + 1U; index < recipe.operations.size(); ++index)
+        {
+            const auto &operation = recipe.operations[index];
+            if (operation.enabled &&
+                (operation.id == "ravo.geometry.rotate" || operation.id == "ravo.geometry.flip" ||
+                 operation.id == "ravo.geometry.crop" ||
+                 operation.id == "ravo.geometry.straighten" ||
+                 operation.id == "ravo.geometry.lens"))
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Canvas does not yet compose with later geometry",
+                                  {{"operation_id", operation.id},
+                                   {"reason", "canvas_later_geometry_unsupported"}});
+            }
+        }
     }
 
     std::optional<std::size_t> primaries_index;
@@ -1148,7 +1441,22 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                               "RGB primaries must immediately follow input colour",
                               {{"operation_id", std::string(kPrimariesOperationId)}});
         }
-        if (recipe.operations.empty() || recipe.operations.back().id != "ravo.color.output")
+        const std::size_t expected_end =
+            watermark_index     ? *watermark_index + 1U :
+            frame_index         ? *frame_index + 1U :
+            output_dither_index ? *output_dither_index + 1U :
+                                  any_output_color_index.value_or(recipe.operations.size()) + 1U;
+        const bool valid_output_tail =
+            any_output_color_index && expected_end == recipe.operations.size() &&
+            (!output_dither_index || *output_dither_index == *any_output_color_index + 1U) &&
+            (!frame_index ||
+             *frame_index == (output_dither_index ? *output_dither_index + 1U :
+                                                    *any_output_color_index + 1U)) &&
+            (!watermark_index ||
+             *watermark_index == (frame_index         ? *frame_index + 1U :
+                                  output_dither_index ? *output_dither_index + 1U :
+                                                        *any_output_color_index + 1U));
+        if (!valid_output_tail)
         {
             return make_error(ErrorCode::kValidation,
                               "RGB primaries recipes require output colour as the final operation",

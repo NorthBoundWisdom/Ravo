@@ -12,6 +12,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
@@ -21,6 +22,7 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/foundation/json.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/style.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -203,14 +205,19 @@ struct CatalogCliArguments
     std::string_view catalog;
     std::vector<std::string_view> inputs;
     std::string_view asset_id;
+    std::vector<std::string_view> asset_ids;
     std::optional<int> rating;
     std::optional<double> exposure_ev;
     std::optional<double> saturation;
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
     std::vector<std::pair<std::string, double>> develop_sets;
+    std::optional<std::string_view> watermark_text;
     std::string_view output;
+    std::string_view output_directory;
+    std::string_view filename_template;
     std::string_view format;
+    std::string_view metadata_mode;
     std::string_view quality;
     std::string_view jpeg_subsampling;
     std::string_view tiff_sample_type;
@@ -286,6 +293,7 @@ struct CatalogCliArguments
 parse_catalog_flags(const std::span<const std::string_view> positional)
 {
     CatalogCliArguments result;
+    const bool batch_export = positional.size() > 1U && positional[1] == "export-batch";
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -329,11 +337,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--asset-id")
         {
-            if (!result.asset_id.empty())
+            if (batch_export)
+            {
+                result.asset_ids.push_back(value);
+            }
+            else if (!result.asset_id.empty())
             {
                 return make_error(ErrorCode::kInvalidArgument, "Asset ID was specified twice");
             }
-            result.asset_id = value;
+            else
+            {
+                result.asset_id = value;
+            }
         }
         else if (option == "--rating")
         {
@@ -387,6 +402,13 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             }
             result.develop_sets.emplace_back(owned.substr(0, split), parsed.value());
         }
+        else if (option == "--watermark-text")
+        {
+            if (result.watermark_text.has_value())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--watermark-text was specified more than once");
+            result.watermark_text = value;
+        }
         else if (option == "--max-edge")
         {
             auto dimension = parse_dimension(value, option);
@@ -398,11 +420,34 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--output")
         {
+            if (batch_export)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Batch export uses --output-dir, not --output");
+            }
             if (!result.output.empty())
             {
                 return make_error(ErrorCode::kInvalidArgument, "Output path was specified twice");
             }
             result.output = value;
+        }
+        else if (batch_export && option == "--output-dir")
+        {
+            if (!result.output_directory.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Output directory was specified twice");
+            }
+            result.output_directory = value;
+        }
+        else if (batch_export && option == "--filename-template")
+        {
+            if (!result.filename_template.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Filename template was specified twice");
+            }
+            result.filename_template = value;
         }
         else if (option == "--format")
         {
@@ -411,6 +456,10 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "Export format was specified twice");
             }
             result.format = value;
+        }
+        else if (option == "--metadata")
+        {
+            result.metadata_mode = value;
         }
         else if (option == "--quality")
         {
@@ -575,10 +624,114 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     return parse_export_format(flags.format);
 }
 
+[[nodiscard]] Result<ExportOptions> resolved_export_options(const CatalogCliArguments &flags)
+{
+    ExportRequest request;
+    auto format = resolved_export_format(flags);
+    if (!format)
+        return format.error();
+    request.format = format.value();
+    if (!flags.metadata_mode.empty())
+    {
+        auto metadata_mode = parse_export_metadata_mode(flags.metadata_mode);
+        if (!metadata_mode)
+        {
+            auto error = metadata_mode.error();
+            error.context.emplace("option", "--metadata");
+            return error;
+        }
+        request.metadata_mode = metadata_mode.value();
+    }
+    if (!flags.quality.empty())
+    {
+        auto quality =
+            parse_export_int_flag(flags.quality, "--quality", "jpeg", "invalid_jpeg_quality");
+        if (!quality)
+            return quality.error();
+        request.jpeg_options.quality = quality.value();
+    }
+    if (!flags.jpeg_subsampling.empty())
+    {
+        auto subsampling = parse_jpeg_subsampling(flags.jpeg_subsampling);
+        if (!subsampling)
+        {
+            return annotate_export_option_error(subsampling.error(), "--jpeg-subsampling",
+                                                flags.jpeg_subsampling, "jpeg",
+                                                "invalid_jpeg_subsampling");
+        }
+        request.jpeg_options.subsampling = subsampling.value();
+    }
+    if (!flags.tiff_sample_type.empty())
+    {
+        auto sample_type = parse_tiff_sample_type(flags.tiff_sample_type);
+        if (!sample_type)
+        {
+            return annotate_export_option_error(sample_type.error(), "--tiff-sample-type",
+                                                flags.tiff_sample_type, "tiff",
+                                                "invalid_tiff_sample_type");
+        }
+        request.tiff_options.sample_type = sample_type.value();
+    }
+    if (!flags.tiff_compression.empty())
+    {
+        auto compression = parse_tiff_compression(flags.tiff_compression);
+        if (!compression)
+        {
+            return annotate_export_option_error(compression.error(), "--tiff-compression",
+                                                flags.tiff_compression, "tiff",
+                                                "invalid_tiff_compression");
+        }
+        request.tiff_options.compression = compression.value();
+    }
+    if (!flags.tiff_compression_level.empty())
+    {
+        auto compression_level =
+            parse_export_int_flag(flags.tiff_compression_level, "--tiff-compression-level", "tiff",
+                                  "invalid_tiff_compression_level");
+        if (!compression_level)
+            return compression_level.error();
+        request.tiff_options.compression_level = compression_level.value();
+    }
+    if (!flags.tiff_resolution_dpi.empty())
+    {
+        auto resolution = parse_export_int_flag(flags.tiff_resolution_dpi, "--tiff-resolution-dpi",
+                                                "tiff", "invalid_tiff_resolution");
+        if (!resolution)
+            return resolution.error();
+        request.tiff_options.resolution_dpi = resolution.value();
+    }
+    request.tiff_options.grayscale_if_neutral = flags.tiff_grayscale_if_neutral;
+    if (!flags.png_bit_depth.empty())
+    {
+        auto bit_depth = parse_png_bit_depth(flags.png_bit_depth);
+        if (!bit_depth)
+        {
+            return annotate_export_option_error(bit_depth.error(), "--png-bit-depth",
+                                                flags.png_bit_depth, "png",
+                                                "invalid_png_bit_depth");
+        }
+        request.png_options.bit_depth = bit_depth.value();
+    }
+    if (!flags.png_compression.empty())
+    {
+        auto compression = parse_export_int_flag(flags.png_compression, "--png-compression", "png",
+                                                 "invalid_png_compression");
+        if (!compression)
+            return compression.error();
+        request.png_options.compression = compression.value();
+    }
+    if (flags.max_edge)
+        request.max_edge = *flags.max_edge;
+    auto valid = validate_cli_export_options(request, flags);
+    if (!valid)
+        return valid.error();
+    return static_cast<ExportOptions>(request);
+}
+
 [[nodiscard]] Result<void> reject_scoped_export_options(const CatalogCliArguments &flags,
                                                         const std::string_view subcommand)
 {
-    const bool is_export = subcommand == "export";
+    const bool is_export = subcommand == "export" || subcommand == "export-batch";
     if (is_export)
     {
         auto format = resolved_export_format(flags);
@@ -630,13 +783,19 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                           {{"reason", "tiff_options_require_tiff_export"},
                            {"subcommand", std::string(subcommand)}});
     }
+    if (!flags.metadata_mode.empty())
+    {
+        return make_error(
+            ErrorCode::kInvalidArgument, "Metadata privacy mode requires catalog export",
+            {{"reason", "metadata_mode_requires_export"}, {"subcommand", std::string(subcommand)}});
+    }
     return {};
 }
 
 struct AppliedDevelopOverride
 {
     std::string name;
-    double value = 0.0;
+    std::variant<double, std::string> value;
 };
 
 [[nodiscard]] Result<std::vector<AppliedDevelopOverride>>
@@ -694,6 +853,20 @@ apply_develop_overrides(DevelopParams &params, const CatalogCliArguments &flags)
         {
             return result.error();
         }
+    }
+    if (flags.watermark_text.has_value())
+    {
+        constexpr std::string_view name = "watermarkText";
+        if (!names.emplace(name).second)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Develop field was specified more than once",
+                              {{"name", std::string(name)}});
+        DevelopParams candidate = params;
+        auto assigned = apply_develop_text_field_strict(candidate, name, *flags.watermark_text);
+        if (!assigned)
+            return assigned.error();
+        params = std::move(candidate);
+        applied.push_back({std::string(name), std::string(*flags.watermark_text)});
     }
     clamp_develop(params);
     return applied;
@@ -886,7 +1059,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(
             ErrorCode::kInvalidArgument,
             "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|rate|"
-            "export|tag|metadata|history|snapshot|restore> --catalog <path>");
+            "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore> "
+            "--catalog <path>");
     }
     const auto subcommand = positional[1];
     auto flags = parse_catalog_flags(positional);
@@ -1124,7 +1298,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         JsonValue::Object overrides;
         for (const auto &item : applied.value())
         {
-            overrides.emplace(item.name, JsonValue::number(std::to_string(item.value)));
+            if (const auto *number = std::get_if<double>(&item.value); number != nullptr)
+                overrides.emplace(item.name, JsonValue::number(std::to_string(*number)));
+            else
+                overrides.emplace(item.name, JsonValue{std::get<std::string>(item.value)});
         }
         return JsonValue{JsonValue::Object{
             {"asset_id", previewed.value().asset_id},
@@ -1213,6 +1390,64 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         }
         return asset_to_json(rated.value());
     }
+    if (subcommand == "refresh-metadata")
+    {
+        if (flags.value().asset_id.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog refresh-metadata requires --asset-id");
+        }
+        auto refreshed =
+            service.refresh_capture_metadata(flags.value().asset_id, CancellationToken{});
+        if (!refreshed)
+        {
+            return refreshed.error();
+        }
+        return asset_to_json(refreshed.value());
+    }
+    if (subcommand == "export-batch")
+    {
+        if (flags.value().asset_ids.empty() || flags.value().output_directory.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog export-batch requires --asset-id and --output-dir");
+        }
+        auto options = resolved_export_options(flags.value());
+        if (!options)
+            return options.error();
+        ExportBatchRequest request;
+        request.asset_ids.reserve(flags.value().asset_ids.size());
+        for (const auto asset_id : flags.value().asset_ids)
+            request.asset_ids.emplace_back(asset_id);
+        request.output_directory = std::string(flags.value().output_directory);
+        if (!flags.value().filename_template.empty())
+            request.filename_template = std::string(flags.value().filename_template);
+        request.options = std::move(options).value();
+        auto exported = service.export_assets(request);
+        if (!exported)
+            return exported.error();
+        JsonValue::Array items;
+        items.reserve(exported.value().size());
+        for (const auto &item : exported.value())
+        {
+            items.emplace_back(JsonValue::Object{
+                {"asset_id", item.asset_id},
+                {"bytes", JsonValue::number(std::to_string(item.bytes_written))},
+                {"height", JsonValue::number(std::to_string(item.height))},
+                {"output", item.output_path},
+                {"width", JsonValue::number(std::to_string(item.width))},
+            });
+        }
+        return JsonValue{JsonValue::Object{
+            {"exported", JsonValue::number(std::to_string(exported.value().size()))},
+            {"filename_template", request.filename_template},
+            {"format", std::string(export_format_name(request.options.format))},
+            {"items", std::move(items)},
+            {"metadata_mode",
+             std::string(export_metadata_mode_name(request.options.metadata_mode))},
+            {"output_directory", request.output_directory},
+        }};
+    }
     if (subcommand == "export")
     {
         if (flags.value().asset_id.empty() || flags.value().output.empty())
@@ -1223,109 +1458,10 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         ExportRequest request;
         request.asset_id = std::string(flags.value().asset_id);
         request.output_path = std::string(flags.value().output);
-        auto format = resolved_export_format(flags.value());
-        if (!format)
-        {
-            return format.error();
-        }
-        request.format = format.value();
-        if (!flags.value().quality.empty())
-        {
-            auto quality = parse_export_int_flag(flags.value().quality, "--quality", "jpeg",
-                                                 "invalid_jpeg_quality");
-            if (!quality)
-            {
-                return quality.error();
-            }
-            request.jpeg_options.quality = quality.value();
-        }
-        if (!flags.value().jpeg_subsampling.empty())
-        {
-            auto subsampling = parse_jpeg_subsampling(flags.value().jpeg_subsampling);
-            if (!subsampling)
-            {
-                return annotate_export_option_error(subsampling.error(), "--jpeg-subsampling",
-                                                    flags.value().jpeg_subsampling, "jpeg",
-                                                    "invalid_jpeg_subsampling");
-            }
-            request.jpeg_options.subsampling = subsampling.value();
-        }
-        if (!flags.value().tiff_sample_type.empty())
-        {
-            auto sample_type = parse_tiff_sample_type(flags.value().tiff_sample_type);
-            if (!sample_type)
-            {
-                return annotate_export_option_error(sample_type.error(), "--tiff-sample-type",
-                                                    flags.value().tiff_sample_type, "tiff",
-                                                    "invalid_tiff_sample_type");
-            }
-            request.tiff_options.sample_type = sample_type.value();
-        }
-        if (!flags.value().tiff_compression.empty())
-        {
-            auto compression = parse_tiff_compression(flags.value().tiff_compression);
-            if (!compression)
-            {
-                return annotate_export_option_error(compression.error(), "--tiff-compression",
-                                                    flags.value().tiff_compression, "tiff",
-                                                    "invalid_tiff_compression");
-            }
-            request.tiff_options.compression = compression.value();
-        }
-        if (!flags.value().tiff_compression_level.empty())
-        {
-            auto compression_level = parse_export_int_flag(flags.value().tiff_compression_level,
-                                                           "--tiff-compression-level", "tiff",
-                                                           "invalid_tiff_compression_level");
-            if (!compression_level)
-            {
-                return compression_level.error();
-            }
-            request.tiff_options.compression_level = compression_level.value();
-        }
-        if (!flags.value().tiff_resolution_dpi.empty())
-        {
-            auto resolution =
-                parse_export_int_flag(flags.value().tiff_resolution_dpi, "--tiff-resolution-dpi",
-                                      "tiff", "invalid_tiff_resolution");
-            if (!resolution)
-            {
-                return resolution.error();
-            }
-            request.tiff_options.resolution_dpi = resolution.value();
-        }
-        request.tiff_options.grayscale_if_neutral = flags.value().tiff_grayscale_if_neutral;
-        if (!flags.value().png_bit_depth.empty())
-        {
-            auto bit_depth = parse_png_bit_depth(flags.value().png_bit_depth);
-            if (!bit_depth)
-            {
-                return annotate_export_option_error(bit_depth.error(), "--png-bit-depth",
-                                                    flags.value().png_bit_depth, "png",
-                                                    "invalid_png_bit_depth");
-            }
-            request.png_options.bit_depth = bit_depth.value();
-        }
-        if (!flags.value().png_compression.empty())
-        {
-            auto compression =
-                parse_export_int_flag(flags.value().png_compression, "--png-compression", "png",
-                                      "invalid_png_compression");
-            if (!compression)
-            {
-                return compression.error();
-            }
-            request.png_options.compression = compression.value();
-        }
-        if (flags.value().max_edge)
-        {
-            request.max_edge = *flags.value().max_edge;
-        }
-        auto valid_options = validate_cli_export_options(request, flags.value());
-        if (!valid_options)
-        {
-            return valid_options.error();
-        }
+        auto options = resolved_export_options(flags.value());
+        if (!options)
+            return options.error();
+        static_cast<ExportOptions &>(request) = std::move(options).value();
         auto exported = service.export_asset(request);
         if (!exported)
         {
@@ -1336,6 +1472,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"bytes", JsonValue::number(std::to_string(exported.value().bytes_written))},
             {"format", std::string(export_format_name(exported.value().format))},
             {"height", JsonValue::number(std::to_string(exported.value().height))},
+            {"metadata_mode", std::string(export_metadata_mode_name(request.metadata_mode))},
             {"output", exported.value().output_path},
             {"width", JsonValue::number(std::to_string(exported.value().width))},
         }};
@@ -1654,6 +1791,85 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
                         {"output", std::string(positional[8])},
                         {"schema_version",
                          JsonValue::number(std::to_string(recipe.value().schema_version))}}},
+                    json);
+    }
+    if (positional.size() == 3 && positional[0] == "recipe" && positional[1] == "style-validate")
+    {
+        auto text = read_utf8_text_file(positional[2]);
+        if (!text)
+            return emit(text.error(), json);
+        auto style = parse_recipe_style_json(text.value());
+        if (!style)
+            return emit(style.error(), json);
+        auto valid = engine_.validate(style.value().recipe);
+        if (!valid)
+            return emit(valid.error(), json);
+        return emit(JsonValue{JsonValue::Object{
+                        {"name", style.value().name},
+                        {"operation_count",
+                         JsonValue::number(std::to_string(style.value().recipe.operations.size()))},
+                        {"schema_version",
+                         JsonValue::number(std::to_string(style.value().schema_version))}}},
+                    json);
+    }
+    if (positional.size() == 7 && positional[0] == "recipe" && positional[1] == "style-create" &&
+        positional[3] == "--name" && positional[5] == "--output")
+    {
+        auto text = read_utf8_text_file(positional[2]);
+        if (!text)
+            return emit(text.error(), json);
+        auto recipe = parse_recipe_json(text.value());
+        if (!recipe)
+            return emit(recipe.error(), json);
+        auto valid = engine_.validate(recipe.value());
+        if (!valid)
+            return emit(valid.error(), json);
+        auto style = recipe_style_from_recipe(std::string(positional[4]), {}, recipe.value());
+        if (!style)
+            return emit(style.error(), json);
+        auto serialized = serialize_recipe_style(style.value());
+        if (!serialized)
+            return emit(serialized.error(), json);
+        auto written = write_utf8_text_file_atomically(positional[6], serialized.value());
+        if (!written)
+            return emit(written.error(), json);
+        return emit(JsonValue{JsonValue::Object{
+                        {"name", style.value().name},
+                        {"operation_count",
+                         JsonValue::number(std::to_string(style.value().recipe.operations.size()))},
+                        {"output", std::string(positional[6])},
+                        {"schema_version",
+                         JsonValue::number(std::to_string(style.value().schema_version))}}},
+                    json);
+    }
+    if (positional.size() == 9 && positional[0] == "recipe" && positional[1] == "style-apply" &&
+        positional[3] == "--asset-id" && positional[5] == "--input" && positional[7] == "--output")
+    {
+        auto text = read_utf8_text_file(positional[2]);
+        if (!text)
+            return emit(text.error(), json);
+        auto style = parse_recipe_style_json(text.value());
+        if (!style)
+            return emit(style.error(), json);
+        auto recipe = apply_recipe_style(
+            style.value(), {std::string(positional[4]), std::string(positional[6]), std::nullopt});
+        if (!recipe)
+            return emit(recipe.error(), json);
+        auto valid = engine_.validate(recipe.value());
+        if (!valid)
+            return emit(valid.error(), json);
+        auto serialized = serialize_recipe(recipe.value());
+        if (!serialized)
+            return emit(serialized.error(), json);
+        auto written = write_utf8_text_file_atomically(positional[8], serialized.value());
+        if (!written)
+            return emit(written.error(), json);
+        return emit(JsonValue{JsonValue::Object{
+                        {"asset_id", recipe.value().asset.id},
+                        {"name", style.value().name},
+                        {"operation_count",
+                         JsonValue::number(std::to_string(recipe.value().operations.size()))},
+                        {"output", std::string(positional[8])}}},
                     json);
     }
     if (positional.front() == "catalog")

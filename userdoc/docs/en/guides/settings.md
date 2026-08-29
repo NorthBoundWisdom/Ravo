@@ -5,7 +5,7 @@
 Change the current Studio interface language and understand what Settings does
 and does not configure in this baseline.
 
-**Last verified:** 2026-08-27 against the current Studio language manager and
+**Last verified:** 2026-08-29 against the current Studio language manager and
 Settings page.
 
 ## Applies to
@@ -32,6 +32,11 @@ Choose a language from the Language control. The selection is persisted in the
 desktop settings and the QML interface is retransmitted immediately. Machine
 errors from the catalog and engine remain in their structured source form; they
 are not hidden by translation.
+
+If a stored value is malformed, Studio removes it and starts in English. A
+failed settings write leaves the previous language active and reports the
+failure; unsupported requested languages likewise do not change the stored
+value.
 
 If the Chinese translation package was not included in a build, selecting
 Simplified Chinese shows a clear package-missing error. Reinstall or rebuild the

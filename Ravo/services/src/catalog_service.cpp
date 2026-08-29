@@ -1,9 +1,11 @@
 #include "ravo/services/catalog_service.h"
 
 #include <chrono>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <utility>
 
 #include "catalog_internal.h"
@@ -21,6 +23,12 @@ void testing::CatalogServiceTestControl::set_before_import_publication(
 {
     service.testing_before_import_publication_ = std::move(callback);
 }
+
+void testing::CatalogServiceTestControl::set_before_preview_cache_publication(
+    CatalogService &service, std::function<void()> callback)
+{
+    service.testing_before_preview_cache_publication_ = std::move(callback);
+}
 namespace
 {
 
@@ -34,6 +42,47 @@ namespace
 {
     return media_type == kMediaTypeJpeg || media_type == kMediaTypePng ||
            media_type == kMediaTypeTiff;
+}
+
+void merge_engine_capture(CaptureMetadata &target, const EngineCaptureMetadata &source)
+{
+    if (source.camera_make)
+        target.camera_make = source.camera_make;
+    if (source.camera_model)
+        target.camera_model = source.camera_model;
+    if (source.iso)
+        target.iso = source.iso;
+    if (source.aperture)
+        target.aperture = source.aperture;
+    if (source.focal_length_mm)
+        target.focal_length_mm = source.focal_length_mm;
+    if (source.shutter_s)
+        target.shutter_s = source.shutter_s;
+    if (source.captured_datetime)
+    {
+        CaptureDateTime captured;
+        captured.local_exif = source.captured_datetime->local_exif;
+        captured.subsecond_digits = source.captured_datetime->subsecond_digits;
+        captured.utc_offset_minutes = source.captured_datetime->utc_offset_minutes;
+        target.captured_datetime = std::move(captured);
+    }
+    if (source.location)
+    {
+        CaptureLocation copied;
+        copied.latitude_e6 = source.location->latitude_e6;
+        copied.longitude_e6 = source.location->longitude_e6;
+        if (source.location->altitude)
+        {
+            CaptureAltitude altitude;
+            altitude.magnitude_mm = source.location->altitude->magnitude_mm;
+            altitude.reference = source.location->altitude->reference ==
+                                         EngineCaptureAltitudeReference::kBelowSeaLevel ?
+                                     CaptureAltitudeReference::kBelowSeaLevel :
+                                     CaptureAltitudeReference::kAboveSeaLevel;
+            copied.altitude = altitude;
+        }
+        target.location = copied;
+    }
 }
 
 [[nodiscard]] std::string_view context_value(const TaskError &error, const std::string_view key)
@@ -67,6 +116,25 @@ namespace
         return false;
     }
     return error.code == ErrorCode::kUnsupported;
+}
+
+[[nodiscard]] std::string utf8_string(const std::u8string &value)
+{
+    return {reinterpret_cast<const char *>(value.data()), value.size()};
+}
+
+[[nodiscard]] TaskError
+annotate_batch_export_error(TaskError error, const std::size_t completed_count,
+                            const std::size_t total_count, const std::size_t failed_index,
+                            const std::string_view asset_id, const std::string_view output)
+{
+    error.context.insert_or_assign("asset_id", std::string(asset_id));
+    error.context.insert_or_assign("batch_index", std::to_string(failed_index + 1U));
+    error.context.insert_or_assign("completed_count", std::to_string(completed_count));
+    error.context.insert_or_assign("output", std::string(output));
+    error.context.insert_or_assign("partial_batch", completed_count == 0 ? "false" : "true");
+    error.context.insert_or_assign("total_count", std::to_string(total_count));
+    return error;
 }
 
 } // namespace
@@ -129,6 +197,11 @@ Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery 
     if (repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto valid_query = validate_library_query(query);
+    if (!valid_query)
+    {
+        return valid_query.error();
     }
     auto listed = repository_->list_assets();
     if (!listed)
@@ -276,16 +349,6 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
-    const auto removed = repository_->remove_asset(asset_id);
-    if (!removed)
-    {
-        return removed.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
     if (cache_ != nullptr)
     {
         const auto removed_cache = cache_->remove_for_asset(asset_id);
@@ -294,7 +357,7 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
             return removed_cache.error();
         }
     }
-    return {};
+    return repository_->remove_asset(asset_id);
 }
 
 Result<void> CatalogService::remove_original_and_catalog(const std::string_view asset_id)
@@ -334,15 +397,150 @@ Result<void> CatalogService::remove_original_and_catalog(const std::string_view 
         return make_error(ErrorCode::kNotFound, "Original file is missing",
                           {{"path", location.value().path}, {"asset_id", std::string(asset_id)}});
     }
-    std::error_code remove_error;
-    if (!std::filesystem::remove(path, remove_error) || remove_error)
+    std::error_code type_error;
+    if (!std::filesystem::is_regular_file(path, type_error) || type_error)
     {
-        return make_error(ErrorCode::kIo, "Unable to delete original file",
+        return make_error(ErrorCode::kUnsupported, "Original path is not a regular file",
                           {{"path", location.value().path},
                            {"asset_id", std::string(asset_id)},
-                           {"detail", remove_error.message()}});
+                           {"detail", type_error.message()},
+                           {"reason", "original_delete_non_regular"}});
     }
-    return remove_from_catalog(asset_id);
+    std::filesystem::path quarantine;
+    for (std::uint32_t suffix = 0U; suffix < 1024U; ++suffix)
+    {
+        std::filesystem::path candidate = path;
+        candidate += ".ravo-delete-" + std::to_string(suffix);
+        std::error_code candidate_error;
+        const bool occupied = std::filesystem::exists(candidate, candidate_error);
+        if (candidate_error)
+        {
+            return make_error(ErrorCode::kIo, "Unable to inspect delete quarantine path",
+                              {{"path", location.value().path},
+                               {"asset_id", std::string(asset_id)},
+                               {"detail", candidate_error.message()},
+                               {"reason", "delete_quarantine_inspect_failed"}});
+        }
+        if (!occupied)
+        {
+            quarantine = candidate;
+            break;
+        }
+    }
+    if (quarantine.empty())
+    {
+        return make_error(ErrorCode::kConflict, "No unique delete quarantine path is available",
+                          {{"path", location.value().path},
+                           {"asset_id", std::string(asset_id)},
+                           {"reason", "delete_quarantine_conflict"}});
+    }
+    std::error_code rename_error;
+    std::filesystem::rename(path, quarantine, rename_error);
+    if (rename_error)
+    {
+        return make_error(ErrorCode::kIo, "Unable to quarantine original before deletion",
+                          {{"path", location.value().path},
+                           {"asset_id", std::string(asset_id)},
+                           {"detail", rename_error.message()},
+                           {"reason", "delete_quarantine_rename_failed"}});
+    }
+    auto removed = remove_from_catalog(asset_id);
+    if (!removed)
+    {
+        TaskError primary = removed.error();
+        std::error_code rollback_error;
+        std::filesystem::rename(quarantine, path, rollback_error);
+        if (rollback_error)
+        {
+            primary.context.insert_or_assign("rollback_failed", "true");
+            primary.context.insert_or_assign("rollback_error", rollback_error.message());
+            primary.context.insert_or_assign("quarantine_path", quarantine.string());
+        }
+        return primary;
+    }
+    std::error_code remove_error;
+    if (!std::filesystem::remove(quarantine, remove_error) || remove_error)
+    {
+        return make_error(ErrorCode::kIo,
+                          "Catalog entry was removed but quarantined original could not be deleted",
+                          {{"path", location.value().path},
+                           {"quarantine_path", quarantine.string()},
+                           {"asset_id", std::string(asset_id)},
+                           {"catalog_removed", "true"},
+                           {"detail", remove_error.message()},
+                           {"reason", "delete_quarantine_finalize_failed"}});
+    }
+    return {};
+}
+
+Result<AssetRecord> CatalogService::refresh_capture_metadata(const std::string_view asset_id,
+                                                             const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    if (repository_ == nullptr || engine_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto existing = repository_->find_asset_by_id(asset_id);
+    if (!existing)
+        return existing.error();
+    if (!existing.value())
+        return make_error(ErrorCode::kNotFound, "Asset does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    auto location = normalize_local_input(existing.value()->normalized_uri);
+    if (!location)
+        return location.error();
+    auto identity = read_file_identity(location.value().path);
+    if (!identity)
+        return identity.error();
+
+    CaptureMetadata refreshed;
+    if (is_raw_media_type(existing.value()->media_type))
+    {
+        auto inspected = engine_->inspect(location.value().path, cancellation);
+        if (!inspected)
+            return inspected.error();
+        if (!inspected.value().is_raw)
+            return make_error(ErrorCode::kValidation,
+                              "Catalog RAW asset no longer identifies as RAW",
+                              {{"asset_id", std::string(asset_id)},
+                               {"reason", "metadata_refresh_media_mismatch"}});
+        if (!inspected.value().make.empty())
+            refreshed.camera_make = inspected.value().make;
+        if (!inspected.value().model.empty())
+            refreshed.camera_model = inspected.value().model;
+        refreshed.iso = inspected.value().iso;
+        refreshed.aperture = inspected.value().aperture;
+        refreshed.focal_length_mm = inspected.value().focal_length_mm;
+        refreshed.shutter_s = inspected.value().shutter_s;
+        refreshed.captured_unix_s = inspected.value().captured_unix_s;
+    }
+    if (media_type_has_embedded_capture(existing.value()->media_type))
+    {
+        auto extracted =
+            engine_->read_embedded_capture_metadata(location.value().path, cancellation);
+        if (!extracted)
+            return extracted.error();
+        merge_engine_capture(refreshed, extracted.value());
+    }
+    auto valid = validate_capture_metadata(refreshed);
+    if (!valid)
+        return valid.error();
+    active = cancellation.check();
+    if (!active)
+        return active.error();
+    AssetRecord updated = *existing.value();
+    updated.size_bytes = identity.value().size_bytes;
+    updated.mtime_unix_ms = identity.value().mtime_unix_ms;
+    updated.content_fingerprint = make_content_fingerprint(identity.value());
+    updated.import_state = std::string(kImportStateImported);
+    updated.error_code.reset();
+    updated.error_message.reset();
+    updated.capture = std::move(refreshed);
+    auto published = repository_->commit_refreshed_asset(updated);
+    if (!published)
+        return published.error();
+    return updated;
 }
 
 Result<bool> CatalogService::asset_has_edits(const std::string_view asset_id) const
@@ -934,31 +1132,7 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         {
             return failed_item(location.value().path, extracted.error());
         }
-        if (extracted.value().captured_datetime)
-        {
-            CaptureDateTime captured;
-            captured.local_exif = extracted.value().captured_datetime->local_exif;
-            captured.subsecond_digits = extracted.value().captured_datetime->subsecond_digits;
-            captured.utc_offset_minutes = extracted.value().captured_datetime->utc_offset_minutes;
-            asset.capture.captured_datetime = std::move(captured);
-        }
-        if (extracted.value().location)
-        {
-            CaptureLocation copied;
-            copied.latitude_e6 = extracted.value().location->latitude_e6;
-            copied.longitude_e6 = extracted.value().location->longitude_e6;
-            if (extracted.value().location->altitude)
-            {
-                CaptureAltitude altitude;
-                altitude.magnitude_mm = extracted.value().location->altitude->magnitude_mm;
-                altitude.reference = extracted.value().location->altitude->reference ==
-                                             EngineCaptureAltitudeReference::kBelowSeaLevel ?
-                                         CaptureAltitudeReference::kBelowSeaLevel :
-                                         CaptureAltitudeReference::kAboveSeaLevel;
-                copied.altitude = altitude;
-            }
-            asset.capture.location = copied;
-        }
+        merge_engine_capture(asset.capture, extracted.value());
         auto valid_capture = validate_capture_metadata(asset.capture);
         if (!valid_capture)
         {
@@ -1120,6 +1294,209 @@ Result<std::vector<ImportItemResult>> CatalogService::import_inputs(
     return results;
 }
 
+Result<std::vector<ExportResult>> CatalogService::export_assets(
+    const ExportBatchRequest &request,
+    const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress)
+{
+    if (engine_ == nullptr || raster_ == nullptr || repository_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto cancelled = request.cancellation.check();
+    if (!cancelled)
+        return cancelled.error();
+    if (request.asset_ids.empty() || request.asset_ids.size() > kExportBatchMaxAssets)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Export batch size is invalid",
+                          {{"asset_count", std::to_string(request.asset_ids.size())},
+                           {"max_assets", std::to_string(kExportBatchMaxAssets)},
+                           {"reason", "invalid_export_batch_size"}});
+    }
+    if (request.output_directory.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Export batch requires an output directory");
+    }
+    Result<void> valid_options;
+    switch (request.options.format)
+    {
+    case ExportFormat::kJpeg:
+        valid_options = validate_jpeg_export_options(request.options.jpeg_options);
+        break;
+    case ExportFormat::kPng:
+        valid_options = validate_png_export_options(request.options.png_options);
+        break;
+    case ExportFormat::kTiff:
+        valid_options = validate_tiff_export_options(request.options.tiff_options);
+        break;
+    case ExportFormat::kOriginalCopy:
+        if (request.options.metadata_mode != ExportMetadataMode::kFull)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Metadata privacy mode does not apply to original copy",
+                              {{"format", "original"}, {"reason", "metadata_mode_not_applicable"}});
+        }
+        break;
+    }
+    if (!valid_options)
+        return valid_options.error();
+
+    auto normalized_root = normalize_local_input(request.output_directory);
+    if (!normalized_root)
+        return normalized_root.error();
+    const auto root_path = utf8_path(normalized_root.value().path);
+    std::error_code root_error;
+    const bool root_is_directory = std::filesystem::is_directory(root_path, root_error);
+    if (root_error)
+    {
+        return make_error(
+            ErrorCode::kIo, "Unable to inspect export output directory",
+            {{"path", normalized_root.value().path}, {"detail", root_error.message()}});
+    }
+    if (!root_is_directory)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Export output directory does not exist or is not a directory",
+                          {{"path", normalized_root.value().path},
+                           {"reason", "invalid_export_output_directory"}});
+    }
+
+    struct PlannedExport
+    {
+        std::string asset_id;
+        std::string output_path;
+    };
+    std::vector<PlannedExport> planned;
+    planned.reserve(request.asset_ids.size());
+    std::set<std::string, std::less<>> unique_assets;
+    std::set<std::string, std::less<>> unique_outputs;
+    for (std::size_t index = 0; index < request.asset_ids.size(); ++index)
+    {
+        cancelled = request.cancellation.check();
+        if (!cancelled)
+        {
+            return annotate_batch_export_error(cancelled.error(), 0, request.asset_ids.size(),
+                                               index, request.asset_ids[index], {});
+        }
+        const auto &asset_id = request.asset_ids[index];
+        if (asset_id.empty() || !unique_assets.emplace(asset_id).second)
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Export batch asset IDs must be nonempty and unique",
+                              {{"asset_id", asset_id},
+                               {"batch_index", std::to_string(index + 1U)},
+                               {"reason", "duplicate_export_asset_id"}});
+        }
+        auto asset = repository_->find_asset_by_id(asset_id);
+        if (!asset)
+            return asset.error();
+        if (!asset.value())
+        {
+            return make_error(
+                ErrorCode::kNotFound, "Asset does not exist",
+                {{"asset_id", asset_id}, {"batch_index", std::to_string(index + 1U)}});
+        }
+        auto source = normalize_local_input(asset.value()->normalized_uri);
+        if (!source)
+            return source.error();
+        const auto source_path = utf8_path(source.value().path);
+        std::error_code source_error;
+        const bool source_is_file = std::filesystem::is_regular_file(source_path, source_error);
+        if (source_error)
+        {
+            return make_error(ErrorCode::kIo, "Unable to inspect export source",
+                              {{"asset_id", asset_id},
+                               {"batch_index", std::to_string(index + 1U)},
+                               {"path", source.value().path},
+                               {"detail", source_error.message()}});
+        }
+        if (!source_is_file)
+        {
+            return make_error(ErrorCode::kNotFound, "Original file is missing",
+                              {{"asset_id", asset_id},
+                               {"batch_index", std::to_string(index + 1U)},
+                               {"path", source.value().path}});
+        }
+        const auto stem = utf8_string(source_path.stem().u8string());
+        const auto extension = request.options.format == ExportFormat::kOriginalCopy ?
+                                   utf8_string(source_path.extension().u8string()) :
+                                   std::string(export_format_extension(request.options.format));
+        auto filename = expand_export_filename_template(request.filename_template, stem, asset_id,
+                                                        index + 1U, extension);
+        if (!filename)
+        {
+            auto error = filename.error();
+            error.context.insert_or_assign("asset_id", asset_id);
+            error.context.insert_or_assign("batch_index", std::to_string(index + 1U));
+            return error;
+        }
+        const auto output_path = root_path / utf8_path(filename.value());
+        const auto output = utf8_string(output_path.generic_u8string());
+        if (!unique_outputs.emplace(output).second)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Export filename template resolves multiple assets to one output",
+                              {{"asset_id", asset_id},
+                               {"batch_index", std::to_string(index + 1U)},
+                               {"output", output},
+                               {"reason", "duplicate_export_output"}});
+        }
+        std::error_code target_error;
+        const auto target_status = std::filesystem::symlink_status(output_path, target_error);
+        if (target_error && target_error != std::errc::no_such_file_or_directory)
+        {
+            return make_error(ErrorCode::kIo, "Unable to inspect export output path",
+                              {{"asset_id", asset_id},
+                               {"batch_index", std::to_string(index + 1U)},
+                               {"output", output},
+                               {"detail", target_error.message()}});
+        }
+        if (!target_error && std::filesystem::exists(target_status))
+        {
+            return make_error(ErrorCode::kConflict, "Export output already exists",
+                              {{"asset_id", asset_id},
+                               {"batch_index", std::to_string(index + 1U)},
+                               {"completed_count", "0"},
+                               {"output", output},
+                               {"partial_batch", "false"},
+                               {"reason", "export_batch_preflight_conflict"},
+                               {"total_count", std::to_string(request.asset_ids.size())}});
+        }
+        planned.push_back({asset_id, output});
+    }
+
+    std::vector<ExportResult> results;
+    results.reserve(planned.size());
+    for (std::size_t index = 0; index < planned.size(); ++index)
+    {
+        cancelled = request.cancellation.check();
+        if (!cancelled)
+        {
+            return annotate_batch_export_error(cancelled.error(), results.size(), planned.size(),
+                                               index, planned[index].asset_id,
+                                               planned[index].output_path);
+        }
+        ExportRequest item;
+        static_cast<ExportOptions &>(item) = request.options;
+        item.asset_id = planned[index].asset_id;
+        item.output_path = planned[index].output_path;
+        item.cancellation = request.cancellation;
+        item.correlation_id = request.correlation_id.empty() ?
+                                  planned[index].asset_id :
+                                  request.correlation_id + ":" + std::to_string(index + 1U);
+        auto exported = export_asset(item);
+        if (!exported)
+        {
+            return annotate_batch_export_error(exported.error(), results.size(), planned.size(),
+                                               index, planned[index].asset_id,
+                                               planned[index].output_path);
+        }
+        results.push_back(std::move(exported).value());
+        if (progress)
+            progress(index + 1U, planned.size(), &results.back());
+    }
+    return results;
+}
+
 Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
 {
     if (engine_ == nullptr || raster_ == nullptr || repository_ == nullptr)
@@ -1163,6 +1540,13 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
             return options.error();
         }
     }
+    if (request.format == ExportFormat::kOriginalCopy &&
+        request.metadata_mode != ExportMetadataMode::kFull)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Metadata privacy mode does not apply to original copy",
+                          {{"format", "original"}, {"reason", "metadata_mode_not_applicable"}});
+    }
     auto output = normalize_local_input(request.output_path);
     if (!output)
     {
@@ -1181,18 +1565,29 @@ Result<ExportResult> CatalogService::export_asset(const ExportRequest &request)
     ExportMetadataSnapshot export_metadata;
     if (request.format != ExportFormat::kOriginalCopy)
     {
-        if (request.format == ExportFormat::kTiff)
+        if (request.metadata_mode == ExportMetadataMode::kNone)
         {
-            export_metadata.destination_document_name = output.value().path;
+            export_metadata.embed_metadata = false;
         }
-        export_metadata.writable = asset.value()->metadata;
-        export_metadata.capture = asset.value()->capture;
-        auto tags = canonicalize_export_tags(asset.value()->tags, request.cancellation);
-        if (!tags)
+        else
         {
-            return tags.error();
+            if (request.format == ExportFormat::kTiff)
+            {
+                export_metadata.destination_document_name = output.value().path;
+            }
+            export_metadata.writable = asset.value()->metadata;
+            export_metadata.capture = asset.value()->capture;
+            if (request.metadata_mode == ExportMetadataMode::kNoLocation)
+            {
+                export_metadata.capture.location.reset();
+            }
+            auto tags = canonicalize_export_tags(asset.value()->tags, request.cancellation);
+            if (!tags)
+            {
+                return tags.error();
+            }
+            export_metadata.tags = std::move(tags).value();
         }
-        export_metadata.tags = std::move(tags).value();
         auto valid_metadata =
             request.format == ExportFormat::kTiff ?
                 validate_tiff_export_metadata(export_metadata, request.cancellation) :

@@ -39,8 +39,28 @@ restore, history preview without appending, and atomic discard of newer history
 steps. Schema v5 adds capture local time/offset and GPS magnitude/reference
 columns with strict migration, import-transaction, storage-decoding, and reopen
 contracts. Opening a v5 file that still has signed `gps_altitude_mm` repairs
-the ADR-0040 magnitude/ref columns in place. This does not complete
-I11/I12/I13/S9/J6. FreeCM Test and
+the ADR-0040 magnitude/ref columns in place. LibraryQuery tests cover every
+supported predicate, missing capture values, inclusive numeric/time endpoints,
+ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
+text/range state, deterministic capture/file-size sorting, Catalog validation
+propagation, Studio command/QML wiring, clear state, translations, and QML
+smoke. They also pin the ADR-0059 decision not to persist recent filters or
+silently map legacy-only bookkeeping fields. Navigation tests cover the single
+presenter zoom owner, 0.1–8 clamps, wheel step, bounded Flickable/navigator
+seek, active-asset comparison, recenter triggers, crop pan exclusion, and QML
+smoke; same-asset review notifications are required not to reset pan. Scope
+tests pin histogram bins/max, Waveform/Parade 8/9 white placement and RGB
+composition, neutral-center versus saturated-red D50 u*v*, exact image sizes,
+Split left equality and max-preserved right signal, exact-buffer rejection,
+five presenter/command/QML modes, provider URLs, translations, and offscreen
+smoke. Canvas is checked not to contain the engine color math. Asset mutation
+tests cover duplicate revision neutrality, missing/error publication, every
+preview cache variant, original-preserving catalog removal, successful disk
+deletion, unknown/missing paths, and forced SQLite revision failure. The latter
+must restore row, revision, original bytes, and remove the quarantine; repository
+delete and revision are exercised as one transaction. These tests do not
+complete I11/I12/I13 shared-consumer retirement, PNG pHYs, or TIFF multipage
+masks. FreeCM Test and
 `ctest --test-dir build/<preset>` run the same suite
 from the repository root. GitHub Actions runs the same CTest set on
 `mac_clang_debug`, `linux_clang_debug`, and `win_msvc_debug`, plus static
@@ -225,7 +245,7 @@ same/pre-existing outputs with complete `reason`/`source`/`output` context. CLI
 tests cover all three aliases plus complete conflict/I/O JSON. CLI end-to-end
 cancellation is not injectable in this tranche and must not be reported as
 covered. These contracts do not retire `legacy/src/imageio/format/copy.c` or
-claim I14 batch/storage policy.
+claim I14 batch/storage policy; ADR-0068 tests that higher owner separately.
 
 Encoded-publication tests freeze exact multi-chunk and empty output, immutable
 input bytes, preservation of the old fixed temporary sentinel, and cleanup of
@@ -239,7 +259,82 @@ replace the primary error, and two parallel writers with exactly one exact
 winner. Every result retains `path` and adds explicit `output` context.
 Original-copy tests rerun against the extracted destination primitives. The
 macOS evidence does not claim parent-directory synchronization,
-Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
+Windows/Linux execution or generic dynamic-storage ABI retirement.
+
+Batch-export tests freeze the four-token filename grammar, sequence padding,
+implicit extension, UTF-8/byte bounds, traversal/portable-name/device rejection,
+and unknown-brace failures. Catalog tests prove ordered typed output, progress,
+duplicate-name and pre-existing-target zero-publication preflight, cancellation
+after the first completed item, and a source disappearing after preflight; the
+latter two retain the first output and report completed/total/index/asset/path
+partial context. CLI JSON exercises two real assets and shared codec/privacy
+options; Studio command/QML tests pin multi-selection template/folder routing.
+The old disk module is deleted, while generic storage ABI retirement remains
+untested and blocked by U10/J2 (ADR-0068).
+
+Output Dither tests pin all 18 schema names and explicit-default Develop
+presence; bit-exact float references cover source-order 1-bit gray and 4-bit
+RGB Floyd–Steinberg, tiny no-diffusion, every posterize level, target-aware
+auto, and the fixed serial 8-round TEA stream from the random fixture. Invalid
+layout/profile/non-finite/mask/schema, pre-publication cancellation, and source
+immutability fail atomically. Engine tests prove Output Color precedes
+posterize; exact focused 0043/0044/0136 records map while disabled/modified/
+cross-paired state rejects. CLI sets the three Develop fields, Catalog proves
+save/cache-delete/reopen/export pixel equality, and Studio QML contains no
+quantization math (ADR-0069).
+
+Canvas/Frame tests pin both strict schemas, explicit-default Develop state,
+operation uniqueness, Output Color → optional Dither → Frame ordering, and the
+explicit rejection of enabled geometry after Canvas. Canvas references freeze
+percentage truncation, asymmetric placement, fill pixels, attached photo frame,
+All/Circle mask coordinates, and zero alpha outside the content rectangle.
+Frame references freeze constant/aspect/basis/orientation layout and the full
+4×4 source-order border-line endpoint result. Invalid dimensions, aspect
+underflow, layout/profile/buffer/non-finite input, nested/masked operations,
+mid-row/pre-publication cancellation, and source mutation fail explicitly.
+Exact 0157 Canvas plus 0030/0154/0155 Frame records map; modified payload state
+rejects. Catalog deletes cache, reopens, and exports PNG/JPEG/TIFF with exact
+dimensions; CLI, Studio presenter/QML, compiled translations, and offscreen
+smoke share the same fields (ADR-0070).
+
+Watermark tests pin the ten-field schema, printable subset, unknown token and
+Unicode rejection, `{stem}`/`{asset_id}` expansion, Develop round-trip, unique
+final order, exact 5×7 `A` coverage/blend, and visible execution after Dither
+and Frame. Non-finite input plus row/pre-publication cancellation preserve the
+source and publish nothing. The sole 0032 v5 `promo.svg` record is negative
+evidence because that external file is absent; import returns
+`unsupported_legacy_watermark_resource` rather than accepting the old silent
+no-op. CLI saves literal text and numeric fields; Catalog proves preview/cache
+delete/reopen plus PNG/JPEG/TIFF pixel/dimension paths; Studio command/QML,
+compiled translations, and offscreen smoke cover the complete editor
+(ADR-0071).
+
+Color Zones tests pin strict 2–20-node schemas, node separation and periodic
+gap, all L/C/h partitions, cubic/Catmull–Rom/monotone LUT construction in both
+periodic and nonperiodic modes, exact 16-bit LUT normalization, identity and
+constant Lab scalar formulas, canonical All-mask equality, LUT/row
+cancellation, non-finite/source ownership, and explicit unsafe-spline output.
+The exact 520-byte 0022 v5 singleton maps while a modified payload rejects.
+Develop/CLI preserve the eight-band surface; Catalog proves preview, cache
+delete, reopen, PNG/JPEG/TIFF export and source safety; Studio presenter/QML,
+translations, and offscreen smoke cover the bounded editor (ADR-0073).
+
+Monochrome tests pin schema-v2 bounds, schema-v1 amount→mix upgrade, source
+bit-fast-exp, uniform-filter scalar lightness, exact zero-mix identity, cleared
+Lab chroma, canonical All-mask equality, invalid scale/non-finite state,
+pre-bilateral/row/pre-publication cancellation, and source ownership. The
+exact 0017 v2 singleton maps while modified payloads reject. The extracted
+bilateral lightness primitive reruns all Retouch references. CLI/Catalog/Studio
+cover five controls, preview/cache delete/reopen, PNG/JPEG/TIFF export,
+translations, and QML smoke (ADR-0074).
+
+Split Toning tests pin schema-v2 bounds, schema-v1 amount upgrade, shared HSL
+conversion, exact shadow/midtone/highlight scalar branches, compression/pivot
+weights, zero-mix identity, canonical All-mask equality, non-finite/source
+ownership, row/pre-publication cancellation, and the exact 0062 v1 singleton
+plus modified-payload rejection. CLI/Catalog/Studio cover seven controls,
+preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
+(ADR-0075).
 
 ## Preview and viewer
 
@@ -248,6 +343,11 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
 - Cache keys include source fingerprint, size, and contract version; a PNG
   without the 8-byte signature is a miss and is deleted so the next request
   rebuilds it. Close releases cache owners; reopen rebuilds from the source.
+- Filesystem cache tests use exact byte budgets to prove oversized rejection,
+  hit promotion, deterministic LRU eviction, accounting, asset-wide removal,
+  and mtime/key indexing plus pruning after reopen. Catalog injection cancels
+  after encode and proves that neither a cache file nor a preview row publishes
+  at the pre-commit seam (ADR-0067).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
 - RAW preview contract v7 validates complete decode, explicit input/output
@@ -477,6 +577,76 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   read-only detach of external/shared attachments. They do not relax the frozen
   legacy importer or claim historic blend modes, leftover GTK mask-manager
   deletion, GPU, or C15.
+- `colorreconstruct` census finds one actual record, the enabled-v3
+  priority-zero unnamed default-unmasked singleton in 0052. Its exact 20-byte
+  payload and v10 blend import after the document's exact built-in RAW tuples;
+  disabled, duplicate, mask, custom-blend, multi/name/priority, malformed,
+  non-finite, and other-version state rejects structurally. The complete 0052
+  document becomes positive evidence without making any other history
+  compatible.
+- Color Reconstruction CPU tests freeze all none/chroma/hue precedence modes,
+  the D50 bridge, threshold exclusion and 95% blend ramp, bounded grid shape,
+  x/y/lightness five-tap blur, trilinear slice, and canonical full/downscaled
+  spatial scale. Dimensions/buffer/profile/scale, parameters, every non-finite
+  input/output, grid overflow/allocation, operation mask/schema, and controlled
+  splat/blur/slice/prepublication cancellation publish nothing and preserve the
+  borrowed source/profile/analysis state. The 0052 payload on `mire1.cr2` pins
+  a 42x64 channel-sum reference and unchanged source hash/size/mtime. Catalog
+  covers explicit save, preview cache identity, PNG export, close/reopen pixel
+  equality, and source hash; Studio presenter/QML, compiled translations, and
+  offscreen smoke cover the complete five-parameter surface. These tests do
+  not claim tile-local processing, historic blend modes, GTK/OpenCL, or R2
+  demosaic completion.
+- `sharpen` census finds exactly three enabled-v1 priority-zero unnamed records,
+  all with radius 2, amount 0.5, and threshold 0.5. Two exact v9 and one exact
+  v11 default-unmasked blends map to schema v2; disabled, duplicate, mask,
+  custom-blend, multi/name/priority, malformed, non-finite, and other-version
+  state rejects. The complete 0029 document remains negative because its
+  Filmic RGB operation is not mapped. Fixture 0171 is separate demosaic capture
+  sharpening evidence and does not satisfy F1.
+- Sharpen CPU tests compare every Lab component against an independent frozen
+  scalar oracle for full/downscaled canonical scale, source-order Gaussian
+  normalization and separable convolution, radius cap with retained sigma,
+  strict threshold, unchanged borders/chroma, and small-frame pass-through.
+  Schema-v1 upgrade, dimensions/buffer/profile/scale, non-finite input/output,
+  mask/schema, allocation, RAW memory accounting, and controlled input/
+  vertical/horizontal/output/prepublication cancellation are atomic. A
+  340x512 `mire1.cr2` default reference proves observable source behavior and
+  unchanged source hash/size/mtime. Catalog covers edited preview/cache/save/
+  PNG export/close/reopen pixel equality; Studio covers amount/radius/threshold,
+  translations, and offscreen QML smoke. These tests do not claim demosaic
+  capture sharpening, GTK presets, historic blend modes, or OpenCL.
+- `hazeremoval` census finds exactly two enabled priority-zero unnamed
+  singleton records: v1 strength/distance 0.2 with the exact v9 default blend,
+  and v2 strength 0.9, distance 0.8, adaptive false with the exact v13 default
+  blend. Strict tests reject disabled, duplicate, masks (including the full
+  0026 mask history), custom blend, multi/name/priority, malformed,
+  non-finite, and other-version state.
+- Dehaze CPU tests compare ambient quantiles, distance, adaptive full/downscale
+  windows, max/min transition and every RGB guided-filter result against an
+  independent direct-window covariance oracle. They cover Kahan separable
+  means, tiled overlap, Cramer's-rule/singular solve, negative/positive
+  strength, minimum transmission, source-linear stage, raster/already-working
+  rejection, dimensions/buffer/profile/scale/ambient/non-finite/allocation,
+  RAW memory accounting, and controlled dark/selection/transition/tile/
+  statistics/solve/output/prepublication cancellation with no mutation. The
+  v1 payload on `mire1.cr2` pins an 85x128 reference and source hash/size/mtime;
+  Catalog covers cache/save/PNG export/close/reopen equality and Studio covers
+  strength/distance/adaptive, compiled translations and offscreen smoke. The
+  generic old guided-filter owner remains unclaimed for its other consumers.
+- Retouch tests validate the strict nested region schema, drawable-leaf and
+  unique-mask references, Develop/recipe serialization, ordered clone/heal/
+  Gaussian/bilateral blur/fill execution, original/detail/residual wavelet
+  reconstruction, untouched pixels, source/profile ownership, entry
+  cancellation, and saturating workspace accounting. The four frozen fixture
+  families supply five exact v1 parameter revisions plus v6 circle/ellipse/
+  path/brush/group/source payloads; focused import selects the greatest history
+  revision, while their unrelated unaccepted `rawprepare`/`basecurve` state is
+  not absorbed. Catalog covers preview/cache/save/PNG export/close/reopen pixel
+  equality and original hash; Studio presenter/QML/command registration,
+  translations, and offscreen smoke cover all four modes and add/remove
+  intents. These tests do not claim shared S2/S3 owners, historic whole-document
+  replay, GTK/OpenCL, or GPU execution.
 - Canonical mask graph tests cover schema-v1 `all` upgrade and deterministic
   v2 serialization; unknown fields/kinds/versions, non-finite/bounded values,
   duplicate/dangling/cyclic/deep/shared DAGs, node/child/expanded-work limits,
@@ -633,8 +803,36 @@ Windows/Linux execution, I14 batch/storage policy, or legacy storage retirement.
   duplicate-import metadata/revision freeze. Encoder and TIFF tests prove one
   `PreparedExportMetadata` derivation, conservative packet estimates,
   JPEG/PNG/TIFF embed, exact TIFF field values, and injected LibTIFF GPS IFD
-  lifecycle failures. XMP attach/history/sidecar policy, metadata refresh, and
-  privacy stripping remain unclaimed S9/J6 work.
+  lifecycle failures. Sidecar tests and source snapshots prove directory import
+  skips `.xmp`, explicit legacy conversion never mutates inputs, Catalog edits
+  generate no adjacent file, rendered XMP stays embedded, original-copy remains
+  exact, and source/sidecar hash/size/mtime are unchanged (ADR-0063). Metadata
+  refresh and privacy stripping remain unclaimed S9 work.
+- Capture refresh tests modify committed Exif source bytes after import, then
+  prove Make/Model/numeric/date/GPS re-read, identity refresh, close/reopen, and
+  one revision increment. A forced SQLite revision trigger and entry
+  cancellation preserve the old capture row and revision. Export privacy tests
+  cover domain mode parsing, disabled-snapshot payload rejection, Studio typed
+  conversion/QML/translation, CLI `--metadata`, and JPEG/PNG/TIFF semantic
+  parsing: no-location retains time but no GPS; none contains no public
+  Exif/XMP/IPTC/DocumentName/ExifIFD/GPSIFD while ICC remains. Original-copy
+  rejects stripping and publishes nothing.
+- RecipeStyle tests cover deterministic schema-v1 serialization, bounded name/
+  description/file size, exact placeholder identity, complete operation/mask/
+  Retouch/bypass round-trip, target-only identity replacement, unknown/missing/
+  wrong-type/newer/malformed state, and explicit legacy-dtstyle rejection. CLI
+  create/validate/apply uses real files, conflict behavior, and target recipe
+  validation; Studio command/QML tests pin explicit save/apply dialogs and
+  `.rstyle.json` filters, translations, and offscreen smoke. Applied Studio
+  styles enter the existing recipe/history/undo transaction rather than a
+  parallel preset store. ADR-0072 removes all bundled `.dtstyle` examples and
+  their exclusive translation generator; the parser's whole-format rejection
+  remains the test truth rather than per-example conversion tests.
+- Studio settings tests isolate QSettings storage and prove corrupt persisted
+  language removal, English fallback, alias normalization, synchronous
+  persistence, unsupported-language rejection, and preservation of the prior
+  durable value. Translation package smoke separately proves both catalogs
+  compile with no active unfinished strings (ADR-0066).
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

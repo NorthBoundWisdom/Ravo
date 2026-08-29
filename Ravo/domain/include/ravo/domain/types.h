@@ -47,6 +47,9 @@ inline constexpr int kTiffCompressionLevelMax = 9;
 inline constexpr int kDefaultTiffResolutionDpi = 300;
 inline constexpr int kTiffResolutionDpiMin = 72;
 inline constexpr int kTiffResolutionDpiMax = 9600;
+inline constexpr std::size_t kExportBatchMaxAssets = 10'000U;
+inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
+inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
 inline constexpr std::size_t kExportDocumentNameMaxBytes = 16U * 1024U;
 inline constexpr std::size_t kExportCaptureFieldMaxLength = kMetadataFieldMaxLength;
 inline constexpr std::size_t kJpegAppMarkerMaxPayloadBytes = 65533U;
@@ -144,8 +147,10 @@ enum class RejectFilter
 enum class AssetSortField
 {
     kImportTime,
+    kCaptureTime,
     kDisplayName,
     kRating,
+    kFileSize,
 };
 
 enum class SortDirection
@@ -160,6 +165,13 @@ enum class ExportFormat
     kJpeg,
     kTiff,
     kOriginalCopy,
+};
+
+enum class ExportMetadataMode : std::uint8_t
+{
+    kFull = 0,
+    kNoLocation = 1,
+    kNone = 2,
 };
 
 enum class JpegSubsampling : std::uint8_t
@@ -236,6 +248,21 @@ struct ReviewState
     bool rejected = false;
 };
 
+enum class EditFilter
+{
+    kAny,
+    kEdited,
+    kUnedited,
+};
+
+struct LibraryNumericRange
+{
+    std::optional<double> minimum;
+    std::optional<double> maximum;
+
+    [[nodiscard]] bool operator==(const LibraryNumericRange &) const noexcept = default;
+};
+
 struct LibraryQuery
 {
     RatingFilterMode rating_mode = RatingFilterMode::kAny;
@@ -246,6 +273,21 @@ struct LibraryQuery
     SortDirection sort_direction = SortDirection::kDescending;
     std::string folder_uri;
     std::string tag;
+    std::string text;
+    std::vector<std::string> media_types;
+    EditFilter edit_filter = EditFilter::kAny;
+    std::string camera;
+    LibraryNumericRange iso;
+    LibraryNumericRange aperture;
+    LibraryNumericRange focal_length_mm;
+    LibraryNumericRange shutter_s;
+    LibraryNumericRange aspect_ratio;
+    std::optional<std::int64_t> imported_after_unix_ms;
+    std::optional<std::int64_t> imported_before_unix_ms;
+    std::optional<std::int64_t> captured_after_unix_s;
+    std::optional<std::int64_t> captured_before_unix_s;
+
+    [[nodiscard]] bool operator==(const LibraryQuery &) const noexcept = default;
 };
 
 struct CaptureDateTime
@@ -319,6 +361,7 @@ struct ExportMetadataSnapshot
     WritableMetadata writable;
     CaptureMetadata capture;
     std::vector<std::string> tags;
+    bool embed_metadata = true;
 
     [[nodiscard]] bool operator==(const ExportMetadataSnapshot &) const noexcept = default;
 };
@@ -444,17 +487,32 @@ struct PreviewResult
     std::vector<float> mask_alpha;
 };
 
-struct ExportRequest
+struct ExportOptions
 {
-    std::string asset_id;
-    std::string output_path;
     ExportFormat format = ExportFormat::kPng;
     JpegExportOptions jpeg_options;
     std::uint32_t max_edge = 0;
-    CancellationToken cancellation{};
-    std::string correlation_id;
     PngExportOptions png_options;
     TiffExportOptions tiff_options;
+    ExportMetadataMode metadata_mode = ExportMetadataMode::kFull;
+};
+
+struct ExportRequest : ExportOptions
+{
+    std::string asset_id;
+    std::string output_path;
+    CancellationToken cancellation{};
+    std::string correlation_id;
+};
+
+struct ExportBatchRequest
+{
+    std::vector<std::string> asset_ids;
+    std::string output_directory;
+    std::string filename_template{"{stem}-{sequence}{ext}"};
+    ExportOptions options;
+    CancellationToken cancellation{};
+    std::string correlation_id;
 };
 
 struct ExportResult
@@ -509,6 +567,12 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
 [[nodiscard]] std::string_view export_format_name(ExportFormat format) noexcept;
 [[nodiscard]] std::string_view export_format_extension(ExportFormat format) noexcept;
 [[nodiscard]] Result<ExportFormat> parse_export_format(std::string_view name);
+[[nodiscard]] std::string_view export_metadata_mode_name(ExportMetadataMode mode) noexcept;
+[[nodiscard]] Result<ExportMetadataMode> parse_export_metadata_mode(std::string_view name);
+[[nodiscard]] Result<std::string>
+expand_export_filename_template(std::string_view filename_template, std::string_view source_stem,
+                                std::string_view asset_id, std::size_t sequence,
+                                std::string_view extension);
 [[nodiscard]] std::string_view jpeg_subsampling_name(JpegSubsampling subsampling) noexcept;
 [[nodiscard]] Result<JpegSubsampling> parse_jpeg_subsampling(std::string_view name);
 [[nodiscard]] Result<void> validate_jpeg_export_options(const JpegExportOptions &options);
@@ -556,6 +620,7 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] Result<void> validate_metadata_field(std::string_view name, std::string_view value);
 [[nodiscard]] std::string asset_display_name(const AssetRecord &asset);
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
+[[nodiscard]] Result<void> validate_library_query(const LibraryQuery &query);
 [[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
                                                               const LibraryQuery &query);
 [[nodiscard]] bool asset_in_folder(const AssetRecord &asset, std::string_view folder_uri) noexcept;

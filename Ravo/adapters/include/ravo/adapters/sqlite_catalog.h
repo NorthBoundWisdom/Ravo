@@ -32,6 +32,7 @@ public:
     [[nodiscard]] Result<std::optional<AssetRecord>>
     find_asset_by_uri(std::string_view normalized_uri) const override;
     [[nodiscard]] Result<void> commit_imported_asset(const AssetRecord &asset) override;
+    [[nodiscard]] Result<void> commit_refreshed_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_asset(const AssetRecord &asset) override;
     [[nodiscard]] Result<void> update_review(std::string_view asset_id,
                                              const ReviewState &review) override;

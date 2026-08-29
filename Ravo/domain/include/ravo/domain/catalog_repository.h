@@ -25,9 +25,14 @@ public:
     // One transaction: asset row, optional capture row, revision bump.
     // Failure leaves no newly visible asset.
     [[nodiscard]] virtual Result<void> commit_imported_asset(const AssetRecord &asset) = 0;
+    // One transaction: refresh the existing asset/capture rows and bump revision.
+    // Failure preserves the previous asset, capture values, and revision.
+    [[nodiscard]] virtual Result<void> commit_refreshed_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_asset(const AssetRecord &asset) = 0;
     [[nodiscard]] virtual Result<void> update_review(std::string_view asset_id,
                                                      const ReviewState &review) = 0;
+    // One transaction: delete the asset cascade and bump catalog revision.
+    // Failure leaves the asset and prior revision visible.
     [[nodiscard]] virtual Result<void> remove_asset(std::string_view asset_id) = 0;
     [[nodiscard]] virtual Result<std::optional<std::string>>
     load_recipe_json(std::string_view asset_id) const = 0;

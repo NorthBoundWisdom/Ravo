@@ -53,6 +53,8 @@ public:
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
     [[nodiscard]] Result<void> remove_from_catalog(std::string_view asset_id);
     [[nodiscard]] Result<void> remove_original_and_catalog(std::string_view asset_id);
+    [[nodiscard]] Result<AssetRecord>
+    refresh_capture_metadata(std::string_view asset_id, const CancellationToken &cancellation);
     [[nodiscard]] Result<bool> asset_has_edits(std::string_view asset_id) const;
     [[nodiscard]] Result<Recipe> load_recipe(std::string_view asset_id) const;
     [[nodiscard]] Result<Recipe> load_baseline_recipe(std::string_view asset_id) const;
@@ -82,6 +84,9 @@ public:
     request_preview(const PreviewRequest &request,
                     const std::optional<DevelopParams> &live_develop = {});
     [[nodiscard]] Result<ExportResult> export_asset(const ExportRequest &request);
+    [[nodiscard]] Result<std::vector<ExportResult>> export_assets(
+        const ExportBatchRequest &request,
+        const std::function<void(std::size_t, std::size_t, const ExportResult *)> &progress = {});
     Result<void> close();
 
 private:
@@ -140,6 +145,7 @@ private:
     std::optional<CachedRawFrame> decoded_raw_;
     std::optional<CachedLinearWorking> linear_working_;
     std::function<void()> testing_before_import_publication_;
+    std::function<void()> testing_before_preview_cache_publication_;
 
     friend class testing::CatalogServiceTestControl;
 };

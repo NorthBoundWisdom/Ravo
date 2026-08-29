@@ -71,15 +71,24 @@ Enable **Filter** in the top bar to expose the review controls.
 
 | Control | Available values |
 | --- | --- |
+| Search | Case-insensitive filename, URI, media type, tags, catalog metadata, and camera text. |
+| Type | Any, RAW, JPEG, PNG, or TIFF. |
+| Edit state | Any, Edited, or Unedited. |
 | Rating | Any, minimum 1–5, or exact 0–5. |
 | Color | Red, yellow, green, blue, and purple; more than one color can be selected. |
 | Rejected | Include, Exclude, or Only. |
-| Sort | Import time, filename, or rating. |
+| Sort | Import time, capture time, filename, rating, or file size. Photos without capture time sort after dated photos. |
 | Direction | Ascending or descending. |
 | Tag | A tag name entered in the left-panel field. |
 
 Use **Clear filters** to return to the full current folder/library view. If no
 photo matches, Studio says so instead of showing stale thumbnails.
+
+Filter state belongs to the current open session and is not written as a
+recent-search history. Closing the catalog discards it. Service integrations
+may additionally use validated camera, ISO, aperture, focal-length, shutter,
+aspect-ratio, import-time, and capture-time ranges; Studio's search field
+already matches camera make/model.
 
 ## Select photos
 
@@ -122,13 +131,20 @@ information is displayed when available and is read-only in the current Studio
 panel. The current CLI can also store a catalog **Description**; see [the CLI
 guide](cli.md).
 
+Use **Photo → Refresh Capture Metadata** when the original's embedded capture
+tags changed after import. Refresh replaces the Catalog capture snapshot and
+file identity atomically; malformed or unreadable metadata leaves the prior
+Catalog values in place. It never writes the original or a sidecar.
+
 Writable metadata is catalog metadata. It is not written back into the source
 file during review or editing. Rendered JPEG/PNG/TIFF write the bounded
 Catalog-owned public metadata snapshot, including validated capture
 time/offset/GPS; TIFF also maps current writable values into its baseline
 directory metadata. Arbitrary source-packet copying, metadata refresh,
-privacy stripping, and sidecar/history policy remain outside the current
-contract.
+and privacy stripping remain outside the current contract. Sidecar behavior is
+intentional: Studio never automatically reads or writes adjacent sidecars;
+legacy XMP conversion is an explicit CLI operation and rendered XMP is embedded
+only in the new destination.
 
 ## Remove a photo
 

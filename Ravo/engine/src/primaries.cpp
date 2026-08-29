@@ -447,6 +447,7 @@ matrix_from_primaries_and_whitepoint(const std::array<Chromaticity, 3> &primarie
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
     output.canonical_roi_scale = input.canonical_roi_scale;
+    output.mask_attached_frame = input.mask_attached_frame;
     output.rgb.resize(input.rgb.size());
     for (std::uint32_t row = 0; row < input.height; ++row)
     {

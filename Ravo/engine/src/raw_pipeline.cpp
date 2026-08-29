@@ -1,8 +1,12 @@
 #include "raw_pipeline.h"
 
 #include "image_ops.h"
+#include "canvas_frame.h"
+#include "color_zones.h"
 #include "mask_evaluator.h"
+#include "monochrome.h"
 #include "recursive_gaussian.h"
+#include "retouch.h"
 
 #include <algorithm>
 #include <cctype>
@@ -36,6 +40,11 @@
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/profile_gamma.h"
+
+#include "color_reconstruction.h"
+#include "dehaze.h"
+#include "sharpen.h"
+#include "split_toning.h"
 
 namespace ravo
 {
@@ -992,8 +1001,160 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
                 add_working_bytes(detail::recursive_gaussian_zero_2c_bytes(width, height));
             }
         }
-        if (operation.mask_id.has_value() && (operation.id == kColorHarmonizerOperationId ||
-                                              operation.id == "ravo.effect.graduatednd"))
+        if (operation.id == kColorZonesOperationId)
+        {
+            add_working_bytes(float_rgb_bytes);
+            add_working_bytes(detail::kColorZonesLutBytes);
+        }
+        if (operation.id == kMonochromeOperationId)
+        {
+            std::uint32_t original_width = raw.width;
+            std::uint32_t original_height = raw.height;
+            const int turns = ((raw.rotate_quarters % 4) + 4) % 4;
+            if (turns % 2 != 0)
+                std::swap(original_width, original_height);
+            const CanonicalRoiScale scale = CanonicalRoiScale::from_scaled_dimensions(
+                width, height, original_width, original_height);
+            add_working_bytes(scale.valid() ?
+                                  detail::monochrome_working_bytes(width, height, scale.value()) :
+                                  std::numeric_limits<std::uint64_t>::max());
+        }
+        if (operation.id == kSplitToningOperationId)
+            add_working_bytes(float_rgb_bytes);
+        if (operation.id == kColorReconstructionOperationId)
+        {
+            ColorReconstructionParams params;
+            const auto assign_number = [&](const std::string_view name, double &target) noexcept
+            {
+                const auto found = operation.parameters.find(std::string(name));
+                if (found == operation.parameters.end())
+                {
+                    return;
+                }
+                if (const auto *value = std::get_if<double>(&found->second.value); value != nullptr)
+                {
+                    target = *value;
+                }
+                else if (const auto *integer = std::get_if<std::int64_t>(&found->second.value);
+                         integer != nullptr)
+                {
+                    target = static_cast<double>(*integer);
+                }
+            };
+            assign_number("threshold", params.threshold);
+            assign_number("spatial", params.spatial);
+            assign_number("range", params.range);
+            assign_number("hue", params.hue);
+            std::uint32_t original_width = raw.width;
+            std::uint32_t original_height = raw.height;
+            const int turns = ((raw.rotate_quarters % 4) + 4) % 4;
+            if (turns % 2 != 0)
+            {
+                std::swap(original_width, original_height);
+            }
+            const CanonicalRoiScale scale = CanonicalRoiScale::from_scaled_dimensions(
+                width, height, original_width, original_height);
+            add_working_bytes(
+                detail::color_reconstruction_grid_bytes(width, height, scale.value(), params));
+        }
+        if (operation.id == kSharpenOperationId)
+        {
+            SharpenParams params;
+            const auto assign_number = [&](const std::string_view name, double &target) noexcept
+            {
+                const auto found = operation.parameters.find(std::string(name));
+                if (found == operation.parameters.end())
+                {
+                    return;
+                }
+                if (const auto *value = std::get_if<double>(&found->second.value); value != nullptr)
+                {
+                    target = *value;
+                }
+                else if (const auto *integer = std::get_if<std::int64_t>(&found->second.value);
+                         integer != nullptr)
+                {
+                    target = static_cast<double>(*integer);
+                }
+            };
+            assign_number("radius", params.radius);
+            assign_number("amount", params.amount);
+            assign_number("threshold", params.threshold);
+            add_working_bytes(detail::sharpen_working_bytes(width, height, params));
+        }
+        if (operation.id == kDehazeOperationId)
+        {
+            DehazeParams params;
+            const auto assign_number = [&](const std::string_view name, double &target) noexcept
+            {
+                const auto found = operation.parameters.find(std::string(name));
+                if (found == operation.parameters.end())
+                {
+                    return;
+                }
+                if (const auto *value = std::get_if<double>(&found->second.value); value != nullptr)
+                {
+                    target = *value;
+                }
+                else if (const auto *integer = std::get_if<std::int64_t>(&found->second.value);
+                         integer != nullptr)
+                {
+                    target = static_cast<double>(*integer);
+                }
+            };
+            if (operation.schema_version == 1)
+            {
+                params.strength = 0.0;
+                assign_number("amount", params.strength);
+            }
+            else
+            {
+                assign_number("strength", params.strength);
+                assign_number("distance", params.distance);
+                if (const auto adaptive = operation.parameters.find("adaptive");
+                    adaptive != operation.parameters.end())
+                {
+                    if (const auto *value = std::get_if<bool>(&adaptive->second.value);
+                        value != nullptr)
+                    {
+                        params.adaptive = *value;
+                    }
+                }
+            }
+            std::uint32_t original_width = raw.width;
+            std::uint32_t original_height = raw.height;
+            const int turns = ((raw.rotate_quarters % 4) + 4) % 4;
+            if (turns % 2 != 0)
+            {
+                std::swap(original_width, original_height);
+            }
+            const CanonicalRoiScale scale = CanonicalRoiScale::from_scaled_dimensions(
+                width, height, original_width, original_height);
+            add_working_bytes(detail::dehaze_working_bytes(width, height, scale.value(), params));
+        }
+        if (operation.id == kRetouchOperationId)
+        {
+            auto params = retouch_from_parameters(operation.parameters);
+            if (params)
+            {
+                add_working_bytes(detail::retouch_working_bytes(width, height, params.value()));
+                std::uint64_t peak_alpha = 0U;
+                std::uint64_t peak_scratch = 0U;
+                for (const auto &region : params.value().regions)
+                {
+                    const MaskEvaluatorMemoryEstimate mask_memory =
+                        estimate_mask_evaluator_memory(recipe.masks, region.mask_id, width, height);
+                    peak_alpha = std::max(peak_alpha, mask_memory.alpha_plane_bytes);
+                    peak_scratch = std::max(peak_scratch, mask_memory.evaluator_scratch_bytes);
+                }
+                add_working_bytes(peak_alpha);
+                add_working_bytes(peak_scratch);
+            }
+        }
+        if (operation.mask_id.has_value() &&
+            (operation.id == kColorHarmonizerOperationId ||
+             operation.id == kColorZonesOperationId || operation.id == kMonochromeOperationId ||
+             operation.id == kSplitToningOperationId || operation.id == "ravo.effect.graduatednd"))
         {
             // Masked dispatch moves the current working image into an owned
             // pre-operation snapshot, creates a distinct operation-output
@@ -1015,6 +1176,44 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         add_working_bytes(raw_bytes);
         add_working_bytes(failure_detail_bytes);
     }
+    std::uint32_t decorated_width = width;
+    std::uint32_t decorated_height = height;
+    std::uint64_t peak_decorated_pixels = output_pixels;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled)
+            continue;
+        if (operation.id == kCanvasOperationId)
+        {
+            auto params = canvas_from_parameters(operation.parameters);
+            if (!params)
+                return std::numeric_limits<std::uint64_t>::max();
+            auto layout = compute_canvas_layout(decorated_width, decorated_height, params.value());
+            if (!layout)
+                return std::numeric_limits<std::uint64_t>::max();
+            decorated_width = layout.value().output_width;
+            decorated_height = layout.value().output_height;
+        }
+        else if (operation.id == kFrameOperationId)
+        {
+            auto params = frame_from_parameters(operation.parameters);
+            if (!params)
+                return std::numeric_limits<std::uint64_t>::max();
+            auto layout = compute_frame_layout(decorated_width, decorated_height, params.value());
+            if (!layout)
+                return std::numeric_limits<std::uint64_t>::max();
+            decorated_width = layout.value().output_width;
+            decorated_height = layout.value().output_height;
+        }
+        peak_decorated_pixels = std::max(
+            peak_decorated_pixels, static_cast<std::uint64_t>(decorated_width) * decorated_height);
+    }
+    if (output_pixels == 0U)
+        return std::numeric_limits<std::uint64_t>::max();
+    const std::uint64_t decoration_ratio =
+        saturating_add(peak_decorated_pixels, output_pixels - 1U) / output_pixels;
+    working_bytes =
+        saturating_multiply(working_bytes, std::max<std::uint64_t>(1U, decoration_ratio));
     return working_bytes;
 }
 
@@ -2007,8 +2206,57 @@ void extract_urational(const Exiv2::ExifData &exif, RationalTag &tag, const char
     tag.value.denominator = rational.second;
 }
 
+[[nodiscard]] Result<std::optional<double>>
+extract_capture_number(const Exiv2::ExifData &exif, const char *key, const std::string_view field)
+{
+    const std::size_t count = count_exif_key(exif, key);
+    if (count == 0U)
+        return std::optional<double>{};
+    if (count > 1U)
+        return capture_read_error("Embedded capture tag is duplicated", "duplicate_capture_tag",
+                                  field, key);
+    const auto position = exif.findKey(Exiv2::ExifKey(key));
+    if (position == exif.end())
+        return std::optional<double>{};
+    if (position->count() != 1U)
+        return capture_read_error("Embedded capture tag has multiple values", "multi_value", field,
+                                  key);
+    const auto type = position->typeId();
+    if (type != Exiv2::unsignedShort && type != Exiv2::unsignedLong &&
+        type != Exiv2::unsignedRational && type != Exiv2::signedShort &&
+        type != Exiv2::signedLong && type != Exiv2::signedRational)
+        return capture_read_error("Embedded capture tag has the wrong numeric type", "wrong_type",
+                                  field, key);
+    const double value = static_cast<double>(position->toFloat(0U));
+    if (!std::isfinite(value) || value <= 0.0)
+        return capture_read_error("Embedded capture numeric value must be finite and positive",
+                                  "invalid_capture_numeric", field, key);
+    return std::optional<double>{value};
+}
+
+[[nodiscard]] Result<std::optional<std::string>> resolve_capture_text(const AsciiTag &tag,
+                                                                      const std::string_view field)
+{
+    auto valid = require_present_ok(tag, field);
+    if (!valid)
+        return valid.error();
+    if (tag.status != AsciiTagStatus::kPresent)
+        return std::optional<std::string>{};
+    std::size_t begin = 0U;
+    while (begin < tag.value.size() && (tag.value[begin] == ' ' || tag.value[begin] == '\t'))
+        ++begin;
+    std::size_t end = tag.value.size();
+    while (end > begin && (tag.value[end - 1U] == ' ' || tag.value[end - 1U] == '\t'))
+        --end;
+    if (begin == end)
+        return std::optional<std::string>{};
+    return std::optional<std::string>{tag.value.substr(begin, end - begin)};
+}
+
 [[nodiscard]] Result<EngineCaptureMetadata> extract_from_exif(const Exiv2::ExifData &exif)
 {
+    AsciiTag make{};
+    AsciiTag model{};
     AsciiTag photo{};
     AsciiTag image{};
     AsciiTag fraction{};
@@ -2019,6 +2267,8 @@ void extract_urational(const Exiv2::ExifData &exif, RationalTag &tag, const char
     Rational3Tag lon{};
     ByteTag alt_ref{};
     RationalTag alt{};
+    extract_ascii(exif, make, "Exif.Image.Make", 128U);
+    extract_ascii(exif, model, "Exif.Image.Model", 128U);
     extract_ascii(exif, photo, "Exif.Photo.DateTimeOriginal", 20U);
     extract_ascii(exif, image, "Exif.Image.DateTimeOriginal", 20U);
     extract_ascii(exif, fraction, "Exif.Photo.SubSecTimeOriginal", 10U);
@@ -2029,6 +2279,29 @@ void extract_urational(const Exiv2::ExifData &exif, RationalTag &tag, const char
     extract_urational3(exif, lon, "Exif.GPSInfo.GPSLongitude");
     extract_byte(exif, alt_ref, "Exif.GPSInfo.GPSAltitudeRef");
     extract_urational(exif, alt, "Exif.GPSInfo.GPSAltitude");
+    auto camera_make = resolve_capture_text(make, "camera_make");
+    auto camera_model = resolve_capture_text(model, "camera_model");
+    auto iso_new = extract_capture_number(exif, "Exif.Photo.PhotographicSensitivity", "iso");
+    auto iso_old = extract_capture_number(exif, "Exif.Photo.ISOSpeedRatings", "iso");
+    auto aperture = extract_capture_number(exif, "Exif.Photo.FNumber", "aperture");
+    auto focal = extract_capture_number(exif, "Exif.Photo.FocalLength", "focal_length_mm");
+    auto shutter = extract_capture_number(exif, "Exif.Photo.ExposureTime", "shutter_s");
+    if (!camera_make || !camera_model || !iso_new || !iso_old || !aperture || !focal || !shutter)
+    {
+        return !camera_make  ? camera_make.error() :
+               !camera_model ? camera_model.error() :
+               !iso_new      ? iso_new.error() :
+               !iso_old      ? iso_old.error() :
+               !aperture     ? aperture.error() :
+               !focal        ? focal.error() :
+                               shutter.error();
+    }
+    if (iso_new.value() && iso_old.value() &&
+        std::abs(*iso_new.value() - *iso_old.value()) > 1.0e-9)
+    {
+        return capture_read_error("Embedded ISO tags conflict", "conflicting_capture_numeric",
+                                  "iso", "Exif.Photo.PhotographicSensitivity");
+    }
     auto datetime = resolve_engine_datetime(photo, image, fraction, offset);
     if (!datetime)
     {
@@ -2040,6 +2313,12 @@ void extract_urational(const Exiv2::ExifData &exif, RationalTag &tag, const char
         return location.error();
     }
     EngineCaptureMetadata extracted;
+    extracted.camera_make = std::move(camera_make).value();
+    extracted.camera_model = std::move(camera_model).value();
+    extracted.iso = iso_new.value() ? iso_new.value() : iso_old.value();
+    extracted.aperture = aperture.value();
+    extracted.focal_length_mm = focal.value();
+    extracted.shutter_s = shutter.value();
     extracted.captured_datetime = std::move(datetime).value();
     extracted.location = std::move(location).value();
     return extracted;

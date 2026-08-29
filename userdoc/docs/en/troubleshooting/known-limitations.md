@@ -5,7 +5,7 @@
 Identify current product boundaries before treating an explicit unsupported
 result as a regression.
 
-**Last verified:** 2026-08-28 against the current migration status and product
+**Last verified:** 2026-08-29 against the current migration status and product
 baseline.
 
 ## Current boundaries
@@ -32,6 +32,37 @@ an entire historical editing session is replayable. Color Harmonizer maps only
 the evidenced zero-smoothing singleton records; canonical Ravo recipes may use
 positive smoothing, but synthetic positive legacy payloads, masks, and other
 unsupported history in the same document still reject.
+Color Reconstruction maps only the single evidenced 0052 enabled-v3,
+default-unmasked singleton. Disabled state, other versions, masks, custom
+blend state, and multiple instances reject rather than inheriting the old GTK
+preview-grid lifecycle.
+Sharpen maps only the three evidenced enabled-v1 default-unmasked singleton
+records. Demosaic capture sharpening is a different RAW-stage capability, and
+unsupported masks or blend state do not fall back to the old approximation.
+Haze Removal maps only the evidenced v1/v2 default-unmasked singleton records.
+The accepted algorithm requires source-linear RAW; JPEG/PNG/TIFF Develop does
+not run it after input-profile conversion, and no constant-airlight fallback is
+used.
+Retouch maps only the five evidenced v1 revisions and their v6 circle, ellipse,
+path, brush, group, and source payloads from the four frozen fixture families.
+Their complete documents still reject when unrelated `rawprepare` or
+`basecurve` state is outside its own accepted mapping. Studio currently authors
+circle regions; imported canonical path/brush regions remain renderable but are
+not reshaped by the Retouch panel.
+Canvas maps only the evidenced 0157 v1 singleton, and Output Frame maps only
+the 0030 v3 and 0154/0155 v4 singletons with their exact default blend and
+reserved fields. Other versions, masks, custom blend, multi-instance, or
+modified payloads reject.
+The sole Watermark record names `promo.svg`, which is absent from the frozen
+repository. Ravo rejects it instead of reproducing the old silent no-op.
+Color Zones maps only the exact enabled 0022 v5 singleton with its default
+unmasked blend. The complete 0022 document still rejects because its FilmicRGB
+operation is outside the accepted mapping.
+Monochrome maps only the exact enabled 0017 v2 singleton with its default
+unmasked blend. The complete historical document still rejects when unrelated
+operations have no accepted mapping.
+Split Toning maps only the exact enabled 0062 v1 singleton with its default
+unmasked blend; other payload, mask, blend, or multi-instance states reject.
 
 ### CPU render backend
 
@@ -51,21 +82,22 @@ has no relink-by-search workflow. Restore the original at its recorded path.
 
 ### Export scope
 
-Studio exports the active photo only. Multi-selection can update review state
-and catalog metadata, but it is not an implicit batch-export job.
-
-Studio and CLI expose the same typed JPEG, PNG, and TIFF options for a single
-active photo. There is still no remembered last value, preset, or batch-export
-job.
+Studio exports one active photo through a save-file dialog or an explicit
+multi-selection through a folder plus filename template. CLI exposes the same
+bounded batch contract. There is no persistent background export queue,
+remembered last codec value, or reusable export-option preset.
 
 ### Output precision and metadata
 
 PNG 16-bit and TIFF uint16/float16/float32 product export use engine-owned
 samples from the active recipe. An 8-bit source still fails closed rather than
 fabricating precision. Validated capture time and GPS from the Catalog are
-embedded on rendered JPEG/PNG/TIFF; there is no privacy-strip control.
-Sidecar/history interchange, metadata refresh, generated sidecars, and full
-history attachment are not current general export contracts.
+embedded on rendered JPEG/PNG/TIFF under explicit full, no-location, or none
+privacy.
+Ravo intentionally does not automatically read, attach, generate, watch, or
+merge sidecars. Use the explicit strict CLI XMP conversion when needed;
+rendered XMP is embedded in the destination. Full historic edit-history packet
+attachment remains outside the current contract.
 
 ### Format-specific input layouts
 
@@ -79,6 +111,28 @@ matrix](../qa/format-coverage.md) lists the baseline expectations.
 RAW repair, camera metadata modes, and some profile operations require the
 corresponding source state. Ravo rejects an invalid or unsupported combination;
 it does not replace it with a hidden generic algorithm.
+
+Canvas is opaque solid growth and currently cannot be followed by enabled
+rotate, flip, straighten, crop, or lens geometry. That combination returns a
+structured unsupported result until composed content-frame transforms are
+implemented. Output Frame is final encoded-output decoration, not transparent
+padding.
+
+Text Watermark uses a built-in 5×7 ASCII font and only `{stem}` and
+`{asset_id}` tokens. Arbitrary SVG/PNG watermark files, system fonts, Unicode
+glyphs, and EXIF/tag variable templates are not supported in schema v1.
+
+Studio directly edits eight-band Color Zones curves. Canonical or imported
+2–20-node curves and attached masks remain preserved but read-only in that
+panel; use reset to create a new eight-band identity rather than silently
+reshaping custom nodes.
+
+Studio preserves an attached Monochrome mask but does not edit that mask in the
+Monochrome panel. Use a canonical mask-capable owner or recipe tooling rather
+than expecting the colour-filter controls to reshape it.
+
+Studio preserves an attached Split Toning mask but does not edit that mask in
+the Split Toning panel.
 
 ### Platform acceptance
 

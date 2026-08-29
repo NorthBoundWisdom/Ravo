@@ -2425,13 +2425,6 @@
     <longdescription>height of the exported image, or 0 if no scaling should be done.</longdescription>
   </dtconfig>
   <dtconfig>
-    <name>plugins/lighttable/export/storage_name</name>
-    <type>string</type>
-    <default>disk</default>
-    <shortdescription/>
-    <longdescription/>
-  </dtconfig>
-  <dtconfig>
     <name>plugins/lighttable/export/format_name</name>
     <type>string</type>
     <default>jpeg</default>
@@ -2442,13 +2435,6 @@
     <name>plugins/lighttable/export/style</name>
     <type>string</type>
     <default/>
-    <shortdescription/>
-    <longdescription/>
-  </dtconfig>
-  <dtconfig>
-    <name>plugins/imageio/storage/disk/file_directory</name>
-    <type>string</type>
-    <default>$(FILE.FOLDER)/darktable_exported/$(FILE.NAME)</default>
     <shortdescription/>
     <longdescription/>
   </dtconfig>
@@ -2632,13 +2618,6 @@
     <default>200</default>
     <shortdescription>height of raw denoise wavelets</shortdescription>
     <longdescription>height of raw denoise wavelets</longdescription>
-  </dtconfig>
-  <dtconfig>
-    <name>plugins/darkroom/colorzones/graphheight</name>
-    <type min="100" max="300">int</type>
-    <default>200</default>
-    <shortdescription>height of color zones graph in per cent</shortdescription>
-    <longdescription>height of color zones graph in per cent</longdescription>
   </dtconfig>
   <dtconfig>
     <name>plugins/darkroom/lowlight/graphheight</name>
@@ -3185,13 +3164,6 @@
     <default>1</default>
     <shortdescription>auto-crop mode</shortdescription>
     <longdescription>0=off ; 1= largest area ; 2= original image</longdescription>
-  </dtconfig>
-  <dtconfig>
-    <name>plugins/darkroom/colorzones/bg_sat_factor</name>
-    <type min="0.1" max="1.0">float</type>
-    <default>0.5</default>
-    <shortdescription>saturation factor of the color zones background</shortdescription>
-    <longdescription>higher value means more saturated backgrounds in color zones</longdescription>
   </dtconfig>
   <dtconfig>
     <name>plugins/darkroom/colorbalance/layout</name>

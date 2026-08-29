@@ -500,6 +500,14 @@ Result<std::vector<std::uint8_t>> encode_jpeg_rgb8(
     const ExportMetadataSnapshot &metadata, const bool builtin_srgb,
     const CancellationToken &cancellation, const JpegEncodeControl control)
 {
+    if (!metadata.embed_metadata)
+    {
+        auto valid = validate_export_metadata(metadata, cancellation);
+        if (!valid)
+            return valid.error();
+        return encode_jpeg_rgb8(width, height, rgb, resolved_rgb_icc, options, cancellation,
+                                control);
+    }
     auto prepared = prepare_export_metadata(metadata, width, height, builtin_srgb, cancellation);
     if (!prepared)
     {

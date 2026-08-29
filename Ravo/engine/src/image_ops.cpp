@@ -19,16 +19,28 @@
 #include <zlib.h>
 
 #include "capability_ops.h"
+#include "canvas_frame.h"
 #include "color_contrast.h"
 #include "color_correction.h"
 #include "color_checker.h"
 #include "color_harmonizer.h"
+#include "color_reconstruction.h"
+#include "color_zones.h"
 #include "d50_lab.h"
+#include "dehaze.h"
+#include "hsl.h"
 #include "mask_evaluator.h"
+#include "monochrome.h"
 #include "output_color.h"
 #include "primaries.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/output_dither.h"
+#include "ravo/recipe/watermark.h"
+#include "retouch.h"
+#include "sharpen.h"
+#include "split_toning.h"
+#include "velvia.h"
 #include "ravo/recipe/profile_gamma.h"
 
 namespace ravo
@@ -121,7 +133,8 @@ Result<void> for_each_row(const std::uint32_t height, const CancellationToken &c
 {
     return id == "ravo.core.identity" || id == "ravo.raw.prepare" || id == "ravo.raw.demosaic" ||
            id == "ravo.color.input" || id == kProfileGammaOperationId ||
-           id == "ravo.color.output" || id == "ravo.output.scale";
+           id == "ravo.color.output" || id == kOutputDitherOperationId || id == kFrameOperationId ||
+           id == kWatermarkOperationId || id == "ravo.output.scale";
 }
 
 [[nodiscard]] double as_number(const ParameterValue &value, const double fallback)
@@ -1009,6 +1022,7 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
     output.canonical_roi_scale = input.canonical_roi_scale;
+    output.mask_attached_frame = input.mask_attached_frame;
     output.rgb.resize(input.rgb.size());
     for (std::uint32_t row = 0; row < input.height; ++row)
     {
@@ -1157,6 +1171,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
+    output.mask_attached_frame = image.mask_attached_frame;
     if (turns == 2)
     {
         output.width = image.width;
@@ -1233,6 +1248,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
+    output.mask_attached_frame = image.mask_attached_frame;
     output.width = crop_w;
     output.height = crop_h;
     output.rgb.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
@@ -1257,6 +1273,7 @@ void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
+    output.mask_attached_frame = image.mask_attached_frame;
     output.width = image.width;
     output.height = image.height;
     output.rgb.resize(image.rgb.size());
@@ -1328,6 +1345,7 @@ void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
+    output.mask_attached_frame = image.mask_attached_frame;
     output.width = image.width;
     output.height = image.height;
     output.rgb.assign(image.rgb.size(), 0.0F);
@@ -1431,60 +1449,6 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     image.rgb = std::move(source);
 }
 
-void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
-                        const std::uint32_t height, const int radius)
-{
-    if (radius <= 0 || width == 0 || height == 0)
-    {
-        return;
-    }
-    const int rad = std::min(radius, 12);
-    const float sigma2 = (1.0F / (2.5F * 2.5F)) * static_cast<float>(rad * rad);
-    std::vector<float> kernel(static_cast<std::size_t>(2 * rad + 1));
-    float weight = 0.0F;
-    for (int offset = -rad; offset <= rad; ++offset)
-    {
-        kernel[static_cast<std::size_t>(offset + rad)] =
-            std::exp(-static_cast<float>(offset * offset) / (2.0F * sigma2));
-        weight += kernel[static_cast<std::size_t>(offset + rad)];
-    }
-    for (float &sample : kernel)
-    {
-        sample /= weight;
-    }
-    std::vector<float> temp(luma.size());
-    const int w = static_cast<int>(width);
-    const int h = static_cast<int>(height);
-    for (int y = 0; y < h; ++y)
-    {
-        for (int x = 0; x < w; ++x)
-        {
-            float sum = 0.0F;
-            for (int offset = -rad; offset <= rad; ++offset)
-            {
-                const int xx = std::clamp(x + offset, 0, w - 1);
-                sum += luma[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(xx)] *
-                       kernel[static_cast<std::size_t>(offset + rad)];
-            }
-            temp[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(x)] = sum;
-        }
-    }
-    for (int y = 0; y < h; ++y)
-    {
-        for (int x = 0; x < w; ++x)
-        {
-            float sum = 0.0F;
-            for (int offset = -rad; offset <= rad; ++offset)
-            {
-                const int yy = std::clamp(y + offset, 0, h - 1);
-                sum += temp[static_cast<std::size_t>(yy) * width + static_cast<std::uint32_t>(x)] *
-                       kernel[static_cast<std::size_t>(offset + rad)];
-            }
-            luma[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(x)] = sum;
-        }
-    }
-}
-
 [[nodiscard]] Result<void> apply_rgb_levels(WorkingImage &image, const OperationInstance &operation)
 {
     const auto mode = parameter_string(operation, "mode", std::string(kRgbLevelsModeLinked));
@@ -1493,8 +1457,8 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
         return make_error(ErrorCode::kValidation, "RGB levels mode is unsupported",
                           {{"mode", mode}});
     }
-    const auto preserve =
-        parameter_string(operation, "preserve_colors", std::string(kToneCurvePreserveColorsLuminance));
+    const auto preserve = parameter_string(operation, "preserve_colors",
+                                           std::string(kToneCurvePreserveColorsLuminance));
     if (preserve != kToneCurvePreserveColorsNone && preserve != kToneCurvePreserveColorsLuminance &&
         preserve != kToneCurvePreserveColorsMax && preserve != kToneCurvePreserveColorsAverage &&
         preserve != kToneCurvePreserveColorsSum && preserve != kToneCurvePreserveColorsNorm &&
@@ -1638,7 +1602,8 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
     const float rgb0 = xyz_to_rgb[0] * xyz[0] + xyz_to_rgb[1] * xyz[1] + xyz_to_rgb[2] * xyz[2];
     if (!std::isfinite(rgb0))
     {
-        return make_error(ErrorCode::kValidation, "RGB curve middle-grey uncompensate is non-finite");
+        return make_error(ErrorCode::kValidation,
+                          "RGB curve middle-grey uncompensate is non-finite");
     }
     return rgb0;
 }
@@ -1658,8 +1623,8 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
         return make_error(ErrorCode::kValidation, "RGB curve interpolation is unsupported",
                           {{"interpolation", interpolation}});
     }
-    const auto preserve =
-        parameter_string(operation, "preserve_colors", std::string(kToneCurvePreserveColorsLuminance));
+    const auto preserve = parameter_string(operation, "preserve_colors",
+                                           std::string(kToneCurvePreserveColorsLuminance));
     if (preserve != kToneCurvePreserveColorsNone && preserve != kToneCurvePreserveColorsLuminance &&
         preserve != kToneCurvePreserveColorsMax && preserve != kToneCurvePreserveColorsAverage &&
         preserve != kToneCurvePreserveColorsSum && preserve != kToneCurvePreserveColorsNorm &&
@@ -1739,8 +1704,9 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
             {
                 if (!(points[index].x > points[index - 1U].x))
                 {
-                    return make_error(ErrorCode::kValidation,
-                                      "RGB curve nodes are not increasing after middle-grey uncompensate");
+                    return make_error(
+                        ErrorCode::kValidation,
+                        "RGB curve nodes are not increasing after middle-grey uncompensate");
                 }
             }
             return {};
@@ -1778,8 +1744,8 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
         float y_l[4]{};
         for (int i = 0; i < 4; ++i)
         {
-            const int index = std::clamp(static_cast<int>(x_l[i] * kToneCurveLut), 0,
-                                         kToneCurveLut - 1);
+            const int index =
+                std::clamp(static_cast<int>(x_l[i] * kToneCurveLut), 0, kToneCurveLut - 1);
             y_l[i] = tables[static_cast<std::size_t>(channel)][static_cast<std::size_t>(index)];
         }
         estimate_exp(x_l, y_l, 4, unbounded[static_cast<std::size_t>(channel)].data());
@@ -1823,43 +1789,6 @@ void blur_luma_gaussian(std::vector<float> &luma, const std::uint32_t width,
         }
     }
     return {};
-}
-
-void apply_unsharp(WorkingImage &image, const double amount, const double radius,
-                   const double threshold)
-{
-    if (amount == 0.0 || radius <= 0.0)
-    {
-        return;
-    }
-    const int rad = static_cast<int>(std::ceil(2.5 * std::clamp(radius, 0.0, 12.0)));
-    if (rad <= 0 || image.width < static_cast<std::uint32_t>(2 * rad + 1) ||
-        image.height < static_cast<std::uint32_t>(2 * rad + 1))
-    {
-        return;
-    }
-    const std::size_t pixels = static_cast<std::size_t>(image.width) * image.height;
-    std::vector<float> L(pixels);
-    std::vector<float> a(pixels);
-    std::vector<float> b(pixels);
-    for (std::size_t index = 0; index < pixels; ++index)
-    {
-        rgb_to_lab(image.rgb[index * 3U], image.rgb[index * 3U + 1U], image.rgb[index * 3U + 2U],
-                   L[index], a[index], b[index]);
-    }
-    std::vector<float> blurred = L;
-    blur_luma_gaussian(blurred, image.width, image.height, rad);
-    const float gain = static_cast<float>(amount);
-    const float limit = static_cast<float>(threshold);
-    for (std::size_t index = 0; index < pixels; ++index)
-    {
-        const float diff = L[index] - blurred[index];
-        const float absdiff = std::abs(diff);
-        const float detail =
-            absdiff > limit ? std::copysign(std::max(absdiff - limit, 0.0F), diff) : 0.0F;
-        lab_to_rgb(L[index] + detail * gain, a[index], b[index], image.rgb[index * 3U],
-                   image.rgb[index * 3U + 1U], image.rgb[index * 3U + 2U]);
-    }
 }
 
 void apply_clarity(WorkingImage &image, const double amount)
@@ -2246,197 +2175,14 @@ void apply_gamma(WorkingImage &image, const double gamma)
     }
 }
 
-void apply_velvia(WorkingImage &image, const double amount, const double bias)
-{
-    if (amount <= 0.0)
-    {
-        return;
-    }
-    const float strength = static_cast<float>(amount);
-    const float velvia_bias = static_cast<float>(std::clamp(bias, 0.0, 1.0));
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float &r = image.rgb[index];
-        float &g = image.rgb[index + 1U];
-        float &b = image.rgb[index + 2U];
-        const float pmax = std::max(r, std::max(g, b));
-        const float pmin = std::min(r, std::min(g, b));
-        const float plum = (pmax + pmin) * 0.5F;
-        const float psat = plum <= 0.5F ?
-                               (pmax - pmin) / (1.0e-5F + pmax + pmin) :
-                               (pmax - pmin) / (1.0e-5F + std::max(0.0F, 2.0F - pmax - pmin));
-        const float pweight =
-            std::clamp(((1.0F - (1.5F * psat)) +
-                        ((1.0F + (std::abs(plum - 0.5F) * 2.0F)) * (1.0F - velvia_bias))) /
-                           (1.0F + (1.0F - velvia_bias)),
-                       0.0F, 1.0F);
-        const float saturation = strength * pweight;
-        const float others_r = g + b;
-        const float others_g = r + b;
-        const float others_b = r + g;
-        r = std::clamp(r + saturation * (r - 0.5F * others_r), 0.0F, 1.0F);
-        g = std::clamp(g + saturation * (g - 0.5F * others_g), 0.0F, 1.0F);
-        b = std::clamp(b + saturation * (b - 0.5F * others_b), 0.0F, 1.0F);
-    }
-}
-
-void apply_monochrome(WorkingImage &image, const double amount)
-{
-    if (amount <= 0.0)
-    {
-        return;
-    }
-    const float mix = static_cast<float>(std::clamp(amount, 0.0, 1.0));
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float L = 0.0F;
-        float a = 0.0F;
-        float b = 0.0F;
-        rgb_to_lab(image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U], L, a, b);
-        a *= 1.0F - mix;
-        b *= 1.0F - mix;
-        lab_to_rgb(L, a, b, image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]);
-    }
-}
-
 void rgb_to_hsl(const float r, const float g, const float b, float &h, float &s, float &l)
 {
-    const float maxc = std::max(r, std::max(g, b));
-    const float minc = std::min(r, std::min(g, b));
-    l = (maxc + minc) * 0.5F;
-    if (maxc <= minc + 1.0e-6F)
-    {
-        h = 0.0F;
-        s = 0.0F;
-        return;
-    }
-    const float delta = maxc - minc;
-    s = l > 0.5F ? delta / (2.0F - maxc - minc) : delta / (maxc + minc);
-    if (maxc == r)
-    {
-        h = (g - b) / delta + (g < b ? 6.0F : 0.0F);
-    }
-    else if (maxc == g)
-    {
-        h = (b - r) / delta + 2.0F;
-    }
-    else
-    {
-        h = (r - g) / delta + 4.0F;
-    }
-    h /= 6.0F;
-}
-
-[[nodiscard]] float hue_to_rgb(const float p, const float q, float t)
-{
-    if (t < 0.0F)
-    {
-        t += 1.0F;
-    }
-    if (t > 1.0F)
-    {
-        t -= 1.0F;
-    }
-    if (t < 1.0F / 6.0F)
-    {
-        return p + (q - p) * 6.0F * t;
-    }
-    if (t < 0.5F)
-    {
-        return q;
-    }
-    if (t < 2.0F / 3.0F)
-    {
-        return p + (q - p) * (2.0F / 3.0F - t) * 6.0F;
-    }
-    return p;
+    hsl::rgb_to_hsl(r, g, b, h, s, l);
 }
 
 void hsl_to_rgb(const float h, const float s, const float l, float &r, float &g, float &b)
 {
-    if (s <= 1.0e-6F)
-    {
-        r = g = b = l;
-        return;
-    }
-    const float q = l < 0.5F ? l * (1.0F + s) : l + s - l * s;
-    const float p = 2.0F * l - q;
-    r = hue_to_rgb(p, q, h + 1.0F / 3.0F);
-    g = hue_to_rgb(p, q, h);
-    b = hue_to_rgb(p, q, h - 1.0F / 3.0F);
-}
-
-void apply_split_toning(WorkingImage &image, const double shadows_hue, const double highlights_hue,
-                        const double balance, const double amount)
-{
-    if (amount <= 0.0)
-    {
-        return;
-    }
-    const float mix_amount = static_cast<float>(std::clamp(amount, 0.0, 1.0));
-    const float shadow_h = static_cast<float>(shadows_hue);
-    const float highlight_h = static_cast<float>(highlights_hue);
-    const float center = static_cast<float>(balance);
-    const float compress = 0.15F;
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float r = image.rgb[index];
-        float g = image.rgb[index + 1U];
-        float b = image.rgb[index + 2U];
-        float h = 0.0F;
-        float s = 0.0F;
-        float l = 0.0F;
-        rgb_to_hsl(r, g, b, h, s, l);
-        float mix_r = r;
-        float mix_g = g;
-        float mix_b = b;
-        float weight = 0.0F;
-        if (l < center - compress)
-        {
-            hsl_to_rgb(shadow_h, 0.5F, l, mix_r, mix_g, mix_b);
-            weight = std::clamp((center - compress - l) * 2.0F, 0.0F, 1.0F) * mix_amount;
-        }
-        else if (l > center + compress)
-        {
-            hsl_to_rgb(highlight_h, 0.5F, l, mix_r, mix_g, mix_b);
-            weight = std::clamp((l - (center + compress)) * 2.0F, 0.0F, 1.0F) * mix_amount;
-        }
-        image.rgb[index] = std::clamp(r * (1.0F - weight) + mix_r * weight, 0.0F, 1.0F);
-        image.rgb[index + 1U] = std::clamp(g * (1.0F - weight) + mix_g * weight, 0.0F, 1.0F);
-        image.rgb[index + 2U] = std::clamp(b * (1.0F - weight) + mix_b * weight, 0.0F, 1.0F);
-    }
-}
-
-void apply_dehaze(WorkingImage &image, const double amount)
-{
-    if (amount == 0.0)
-    {
-        return;
-    }
-    const float strength = static_cast<float>(amount);
-    constexpr float kAirlight = 0.92F;
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float &r = image.rgb[index];
-        float &g = image.rgb[index + 1U];
-        float &b = image.rgb[index + 2U];
-        const float dark = std::min(r, std::min(g, b));
-        if (strength > 0.0F)
-        {
-            const float transmission = std::max(0.1F, 1.0F - strength * dark / kAirlight);
-            r = (r - kAirlight) / transmission + kAirlight;
-            g = (g - kAirlight) / transmission + kAirlight;
-            b = (b - kAirlight) / transmission + kAirlight;
-        }
-        else
-        {
-            const float haze = -strength;
-            const float transmission = std::max(0.1F, 1.0F - haze * dark / kAirlight);
-            r = r * transmission + kAirlight * (1.0F - transmission);
-            g = g * transmission + kAirlight * (1.0F - transmission);
-            b = b * transmission + kAirlight * (1.0F - transmission);
-        }
-    }
+    hsl::hsl_to_rgb(h, s, l, r, g, b);
 }
 
 } // namespace
@@ -2611,6 +2357,7 @@ try
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
     output.canonical_roi_scale = input.canonical_roi_scale;
+    output.mask_attached_frame = input.mask_attached_frame;
     output.rgb.resize(input.rgb.size());
     const bool run_input_saturation = std::abs(input_saturation - 1.0F) > 1.0e-6F;
     const bool run_output_saturation = std::abs(output_saturation - 1.0F) > 1.0e-6F;
@@ -2920,6 +2667,7 @@ Result<WorkingImage> working_from_encoded_rgb8(const RasterBuffer &raster)
         .roi_height = input.height,
         .input = MaskRgbPlaneView{input.rgb, stride},
         .operation_output = MaskRgbPlaneView{operation_output.rgb, stride},
+        .attached_frame = input.mask_attached_frame,
         .cancellation = cancellation,
     };
     return evaluate_canonical_mask(recipe.masks, mask_id, request);
@@ -2956,6 +2704,89 @@ try
 catch (const std::bad_alloc &)
 {
     return make_error(ErrorCode::kIo, "Masked Color Harmonizer allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
+[[nodiscard]] Result<WorkingImage> apply_masked_color_zones(WorkingImage image,
+                                                            const Recipe &recipe,
+                                                            const OperationInstance &operation,
+                                                            const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto operation_output = apply_color_zones(pre_operation, unmasked, cancellation);
+    if (!operation_output)
+        return operation_output.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output.value(), recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.value().rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return std::move(operation_output).value();
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Color Zones allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
+[[nodiscard]] Result<WorkingImage> apply_masked_monochrome(WorkingImage image, const Recipe &recipe,
+                                                           const OperationInstance &operation,
+                                                           const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto operation_output = apply_monochrome(pre_operation, unmasked, cancellation);
+    if (!operation_output)
+        return operation_output.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output.value(), recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.value().rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return std::move(operation_output).value();
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Monochrome allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
+[[nodiscard]] Result<WorkingImage> apply_masked_split_toning(WorkingImage image,
+                                                             const Recipe &recipe,
+                                                             const OperationInstance &operation,
+                                                             const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto operation_output = apply_split_toning(pre_operation, unmasked, cancellation);
+    if (!operation_output)
+        return operation_output.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output.value(), recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.value().rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return std::move(operation_output).value();
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Split Toning allocation failed",
                       {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
 }
 
@@ -3013,7 +2844,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             continue;
         }
         if (operation.mask_id.has_value() && operation.id != kColorHarmonizerOperationId &&
-            operation.id != "ravo.effect.graduatednd")
+            operation.id != kColorZonesOperationId && operation.id != kMonochromeOperationId &&
+            operation.id != kSplitToningOperationId && operation.id != "ravo.effect.graduatednd")
         {
             return make_error(ErrorCode::kUnsupported,
                               "Operation does not support canonical mask evaluation",
@@ -3156,6 +2988,14 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             image = std::move(straightened).value();
             continue;
         }
+        if (operation.id == kCanvasOperationId)
+        {
+            auto expanded = apply_canvas(std::move(image), operation, cancellation);
+            if (!expanded)
+                return expanded.error();
+            image = std::move(expanded).value();
+            continue;
+        }
         if (operation.id == "ravo.core.gamma")
         {
             apply_gamma(image, parameter(operation, "gamma", 1.0));
@@ -3229,6 +3069,17 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             image = std::move(harmonized).value();
             continue;
         }
+        if (operation.id == kColorZonesOperationId)
+        {
+            auto zones =
+                operation.mask_id.has_value() ?
+                    apply_masked_color_zones(std::move(image), recipe, operation, cancellation) :
+                    apply_color_zones(std::move(image), operation, cancellation);
+            if (!zones)
+                return zones.error();
+            image = std::move(zones).value();
+            continue;
+        }
         if (operation.id == kColorCorrectionOperationId)
         {
             auto corrected = apply_color_correction(image, operation, cancellation);
@@ -3258,30 +3109,66 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             image = std::move(contrasted).value();
             continue;
         }
+        if (operation.id == kColorReconstructionOperationId)
+        {
+            auto reconstructed = apply_color_reconstruction(image, operation, cancellation);
+            if (!reconstructed)
+            {
+                return reconstructed.error();
+            }
+            image = std::move(reconstructed).value();
+            continue;
+        }
         if (operation.id == "ravo.color.velvia")
         {
-            apply_velvia(image, parameter(operation, "amount", 0.0),
-                         parameter(operation, "bias", 1.0));
+            auto velvia = apply_velvia(std::move(image), operation, cancellation);
+            if (!velvia)
+            {
+                return velvia.error();
+            }
+            image = std::move(velvia).value();
             continue;
         }
-        if (operation.id == "ravo.color.monochrome")
+        if (operation.id == kMonochromeOperationId)
         {
-            apply_monochrome(image, parameter(operation, "amount", 0.0));
+            auto monochrome =
+                operation.mask_id.has_value() ?
+                    apply_masked_monochrome(std::move(image), recipe, operation, cancellation) :
+                    apply_monochrome(std::move(image), operation, cancellation);
+            if (!monochrome)
+                return monochrome.error();
+            image = std::move(monochrome).value();
             continue;
         }
-        if (operation.id == "ravo.color.splittoning")
+        if (operation.id == kSplitToningOperationId)
         {
-            apply_split_toning(image, parameter(operation, "shadows_hue", 0.0),
-                               parameter(operation, "highlights_hue", 0.2),
-                               parameter(operation, "balance", 0.5),
-                               parameter(operation, "amount", 0.0));
+            auto split =
+                operation.mask_id.has_value() ?
+                    apply_masked_split_toning(std::move(image), recipe, operation, cancellation) :
+                    apply_split_toning(std::move(image), operation, cancellation);
+            if (!split)
+                return split.error();
+            image = std::move(split).value();
             continue;
         }
-        if (operation.id == "ravo.detail.sharpen")
+        if (operation.id == kSharpenOperationId)
         {
-            apply_unsharp(image, parameter(operation, "amount", 0.0),
-                          parameter(operation, "radius", 2.0),
-                          parameter(operation, "threshold", 0.5));
+            auto sharpened = apply_sharpen(image, operation, cancellation);
+            if (!sharpened)
+            {
+                return sharpened.error();
+            }
+            image = std::move(sharpened).value();
+            continue;
+        }
+        if (operation.id == kRetouchOperationId)
+        {
+            auto retouched = apply_retouch(std::move(image), recipe, operation, cancellation);
+            if (!retouched)
+            {
+                return retouched.error();
+            }
+            image = std::move(retouched).value();
             continue;
         }
         if (operation.id == "ravo.detail.clarity")
@@ -3311,10 +3198,11 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             apply_soften(image, parameter(operation, "amount", 0.0));
             continue;
         }
-        if (operation.id == "ravo.effect.dehaze")
+        if (operation.id == kDehazeOperationId)
         {
-            apply_dehaze(image, parameter(operation, "amount", 0.0));
-            continue;
+            return make_error(
+                ErrorCode::kUnsupported, "Dehaze must execute on the source-linear RAW buffer",
+                {{"operation_id", operation.id}, {"reason", "dehaze_source_stage_required"}});
         }
         if (operation.id == "ravo.display.sigmoid")
         {

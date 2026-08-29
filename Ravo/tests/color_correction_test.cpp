@@ -148,7 +148,7 @@ frozen_color_correction_commit(const ColorCorrectionParams &params) noexcept
     profile.model = ColorModel::kRgb;
     profile.identifier = std::string(kInputProfileLinearRec709);
     profile.icc_bytes = {1U, 2U, 3U, 4U};
-    return {2U, 1U, {0.25F, 0.5F, 0.75F, -0.2F, 1.1F, 2.0F}, std::move(profile), nullptr};
+    return {2U, 1U, {0.25F, 0.5F, 0.75F, -0.2F, 1.1F, 2.0F}, std::move(profile), nullptr, {}, {}};
 }
 
 inline constexpr std::string_view kLegacy0029Parameters =
@@ -238,7 +238,7 @@ TEST(ColorCorrectionRecipeTest, V1SchemaRoundTripsAllFiveFieldsAndRejectsInvalid
 
     const auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
-    EXPECT_EQ(kPhase1OperationCount, 49U);
+    EXPECT_EQ(kPhase1OperationCount, 59U);
     EXPECT_EQ(registry.value().descriptors().size(), kPhase1OperationCount);
     const auto *descriptor = registry.value().find(kColorCorrectionOperationId);
     ASSERT_NE(descriptor, nullptr);

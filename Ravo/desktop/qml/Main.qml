@@ -39,6 +39,8 @@ ApplicationWindow {
     property string lastGalleryMode: "grid"
     property string pendingExportFormat: ""
     property var pendingExportOptions: ({})
+    property string pendingExportFilenameTemplate: ""
+    property string viewportAssetId: ""
     readonly property rect navigatorVisible: {
         if (studio.browseMode === "grid" || typeof photoPlane === "undefined" || photoPlane.width < 1 || scroller.width < 1)
             return Qt.rect(0, 0, 1, 1);
@@ -61,6 +63,29 @@ ApplicationWindow {
         const maxY = Math.max(0, scroller.contentHeight - scroller.height);
         scroller.contentX = Math.max(0, Math.min(maxX, photoPlane.x + nx * photoPlane.width));
         scroller.contentY = Math.max(0, Math.min(maxY, photoPlane.y + ny * photoPlane.height));
+    }
+
+    function centerPhotoViewport() {
+        if (typeof scroller === "undefined")
+            return;
+        Qt.callLater(function () {
+            const maxX = Math.max(0, scroller.contentWidth - scroller.width);
+            const maxY = Math.max(0, scroller.contentHeight - scroller.height);
+            scroller.contentX = maxX / 2;
+            scroller.contentY = maxY / 2;
+        });
+    }
+
+    Connections {
+        target: studio
+        function onSelectionChanged() {
+            if (window.viewportAssetId !== studio.selectedAssetId) {
+                window.viewportAssetId = studio.selectedAssetId;
+                window.centerPhotoViewport();
+            }
+        }
+        function onZoomChanged() { window.centerPhotoViewport(); }
+        function onBrowseModeChanged() { window.centerPhotoViewport(); }
     }
 
     readonly property var colorChoices: ["red", "yellow", "green", "blue", "purple"]
@@ -108,6 +133,7 @@ ApplicationWindow {
     function clearPendingExport() {
         window.pendingExportFormat = "";
         window.pendingExportOptions = ({});
+        window.pendingExportFilenameTemplate = "";
     }
 
     function openExportDialog() {
@@ -115,6 +141,17 @@ ApplicationWindow {
             return;
         window.clearPendingExport();
         exportOptionsDialog.openForExport();
+    }
+
+    function openStyleSaveDialog() {
+        styleSaveDialog.currentFolder = studio.defaultCatalogFolder;
+        styleSaveDialog.initialSelectedFile = studio.selectedDisplayName + ".rstyle.json";
+        styleSaveDialog.openDialog();
+    }
+
+    function openStyleApplyDialog() {
+        styleApplyDialog.currentFolder = studio.defaultCatalogFolder;
+        styleApplyDialog.openDialog();
     }
 
     function startLibrarySession() {
@@ -221,6 +258,10 @@ ApplicationWindow {
                 openImportFolderDialog();
             else if (id === ids.libraryExport)
                 openExportDialog();
+            else if (id === ids.styleSave)
+                openStyleSaveDialog();
+            else if (id === ids.styleApply)
+                openStyleApplyDialog();
             else if (id === ids.windowSettings)
                 window.settingsOpen = true;
             else if (id === ids.windowClose)
@@ -287,6 +328,45 @@ ApplicationWindow {
                     onCheckedChanged: {
                         if (!checked && studio.filtersActive)
                             studioActions.run(studioActions.ids.libraryClearFilters);
+                    }
+                }
+
+                CustomTextField {
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: Fonts.inputFieldHeight
+                    enabled: filterToggle.checked
+                    showEmptyIndicator: false
+                    showClipIndicator: false
+                    alignRightWhenFocused: false
+                    placeholderText: qsTr("Search photos")
+                    text: studio.filterText
+                    onEditingFinished: studioActions.setTextFilter(text)
+                }
+
+                CustomComboBox {
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: 105
+                    enabled: filterToggle.checked
+                    model: [qsTr("Any type"), qsTr("RAW"), qsTr("JPEG"), qsTr("PNG"), qsTr("TIFF")]
+                    currentIndex: studio.mediaFilter === "raw" ? 1
+                                  : studio.mediaFilter === "jpeg" ? 2
+                                  : studio.mediaFilter === "png" ? 3
+                                  : studio.mediaFilter === "tiff" ? 4 : 0
+                    onActivated: function (index) {
+                        studioActions.setMediaFilter(["any", "raw", "jpeg", "png", "tiff"][index]);
+                    }
+                }
+
+                CustomComboBox {
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: 115
+                    enabled: filterToggle.checked
+                    model: [qsTr("Any edits"), qsTr("Edited"), qsTr("Unedited")]
+                    currentIndex: studio.editFilter === "edited" ? 1
+                                  : studio.editFilter === "unedited" ? 2 : 0
+                    onActivated: function (index) {
+                        studioActions.setEditFilter(index === 1 ? "edited" : (index === 2 ? "unedited" : "any"));
                     }
                 }
 
@@ -363,11 +443,14 @@ ApplicationWindow {
                 CustomComboBox {
                     Layout.alignment: Qt.AlignVCenter
                     enabled: filterToggle.checked
-                    model: [qsTr("Import time"), qsTr("Filename"), qsTr("Rating")]
+                    model: [qsTr("Import time"), qsTr("Capture time"), qsTr("Filename"), qsTr("Rating"), qsTr("File size")]
                     Layout.preferredWidth: 140
-                    currentIndex: studio.sortField === "name" ? 1 : (studio.sortField === "rating" ? 2 : 0)
+                    currentIndex: studio.sortField === "captured" ? 1
+                                  : studio.sortField === "name" ? 2
+                                  : studio.sortField === "rating" ? 3
+                                  : studio.sortField === "size" ? 4 : 0
                     onActivated: function (index) {
-                        const field = index === 1 ? "name" : (index === 2 ? "rating" : "imported");
+                        const field = ["imported", "captured", "name", "rating", "size"][index];
                         studioActions.run(studioActions.ids.librarySetSort, {"field": field, "direction": studio.sortDirection});
                     }
                 }
@@ -872,13 +955,19 @@ ApplicationWindow {
         id: exportOptionsDialog
         parentItem: window.contentItem
         presenter: studio
-        onExportAccepted: function (format, options) {
+        onExportAccepted: function (format, options, filenameTemplate) {
             window.pendingExportFormat = format;
             window.pendingExportOptions = options;
-            exportDialog.nameFilters = [window.exportNameFilter(format)];
-            exportDialog.currentFolder = studio.defaultCatalogFolder;
-            exportDialog.initialSelectedFile = studio.selectedDisplayName;
-            exportDialog.openDialog();
+            window.pendingExportFilenameTemplate = filenameTemplate;
+            if (studio.selectedCount > 1) {
+                exportBatchDialog.currentFolder = studio.defaultCatalogFolder;
+                exportBatchDialog.openDialog();
+            } else {
+                exportDialog.nameFilters = [window.exportNameFilter(format)];
+                exportDialog.currentFolder = studio.defaultCatalogFolder;
+                exportDialog.initialSelectedFile = studio.selectedDisplayName;
+                exportDialog.openDialog();
+            }
         }
         onExportCanceled: window.clearPendingExport()
     }
@@ -899,5 +988,43 @@ ApplicationWindow {
                 });
         }
         onFileRejected: window.clearPendingExport()
+    }
+
+    FolderDialogPage {
+        id: exportBatchDialog
+        dialogTitle: qsTr("Select Batch Export Folder")
+        onFolderAccepted: function (folderPath) {
+            const format = window.pendingExportFormat;
+            const options = window.pendingExportOptions;
+            const filenameTemplate = window.pendingExportFilenameTemplate;
+            window.clearPendingExport();
+            studioActions.run(studioActions.ids.libraryExportBatchWrite, {
+                    "directory": folderPath,
+                    "filenameTemplate": filenameTemplate,
+                    "format": format,
+                    "options": options
+                });
+        }
+        onFolderRejected: window.clearPendingExport()
+    }
+
+    QmlFileDialogPage {
+        id: styleSaveDialog
+        dialogTitle: qsTr("Save Recipe Style")
+        dialogMode: "save"
+        nameFilters: [qsTr("Ravo recipe style (*.rstyle.json)")]
+        onFileAccepted: function (filePath) {
+            studioActions.run(studioActions.ids.styleSavePath, filePath);
+        }
+    }
+
+    QmlFileDialogPage {
+        id: styleApplyDialog
+        dialogTitle: qsTr("Apply Recipe Style")
+        dialogMode: "open"
+        nameFilters: [qsTr("Ravo recipe style (*.rstyle.json)")]
+        onFileAccepted: function (filePath) {
+            studioActions.run(studioActions.ids.styleApplyPath, filePath);
+        }
     }
 }

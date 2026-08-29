@@ -21,6 +21,7 @@
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/recipe/style.h"
 
 #include "color_balance_fixture.h"
 #include "temperature_fixture.h"
@@ -1163,7 +1164,9 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     params.velvia = 0.3;
     params.flip_horizontal = 1;
     params.gamma = 1.2;
-    params.split_amount = 0.4;
+    params.split_toning_present = true;
+    params.split_toning_enabled = true;
+    params.split_toning.mix = 0.4;
     params.raw_highlights = 0.7;
     params.hot_pixels_strength = 0.25;
     params.hot_pixels_threshold = 0.04;
@@ -2953,6 +2956,88 @@ TEST(RecipeTest, SectionEffectBypassKeepsParametersAndDisablesOperations)
     ASSERT_TRUE(reset_develop_section(params, "inputProfile"));
     EXPECT_FALSE(develop_section_modified(params, "inputProfile"));
     EXPECT_TRUE(develop_section_effect_enabled(params, "inputProfile"));
+}
+
+TEST(RecipeStyleTest, CanonicalTemplateRoundTripsAndAppliesOnlyTargetIdentity)
+{
+    DevelopParams develop;
+    develop.exposure_ev = 0.75;
+    Mask mask{"style-mask", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    mask.payload = CircleMask{0.5, 0.5, 0.2, 0.05};
+    develop.masks.push_back(mask);
+    RetouchRegion region;
+    region.mask_id = mask.id;
+    region.mode = RetouchMode::kFill;
+    region.fill_mode = RetouchFillMode::kColor;
+    region.fill_color = {0.1, 0.2, 0.3};
+    develop.retouch.regions.push_back(region);
+    auto recipe = recipe_from_develop({"asset-a", "file:///source-a.raw", "hash-a"}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto style = recipe_style_from_recipe("Warm repair", "Complete reproducible look",
+                                          recipe.value());
+    ASSERT_TRUE(style) << style.error().message;
+    EXPECT_EQ(style.value().recipe.asset.id, kRecipeStyleAssetId);
+    EXPECT_EQ(style.value().recipe.asset.input_uri, kRecipeStyleInputUri);
+    EXPECT_FALSE(style.value().recipe.asset.content_hash);
+    auto serialized = serialize_recipe_style(style.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto again = serialize_recipe_style(style.value());
+    ASSERT_TRUE(again);
+    EXPECT_EQ(again.value(), serialized.value());
+    auto parsed = parse_recipe_style_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_EQ(parsed.value().name, "Warm repair");
+    EXPECT_EQ(parsed.value().description, "Complete reproducible look");
+    EXPECT_EQ(parsed.value().recipe.operations.size(), recipe.value().operations.size());
+    EXPECT_EQ(parsed.value().recipe.masks, recipe.value().masks);
+
+    AssetDescriptor target{"asset-b", "file:///source-b.jpg", "hash-b"};
+    auto applied = apply_recipe_style(parsed.value(), target);
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value().asset.id, target.id);
+    EXPECT_EQ(applied.value().asset.input_uri, target.input_uri);
+    EXPECT_EQ(applied.value().asset.content_hash, target.content_hash);
+    EXPECT_EQ(applied.value().operations.size(), recipe.value().operations.size());
+    EXPECT_EQ(applied.value().masks, recipe.value().masks);
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().retouch, develop.retouch);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, 0.75);
+}
+
+TEST(RecipeStyleTest, RejectsLegacyUnknownNewerAndNonPlaceholderState)
+{
+    auto legacy = parse_recipe_style_json("<darktable_style version=\"1.0\"></darktable_style>");
+    ASSERT_FALSE(legacy);
+    EXPECT_EQ(legacy.error().code, ErrorCode::kUnsupported);
+    EXPECT_EQ(legacy.error().context.at("reason"), "unsupported_legacy_dtstyle");
+
+    Recipe recipe;
+    recipe.asset = {"asset", "file:///source.raw", std::nullopt};
+    auto style = recipe_style_from_recipe("Style", "", recipe);
+    ASSERT_TRUE(style);
+    auto serialized = serialize_recipe_style(style.value());
+    ASSERT_TRUE(serialized);
+    auto unknown = serialized.value();
+    unknown.insert(1U, "\"future\":true,");
+    auto rejected = parse_recipe_style_json(unknown);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "unknown_recipe_style_field");
+    auto newer = serialized.value();
+    const auto schema = newer.find("\"schema_version\":1");
+    ASSERT_NE(schema, std::string::npos);
+    newer.replace(schema, std::string("\"schema_version\":1").size(),
+                  "\"schema_version\":2");
+    rejected = parse_recipe_style_json(newer);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
+    auto wrong_asset = serialized.value();
+    const auto asset = wrong_asset.find(std::string(kRecipeStyleAssetId));
+    ASSERT_NE(asset, std::string::npos);
+    wrong_asset.replace(asset, kRecipeStyleAssetId.size(), "wrong-template");
+    rejected = parse_recipe_style_json(wrong_asset);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_recipe_style_asset");
 }
 
 } // namespace

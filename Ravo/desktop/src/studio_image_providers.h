@@ -42,9 +42,14 @@ public:
     {
     }
 
-    QImage requestImage(const QString &, QSize *size, const QSize &) override
+    QImage requestImage(const QString &id, QSize *size, const QSize &) override
     {
-        const QImage image = studio_->scopeParadeImage();
+        const QImage image = id.startsWith(QLatin1String("waveform")) ?
+                                 studio_->scopeWaveformImage() :
+                             id.startsWith(QLatin1String("vectorscope")) ?
+                                 studio_->scopeVectorscopeImage() :
+                             id.startsWith(QLatin1String("split")) ? studio_->scopeSplitImage() :
+                                                                    studio_->scopeParadeImage();
         if (size != nullptr)
         {
             *size = image.size();

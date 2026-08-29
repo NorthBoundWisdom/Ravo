@@ -198,7 +198,7 @@ cmsInt32Number sample_rgb_lut(const cmsUInt16Number input[], cmsUInt16Number out
 [[nodiscard]] ProfiledColorBuffer single_pixel(const std::array<float, 3> &pixel,
                                                ColorProfileState profile)
 {
-    return {1, 1, {pixel[0], pixel[1], pixel[2]}, std::move(profile)};
+    return {1, 1, {pixel[0], pixel[1], pixel[2]}, std::move(profile), {}, {}};
 }
 
 [[nodiscard]] Recipe input_recipe(const InputColorParams &params)

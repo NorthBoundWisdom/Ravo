@@ -618,6 +618,65 @@ ColumnLayout {
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("straighten")
                 }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Enlarge Canvas")
+                    font.bold: true
+                }
+                CustomCheckBox {
+                    objectName: "canvasEnabled"
+                    text: qsTr("Enable enlarged canvas")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editCanvas.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("canvasEnabled", checked ? 1 : 0)
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Canvas left (%)"), "key": "left", "field": "canvasLeft"},
+                        {"title": qsTr("Canvas right (%)"), "key": "right", "field": "canvasRight"},
+                        {"title": qsTr("Canvas top (%)"), "key": "top", "field": "canvasTop"},
+                        {"title": qsTr("Canvas bottom (%)"), "key": "bottom", "field": "canvasBottom"}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: 0
+                        to: 100
+                        stepSize: 0.1
+                        validatorDecimals: 1
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editCanvas[modelData.key] : 0
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                CustomComboBox {
+                    objectName: "canvasColor"
+                    Layout.fillWidth: true
+                    enabled: root.hasSelection
+                    textRole: "label"
+                    model: root.hasPresenter ? root.presenter.editCanvas.colorChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editCanvas.colorIndex : 0
+                    Accessible.name: qsTr("Canvas color")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("canvasColorIndex", model[index].index);
+                    }
+                }
+                CustomButton {
+                    text: qsTr("Reset canvas")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("canvas")
+                }
             }
         }
 
@@ -2337,43 +2396,330 @@ ColumnLayout {
                     objectName: "colorHarmonizerMaskEditor"
                     mask: root.hasPresenter ? root.presenter.editColorHarmonizerMask : ({})
                 }
-                CustomSlider {
+                CustomLabel {
                     Layout.fillWidth: true
-                    title: qsTr("Monochrome")
-                    from: 0
-                    to: 1
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
+                    text: qsTr("Color Reconstruction")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomCheckBox {
+                    objectName: "colorReconstructionEnabled"
+                    text: qsTr("Enable Color Reconstruction")
                     enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editMonochrome : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("monochrome", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("monochrome", value);
+                    checked: root.hasPresenter && root.presenter.editColorReconstruction.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("colorReconstructionEnabled", checked ? 1 : 0)
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Precedence")
+                    wrapMode: Text.WordWrap
+                }
+                CustomComboBox {
+                    objectName: "colorReconstructionPrecedence"
+                    Layout.fillWidth: true
+                    model: root.hasPresenter ? root.presenter.editColorReconstruction.precedenceChoices : []
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editColorReconstruction.precedenceIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("colorReconstructionPrecedenceIndex", currentIndex)
+                }
+                Repeater {
+                    model: [
+                        {
+                            "title": qsTr("Threshold"),
+                            "key": "threshold",
+                            "field": "colorReconstructionThreshold",
+                            "minimum": 50,
+                            "maximum": 150,
+                            "reset": 100,
+                            "step": 1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Spatial extent"),
+                            "key": "spatial",
+                            "field": "colorReconstructionSpatial",
+                            "minimum": 0,
+                            "maximum": 1000,
+                            "reset": 400,
+                            "step": 1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Range extent"),
+                            "key": "range",
+                            "field": "colorReconstructionRange",
+                            "minimum": 0,
+                            "maximum": 50,
+                            "reset": 10,
+                            "step": 0.1,
+                            "decimals": 1
+                        }
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: modelData.minimum
+                        to: modelData.maximum
+                        stepSize: modelData.step
+                        validatorDecimals: modelData.decimals
+                        showReset: true
+                        resetValue: modelData.reset
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editColorReconstruction[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(modelData.field)
                     }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("monochrome")
                 }
                 CustomSlider {
                     Layout.fillWidth: true
-                    title: qsTr("Split amount")
+                    title: qsTr("Hue")
                     from: 0
-                    to: 1
+                    to: 360
+                    stepSize: 0.1
+                    validatorDecimals: 1
                     showReset: true
-                    resetValue: 0
+                    resetValue: 237.6
                     delayedCommit: true
+                    visible: root.hasPresenter && root.presenter.editColorReconstruction.precedenceIndex === 2
                     enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editSplitAmount : 0
+                    value: root.hasPresenter ? root.presenter.editColorReconstruction.hueDegrees : 237.6
                     onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitAmount", value)
+                        root.commands.previewDevelopNumber("colorReconstructionHueDegrees", value)
                     onValueCommitted: function (value) {
                         if (root.commands)
-                            root.commands.setDevelopNumber("splitAmount", value);
+                            root.commands.setDevelopNumber("colorReconstructionHueDegrees", value);
                     }
                     onResetRequested: if (root.commands)
-                        root.commands.resetControl("splitAmount")
+                        root.commands.resetControl("colorReconstructionHueDegrees")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset Color Reconstruction")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("colorReconstruction")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Color Zones")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomCheckBox {
+                    objectName: "colorZonesEnabled"
+                    text: qsTr("Enable Color Zones")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editColorZones.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("colorZonesEnabled", checked ? 1 : 0)
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomComboBox {
+                        objectName: "colorZonesSelectBy"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.hasPresenter ? root.presenter.editColorZones.selectByChoices : []
+                        currentIndex: root.hasPresenter ? root.presenter.editColorZones.selectByIndex : 2
+                        Accessible.name: qsTr("Color Zones select by")
+                        onActivated: function (index) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("colorZonesSelectByIndex", model[index].index);
+                        }
+                    }
+                    CustomComboBox {
+                        objectName: "colorZonesBand"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.hasPresenter ? root.presenter.editColorZones.bandChoices : []
+                        currentIndex: root.hasPresenter ? root.presenter.editColorZones.bandIndex : 0
+                        Accessible.name: qsTr("Color Zones band")
+                        onActivated: function (index) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("colorZonesBandIndex", model[index].index);
+                        }
+                    }
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Color Zones mix")
+                    from: -200
+                    to: 200
+                    stepSize: 1
+                    validatorDecimals: 0
+                    showReset: false
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editColorZones.strength : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("colorZonesStrength", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("colorZonesStrength", value);
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Lightness curve"), "key": "lightness", "field": "colorZonesLightness"},
+                        {"title": qsTr("Chroma curve"), "key": "chroma", "field": "colorZonesChroma"},
+                        {"title": qsTr("Hue curve"), "key": "hue", "field": "colorZonesHue"}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorZones.editable
+                        value: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 0.5
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Lightness interpolation"), "key": "lightnessInterpolationIndex", "field": "colorZonesLightnessInterpolationIndex"},
+                        {"title": qsTr("Chroma interpolation"), "key": "chromaInterpolationIndex", "field": "colorZonesChromaInterpolationIndex"},
+                        {"title": qsTr("Hue interpolation"), "key": "hueInterpolationIndex", "field": "colorZonesHueInterpolationIndex"}
+                    ]
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: modelData.title
+                        }
+                        CustomComboBox {
+                            Layout.preferredWidth: Fonts.standardFontMetrics.averageCharacterWidth * 20
+                            textRole: "label"
+                            model: root.hasPresenter ? root.presenter.editColorZones.interpolationChoices : []
+                            currentIndex: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 1
+                            enabled: root.hasSelection
+                            onActivated: function (index) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, model[index].index);
+                            }
+                        }
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    visible: root.hasPresenter && (!root.presenter.editColorZones.editable || root.presenter.editColorZones.masked)
+                    text: root.hasPresenter && root.presenter.editColorZones.masked
+                          ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.")
+                          : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset Color Zones")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("colorZones")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Monochrome")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomCheckBox {
+                    objectName: "monochromeEnabled"
+                    text: qsTr("Enable Monochrome")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editMonochromeFilter.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("monochromeEnabled", checked ? 1 : 0)
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Filter a*"), "key": "filterA", "field": "monochromeFilterA", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
+                        {"title": qsTr("Filter b*"), "key": "filterB", "field": "monochromeFilterB", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
+                        {"title": qsTr("Filter size"), "key": "size", "field": "monochromeSize", "from": 0.5, "to": 3, "reset": 2, "step": 0.1, "decimals": 1},
+                        {"title": qsTr("Keep highlights"), "key": "highlights", "field": "monochromeHighlights", "from": 0, "to": 1, "reset": 0, "step": 0.01, "decimals": 2},
+                        {"title": qsTr("Monochrome mix"), "key": "mix", "field": "monochromeMix", "from": 0, "to": 1, "reset": 1, "step": 0.01, "decimals": 2}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: modelData.from
+                        to: modelData.to
+                        stepSize: modelData.step
+                        validatorDecimals: modelData.decimals
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editMonochromeFilter[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    visible: root.hasPresenter && root.presenter.editMonochromeFilter.masked
+                    text: qsTr("Loaded Monochrome mask is preserved but edited outside this panel.")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset Monochrome")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("monochrome")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Split Toning")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomCheckBox {
+                    objectName: "splitToningEnabled"
+                    text: qsTr("Enable Split Toning")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editSplitToning.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("splitToningEnabled", checked ? 1 : 0)
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Split Toning mix")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: false
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSplitToning.mix : 1
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("splitMix", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("splitMix", value);
+                    }
                 }
                 HueSlider {
                     Layout.fillWidth: true
@@ -2391,6 +2737,24 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("splitShadowsHue")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Shadow saturation")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: false
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSplitToning.shadowSaturation : 0.5
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("splitShadowSaturation", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("splitShadowSaturation", value);
+                    }
                 }
                 HueSlider {
                     Layout.fillWidth: true
@@ -2411,6 +2775,24 @@ ColumnLayout {
                 }
                 CustomSlider {
                     Layout.fillWidth: true
+                    title: qsTr("Highlight saturation")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: false
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSplitToning.highlightSaturation : 0.5
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("splitHighlightSaturation", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("splitHighlightSaturation", value);
+                    }
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
                     title: qsTr("Split balance")
                     from: 0
                     to: 1
@@ -2427,6 +2809,37 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("splitBalance")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Midtone compression")
+                    from: 0
+                    to: 100
+                    stepSize: 1
+                    validatorDecimals: 1
+                    showReset: false
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSplitToning.compress : 33
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("splitCompress", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("splitCompress", value);
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    visible: root.hasPresenter && root.presenter.editSplitToning.masked
+                    text: qsTr("Loaded Split Toning mask is preserved but edited outside this panel.")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset Split Toning")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("splitToning")
                 }
             }
         }
@@ -2618,6 +3031,309 @@ ColumnLayout {
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("dehaze")
                 }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Distance")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0.2
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editDehazeDistance : 0.2
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("dehazeDistance", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("dehazeDistance", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("dehazeDistance")
+                }
+                CustomCheckBox {
+                    text: qsTr("Adaptive window scale")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editDehazeAdaptive
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("dehazeAdaptive", checked ? 1 : 0)
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Output Dither / Posterize")
+                    font.bold: true
+                }
+                CustomCheckBox {
+                    objectName: "outputDitherEnabled"
+                    text: qsTr("Enable output dither")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editOutputDither.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("outputDitherEnabled", checked ? 1 : 0)
+                }
+                CustomComboBox {
+                    id: outputDitherMethodCombo
+                    objectName: "outputDitherMethod"
+                    Layout.fillWidth: true
+                    enabled: root.hasSelection
+                    textRole: "label"
+                    model: root.hasPresenter ? root.presenter.editOutputDither.methodChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editOutputDither.methodIndex : 10
+                    Accessible.name: qsTr("Output dither method")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("outputDitherMethodIndex", model[index].index);
+                    }
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Random damping (dB)")
+                    from: root.hasPresenter ? root.presenter.editOutputDither.dampingMinimum : -200
+                    to: root.hasPresenter ? root.presenter.editOutputDither.dampingMaximum : 0
+                    stepSize: 0.1
+                    validatorDecimals: 1
+                    showReset: true
+                    resetValue: -100
+                    delayedCommit: true
+                    visible: root.hasPresenter && root.presenter.editOutputDither.dampingVisible
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editOutputDither.dampingDb : -100
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("outputDitherDamping", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("outputDitherDamping", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("outputDitherDamping")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    text: qsTr("Auto dithers integer exports; previews and float output are only clipped.")
+                }
+                CustomButton {
+                    text: qsTr("Reset output dither")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("outputDither")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Frame / Border")
+                    font.bold: true
+                }
+                CustomCheckBox {
+                    objectName: "outputFrameEnabled"
+                    text: qsTr("Enable frame")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editOutputFrame.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("outputFrameEnabled", checked ? 1 : 0)
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomComboBox {
+                        objectName: "outputFrameOrientation"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.hasPresenter ? root.presenter.editOutputFrame.orientationChoices : []
+                        currentIndex: root.hasPresenter ? root.presenter.editOutputFrame.orientationIndex : 0
+                        Accessible.name: qsTr("Frame orientation")
+                        onActivated: function (index) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("outputFrameOrientationIndex", model[index].index);
+                        }
+                    }
+                    CustomComboBox {
+                        objectName: "outputFrameBasis"
+                        Layout.fillWidth: true
+                        textRole: "label"
+                        model: root.hasPresenter ? root.presenter.editOutputFrame.basisChoices : []
+                        currentIndex: root.hasPresenter ? root.presenter.editOutputFrame.basisIndex : 0
+                        Accessible.name: qsTr("Frame size basis")
+                        onActivated: function (index) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("outputFrameBasisIndex", model[index].index);
+                        }
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Outer aspect (-1 constant, 0 image)"), "key": "aspect", "field": "outputFrameAspect", "from": -1, "to": 3, "reset": -1},
+                        {"title": qsTr("Border size"), "key": "size", "field": "outputFrameSize", "from": 0, "to": 0.5, "reset": 0.1},
+                        {"title": qsTr("Horizontal position"), "key": "positionH", "field": "outputFramePositionH", "from": 0, "to": 1, "reset": 0.5},
+                        {"title": qsTr("Vertical position"), "key": "positionV", "field": "outputFramePositionV", "from": 0, "to": 1, "reset": 0.5},
+                        {"title": qsTr("Frame line size"), "key": "lineSize", "field": "outputFrameLineSize", "from": 0, "to": 1, "reset": 0},
+                        {"title": qsTr("Frame line offset"), "key": "lineOffset", "field": "outputFrameLineOffset", "from": 0, "to": 1, "reset": 0.5}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: modelData.from
+                        to: modelData.to
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editOutputFrame[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Border red"), "key": "borderRed", "field": "outputFrameBorderRed", "reset": 1},
+                        {"title": qsTr("Border green"), "key": "borderGreen", "field": "outputFrameBorderGreen", "reset": 1},
+                        {"title": qsTr("Border blue"), "key": "borderBlue", "field": "outputFrameBorderBlue", "reset": 1},
+                        {"title": qsTr("Frame red"), "key": "lineRed", "field": "outputFrameLineRed", "reset": 0},
+                        {"title": qsTr("Frame green"), "key": "lineGreen", "field": "outputFrameLineGreen", "reset": 0},
+                        {"title": qsTr("Frame blue"), "key": "lineBlue", "field": "outputFrameLineBlue", "reset": 0}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editOutputFrame[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                CustomButton {
+                    text: qsTr("Reset frame")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("outputFrame")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Text Watermark")
+                    font.bold: true
+                }
+                CustomCheckBox {
+                    objectName: "watermarkEnabled"
+                    text: qsTr("Enable watermark")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editWatermark.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("watermarkEnabled", checked ? 1 : 0)
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        text: qsTr("Text")
+                    }
+                    CustomTextField {
+                        objectName: "watermarkText"
+                        Layout.fillWidth: true
+                        maximumLength: 256
+                        showEmptyIndicator: false
+                        showClipIndicator: false
+                        enabled: root.hasSelection
+                        text: root.hasPresenter ? root.presenter.editWatermark.text : "RAVO"
+                        onEditingCommitted: function (committedText) {
+                            if (root.commands)
+                                root.commands.setDevelopText("watermarkText", committedText);
+                        }
+                    }
+                }
+                CustomComboBox {
+                    objectName: "watermarkAlignment"
+                    Layout.fillWidth: true
+                    textRole: "label"
+                    model: root.hasPresenter ? root.presenter.editWatermark.alignmentChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editWatermark.alignmentIndex : 8
+                    Accessible.name: qsTr("Watermark alignment")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("watermarkAlignmentIndex", model[index].index);
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Watermark opacity"), "key": "opacity", "field": "watermarkOpacity", "from": 0, "to": 1, "reset": 0.5, "step": 0.01},
+                        {"title": qsTr("Text height (% short side)"), "key": "scale", "field": "watermarkScale", "from": 0.5, "to": 50, "reset": 8, "step": 0.5},
+                        {"title": qsTr("Horizontal offset"), "key": "offsetX", "field": "watermarkOffsetX", "from": -1, "to": 1, "reset": 0, "step": 0.01},
+                        {"title": qsTr("Vertical offset"), "key": "offsetY", "field": "watermarkOffsetY", "from": -1, "to": 1, "reset": 0, "step": 0.01},
+                        {"title": qsTr("Watermark rotation"), "key": "rotation", "field": "watermarkRotation", "from": -180, "to": 180, "reset": 0, "step": 1}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: modelData.from
+                        to: modelData.to
+                        stepSize: modelData.step
+                        validatorDecimals: modelData.step < 1 ? 2 : 0
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editWatermark[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                Repeater {
+                    model: [
+                        {"title": qsTr("Watermark red"), "key": "red", "field": "watermarkRed", "reset": 1},
+                        {"title": qsTr("Watermark green"), "key": "green", "field": "watermarkGreen", "reset": 1},
+                        {"title": qsTr("Watermark blue"), "key": "blue", "field": "watermarkBlue", "reset": 1}
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        showReset: false
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editWatermark[modelData.key] : modelData.reset
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    text: qsTr("Portable fixed 5×7 text. Supported tokens: {stem}, {asset_id}.")
+                }
+                CustomButton {
+                    text: qsTr("Reset watermark")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("watermark")
+                }
             }
         }
 
@@ -2650,7 +3366,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     title: qsTr("Radius")
                     from: 0
-                    to: 4.8
+                    to: 8
                     stepSize: 0.1
                     validatorDecimals: 1
                     showReset: true
@@ -2666,6 +3382,262 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("sharpenRadius")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Threshold")
+                    from: 0
+                    to: 100
+                    stepSize: 0.1
+                    validatorDecimals: 1
+                    showReset: true
+                    resetValue: 0.5
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSharpenThreshold : 0.5
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("sharpenThreshold", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("sharpenThreshold", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("sharpenThreshold")
+                }
+                ColumnLayout {
+                    id: retouchEditor
+                    Layout.fillWidth: true
+                    spacing: 6
+                    property int draftMode: 1
+                    property real draftCenterX: 0.5
+                    property real draftCenterY: 0.5
+                    property real draftRadius: 0.08
+                    property real draftFeather: 0.03
+                    property real draftOpacity: 1.0
+                    property real draftSourceX: 0.35
+                    property real draftSourceY: 0.5
+                    property int draftBlurType: 0
+                    property real draftBlurRadius: 10.0
+                    property int draftFillMode: 0
+                    property real draftFillR: 0.5
+                    property real draftFillG: 0.5
+                    property real draftFillB: 0.5
+                    property real draftFillBrightness: 0.0
+
+                    Label {
+                        text: qsTr("Retouch")
+                        font.weight: Font.DemiBold
+                    }
+                    ComboBox {
+                        id: retouchMode
+                        Layout.fillWidth: true
+                        enabled: root.hasSelection
+                        model: [qsTr("Clone"), qsTr("Heal"), qsTr("Blur"), qsTr("Fill")]
+                        currentIndex: retouchEditor.draftMode
+                        onActivated: retouchEditor.draftMode = currentIndex
+                        Accessible.name: qsTr("Retouch mode")
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Target X")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftCenterX
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftCenterX = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Target Y")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftCenterY
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftCenterY = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Spot radius")
+                        from: 0.01
+                        to: 0.5
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftRadius
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftRadius = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Spot feather")
+                        from: 0
+                        to: 0.5
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftFeather
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftFeather = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Spot opacity")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftOpacity
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftOpacity = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode < 2
+                        title: qsTr("Source X")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftSourceX
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftSourceX = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode < 2
+                        title: qsTr("Source Y")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftSourceY
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftSourceY = value
+                    }
+                    ComboBox {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 2
+                        enabled: root.hasSelection
+                        model: [qsTr("Gaussian"), qsTr("Bilateral")]
+                        currentIndex: retouchEditor.draftBlurType
+                        onActivated: retouchEditor.draftBlurType = currentIndex
+                        Accessible.name: qsTr("Blur type")
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 2
+                        title: qsTr("Blur radius")
+                        from: 0.1
+                        to: 200
+                        stepSize: 0.1
+                        validatorDecimals: 1
+                        value: retouchEditor.draftBlurRadius
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftBlurRadius = value
+                    }
+                    ComboBox {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 3
+                        enabled: root.hasSelection
+                        model: [qsTr("Erase"), qsTr("Color")]
+                        currentIndex: retouchEditor.draftFillMode
+                        onActivated: retouchEditor.draftFillMode = currentIndex
+                        Accessible.name: qsTr("Fill mode")
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 3 && retouchEditor.draftFillMode === 1
+                        title: qsTr("Fill red")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftFillR
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftFillR = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 3 && retouchEditor.draftFillMode === 1
+                        title: qsTr("Fill green")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftFillG
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftFillG = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 3 && retouchEditor.draftFillMode === 1
+                        title: qsTr("Fill blue")
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftFillB
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftFillB = value
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        visible: retouchEditor.draftMode === 3
+                        title: qsTr("Fill brightness")
+                        from: -1
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        value: retouchEditor.draftFillBrightness
+                        enabled: root.hasSelection
+                        onValueChanged: retouchEditor.draftFillBrightness = value
+                    }
+                    Button {
+                        Layout.fillWidth: true
+                        text: qsTr("Add retouch region")
+                        enabled: root.hasSelection && root.commands
+                        onClicked: root.commands.addRetouchRegion({
+                            "mode": ["clone", "heal", "blur", "fill"][retouchEditor.draftMode],
+                            "centerX": retouchEditor.draftCenterX,
+                            "centerY": retouchEditor.draftCenterY,
+                            "radius": retouchEditor.draftRadius,
+                            "feather": retouchEditor.draftFeather,
+                            "opacity": retouchEditor.draftOpacity,
+                            "sourceX": retouchEditor.draftSourceX,
+                            "sourceY": retouchEditor.draftSourceY,
+                            "blurType": retouchEditor.draftBlurType === 0 ? "gaussian" : "bilateral",
+                            "blurRadius": retouchEditor.draftBlurRadius,
+                            "fillMode": retouchEditor.draftFillMode === 0 ? "erase" : "color",
+                            "fillR": retouchEditor.draftFillR,
+                            "fillG": retouchEditor.draftFillG,
+                            "fillB": retouchEditor.draftFillB,
+                            "fillBrightness": retouchEditor.draftFillBrightness
+                        })
+                    }
+                    Label {
+                        text: qsTr("Regions: %1").arg(root.hasPresenter
+                                                      ? root.presenter.editRetouch.regionCount : 0)
+                        opacity: 0.72
+                    }
+                    Repeater {
+                        model: root.hasPresenter ? root.presenter.editRetouch.regions : []
+                        delegate: RowLayout {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.mode + " · " + modelData.maskKind
+                                elide: Text.ElideRight
+                            }
+                            Button {
+                                text: qsTr("Remove")
+                                enabled: root.hasSelection && root.commands
+                                onClicked: root.commands.removeRetouchRegion(modelData.index)
+                            }
+                        }
+                    }
                 }
                 CustomSlider {
                     Layout.fillWidth: true

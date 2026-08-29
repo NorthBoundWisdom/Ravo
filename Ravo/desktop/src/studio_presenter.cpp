@@ -370,6 +370,37 @@ QString StudioPresenter::rejectFilter() const
     return reject_filter_name(query_.reject_filter);
 }
 
+QString StudioPresenter::filterText() const
+{
+    return qstring_from_utf8(query_.text);
+}
+
+QString StudioPresenter::mediaFilter() const
+{
+    if (query_.media_types.empty())
+        return QStringLiteral("any");
+    const std::string_view type = query_.media_types.front();
+    return type == kMediaTypeRaw  ? QStringLiteral("raw") :
+           type == kMediaTypeJpeg ? QStringLiteral("jpeg") :
+           type == kMediaTypePng  ? QStringLiteral("png") :
+           type == kMediaTypeTiff ? QStringLiteral("tiff") :
+                                    qstring_from_utf8(type);
+}
+
+QString StudioPresenter::editFilter() const
+{
+    switch (query_.edit_filter)
+    {
+    case EditFilter::kEdited:
+        return QStringLiteral("edited");
+    case EditFilter::kUnedited:
+        return QStringLiteral("unedited");
+    case EditFilter::kAny:
+        return QStringLiteral("any");
+    }
+    return QStringLiteral("any");
+}
+
 QString StudioPresenter::sortField() const
 {
     return sort_field_name(query_.sort_field);
@@ -389,7 +420,15 @@ int StudioPresenter::visibleCount() const
 bool StudioPresenter::filtersActive() const noexcept
 {
     return query_.rating_mode != RatingFilterMode::kAny || !query_.color_labels.empty() ||
-           query_.reject_filter != RejectFilter::kInclude || !query_.tag.empty();
+           query_.reject_filter != RejectFilter::kInclude || !query_.tag.empty() ||
+           !query_.text.empty() || !query_.media_types.empty() ||
+           query_.edit_filter != EditFilter::kAny || !query_.camera.empty() || query_.iso.minimum ||
+           query_.iso.maximum || query_.aperture.minimum || query_.aperture.maximum ||
+           query_.focal_length_mm.minimum || query_.focal_length_mm.maximum ||
+           query_.shutter_s.minimum || query_.shutter_s.maximum || query_.aspect_ratio.minimum ||
+           query_.aspect_ratio.maximum || query_.imported_after_unix_ms ||
+           query_.imported_before_unix_ms || query_.captured_after_unix_s ||
+           query_.captured_before_unix_s;
 }
 
 bool StudioPresenter::selectedHasEdits() const noexcept
@@ -1050,6 +1089,11 @@ QVariantList StudioPresenter::tiffCompressionChoices() const
     return studio_tiff_compression_choices();
 }
 
+QVariantList StudioPresenter::exportMetadataModeChoices() const
+{
+    return studio_export_metadata_mode_choices();
+}
+
 QVariantMap StudioPresenter::exportDefaultOptions() const
 {
     return studio_export_default_options();
@@ -1103,6 +1147,71 @@ void StudioPresenter::exportSelectedToPath(const QString &path, const QString &f
                                            .fileName())
                                   .arg(exported.value().width)
                                   .arg(exported.value().height));
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::exportSelectedToDirectory(const QString &directory,
+                                                const QString &filename_template,
+                                                const QString &format, const QVariantMap &options)
+{
+    const auto asset_ids = selected_asset_ids();
+    if (busy_ || catalog_path_.isEmpty() || asset_ids.empty())
+        return;
+    auto export_options = make_studio_export_options(format, options);
+    if (!export_options)
+    {
+        setError(
+            QCoreApplication::translate("StudioExport", export_options.error().message.c_str()));
+        return;
+    }
+    ExportBatchRequest request;
+    request.asset_ids = asset_ids;
+    request.output_directory = utf8_from_qstring(directory);
+    request.filename_template = utf8_from_qstring(filename_template);
+    request.options = std::move(export_options).value();
+    request.cancellation = shutdown_.token();
+    setBusy(true);
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Exporting selected photos…"));
+    executor_.post(
+        [this, request = std::move(request)]() mutable
+        {
+            Result<std::vector<ExportResult>> exported =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                exported = service_->export_assets(request);
+            const QString destination = qstring_from_utf8(request.output_directory);
+            const auto total = request.asset_ids.size();
+            QMetaObject::invokeMethod(
+                this,
+                [this, exported = std::move(exported), destination, total]() mutable
+                {
+                    setBusy(false);
+                    if (!exported)
+                    {
+                        setError(qstring_from_utf8(exported.error().message));
+                        const auto completed = exported.error().context.find("completed_count");
+                        if (completed != exported.error().context.end())
+                        {
+                            setStatus(QCoreApplication::translate(
+                                          "StudioPresenter",
+                                          "Export stopped after %1 of %2 selected photos.")
+                                          .arg(qstring_from_utf8(completed->second))
+                                          .arg(total));
+                        }
+                        else
+                        {
+                            setStatus(QCoreApplication::translate("StudioPresenter",
+                                                                  "Batch export failed."));
+                        }
+                        return;
+                    }
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Exported %1 selected photos to %2")
+                                  .arg(exported.value().size())
+                                  .arg(destination));
                 },
                 Qt::QueuedConnection);
         });
@@ -1599,6 +1708,37 @@ void StudioPresenter::setMetadataField(const QString &name, const QString &value
         });
 }
 
+void StudioPresenter::refreshSelectedMetadata()
+{
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+        return;
+    const std::string asset_id = utf8_from_qstring(selected_asset_id_);
+    executor_.post(
+        [this, asset_id]()
+        {
+            Result<AssetRecord> refreshed = make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                refreshed = service_->refresh_capture_metadata(asset_id, shutdown_.token());
+            QMetaObject::invokeMethod(
+                this,
+                [this, refreshed = std::move(refreshed)]() mutable
+                {
+                    if (!refreshed)
+                    {
+                        if (refreshed.error().code != ErrorCode::kCancelled)
+                            setError(qstring_from_utf8(refreshed.error().message));
+                        return;
+                    }
+                    assets_.updateAsset(refreshed.value());
+                    emit selectionChanged();
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Capture metadata refreshed."));
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
 void StudioPresenter::createSnapshot(const QString &label)
 {
     const auto text = utf8_from_qstring(label);
@@ -1721,6 +1861,66 @@ void StudioPresenter::setRejectFilter(const QString &mode)
     reloadVisibleAssets();
 }
 
+void StudioPresenter::setFilterText(const QString &text)
+{
+    LibraryQuery next = query_;
+    next.text = utf8_from_qstring(text.trimmed());
+    auto valid = validate_library_query(next);
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::setMediaFilter(const QString &mode)
+{
+    LibraryQuery next = query_;
+    next.media_types.clear();
+    if (mode == QLatin1String("raw"))
+        next.media_types.emplace_back(kMediaTypeRaw);
+    else if (mode == QLatin1String("jpeg"))
+        next.media_types.emplace_back(kMediaTypeJpeg);
+    else if (mode == QLatin1String("png"))
+        next.media_types.emplace_back(kMediaTypePng);
+    else if (mode == QLatin1String("tiff"))
+        next.media_types.emplace_back(kMediaTypeTiff);
+    else if (mode != QLatin1String("any"))
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Unknown media filter mode."));
+        return;
+    }
+    if (next == query_)
+        return;
+    query_ = std::move(next);
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
+void StudioPresenter::setEditFilter(const QString &mode)
+{
+    EditFilter next = EditFilter::kAny;
+    if (mode == QLatin1String("edited"))
+        next = EditFilter::kEdited;
+    else if (mode == QLatin1String("unedited"))
+        next = EditFilter::kUnedited;
+    else if (mode != QLatin1String("any"))
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Unknown edit filter mode."));
+        return;
+    }
+    if (query_.edit_filter == next)
+        return;
+    query_.edit_filter = next;
+    emit filterChanged();
+    reloadVisibleAssets();
+}
+
 void StudioPresenter::setSort(const QString &field, const QString &direction)
 {
     AssetSortField next_field = AssetSortField::kImportTime;
@@ -1731,6 +1931,14 @@ void StudioPresenter::setSort(const QString &field, const QString &direction)
     else if (field == QStringLiteral("rating"))
     {
         next_field = AssetSortField::kRating;
+    }
+    else if (field == QStringLiteral("captured"))
+    {
+        next_field = AssetSortField::kCaptureTime;
+    }
+    else if (field == QStringLiteral("size"))
+    {
+        next_field = AssetSortField::kFileSize;
     }
     const auto next_direction =
         direction == QStringLiteral("asc") ? SortDirection::kAscending : SortDirection::kDescending;
@@ -1755,6 +1963,19 @@ void StudioPresenter::clearFilters()
     query_.color_labels.clear();
     query_.reject_filter = RejectFilter::kInclude;
     query_.tag.clear();
+    query_.text.clear();
+    query_.media_types.clear();
+    query_.edit_filter = EditFilter::kAny;
+    query_.camera.clear();
+    query_.iso = {};
+    query_.aperture = {};
+    query_.focal_length_mm = {};
+    query_.shutter_s = {};
+    query_.aspect_ratio = {};
+    query_.imported_after_unix_ms.reset();
+    query_.imported_before_unix_ms.reset();
+    query_.captured_after_unix_s.reset();
+    query_.captured_before_unix_s.reset();
     emit filterChanged();
     reloadVisibleAssets();
 }

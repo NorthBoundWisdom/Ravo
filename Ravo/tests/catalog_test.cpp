@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -32,10 +33,13 @@
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
 #include "ravo/recipe/color_harmonizer.h"
+#include "ravo/recipe/color_reconstruction.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/develop_mask.h"
+#include "ravo/recipe/dehaze.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
+#include "ravo/recipe/sharpen.h"
 #include "ravo/services/catalog_service.h"
 
 #include "capture_metadata_test_support.h"
@@ -515,6 +519,69 @@ TEST_F(CatalogServiceTest, ListsImportedFoldersAndFiltersByFolderUri)
     EXPECT_NE(listed.value().front().normalized_uri.find("Trip"), std::string::npos);
 }
 
+TEST_F(CatalogServiceTest, LibraryQueryValidationFailsBeforeFiltering)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    LibraryQuery query;
+    query.rating_value = 9;
+    auto rejected = service->list_assets(query);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_library_rating_filter");
+
+    query = {};
+    query.aperture = {8.0, 2.8};
+    rejected = service->list_assets(query);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("field"), "aperture");
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_library_filter_range");
+}
+
+TEST_F(CatalogServiceTest, LibraryQueryFiltersMediaTextAndEditStateThroughService)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "Golden-JPEG.jpg").string();
+    const auto png_path = (root / "Blue-PNG.png").string();
+    QImage image(12, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 80, 140));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    ASSERT_TRUE(image.save(QString::fromStdString(png_path), "PNG"));
+    auto jpeg = service->import_one(jpeg_path, CancellationToken{});
+    auto png = service->import_one(png_path, CancellationToken{});
+    ASSERT_TRUE(jpeg) << jpeg.error().message;
+    ASSERT_TRUE(png) << png.error().message;
+    ASSERT_TRUE(jpeg.value().asset);
+    ASSERT_TRUE(png.value().asset);
+
+    DevelopParams edited;
+    edited.exposure_ev = 0.25;
+    ASSERT_TRUE(service->save_develop(jpeg.value().asset->id, edited));
+
+    LibraryQuery query;
+    query.media_types = {std::string(kMediaTypePng)};
+    auto listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, png.value().asset->id);
+
+    query = {};
+    query.text = "golden-jpeg";
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, jpeg.value().asset->id);
+
+    query = {};
+    query.edit_filter = EditFilter::kEdited;
+    listed = service->list_assets(query);
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, jpeg.value().asset->id);
+}
+
 TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)
 {
     auto created = open_service(true);
@@ -604,6 +671,97 @@ TEST_F(CatalogServiceTest, RemoveOriginalAndCatalogFailsWhenFileIsMissing)
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, asset_id);
+}
+
+TEST_F(CatalogServiceTest, RemoveTransactionFailurePreservesAssetAndRevision)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 50, 60));
+    const auto photo = root / "remove-rollback.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    auto before = service->snapshot();
+    ASSERT_TRUE(before) << before.error().message;
+
+    {
+        const auto connection = QStringLiteral("ravo_remove_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER fail_remove_revision BEFORE UPDATE OF revision ON schema_info "
+            "BEGIN SELECT RAISE(ABORT, 'forced remove revision failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto removed = service->remove_from_catalog(asset_id);
+    ASSERT_FALSE(removed);
+    EXPECT_EQ(removed.error().code, ErrorCode::kIo);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, asset_id);
+    auto after = service->snapshot();
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_EQ(after.value().revision, before.value().revision);
+    EXPECT_TRUE(std::filesystem::exists(photo));
+}
+
+TEST_F(CatalogServiceTest, DiskDeleteDatabaseFailureRestoresOriginalAndCatalog)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(70, 80, 90));
+    const auto photo = root / "disk-delete-rollback.jpg";
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto original_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    auto before = service->snapshot();
+    ASSERT_TRUE(before) << before.error().message;
+
+    {
+        const auto connection = QStringLiteral("ravo_disk_delete_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER fail_disk_delete_revision BEFORE UPDATE OF revision ON schema_info "
+            "BEGIN SELECT RAISE(ABORT, 'forced disk delete revision failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto removed = service->remove_original_and_catalog(asset_id);
+    ASSERT_FALSE(removed);
+    EXPECT_EQ(removed.error().code, ErrorCode::kIo);
+    EXPECT_TRUE(std::filesystem::exists(photo));
+    EXPECT_EQ(file_sha256(photo.string()), original_hash);
+    EXPECT_FALSE(std::filesystem::exists(photo.string() + ".ravo-delete-0"));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed) << listed.error().message;
+    ASSERT_EQ(listed.value().size(), 1U);
+    EXPECT_EQ(listed.value().front().id, asset_id);
+    auto after = service->snapshot();
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_EQ(after.value().revision, before.value().revision);
 }
 
 TEST_F(CatalogServiceTest, ReviewStatePersistsThroughReopenAndFilters)
@@ -2301,6 +2459,327 @@ TEST_F(CatalogServiceTest, ExplicitDefaultColorHarmonizerPersistsReopensAndExpor
     EXPECT_EQ(after_reopen_image, before_reopen_image);
 }
 
+TEST_F(CatalogServiceTest, ColorReconstructionPersistsReopensAndExportsExactPixels)
+{
+    const auto source_hash = file_sha256(raw_fixture_path());
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto absent = service->request_preview(preview);
+    ASSERT_TRUE(absent) << absent.error().message;
+    const QImage absent_image(QString::fromStdString(absent.value().cache_path));
+    ASSERT_FALSE(absent_image.isNull());
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto develop = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    EXPECT_FALSE(develop.value().color_reconstruction_enabled);
+    develop.value().color_reconstruction_enabled = true;
+    develop.value().color_reconstruction = ColorReconstructionParams{
+        60.0, 300.0, 10.0, 0.6600000262260437, ColorReconstructionPrecedence::kChroma};
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto stored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    const auto operation = std::find_if(
+        stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
+        [](const OperationInstance &item) { return item.id == kColorReconstructionOperationId; });
+    ASSERT_NE(operation, stored_recipe.value().operations.end());
+    EXPECT_TRUE(operation->enabled);
+    EXPECT_EQ(operation->schema_version, kColorReconstructionOperationSchemaVersion);
+    auto decoded = color_reconstruction_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), develop.value().color_reconstruction);
+    ASSERT_NE(std::next(operation), stored_recipe.value().operations.end());
+    EXPECT_EQ(std::next(operation)->id, "ravo.color.output");
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_NE(before_reopen_image, absent_image);
+
+    const auto export_path = (root / "colorreconstruct.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 64U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(export_image, before_reopen_image);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().color_reconstruction_enabled);
+    EXPECT_EQ(restored.value().color_reconstruction, develop.value().color_reconstruction);
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+    EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, SourceExactSharpenPersistsReopensAndExportsExactPixels)
+{
+    const auto source_hash = file_sha256(raw_fixture_path());
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 128U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto absent = service->request_preview(preview);
+    ASSERT_TRUE(absent) << absent.error().message;
+    const QImage absent_image(QString::fromStdString(absent.value().cache_path));
+    ASSERT_FALSE(absent_image.isNull());
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto develop = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    develop.value().sharpen = 1.0;
+    develop.value().sharpen_radius = 99.0;
+    develop.value().sharpen_threshold = 0.0;
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto stored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    const auto operation = std::find_if(
+        stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
+        [](const OperationInstance &item) { return item.id == kSharpenOperationId; });
+    ASSERT_NE(operation, stored_recipe.value().operations.end());
+    EXPECT_EQ(operation->schema_version, kSharpenOperationSchemaVersion);
+    auto decoded = sharpen_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), (SharpenParams{99.0, 1.0, 0.0}));
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_NE(before_reopen_image, absent_image);
+
+    const auto export_path = (root / "sharpen.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 128U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(export_image, before_reopen_image);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_DOUBLE_EQ(restored.value().sharpen, 1.0);
+    EXPECT_DOUBLE_EQ(restored.value().sharpen_radius, 99.0);
+    EXPECT_DOUBLE_EQ(restored.value().sharpen_threshold, 0.0);
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+    EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, DarkChannelDehazePersistsReopensAndExportsExactPixels)
+{
+    const auto source_hash = file_sha256(raw_fixture_path());
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 128U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto absent = service->request_preview(preview);
+    ASSERT_TRUE(absent) << absent.error().message;
+    const QImage absent_image(QString::fromStdString(absent.value().cache_path));
+    ASSERT_FALSE(absent_image.isNull());
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto develop = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    develop.value().dehaze = 0.9;
+    develop.value().dehaze_distance = 0.8;
+    develop.value().dehaze_adaptive = false;
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto stored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    const auto operation = std::find_if(
+        stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
+        [](const OperationInstance &item) { return item.id == kDehazeOperationId; });
+    ASSERT_NE(operation, stored_recipe.value().operations.end());
+    EXPECT_EQ(operation->schema_version, kDehazeOperationSchemaVersion);
+    auto decoded = dehaze_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), (DehazeParams{0.9, 0.8, false}));
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_NE(before_reopen_image, absent_image);
+
+    const auto export_path = (root / "dehaze.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 128U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(export_image, before_reopen_image);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_DOUBLE_EQ(restored.value().dehaze, 0.9);
+    EXPECT_DOUBLE_EQ(restored.value().dehaze_distance, 0.8);
+    EXPECT_FALSE(restored.value().dehaze_adaptive);
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+    EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, OrderedRetouchPersistsReopensAndExportsExactPixels)
+{
+    const auto source_hash = file_sha256(raw_fixture_path());
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    auto imported = service->import_one(raw_fixture_path(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 64U;
+    preview.persist_preview_record = true;
+    preview.prefer_embedded_preview = false;
+    auto absent = service->request_preview(preview);
+    ASSERT_TRUE(absent) << absent.error().message;
+    const QImage absent_image(QString::fromStdString(absent.value().cache_path));
+    ASSERT_FALSE(absent_image.isNull());
+
+    auto baseline_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
+    auto develop = develop_from_recipe(baseline_recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    Mask spot{"catalog-retouch-spot", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    spot.payload = CircleMask{0.5, 0.5, 0.16, 0.04};
+    develop.value().masks.push_back(spot);
+    RetouchRegion region;
+    region.mask_id = spot.id;
+    region.mode = RetouchMode::kFill;
+    region.opacity = 0.85;
+    region.fill_mode = RetouchFillMode::kColor;
+    region.fill_color = {0.9, 0.15, 0.05};
+    region.fill_brightness = -0.03;
+    develop.value().retouch.regions.push_back(region);
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto stored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    const auto operation = std::find_if(
+        stored_recipe.value().operations.begin(), stored_recipe.value().operations.end(),
+        [](const OperationInstance &item) { return item.id == kRetouchOperationId; });
+    ASSERT_NE(operation, stored_recipe.value().operations.end());
+    auto decoded = retouch_from_parameters(operation->parameters);
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value(), develop.value().retouch);
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    EXPECT_NE(before_reopen.value().cache_key, absent.value().cache_key);
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_NE(before_reopen_image, absent_image);
+
+    const auto export_path = (root / "retouch.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 64U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(export_image, before_reopen_image);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().retouch, develop.value().retouch);
+    EXPECT_EQ(restored.value().masks, develop.value().masks);
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+    EXPECT_EQ(file_sha256(raw_fixture_path()), source_hash);
+}
+
 TEST_F(CatalogServiceTest, PositiveColorHarmonizerSmoothingPersistsReopensAndExports)
 {
     auto created = open_service(true);
@@ -2650,6 +3129,323 @@ TEST_F(CatalogServiceTest, ExportJpegPngOriginalCopyConflictAndCancel)
     EXPECT_FALSE(std::filesystem::exists(missing_directory.output_path));
 }
 
+TEST_F(CatalogServiceTest, BatchExportExpandsInOrderAndPreflightsEveryConflict)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto import_image = [this](const std::string &name, const QColor color)
+    {
+        const auto path = (root / name).string();
+        QImage image(20, 12, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(color);
+        EXPECT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
+        auto imported = service->import_one(path, CancellationToken{});
+        EXPECT_TRUE(imported) << imported.error().message;
+        EXPECT_TRUE(imported.value().asset.has_value());
+        return imported.value().asset->id;
+    };
+    const auto first_id = import_image("batch one.jpg", QColor(200, 20, 30));
+    const auto second_id = import_image("batch two.jpg", QColor(20, 200, 30));
+    const auto output_directory = root / "batch-output";
+    std::filesystem::create_directory(output_directory);
+
+    ExportBatchRequest request;
+    request.asset_ids = {first_id, second_id};
+    request.output_directory = output_directory.string();
+    request.filename_template = "{sequence}-{stem}{ext}";
+    request.options.format = ExportFormat::kPng;
+    std::vector<std::size_t> progress_indices;
+    auto exported = service->export_assets(request,
+                                           [&progress_indices](const std::size_t current,
+                                                               const std::size_t total,
+                                                               const ExportResult *result)
+                                           {
+                                               EXPECT_EQ(total, 2U);
+                                               ASSERT_NE(result, nullptr);
+                                               progress_indices.push_back(current);
+                                           });
+    ASSERT_TRUE(exported) << exported.error().message;
+    ASSERT_EQ(exported.value().size(), 2U);
+    EXPECT_EQ(progress_indices, (std::vector<std::size_t>{1U, 2U}));
+    EXPECT_EQ(std::filesystem::path(exported.value()[0].output_path).filename(),
+              "0001-batch one.png");
+    EXPECT_EQ(std::filesystem::path(exported.value()[1].output_path).filename(),
+              "0002-batch two.png");
+    EXPECT_FALSE(QImage(QString::fromStdString(exported.value()[0].output_path)).isNull());
+    EXPECT_FALSE(QImage(QString::fromStdString(exported.value()[1].output_path)).isNull());
+
+    const auto conflict_directory = root / "batch-conflict";
+    std::filesystem::create_directory(conflict_directory);
+    const auto conflict_path = conflict_directory / "0002-batch two.png";
+    {
+        std::ofstream sentinel(conflict_path, std::ios::binary);
+        sentinel << "keep-existing";
+    }
+    const auto conflict_hash = file_sha256(conflict_path.string());
+    request.output_directory = conflict_directory.string();
+    auto conflict = service->export_assets(request);
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(conflict.error().context.at("completed_count"), "0");
+    EXPECT_EQ(conflict.error().context.at("partial_batch"), "false");
+    EXPECT_FALSE(std::filesystem::exists(conflict_directory / "0001-batch one.png"));
+    EXPECT_EQ(file_sha256(conflict_path.string()), conflict_hash);
+
+    request.output_directory = (root / "batch-duplicate-name").string();
+    std::filesystem::create_directory(request.output_directory);
+    request.filename_template = "same{ext}";
+    auto duplicate = service->export_assets(request);
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().context.at("reason"), "duplicate_export_output");
+    EXPECT_TRUE(std::filesystem::is_empty(request.output_directory));
+}
+
+TEST_F(CatalogServiceTest, BatchExportCancellationReportsStablePartialDelivery)
+{
+    ASSERT_TRUE(open_service(true));
+    std::vector<std::string> asset_ids;
+    for (int index = 0; index < 2; ++index)
+    {
+        const auto path = (root / ("cancel-batch-" + std::to_string(index + 1) + ".jpg")).string();
+        QImage image(20, 12, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(index == 0 ? QColor(200, 20, 30) : QColor(20, 200, 30));
+        ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
+        auto imported = service->import_one(path, CancellationToken{});
+        ASSERT_TRUE(imported) << imported.error().message;
+        ASSERT_TRUE(imported.value().asset);
+        asset_ids.push_back(imported.value().asset->id);
+    }
+    const auto output_directory = root / "cancel-batch-output";
+    std::filesystem::create_directory(output_directory);
+    CancellationSource cancellation;
+    ExportBatchRequest request;
+    request.asset_ids = asset_ids;
+    request.output_directory = output_directory.string();
+    request.options.format = ExportFormat::kJpeg;
+    request.cancellation = cancellation.token();
+    auto exported = service->export_assets(
+        request,
+        [&cancellation](const std::size_t current, const std::size_t, const ExportResult *)
+        {
+            if (current == 1U)
+                EXPECT_TRUE(cancellation.cancel("after-first-batch-output"));
+        });
+    ASSERT_FALSE(exported);
+    EXPECT_EQ(exported.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(exported.error().context.at("completed_count"), "1");
+    EXPECT_EQ(exported.error().context.at("partial_batch"), "true");
+    EXPECT_EQ(exported.error().context.at("reason"), "after-first-batch-output");
+    EXPECT_TRUE(std::filesystem::exists(output_directory / "cancel-batch-1-0001.jpg"));
+    EXPECT_FALSE(std::filesystem::exists(output_directory / "cancel-batch-2-0002.jpg"));
+}
+
+TEST_F(CatalogServiceTest, BatchExportRuntimeFailureNamesAlreadyDeliveredOutputs)
+{
+    ASSERT_TRUE(open_service(true));
+    std::vector<std::string> asset_ids;
+    std::vector<std::string> source_paths;
+    for (int index = 0; index < 2; ++index)
+    {
+        const auto path = (root / ("failure-batch-" + std::to_string(index + 1) + ".jpg")).string();
+        QImage image(20, 12, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(index == 0 ? QColor(200, 20, 30) : QColor(20, 200, 30));
+        ASSERT_TRUE(image.save(QString::fromStdString(path), "JPEG", 90));
+        auto imported = service->import_one(path, CancellationToken{});
+        ASSERT_TRUE(imported) << imported.error().message;
+        ASSERT_TRUE(imported.value().asset);
+        asset_ids.push_back(imported.value().asset->id);
+        source_paths.push_back(path);
+    }
+    const auto output_directory = root / "failure-batch-output";
+    std::filesystem::create_directory(output_directory);
+    ExportBatchRequest request;
+    request.asset_ids = asset_ids;
+    request.output_directory = output_directory.string();
+    request.options.format = ExportFormat::kPng;
+    auto exported = service->export_assets(
+        request,
+        [&source_paths](const std::size_t current, const std::size_t, const ExportResult *)
+        {
+            if (current == 1U)
+                EXPECT_TRUE(std::filesystem::remove(source_paths[1]));
+        });
+    ASSERT_FALSE(exported);
+    EXPECT_EQ(exported.error().code, ErrorCode::kNotFound);
+    EXPECT_EQ(exported.error().context.at("completed_count"), "1");
+    EXPECT_EQ(exported.error().context.at("partial_batch"), "true");
+    EXPECT_EQ(exported.error().context.at("batch_index"), "2");
+    EXPECT_TRUE(std::filesystem::exists(output_directory / "failure-batch-1-0001.png"));
+    EXPECT_FALSE(std::filesystem::exists(output_directory / "failure-batch-2-0002.png"));
+    EXPECT_TRUE(std::filesystem::exists(source_paths[0]));
+}
+
+TEST_F(CatalogServiceTest, OutputDitherPersistsRebuildsAndExportsTheDisplayedPixels)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = (root / "output-dither-source.png").string();
+    QImage image(12, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    for (int row = 0; row < image.height(); ++row)
+    {
+        for (int column = 0; column < image.width(); ++column)
+        {
+            image.setPixelColor(column, row,
+                                QColor((column * 23 + row * 7) % 256,
+                                       (column * 11 + row * 29) % 256,
+                                       (column * 31 + row * 3) % 256));
+        }
+    }
+    ASSERT_TRUE(image.save(QString::fromStdString(source_path), "PNG"));
+    const auto source_hash = file_sha256(source_path);
+    auto imported = service->import_one(source_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    DevelopParams develop;
+    develop.output_dither_present = true;
+    develop.output_dither_enabled = true;
+    develop.output_dither = {OutputDitherMethod::kPosterize4, -100.0};
+    ASSERT_TRUE(service->save_develop(asset_id, develop));
+
+    PreviewRequest preview_request;
+    preview_request.asset_id = asset_id;
+    auto preview = service->request_preview(preview_request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    QImage preview_image(QString::fromStdString(preview.value().cache_path));
+    ASSERT_FALSE(preview_image.isNull());
+    const auto export_path = (root / "output-dither-export.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(preview_image, export_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(std::filesystem::remove(preview.value().cache_path));
+    ASSERT_TRUE(open_service(false));
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_develop = develop_from_recipe(restored.value());
+    ASSERT_TRUE(restored_develop) << restored_develop.error().message;
+    EXPECT_TRUE(restored_develop.value().output_dither_enabled);
+    EXPECT_EQ(restored_develop.value().output_dither.method, OutputDitherMethod::kPosterize4);
+    auto rebuilt = service->request_preview(preview_request);
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    QImage rebuilt_image(QString::fromStdString(rebuilt.value().cache_path));
+    ASSERT_FALSE(rebuilt_image.isNull());
+    EXPECT_EQ(rebuilt_image, export_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
+}
+
+TEST_F(CatalogServiceTest, CanvasColorZonesMonochromeSplitFrameWatermarkPersistExactPixels)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = (root / "canvas-frame-source.png").string();
+    QImage image(12, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(80, 120, 160));
+    ASSERT_TRUE(image.save(QString::fromStdString(source_path), "PNG"));
+    const auto source_hash = file_sha256(source_path);
+    auto imported = service->import_one(source_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    DevelopParams develop;
+    develop.canvas_present = true;
+    develop.canvas_enabled = true;
+    develop.canvas = {25.0, 25.0, 25.0, 25.0, CanvasColor::kBlue};
+    develop.frame_present = true;
+    develop.frame_enabled = true;
+    develop.frame.size = 0.1;
+    develop.frame.border_color = {1.0, 1.0, 1.0};
+    develop.watermark_present = true;
+    develop.watermark_enabled = true;
+    develop.watermark.text = "A";
+    develop.watermark.color = {0.0, 0.0, 0.0};
+    develop.watermark.opacity = 1.0;
+    develop.watermark.scale_percent = 50.0;
+    develop.watermark.alignment = WatermarkAlignment::kTopLeft;
+    develop.color_zones_present = true;
+    develop.color_zones_enabled = true;
+    for (auto &point : develop.color_zones.curves[1].points)
+        point.y = 0.75;
+    develop.monochrome_present = true;
+    develop.monochrome_enabled = true;
+    develop.monochrome = {20.0, 10.0, 2.0, 0.25, 1.0};
+    develop.split_toning_present = true;
+    develop.split_toning_enabled = true;
+    develop.split_toning = {0.34, 0.9, 0.93, 0.9, 0.35, 15.0, 1.0};
+    ASSERT_TRUE(service->save_develop(asset_id, develop));
+    PreviewRequest preview_request;
+    preview_request.asset_id = asset_id;
+    auto preview = service->request_preview(preview_request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    EXPECT_EQ(preview.value().width, 20U);
+    EXPECT_EQ(preview.value().height, 14U);
+    QImage preview_image(QString::fromStdString(preview.value().cache_path));
+    ASSERT_FALSE(preview_image.isNull());
+
+    ExportRequest request;
+    request.asset_id = asset_id;
+    request.output_path = (root / "canvas-frame-export.png").string();
+    request.format = ExportFormat::kPng;
+    auto exported = service->export_asset(request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    EXPECT_EQ(exported.value().width, 20U);
+    EXPECT_EQ(exported.value().height, 14U);
+    QImage exported_image(QString::fromStdString(request.output_path));
+    EXPECT_EQ(exported_image, preview_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
+    for (const auto &[format, filename] :
+         {std::pair{ExportFormat::kJpeg, std::string("canvas-frame-export.jpg")},
+          std::pair{ExportFormat::kTiff, std::string("canvas-frame-export.tif")}})
+    {
+        ExportRequest additional = request;
+        additional.format = format;
+        additional.output_path = (root / filename).string();
+        auto result = service->export_asset(additional);
+        ASSERT_TRUE(result) << filename << ": " << result.error().message;
+        EXPECT_EQ(result.value().width, 20U);
+        EXPECT_EQ(result.value().height, 14U);
+        const QImage decoded(QString::fromStdString(additional.output_path));
+        ASSERT_FALSE(decoded.isNull()) << filename;
+        EXPECT_EQ(decoded.width(), 20);
+        EXPECT_EQ(decoded.height(), 14);
+    }
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(std::filesystem::remove(preview.value().cache_path));
+    ASSERT_TRUE(open_service(false));
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto params = develop_from_recipe(restored.value());
+    ASSERT_TRUE(params) << params.error().message;
+    EXPECT_TRUE(params.value().canvas_enabled);
+    EXPECT_TRUE(params.value().frame_enabled);
+    EXPECT_TRUE(params.value().watermark_enabled);
+    EXPECT_EQ(params.value().watermark.text, "A");
+    EXPECT_TRUE(params.value().color_zones_enabled);
+    EXPECT_DOUBLE_EQ(params.value().color_zones.curves[1].points[0].y, 0.75);
+    EXPECT_TRUE(params.value().monochrome_enabled);
+    EXPECT_DOUBLE_EQ(params.value().monochrome.highlights, 0.25);
+    EXPECT_TRUE(params.value().split_toning_enabled);
+    EXPECT_DOUBLE_EQ(params.value().split_toning.compress, 15.0);
+    EXPECT_EQ(params.value().canvas.color, CanvasColor::kBlue);
+    auto rebuilt = service->request_preview(preview_request);
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    EXPECT_EQ(QImage(QString::fromStdString(rebuilt.value().cache_path)), exported_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
+}
+
 [[nodiscard]] std::vector<std::uint8_t> make_synthetic_capture_exif_tiff()
 {
     return {
@@ -2770,6 +3566,96 @@ TEST_F(CatalogServiceTest, ImportsSyntheticJpegCaptureTimeAndGps)
     EXPECT_EQ(imported.value().asset->capture.location->altitude->magnitude_mm, 123456U);
     EXPECT_EQ(imported.value().asset->capture.location->altitude->reference,
               CaptureAltitudeReference::kAboveSeaLevel);
+}
+
+void replace_synthetic_capture_year(const std::string &path, const QByteArray &year)
+{
+    QFile file(QString::fromStdString(path));
+    ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+    QByteArray bytes = file.readAll();
+    file.close();
+    const auto position = bytes.indexOf("2007:09:11 13:53:33");
+    ASSERT_GE(position, 0);
+    ASSERT_EQ(year.size(), 4);
+    bytes.replace(position, 4, year);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(file.write(bytes), bytes.size());
+    file.close();
+}
+
+TEST_F(CatalogServiceTest, RefreshCaptureMetadataPublishesSourceChangesAtomically)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "refresh-capture.jpg");
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    auto before = service->snapshot();
+    ASSERT_TRUE(before);
+    replace_synthetic_capture_year(jpeg_path, QByteArray("2008"));
+
+    auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
+    ASSERT_TRUE(refreshed) << refreshed.error().message;
+    ASSERT_TRUE(refreshed.value().capture.captured_datetime);
+    EXPECT_EQ(refreshed.value().capture.captured_datetime->local_exif, "2008:09:11 13:53:33");
+    auto after = service->snapshot();
+    ASSERT_TRUE(after);
+    EXPECT_EQ(after.value().revision, before.value().revision + 1);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    ASSERT_TRUE(listed.value().front().capture.captured_datetime);
+    EXPECT_EQ(listed.value().front().capture.captured_datetime->local_exif, "2008:09:11 13:53:33");
+}
+
+TEST_F(CatalogServiceTest, RefreshFailurePreservesCaptureAndRevision)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = write_synthetic_jpeg_with_capture(root / "refresh-rollback.jpg");
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    auto before = service->snapshot();
+    ASSERT_TRUE(before);
+    replace_synthetic_capture_year(jpeg_path, QByteArray("2009"));
+
+    {
+        const auto connection = QStringLiteral("ravo_refresh_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER fail_refresh_revision BEFORE UPDATE OF revision ON schema_info "
+            "BEGIN SELECT RAISE(ABORT, 'forced refresh revision failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+    auto refreshed = service->refresh_capture_metadata(asset_id, CancellationToken{});
+    ASSERT_FALSE(refreshed);
+    EXPECT_EQ(refreshed.error().code, ErrorCode::kIo);
+    auto listed = service->list_assets();
+    ASSERT_TRUE(listed);
+    ASSERT_EQ(listed.value().size(), 1U);
+    ASSERT_TRUE(listed.value().front().capture.captured_datetime);
+    EXPECT_EQ(listed.value().front().capture.captured_datetime->local_exif, "2007:09:11 13:53:33");
+    auto after = service->snapshot();
+    ASSERT_TRUE(after);
+    EXPECT_EQ(after.value().revision, before.value().revision);
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("refresh-cancelled"));
+    auto cancelled_refresh = service->refresh_capture_metadata(asset_id, cancelled.token());
+    ASSERT_FALSE(cancelled_refresh);
+    EXPECT_EQ(cancelled_refresh.error().code, ErrorCode::kCancelled);
 }
 
 TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
@@ -3801,6 +4687,56 @@ TEST_F(CatalogServiceTest, CancellationAfterRawInspectPreventsPublication)
     EXPECT_EQ(after.value().revision, before.value().revision);
 }
 
+TEST_F(CatalogServiceTest, CancellationBeforePreviewCacheCommitPublishesNoFileOrRecord)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto jpeg_path = (root / "cancel-preview-cache.jpg").string();
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.fill(QColor(10, 20, 30));
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 95));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    auto before = service->list_previews();
+    ASSERT_TRUE(before) << before.error().message;
+
+    const auto count_cache_files = [this]
+    {
+        std::size_t count = 0;
+        const std::filesystem::path cache_root(database_path + ".preview");
+        for (const auto &entry : std::filesystem::directory_iterator(cache_root))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == ".png")
+                ++count;
+        }
+        return count;
+    };
+    const auto files_before = count_cache_files();
+    CancellationSource cancellation;
+    bool hook_called = false;
+    testing::CatalogServiceTestControl::set_before_preview_cache_publication(
+        *service,
+        [&]
+        {
+            hook_called = true;
+            EXPECT_TRUE(cancellation.cancel("before-preview-cache-commit"));
+        });
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.max_edge = 11;
+    request.cancellation = cancellation.token();
+    auto preview = service->request_preview(request);
+    ASSERT_FALSE(preview);
+    EXPECT_TRUE(hook_called);
+    EXPECT_EQ(preview.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(preview.error().context.at("reason"), "before-preview-cache-commit");
+    EXPECT_EQ(count_cache_files(), files_before);
+    auto after = service->list_previews();
+    ASSERT_TRUE(after) << after.error().message;
+    EXPECT_EQ(after.value().size(), before.value().size());
+}
+
 TEST_F(CatalogServiceTest, CloseAndCorruptCacheStillAllowReopenPreview)
 {
     ASSERT_TRUE(open_service(true));
@@ -3909,6 +4845,65 @@ TEST_F(CatalogServiceTest, ExportsLocatedCaptureThroughJpegPngTiffDeterministica
     verify_embedded_capture(tiff.output_path);
     EXPECT_TRUE(parse_has(tiff.output_path, "2007:09:11 13:53:33"));
     EXPECT_EQ(file_sha256(jpeg_path), source_hash);
+}
+
+TEST_F(CatalogServiceTest, ExportMetadataPrivacyOmitsLocationOrAllPublicPackets)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = write_synthetic_jpeg_with_capture(root / "privacy-source.jpg");
+    auto imported = service->import_one(source_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    ExportRequest no_location;
+    no_location.asset_id = asset_id;
+    no_location.output_path = (root / "privacy-no-location.jpg").string();
+    no_location.format = ExportFormat::kJpeg;
+    no_location.metadata_mode = ExportMetadataMode::kNoLocation;
+    auto no_location_result = service->export_asset(no_location);
+    ASSERT_TRUE(no_location_result) << no_location_result.error().message;
+    auto no_location_capture =
+        engine.read_embedded_capture_metadata(no_location.output_path, CancellationToken{});
+    ASSERT_TRUE(no_location_capture) << no_location_capture.error().message;
+    EXPECT_TRUE(no_location_capture.value().captured_datetime.has_value());
+    EXPECT_FALSE(no_location_capture.value().location.has_value());
+
+    const std::array cases{
+        std::pair{ExportFormat::kJpeg, std::string("privacy-none.jpg")},
+        std::pair{ExportFormat::kPng, std::string("privacy-none.png")},
+        std::pair{ExportFormat::kTiff, std::string("privacy-none.tif")},
+    };
+    for (const auto &[format, name] : cases)
+    {
+        ExportRequest request;
+        request.asset_id = asset_id;
+        request.output_path = (root / name).string();
+        request.format = format;
+        request.metadata_mode = ExportMetadataMode::kNone;
+        auto exported = service->export_asset(request);
+        ASSERT_TRUE(exported) << name << ": " << exported.error().message;
+        QFile file(QString::fromStdString(request.output_path));
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        const QByteArray bytes = file.readAll();
+        EXPECT_FALSE(bytes.contains("2007:09:11 13:53:33")) << name;
+        EXPECT_FALSE(bytes.contains("http://ns.adobe.com/xap/1.0/")) << name;
+        EXPECT_FALSE(bytes.contains("XML:com.adobe.xmp")) << name;
+        auto capture =
+            engine.read_embedded_capture_metadata(request.output_path, CancellationToken{});
+        ASSERT_TRUE(capture) << name << ": " << capture.error().message;
+        EXPECT_EQ(capture.value(), EngineCaptureMetadata{}) << name;
+    }
+
+    ExportRequest original;
+    original.asset_id = asset_id;
+    original.output_path = (root / "privacy-original.jpg").string();
+    original.format = ExportFormat::kOriginalCopy;
+    original.metadata_mode = ExportMetadataMode::kNone;
+    const auto rejected = service->export_asset(original);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "metadata_mode_not_applicable");
+    EXPECT_FALSE(std::filesystem::exists(original.output_path));
 }
 
 } // namespace

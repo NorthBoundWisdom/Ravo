@@ -29,8 +29,8 @@ scripts, CI, and headless workflows.
 - Browse a Gallery grid, select one or more photos, and inspect a primary photo
   in Loupe.
 - Use Fit, Fill, 100%, pan, a navigator, an RGB histogram, and an RGB parade.
-- Rate photos from 0 to 5, apply color labels, reject or keep photos, filter,
-  sort, and filter by tag or folder.
+- Rate photos from 0 to 5, apply color labels, reject or keep photos, search and
+  filter by media/edit/review/tag/folder/capture fields, and sort deterministically.
 - Edit a selected photo with geometry, profile, exposure, color, detail,
   effects, RAW repair, lens, and tone controls.
 - Compare Before and After, reset controls or sections, undo and redo changes,

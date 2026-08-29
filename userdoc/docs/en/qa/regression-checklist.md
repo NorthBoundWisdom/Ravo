@@ -32,9 +32,20 @@ contracts.
 
 - [ ] Open Gallery, Loupe, and Edit.
 - [ ] Exercise Fit, Fill, 100%, wheel zoom, pan, and navigator seeking.
-- [ ] Switch Histogram and Parade scopes.
+- [ ] Switch Histogram, Waveform, Parade, Vectorscope, and Split scopes.
 - [ ] Confirm a missing original shows Missing without losing catalog state.
 - [ ] Commit a geometry, Light, and Color change.
+- [ ] Exercise Canvas placement/colour and confirm masks exclude the added area.
+- [ ] Exercise Output Dither and Output Frame; confirm preview and export share
+      the framed dimensions.
+- [ ] Add a Text Watermark with a token; confirm preview, reopen, style reuse,
+      and rendered export keep the same placement and pixels.
+- [ ] Exercise Color Zones with each selection axis and interpolation; confirm
+      custom imported nodes stay preserved when Studio cannot edit them.
+- [ ] Exercise Monochrome filter a*/b*, size, highlights, mix, and a mask;
+      confirm preview scale and full export keep the intended filter response.
+- [ ] Exercise Split Toning shadow/highlight hue+saturation, balance,
+      compression, mix, and an attached mask.
 - [ ] Confirm interactive preview cannot replace a newer committed request.
 - [ ] Exercise Before/After, per-control reset, section reset, Reset all,
       Undo, and Redo.
@@ -46,6 +57,8 @@ contracts.
 - [ ] Export PNG, JPEG, TIFF, and Original copy to new destinations.
 - [ ] Confirm an existing destination returns conflict and remains unchanged.
 - [ ] Confirm rendered export uses the saved recipe.
+- [ ] Batch-export at least two selected assets with a filename template; check
+      ordering, conflict preflight, and partial cancellation reporting.
 - [ ] Confirm original copy does not render or rewrite the source.
 - [ ] Test JPEG quality bounds and TIFF option validation through CLI.
 - [ ] Test PNG 16-bit and TIFF uint16/float16/float32 product export succeed, and mismatched 8-bit sources still fail closed.

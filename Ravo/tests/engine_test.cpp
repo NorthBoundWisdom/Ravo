@@ -281,7 +281,7 @@ TEST(ExposureTest, ManualEvAndBlackUseTheFrozenLegacyFormulaWithoutMutatingSourc
     profile.has_matrix = true;
     profile.camera_input = true;
     profile.icc_bytes = {1U, 2U, 3U};
-    const WorkingImage input{2, 1, {-0.5F, 0.0F, 0.25F, 0.5F, 1.0F, 2.0F}, profile, {}};
+    const WorkingImage input{2, 1, {-0.5F, 0.0F, 0.25F, 0.5F, 1.0F, 2.0F}, profile, {}, {}, {}};
     const auto original = input;
     ExposureParams params;
     params.black = -0.25;
@@ -314,7 +314,7 @@ TEST(ExposureTest, ManualEvAndBlackUseTheFrozenLegacyFormulaWithoutMutatingSourc
 
 TEST(ExposureTest, BoundaryFailuresNeverPublishOrMutatePixels)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     input.color_profile.kind = ColorProfileKind::kBuiltin;
     input.color_profile.model = ColorModel::kRgb;
     input.color_profile.identifier = "linear-rec709";
@@ -398,7 +398,7 @@ TEST(ExposureTest, BoundaryFailuresNeverPublishOrMutatePixels)
 
 TEST(ExposureTest, RasterDeflickerAndMetadataCompensationFailWithFrozenReasons)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     input.color_profile.model = ColorModel::kRgb;
 
     ExposureParams deflicker;
@@ -438,7 +438,7 @@ TEST(ExposureTest, RasterDeflickerAndMetadataCompensationFailWithFrozenReasons)
 
 TEST(ExposureTest, ManualMetadataCompensationUsesLegacyOrderBoundsAndOwnedOutput)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     input.color_profile.kind = ColorProfileKind::kMatrix;
     input.color_profile.model = ColorModel::kRgb;
     input.color_profile.identifier = "metadata-fixture";
@@ -488,7 +488,7 @@ TEST(ExposureTest, ManualMetadataCompensationUsesLegacyOrderBoundsAndOwnedOutput
 
 TEST(ExposureTest, MetadataReadStateDistinguishesAbsentTagsFailuresAndCorruption)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     input.color_profile.model = ColorModel::kRgb;
     RawExposureMetadata ready;
     ready.status = RawExposureMetadataStatus::kReady;
@@ -631,7 +631,7 @@ TEST(ExposureMetadataTest, HighlightMappingFreezesMakerPriorityAndValues)
 
 TEST(ExposureTest, DeflickerPercentilesUseOriginalUint16HistogramAndOverrideCompensations)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     input.color_profile.model = ColorModel::kRgb;
     RawExposureMetadata failed_metadata;
     failed_metadata.status = RawExposureMetadataStatus::kReadFailed;
@@ -678,7 +678,7 @@ TEST(ExposureTest, DeflickerPercentilesUseOriginalUint16HistogramAndOverrideComp
 
 TEST(ExposureTest, DeflickerRejectsMalformedHistogramCountsAndRawLevels)
 {
-    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage input{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     input.color_profile.model = ColorModel::kRgb;
     ExposureParams params;
     params.mode = std::string(kExposureModeDeflicker);
@@ -1867,6 +1867,8 @@ TEST(EngineFacadeTest, LeftoverCropBoxMatchesCanonicalCropPixels)
     RasterBuffer raster;
     raster.width = width;
     raster.height = height;
+    raster.source_width = width;
+    raster.source_height = height;
     declare_srgb(raster);
     raster.srgb.resize(static_cast<std::size_t>(width) * height * 3U);
     for (std::size_t index = 0; index < raster.srgb.size(); index += 3)
@@ -1883,6 +1885,8 @@ TEST(EngineFacadeTest, LeftoverCropBoxMatchesCanonicalCropPixels)
     RasterBuffer raster;
     raster.width = 16;
     raster.height = 16;
+    raster.source_width = 16;
+    raster.source_height = 16;
     declare_srgb(raster);
     raster.srgb.resize(16U * 16U * 3U);
     for (std::uint32_t y = 0; y < 16; ++y)
@@ -1967,11 +1971,9 @@ legacy_color_balance_operation(const ColorBalanceParams &params,
     profile.icc_bytes = {1U, 2U, 3U, 4U};
     auto analysis = std::make_shared<ExposureAnalysisContext>();
     analysis->raw_pixel_count = 6U;
-    return {2U,
-            1U,
-            {0.03F, 0.18F, 0.72F, 0.91F, 0.42F, 0.07F},
-            std::move(profile),
-            std::move(analysis)};
+    return {
+        2U, 1U, {0.03F, 0.18F, 0.72F, 0.91F, 0.42F, 0.07F}, std::move(profile), std::move(analysis),
+        {}, {}};
 }
 
 using FrozenD50Triplet = std::array<float, 3>;
@@ -3563,19 +3565,20 @@ TEST(EngineFacadeTest, RawDenoiseSmoothsBayerSpikeAndRejectsNonBayer)
     Recipe recipe;
     recipe.asset = {"synthetic-bayer", "memory:raw", std::nullopt};
     declare_input(recipe);
-    recipe.operations.insert(recipe.operations.begin() + 1,
-                             {"ravo.raw.denoise",
-                              1,
-                              "rawdenoise-1",
-                              true,
-                              {{"threshold", ParameterValue{0.05}}},
-                              std::nullopt});
-    auto working = engine.value().linear_working_from_raw(raw, recipe, 64U, 64U, CancellationToken{});
+    recipe.operations.insert(recipe.operations.begin() + 1, {"ravo.raw.denoise",
+                                                             1,
+                                                             "rawdenoise-1",
+                                                             true,
+                                                             {{"threshold", ParameterValue{0.05}}},
+                                                             std::nullopt});
+    auto working =
+        engine.value().linear_working_from_raw(raw, recipe, 64U, 64U, CancellationToken{});
     ASSERT_TRUE(working) << working.error().message;
     Recipe identity;
     identity.asset = recipe.asset;
     declare_input(identity);
-    auto clean = engine.value().linear_working_from_raw(raw, identity, 64U, 64U, CancellationToken{});
+    auto clean =
+        engine.value().linear_working_from_raw(raw, identity, 64U, 64U, CancellationToken{});
     ASSERT_TRUE(clean) << clean.error().message;
     EXPECT_NE(working.value().rgb, clean.value().rgb);
 
@@ -3799,7 +3802,7 @@ TEST(TemperatureTest, ResolvesMetadataModesAndManualRgbFailsFast)
     ASSERT_FALSE(missing_as_shot);
     EXPECT_EQ(missing_as_shot.error().code, ErrorCode::kValidation);
 
-    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}};
+    WorkingImage rgb{1, 1, {0.25F, 0.5F, 0.75F}, {}, {}, {}, {}};
     const auto original = rgb.rgb;
     auto automatic_on_rgb =
         apply_temperature_rgb(rgb, temperature_operation(reference), CancellationToken{});
@@ -6031,7 +6034,7 @@ TEST(ColorBalanceRgbTest, CancellationAndNonFiniteInputNeverPublishPartialPixels
     ColorBalanceRgbParams params;
     params.global_y = 0.2;
     const auto operation = color_balance_rgb_operation(params);
-    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}, {}, {}};
+    WorkingImage image{2, 1, {0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F}, {}, {}, {}, {}};
     const auto original = image.rgb;
     CancellationSource cancellation;
     ASSERT_TRUE(cancellation.cancel("color_balance_cancel"));
@@ -6349,7 +6352,8 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                              true,
                              {{"amount", ParameterValue{0.5}}},
                              std::nullopt});
-    ASSERT_TRUE(dehaze) << dehaze.error().message;
+    ASSERT_FALSE(dehaze);
+    EXPECT_EQ(dehaze.error().context.at("reason"), "dehaze_raster_source_unsupported");
 
     auto straightened = render_op(engine.value(), solid_raster(16, 16, 200, 20, 20),
                                   {"ravo.geometry.straighten",
@@ -6496,7 +6500,7 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
 
 TEST(EngineFacadeTest, BasicAdjustmentParametersFollowDarktableCpuResponse)
 {
-    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}, {}};
+    const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}, {}, {}, {}};
     const auto apply = [&](OperationInstance operation)
     {
         Recipe recipe;
@@ -6585,7 +6589,7 @@ TEST(EngineFacadeTest, BasicAdjustmentParametersFollowDarktableCpuResponse)
     }
 }
 
-TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
+TEST(EngineFacadeTest, EffectDefaultsAvoidJumpsAndDehazeRequiresSourceStage)
 {
     WorkingImage midtone;
     midtone.width = 8;
@@ -6604,7 +6608,7 @@ TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
     ASSERT_TRUE(bloom) << bloom.error().message;
     EXPECT_EQ(bloom.value().rgb, midtone.rgb);
 
-    const WorkingImage haze_source{1, 1, {0.20F, 0.30F, 0.40F}, {}, {}};
+    const WorkingImage haze_source{1, 1, {0.20F, 0.30F, 0.40F}, {}, {}, {}, {}};
     Recipe haze_recipe;
     haze_recipe.operations.push_back({"ravo.effect.dehaze",
                                       1,
@@ -6613,15 +6617,8 @@ TEST(EngineFacadeTest, EffectDefaultsAvoidSmallParameterBrightnessJumps)
                                       {{"amount", ParameterValue{-0.1}}},
                                       std::nullopt});
     auto haze = apply_recipe_ops(haze_source, haze_recipe, CancellationToken{});
-    ASSERT_TRUE(haze) << haze.error().message;
-    constexpr float airlight = 0.92F;
-    const float transmission = 1.0F - 0.1F * 0.20F / airlight;
-    for (std::size_t channel = 0; channel < 3U; ++channel)
-    {
-        const float expected =
-            haze_source.rgb[channel] * transmission + airlight * (1.0F - transmission);
-        EXPECT_NEAR(haze.value().rgb[channel], expected, 1.0e-6F);
-    }
+    ASSERT_FALSE(haze);
+    EXPECT_EQ(haze.error().context.at("reason"), "dehaze_source_stage_required");
 }
 
 TEST(EngineFacadeTest, LabDevelopOperationsUseTheD50WorkingConversion)
@@ -7260,6 +7257,81 @@ TEST(EngineFacadeTest, RgbParadePlacesFullWhiteAtEightNinths)
     EXPECT_EQ(sample(0, height - 1U, 0), 0U);
 }
 
+TEST(EngineFacadeTest, WaveformOverlaysChannelsAtFrozenToneAndSplitOwnsBothHalves)
+{
+    const auto raster = solid_raster(12, 8, 255, 255, 255);
+    auto waveform = collect_rgb_waveform(raster);
+    ASSERT_TRUE(waveform) << waveform.error().message;
+    ASSERT_EQ(waveform.value().height, kWaveformTones);
+    ASSERT_GT(waveform.value().width, 0U);
+    constexpr std::uint32_t kTone = 142U;
+    const std::uint32_t y = kWaveformTones - 1U - kTone;
+    const std::size_t pixel = static_cast<std::size_t>(y) * waveform.value().width * 3U;
+    EXPECT_GT(waveform.value().rgb[pixel], 0U);
+    EXPECT_GT(waveform.value().rgb[pixel + 1U], 0U);
+    EXPECT_GT(waveform.value().rgb[pixel + 2U], 0U);
+
+    auto split = collect_split_scope(raster);
+    ASSERT_TRUE(split) << split.error().message;
+    EXPECT_EQ(split.value().height, kWaveformTones);
+    EXPECT_EQ(split.value().width, waveform.value().width + kWaveformTones);
+    ASSERT_EQ(split.value().rgb.size(),
+              static_cast<std::size_t>(split.value().width) * split.value().height * 3U);
+    const std::size_t split_pixel = static_cast<std::size_t>(y) * split.value().width * 3U;
+    EXPECT_EQ(split.value().rgb[split_pixel], waveform.value().rgb[pixel]);
+    bool right_has_signal = false;
+    for (std::uint32_t row = 0U; row < split.value().height; ++row)
+        for (std::uint32_t column = waveform.value().width; column < split.value().width; ++column)
+            right_has_signal =
+                right_has_signal ||
+                split.value()
+                        .rgb[(static_cast<std::size_t>(row) * split.value().width + column) * 3U] !=
+                    0U;
+    EXPECT_TRUE(right_has_signal);
+}
+
+TEST(EngineFacadeTest, D50UvVectorscopeCentersNeutralAndSeparatesSaturatedRed)
+{
+    const auto neutral = solid_raster(8, 8, 128, 128, 128);
+    auto neutral_scope = collect_uv_vectorscope(neutral);
+    ASSERT_TRUE(neutral_scope) << neutral_scope.error().message;
+    EXPECT_EQ(neutral_scope.value().width, kVectorscopeDiameter);
+    EXPECT_EQ(neutral_scope.value().height, kVectorscopeDiameter);
+    const auto intensity =
+        [](const RgbScopeImage &scope, const std::uint32_t x, const std::uint32_t y)
+    { return scope.rgb[(static_cast<std::size_t>(y) * scope.width + x) * 3U]; };
+    const std::uint32_t center = (kVectorscopeDiameter - 1U) / 2U;
+    std::uint8_t neutral_peak = 0U;
+    for (std::uint32_t y = center - 1U; y <= center + 1U; ++y)
+        for (std::uint32_t x = center - 1U; x <= center + 1U; ++x)
+            neutral_peak = std::max(neutral_peak, intensity(neutral_scope.value(), x, y));
+    EXPECT_GT(neutral_peak, 0U);
+
+    const auto red = solid_raster(8, 8, 255, 0, 0);
+    auto red_scope = collect_uv_vectorscope(red);
+    ASSERT_TRUE(red_scope) << red_scope.error().message;
+    std::size_t peak_index = 0U;
+    for (std::size_t pixel = 1U;
+         pixel < static_cast<std::size_t>(red_scope.value().width) * red_scope.value().height;
+         ++pixel)
+    {
+        if (red_scope.value().rgb[pixel * 3U] > red_scope.value().rgb[peak_index * 3U])
+            peak_index = pixel;
+    }
+    const std::uint32_t peak_x = static_cast<std::uint32_t>(peak_index % red_scope.value().width);
+    const std::uint32_t peak_y = static_cast<std::uint32_t>(peak_index / red_scope.value().width);
+    EXPECT_GT(red_scope.value().rgb[peak_index * 3U], 0U);
+    EXPECT_GT(std::abs(static_cast<int>(peak_x) - static_cast<int>(center)) +
+                  std::abs(static_cast<int>(peak_y) - static_cast<int>(center)),
+              20);
+
+    RasterBuffer oversized = neutral;
+    oversized.srgb.push_back(0U);
+    const auto rejected = collect_uv_vectorscope(oversized);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+}
+
 TEST(EngineFacadeTest, ToneCurveMapsSyntheticRasterAndAcceptsLab)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -7332,12 +7404,8 @@ TEST(EngineFacadeTest, RgbLevelsMatchesLeftoverLutAndLinkedPreserve)
     ASSERT_TRUE(engine) << engine.error().message;
     const auto gray = solid_raster(8, 8, 128, 128, 128);
     auto identity = render_op(engine.value(), gray,
-                              {"ravo.color.rgblevels",
-                               1,
-                               "levels-identity",
-                               true,
-                               rgb_levels_to_parameters(RgbLevelsParams{}),
-                               std::nullopt});
+                              {"ravo.color.rgblevels", 1, "levels-identity", true,
+                               rgb_levels_to_parameters(RgbLevelsParams{}), std::nullopt});
     ASSERT_TRUE(identity) << identity.error().message;
     EXPECT_EQ(identity.value().rgb[0], 128);
     EXPECT_EQ(identity.value().rgb[1], 128);
@@ -7348,12 +7416,8 @@ TEST(EngineFacadeTest, RgbLevelsMatchesLeftoverLutAndLinkedPreserve)
     lifted.preserve_colors = std::string(kToneCurvePreserveColorsNone);
     lifted.levels[0] = {0.0, 0.25, 1.0};
     auto brighter = render_op(engine.value(), gray,
-                              {"ravo.color.rgblevels",
-                               1,
-                               "levels-lift",
-                               true,
-                               rgb_levels_to_parameters(lifted),
-                               std::nullopt});
+                              {"ravo.color.rgblevels", 1, "levels-lift", true,
+                               rgb_levels_to_parameters(lifted), std::nullopt});
     ASSERT_TRUE(brighter) << brighter.error().message;
     EXPECT_GT(brighter.value().rgb[0], 128);
 
@@ -7362,12 +7426,8 @@ TEST(EngineFacadeTest, RgbLevelsMatchesLeftoverLutAndLinkedPreserve)
     clipped.preserve_colors = std::string(kToneCurvePreserveColorsNone);
     clipped.levels[0] = {0.6, 0.8, 1.0};
     auto black = render_op(engine.value(), gray,
-                           {"ravo.color.rgblevels",
-                            1,
-                            "levels-clip",
-                            true,
-                            rgb_levels_to_parameters(clipped),
-                            std::nullopt});
+                           {"ravo.color.rgblevels", 1, "levels-clip", true,
+                            rgb_levels_to_parameters(clipped), std::nullopt});
     ASSERT_TRUE(black) << black.error().message;
     EXPECT_EQ(black.value().rgb[0], 0);
     EXPECT_EQ(black.value().rgb[1], 0);
@@ -7380,12 +7440,8 @@ TEST(EngineFacadeTest, RgbLevelsMatchesLeftoverLutAndLinkedPreserve)
     independent.levels[1] = {0.0, 0.5, 1.0};
     independent.levels[2] = {0.0, 0.5, 1.0};
     auto red_only = render_op(engine.value(), red,
-                              {"ravo.color.rgblevels",
-                               1,
-                               "levels-indep",
-                               true,
-                               rgb_levels_to_parameters(independent),
-                               std::nullopt});
+                              {"ravo.color.rgblevels", 1, "levels-indep", true,
+                               rgb_levels_to_parameters(independent), std::nullopt});
     ASSERT_TRUE(red_only) << red_only.error().message;
     EXPECT_GT(red_only.value().rgb[0], 220);
     EXPECT_EQ(red_only.value().rgb[1], 40);
@@ -7396,19 +7452,11 @@ TEST(EngineFacadeTest, RgbLevelsMatchesLeftoverLutAndLinkedPreserve)
     preserve.preserve_colors = std::string(kToneCurvePreserveColorsLuminance);
     preserve.levels[0] = {0.0, 0.25, 1.0};
     auto preserved = render_op(engine.value(), red,
-                               {"ravo.color.rgblevels",
-                                1,
-                                "levels-preserve",
-                                true,
-                                rgb_levels_to_parameters(preserve),
-                                std::nullopt});
+                               {"ravo.color.rgblevels", 1, "levels-preserve", true,
+                                rgb_levels_to_parameters(preserve), std::nullopt});
     auto unpreserved = render_op(engine.value(), red,
-                                 {"ravo.color.rgblevels",
-                                  1,
-                                  "levels-none",
-                                  true,
-                                  rgb_levels_to_parameters(lifted),
-                                  std::nullopt});
+                                 {"ravo.color.rgblevels", 1, "levels-none", true,
+                                  rgb_levels_to_parameters(lifted), std::nullopt});
     ASSERT_TRUE(preserved) << preserved.error().message;
     ASSERT_TRUE(unpreserved) << unpreserved.error().message;
     EXPECT_NE(preserved.value().rgb, unpreserved.value().rgb);
@@ -7431,12 +7479,8 @@ TEST(EngineFacadeTest, RgbCurveMatchesHermiteLutAndIndependentChannels)
     const auto gray = solid_raster(8, 8, 128, 128, 128);
     RgbCurveParams identity;
     auto identity_render = render_op(engine.value(), gray,
-                                     {"ravo.color.rgbcurve",
-                                      1,
-                                      "curve-identity",
-                                      true,
-                                      rgb_curve_to_parameters(identity),
-                                      std::nullopt});
+                                     {"ravo.color.rgbcurve", 1, "curve-identity", true,
+                                      rgb_curve_to_parameters(identity), std::nullopt});
     ASSERT_TRUE(identity_render) << identity_render.error().message;
     EXPECT_EQ(identity_render.value().rgb[0], 128);
 
@@ -7445,12 +7489,8 @@ TEST(EngineFacadeTest, RgbCurveMatchesHermiteLutAndIndependentChannels)
     lifted.preserve_colors = std::string(kToneCurvePreserveColorsNone);
     lifted.channels[0] = {{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}};
     auto brighter = render_op(engine.value(), gray,
-                              {"ravo.color.rgbcurve",
-                               1,
-                               "curve-lift",
-                               true,
-                               rgb_curve_to_parameters(lifted),
-                               std::nullopt});
+                              {"ravo.color.rgbcurve", 1, "curve-lift", true,
+                               rgb_curve_to_parameters(lifted), std::nullopt});
     ASSERT_TRUE(brighter) << brighter.error().message;
     EXPECT_GT(brighter.value().rgb[0], 128);
 
@@ -7459,12 +7499,8 @@ TEST(EngineFacadeTest, RgbCurveMatchesHermiteLutAndIndependentChannels)
     independent.mode = std::string(kRgbLevelsModeIndependent);
     independent.channels[0] = {{0.0, 0.0}, {0.5, 0.75}, {1.0, 1.0}};
     auto red_only = render_op(engine.value(), red,
-                              {"ravo.color.rgbcurve",
-                               1,
-                               "curve-indep",
-                               true,
-                               rgb_curve_to_parameters(independent),
-                               std::nullopt});
+                              {"ravo.color.rgbcurve", 1, "curve-indep", true,
+                               rgb_curve_to_parameters(independent), std::nullopt});
     ASSERT_TRUE(red_only) << red_only.error().message;
     EXPECT_GT(red_only.value().rgb[0], 220);
     EXPECT_EQ(red_only.value().rgb[1], 40);
@@ -7473,12 +7509,8 @@ TEST(EngineFacadeTest, RgbCurveMatchesHermiteLutAndIndependentChannels)
     RgbCurveParams compensated = lifted;
     compensated.compensate_middle_grey = true;
     auto with_grey = render_op(engine.value(), gray,
-                               {"ravo.color.rgbcurve",
-                                1,
-                                "curve-grey",
-                                true,
-                                rgb_curve_to_parameters(compensated),
-                                std::nullopt});
+                               {"ravo.color.rgbcurve", 1, "curve-grey", true,
+                                rgb_curve_to_parameters(compensated), std::nullopt});
     ASSERT_TRUE(with_grey) << with_grey.error().message;
     EXPECT_NE(with_grey.value().rgb, brighter.value().rgb);
 }

@@ -189,6 +189,19 @@ struct ExposureAnalysisContext
     RawExposureMetadata metadata;
 };
 
+// Spatial masks remain attached to the photo-content frame when a geometry
+// operation adds pixels around it. Coordinates are expressed in the current
+// working buffer and must describe one non-empty contained rectangle.
+struct AttachedPixelFrame
+{
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+
+    [[nodiscard]] bool operator==(const AttachedPixelFrame &) const noexcept = default;
+};
+
 struct LinearWorkingBuffer
 {
     std::uint32_t width = 0;
@@ -200,11 +213,14 @@ struct LinearWorkingBuffer
     // Assigned once at the RAW/raster creation boundary and propagated exactly
     // by every operation which creates a new working buffer.
     CanonicalRoiScale canonical_roi_scale{};
+    std::optional<AttachedPixelFrame> mask_attached_frame;
 };
 
 inline constexpr std::uint32_t kRgbHistogramBins = 256;
 inline constexpr std::uint32_t kWaveformTones = 160;
 inline constexpr std::uint32_t kWaveformMaxBins = 360;
+inline constexpr std::uint32_t kVectorscopeDiameter = 384;
+inline constexpr float kVectorscopeUvRadius = 200.0F;
 
 struct RgbHistogram
 {
@@ -221,8 +237,18 @@ struct RgbParade
     std::vector<std::uint8_t> rgb;
 };
 
+struct RgbScopeImage
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<std::uint8_t> rgb;
+};
+
 [[nodiscard]] Result<RgbHistogram> collect_rgb_histogram(const RasterBuffer &raster);
 [[nodiscard]] Result<RgbParade> collect_rgb_parade(const RasterBuffer &raster);
+[[nodiscard]] Result<RgbScopeImage> collect_rgb_waveform(const RasterBuffer &raster);
+[[nodiscard]] Result<RgbScopeImage> collect_uv_vectorscope(const RasterBuffer &raster);
+[[nodiscard]] Result<RgbScopeImage> collect_split_scope(const RasterBuffer &raster);
 
 [[nodiscard]] inline int normalized_rotate_quarters(const int quarters) noexcept
 {
@@ -344,6 +370,12 @@ struct EngineCaptureLocation
 
 struct EngineCaptureMetadata
 {
+    std::optional<std::string> camera_make;
+    std::optional<std::string> camera_model;
+    std::optional<double> iso;
+    std::optional<double> aperture;
+    std::optional<double> focal_length_mm;
+    std::optional<double> shutter_s;
     std::optional<EngineCaptureDateTime> captured_datetime;
     std::optional<EngineCaptureLocation> location;
 

@@ -28,7 +28,8 @@ QML workspace.
 4. Double-click the thumbnail, or choose **View → Loupe**. Try **Fit**, **Fill**,
    and **100%**. At a non-grid zoom, pan the image and use the navigator in the
    left panel to move to another area.
-5. Switch the right-side scope between **Histogram** and **Parade**.
+5. Switch the right-side scope through **Histogram**, **Waveform**, **Parade**,
+   **Vectorscope**, and **Split**.
 6. Switch the top view control to **Edit**. Change one light or color control,
    wait for the preview, then press **Before / After**.
 7. Press **Undo**, then **Redo**. Use the individual reset button or **Reset
@@ -43,7 +44,7 @@ QML workspace.
 | Area | Use it for |
 | --- | --- |
 | Menu bar | Library, view, photo, edit, settings, and command-palette actions. |
-| Filter bar | Rating, color, reject, sort, and filter reset. |
+| Filter bar | Photo search, media/edit state, rating, color, reject, stable sort, and filter reset. |
 | Library panel | Folders, tag filtering, import, export, and a small navigator. |
 | Center stage | Gallery grid, Loupe preview, or Edit image/crop surface. |
 | Review bar | Thumbnail size, rating, color label, Keep/Reject, Previous, and Next. |

@@ -135,6 +135,13 @@ Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
     {
         return encoded.error();
     }
+    if (testing_before_preview_cache_publication_)
+        testing_before_preview_cache_publication_();
+    cancelled = cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
+    }
     auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
     if (!committed)
     {
@@ -474,6 +481,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     if (!encoded)
     {
         return encoded.error();
+    }
+    if (testing_before_preview_cache_publication_)
+        testing_before_preview_cache_publication_();
+    cancelled = request.cancellation.check();
+    if (!cancelled)
+    {
+        return cancelled.error();
     }
     auto committed = cache_->commit_png_bytes(cache_key, encoded.value());
     if (!committed)

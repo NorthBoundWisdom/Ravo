@@ -45,8 +45,21 @@ bool StudioLanguageManager::initialize(const QString &requested_language)
     }
     if (selected.isEmpty())
     {
-        const QSettings settings;
-        selected = normalizeLanguage(settings.value(QLatin1String(kLanguageSettingKey)).toString());
+        QSettings settings;
+        const QString stored = settings.value(QLatin1String(kLanguageSettingKey)).toString();
+        selected = normalizeLanguage(stored);
+        if (selected.isEmpty() && !stored.trimmed().isEmpty())
+        {
+            settings.remove(QLatin1String(kLanguageSettingKey));
+            settings.sync();
+            if (settings.status() != QSettings::NoError)
+            {
+                setError(QCoreApplication::translate(
+                    "StudioLanguageManager", "Unable to repair the stored language setting."));
+                return false;
+            }
+            selected = QString::fromLatin1(kEnglishLanguage);
+        }
     }
     if (selected.isEmpty())
         selected = systemLanguage();
@@ -94,6 +107,13 @@ bool StudioLanguageManager::activate(const QString &requested_language, const bo
         {
             QSettings settings;
             settings.setValue(QLatin1String(kLanguageSettingKey), selected);
+            settings.sync();
+            if (settings.status() != QSettings::NoError)
+            {
+                setError(QCoreApplication::translate("StudioLanguageManager",
+                                                     "Unable to save the language setting."));
+                return false;
+            }
         }
         return true;
     }
@@ -138,15 +158,24 @@ bool StudioLanguageManager::activate(const QString &requested_language, const bo
         }
     }
 
-    if (translator_)
-        QCoreApplication::removeTranslator(translator_.get());
-    translator_ = std::move(candidate);
-    language_ = selected;
     if (persist)
     {
         QSettings settings;
         settings.setValue(QLatin1String(kLanguageSettingKey), selected);
+        settings.sync();
+        if (settings.status() != QSettings::NoError)
+        {
+            if (candidate)
+                QCoreApplication::removeTranslator(candidate.get());
+            setError(QCoreApplication::translate("StudioLanguageManager",
+                                                 "Unable to save the language setting."));
+            return false;
+        }
     }
+    if (translator_)
+        QCoreApplication::removeTranslator(translator_.get());
+    translator_ = std::move(candidate);
+    language_ = selected;
     if (!last_error_.isEmpty())
     {
         last_error_.clear();

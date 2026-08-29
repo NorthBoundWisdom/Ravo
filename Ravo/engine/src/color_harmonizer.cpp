@@ -370,6 +370,7 @@ apply_color_harmonizer_impl(const WorkingImage &input, const ColorHarmonizerPara
         output.color_profile = input.color_profile;
         output.exposure_analysis = input.exposure_analysis;
         output.canonical_roi_scale = input.canonical_roi_scale;
+        output.mask_attached_frame = input.mask_attached_frame;
         output.rgb.resize(input.rgb.size());
         const float white_lightness = dt_ucs::y_to_lightness(1.0F);
         for (std::uint32_t row = 0U; row < input.height; ++row)
@@ -476,6 +477,7 @@ apply_color_harmonizer_impl(const WorkingImage &input, const ColorHarmonizerPara
     output.color_profile = input.color_profile;
     output.exposure_analysis = input.exposure_analysis;
     output.canonical_roi_scale = input.canonical_roi_scale;
+    output.mask_attached_frame = input.mask_attached_frame;
     output.rgb.resize(input.rgb.size());
     for (std::uint32_t row = 0U; row < input.height; ++row)
     {

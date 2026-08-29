@@ -135,8 +135,7 @@ static gboolean _workspace_should_skip_copied_key(const char *key)
         "plugins/lighttable/collect/history", "plugins/lighttable/collect/string",
         "ui_last/import_", NULL};
 
-    static const char *exact[] = {"database", "workspace/label",
-                                  "plugins/imageio/storage/disk/file_directory", NULL};
+    static const char *exact[] = {"database", "workspace/label", NULL};
 
     for (int i = 0; exact[i]; i++)
         if (strcmp(key, exact[i]) == 0)

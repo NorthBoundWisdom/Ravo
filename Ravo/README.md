@@ -33,22 +33,34 @@ Current implementation status:
   LibRaw crop/black/white/CFA/flip plus 3×3 interpolation; missing, corrupt,
   unrecognized, oversized, X-Trans, and cancelled inputs fail structurally.
   Catalog unpacks a RAW with no embedded JPEG before publication. A corrupt
-  preview PNG is a cache miss and is rebuilt on request or after close/reopen
-  (ADR-0047).
+  preview PNG is a cache miss and is rebuilt on request or after close/reopen.
+  The cache has a 512 MiB hard byte budget, promotes valid hits, and evicts the
+  least-recently-used rebuildable PNG deterministically across reopen
+  (ADR-0047/0067).
 - Browse & Review includes catalog schema v2; ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid and shows number/rating/flags in its letterbox;
-  collapsible folder tree; left Import/Export; Fit/Fill/100%; filtering and
-  sorting; additive Cmd/Ctrl click and range Shift selection; plus RGB
-  histogram/parade scopes in the right panel.
+  collapsible folder tree; left Import/Export; Fit/Fill/100%; validated
+  filename/metadata/camera text, media, edit/review/folder/tag/capture/numeric
+  filtering and stable import/capture/name/rating/size sorting; additive
+  Cmd/Ctrl click and range Shift selection; plus RGB
+  Histogram/Waveform/Parade/D50-u*v*-Vectorscope/Split scopes in the right panel.
+  Photo navigation uses bounded Flickable pan plus a normalized left
+  navigator; active-photo, browse-mode, and zoom changes recenter, while review
+  edits on the same photo preserve the current pan (ADR-0060).
+  Capture metadata can be explicitly refreshed from the current original; the
+  asset identity, capture row, and catalog revision publish transactionally.
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
   a visible reason.
 - Studio UI supports English and Simplified Chinese. The desktop-owned language
-  manager persists the selected UI language, loads only the build-produced Qt
-  catalog, and leaves service/engine machine errors outside the catalog
-  contract.
+  manager synchronously persists the normalized selected language, repairs a
+  malformed stored value to English, loads only the build-produced Qt catalog,
+  and leaves the prior language active on package or persistence failure.
+  Service/engine machine errors remain outside the translation contract. Other
+  current view controls are session state rather than hidden settings
+  (ADR-0066).
 - Basic Develop provides catalog schema v5 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
@@ -64,6 +76,11 @@ Current implementation status:
   requests cancel and late results are dropped by revision; recipe/history/
   revision save atomically, and catalog unit tests cover L2–L9 parameters and
   pixel reopen contracts.
+- Reusable presets use `.rstyle.json` schema v1: a complete canonical Recipe
+  template including masks, profiles, and enabled/bypass state. CLI can create,
+  validate, and apply styles; Studio saves/applies them through explicit file
+  dialogs and ordinary recipe history. Legacy `.dtstyle` is structurally
+  unsupported rather than partially dropping unknown IOPs (ADR-0065).
 - RAW Repair provides `ravo.raw.hotpixels` v1 on an owned Bayer CFA copy under
   the frozen same-colour four-neighbor path. `ravo.raw.cacorrect` v1 retains
   RawTherapee two-pass tile/polynomial fitting and avoid-color-shift. Unit
@@ -120,7 +137,7 @@ Current implementation status:
   exposes quality and `auto|444|440|422|420` subsampling. Studio and CLI share those typed values. Rendered JPEG embeds Catalog-owned Exif APP1,
   standard XMP APP1, and optional IPTC Photoshop APP13 from one snapshot before
   ADR-0032 publication, including validated capture time/offset/GPS;
-  sidecar/history policy remains later S9/J6 work.
+  this newly embedded packet is not automatic sidecar interchange (ADR-0063).
 - PNG export uses one typed bit-depth/compression request from CatalogService
   through the raster port. It defaults to 8-bit and compression 5, accepts
   compression 0–9, and delegates RGB8 output to a private libpng owner
@@ -131,7 +148,7 @@ Current implementation status:
   `--png-bit-depth 8|16` and `--png-compression 0..9`; Studio exposes the same typed PNG options. Rendered PNG embeds one
   `eXIf` TIFF profile and one uncompressed XMP `iTXt`; it still writes no pHYs
   or IPTC. Validated capture time/offset/GPS from Catalog schema v5 are
-  included; sidecar/history policy remains later S9/J6.
+  included; no adjacent sidecar is read or written (ADR-0063).
 - TIFF export uses one typed sample/compression/resolution request from
   CatalogService through the raster port. It defaults to unsigned 8-bit,
   Deflate with the horizontal predictor, level 6, RGB output, and 300 dpi;
@@ -152,12 +169,48 @@ Current implementation status:
   boolean flag rejects duplicates; every TIFF flag is rejected outside a TIFF export.
   Studio exposes the same typed TIFF options. Product uint16/float16/float32
   requests render engine-owned RGB16 or finite RGB float; an RGB8 source still
-  fails structurally instead of fabricating precision. Sidecar/history
-  interchange, metadata refresh, privacy stripping, multipage masks, shared
-  consumers, and retirement remain later I13/S9/J6 work. TIFF bytes complete in
+  fails structurally instead of fabricating precision. Automatic sidecar
+  interchange is explicitly unsupported: Catalog is the edit authority,
+  legacy XMP conversion is an explicit CLI operation, and rendered XMP is
+  newly embedded (ADR-0063). Rendered JPEG/PNG/TIFF share typed
+  `full|no-location|none` privacy modes; `none` retains ICC only and
+  original-copy rejects stripping (ADR-0064). Multipage masks, shared
+  consumers, and retirement remain later I13/S9 work. TIFF bytes complete in
   memory before the shared ADR-0032 atomic no-replace publication; source and
   sidecar files are never rewritten.
-- Final display packing is an engine-private boundary after Output Color. It
+- Batch export accepts 1–10,000 ordered unique assets and one bounded portable
+  filename template using only `{stem}`, `{asset_id}`, `{sequence}`, and
+  `{ext}`. CatalogService preflights all sources, duplicate names, and existing
+  targets before the first output; every item then uses the same typed options
+  and atomic no-replace path as single export. A later cancellation or runtime
+  failure reports stable partial-delivery context without deleting completed
+  files. CLI exposes `catalog export-batch`; Studio uses a folder chooser and
+  shows the template only for multi-selection (ADR-0068).
+- Output Dither / Posterize is explicit recipe state after Output Color and
+  before sample packing. It provides deterministic random TEA noise, all frozen
+  Floyd–Steinberg gray/RGB/auto bit-depth modes, and 2–8-level per-channel
+  posterization. Auto selects 256/65,536 levels for RGB8/RGB16 exports and only
+  clamps preview/float output. Studio exposes all methods and random damping;
+  CLI uses ordinary strict Develop fields (ADR-0069).
+- Canvas and Output Frame are separate explicit operations (ADR-0070). Canvas
+  grows the linear Rec.709 working image with independent left/right/top/bottom
+  percentages and five opaque solid colours while retaining the original photo
+  as the coordinate frame for masks and Retouch. Frame runs last after Output
+  Color and optional Dither, with constant/image/custom aspect, orientation,
+  basis, position, border colour, and an optional coloured line. Catalog
+  preview/reopen and JPEG/PNG/TIFF export share the resulting dimensions.
+  Canvas followed by enabled rotate/flip/straighten/crop/lens geometry is an
+  explicit unsupported state until those geometry transforms own content-frame
+  composition.
+- Text Watermark is the final encoded-output recipe stage after Frame and
+  before sample packing. It uses a versioned built-in 5×7 font, bounded ASCII
+  text, `{stem}`/`{asset_id}` expansion, RGB/opacity, scale, rotation, nine-way
+  alignment, and normalized offsets. Preview, styles, reopen, and every
+  rendered export share the same pixels. External SVG/PNG lookup, system fonts,
+  arbitrary metadata variables, and the missing legacy `promo.svg` no-op are
+  explicitly unsupported (ADR-0071).
+- Final display packing is an engine-private boundary after Output Color and
+  any Dither, Frame, and Watermark stages. It
   converts finite profiled float RGB to owned RGB8 by clamping negative values,
   multiplying by 255, rounding, and clamping super-white while retaining the
   exact profile and RGB channel order; it applies no second transfer curve.
@@ -234,8 +287,9 @@ Current implementation status:
   product contracts. The owner has no 2D plane, picker, or three-preset
   algorithm and does not inherit those adjacent Color Correction presentation
   assets. Shared `extended.cl`,
-  order/modulegroup/usermanual names, the example style, and frozen fixtures
-  remain D0.3/D0.4/S14/E1 owners.
+  order/modulegroup/usermanual names and frozen fixtures remain
+  D0.3/D0.4/S14/E1 owners. Bundled `.dtstyle` examples are retired under
+  ADR-0072.
 - Color Harmonizer provides the bounded `ravo.color.colorharmonizer` v1
   operation with exactly 17 flat fields, including
   `working_space=profile_linear_rgb_d50`,
@@ -270,6 +324,67 @@ Current implementation status:
   read-only except for explicit detach. Legacy XMP masks/custom blends remain
   rejected. Historic blend modes, leftover GTK mask-manager consumers, and C15
   remain unfinished.
+- Color Zones provides optional `ravo.color.colorzones` v1 alongside the
+  default Color Equalizer. A selected D50 Lab lightness/chroma/hue axis indexes
+  independent lightness, chroma, and hue curves with 2–20 nodes, cubic,
+  Catmull–Rom, or monotone interpolation, source-quantized 65,536-entry LUTs,
+  mix strength, and canonical masks. Studio offers an eight-band editor while
+  preserving imported custom nodes read-only. The exact 0022 v5 singleton maps;
+  the old IOP/kernel/GTK graph settings/icons are retired (ADR-0073).
+- Monochrome provides `ravo.color.monochrome` v2 with a D50 Lab a*/b* virtual
+  colour filter, size, highlight preservation, and mix. Its source fast-exp
+  filter is smoothed by the shared scale-aware bilateral-grid owner before
+  neutral Lab output. Canonical masks, strict 0017 v2 import, CLI/Catalog/Studio
+  persistence, cancellation and resource accounting replace the former
+  chroma-only amount shortcut (ADR-0074).
+- Split Toning provides `ravo.color.splittoning` v2 in linear Rec.709 with
+  independent shadow/highlight hue and saturation, pivot balance, midtone
+  compression, mix, and canonical masks. It retains the frozen HSL branch,
+  doubled-distance weight, blend and clamp order; the exact 0062 v1 singleton
+  maps and the old fixed-saturation/compression shortcut is removed
+  (ADR-0075).
+- Color Reconstruction provides `ravo.color.colorreconstruct` v1 immediately
+  before Output Color. It reproduces the frozen D50 Lab full-frame bilateral
+  grid: non-clipped colors are weighted by none/chroma/hue precedence, blurred
+  in spatial and lightness dimensions, and sliced into highlight a*/b* while
+  retaining L*. Canonical ROI scale keeps spatial extent stable across bounded
+  previews; invalid scale, memory, non-finite, and cancellation paths publish
+  nothing. The sole 0052 v3 default-unmasked singleton imports strictly, while
+  masks, custom blend, multiple instances, and other versions reject. CLI,
+  Catalog save/reopen/export, and Studio expose the same five photographic
+  parameters; GTK/OpenCL and tile-local substitutes are not supported.
+- Sharpen provides `ravo.detail.sharpen` schema v2 in D50 Lab. Radius is scaled
+  from original-input pixels, multiplied by the frozen 2.5 support, and capped
+  at a 12-pixel convolution radius while retaining the requested Gaussian
+  sigma. The source-order separable blur changes L* only when detail exceeds
+  threshold; a*/b* and borders remain unchanged. Existing Ravo v1 values
+  upgrade to this accepted meaning. Three evidenced legacy v1 singleton
+  records import strictly; masks, custom blend, multi-instance, and other
+  versions reject. CLI, Catalog and Studio share amount/radius/threshold,
+  cancellation, resource, reopen and export contracts. Demosaic capture
+  sharpening remains a separate R2 owner.
+- Dehaze provides `ravo.effect.dehaze` schema v2 at the source-linear RAW
+  stage. It estimates ambient RGB and characteristic haze depth from the 95%
+  dark-channel/brightness quantiles, builds scale-aware transition windows,
+  and refines transmission with a bounded tiled RGB covariance guided filter
+  before applying the atmospheric equation. Existing Ravo v1 amount upgrades
+  to the accepted strength/distance/adaptive contract; the constant-airlight
+  shortcut is removed. Two evidenced legacy singleton records import strictly.
+  Encoded raster, masks/custom blend/multi, invalid ambient/scale/resource and
+  cancellation states fail structurally. Catalog cache/save/reopen/export and
+  Studio share strength, distance, and adaptive controls. The old GTK preview
+  cache and OpenCL path are not ported.
+- Retouch provides `ravo.repair.retouch` schema v1 on the canonical linear
+  Rec.709 D50 buffer. Ordered regions reference circle/ellipse/path/brush
+  leaves and retain clone/heal source points, Gaussian/bilateral blur,
+  erase/color fill, opacity, and original/detail/residual wavelet scale. Later
+  regions can read earlier results. The four frozen fixture families map only
+  through their evidenced Retouch and v6 mask payloads; unaccepted operations
+  elsewhere in those documents still reject. Recipe/CLI/Catalog/Studio share
+  save, preview, reopen, export, cancellation, and resource contracts. Studio
+  authors bounded circle regions; imported canonical path/brush regions remain
+  reproducible. The old GTK IOP and exclusive OpenCL kernel are removed, while
+  shared DWT/heal/bilateral and historic mask/order consumers remain.
 - RAW preview/export uses `ravo.display.sigmoid` v1 as the sole Standard SDR
   display transform. Recipes may adjust contrast/skew/hue preservation, while
   the default baseline is not marked as a user edit. Gallery embedded-JPEG
@@ -416,6 +531,9 @@ and publication order.
 ravo inspect <input> --json
 ravo recipe import-xmp <legacy.xmp> --asset-id <id> --input <input-uri> --output <recipe> --json
 ravo recipe validate <recipe> --json
+ravo recipe style-create <recipe> --name <name> --output <style.rstyle.json> --json
+ravo recipe style-validate <style.rstyle.json> --json
+ravo recipe style-apply <style.rstyle.json> --asset-id <id> --input <input-uri> --output <recipe> --json
 ravo render <input> --recipe <recipe> --output <png> --backend cpu [--width N] [--height N] --json
 ravo catalog create --path <library.sqlite> --json
 ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
@@ -423,12 +541,17 @@ ravo catalog list --catalog <library.sqlite> --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--max-edge N] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
+ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog develop --catalog <library.sqlite> --asset-id <id> --exposure-ev N --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> --format png|jpeg|tiff|tif|original [--quality 5..100] [--jpeg-subsampling auto|444|440|422|420] \
   [--png-bit-depth 8|16] [--png-compression 0..9] \
   [--tiff-sample-type uint8|uint16|float16|float32] [--tiff-compression none|deflate|deflate_predictor] \
-  [--tiff-compression-level 1..9] [--tiff-grayscale-if-neutral] [--tiff-resolution-dpi 72..9600] --json
+  [--tiff-compression-level 1..9] [--tiff-grayscale-if-neutral] [--tiff-resolution-dpi 72..9600] \
+  [--metadata full|no-location|none] --json
+ravo catalog export-batch --catalog <library.sqlite> --asset-id <id> [--asset-id <id>]... \
+  --output-dir <directory> [--filename-template '{stem}-{sequence}{ext}'] \
+  --format png|jpeg|tiff|tif|original [the same typed format/privacy options] --json
 ```
 
 An existing output path returns structured `conflict`; it is never overwritten

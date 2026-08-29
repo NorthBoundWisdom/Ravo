@@ -1286,9 +1286,9 @@ TEST_F(CliTest, LegacyXmpMapsRotationOnlyAshiftOntoStraighten)
     EXPECT_EQ(perspective.error().context.at("reason"), "unsupported_legacy_ashift_perspective");
 }
 
-[[nodiscard]] std::string legacy_rgblevels_xmp(const std::string_view parameters,
-                                               const std::string_view blend =
-                                                   "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc=")
+[[nodiscard]] std::string legacy_rgblevels_xmp(
+    const std::string_view parameters,
+    const std::string_view blend = "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc=")
 {
     std::string document = R"(<?xml version="1.0"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -1342,25 +1342,27 @@ TEST_F(CliTest, LegacyXmpMapsRgbLevelsOntoCanonicalToneOp)
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
          xmlns:darktable="http://darktable.sf.net/">
   <rdf:Description darktable:xmp_version="6"><darktable:history><rdf:Seq>)";
-    last_write += R"(<rdf:li darktable:num="8" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
+    last_write +=
+        R"(<rdf:li darktable:num="8" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
     last_write += kFixtureLinked;
     last_write +=
         R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params="gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="/>)";
-    last_write += R"(<rdf:li darktable:num="9" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
+    last_write +=
+        R"(<rdf:li darktable:num="9" darktable:operation="rgblevels" darktable:modversion="1" darktable:enabled="1" darktable:params=")";
     last_write += kFixtureIndependent;
     last_write +=
         R"(" darktable:multi_name="" darktable:multi_priority="0" darktable:blendop_version="10" darktable:blendop_params="gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc="/>)";
     last_write += R"(</rdf:Seq></darktable:history></rdf:Description></rdf:RDF>)";
-    auto superseded = import_legacy_xmp(
-        {last_write, {"asset-1", "file:///fixture.raw", std::nullopt}});
+    auto superseded =
+        import_legacy_xmp({last_write, {"asset-1", "file:///fixture.raw", std::nullopt}});
     ASSERT_TRUE(superseded) << superseded.error().message;
     ASSERT_EQ(superseded.value().operations.size(), 3U);
     EXPECT_EQ(std::get<std::string>(superseded.value().operations[1].parameters.at("mode").value),
               kRgbLevelsModeIndependent);
 
-    auto default_blend = import_legacy_xmp(
-        {legacy_rgblevels_xmp(kFixtureLinked, kLegacyGammaBlendV9),
-         {"asset-1", "file:///fixture.raw", std::nullopt}});
+    auto default_blend =
+        import_legacy_xmp({legacy_rgblevels_xmp(kFixtureLinked, kLegacyGammaBlendV9),
+                           {"asset-1", "file:///fixture.raw", std::nullopt}});
     ASSERT_TRUE(default_blend) << default_blend.error().message;
     EXPECT_EQ(default_blend.value().operations[1].id, "ravo.color.rgblevels");
 
@@ -1424,8 +1426,8 @@ TEST_F(CliTest, LegacyXmpMapsRgbCurveIncludingMiddleGrey)
               kRgbLevelsModeIndependent);
     EXPECT_TRUE(std::get<bool>(
         fixture.value().operations[1].parameters.at("compensate_middle_grey").value));
-    const auto &red_points =
-        std::get<ParameterValue::Array>(fixture.value().operations[1].parameters.at("points").value);
+    const auto &red_points = std::get<ParameterValue::Array>(
+        fixture.value().operations[1].parameters.at("points").value);
     EXPECT_EQ(red_points.size(), 9U);
     auto developed = develop_from_recipe(fixture.value());
     ASSERT_TRUE(developed) << developed.error().message;
@@ -2863,7 +2865,7 @@ TEST_F(CliTest, LegacyXmpAllowsAnEmptyMaskHistoryContainer)
     EXPECT_TRUE(imported.value().masks.empty());
 }
 
-TEST_F(CliTest, LegacyXmpRejectsActualMaskHistoryWithoutACanonicalMaskGraph)
+TEST_F(CliTest, LegacyXmpRejectsMalformedRetouchMaskHistoryAttribute)
 {
     constexpr std::string_view xmp = R"(<?xml version="1.0"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -2878,7 +2880,7 @@ TEST_F(CliTest, LegacyXmpRejectsActualMaskHistoryWithoutACanonicalMaskGraph)
 
     ASSERT_FALSE(imported);
     EXPECT_EQ(imported.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_mask");
+    EXPECT_EQ(imported.error().context.at("reason"), "unsupported_legacy_retouch_mask_attribute");
 }
 
 TEST_F(CliTest, LegacyXmpImportRejectsAnExistingOutputPathWithoutOverwritingIt)
@@ -2956,6 +2958,89 @@ TEST_F(CliTest, JsonFailuresStayStructuredAndDoNotWriteHumanLogsToStdout)
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
+TEST_F(CliTest, RecipeStyleCreateValidateApplyAndLegacyRejectAreAtomic)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-style-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto recipe_path = (root / "source.recipe.json").string();
+    const auto style_path = (root / "look.rstyle.json").string();
+    const auto applied_path = (root / "applied.recipe.json").string();
+    DevelopParams develop;
+    develop.exposure_ev = 0.75;
+    auto recipe = recipe_from_develop({"source", "file:///source.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto serialized = serialize_recipe(recipe.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    {
+        std::ofstream output(recipe_path, std::ios::binary);
+        output << serialized.value();
+    }
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"recipe", "style-create", recipe_path,
+                                                            "--name", "Warm repair", "--output",
+                                                            style_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    EXPECT_TRUE(std::filesystem::exists(style_path));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(
+                  std::vector<std::string_view>{"recipe", "style-validate", style_path, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "recipe", "style-apply", style_path, "--asset-id", "target", "--input",
+                  "file:///target.jpg", "--output", applied_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto applied_text = read_utf8_text_file(applied_path);
+    ASSERT_TRUE(applied_text) << applied_text.error().message;
+    auto applied = parse_recipe_json(applied_text.value());
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value().asset.id, "target");
+    EXPECT_EQ(applied.value().asset.input_uri, "file:///target.jpg");
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, 0.75);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"recipe", "style-create", recipe_path,
+                                                            "--name", "Warm repair", "--output",
+                                                            style_path, "--json"}),
+              6);
+
+    const auto legacy_path = (root / "legacy.dtstyle").string();
+    {
+        std::ofstream output(legacy_path, std::ios::binary);
+        output << "<darktable_style version=\"1.0\"></darktable_style>";
+    }
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_NE(application.run(
+                  std::vector<std::string_view>{"recipe", "style-validate", legacy_path, "--json"}),
+              0);
+    auto rejected = parse_json(stdout_stream.str());
+    ASSERT_TRUE(rejected) << rejected.error().message;
+    const auto *error = rejected.value().find("error");
+    ASSERT_NE(error, nullptr);
+    const auto *code = error->find("code");
+    ASSERT_NE(code, nullptr);
+    ASSERT_NE(code->string_if(), nullptr);
+    EXPECT_EQ(*code->string_if(), "unsupported");
+    EXPECT_TRUE(stderr_stream.str().empty());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 {
     const auto root =
@@ -3002,6 +3087,13 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 
     stdout_stream.str({});
     stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "refresh-metadata", "--catalog", catalog, "--asset-id", id, "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
     EXPECT_EQ(
         application.run(std::vector<std::string_view>{"catalog", "rate", "--catalog", catalog,
                                                       "--asset-id", id, "--rating", "4", "--json"}),
@@ -3010,9 +3102,69 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
 
     stdout_stream.str({});
     stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "develop", "--catalog", catalog, "--asset-id", id, "--exposure-ev",
-                  "0.5", "--set", "vignette=0.4", "--set", "velvia=0.2", "--json"}),
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog",
+                                                            "develop",
+                                                            "--catalog",
+                                                            catalog,
+                                                            "--asset-id",
+                                                            id,
+                                                            "--exposure-ev",
+                                                            "0.5",
+                                                            "--set",
+                                                            "vignette=0.4",
+                                                            "--set",
+                                                            "velvia=0.2",
+                                                            "--set",
+                                                            "outputDitherEnabled=1",
+                                                            "--set",
+                                                            "outputDitherMethodIndex=13",
+                                                            "--set",
+                                                            "outputDitherDamping=-100",
+                                                            "--set",
+                                                            "canvasEnabled=1",
+                                                            "--set",
+                                                            "canvasLeft=5",
+                                                            "--set",
+                                                            "canvasRight=10",
+                                                            "--set",
+                                                            "canvasTop=15",
+                                                            "--set",
+                                                            "canvasBottom=20",
+                                                            "--set",
+                                                            "canvasColorIndex=2",
+                                                            "--set",
+                                                            "outputFrameEnabled=1",
+                                                            "--set",
+                                                            "outputFrameSize=0.1",
+                                                            "--set",
+                                                            "outputFrameAspect=-1",
+                                                            "--set",
+                                                            "watermarkEnabled=1",
+                                                            "--set",
+                                                            "watermarkOpacity=0.7",
+                                                            "--set",
+                                                            "watermarkScale=5",
+                                                            "--set",
+                                                            "colorZonesEnabled=1",
+                                                            "--set",
+                                                            "colorZonesBandIndex=3",
+                                                            "--set",
+                                                            "colorZonesChroma=0.75",
+                                                            "--set",
+                                                            "monochromeEnabled=1",
+                                                            "--set",
+                                                            "monochromeFilterA=20",
+                                                            "--set",
+                                                            "monochromeHighlights=0.25",
+                                                            "--set",
+                                                            "splitToningEnabled=1",
+                                                            "--set",
+                                                            "splitShadowSaturation=0.9",
+                                                            "--set",
+                                                            "splitCompress=15",
+                                                            "--watermark-text",
+                                                            "RAVO {asset_id}",
+                                                            "--json"}),
               0)
         << stdout_stream.str();
 
@@ -3067,6 +3219,41 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_TRUE(exported) << exported.error().message;
     EXPECT_TRUE(std::filesystem::exists(export_png));
 
+    const auto private_png = (root / "cli-export-private.png").string();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "export", "--catalog", catalog, "--asset-id", id, "--output",
+                  private_png, "--format", "png", "--metadata", "none", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto private_export = parse_json(stdout_stream.str());
+    ASSERT_TRUE(private_export) << private_export.error().message;
+    const auto *private_data = private_export.value().find("data");
+    ASSERT_NE(private_data, nullptr);
+    const auto *metadata_mode = private_data->find("metadata_mode");
+    ASSERT_NE(metadata_mode, nullptr);
+    ASSERT_NE(metadata_mode->string_if(), nullptr);
+    EXPECT_EQ(*metadata_mode->string_if(), "none");
+    EXPECT_TRUE(std::filesystem::exists(private_png));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_NE(application.run(std::vector<std::string_view>{
+                  "catalog", "export", "--catalog", catalog, "--asset-id", id, "--output",
+                  (root / "bad-private.png").string(), "--metadata", "private-ish", "--json"}),
+              0);
+    auto bad_privacy = parse_json(stdout_stream.str());
+    ASSERT_TRUE(bad_privacy) << bad_privacy.error().message;
+    const auto *privacy_error = bad_privacy.value().find("error");
+    ASSERT_NE(privacy_error, nullptr);
+    const auto *privacy_context = privacy_error->find("context");
+    ASSERT_NE(privacy_context, nullptr);
+    const auto *privacy_reason = privacy_context->find("reason");
+    ASSERT_NE(privacy_reason, nullptr);
+    ASSERT_NE(privacy_reason->string_if(), nullptr);
+    EXPECT_EQ(*privacy_reason->string_if(), "invalid_export_metadata_mode");
+
     stdout_stream.str({});
     stdout_stream.clear();
     EXPECT_EQ(application.run(std::vector<std::string_view>{
@@ -3082,6 +3269,102 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_NE(code, nullptr);
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "conflict");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogBatchExportUsesStrictTemplateAndSharedTypedOptions)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-batch-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                         "0000-nop" / "expected.png";
+    const auto first_source = root / "first.png";
+    const auto second_source = root / "second.png";
+    std::filesystem::copy_file(fixture, first_source);
+    std::filesystem::copy_file(fixture, second_source);
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(
+                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    const auto first_text = first_source.string();
+    const auto second_text = second_source.string();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
+                                                            catalog, "--input", first_text,
+                                                            "--input", second_text, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *data = imported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *items = data->find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_EQ(items->array_if()->size(), 2U);
+    std::vector<std::string> asset_ids;
+    for (const auto &item : *items->array_if())
+    {
+        const auto *asset = item.find("asset");
+        ASSERT_NE(asset, nullptr);
+        const auto *asset_id = asset->find("id");
+        ASSERT_NE(asset_id, nullptr);
+        ASSERT_NE(asset_id->string_if(), nullptr);
+        asset_ids.push_back(*asset_id->string_if());
+    }
+    const auto output_directory = root / "delivery";
+    std::filesystem::create_directory(output_directory);
+    const auto output_text = output_directory.string();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "export-batch", "--catalog", catalog, "--asset-id", asset_ids[0],
+                  "--asset-id", asset_ids[1], "--output-dir", output_text, "--filename-template",
+                  "{sequence}-{stem}{ext}", "--format", "jpeg", "--quality", "80", "--metadata",
+                  "none", "--json"}),
+              0)
+        << stdout_stream.str();
+    auto exported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(exported) << exported.error().message;
+    data = exported.value().find("data");
+    ASSERT_NE(data, nullptr);
+    const auto *count = data->find("exported");
+    ASSERT_NE(count, nullptr);
+    ASSERT_NE(count->number_if(), nullptr);
+    EXPECT_EQ(count->number_if()->text, "2");
+    const auto *metadata_mode = data->find("metadata_mode");
+    ASSERT_NE(metadata_mode, nullptr);
+    ASSERT_NE(metadata_mode->string_if(), nullptr);
+    EXPECT_EQ(*metadata_mode->string_if(), "none");
+    EXPECT_TRUE(std::filesystem::exists(output_directory / "0001-first.jpg"));
+    EXPECT_TRUE(std::filesystem::exists(output_directory / "0002-second.jpg"));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "export-batch", "--catalog", catalog, "--asset-id", asset_ids[0],
+                  "--asset-id", asset_ids[1], "--output-dir", output_text, "--filename-template",
+                  "{sequence}-{stem}{ext}", "--format", "jpeg", "--json"}),
+              6);
+    auto conflict = parse_json(stdout_stream.str());
+    ASSERT_TRUE(conflict) << conflict.error().message;
+    const auto *error = conflict.value().find("error");
+    ASSERT_NE(error, nullptr);
+    const auto *context = error->find("context");
+    ASSERT_NE(context, nullptr);
+    const auto *completed = context->find("completed_count");
+    ASSERT_NE(completed, nullptr);
+    ASSERT_NE(completed->string_if(), nullptr);
+    EXPECT_EQ(*completed->string_if(), "0");
+    EXPECT_TRUE(stderr_stream.str().empty());
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

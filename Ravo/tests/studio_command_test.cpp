@@ -9,17 +9,22 @@
 #include <QFile>
 #include <QKeySequence>
 #include <QTranslator>
+#include <QSettings>
+#include <QTemporaryDir>
 
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop_mask.h"
+#include "studio_language_manager.h"
 
 namespace ravo
 {
 namespace
 {
+
+void ensure_qt_core();
 
 TEST(PreviewRequestOwnerTest, SupersededWorkIsCancelledAndLateResultsAreRejected)
 {
@@ -38,6 +43,51 @@ TEST(PreviewRequestOwnerTest, SupersededWorkIsCancelledAndLateResultsAreRejected
     EXPECT_FALSE(second_token.is_cancellation_requested());
     EXPECT_FALSE(owner.accepts(second_revision, "asset-a", "asset-b"));
     EXPECT_TRUE(owner.accepts(second_revision, "asset-b", "asset-b"));
+}
+
+TEST(StudioSettingsTest, LanguageSettingNormalizesPersistsAndRepairsCorruption)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto previous_format = QSettings::defaultFormat();
+    const QString previous_organization = QCoreApplication::organizationName();
+    const QString previous_application = QCoreApplication::applicationName();
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, directory.path());
+    QCoreApplication::setOrganizationName(QStringLiteral("RavoSettingsTest"));
+    QCoreApplication::setApplicationName(QStringLiteral("LanguageContract"));
+    {
+        QSettings settings;
+        settings.setValue(QStringLiteral("desktop/language"), QStringLiteral("broken"));
+        settings.sync();
+        ASSERT_EQ(settings.status(), QSettings::NoError);
+    }
+    StudioLanguageManager manager;
+    ASSERT_TRUE(manager.initialize()) << manager.lastError().toStdString();
+    EXPECT_EQ(manager.language(), QStringLiteral("en_US"));
+    {
+        QSettings settings;
+        EXPECT_FALSE(settings.contains(QStringLiteral("desktop/language")));
+    }
+    EXPECT_TRUE(manager.setLanguage(QStringLiteral("en-US")));
+    {
+        QSettings settings;
+        EXPECT_EQ(settings.value(QStringLiteral("desktop/language")).toString(),
+                  QStringLiteral("en_US"));
+    }
+    EXPECT_FALSE(manager.setLanguage(QStringLiteral("fr_FR")));
+    EXPECT_EQ(manager.language(), QStringLiteral("en_US"));
+    EXPECT_FALSE(manager.lastError().isEmpty());
+    {
+        QSettings settings;
+        EXPECT_EQ(settings.value(QStringLiteral("desktop/language")).toString(),
+                  QStringLiteral("en_US"));
+        settings.clear();
+    }
+    QCoreApplication::setOrganizationName(previous_organization);
+    QCoreApplication::setApplicationName(previous_application);
+    QSettings::setDefaultFormat(previous_format);
 }
 
 void ensure_qt_core()
@@ -86,6 +136,19 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_FALSE(presenter.editHotPixelsPermissive());
     EXPECT_EQ(presenter.editRawCaIterations(), 0);
     EXPECT_FALSE(presenter.editRawCaAvoidShift());
+    EXPECT_DOUBLE_EQ(presenter.editSharpen(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editSharpenRadius(), 2.0);
+    EXPECT_DOUBLE_EQ(presenter.editSharpenThreshold(), 0.5);
+    const auto retouch = presenter.editRetouch();
+    EXPECT_EQ(retouch.value(QStringLiteral("regionCount")).toInt(), 0);
+    EXPECT_TRUE(retouch.value(QStringLiteral("regions")).toList().isEmpty());
+    EXPECT_EQ(retouch.value(QStringLiteral("numScales")).toInt(), 0);
+    EXPECT_DOUBLE_EQ(presenter.editDehaze(), 0.0);
+    EXPECT_DOUBLE_EQ(presenter.editDehazeDistance(), 0.2);
+    EXPECT_TRUE(presenter.editDehazeAdaptive());
+    EXPECT_TRUE(presenter.filterText().isEmpty());
+    EXPECT_EQ(presenter.mediaFilter(), QStringLiteral("any"));
+    EXPECT_EQ(presenter.editFilter(), QStringLiteral("any"));
     const auto legacy_balance = presenter.editLegacyColorBalance();
     EXPECT_EQ(legacy_balance.size(), 18);
     EXPECT_FALSE(legacy_balance.value(QStringLiteral("enabled")).toBool());
@@ -133,6 +196,16 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bSteepness")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(color_contrast.value(QStringLiteral("bOffset")).toDouble(), 0.0);
     EXPECT_TRUE(color_contrast.value(QStringLiteral("unbound")).toBool());
+    const auto color_reconstruction = presenter.editColorReconstruction();
+    EXPECT_EQ(color_reconstruction.size(), 7);
+    EXPECT_FALSE(color_reconstruction.value(QStringLiteral("enabled")).toBool());
+    EXPECT_DOUBLE_EQ(color_reconstruction.value(QStringLiteral("threshold")).toDouble(), 100.0);
+    EXPECT_DOUBLE_EQ(color_reconstruction.value(QStringLiteral("spatial")).toDouble(), 400.0);
+    EXPECT_DOUBLE_EQ(color_reconstruction.value(QStringLiteral("range")).toDouble(), 10.0);
+    EXPECT_DOUBLE_EQ(color_reconstruction.value(QStringLiteral("hueDegrees")).toDouble(), 237.6);
+    EXPECT_EQ(color_reconstruction.value(QStringLiteral("precedenceIndex")).toInt(), 0);
+    EXPECT_EQ(color_reconstruction.value(QStringLiteral("precedenceChoices")).toStringList().size(),
+              3);
     const auto color_harmonizer = presenter.editColorHarmonizer();
     EXPECT_EQ(color_harmonizer.size(), 24);
     EXPECT_FALSE(color_harmonizer.value(QStringLiteral("enabled")).toBool());
@@ -269,6 +342,47 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(exposure.value(QStringLiteral("deflickerTargetEv")).toDouble(), -4.0);
     EXPECT_FALSE(exposure.value(QStringLiteral("compensateExposureBias")).toBool());
     EXPECT_FALSE(exposure.value(QStringLiteral("compensateHighlightPreservation")).toBool());
+}
+
+TEST(StudioPresenterTest, ZoomModesAndFactorBoundsHaveOneDeterministicOwner)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 1.0);
+    presenter.setZoomMode(QStringLiteral("fill"));
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fill"));
+    presenter.setZoomMode(QStringLiteral("100"));
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("actual"));
+    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 1.0);
+    presenter.setZoomFactor(0.0);
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("custom"));
+    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 0.1);
+    presenter.adjustZoom(120);
+    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 0.11);
+    presenter.setZoomFactor(100.0);
+    EXPECT_DOUBLE_EQ(presenter.zoomFactor(), 8.0);
+    presenter.setZoomMode(QStringLiteral("future"));
+    EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
+}
+
+TEST(StudioPresenterTest, ScopeModeOwnsAllAcceptedDiagnosticsAndRejectsFutureState)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    EXPECT_EQ(presenter.scopeMode(), QStringLiteral("histogram"));
+    for (const auto &mode : {QStringLiteral("waveform"), QStringLiteral("parade"),
+                             QStringLiteral("vectorscope"), QStringLiteral("split")})
+    {
+        presenter.setScopeMode(mode);
+        EXPECT_EQ(presenter.scopeMode(), mode);
+    }
+    presenter.setScopeMode(QStringLiteral("future"));
+    EXPECT_EQ(presenter.scopeMode(), QStringLiteral("histogram"));
+    EXPECT_TRUE(presenter.scopeParadeUrl().isEmpty());
+    EXPECT_TRUE(presenter.scopeWaveformUrl().isEmpty());
+    EXPECT_TRUE(presenter.scopeVectorscopeUrl().isEmpty());
+    EXPECT_TRUE(presenter.scopeSplitUrl().isEmpty());
 }
 
 TEST(StudioQmlContract, LegacyColorBalanceSlidersExposeEverySchemaHardEndpoint)
@@ -507,6 +621,159 @@ TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPrese
     ASSERT_GE(monochrome, 0);
     EXPECT_LT(contrast, harmonizer);
     EXPECT_LT(harmonizer, monochrome);
+}
+
+TEST(StudioQmlContract, ColorReconstructionExposesTheFrozenV3Surface)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    const auto section_begin = source.indexOf(QStringLiteral("colorReconstructionEnabled"));
+    const auto section_end = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"), section_begin);
+    ASSERT_GE(section_begin, 0);
+    ASSERT_GT(section_end, section_begin);
+    const auto section = source.mid(section_begin, section_end - section_begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editColorReconstruction")));
+    EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionPrecedenceIndex")));
+    EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionThreshold")));
+    EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionSpatial")));
+    EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionRange")));
+    EXPECT_TRUE(section.contains(QStringLiteral("colorReconstructionHueDegrees")));
+    EXPECT_TRUE(section.contains(QStringLiteral("\"minimum\": 50")));
+    EXPECT_TRUE(section.contains(QStringLiteral("\"maximum\": 150")));
+    EXPECT_TRUE(section.contains(QStringLiteral("\"maximum\": 1000")));
+    EXPECT_TRUE(section.contains(QStringLiteral("\"maximum\": 50")));
+    EXPECT_TRUE(section.contains(QStringLiteral("from: 0")));
+    EXPECT_TRUE(section.contains(QStringLiteral("to: 360")));
+    EXPECT_TRUE(section.contains(QStringLiteral("precedenceIndex === 2")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"colorReconstruction\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
+    EXPECT_FALSE(section.contains(QStringLiteral("picker"), Qt::CaseInsensitive));
+    EXPECT_FALSE(section.contains(QStringLiteral("GTK"), Qt::CaseInsensitive));
+
+    const auto harmonizer = source.indexOf(QStringLiteral("colorHarmonizerEnabled"));
+    const auto reconstruction = source.indexOf(QStringLiteral("colorReconstructionEnabled"));
+    const auto monochrome = source.indexOf(QStringLiteral("qsTr(\"Monochrome\")"));
+    ASSERT_GE(harmonizer, 0);
+    ASSERT_GE(reconstruction, 0);
+    ASSERT_GE(monochrome, 0);
+    EXPECT_LT(harmonizer, reconstruction);
+    EXPECT_LT(reconstruction, monochrome);
+}
+
+TEST(StudioQmlContract, SharpenExposesAmountRadiusAndThresholdFromOnePresenter)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto begin = source.indexOf(QStringLiteral("title: qsTr(\"Sharpen\")"));
+    const auto end = source.indexOf(QStringLiteral("title: qsTr(\"Clarity\")"), begin);
+    ASSERT_GE(begin, 0);
+    ASSERT_GT(end, begin);
+    const auto section = source.mid(begin, end - begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editSharpen")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editSharpenRadius")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editSharpenThreshold")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpen\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpenRadius\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"sharpenThreshold\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("to: 8")));
+    EXPECT_TRUE(section.contains(QStringLiteral("to: 100")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetValue: 0.5")));
+    EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
+}
+
+TEST(StudioQmlContract, DehazeExposesStrengthDistanceAndAdaptiveScale)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto begin = source.indexOf(QStringLiteral("title: qsTr(\"Dehaze\")"));
+    const auto end = source.indexOf(QStringLiteral("sectionId: \"detail\""), begin);
+    ASSERT_GE(begin, 0);
+    ASSERT_GT(end, begin);
+    const auto section = source.mid(begin, end - begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editDehaze")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editDehazeDistance")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editDehazeAdaptive")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"dehaze\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"dehazeDistance\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(\"dehazeAdaptive\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Adaptive window scale\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
+}
+
+TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputDitherEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputDitherMethod\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editOutputDither.methodChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("outputDitherMethodIndex")));
+    EXPECT_TRUE(source.contains(QStringLiteral("outputDitherDamping")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"outputDither\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Auto dithers integer exports")));
+    EXPECT_FALSE(source.contains(QStringLiteral("7.0 / 16.0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"canvasEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editCanvas.colorChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("canvasColorIndex")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"canvas\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"outputFrameEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editOutputFrame.basisChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("outputFrameLineOffset")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"outputFrame\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"watermarkEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"watermarkText\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editWatermark.alignmentChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setDevelopText(\"watermarkText\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"watermark\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorZonesEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editColorZones.selectByChoices")));
+    EXPECT_TRUE(source.contains(QStringLiteral("colorZonesChroma")));
+    EXPECT_TRUE(source.contains(QStringLiteral("colorZonesHueInterpolationIndex")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"colorZones\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"monochromeEnabled\"")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("root.presenter.editMonochromeFilter[modelData.key]")));
+    EXPECT_TRUE(source.contains(QStringLiteral("monochromeHighlights")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"monochrome\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"splitToningEnabled\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editSplitToning.shadowSaturation")));
+    EXPECT_TRUE(source.contains(QStringLiteral("splitHighlightSaturation")));
+    EXPECT_TRUE(source.contains(QStringLiteral("splitCompress")));
+    EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"splitToning\")")));
+}
+
+TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("id: retouchEditor")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.presenter.editRetouch.regions")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.commands.addRetouchRegion")));
+    EXPECT_TRUE(source.contains(QStringLiteral("root.commands.removeRetouchRegion")));
+    EXPECT_TRUE(source.contains(QStringLiteral("[\"clone\", \"heal\", \"blur\", \"fill\"]")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"blurType\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"fillMode\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"sourceX\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add retouch region\")")));
+    EXPECT_FALSE(source.contains(QStringLiteral("apply_retouch")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editAddRetouchRegion")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editRemoveRetouchRegion")));
 }
 
 TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
@@ -767,7 +1034,9 @@ TEST(StudioCommands, ExportWriteRevalidatesCatalogAndRejectsLegacyFilterPayload)
     StudioCommandController controller(presenter);
     const auto ids = controller.ids();
     const auto export_write = ids.value(QStringLiteral("libraryExportWrite")).toString();
+    const auto export_batch_write = ids.value(QStringLiteral("libraryExportBatchWrite")).toString();
     const auto export_open = ids.value(QStringLiteral("libraryExport")).toString();
+    EXPECT_FALSE(export_batch_write.isEmpty());
 
     const auto open_action = controller.action(export_open);
     EXPECT_FALSE(open_action.value(QStringLiteral("enabled")).toBool());
@@ -792,6 +1061,17 @@ TEST(StudioCommands, ExportWriteRevalidatesCatalogAndRejectsLegacyFilterPayload)
     EXPECT_FALSE(legacy_filter.value(QStringLiteral("accepted")).toBool());
     EXPECT_EQ(legacy_filter.value(QStringLiteral("code")).toString(),
               QStringLiteral("unavailable"));
+
+    const auto unavailable_batch = controller.executeCommand(
+        export_batch_write,
+        QVariantMap{{QStringLiteral("directory"), QStringLiteral("/tmp")},
+                    {QStringLiteral("filenameTemplate"), QStringLiteral("{stem}-{sequence}{ext}")},
+                    {QStringLiteral("format"), QStringLiteral("png")},
+                    {QStringLiteral("options"), QVariantMap{}}},
+        QStringLiteral("control"));
+    EXPECT_FALSE(unavailable_batch.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(unavailable_batch.value(QStringLiteral("code")).toString(),
+              QStringLiteral("unavailable"));
 }
 
 TEST(StudioPresenterTest, ExportPresentationCatalogExposesCanonicalDefaults)
@@ -815,9 +1095,55 @@ TEST(StudioPresenterTest, ExportPresentationCatalogExposesCanonicalDefaults)
     EXPECT_EQ(defaults.value(QStringLiteral("tiffCompressionLevel")).toInt(), 6);
     EXPECT_FALSE(defaults.value(QStringLiteral("tiffGrayscaleIfNeutral")).toBool());
     EXPECT_EQ(defaults.value(QStringLiteral("tiffResolutionDpi")).toInt(), 300);
+    EXPECT_EQ(defaults.value(QStringLiteral("metadataMode")).toString(), QStringLiteral("full"));
+    const auto metadata_modes = presenter.exportMetadataModeChoices();
+    ASSERT_EQ(metadata_modes.size(), 3);
+    EXPECT_EQ(metadata_modes.at(1).toMap().value(QStringLiteral("id")).toString(),
+              QStringLiteral("no-location"));
     const auto bounds = presenter.exportOptionBounds();
     EXPECT_EQ(bounds.value(QStringLiteral("jpegQualityMin")).toInt(), 5);
     EXPECT_EQ(bounds.value(QStringLiteral("tiffResolutionDpiMax")).toInt(), 9600);
+}
+
+TEST(StudioPresenterTest, OutputDitherPresentationOwnsAllFrozenMethods)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    const auto dither = presenter.editOutputDither();
+    EXPECT_FALSE(dither.value(QStringLiteral("present")).toBool());
+    EXPECT_FALSE(dither.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(dither.value(QStringLiteral("methodIndex")).toInt(), 10);
+    EXPECT_FALSE(dither.value(QStringLiteral("dampingVisible")).toBool());
+    const auto choices = dither.value(QStringLiteral("methodChoices")).toList();
+    ASSERT_EQ(choices.size(), static_cast<qsizetype>(kOutputDitherMethodCount));
+    EXPECT_EQ(choices.front().toMap().value(QStringLiteral("id")).toString(),
+              QStringLiteral("random"));
+    EXPECT_EQ(choices.back().toMap().value(QStringLiteral("id")).toString(),
+              QStringLiteral("posterize_8"));
+    const auto canvas = presenter.editCanvas();
+    EXPECT_FALSE(canvas.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(canvas.value(QStringLiteral("colorChoices")).toList().size(), 5);
+    const auto frame = presenter.editOutputFrame();
+    EXPECT_FALSE(frame.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(frame.value(QStringLiteral("orientationChoices")).toList().size(), 3);
+    EXPECT_EQ(frame.value(QStringLiteral("basisChoices")).toList().size(), 5);
+    const auto watermark = presenter.editWatermark();
+    EXPECT_FALSE(watermark.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(watermark.value(QStringLiteral("text")).toString(), QStringLiteral("RAVO"));
+    EXPECT_EQ(watermark.value(QStringLiteral("alignmentChoices")).toList().size(), 9);
+    const auto zones = presenter.editColorZones();
+    EXPECT_FALSE(zones.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(zones.value(QStringLiteral("editable")).toBool());
+    EXPECT_EQ(zones.value(QStringLiteral("selectByChoices")).toList().size(), 3);
+    EXPECT_EQ(zones.value(QStringLiteral("interpolationChoices")).toList().size(), 3);
+    const auto monochrome = presenter.editMonochromeFilter();
+    EXPECT_FALSE(monochrome.value(QStringLiteral("enabled")).toBool());
+    EXPECT_DOUBLE_EQ(monochrome.value(QStringLiteral("size")).toDouble(), 2.0);
+    EXPECT_DOUBLE_EQ(monochrome.value(QStringLiteral("mix")).toDouble(), 1.0);
+    const auto split = presenter.editSplitToning();
+    EXPECT_FALSE(split.value(QStringLiteral("enabled")).toBool());
+    EXPECT_DOUBLE_EQ(split.value(QStringLiteral("shadowSaturation")).toDouble(), 0.5);
+    EXPECT_DOUBLE_EQ(split.value(QStringLiteral("compress")).toDouble(), 33.0);
 }
 
 TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing)
@@ -829,6 +1155,10 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
 
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"ExportOptionsDialog\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Format\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Filename template\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"exportFilenameTemplate\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("presenter.selectedCount > 1")));
+    EXPECT_TRUE(source.contains(QStringLiteral("{stem}-{sequence}{ext}")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Quality\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Subsampling\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Bit depth\")")));
@@ -838,6 +1168,7 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
     EXPECT_TRUE(
         source.contains(QStringLiteral("qsTr(\"Write grayscale when the image is neutral\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Resolution (dpi)\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Metadata privacy\")")));
     EXPECT_TRUE(
         source.contains(QStringLiteral("qsTr(\"Original copy writes the exact source bytes")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Cancel\")")));
@@ -860,6 +1191,8 @@ TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffCompressionLevel\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffGrayscaleIfNeutral\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"tiffResolutionDpi\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"metadataMode\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"metadataMode\": metadataModeId")));
     EXPECT_FALSE(source.contains(QStringLiteral("parse_export")));
     EXPECT_FALSE(source.contains(QStringLiteral("export_format_from_ui")));
     EXPECT_FALSE(source.contains(QStringLiteral("JpegExportOptions")));
@@ -897,6 +1230,28 @@ TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
     EXPECT_FALSE(source.contains(QStringLiteral("onClicked: window.showPhotoMenu()")));
 }
 
+TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChanges)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("property string viewportAssetId")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function centerPhotoViewport()")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("window.viewportAssetId !== studio.selectedAssetId")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function onZoomChanged()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function onBrowseModeChanged()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentX = maxX / 2")));
+    EXPECT_TRUE(source.contains(QStringLiteral("scroller.contentY = maxY / 2")));
+    EXPECT_TRUE(source.contains(QStringLiteral("boundsBehavior: Flickable.StopAtBounds")));
+    EXPECT_TRUE(source.contains(QStringLiteral("function seekNavigatorViewport(nx, ny)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Math.min(maxX")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Math.min(maxY")));
+    EXPECT_TRUE(source.contains(QStringLiteral("WheelHandler")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.viewAdjustZoom")));
+}
+
 TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
 {
     QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
@@ -906,12 +1261,78 @@ TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
     EXPECT_TRUE(source.contains(QStringLiteral("ExportOptionsDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("pendingExportFormat")));
     EXPECT_TRUE(source.contains(QStringLiteral("pendingExportOptions")));
+    EXPECT_TRUE(source.contains(QStringLiteral("pendingExportFilenameTemplate")));
+    EXPECT_TRUE(source.contains(QStringLiteral("libraryExportBatchWrite")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Select Batch Export Folder")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"directory\": folderPath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("\"filenameTemplate\": filenameTemplate")));
     EXPECT_TRUE(source.contains(QStringLiteral("\"format\": format")));
     EXPECT_TRUE(source.contains(QStringLiteral("\"options\": options")));
     EXPECT_TRUE(source.contains(QStringLiteral("onFileRejected: window.clearPendingExport()")));
     EXPECT_TRUE(source.contains(QStringLiteral("exportOptionsDialog.visible")));
     EXPECT_FALSE(source.contains(QStringLiteral("\"filter\": selectedFilter")));
     EXPECT_FALSE(source.contains(QStringLiteral("JPEG (*.jpg *.jpeg)\", \"PNG (*.png)\"")));
+}
+
+TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Search photos\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.filterText")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studioActions.setTextFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studioActions.setMediaFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studioActions.setEditFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.mediaFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.editFilter")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Capture time\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"File size\")")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetTextFilter")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetMediaFilter")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.librarySetEditFilter")));
+}
+
+TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("id: styleSaveDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: styleApplyDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("*.rstyle.json")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.styleSavePath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.styleApplyPath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id === ids.styleSave")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id === ids.styleApply")));
+    EXPECT_FALSE(source.contains(QStringLiteral("darktable_style")));
+}
+
+TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_SCOPE_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Histogram\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Waveform\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Parade\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Vectorscope\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Split\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("scopeWaveformUrl")));
+    EXPECT_TRUE(source.contains(QStringLiteral("scopeParadeUrl")));
+    EXPECT_TRUE(source.contains(QStringLiteral("scopeVectorscopeUrl")));
+    EXPECT_TRUE(source.contains(QStringLiteral("scopeSplitUrl")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.viewSetScopeMode")));
+    EXPECT_FALSE(source.contains(QStringLiteral("srgb_to_linear")));
+    EXPECT_FALSE(source.contains(QStringLiteral("rgb_to_d50_uv")));
 }
 
 } // namespace

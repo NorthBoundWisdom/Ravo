@@ -9,6 +9,7 @@
 
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/error.h"
+#include "ravo/engine/engine.h"
 #include "ravo/recipe/mask.h"
 
 namespace ravo
@@ -38,6 +39,7 @@ struct MaskEvaluationRequest
     // deliberately decides whether an operation output exists; there is no
     // fallback to input samples.
     std::optional<MaskRgbPlaneView> operation_output;
+    std::optional<AttachedPixelFrame> attached_frame;
     CancellationToken cancellation;
 };
 

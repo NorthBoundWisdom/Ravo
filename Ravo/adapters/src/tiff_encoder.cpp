@@ -1016,29 +1016,32 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
         }
     }
 
-    if (!metadata.destination_document_name.empty())
+    if (metadata.embed_metadata)
     {
-        set_metadata_ascii(TIFFTAG_DOCUMENTNAME, metadata.destination_document_name);
-    }
-    if (metadata.writable.description)
-    {
-        set_metadata_ascii(TIFFTAG_IMAGEDESCRIPTION, *metadata.writable.description);
-    }
-    if (metadata.writable.creator)
-    {
-        set_metadata_ascii(TIFFTAG_ARTIST, *metadata.writable.creator);
-    }
-    if (metadata.writable.copyright)
-    {
-        set_metadata_ascii(TIFFTAG_COPYRIGHT, *metadata.writable.copyright);
-    }
-    if (prepared.value().make)
-    {
-        set_metadata_ascii(TIFFTAG_MAKE, *prepared.value().make);
-    }
-    if (prepared.value().model)
-    {
-        set_metadata_ascii(TIFFTAG_MODEL, *prepared.value().model);
+        if (!metadata.destination_document_name.empty())
+        {
+            set_metadata_ascii(TIFFTAG_DOCUMENTNAME, metadata.destination_document_name);
+        }
+        if (metadata.writable.description)
+        {
+            set_metadata_ascii(TIFFTAG_IMAGEDESCRIPTION, *metadata.writable.description);
+        }
+        if (metadata.writable.creator)
+        {
+            set_metadata_ascii(TIFFTAG_ARTIST, *metadata.writable.creator);
+        }
+        if (metadata.writable.copyright)
+        {
+            set_metadata_ascii(TIFFTAG_COPYRIGHT, *metadata.writable.copyright);
+        }
+        if (prepared.value().make)
+        {
+            set_metadata_ascii(TIFFTAG_MAKE, *prepared.value().make);
+        }
+        if (prepared.value().model)
+        {
+            set_metadata_ascii(TIFFTAG_MODEL, *prepared.value().model);
+        }
     }
 
     const auto set_metadata_bytes =
@@ -1072,10 +1075,13 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
                                        std::string(destination.detail.data()));
         }
     };
-    set_metadata_bytes(TIFFTAG_XMLPACKET, prepared.value().xmp_packet);
-    if (prepared.value().iptc_iim)
+    if (metadata.embed_metadata)
     {
-        set_metadata_bytes(TIFFTAG_RICHTIFFIPTC, *prepared.value().iptc_iim);
+        set_metadata_bytes(TIFFTAG_XMLPACKET, prepared.value().xmp_packet);
+        if (prepared.value().iptc_iim)
+        {
+            set_metadata_bytes(TIFFTAG_RICHTIFFIPTC, *prepared.value().iptc_iim);
+        }
     }
 
     if (!primary_error)
@@ -1203,7 +1209,7 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
             primary_error = std::move(injected_error).value();
         }
     }
-    if (!primary_error && prepared.value().has_gps &&
+    if (!primary_error && metadata.embed_metadata && prepared.value().has_gps &&
         TIFFSetField(writer, TIFFTAG_GPSIFD, static_cast<std::uint64_t>(0)) != 1)
     {
         fail_metadata_tag(TIFFTAG_GPSIFD, "tiff_reserve_gpsifd_failed");
@@ -1212,7 +1218,7 @@ encode_tiff(const std::uint32_t width, const std::uint32_t height, const TiffSam
     {
         fail_encoder();
     }
-    if (!primary_error)
+    if (!primary_error && metadata.embed_metadata)
     {
         if (cancellation.is_cancellation_requested())
         {
@@ -1506,8 +1512,10 @@ Result<std::vector<std::uint8_t>> encode_tiff_rgb8(
     const std::span<const std::uint8_t> resolved_rgb_icc, const TiffExportOptions &options,
     const CancellationToken &cancellation, const TiffEncodeControl control)
 {
-    return encode_tiff_rgb8(width, height, rgb, resolved_rgb_icc, options, ExportMetadataSnapshot{},
-                            cancellation, control);
+    ExportMetadataSnapshot metadata;
+    metadata.embed_metadata = false;
+    return encode_tiff_rgb8(width, height, rgb, resolved_rgb_icc, options, metadata, cancellation,
+                            control);
 }
 
 Result<std::vector<std::uint8_t>>

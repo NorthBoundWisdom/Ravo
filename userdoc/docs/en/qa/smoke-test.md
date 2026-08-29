@@ -23,10 +23,10 @@ paths.
    tree.
 4. Select the asset and enter Loupe.
 5. Exercise Fit, Fill, 100%, pan, and the left navigator.
-6. Switch the right scope between Histogram and Parade.
+6. Switch the right scope through Histogram, Waveform, Parade, Vectorscope, and Split.
 7. Set a rating, a color label, and Reject/Keep; confirm the tile updates.
-8. Enter Edit, change one Light or Color control, and confirm the preview,
-   Before/After, Undo, and Redo paths.
+8. Enter Edit, change one Light or Color control, then enable Canvas, Output
+   Frame, or Text Watermark; confirm preview, Before/After, Undo, and Redo.
 9. Create a labeled Snapshot, change a control again, and restore the snapshot.
 10. Export a PNG or JPEG to a new path and verify its dimensions and bytes.
 11. Attempt the same export path again and confirm that a conflict is reported
@@ -57,6 +57,9 @@ ravo catalog preview --catalog <test-catalog.sqlite> --asset-id <id> --json
 ravo catalog probe --catalog <test-catalog.sqlite> --asset-id <id> --baseline --json
 ravo catalog export --catalog <test-catalog.sqlite> --asset-id <id> \
   --output <test-output.png> --format png --json
+ravo catalog export-batch --catalog <test-catalog.sqlite> \
+  --asset-id <id> --output-dir <existing-output-directory> \
+  --filename-template '{stem}-{sequence}{ext}' --format png --json
 ```
 
 The CLI path must use the same catalog and source as Studio when checking

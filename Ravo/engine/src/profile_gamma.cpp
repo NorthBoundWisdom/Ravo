@@ -368,6 +368,7 @@ apply_profile_gamma_impl(const ProfiledColorBuffer &input, const ProfileGammaPar
     output.height = input.height;
     output.color_profile = input.color_profile;
     output.canonical_roi_scale = input.canonical_roi_scale;
+    output.mask_attached_frame = input.mask_attached_frame;
     output.channels.resize(input.channels.size());
     for (std::uint32_t row = 0; row < input.height; ++row)
     {

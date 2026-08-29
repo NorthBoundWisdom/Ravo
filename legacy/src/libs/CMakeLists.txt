@@ -11,7 +11,7 @@ else()
 endif()
 
 # The modules
-set(MODULES import styles image select recentcollect filtering navigation histogram modulegroups backgroundjobs masks ioporder)
+set(MODULES import image select modulegroups backgroundjobs masks ioporder)
 
 # The tools
 set(MODULES ${MODULES} viewswitcher)
@@ -56,16 +56,9 @@ endif()
 
 # modules
 add_library(import MODULE "import.c")
-add_library(styles MODULE "styles.c")
 add_library(image MODULE "image.c")
 
 add_library(select MODULE "select.c")
-add_library(recentcollect MODULE "recentcollect.c")
-add_library(filtering MODULE "filtering.c")
-
-add_library(navigation MODULE "navigation.c")
-add_library(histogram MODULE "histogram.c" "scopes/histogram.c" "scopes/waveform.c" "scopes/vectorscope.c" "scopes/split.c")
-
 add_library(modulegroups MODULE "modulegroups.c")
 add_library(backgroundjobs MODULE "backgroundjobs.c")
 add_library(masks MODULE "masks.c")

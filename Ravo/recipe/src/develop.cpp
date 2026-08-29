@@ -193,6 +193,25 @@ bands_near_zero(const std::array<double, kColorEqualizerBandCount> &values) noex
     return true;
 }
 
+void make_studio_color_zones_curves(ColorZonesParams &params)
+{
+    for (auto &curve : params.curves)
+    {
+        curve.points.clear();
+        curve.points.reserve(kColorEqualizerBandCount);
+        for (std::size_t index = 0U; index < kColorEqualizerBandCount; ++index)
+            curve.points.push_back(
+                {static_cast<double>(index) / static_cast<double>(kColorEqualizerBandCount), 0.5});
+        curve.interpolation = ColorZonesInterpolation::kMonotoneHermite;
+    }
+}
+
+[[nodiscard]] bool studio_color_zones_curves(const ColorZonesParams &params) noexcept
+{
+    return std::all_of(params.curves.begin(), params.curves.end(), [](const ColorZonesCurve &curve)
+                       { return curve.points.size() == kColorEqualizerBandCount; });
+}
+
 [[nodiscard]] ParameterValue
 band_array_parameter(const std::array<double, kColorEqualizerBandCount> &values)
 {
@@ -922,11 +941,144 @@ void clamp_color_contrast(ColorContrastParams &params) noexcept
     }
 }
 
+struct ColorReconstructionNumericField
+{
+    std::string_view develop_name;
+    double ColorReconstructionParams::*member;
+    double minimum;
+    double maximum;
+};
+
+[[nodiscard]] const std::array<ColorReconstructionNumericField, 3> &
+color_reconstruction_numeric_fields() noexcept
+{
+    static const std::array<ColorReconstructionNumericField, 3> fields{{
+        {"colorReconstructionThreshold", &ColorReconstructionParams::threshold,
+         kColorReconstructionThresholdMin, kColorReconstructionThresholdMax},
+        {"colorReconstructionSpatial", &ColorReconstructionParams::spatial,
+         kColorReconstructionSpatialMin, kColorReconstructionSpatialMax},
+        {"colorReconstructionRange", &ColorReconstructionParams::range,
+         kColorReconstructionRangeMin, kColorReconstructionRangeMax},
+    }};
+    return fields;
+}
+
+[[nodiscard]] bool apply_color_reconstruction_field(DevelopParams &params,
+                                                    const std::string_view name,
+                                                    const double value) noexcept
+{
+    if (name == "colorReconstructionEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.color_reconstruction_enabled = value == 1.0;
+        return true;
+    }
+    if (name == "colorReconstructionPrecedenceIndex")
+    {
+        if (!std::isfinite(value) || std::trunc(value) != value || value < 0.0 || value > 2.0)
+        {
+            return false;
+        }
+        params.color_reconstruction.precedence =
+            static_cast<ColorReconstructionPrecedence>(static_cast<std::uint8_t>(value));
+        params.color_reconstruction_enabled = true;
+        return true;
+    }
+    if (name == "colorReconstructionHueDegrees")
+    {
+        if (!std::isfinite(value) || value < 0.0 || value > 360.0)
+        {
+            return false;
+        }
+        params.color_reconstruction.hue = value / 360.0;
+        params.color_reconstruction_enabled = true;
+        return true;
+    }
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+    for (const auto &field : color_reconstruction_numeric_fields())
+    {
+        if (name != field.develop_name)
+        {
+            continue;
+        }
+        params.color_reconstruction.*(field.member) = value;
+        params.color_reconstruction_enabled = true;
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_color_reconstruction_field(DevelopParams &params,
+                                                    const std::string_view name) noexcept
+{
+    const ColorReconstructionParams defaults;
+    if (name == "colorReconstruction")
+    {
+        params.color_reconstruction_enabled = false;
+        params.color_reconstruction = defaults;
+        return true;
+    }
+    if (name == "colorReconstructionEnabled")
+    {
+        params.color_reconstruction_enabled = false;
+        return true;
+    }
+    if (name == "colorReconstructionPrecedenceIndex")
+    {
+        params.color_reconstruction.precedence = defaults.precedence;
+        return true;
+    }
+    if (name == "colorReconstructionHueDegrees")
+    {
+        params.color_reconstruction.hue = defaults.hue;
+        return true;
+    }
+    for (const auto &field : color_reconstruction_numeric_fields())
+    {
+        if (name == field.develop_name)
+        {
+            params.color_reconstruction.*(field.member) = defaults.*(field.member);
+            return true;
+        }
+    }
+    return false;
+}
+
+void clamp_color_reconstruction(ColorReconstructionParams &params) noexcept
+{
+    const ColorReconstructionParams defaults;
+    for (const auto &field : color_reconstruction_numeric_fields())
+    {
+        double &value = params.*(field.member);
+        value = std::isfinite(value) ? clamp_value(value, field.minimum, field.maximum) :
+                                       defaults.*(field.member);
+    }
+    params.hue = std::isfinite(params.hue) ? clamp_value(params.hue, kColorReconstructionHueMin,
+                                                         kColorReconstructionHueMax) :
+                                             defaults.hue;
+    switch (params.precedence)
+    {
+    case ColorReconstructionPrecedence::kNone:
+    case ColorReconstructionPrecedence::kChroma:
+    case ColorReconstructionPrecedence::kHue:
+        break;
+    default:
+        params.precedence = defaults.precedence;
+        break;
+    }
+}
+
 [[nodiscard]] constexpr std::array<std::string_view, 7> rgb_levels_preserve_names() noexcept
 {
-    return {kToneCurvePreserveColorsNone,      kToneCurvePreserveColorsLuminance,
-            kToneCurvePreserveColorsMax,       kToneCurvePreserveColorsAverage,
-            kToneCurvePreserveColorsSum,       kToneCurvePreserveColorsNorm,
+    return {kToneCurvePreserveColorsNone, kToneCurvePreserveColorsLuminance,
+            kToneCurvePreserveColorsMax,  kToneCurvePreserveColorsAverage,
+            kToneCurvePreserveColorsSum,  kToneCurvePreserveColorsNorm,
             kToneCurvePreserveColorsPower};
 }
 
@@ -1001,8 +1153,8 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept
         {
             return false;
         }
-        params.rgb_levels.mode =
-            value == 1.0 ? std::string(kRgbLevelsModeIndependent) : std::string(kRgbLevelsModeLinked);
+        params.rgb_levels.mode = value == 1.0 ? std::string(kRgbLevelsModeIndependent) :
+                                                std::string(kRgbLevelsModeLinked);
         return true;
     }
     if (name == "rgbLevelsPreserve")
@@ -1012,7 +1164,8 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept
         {
             return false;
         }
-        params.rgb_levels.preserve_colors = std::string(rgb_levels_preserve_names()[static_cast<std::size_t>(index)]);
+        params.rgb_levels.preserve_colors =
+            std::string(rgb_levels_preserve_names()[static_cast<std::size_t>(index)]);
         return true;
     }
     if (!std::isfinite(value))
@@ -1031,7 +1184,8 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept
     return false;
 }
 
-[[nodiscard]] bool reset_rgb_levels_field(DevelopParams &params, const std::string_view name) noexcept
+[[nodiscard]] bool reset_rgb_levels_field(DevelopParams &params,
+                                          const std::string_view name) noexcept
 {
     const RgbLevelsParams defaults;
     if (name == "rgbLevels")
@@ -2651,6 +2805,7 @@ void clamp_develop(DevelopParams &params) noexcept
     clamp_color_balance(params.color_balance_rgb);
     clamp_color_correction(params.color_correction);
     clamp_color_contrast(params.color_contrast);
+    clamp_color_reconstruction(params.color_reconstruction);
     clamp_color_harmonizer(params.color_harmonizer);
     // Preserve compatibility with existing typed callers that represented an
     // active operation by setting only the historical enabled/value fields.
@@ -2698,20 +2853,99 @@ void clamp_develop(DevelopParams &params) noexcept
     params.crop_height = clamp_value(params.crop_height, 0.01, 1.0);
     params.crop_x = clamp_value(params.crop_x, 0.0, 1.0 - params.crop_width);
     params.crop_y = clamp_value(params.crop_y, 0.0, 1.0 - params.crop_height);
+    params.canvas.percent_left =
+        clamp_value(params.canvas.percent_left, kCanvasPercentMin, kCanvasPercentMax);
+    params.canvas.percent_right =
+        clamp_value(params.canvas.percent_right, kCanvasPercentMin, kCanvasPercentMax);
+    params.canvas.percent_top =
+        clamp_value(params.canvas.percent_top, kCanvasPercentMin, kCanvasPercentMax);
+    params.canvas.percent_bottom =
+        clamp_value(params.canvas.percent_bottom, kCanvasPercentMin, kCanvasPercentMax);
+    if (canvas_color_name(params.canvas.color).empty())
+        params.canvas.color = CanvasColor::kGreen;
     params.sharpen = clamp_value(params.sharpen, 0.0, 2.0);
-    params.sharpen_radius = clamp_value(params.sharpen_radius, 0.0, 12.0);
+    params.sharpen_radius =
+        clamp_value(params.sharpen_radius, kSharpenRadiusMin, kSharpenRadiusMax);
+    params.sharpen_threshold =
+        clamp_value(params.sharpen_threshold, kSharpenThresholdMin, kSharpenThresholdMax);
+    params.retouch.num_scales =
+        std::clamp<std::int64_t>(params.retouch.num_scales, 0, kRetouchMaxScales);
+    params.retouch.merge_from_scale =
+        std::clamp<std::int64_t>(params.retouch.merge_from_scale, 0, params.retouch.num_scales);
+    params.retouch.max_heal_iterations =
+        std::clamp<std::int64_t>(params.retouch.max_heal_iterations, 1, kRetouchMaxHealIterations);
+    if (params.retouch.regions.size() > kRetouchMaxRegions)
+    {
+        params.retouch.regions.resize(kRetouchMaxRegions);
+    }
+    for (auto &region : params.retouch.regions)
+    {
+        region.scale = std::clamp<std::int64_t>(region.scale, 0, params.retouch.num_scales + 1);
+        region.opacity = clamp_value(region.opacity, 0.0, 1.0);
+        region.source_x = clamp_value(region.source_x, 0.0, 1.0);
+        region.source_y = clamp_value(region.source_y, 0.0, 1.0);
+        region.blur_radius =
+            clamp_value(region.blur_radius, kRetouchBlurRadiusMin, kRetouchBlurRadiusMax);
+        for (double &channel : region.fill_color)
+        {
+            channel = clamp_value(channel, 0.0, 1.0);
+        }
+        region.fill_brightness = clamp_value(region.fill_brightness, -1.0, 1.0);
+    }
     params.clarity = clamp_value(params.clarity, -1.0, 1.0);
     params.vignette = clamp_value(params.vignette, 0.0, 1.0);
     params.grain = clamp_value(params.grain, 0.0, 1.0);
     params.bloom = clamp_value(params.bloom, 0.0, 1.0);
     params.soften = clamp_value(params.soften, 0.0, 1.0);
     params.dehaze = clamp_value(params.dehaze, -1.0, 1.0);
+    params.dehaze_distance =
+        clamp_value(params.dehaze_distance, kDehazeDistanceMin, kDehazeDistanceMax);
+    if (output_dither_method_name(params.output_dither.method).empty())
+        params.output_dither.method = OutputDitherMethod::kFloydSteinbergAuto;
+    params.output_dither.random_damping_db = clamp_value(
+        params.output_dither.random_damping_db, kOutputDitherDampingMin, kOutputDitherDampingMax);
+    for (double &channel : params.frame.border_color)
+        channel = clamp_value(channel, 0.0, 1.0);
+    for (double &channel : params.frame.frame_color)
+        channel = clamp_value(channel, 0.0, 1.0);
+    params.frame.aspect = clamp_value(params.frame.aspect, -1.0, 3.0);
+    if (params.frame.aspect < 0.0 && !near(params.frame.aspect, -1.0))
+        params.frame.aspect = -1.0;
+    params.frame.size = clamp_value(params.frame.size, 0.0, 0.5);
+    params.frame.position_h = clamp_value(params.frame.position_h, 0.0, 1.0);
+    params.frame.position_v = clamp_value(params.frame.position_v, 0.0, 1.0);
+    params.frame.frame_size = clamp_value(params.frame.frame_size, 0.0, 1.0);
+    params.frame.frame_offset = clamp_value(params.frame.frame_offset, 0.0, 1.0);
+    if (frame_orientation_name(params.frame.orientation).empty())
+        params.frame.orientation = FrameOrientation::kAuto;
+    if (frame_basis_name(params.frame.basis).empty())
+        params.frame.basis = FrameBasis::kAuto;
+    for (double &channel : params.watermark.color)
+        channel = clamp_value(channel, 0.0, 1.0);
+    params.watermark.opacity = clamp_value(params.watermark.opacity, 0.0, 1.0);
+    params.watermark.scale_percent =
+        clamp_value(params.watermark.scale_percent, kWatermarkScaleMin, kWatermarkScaleMax);
+    params.watermark.x_offset = clamp_value(params.watermark.x_offset, -1.0, 1.0);
+    params.watermark.y_offset = clamp_value(params.watermark.y_offset, -1.0, 1.0);
+    params.watermark.rotation_degrees =
+        clamp_value(params.watermark.rotation_degrees, -180.0, 180.0);
+    if (watermark_alignment_name(params.watermark.alignment).empty())
+        params.watermark.alignment = WatermarkAlignment::kBottomRight;
     params.velvia = clamp_value(params.velvia, 0.0, 1.0);
-    params.monochrome = clamp_value(params.monochrome, 0.0, 1.0);
-    params.split_shadows_hue = clamp_value(params.split_shadows_hue, 0.0, 1.0);
-    params.split_highlights_hue = clamp_value(params.split_highlights_hue, 0.0, 1.0);
-    params.split_balance = clamp_value(params.split_balance, 0.0, 1.0);
-    params.split_amount = clamp_value(params.split_amount, 0.0, 1.0);
+    params.monochrome.filter_a = clamp_value(params.monochrome.filter_a, -128.0, 128.0);
+    params.monochrome.filter_b = clamp_value(params.monochrome.filter_b, -128.0, 128.0);
+    params.monochrome.size = clamp_value(params.monochrome.size, 0.5, 3.0);
+    params.monochrome.highlights = clamp_value(params.monochrome.highlights, 0.0, 1.0);
+    params.monochrome.mix = clamp_value(params.monochrome.mix, 0.0, 1.0);
+    params.split_toning.shadow_hue = clamp_value(params.split_toning.shadow_hue, 0.0, 1.0);
+    params.split_toning.shadow_saturation =
+        clamp_value(params.split_toning.shadow_saturation, 0.0, 1.0);
+    params.split_toning.highlight_hue = clamp_value(params.split_toning.highlight_hue, 0.0, 1.0);
+    params.split_toning.highlight_saturation =
+        clamp_value(params.split_toning.highlight_saturation, 0.0, 1.0);
+    params.split_toning.balance = clamp_value(params.split_toning.balance, 0.0, 1.0);
+    params.split_toning.compress = clamp_value(params.split_toning.compress, 0.0, 100.0);
+    params.split_toning.mix = clamp_value(params.split_toning.mix, 0.0, 1.0);
     params.gamma = clamp_value(params.gamma, 0.2, 3.0);
     clamp_rgb_levels(params.rgb_levels);
     for (auto &channel : params.rgb_curve.channels)
@@ -2790,6 +3024,21 @@ void clamp_develop(DevelopParams &params) noexcept
     }
     params.color_eq_band = std::clamp(params.color_eq_band, std::int64_t{0},
                                       static_cast<std::int64_t>(kColorEqualizerBandCount - 1U));
+    if (color_zones_channel_name(params.color_zones.select_by).empty())
+        params.color_zones.select_by = ColorZonesChannel::kHue;
+    params.color_zones.strength = clamp_value(params.color_zones.strength, -200.0, 200.0);
+    params.color_zones_band = std::clamp(params.color_zones_band, std::int64_t{0},
+                                         static_cast<std::int64_t>(kColorEqualizerBandCount - 1U));
+    for (auto &curve : params.color_zones.curves)
+    {
+        if (color_zones_interpolation_name(curve.interpolation).empty())
+            curve.interpolation = ColorZonesInterpolation::kCatmullRom;
+        for (auto &point : curve.points)
+        {
+            point.x = clamp_value(point.x, 0.0, 1.0);
+            point.y = clamp_value(point.y, 0.0, 1.0);
+        }
+    }
     params.graduated_density = clamp_value(params.graduated_density, -4.0, 4.0);
     params.graduated_hardness = clamp_value(params.graduated_hardness, 0.0, 1.0);
     params.graduated_rotation = clamp_value(params.graduated_rotation, -180.0, 180.0);
@@ -2838,18 +3087,24 @@ bool DevelopParams::is_identity() const noexcept
            near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
            rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
            near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
-           near(crop_width, 1.0) && near(crop_height, 1.0) && near(sharpen, 0.0) &&
-           near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) && near(bloom, 0.0) &&
-           near(soften, 0.0) && near(dehaze, 0.0) && near(velvia, 0.0) && !color_balance_enabled &&
+           near(crop_width, 1.0) && near(crop_height, 1.0) && !canvas_present && !canvas_enabled &&
+           near(sharpen, 0.0) && near(sharpen_radius, 2.0) && near(sharpen_threshold, 0.5) &&
+           retouch.is_identity() && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
+           near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) &&
+           near(dehaze_distance, 0.2) && dehaze_adaptive && !output_dither_present &&
+           !output_dither_enabled && !frame_present && !frame_enabled && !watermark_present &&
+           !watermark_enabled && near(velvia, 0.0) && !color_balance_enabled &&
            !color_checker_enabled && color_balance_rgb.is_identity() && !color_correction_enabled &&
-           !color_contrast_enabled && !color_harmonizer_enabled && near(monochrome, 0.0) &&
-           near(split_amount, 0.0) && near(gamma, kDevelopGammaDefault) &&
-           rgb_levels.is_identity() && rgb_curve.is_identity() &&
-           tone_curve_is_identity(tone_curve) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
-           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
-           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) &&
-           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
-           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !color_contrast_enabled && !color_reconstruction_enabled && !color_zones_present &&
+           !color_zones_enabled && !color_zones_mask_id.has_value() && !color_harmonizer_enabled &&
+           !monochrome_present && !monochrome_enabled && !monochrome_mask_id.has_value() &&
+           !split_toning_present && !split_toning_enabled && !split_toning_mask_id.has_value() &&
+           near(gamma, kDevelopGammaDefault) && rgb_levels.is_identity() &&
+           rgb_curve.is_identity() && tone_curve_is_identity(tone_curve) && !sigmoid_enabled &&
+           near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
+           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
+           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
+           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -3245,6 +3500,36 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.crop_height = value;
     }
+    else if (name == "canvasEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.canvas_present = true;
+        params.canvas_enabled = value == 1.0;
+        if (params.canvas_enabled)
+            params.geometry_effect_enabled = true;
+    }
+    else if (name == "canvasLeft" || name == "canvasRight" || name == "canvasTop" ||
+             name == "canvasBottom")
+    {
+        params.canvas_present = true;
+        params.canvas_enabled = true;
+        params.geometry_effect_enabled = true;
+        double *target = name == "canvasLeft"  ? &params.canvas.percent_left :
+                         name == "canvasRight" ? &params.canvas.percent_right :
+                         name == "canvasTop"   ? &params.canvas.percent_top :
+                                                 &params.canvas.percent_bottom;
+        *target = value;
+    }
+    else if (name == "canvasColorIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 4.0)
+            return false;
+        params.canvas_present = true;
+        params.canvas_enabled = true;
+        params.geometry_effect_enabled = true;
+        params.canvas.color = static_cast<CanvasColor>(static_cast<std::uint8_t>(value));
+    }
     else if (name == "sharpen")
     {
         params.sharpen = value;
@@ -3252,6 +3537,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (name == "sharpenRadius")
     {
         params.sharpen_radius = value;
+    }
+    else if (name == "sharpenThreshold")
+    {
+        params.sharpen_threshold = value;
     }
     else if (name == "clarity")
     {
@@ -3277,6 +3566,148 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.dehaze = value;
     }
+    else if (name == "dehazeDistance")
+    {
+        params.dehaze_distance = value;
+    }
+    else if (name == "dehazeAdaptive")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.dehaze_adaptive = value == 1.0;
+    }
+    else if (name == "outputDitherEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.output_dither_present = true;
+        params.output_dither_enabled = value == 1.0;
+        if (params.output_dither_enabled)
+            params.effects_effect_enabled = true;
+    }
+    else if (name == "outputDitherMethodIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value)
+            return false;
+        auto method = output_dither_method_from_index(static_cast<std::int64_t>(value));
+        if (!method)
+            return false;
+        params.output_dither_present = true;
+        params.output_dither_enabled = true;
+        params.effects_effect_enabled = true;
+        params.output_dither.method = method.value();
+    }
+    else if (name == "outputDitherDamping")
+    {
+        if (!std::isfinite(value))
+            return false;
+        params.output_dither_present = true;
+        params.output_dither_enabled = true;
+        params.effects_effect_enabled = true;
+        params.output_dither.random_damping_db = value;
+    }
+    else if (name == "outputFrameEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.frame_present = true;
+        params.frame_enabled = value == 1.0;
+        if (params.frame_enabled)
+            params.effects_effect_enabled = true;
+    }
+    else if (name == "outputFrameBorderRed" || name == "outputFrameBorderGreen" ||
+             name == "outputFrameBorderBlue" || name == "outputFrameLineRed" ||
+             name == "outputFrameLineGreen" || name == "outputFrameLineBlue")
+    {
+        params.frame_present = true;
+        params.frame_enabled = true;
+        params.effects_effect_enabled = true;
+        const bool line = name.starts_with("outputFrameLine");
+        auto &color = line ? params.frame.frame_color : params.frame.border_color;
+        const std::size_t channel = name.ends_with("Red") ? 0U : name.ends_with("Green") ? 1U : 2U;
+        color[channel] = value;
+    }
+    else if (name == "outputFrameAspect")
+    {
+        params.frame_present = true;
+        params.frame_enabled = true;
+        params.effects_effect_enabled = true;
+        params.frame.aspect = value;
+    }
+    else if (name == "outputFrameOrientationIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
+            return false;
+        params.frame_present = true;
+        params.frame_enabled = true;
+        params.effects_effect_enabled = true;
+        params.frame.orientation = static_cast<FrameOrientation>(static_cast<std::uint8_t>(value));
+    }
+    else if (name == "outputFrameSize" || name == "outputFramePositionH" ||
+             name == "outputFramePositionV" || name == "outputFrameLineSize" ||
+             name == "outputFrameLineOffset")
+    {
+        params.frame_present = true;
+        params.frame_enabled = true;
+        params.effects_effect_enabled = true;
+        double *target = name == "outputFrameSize"      ? &params.frame.size :
+                         name == "outputFramePositionH" ? &params.frame.position_h :
+                         name == "outputFramePositionV" ? &params.frame.position_v :
+                         name == "outputFrameLineSize"  ? &params.frame.frame_size :
+                                                          &params.frame.frame_offset;
+        *target = value;
+    }
+    else if (name == "outputFrameBasisIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 4.0)
+            return false;
+        params.frame_present = true;
+        params.frame_enabled = true;
+        params.effects_effect_enabled = true;
+        params.frame.basis = static_cast<FrameBasis>(static_cast<std::uint8_t>(value));
+    }
+    else if (name == "watermarkEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.watermark_present = true;
+        params.watermark_enabled = value == 1.0;
+        if (params.watermark_enabled)
+            params.effects_effect_enabled = true;
+    }
+    else if (name == "watermarkRed" || name == "watermarkGreen" || name == "watermarkBlue")
+    {
+        params.watermark_present = true;
+        params.watermark_enabled = true;
+        params.effects_effect_enabled = true;
+        const std::size_t channel = name.ends_with("Red") ? 0U : name.ends_with("Green") ? 1U : 2U;
+        params.watermark.color[channel] = value;
+    }
+    else if (name == "watermarkOpacity" || name == "watermarkScale" || name == "watermarkOffsetX" ||
+             name == "watermarkOffsetY" || name == "watermarkRotation")
+    {
+        params.watermark_present = true;
+        params.watermark_enabled = true;
+        params.effects_effect_enabled = true;
+        double *target = name == "watermarkOpacity" ? &params.watermark.opacity :
+                         name == "watermarkScale"   ? &params.watermark.scale_percent :
+                         name == "watermarkOffsetX" ? &params.watermark.x_offset :
+                         name == "watermarkOffsetY" ? &params.watermark.y_offset :
+                                                      &params.watermark.rotation_degrees;
+        *target = value;
+    }
+    else if (name == "watermarkAlignmentIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 8.0)
+            return false;
+        params.watermark_present = true;
+        params.watermark_enabled = true;
+        params.effects_effect_enabled = true;
+        params.watermark.alignment =
+            static_cast<WatermarkAlignment>(static_cast<std::uint8_t>(value));
+    }
     else if (name == "velvia")
     {
         params.velvia = value;
@@ -3297,28 +3728,92 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (apply_color_contrast_field(params, name, value))
     {
     }
+    else if (apply_color_reconstruction_field(params, name, value))
+    {
+    }
     else if (apply_color_harmonizer_field(params, name, value))
     {
     }
     else if (name == "monochrome")
     {
-        params.monochrome = value;
+        params.monochrome_present = true;
+        params.monochrome_enabled = value > 0.0;
+        params.monochrome.mix = value;
+        if (params.monochrome_enabled)
+            params.color_effect_enabled = true;
+    }
+    else if (name == "monochromeEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.monochrome_present = true;
+        params.monochrome_enabled = value == 1.0;
+        if (params.monochrome_enabled)
+            params.color_effect_enabled = true;
+    }
+    else if (name == "monochromeFilterA" || name == "monochromeFilterB" ||
+             name == "monochromeSize" || name == "monochromeHighlights" || name == "monochromeMix")
+    {
+        params.monochrome_present = true;
+        params.monochrome_enabled = true;
+        params.color_effect_enabled = true;
+        double *target = name == "monochromeFilterA"    ? &params.monochrome.filter_a :
+                         name == "monochromeFilterB"    ? &params.monochrome.filter_b :
+                         name == "monochromeSize"       ? &params.monochrome.size :
+                         name == "monochromeHighlights" ? &params.monochrome.highlights :
+                                                          &params.monochrome.mix;
+        *target = value;
     }
     else if (name == "splitShadowsHue")
     {
-        params.split_shadows_hue = value;
+        params.split_toning_present = true;
+        params.split_toning_enabled = true;
+        params.color_effect_enabled = true;
+        params.split_toning.shadow_hue = value;
     }
     else if (name == "splitHighlightsHue")
     {
-        params.split_highlights_hue = value;
+        params.split_toning_present = true;
+        params.split_toning_enabled = true;
+        params.color_effect_enabled = true;
+        params.split_toning.highlight_hue = value;
     }
     else if (name == "splitBalance")
     {
-        params.split_balance = value;
+        params.split_toning_present = true;
+        params.split_toning_enabled = true;
+        params.color_effect_enabled = true;
+        params.split_toning.balance = value;
     }
     else if (name == "splitAmount")
     {
-        params.split_amount = value;
+        params.split_toning_present = true;
+        params.split_toning_enabled = value > 0.0;
+        params.split_toning.mix = value;
+        if (params.split_toning_enabled)
+            params.color_effect_enabled = true;
+    }
+    else if (name == "splitToningEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.split_toning_present = true;
+        params.split_toning_enabled = value == 1.0;
+        if (params.split_toning_enabled)
+            params.color_effect_enabled = true;
+    }
+    else if (name == "splitShadowSaturation" || name == "splitHighlightSaturation" ||
+             name == "splitCompress" || name == "splitMix")
+    {
+        params.split_toning_present = true;
+        params.split_toning_enabled = true;
+        params.color_effect_enabled = true;
+        double *target =
+            name == "splitShadowSaturation"    ? &params.split_toning.shadow_saturation :
+            name == "splitHighlightSaturation" ? &params.split_toning.highlight_saturation :
+            name == "splitCompress"            ? &params.split_toning.compress :
+                                                 &params.split_toning.mix;
+        *target = value;
     }
     else if (name == "gamma")
     {
@@ -3415,6 +3910,77 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     else if (name == "lensFocal")
     {
         params.lens_focal_mm = value;
+    }
+    else if (name == "colorZonesEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        if (!params.color_zones_present && value == 1.0)
+            make_studio_color_zones_curves(params.color_zones);
+        params.color_zones_present = true;
+        params.color_zones_enabled = value == 1.0;
+        if (params.color_zones_enabled)
+            params.color_effect_enabled = true;
+    }
+    else if (name == "colorZonesSelectByIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
+            return false;
+        if (!params.color_zones_present)
+            make_studio_color_zones_curves(params.color_zones);
+        params.color_zones_present = true;
+        params.color_zones_enabled = true;
+        params.color_effect_enabled = true;
+        params.color_zones.select_by =
+            static_cast<ColorZonesChannel>(static_cast<std::uint8_t>(value));
+    }
+    else if (name == "colorZonesBandIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 7.0)
+            return false;
+        params.color_zones_band = static_cast<std::int64_t>(value);
+    }
+    else if (name == "colorZonesStrength")
+    {
+        if (!params.color_zones_present)
+            make_studio_color_zones_curves(params.color_zones);
+        params.color_zones_present = true;
+        params.color_zones_enabled = true;
+        params.color_effect_enabled = true;
+        params.color_zones.strength = value;
+    }
+    else if (name == "colorZonesLightnessInterpolationIndex" ||
+             name == "colorZonesChromaInterpolationIndex" ||
+             name == "colorZonesHueInterpolationIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
+            return false;
+        if (!params.color_zones_present)
+            make_studio_color_zones_curves(params.color_zones);
+        params.color_zones_present = true;
+        params.color_zones_enabled = true;
+        params.color_effect_enabled = true;
+        const std::size_t channel = name.starts_with("colorZonesLightness") ? 0U :
+                                    name.starts_with("colorZonesChroma")    ? 1U :
+                                                                              2U;
+        params.color_zones.curves[channel].interpolation =
+            static_cast<ColorZonesInterpolation>(static_cast<std::uint8_t>(value));
+    }
+    else if (name == "colorZonesLightness" || name == "colorZonesChroma" || name == "colorZonesHue")
+    {
+        if (!params.color_zones_present)
+            make_studio_color_zones_curves(params.color_zones);
+        if (!studio_color_zones_curves(params.color_zones))
+            return false;
+        params.color_zones_present = true;
+        params.color_zones_enabled = true;
+        params.color_effect_enabled = true;
+        const std::size_t channel = name == "colorZonesLightness" ? 0U :
+                                    name == "colorZonesChroma"    ? 1U :
+                                                                    2U;
+        const auto band = static_cast<std::size_t>(
+            std::clamp(params.color_zones_band, std::int64_t{0}, std::int64_t{7}));
+        params.color_zones.curves[channel].points[band].y = value;
     }
     else if (name == "colorEqBand")
     {
@@ -3539,6 +4105,24 @@ Result<void> apply_develop_field_strict(DevelopParams &params, const std::string
                           "Develop field value is outside the supported range",
                           {{"name", std::string(name)}, {"value", std::to_string(value)}});
     }
+    params = std::move(candidate);
+    return {};
+}
+
+Result<void> apply_develop_text_field_strict(DevelopParams &params, const std::string_view name,
+                                             const std::string_view value)
+{
+    if (name != "watermarkText")
+        return make_error(ErrorCode::kInvalidArgument, "Develop text field is unsupported",
+                          {{"name", std::string(name)}});
+    DevelopParams candidate = params;
+    candidate.watermark_present = true;
+    candidate.watermark_enabled = true;
+    candidate.effects_effect_enabled = true;
+    candidate.watermark.text = std::string(value);
+    auto valid = watermark_to_parameters(candidate.watermark);
+    if (!valid)
+        return valid.error();
     params = std::move(candidate);
     return {};
 }
@@ -3711,14 +4295,31 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.crop_y = 0.0;
         params.crop_width = 1.0;
         params.crop_height = 1.0;
+        params.canvas_present = identity.canvas_present;
+        params.canvas_enabled = identity.canvas_enabled;
+        params.canvas = identity.canvas;
     }
-    else if (name == "sharpen" || name == "sharpenRadius")
+    else if (name == "canvas")
+    {
+        params.canvas_present = identity.canvas_present;
+        params.canvas_enabled = identity.canvas_enabled;
+        params.canvas = identity.canvas;
+    }
+    else if (name == "sharpen" || name == "sharpenRadius" || name == "sharpenThreshold")
     {
         params.sharpen = identity.sharpen;
         if (name == "sharpenRadius")
         {
             params.sharpen_radius = identity.sharpen_radius;
         }
+        else if (name == "sharpenThreshold")
+        {
+            params.sharpen_threshold = identity.sharpen_threshold;
+        }
+    }
+    else if (name == "retouch")
+    {
+        params.retouch = identity.retouch;
     }
     else if (name == "clarity")
     {
@@ -3744,6 +4345,46 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.dehaze = identity.dehaze;
     }
+    else if (name == "dehazeDistance")
+    {
+        params.dehaze_distance = identity.dehaze_distance;
+    }
+    else if (name == "dehazeAdaptive")
+    {
+        params.dehaze_adaptive = identity.dehaze_adaptive;
+    }
+    else if (name == "outputDither")
+    {
+        params.output_dither_present = identity.output_dither_present;
+        params.output_dither_enabled = identity.output_dither_enabled;
+        params.output_dither = identity.output_dither;
+        params.frame_present = identity.frame_present;
+        params.frame_enabled = identity.frame_enabled;
+        params.frame = identity.frame;
+        params.watermark_present = identity.watermark_present;
+        params.watermark_enabled = identity.watermark_enabled;
+        params.watermark = identity.watermark;
+    }
+    else if (name == "outputDitherMethodIndex")
+    {
+        params.output_dither.method = identity.output_dither.method;
+    }
+    else if (name == "outputDitherDamping")
+    {
+        params.output_dither.random_damping_db = identity.output_dither.random_damping_db;
+    }
+    else if (name == "outputFrame")
+    {
+        params.frame_present = identity.frame_present;
+        params.frame_enabled = identity.frame_enabled;
+        params.frame = identity.frame;
+    }
+    else if (name == "watermark")
+    {
+        params.watermark_present = identity.watermark_present;
+        params.watermark_enabled = identity.watermark_enabled;
+        params.watermark = identity.watermark;
+    }
     else if (name == "velvia")
     {
         params.velvia = identity.velvia;
@@ -3767,28 +4408,44 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     else if (reset_color_contrast_field(params, name))
     {
     }
+    else if (reset_color_reconstruction_field(params, name))
+    {
+    }
     else if (reset_color_harmonizer_field(params, name))
     {
     }
     else if (name == "monochrome")
     {
+        params.monochrome_present = identity.monochrome_present;
+        params.monochrome_enabled = identity.monochrome_enabled;
         params.monochrome = identity.monochrome;
+        params.monochrome_mask_id = identity.monochrome_mask_id;
     }
     else if (name == "splitShadowsHue")
     {
-        params.split_shadows_hue = identity.split_shadows_hue;
+        params.split_toning.shadow_hue = identity.split_toning.shadow_hue;
     }
     else if (name == "splitHighlightsHue")
     {
-        params.split_highlights_hue = identity.split_highlights_hue;
+        params.split_toning.highlight_hue = identity.split_toning.highlight_hue;
     }
     else if (name == "splitBalance")
     {
-        params.split_balance = identity.split_balance;
+        params.split_toning.balance = identity.split_toning.balance;
     }
     else if (name == "splitAmount")
     {
-        params.split_amount = identity.split_amount;
+        params.split_toning_present = identity.split_toning_present;
+        params.split_toning_enabled = identity.split_toning_enabled;
+        params.split_toning = identity.split_toning;
+        params.split_toning_mask_id = identity.split_toning_mask_id;
+    }
+    else if (name == "splitToning")
+    {
+        params.split_toning_present = identity.split_toning_present;
+        params.split_toning_enabled = identity.split_toning_enabled;
+        params.split_toning = identity.split_toning;
+        params.split_toning_mask_id = identity.split_toning_mask_id;
     }
     else if (name == "gamma")
     {
@@ -3851,6 +4508,14 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.lens_vignetting = identity.lens_vignetting;
         params.lens_mode = identity.lens_mode;
         params.lens_focal_mm = identity.lens_focal_mm;
+    }
+    else if (name == "colorZones")
+    {
+        params.color_zones_present = identity.color_zones_present;
+        params.color_zones_enabled = identity.color_zones_enabled;
+        params.color_zones = identity.color_zones;
+        params.color_zones_mask_id = identity.color_zones_mask_id;
+        params.color_zones_band = identity.color_zones_band;
     }
     else if (name == "colorEqHue" || name == "colorEqSat" || name == "colorEqLight" ||
              name == "colorEqBand")
@@ -4018,13 +4683,23 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.color_correction = identity.color_correction;
         params.color_contrast_enabled = identity.color_contrast_enabled;
         params.color_contrast = identity.color_contrast;
+        params.color_reconstruction_enabled = identity.color_reconstruction_enabled;
+        params.color_reconstruction = identity.color_reconstruction;
         params.color_harmonizer_enabled = identity.color_harmonizer_enabled;
         params.color_harmonizer = identity.color_harmonizer;
+        params.monochrome_present = identity.monochrome_present;
+        params.monochrome_enabled = identity.monochrome_enabled;
         params.monochrome = identity.monochrome;
-        params.split_shadows_hue = identity.split_shadows_hue;
-        params.split_highlights_hue = identity.split_highlights_hue;
-        params.split_balance = identity.split_balance;
-        params.split_amount = identity.split_amount;
+        params.monochrome_mask_id = identity.monochrome_mask_id;
+        params.split_toning_present = identity.split_toning_present;
+        params.split_toning_enabled = identity.split_toning_enabled;
+        params.split_toning = identity.split_toning;
+        params.split_toning_mask_id = identity.split_toning_mask_id;
+        params.color_zones_present = identity.color_zones_present;
+        params.color_zones_enabled = identity.color_zones_enabled;
+        params.color_zones = identity.color_zones;
+        params.color_zones_mask_id = identity.color_zones_mask_id;
+        params.color_zones_band = identity.color_zones_band;
         params.color_eq_hue = {};
         params.color_eq_sat = {};
         params.color_eq_light = {};
@@ -4039,6 +4714,8 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     {
         params.sharpen = identity.sharpen;
         params.sharpen_radius = identity.sharpen_radius;
+        params.sharpen_threshold = identity.sharpen_threshold;
+        params.retouch = identity.retouch;
         params.clarity = identity.clarity;
         params.grain = identity.grain;
         params.denoise = identity.denoise;
@@ -4051,6 +4728,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.bloom = identity.bloom;
         params.soften = identity.soften;
         params.dehaze = identity.dehaze;
+        params.dehaze_distance = identity.dehaze_distance;
+        params.dehaze_adaptive = identity.dehaze_adaptive;
+        params.output_dither_present = identity.output_dither_present;
+        params.output_dither_enabled = identity.output_dither_enabled;
+        params.output_dither = identity.output_dither;
         params.graduated_density = identity.graduated_density;
         params.graduated_hardness = identity.graduated_hardness;
         params.graduated_rotation = identity.graduated_rotation;
@@ -4113,7 +4795,8 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
         return params.rotate_quarters % 4 != 0 || params.flip_horizontal != 0 ||
                params.flip_vertical != 0 || !near(params.straighten_degrees, 0.0) ||
                !near(params.crop_x, 0.0) || !near(params.crop_y, 0.0) ||
-               !near(params.crop_width, 1.0) || !near(params.crop_height, 1.0);
+               !near(params.crop_width, 1.0) || !near(params.crop_height, 1.0) ||
+               params.canvas_present || params.canvas_enabled;
     }
     if (section == "whiteBalance")
     {
@@ -4166,9 +4849,13 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                !near(params.velvia, 0.0) || params.color_balance_enabled ||
                !params.color_balance.is_identity() || params.color_checker_enabled ||
                !params.color_balance_rgb.is_identity() || params.color_correction_enabled ||
-               params.color_contrast_enabled || params.color_harmonizer_enabled ||
-               params.color_harmonizer_present || !near(params.monochrome, 0.0) ||
-               !near(params.split_amount, 0.0);
+               params.color_contrast_enabled || params.color_reconstruction_enabled ||
+               params.color_zones_present || params.color_zones_enabled ||
+               params.color_zones_mask_id.has_value() || params.color_harmonizer_enabled ||
+               params.color_harmonizer_present || params.monochrome_present ||
+               params.monochrome_enabled || params.monochrome_mask_id.has_value() ||
+               params.split_toning_present || params.split_toning_enabled ||
+               params.split_toning_mask_id.has_value();
     }
     if (section == "colorHarmonizer")
     {
@@ -4178,19 +4865,25 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     {
         return !near(params.sharpen, 0.0) ||
                !near(params.sharpen_radius, identity.sharpen_radius) ||
-               !near(params.clarity, 0.0) || !near(params.grain, 0.0);
+               !near(params.sharpen_threshold, identity.sharpen_threshold) ||
+               !params.retouch.is_identity() || !near(params.clarity, 0.0) ||
+               !near(params.grain, 0.0);
     }
     if (section == "effects")
     {
         return !near(params.vignette, 0.0) || !near(params.bloom, 0.0) ||
-               !near(params.soften, 0.0) || !near(params.dehaze, 0.0);
+               !near(params.soften, 0.0) || !near(params.dehaze, 0.0) ||
+               !near(params.dehaze_distance, identity.dehaze_distance) ||
+               params.dehaze_adaptive != identity.dehaze_adaptive || params.output_dither_present ||
+               params.output_dither_enabled || params.frame_present || params.frame_enabled ||
+               params.watermark_present || params.watermark_enabled;
     }
     if (section == "raw")
     {
         return !near(params.raw_highlights, 0.0) || !near(params.hot_pixels_strength, 0.0) ||
                params.raw_ca_iterations > 0 || !near(params.raw_denoise_threshold, 0.0) ||
-               !near(params.denoise, 0.0) ||
-               !near(params.lens_k1, 0.0) || !near(params.lens_vignetting, 0.0);
+               !near(params.denoise, 0.0) || !near(params.lens_k1, 0.0) ||
+               !near(params.lens_vignetting, 0.0);
     }
     if (section == "toneEqual")
     {
@@ -4409,13 +5102,46 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_named_change(changes, "rgbLevels", before.rgb_levels != after.rgb_levels);
     add_named_change(changes, "rgbCurve", before.rgb_curve != after.rgb_curve);
     add_scaled_change(changes, "sharpen", before.sharpen, after.sharpen, 10.0);
+    add_scaled_change(changes, "sharpenRadius", before.sharpen_radius, after.sharpen_radius, 1.0);
+    add_scaled_change(changes, "sharpenThreshold", before.sharpen_threshold,
+                      after.sharpen_threshold, 1.0);
+    add_named_change(changes, "retouch", before.retouch != after.retouch);
     add_scaled_change(changes, "clarity", before.clarity, after.clarity, 10.0);
     add_scaled_change(changes, "vignette", before.vignette, after.vignette, 10.0);
     add_scaled_change(changes, "grain", before.grain, after.grain, 10.0);
     add_scaled_change(changes, "bloom", before.bloom, after.bloom, 10.0);
     add_scaled_change(changes, "soften", before.soften, after.soften, 10.0);
     add_scaled_change(changes, "dehaze", before.dehaze, after.dehaze, 10.0);
-    add_scaled_change(changes, "monochrome", before.monochrome, after.monochrome, 10.0);
+    add_scaled_change(changes, "dehazeDistance", before.dehaze_distance, after.dehaze_distance,
+                      10.0);
+    add_toggle_change(changes, "dehazeAdaptive", before.dehaze_adaptive, after.dehaze_adaptive);
+    add_named_change(changes, "outputDither",
+                     before.output_dither_present != after.output_dither_present ||
+                         before.output_dither_enabled != after.output_dither_enabled ||
+                         before.output_dither != after.output_dither);
+    add_named_change(changes, "outputFrame",
+                     before.frame_present != after.frame_present ||
+                         before.frame_enabled != after.frame_enabled ||
+                         before.frame != after.frame);
+    add_named_change(changes, "colorZones",
+                     before.color_zones_present != after.color_zones_present ||
+                         before.color_zones_enabled != after.color_zones_enabled ||
+                         before.color_zones != after.color_zones ||
+                         before.color_zones_mask_id != after.color_zones_mask_id);
+    add_named_change(changes, "watermark",
+                     before.watermark_present != after.watermark_present ||
+                         before.watermark_enabled != after.watermark_enabled ||
+                         before.watermark != after.watermark);
+    add_named_change(changes, "monochrome",
+                     before.monochrome_present != after.monochrome_present ||
+                         before.monochrome_enabled != after.monochrome_enabled ||
+                         before.monochrome != after.monochrome ||
+                         before.monochrome_mask_id != after.monochrome_mask_id);
+    add_named_change(changes, "splitToning",
+                     before.split_toning_present != after.split_toning_present ||
+                         before.split_toning_enabled != after.split_toning_enabled ||
+                         before.split_toning != after.split_toning ||
+                         before.split_toning_mask_id != after.split_toning_mask_id);
     add_scaled_change(changes, "denoise", before.denoise, after.denoise, 10.0);
     add_scaled_change(changes, "straighten", before.straighten_degrees, after.straighten_degrees,
                       1.0);
@@ -4436,6 +5162,10 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_named_change(changes, "flip",
                      before.flip_horizontal != after.flip_horizontal ||
                          before.flip_vertical != after.flip_vertical);
+    add_named_change(changes, "canvas",
+                     before.canvas_present != after.canvas_present ||
+                         before.canvas_enabled != after.canvas_enabled ||
+                         before.canvas != after.canvas);
     add_named_change(changes, "crop",
                      !near(before.crop_x, after.crop_x) || !near(before.crop_y, after.crop_y) ||
                          !near(before.crop_width, after.crop_width) ||
@@ -4451,6 +5181,9 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                          before.color_balance_enabled != after.color_balance_enabled);
     add_named_change(changes, "colorBalanceRgb",
                      before.color_balance_rgb != after.color_balance_rgb);
+    add_named_change(changes, "colorReconstruction",
+                     before.color_reconstruction != after.color_reconstruction ||
+                         before.color_reconstruction_enabled != after.color_reconstruction_enabled);
     add_toggle_change(changes, "profileGamma", before.profile_gamma_enabled,
                       after.profile_gamma_enabled);
     add_toggle_change(changes, "sigmoid", before.sigmoid_enabled, after.sigmoid_enabled);
@@ -4803,10 +5536,10 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     }
     if (!near(clamped.raw_denoise_threshold, 0.0))
     {
-        add_operation(recipe, "ravo.raw.denoise", "rawdenoise-1",
-                      raw_denoise_to_parameters(clamped.raw_denoise_threshold,
-                                                clamped.raw_denoise_bands),
-                      1, std::nullopt, clamped.raw_effect_enabled);
+        add_operation(
+            recipe, "ravo.raw.denoise", "rawdenoise-1",
+            raw_denoise_to_parameters(clamped.raw_denoise_threshold, clamped.raw_denoise_bands), 1,
+            std::nullopt, clamped.raw_effect_enabled);
     }
     if (!near(clamped.denoise, 0.0))
     {
@@ -4832,6 +5565,15 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"lens", ParameterValue{clamped.lens_name}},
                        {"focal_mm", ParameterValue{clamped.lens_focal_mm}}},
                       1, std::nullopt, clamped.raw_effect_enabled);
+    }
+    if (clamped.canvas_present || clamped.canvas_enabled)
+    {
+        auto canvas = canvas_to_parameters(clamped.canvas);
+        if (!canvas)
+            return canvas.error();
+        add_operation(recipe, std::string(kCanvasOperationId), "canvas-1",
+                      std::move(canvas).value(), kCanvasOperationSchemaVersion, std::nullopt,
+                      clamped.geometry_effect_enabled && clamped.canvas_enabled);
     }
     const ExposureParams exposure{clamped.exposure_mode,
                                   clamped.exposure_black,
@@ -5013,28 +5755,56 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"lightness", band_array_parameter(clamped.color_eq_light)}},
                       1, std::nullopt, clamped.graduated_effect_enabled);
     }
-    if (!near(clamped.monochrome, 0.0))
+    if (clamped.color_zones_present || clamped.color_zones_enabled ||
+        clamped.color_zones_mask_id.has_value())
     {
-        add_operation(recipe, "ravo.color.monochrome", "monochrome-1",
-                      {{"amount", ParameterValue{clamped.monochrome}}}, 1, std::nullopt,
-                      clamped.color_effect_enabled);
+        auto zones = color_zones_to_parameters(clamped.color_zones);
+        if (!zones)
+            return zones.error();
+        add_operation(recipe, std::string(kColorZonesOperationId), "colorzones-1",
+                      std::move(zones).value(), kColorZonesOperationSchemaVersion,
+                      clamped.color_zones_mask_id,
+                      clamped.color_effect_enabled && clamped.color_zones_enabled);
     }
-    if (!near(clamped.split_amount, 0.0))
+    if (clamped.monochrome_present || clamped.monochrome_enabled ||
+        clamped.monochrome_mask_id.has_value())
     {
-        add_operation(recipe, "ravo.color.splittoning", "splittoning-1",
-                      {{"shadows_hue", ParameterValue{clamped.split_shadows_hue}},
-                       {"highlights_hue", ParameterValue{clamped.split_highlights_hue}},
-                       {"balance", ParameterValue{clamped.split_balance}},
-                       {"amount", ParameterValue{clamped.split_amount}}},
-                      1, std::nullopt, clamped.color_effect_enabled);
+        auto monochrome = monochrome_to_parameters(clamped.monochrome);
+        if (!monochrome)
+            return monochrome.error();
+        add_operation(recipe, std::string(kMonochromeOperationId), "monochrome-1",
+                      std::move(monochrome).value(), kMonochromeOperationSchemaVersion,
+                      clamped.monochrome_mask_id,
+                      clamped.color_effect_enabled && clamped.monochrome_enabled);
+    }
+    if (clamped.split_toning_present || clamped.split_toning_enabled ||
+        clamped.split_toning_mask_id.has_value())
+    {
+        auto split = split_toning_to_parameters(clamped.split_toning);
+        if (!split)
+            return split.error();
+        add_operation(recipe, std::string(kSplitToningOperationId), "splittoning-1",
+                      std::move(split).value(), kSplitToningOperationSchemaVersion,
+                      clamped.split_toning_mask_id,
+                      clamped.color_effect_enabled && clamped.split_toning_enabled);
     }
     if (!near(clamped.sharpen, 0.0))
     {
-        add_operation(recipe, "ravo.detail.sharpen", "sharpen-1",
-                      {{"amount", ParameterValue{clamped.sharpen}},
-                       {"radius", ParameterValue{clamped.sharpen_radius}},
-                       {"threshold", ParameterValue{0.5}}},
-                      1, std::nullopt, clamped.detail_effect_enabled);
+        auto sharpen = sharpen_to_parameters(
+            {clamped.sharpen_radius, clamped.sharpen, clamped.sharpen_threshold});
+        if (!sharpen)
+        {
+            return sharpen.error();
+        }
+        add_operation(recipe, std::string(kSharpenOperationId), "sharpen-1",
+                      std::move(sharpen).value(), kSharpenOperationSchemaVersion, std::nullopt,
+                      clamped.detail_effect_enabled);
+    }
+    if (!clamped.retouch.is_identity())
+    {
+        add_operation(recipe, std::string(kRetouchOperationId), "retouch-1",
+                      retouch_to_parameters(clamped.retouch), kRetouchOperationSchemaVersion,
+                      std::nullopt, clamped.detail_effect_enabled);
     }
     if (!near(clamped.clarity, 0.0))
     {
@@ -5056,8 +5826,14 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     }
     if (!near(clamped.dehaze, 0.0))
     {
-        add_operation(recipe, "ravo.effect.dehaze", "dehaze-1",
-                      {{"amount", ParameterValue{clamped.dehaze}}}, 1, std::nullopt,
+        auto dehaze = dehaze_to_parameters(
+            {clamped.dehaze, clamped.dehaze_distance, clamped.dehaze_adaptive});
+        if (!dehaze)
+        {
+            return dehaze.error();
+        }
+        add_operation(recipe, std::string(kDehazeOperationId), "dehaze-1",
+                      std::move(dehaze).value(), kDehazeOperationSchemaVersion, std::nullopt,
                       clamped.effects_effect_enabled);
     }
     if (!near(clamped.vignette, 0.0))
@@ -5116,9 +5892,49 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
              {"hue_preservation", ParameterValue{clamped.sigmoid_hue_preservation}}},
             1, std::nullopt, clamped.light_effect_enabled);
     }
+    if (clamped.color_reconstruction_enabled)
+    {
+        auto color_reconstruction =
+            color_reconstruction_to_parameters(clamped.color_reconstruction);
+        if (!color_reconstruction)
+        {
+            return color_reconstruction.error();
+        }
+        add_operation(recipe, std::string(kColorReconstructionOperationId), "colorreconstruct-1",
+                      std::move(color_reconstruction).value(),
+                      kColorReconstructionOperationSchemaVersion, std::nullopt,
+                      clamped.color_effect_enabled);
+    }
     add_operation(recipe, "ravo.color.output", "color-output-1",
                   output_color_to_parameters(clamped.output_color), 1, std::nullopt,
                   clamped.output_profile_effect_enabled);
+    if (clamped.output_dither_present || clamped.output_dither_enabled)
+    {
+        auto dither = output_dither_to_parameters(clamped.output_dither);
+        if (!dither)
+            return dither.error();
+        add_operation(recipe, std::string(kOutputDitherOperationId), "output-dither-1",
+                      std::move(dither).value(), kOutputDitherOperationSchemaVersion, std::nullopt,
+                      clamped.effects_effect_enabled && clamped.output_dither_enabled);
+    }
+    if (clamped.frame_present || clamped.frame_enabled)
+    {
+        auto frame = frame_to_parameters(clamped.frame);
+        if (!frame)
+            return frame.error();
+        add_operation(recipe, std::string(kFrameOperationId), "frame-1", std::move(frame).value(),
+                      kFrameOperationSchemaVersion, std::nullopt,
+                      clamped.effects_effect_enabled && clamped.frame_enabled);
+    }
+    if (clamped.watermark_present || clamped.watermark_enabled)
+    {
+        auto watermark = watermark_to_parameters(clamped.watermark);
+        if (!watermark)
+            return watermark.error();
+        add_operation(recipe, std::string(kWatermarkOperationId), "watermark-1",
+                      std::move(watermark).value(), kWatermarkOperationSchemaVersion, std::nullopt,
+                      clamped.effects_effect_enabled && clamped.watermark_enabled);
+    }
     return recipe;
 }
 
@@ -5205,6 +6021,61 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             params.output_color = std::move(output_color).value();
             note_section("outputProfile", operation.enabled);
+        }
+        else if (operation.id == kOutputDitherOperationId)
+        {
+            if (params.output_dither_present)
+            {
+                return make_error(
+                    ErrorCode::kValidation, "Develop contains duplicate Output Dither operations",
+                    {{"operation_id", operation.id}, {"reason", "duplicate_output_dither"}});
+            }
+            if (operation.mask_id.has_value())
+            {
+                return make_error(
+                    ErrorCode::kUnsupported, "Develop Output Dither masks are unsupported",
+                    {{"operation_id", operation.id}, {"reason", "unsupported_output_dither_mask"}});
+            }
+            auto dither = output_dither_from_parameters(operation.parameters);
+            if (!dither)
+                return dither.error();
+            params.output_dither_present = true;
+            params.output_dither_enabled = operation.enabled;
+            params.output_dither = dither.value();
+            note_section("effects", operation.enabled);
+        }
+        else if (operation.id == kFrameOperationId)
+        {
+            if (params.frame_present)
+                return make_error(ErrorCode::kValidation, "Develop contains duplicate Frames",
+                                  {{"reason", "duplicate_output_frame"}});
+            if (operation.mask_id.has_value())
+                return make_error(ErrorCode::kUnsupported, "Develop Frame masks are unsupported",
+                                  {{"reason", "unsupported_frame_mask"}});
+            auto frame = frame_from_parameters(operation.parameters);
+            if (!frame)
+                return frame.error();
+            params.frame_present = true;
+            params.frame_enabled = operation.enabled;
+            params.frame = frame.value();
+            note_section("effects", operation.enabled);
+        }
+        else if (operation.id == kWatermarkOperationId)
+        {
+            if (params.watermark_present)
+                return make_error(ErrorCode::kValidation, "Develop contains duplicate Watermarks",
+                                  {{"reason", "duplicate_watermark"}});
+            if (operation.mask_id.has_value())
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Watermark masks are unsupported",
+                                  {{"reason", "unsupported_watermark_mask"}});
+            auto watermark = watermark_from_parameters(operation.parameters);
+            if (!watermark)
+                return watermark.error();
+            params.watermark_present = true;
+            params.watermark_enabled = operation.enabled;
+            params.watermark = watermark.value();
+            note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.color.channelmixerrgb")
         {
@@ -5373,11 +6244,12 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                 }
                 else
                 {
-                    params.rgb_curve.compensate_middle_grey = number("compensate_middle_grey", 0.0) != 0.0;
+                    params.rgb_curve.compensate_middle_grey =
+                        number("compensate_middle_grey", 0.0) != 0.0;
                 }
             }
-            const auto take_points = [&](const char *name, std::vector<ToneCurvePoint> &target)
-                -> Result<void>
+            const auto take_points = [&](const char *name,
+                                         std::vector<ToneCurvePoint> &target) -> Result<void>
             {
                 if (const auto found = operation.parameters.find(name);
                     found != operation.parameters.end())
@@ -5502,23 +6374,94 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.color_contrast = std::move(color_contrast).value();
             note_section("color", operation.enabled);
         }
-        else if (operation.id == "ravo.color.monochrome")
+        else if (operation.id == kColorReconstructionOperationId)
         {
-            params.monochrome = number("amount", params.monochrome);
+            if (operation.mask_id.has_value())
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Color Reconstruction masks are unsupported",
+                                  {{"operation_id", operation.id},
+                                   {"reason", "unsupported_colorreconstruct_mask"}});
+            }
+            auto color_reconstruction = color_reconstruction_from_parameters(operation.parameters);
+            if (!color_reconstruction)
+            {
+                return color_reconstruction.error();
+            }
+            params.color_reconstruction_enabled = true;
+            params.color_reconstruction = std::move(color_reconstruction).value();
             note_section("color", operation.enabled);
         }
-        else if (operation.id == "ravo.color.splittoning")
+        else if (operation.id == kMonochromeOperationId)
         {
-            params.split_shadows_hue = number("shadows_hue", params.split_shadows_hue);
-            params.split_highlights_hue = number("highlights_hue", params.split_highlights_hue);
-            params.split_balance = number("balance", params.split_balance);
-            params.split_amount = number("amount", params.split_amount);
+            if (params.monochrome_present)
+                return make_error(ErrorCode::kValidation,
+                                  "Develop contains duplicate Monochrome operations",
+                                  {{"reason", "duplicate_monochrome"}});
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_monochrome_operation(canonical);
+            if (!upgraded)
+                return upgraded.error();
+            auto monochrome = monochrome_from_parameters(canonical.parameters);
+            if (!monochrome)
+                return monochrome.error();
+            params.monochrome_present = true;
+            params.monochrome_enabled = operation.enabled;
+            params.monochrome = monochrome.value();
+            params.monochrome_mask_id = operation.mask_id;
             note_section("color", operation.enabled);
         }
-        else if (operation.id == "ravo.detail.sharpen")
+        else if (operation.id == kSplitToningOperationId)
         {
-            params.sharpen = number("amount", params.sharpen);
-            params.sharpen_radius = number("radius", params.sharpen_radius);
+            if (params.split_toning_present)
+                return make_error(ErrorCode::kValidation,
+                                  "Develop contains duplicate Split Toning operations",
+                                  {{"reason", "duplicate_split_toning"}});
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_split_toning_operation(canonical);
+            if (!upgraded)
+                return upgraded.error();
+            auto split = split_toning_from_parameters(canonical.parameters);
+            if (!split)
+                return split.error();
+            params.split_toning_present = true;
+            params.split_toning_enabled = operation.enabled;
+            params.split_toning = split.value();
+            params.split_toning_mask_id = operation.mask_id;
+            note_section("color", operation.enabled);
+        }
+        else if (operation.id == kSharpenOperationId)
+        {
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_sharpen_operation(canonical);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            if (canonical.mask_id.has_value())
+            {
+                return make_error(
+                    ErrorCode::kUnsupported, "Develop Sharpen masks are unsupported",
+                    {{"operation_id", canonical.id}, {"reason", "unsupported_sharpen_mask"}});
+            }
+            auto sharpen = sharpen_from_parameters(canonical.parameters);
+            if (!sharpen)
+            {
+                return sharpen.error();
+            }
+            params.sharpen = sharpen.value().amount;
+            params.sharpen_radius = sharpen.value().radius;
+            params.sharpen_threshold = sharpen.value().threshold;
+            note_section("detail", operation.enabled);
+        }
+        else if (operation.id == kRetouchOperationId)
+        {
+            auto retouch = retouch_from_parameters(operation.parameters);
+            if (!retouch)
+            {
+                return retouch.error();
+            }
+            params.retouch = std::move(retouch).value();
             note_section("detail", operation.enabled);
         }
         else if (operation.id == "ravo.detail.clarity")
@@ -5546,9 +6489,28 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.soften = number("amount", params.soften);
             note_section("effects", operation.enabled);
         }
-        else if (operation.id == "ravo.effect.dehaze")
+        else if (operation.id == kDehazeOperationId)
         {
-            params.dehaze = number("amount", params.dehaze);
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_dehaze_operation(canonical);
+            if (!upgraded)
+            {
+                return upgraded.error();
+            }
+            if (canonical.mask_id.has_value())
+            {
+                return make_error(
+                    ErrorCode::kUnsupported, "Develop Dehaze masks are unsupported",
+                    {{"operation_id", canonical.id}, {"reason", "unsupported_dehaze_mask"}});
+            }
+            auto dehaze = dehaze_from_parameters(canonical.parameters);
+            if (!dehaze)
+            {
+                return dehaze.error();
+            }
+            params.dehaze = dehaze.value().strength;
+            params.dehaze_distance = dehaze.value().distance;
+            params.dehaze_adaptive = dehaze.value().adaptive;
             note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.rotate")
@@ -5633,11 +6595,12 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 for (int band = 0; band < 5; ++band)
                 {
-                    const std::string key = std::string("y_") + names[channel] + std::to_string(band);
+                    const std::string key =
+                        std::string("y_") + names[channel] + std::to_string(band);
                     params.raw_denoise_bands[static_cast<std::size_t>(channel)]
                                             [static_cast<std::size_t>(band)] =
                         number(key, params.raw_denoise_bands[static_cast<std::size_t>(channel)]
-                                                           [static_cast<std::size_t>(band)]);
+                                                            [static_cast<std::size_t>(band)]);
                 }
             }
             note_section("raw", operation.enabled);
@@ -5693,6 +6656,37 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             take_text("camera_model", params.lens_model);
             take_text("lens", params.lens_name);
             note_section("raw", operation.enabled);
+        }
+        else if (operation.id == kCanvasOperationId)
+        {
+            if (params.canvas_present)
+                return make_error(ErrorCode::kValidation, "Develop contains duplicate Canvases",
+                                  {{"reason", "duplicate_canvas"}});
+            if (operation.mask_id.has_value())
+                return make_error(ErrorCode::kUnsupported, "Develop Canvas masks are unsupported",
+                                  {{"reason", "unsupported_canvas_mask"}});
+            auto canvas = canvas_from_parameters(operation.parameters);
+            if (!canvas)
+                return canvas.error();
+            params.canvas_present = true;
+            params.canvas_enabled = operation.enabled;
+            params.canvas = canvas.value();
+            note_section("geometry", operation.enabled);
+        }
+        else if (operation.id == kColorZonesOperationId)
+        {
+            if (params.color_zones_present)
+                return make_error(ErrorCode::kValidation,
+                                  "Develop contains duplicate Color Zones operations",
+                                  {{"reason", "duplicate_color_zones"}});
+            auto zones = color_zones_from_parameters(operation.parameters);
+            if (!zones)
+                return zones.error();
+            params.color_zones_present = true;
+            params.color_zones_enabled = operation.enabled;
+            params.color_zones = std::move(zones).value();
+            params.color_zones_mask_id = operation.mask_id;
+            note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.colorequal")
         {
@@ -5892,9 +6886,9 @@ Result<RgbLevelsParams> leftover_rgblevels_from_v1(const std::int32_t autoscale,
     }
     else
     {
-        return make_error(ErrorCode::kUnsupported, "Legacy RGB levels mode is unsupported",
-                          {{"legacy_operation", "rgblevels"},
-                           {"reason", "unsupported_legacy_rgblevels_mode"}});
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RGB levels mode is unsupported",
+            {{"legacy_operation", "rgblevels"}, {"reason", "unsupported_legacy_rgblevels_mode"}});
     }
     switch (preserve_colors)
     {
@@ -5932,10 +6926,10 @@ Result<RgbLevelsParams> leftover_rgblevels_from_v1(const std::int32_t autoscale,
             const float value = levels[channel * 3U + stop];
             if (!std::isfinite(value))
             {
-                return make_error(
-                    ErrorCode::kUnsupported, "Legacy RGB levels contain a non-finite stop",
-                    {{"legacy_operation", "rgblevels"},
-                     {"reason", "unsupported_legacy_rgblevels_levels"}});
+                return make_error(ErrorCode::kUnsupported,
+                                  "Legacy RGB levels contain a non-finite stop",
+                                  {{"legacy_operation", "rgblevels"},
+                                   {"reason", "unsupported_legacy_rgblevels_levels"}});
             }
             result.levels[channel][stop] = value;
         }
@@ -6004,9 +6998,9 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
     constexpr std::int32_t kMonotoneHermite = 2;
     if (payload.size() != kPayloadSize)
     {
-        return make_error(ErrorCode::kUnsupported, "Legacy RGB curve payload size is unsupported",
-                          {{"legacy_operation", "rgbcurve"},
-                           {"reason", "unsupported_legacy_rgbcurve_payload"}});
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RGB curve payload size is unsupported",
+            {{"legacy_operation", "rgbcurve"}, {"reason", "unsupported_legacy_rgbcurve_payload"}});
     }
     RgbCurveParams result;
     const auto autoscale = rgb_curve_read_i32(payload, 504);
@@ -6022,9 +7016,9 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
     }
     else
     {
-        return make_error(ErrorCode::kUnsupported, "Legacy RGB curve mode is unsupported",
-                          {{"legacy_operation", "rgbcurve"},
-                           {"reason", "unsupported_legacy_rgbcurve_mode"}});
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RGB curve mode is unsupported",
+            {{"legacy_operation", "rgbcurve"}, {"reason", "unsupported_legacy_rgbcurve_mode"}});
     }
     if (compensate != 0 && compensate != 1)
     {
@@ -6058,10 +7052,9 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
         result.preserve_colors = std::string(kToneCurvePreserveColorsPower);
         break;
     default:
-        return make_error(ErrorCode::kUnsupported,
-                          "Legacy RGB curve preserve-colors is unsupported",
-                          {{"legacy_operation", "rgbcurve"},
-                           {"reason", "unsupported_legacy_rgbcurve_preserve"}});
+        return make_error(
+            ErrorCode::kUnsupported, "Legacy RGB curve preserve-colors is unsupported",
+            {{"legacy_operation", "rgbcurve"}, {"reason", "unsupported_legacy_rgbcurve_preserve"}});
     }
     for (std::size_t channel = 0; channel < 3; ++channel)
     {
@@ -6069,8 +7062,7 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
         const auto type = rgb_curve_read_i32(payload, 492 + channel * 4U);
         if (count < 2 || static_cast<std::size_t>(count) > kMaxNodes)
         {
-            return make_error(ErrorCode::kUnsupported,
-                              "Legacy RGB curve node count is unsupported",
+            return make_error(ErrorCode::kUnsupported, "Legacy RGB curve node count is unsupported",
                               {{"legacy_operation", "rgbcurve"},
                                {"reason", "unsupported_legacy_rgbcurve_nodes"}});
         }
@@ -6085,8 +7077,7 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
         points.reserve(static_cast<std::size_t>(count));
         for (std::int32_t index = 0; index < count; ++index)
         {
-            const std::size_t offset =
-                (channel * kMaxNodes + static_cast<std::size_t>(index)) * 8U;
+            const std::size_t offset = (channel * kMaxNodes + static_cast<std::size_t>(index)) * 8U;
             const float x = rgb_curve_read_f32(payload, offset);
             const float y = rgb_curve_read_f32(payload, offset + 4U);
             if (!std::isfinite(x) || !std::isfinite(y) || x < 0.0F || x > 1.0F || y < 0.0F ||
@@ -6124,7 +7115,8 @@ rgb_curve_to_parameters(const RgbCurveParams &params)
             {"points_b", tone_curve_points_to_parameter(params.channels[2])}};
 }
 
-Result<void> leftover_rawdenoise_from_v2(const std::vector<std::uint8_t> &payload, double &threshold,
+Result<void> leftover_rawdenoise_from_v2(const std::vector<std::uint8_t> &payload,
+                                         double &threshold,
                                          std::array<std::array<double, 5>, 4> &bands)
 {
     constexpr std::size_t kPayloadSize = 164;
@@ -6182,9 +7174,10 @@ raw_denoise_to_parameters(const double threshold, const std::array<std::array<do
     {
         for (int band = 0; band < 5; ++band)
         {
-            parameters.emplace(std::string("y_") + names[channel] + std::to_string(band),
-                               ParameterValue{bands[static_cast<std::size_t>(channel)]
-                                                   [static_cast<std::size_t>(band)]});
+            parameters.emplace(
+                std::string("y_") + names[channel] + std::to_string(band),
+                ParameterValue{
+                    bands[static_cast<std::size_t>(channel)][static_cast<std::size_t>(band)]});
         }
     }
     return parameters;

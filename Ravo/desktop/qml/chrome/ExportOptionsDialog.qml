@@ -5,17 +5,20 @@ import GeoControls 1.0
 DialogShell {
     id: root
     objectName: "ExportOptionsDialog"
-    titleText: qsTr("Export Photo")
+    titleText: batchMode ? qsTr("Export Selected Photos") : qsTr("Export Photo")
     width: Fonts.messageDialogWidth
     bodyFillHeight: false
     showCloseButton: true
 
     required property var presenter
+    readonly property bool batchMode: presenter && presenter.selectedCount > 1
+    property string filenameTemplate: "{stem}-{sequence}{ext}"
     property string formatId: ""
     property string jpegSubsamplingId: ""
     property string pngBitDepthId: ""
     property string tiffSampleTypeId: ""
     property string tiffCompressionId: ""
+    property string metadataModeId: ""
     property double jpegQuality: 0
     property double pngCompression: 0
     property double tiffCompressionLevel: 0
@@ -27,11 +30,12 @@ DialogShell {
     property var pngBitDepthChoices: presenter.pngBitDepthChoices()
     property var tiffSampleTypeChoices: presenter.tiffSampleTypeChoices()
     property var tiffCompressionChoices: presenter.tiffCompressionChoices()
+    property var metadataModeChoices: presenter.exportMetadataModeChoices()
     readonly property var optionBounds: presenter.exportOptionBounds()
     readonly property bool tiffLevelEnabled: formatId === "tiff" && tiffCompressionId !== "none"
-    readonly property bool canContinue: formatId.length > 0 && (formatId !== "jpeg" || jpegSubsamplingId.length > 0) && (formatId !== "png" || pngBitDepthId.length > 0) && (formatId !== "tiff" || (tiffSampleTypeId.length > 0 && tiffCompressionId.length > 0))
+    readonly property bool canContinue: formatId.length > 0 && (!batchMode || filenameTemplate.trim().length > 0) && (formatId === "original" || metadataModeId.length > 0) && (formatId !== "jpeg" || jpegSubsamplingId.length > 0) && (formatId !== "png" || pngBitDepthId.length > 0) && (formatId !== "tiff" || (tiffSampleTypeId.length > 0 && tiffCompressionId.length > 0))
 
-    signal exportAccepted(string format, var options)
+    signal exportAccepted(string format, var options, string filenameTemplate)
     signal exportCanceled
 
     onCloseRequested: function (reason) {
@@ -53,6 +57,7 @@ DialogShell {
         pngBitDepthChoices = presenter.pngBitDepthChoices();
         tiffSampleTypeChoices = presenter.tiffSampleTypeChoices();
         tiffCompressionChoices = presenter.tiffCompressionChoices();
+        metadataModeChoices = presenter.exportMetadataModeChoices();
         formatId = defaults.format;
         jpegQuality = defaults.quality;
         jpegSubsamplingId = defaults.jpegSubsampling;
@@ -63,18 +68,22 @@ DialogShell {
         tiffCompressionLevel = defaults.tiffCompressionLevel;
         tiffGrayscaleIfNeutral = defaults.tiffGrayscaleIfNeutral;
         tiffResolutionDpi = defaults.tiffResolutionDpi;
+        metadataModeId = defaults.metadataMode;
+        filenameTemplate = "{stem}-{sequence}{ext}";
     }
 
     function selectedOptions() {
         if (formatId === "jpeg")
             return {
                 "quality": jpegQualitySpin.realValue,
-                "jpegSubsampling": jpegSubsamplingId
+                "jpegSubsampling": jpegSubsamplingId,
+                "metadataMode": metadataModeId
             };
         if (formatId === "png")
             return {
                 "pngBitDepth": pngBitDepthId,
-                "pngCompression": pngCompressionSpin.realValue
+                "pngCompression": pngCompressionSpin.realValue,
+                "metadataMode": metadataModeId
             };
         if (formatId === "tiff")
             return {
@@ -82,7 +91,8 @@ DialogShell {
                 "tiffCompression": tiffCompressionId,
                 "tiffCompressionLevel": tiffCompressionLevelSpin.realValue,
                 "tiffGrayscaleIfNeutral": tiffGrayscaleIfNeutral,
-                "tiffResolutionDpi": tiffResolutionSpin.realValue
+                "tiffResolutionDpi": tiffResolutionSpin.realValue,
+                "metadataMode": metadataModeId
             };
         return {};
     }
@@ -101,7 +111,7 @@ DialogShell {
         const format = formatId;
         const options = selectedOptions();
         close();
-        root.exportAccepted(format, options);
+        root.exportAccepted(format, options, filenameTemplate);
     }
 
     function cancelExport() {
@@ -121,6 +131,31 @@ DialogShell {
         RowLayout {
             Layout.fillWidth: true
             spacing: Fonts.standardMargin
+            visible: root.batchMode
+
+            CustomLabel {
+                text: qsTr("Filename template")
+                Accessible.name: qsTr("Batch export filename template")
+            }
+            CustomTextField {
+                id: filenameTemplateField
+                objectName: "exportFilenameTemplate"
+                Layout.fillWidth: true
+                Layout.preferredHeight: Fonts.inputFieldHeight
+                showEmptyIndicator: true
+                showClipIndicator: false
+                alignRightWhenFocused: false
+                text: root.filenameTemplate
+                placeholderText: qsTr("{stem}-{sequence}{ext}")
+                Accessible.name: qsTr("Batch export filename template")
+                onTextChanged: if (root.filenameTemplate !== text)
+                    root.filenameTemplate = text
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
 
             CustomLabel {
                 text: qsTr("Format")
@@ -136,6 +171,29 @@ DialogShell {
                 Accessible.name: qsTr("Format")
                 onActivated: function (index) {
                     root.formatId = model[index].id;
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Fonts.standardMargin
+            visible: root.formatId !== "original"
+
+            CustomLabel {
+                text: qsTr("Metadata")
+                Accessible.name: qsTr("Metadata privacy")
+            }
+            CustomComboBox {
+                id: metadataModeCombo
+                objectName: "metadataMode"
+                Layout.fillWidth: true
+                textRole: "label"
+                model: root.metadataModeChoices
+                currentIndex: root.choiceIndex(root.metadataModeChoices, root.metadataModeId)
+                Accessible.name: qsTr("Metadata privacy")
+                onActivated: function (index) {
+                    root.metadataModeId = model[index].id;
                 }
             }
         }

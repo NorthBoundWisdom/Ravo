@@ -2,10 +2,10 @@
 
 ## Goal
 
-Create a local rendered output or an exact original copy while preserving the
-catalog recipe and refusing unsafe destination conflicts.
+Create one or a batch of local rendered outputs, or exact original copies,
+while preserving catalog recipes and refusing unsafe destination conflicts.
 
-**Last verified:** 2026-08-27 against the current CatalogService export path and
+**Last verified:** 2026-08-29 against the current CatalogService export path and
 CLI options.
 
 ## Applies to
@@ -21,17 +21,26 @@ CLI options.
 
 ## Export from Studio
 
-1. Open a library and select the photo to export.
-2. Choose **File → Export Photo**, or use **Export…** in the left panel.
+1. Open a library and select one or more photos to export.
+2. Choose **File → Export Selected**, or use **Export…** in the left panel.
 3. Choose **JPEG**, **PNG**, **TIFF**, or **Original copy** and the matching
-   encoder options. The dialog always starts from the domain defaults.
-4. Confirm the native save dialog and wait for the status bar to report
-   completion.
+   encoder options. For rendered formats choose **Full metadata**, **Without
+   location**, or **No public metadata**. The dialog always starts from the
+   domain defaults.
+4. For one photo, confirm the native save dialog. For multiple photos, review
+   the filename template, choose an existing destination folder, and wait for
+   the status bar to report completion.
 
 The selected format is authoritative. If the destination has no suffix, Ravo
 adds `.jpg`, `.png`, or `.tif` for rendered formats. JPEG also accepts
 `.jpeg`, and TIFF also accepts `.tiff`. A conflicting suffix is rejected.
 Original copy keeps the chosen filename and any suffix.
+
+Multi-selection uses the default `{stem}-{sequence}{ext}` template. The only
+tokens are `{stem}`, `{asset_id}`, `{sequence}`, and `{ext}`. Sequence starts at
+`0001`; omitting `{ext}` appends the format or source extension automatically.
+Templates produce one flat portable filename, so path separators, shell
+expressions, unknown tokens, and platform-reserved names are rejected.
 
 ## Output formats
 
@@ -48,8 +57,11 @@ CPU RAW path; an original copy remains byte-for-byte source content.
 Supported output profiles are resolved from the recipe. Ravo retains the
 declared RGB profile in supported PNG, JPEG, and TIFF output paths. It does not
 infer a monitor profile. Rendered JPEG/PNG/TIFF keep validated capture time and
-GPS from the Catalog. Sidecar and history-attachment policy is not a current
-general export contract.
+GPS from the Catalog in Full mode. Without location removes GPS from every
+metadata container while retaining other public fields. No public metadata
+omits Exif/XMP/IPTC and TIFF public directory fields but retains ICC because it
+describes pixel color. Original copy is exact bytes and therefore rejects
+metadata stripping. Automatic sidecar interchange is not an export contract.
 
 For TIFF, the current catalog title/description/creator/copyright values can be
 written into bounded baseline directory fields. The title field is deliberately
@@ -68,7 +80,19 @@ ravo catalog export --catalog <library.sqlite> --asset-id <id> \
   [--tiff-sample-type uint8|uint16|float16|float32] \
   [--tiff-compression none|deflate|deflate_predictor] \
   [--tiff-compression-level 1..9] \
-  [--tiff-grayscale-if-neutral] [--tiff-resolution-dpi 72..9600] --json
+  [--tiff-grayscale-if-neutral] [--tiff-resolution-dpi 72..9600] \
+  [--metadata full|no-location|none] --json
+```
+
+Batch form (the encoder/privacy flags are the same):
+
+```text
+ravo catalog export-batch --catalog <library.sqlite> \
+  --asset-id <id> --asset-id <id> [...] \
+  --output-dir <existing-directory> \
+  --filename-template '{stem}-{sequence}{ext}' \
+  --format png|jpeg|tiff|tif|original [format options] \
+  [--metadata full|no-location|none] --json
 ```
 
 Common options:
@@ -76,6 +100,7 @@ Common options:
 - `--quality 5..100` for JPEG only; default `95`.
 - `--jpeg-subsampling auto|444|440|422|420` for JPEG only; default `auto`.
 - `--max-edge N` to fit a rendered result within a positive maximum edge.
+- `--metadata full|no-location|none` for rendered formats; default `full`.
 
 PNG-only options:
 
@@ -94,7 +119,7 @@ PNG `16` and TIFF `uint16` / `float16` / `float32` requests render
 engine-owned higher-precision samples from the active recipe. An 8-bit source
 still fails closed instead of inventing precision. JPEG-, PNG-, and
 TIFF-qualified flags are rejected outside their matching export format and
-outside `catalog export`.
+outside `catalog export` or `catalog export-batch`.
 
 ## Destination conflict behavior
 
@@ -102,9 +127,16 @@ Ravo uses atomic no-replace publication for rendered files and original copies.
 If the destination already exists, the command returns a `conflict` error and
 does not overwrite it. Choose a new path or move the existing file yourself.
 
+Batch export checks every source, expanded filename, duplicate destination, and
+existing target before writing the first item. A conflict therefore produces
+no batch outputs. A file created by another process after preflight still wins
+the atomic race.
+
 If rendering, encoding, cancellation, or the final write fails, no partial
-published output is treated as a successful export. Original files and sidecar
-files are not modified by a rendered export.
+current item is treated as successful. In a batch, earlier completed files are
+kept and the error reports the completed count, failed index/asset/path, and
+whether delivery is partial; Ravo never deletes already delivered user output.
+Original files and sidecar files are not modified by a rendered export.
 
 ## Result
 
@@ -116,9 +148,9 @@ part of a delivery workflow.
 
 ### Why can I not export without selecting a photo?
 
-Studio's export action is defined for the active photo. Multi-selection is
-useful for review state and catalog metadata, but it does not create an implicit
-batch export.
+Studio's export action requires at least one selected photo. A single selection
+uses an explicit output file; multiple selections use the visible filename
+template and destination folder rather than an implicit naming policy.
 
 ### Why did the output have a different size from the source?
 

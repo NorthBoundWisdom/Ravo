@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -35,10 +36,14 @@ inline constexpr auto kLibraryImportFolder = "studio.library.import_folder";
 inline constexpr auto kLibraryImportFolderPath = "studio.library.import_folder_path";
 inline constexpr auto kLibraryExport = "studio.library.export";
 inline constexpr auto kLibraryExportWrite = "studio.library.export_write";
+inline constexpr auto kLibraryExportBatchWrite = "studio.library.export_batch_write";
 inline constexpr auto kLibrarySetTagFilter = "studio.library.set_tag_filter";
 inline constexpr auto kLibrarySetRatingFilter = "studio.library.set_rating_filter";
 inline constexpr auto kLibraryToggleColorFilter = "studio.library.toggle_color_filter";
 inline constexpr auto kLibrarySetRejectFilter = "studio.library.set_reject_filter";
+inline constexpr auto kLibrarySetTextFilter = "studio.library.set_text_filter";
+inline constexpr auto kLibrarySetMediaFilter = "studio.library.set_media_filter";
+inline constexpr auto kLibrarySetEditFilter = "studio.library.set_edit_filter";
 inline constexpr auto kLibrarySetSort = "studio.library.set_sort";
 inline constexpr auto kLibraryClearFilters = "studio.library.clear_filters";
 inline constexpr auto kLibrarySelectFolder = "studio.library.select_folder";
@@ -47,6 +52,7 @@ inline constexpr auto kPhotoSetRating = "studio.photo.set_rating";
 inline constexpr auto kPhotoSetColor = "studio.photo.set_color";
 inline constexpr auto kPhotoSetTags = "studio.photo.set_tags";
 inline constexpr auto kPhotoSetMetadata = "studio.photo.set_metadata";
+inline constexpr auto kPhotoRefreshMetadata = "studio.photo.refresh_metadata";
 inline constexpr auto kPhotoCreateSnapshot = "studio.photo.create_snapshot";
 inline constexpr auto kPhotoRestoreHistory = "studio.photo.restore_history";
 inline constexpr auto kPhotoToggleReject = "studio.photo.toggle_reject";
@@ -73,7 +79,10 @@ inline constexpr auto kEditResetSection = "studio.edit.reset_section";
 inline constexpr auto kEditSetSectionEnabled = "studio.edit.set_section_enabled";
 inline constexpr auto kEditResetControl = "studio.edit.reset_control";
 inline constexpr auto kEditSetNumber = "studio.edit.set_number";
+inline constexpr auto kEditSetText = "studio.edit.set_text";
 inline constexpr auto kEditSetToneCurve = "studio.edit.set_tone_curve";
+inline constexpr auto kEditAddRetouchRegion = "studio.edit.add_retouch_region";
+inline constexpr auto kEditRemoveRetouchRegion = "studio.edit.remove_retouch_region";
 inline constexpr auto kEditSetCrop = "studio.edit.set_crop";
 inline constexpr auto kEditSetCropAspect = "studio.edit.set_crop_aspect";
 inline constexpr auto kEditRotateLeft = "studio.edit.rotate_left";
@@ -82,6 +91,10 @@ inline constexpr auto kEditFlipHorizontal = "studio.edit.flip_horizontal";
 inline constexpr auto kEditFlipVertical = "studio.edit.flip_vertical";
 inline constexpr auto kEditCropTool = "studio.edit.toggle_crop_tool";
 inline constexpr auto kEditBeforeAfter = "studio.edit.toggle_before_after";
+inline constexpr auto kStyleSave = "studio.style.save";
+inline constexpr auto kStyleSavePath = "studio.style.save_path";
+inline constexpr auto kStyleApply = "studio.style.apply";
+inline constexpr auto kStyleApplyPath = "studio.style.apply_path";
 inline constexpr auto kWindowSettings = "studio.window.show_settings";
 inline constexpr auto kWindowClose = "studio.window.close";
 inline constexpr auto kWindowQuit = "studio.window.quit";
@@ -180,6 +193,8 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands",
                       "The photo selection changed after confirmation was requested."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export path must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Export directory must not be empty."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Export filename template must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown rating filter mode."),
     QT_TRANSLATE_NOOP("StudioCommands", "Rating filter value must be an integer from 0 to 5."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unknown library sort field."),
@@ -294,10 +309,14 @@ QStringList command_ids()
             QLatin1String(command::kLibraryImportFolderPath),
             QLatin1String(command::kLibraryExport),
             QLatin1String(command::kLibraryExportWrite),
+            QLatin1String(command::kLibraryExportBatchWrite),
             QLatin1String(command::kLibrarySetTagFilter),
             QLatin1String(command::kLibrarySetRatingFilter),
             QLatin1String(command::kLibraryToggleColorFilter),
             QLatin1String(command::kLibrarySetRejectFilter),
+            QLatin1String(command::kLibrarySetTextFilter),
+            QLatin1String(command::kLibrarySetMediaFilter),
+            QLatin1String(command::kLibrarySetEditFilter),
             QLatin1String(command::kLibrarySetSort),
             QLatin1String(command::kLibraryClearFilters),
             QLatin1String(command::kLibrarySelectFolder),
@@ -306,6 +325,7 @@ QStringList command_ids()
             QLatin1String(command::kPhotoSetColor),
             QLatin1String(command::kPhotoSetTags),
             QLatin1String(command::kPhotoSetMetadata),
+            QLatin1String(command::kPhotoRefreshMetadata),
             QLatin1String(command::kPhotoCreateSnapshot),
             QLatin1String(command::kPhotoRestoreHistory),
             QLatin1String(command::kPhotoToggleReject),
@@ -332,7 +352,10 @@ QStringList command_ids()
             QLatin1String(command::kEditSetSectionEnabled),
             QLatin1String(command::kEditResetControl),
             QLatin1String(command::kEditSetNumber),
+            QLatin1String(command::kEditSetText),
             QLatin1String(command::kEditSetToneCurve),
+            QLatin1String(command::kEditAddRetouchRegion),
+            QLatin1String(command::kEditRemoveRetouchRegion),
             QLatin1String(command::kEditSetCrop),
             QLatin1String(command::kEditSetCropAspect),
             QLatin1String(command::kEditRotateLeft),
@@ -341,6 +364,10 @@ QStringList command_ids()
             QLatin1String(command::kEditFlipVertical),
             QLatin1String(command::kEditCropTool),
             QLatin1String(command::kEditBeforeAfter),
+            QLatin1String(command::kStyleSave),
+            QLatin1String(command::kStyleSavePath),
+            QLatin1String(command::kStyleApply),
+            QLatin1String(command::kStyleApplyPath),
             QLatin1String(command::kWindowSettings),
             QLatin1String(command::kWindowClose),
             QLatin1String(command::kWindowQuit),
@@ -386,9 +413,17 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("directory"), QStringLiteral("photos")}, QStringLiteral("file.transfer"),
         20, true, {key(primary_key(QStringLiteral("I"), true))});
     add(command::kLibraryExport, command::kLibraryExport,
-        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Photo...")), file,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Selected...")), file,
         {QStringLiteral("save"), QStringLiteral("render")}, QStringLiteral("file.transfer"), 30,
         true, {key(primary_key(QStringLiteral("E"), true))});
+    add(command::kStyleSave, command::kStyleSave,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Save Edits as Style...")), file,
+        {QStringLiteral("recipe"), QStringLiteral("preset")}, QStringLiteral("file.style"), 10,
+        true);
+    add(command::kStyleApply, command::kStyleApply,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Apply Recipe Style...")), file,
+        {QStringLiteral("recipe"), QStringLiteral("preset")}, QStringLiteral("file.style"), 20,
+        true);
     add(command::kWindowClose, command::kWindowClose,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Close Window")), file,
         {QStringLiteral("window")}, QStringLiteral("file.window"), 10, true,
@@ -527,6 +562,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Delete from Disk...")), photo,
         {QStringLiteral("original"), QStringLiteral("permanent")}, QStringLiteral("photo.delete"),
         20, true);
+    add(command::kPhotoRefreshMetadata, command::kPhotoRefreshMetadata,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Refresh Capture Metadata")), photo,
+        {QStringLiteral("exif"), QStringLiteral("capture"), QStringLiteral("refresh")},
+        QStringLiteral("photo.metadata"), 10, true);
     add(command::kLibraryClearFilters, command::kLibraryClearFilters,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Clear Library Filters")),
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
@@ -793,6 +832,96 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                                             fields.value(QStringLiteral("options")).toMap());
         });
     add(
+        command::kEditSetText, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("name"), QStringLiteral("value")});
+            if (!error.isEmpty())
+                return error;
+            const auto fields = argument.toMap();
+            if (fields.value(QStringLiteral("name")).toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Develop text control name must not be empty.")));
+            return fields.value(QStringLiteral("value")).metaType().id() == QMetaType::QString ?
+                       QString{} :
+                       tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                           "StudioCommands", "Develop text value must be text.")));
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.setDevelopText(fields.value(QStringLiteral("name")).toString(),
+                                      fields.value(QStringLiteral("value")).toString());
+        });
+    add(
+        command::kLibraryExportBatchWrite, Condition::kReadySelection,
+        [](const QVariant &argument)
+        {
+            const auto fields = required_fields(
+                argument, {QStringLiteral("directory"), QStringLiteral("filenameTemplate"),
+                           QStringLiteral("format"), QStringLiteral("options")});
+            if (!fields.isEmpty())
+                return fields;
+            const auto values = argument.toMap();
+            static const QSet<QString> allowed{QStringLiteral("directory"),
+                                               QStringLiteral("filenameTemplate"),
+                                               QStringLiteral("format"), QStringLiteral("options")};
+            for (auto it = values.constBegin(); it != values.constEnd(); ++it)
+            {
+                if (!allowed.contains(it.key()))
+                    return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                          "StudioCommands", "Unknown command argument field: %1.")))
+                        .arg(it.key());
+            }
+            static const QSet<QString> formats{QStringLiteral("jpeg"), QStringLiteral("png"),
+                                               QStringLiteral("tiff"), QStringLiteral("original")};
+            const auto format_error =
+                one_of(values.value(QStringLiteral("format")), formats, QStringLiteral("format"));
+            if (!format_error.isEmpty())
+                return format_error;
+            const auto directory = values.value(QStringLiteral("directory"));
+            if (directory.metaType().id() != QMetaType::QString)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "Export directory must be a string.")));
+            if (directory.toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "Export directory must not be empty.")));
+            const auto filename_template = values.value(QStringLiteral("filenameTemplate"));
+            if (filename_template.metaType().id() != QMetaType::QString)
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Export filename template must be a string.")));
+            if (filename_template.toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Export filename template must not be empty.")));
+            const auto options = values.value(QStringLiteral("options"));
+            if (options.metaType().id() != QMetaType::QVariantMap)
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "Export options must be an object.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.exportSelectedToDirectory(
+                fields.value(QStringLiteral("directory")).toString(),
+                fields.value(QStringLiteral("filenameTemplate")).toString(),
+                fields.value(QStringLiteral("format")).toString(),
+                fields.value(QStringLiteral("options")).toMap());
+        });
+    add(command::kStyleSave, Condition::kDevelopSelection, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kStyleSave, argument); });
+    add(command::kStyleSavePath, Condition::kDevelopSelection, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.saveStyleToPath(argument.toString()); });
+    add(command::kStyleApply, Condition::kDevelopSelection, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kStyleApply, argument); });
+    add(command::kStyleApplyPath, Condition::kDevelopSelection, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.applyStyleFromPath(argument.toString()); });
+    add(
         command::kLibrarySetTagFilter, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)
         { presenter_.setTagFilter(argument.toString()); });
@@ -844,6 +973,37 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &)
         { presenter_.setRejectFilter(argument.toString()); });
     add(
+        command::kLibrarySetTextFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            return argument.metaType().id() == QMetaType::QString ?
+                       QString{} :
+                       QStringLiteral("Library text filter must be a string.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setFilterText(argument.toString()); });
+    add(
+        command::kLibrarySetMediaFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            static const QSet<QString> values{QStringLiteral("any"), QStringLiteral("raw"),
+                                              QStringLiteral("jpeg"), QStringLiteral("png"),
+                                              QStringLiteral("tiff")};
+            return one_of(argument, values, QStringLiteral("media filter"));
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setMediaFilter(argument.toString()); });
+    add(
+        command::kLibrarySetEditFilter, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            static const QSet<QString> values{QStringLiteral("any"), QStringLiteral("edited"),
+                                              QStringLiteral("unedited")};
+            return one_of(argument, values, QStringLiteral("edit filter"));
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.setEditFilter(argument.toString()); });
+    add(
         command::kLibrarySetSort, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
@@ -853,7 +1013,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 return error;
             const auto fields = argument.toMap();
             static const QSet<QString> sort_fields{
-                QStringLiteral("imported"), QStringLiteral("name"), QStringLiteral("rating")};
+                QStringLiteral("imported"), QStringLiteral("captured"), QStringLiteral("name"),
+                QStringLiteral("rating"), QStringLiteral("size")};
             static const QSet<QString> directions{QStringLiteral("asc"), QStringLiteral("desc")};
             if (!sort_fields.contains(fields.value(QStringLiteral("field")).toString()))
                 return QStringLiteral("Unknown library sort field.");
@@ -969,6 +1130,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             presenter_.setMetadataField(fields.value(QStringLiteral("name")).toString(),
                                         fields.value(QStringLiteral("value")).toString());
         });
+    add(command::kPhotoRefreshMetadata, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.refreshSelectedMetadata(); });
     add(command::kPhotoCreateSnapshot, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.createSnapshot(argument.toString()); });
@@ -1081,8 +1244,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         command::kViewSetScopeMode, Condition::kCatalogOpen,
         [](const QVariant &argument)
         {
-            static const QSet<QString> values{QStringLiteral("histogram"),
-                                              QStringLiteral("parade")};
+            static const QSet<QString> values{
+                QStringLiteral("histogram"), QStringLiteral("waveform"), QStringLiteral("parade"),
+                QStringLiteral("vectorscope"), QStringLiteral("split")};
             return one_of(argument, values, QStringLiteral("scope mode"));
         },
         [this](const QVariant &argument, const QString &)
@@ -1171,6 +1335,34 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             else
                 presenter_.setToneCurve(fields.value(QStringLiteral("points")).toList());
         });
+    add(
+        command::kEditAddRetouchRegion, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            return required_fields(
+                argument,
+                {QStringLiteral("mode"), QStringLiteral("centerX"), QStringLiteral("centerY"),
+                 QStringLiteral("radius"), QStringLiteral("feather"), QStringLiteral("opacity"),
+                 QStringLiteral("sourceX"), QStringLiteral("sourceY"), QStringLiteral("blurType"),
+                 QStringLiteral("blurRadius"), QStringLiteral("fillMode"), QStringLiteral("fillR"),
+                 QStringLiteral("fillG"), QStringLiteral("fillB"),
+                 QStringLiteral("fillBrightness")});
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.addRetouchRegion(argument.toMap()); });
+    add(
+        command::kEditRemoveRetouchRegion, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const double value = argument.toDouble();
+            return numeric_argument(argument) && std::isfinite(value) &&
+                           std::floor(value) == value && value >= 0.0 &&
+                           value <= static_cast<double>(std::numeric_limits<int>::max()) ?
+                       QString{} :
+                       QStringLiteral("Retouch region index must be a non-negative integer.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.removeRetouchRegion(argument.toInt()); });
     add(
         command::kEditSetCrop, Condition::kDevelopSelection,
         [](const QVariant &argument)
@@ -1294,11 +1486,16 @@ QVariantMap StudioCommandController::ids() const
          QLatin1String(command::kLibraryImportFolderPath)},
         {QStringLiteral("libraryExport"), QLatin1String(command::kLibraryExport)},
         {QStringLiteral("libraryExportWrite"), QLatin1String(command::kLibraryExportWrite)},
+        {QStringLiteral("libraryExportBatchWrite"),
+         QLatin1String(command::kLibraryExportBatchWrite)},
         {QStringLiteral("librarySetTagFilter"), QLatin1String(command::kLibrarySetTagFilter)},
         {QStringLiteral("librarySetRatingFilter"), QLatin1String(command::kLibrarySetRatingFilter)},
         {QStringLiteral("libraryToggleColorFilter"),
          QLatin1String(command::kLibraryToggleColorFilter)},
         {QStringLiteral("librarySetRejectFilter"), QLatin1String(command::kLibrarySetRejectFilter)},
+        {QStringLiteral("librarySetTextFilter"), QLatin1String(command::kLibrarySetTextFilter)},
+        {QStringLiteral("librarySetMediaFilter"), QLatin1String(command::kLibrarySetMediaFilter)},
+        {QStringLiteral("librarySetEditFilter"), QLatin1String(command::kLibrarySetEditFilter)},
         {QStringLiteral("librarySetSort"), QLatin1String(command::kLibrarySetSort)},
         {QStringLiteral("libraryClearFilters"), QLatin1String(command::kLibraryClearFilters)},
         {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},
@@ -1307,6 +1504,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("photoColor"), QLatin1String(command::kPhotoSetColor)},
         {QStringLiteral("photoSetTags"), QLatin1String(command::kPhotoSetTags)},
         {QStringLiteral("photoSetMetadata"), QLatin1String(command::kPhotoSetMetadata)},
+        {QStringLiteral("photoRefreshMetadata"), QLatin1String(command::kPhotoRefreshMetadata)},
         {QStringLiteral("photoCreateSnapshot"), QLatin1String(command::kPhotoCreateSnapshot)},
         {QStringLiteral("photoRestoreHistory"), QLatin1String(command::kPhotoRestoreHistory)},
         {QStringLiteral("photoReject"), QLatin1String(command::kPhotoToggleReject)},
@@ -1333,7 +1531,11 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
         {QStringLiteral("editResetControl"), QLatin1String(command::kEditResetControl)},
         {QStringLiteral("editSetNumber"), QLatin1String(command::kEditSetNumber)},
+        {QStringLiteral("editSetText"), QLatin1String(command::kEditSetText)},
         {QStringLiteral("editSetToneCurve"), QLatin1String(command::kEditSetToneCurve)},
+        {QStringLiteral("editAddRetouchRegion"), QLatin1String(command::kEditAddRetouchRegion)},
+        {QStringLiteral("editRemoveRetouchRegion"),
+         QLatin1String(command::kEditRemoveRetouchRegion)},
         {QStringLiteral("editSetCrop"), QLatin1String(command::kEditSetCrop)},
         {QStringLiteral("editSetCropAspect"), QLatin1String(command::kEditSetCropAspect)},
         {QStringLiteral("editRotateLeft"), QLatin1String(command::kEditRotateLeft)},
@@ -1342,6 +1544,10 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("editFlipVertical"), QLatin1String(command::kEditFlipVertical)},
         {QStringLiteral("editCropTool"), QLatin1String(command::kEditCropTool)},
         {QStringLiteral("editBeforeAfter"), QLatin1String(command::kEditBeforeAfter)},
+        {QStringLiteral("styleSave"), QLatin1String(command::kStyleSave)},
+        {QStringLiteral("styleSavePath"), QLatin1String(command::kStyleSavePath)},
+        {QStringLiteral("styleApply"), QLatin1String(command::kStyleApply)},
+        {QStringLiteral("styleApplyPath"), QLatin1String(command::kStyleApplyPath)},
         {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
         {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},
         {QStringLiteral("windowQuit"), QLatin1String(command::kWindowQuit)},

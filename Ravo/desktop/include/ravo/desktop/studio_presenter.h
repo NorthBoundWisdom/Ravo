@@ -60,6 +60,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantList scopeHistogramBlue READ scopeHistogramBlue NOTIFY scopesChanged)
     Q_PROPERTY(double scopeHistogramMax READ scopeHistogramMax NOTIFY scopesChanged)
     Q_PROPERTY(QUrl scopeParadeUrl READ scopeParadeUrl NOTIFY scopesChanged)
+    Q_PROPERTY(QUrl scopeWaveformUrl READ scopeWaveformUrl NOTIFY scopesChanged)
+    Q_PROPERTY(QUrl scopeVectorscopeUrl READ scopeVectorscopeUrl NOTIFY scopesChanged)
+    Q_PROPERTY(QUrl scopeSplitUrl READ scopeSplitUrl NOTIFY scopesChanged)
     Q_PROPERTY(QString browseMode READ browseMode NOTIFY browseModeChanged)
     Q_PROPERTY(QString zoomMode READ zoomMode NOTIFY zoomChanged)
     Q_PROPERTY(double zoomFactor READ zoomFactor NOTIFY zoomChanged)
@@ -69,6 +72,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(int ratingFilterValue READ ratingFilterValue NOTIFY filterChanged)
     Q_PROPERTY(QStringList colorFilters READ colorFilters NOTIFY filterChanged)
     Q_PROPERTY(QString rejectFilter READ rejectFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString filterText READ filterText NOTIFY filterChanged)
+    Q_PROPERTY(QString mediaFilter READ mediaFilter NOTIFY filterChanged)
+    Q_PROPERTY(QString editFilter READ editFilter NOTIFY filterChanged)
     Q_PROPERTY(QString sortField READ sortField NOTIFY filterChanged)
     Q_PROPERTY(QString sortDirection READ sortDirection NOTIFY filterChanged)
     Q_PROPERTY(int visibleCount READ visibleCount NOTIFY filterChanged)
@@ -104,6 +110,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editCropY READ editCropY NOTIFY editChanged)
     Q_PROPERTY(double editCropWidth READ editCropWidth NOTIFY editChanged)
     Q_PROPERTY(double editCropHeight READ editCropHeight NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editCanvas READ editCanvas NOTIFY editChanged)
     Q_PROPERTY(double editStraighten READ editStraighten NOTIFY editChanged)
     Q_PROPERTY(QString cropAspect READ cropAspect NOTIFY editChanged)
     Q_PROPERTY(double cropAspectRatio READ cropAspectRatio NOTIFY editChanged)
@@ -120,12 +127,19 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool editFlipVertical READ editFlipVertical NOTIFY editChanged)
     Q_PROPERTY(double editSharpen READ editSharpen NOTIFY editChanged)
     Q_PROPERTY(double editSharpenRadius READ editSharpenRadius NOTIFY editChanged)
+    Q_PROPERTY(double editSharpenThreshold READ editSharpenThreshold NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editRetouch READ editRetouch NOTIFY editChanged)
     Q_PROPERTY(double editClarity READ editClarity NOTIFY editChanged)
     Q_PROPERTY(double editVignette READ editVignette NOTIFY editChanged)
     Q_PROPERTY(double editGrain READ editGrain NOTIFY editChanged)
     Q_PROPERTY(double editBloom READ editBloom NOTIFY editChanged)
     Q_PROPERTY(double editSoften READ editSoften NOTIFY editChanged)
     Q_PROPERTY(double editDehaze READ editDehaze NOTIFY editChanged)
+    Q_PROPERTY(double editDehazeDistance READ editDehazeDistance NOTIFY editChanged)
+    Q_PROPERTY(bool editDehazeAdaptive READ editDehazeAdaptive NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editOutputDither READ editOutputDither NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editOutputFrame READ editOutputFrame NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editWatermark READ editWatermark NOTIFY editChanged)
     Q_PROPERTY(double editVelvia READ editVelvia NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editLegacyColorBalance READ editLegacyColorBalance NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorChecker READ editColorChecker NOTIFY editChanged)
@@ -135,13 +149,17 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editColorContrast READ editColorContrast NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorHarmonizer READ editColorHarmonizer NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorHarmonizerMask READ editColorHarmonizerMask NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorReconstruction READ editColorReconstruction NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editColorZones READ editColorZones NOTIFY editChanged)
     Q_PROPERTY(bool maskOverlayVisible READ maskOverlayVisible NOTIFY previewChanged)
     Q_PROPERTY(QString maskOverlayTarget READ maskOverlayTarget NOTIFY previewChanged)
     Q_PROPERTY(double editMonochrome READ editMonochrome NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editMonochromeFilter READ editMonochromeFilter NOTIFY editChanged)
     Q_PROPERTY(double editSplitShadowsHue READ editSplitShadowsHue NOTIFY editChanged)
     Q_PROPERTY(double editSplitHighlightsHue READ editSplitHighlightsHue NOTIFY editChanged)
     Q_PROPERTY(double editSplitBalance READ editSplitBalance NOTIFY editChanged)
     Q_PROPERTY(double editSplitAmount READ editSplitAmount NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editSplitToning READ editSplitToning NOTIFY editChanged)
     Q_PROPERTY(double editGamma READ editGamma NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editRgbLevels READ editRgbLevels NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurve READ editToneCurve NOTIFY editChanged)
@@ -247,6 +265,12 @@ public:
     [[nodiscard]] double scopeHistogramMax() const noexcept;
     [[nodiscard]] QUrl scopeParadeUrl() const;
     [[nodiscard]] QImage scopeParadeImage() const;
+    [[nodiscard]] QUrl scopeWaveformUrl() const;
+    [[nodiscard]] QImage scopeWaveformImage() const;
+    [[nodiscard]] QUrl scopeVectorscopeUrl() const;
+    [[nodiscard]] QImage scopeVectorscopeImage() const;
+    [[nodiscard]] QUrl scopeSplitUrl() const;
+    [[nodiscard]] QImage scopeSplitImage() const;
     [[nodiscard]] QString browseMode() const;
     [[nodiscard]] QString zoomMode() const;
     [[nodiscard]] double zoomFactor() const noexcept;
@@ -255,6 +279,9 @@ public:
     [[nodiscard]] int ratingFilterValue() const noexcept;
     [[nodiscard]] QStringList colorFilters() const;
     [[nodiscard]] QString rejectFilter() const;
+    [[nodiscard]] QString filterText() const;
+    [[nodiscard]] QString mediaFilter() const;
+    [[nodiscard]] QString editFilter() const;
     [[nodiscard]] QString sortField() const;
     [[nodiscard]] QString sortDirection() const;
     [[nodiscard]] int visibleCount() const;
@@ -290,6 +317,7 @@ public:
     [[nodiscard]] double editCropY() const noexcept;
     [[nodiscard]] double editCropWidth() const noexcept;
     [[nodiscard]] double editCropHeight() const noexcept;
+    [[nodiscard]] QVariantMap editCanvas() const;
     [[nodiscard]] double editStraighten() const noexcept;
     [[nodiscard]] QString cropAspect() const;
     [[nodiscard]] double cropAspectRatio() const noexcept;
@@ -305,12 +333,19 @@ public:
     [[nodiscard]] bool editFlipVertical() const noexcept;
     [[nodiscard]] double editSharpen() const noexcept;
     [[nodiscard]] double editSharpenRadius() const noexcept;
+    [[nodiscard]] double editSharpenThreshold() const noexcept;
+    [[nodiscard]] QVariantMap editRetouch() const;
     [[nodiscard]] double editClarity() const noexcept;
     [[nodiscard]] double editVignette() const noexcept;
     [[nodiscard]] double editGrain() const noexcept;
     [[nodiscard]] double editBloom() const noexcept;
     [[nodiscard]] double editSoften() const noexcept;
     [[nodiscard]] double editDehaze() const noexcept;
+    [[nodiscard]] double editDehazeDistance() const noexcept;
+    [[nodiscard]] bool editDehazeAdaptive() const noexcept;
+    [[nodiscard]] QVariantMap editOutputDither() const;
+    [[nodiscard]] QVariantMap editOutputFrame() const;
+    [[nodiscard]] QVariantMap editWatermark() const;
     [[nodiscard]] double editVelvia() const noexcept;
     [[nodiscard]] QVariantMap editLegacyColorBalance() const;
     [[nodiscard]] QVariantMap editColorChecker() const;
@@ -320,11 +355,15 @@ public:
     [[nodiscard]] QVariantMap editColorContrast() const;
     [[nodiscard]] QVariantMap editColorHarmonizer() const;
     [[nodiscard]] QVariantMap editColorHarmonizerMask() const;
+    [[nodiscard]] QVariantMap editColorReconstruction() const;
+    [[nodiscard]] QVariantMap editColorZones() const;
     [[nodiscard]] double editMonochrome() const noexcept;
+    [[nodiscard]] QVariantMap editMonochromeFilter() const;
     [[nodiscard]] double editSplitShadowsHue() const noexcept;
     [[nodiscard]] double editSplitHighlightsHue() const noexcept;
     [[nodiscard]] double editSplitBalance() const noexcept;
     [[nodiscard]] double editSplitAmount() const noexcept;
+    [[nodiscard]] QVariantMap editSplitToning() const;
     [[nodiscard]] double editGamma() const noexcept;
     [[nodiscard]] QVariantMap editRgbLevels() const;
     [[nodiscard]] QVariantList editToneCurve() const;
@@ -392,11 +431,15 @@ public:
     Q_INVOKABLE void importFolderFromPath(const QString &path);
     Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &format,
                                           const QVariantMap &options);
+    Q_INVOKABLE void exportSelectedToDirectory(const QString &directory,
+                                               const QString &filename_template,
+                                               const QString &format, const QVariantMap &options);
     Q_INVOKABLE QVariantList exportFormatChoices() const;
     Q_INVOKABLE QVariantList jpegSubsamplingChoices() const;
     Q_INVOKABLE QVariantList pngBitDepthChoices() const;
     Q_INVOKABLE QVariantList tiffSampleTypeChoices() const;
     Q_INVOKABLE QVariantList tiffCompressionChoices() const;
+    Q_INVOKABLE QVariantList exportMetadataModeChoices() const;
     Q_INVOKABLE QVariantMap exportDefaultOptions() const;
     Q_INVOKABLE QVariantMap exportOptionBounds() const;
     Q_INVOKABLE void selectAsset(const QString &asset_id);
@@ -409,6 +452,9 @@ public:
     Q_INVOKABLE void openDevelop();
     Q_INVOKABLE void returnToGrid();
     Q_INVOKABLE void setDevelopNumber(const QString &name, double value);
+    Q_INVOKABLE void setDevelopText(const QString &name, const QString &value);
+    Q_INVOKABLE void addRetouchRegion(const QVariantMap &region);
+    Q_INVOKABLE void removeRetouchRegion(int index);
     Q_INVOKABLE void previewDevelopNumber(const QString &name, double value);
     [[nodiscard]] bool maskOverlayVisible() const noexcept;
     [[nodiscard]] QString maskOverlayTarget() const;
@@ -439,6 +485,9 @@ public:
     Q_INVOKABLE void setThumbnailSize(int size);
     Q_INVOKABLE void setAssetTags(const QString &text);
     Q_INVOKABLE void setMetadataField(const QString &name, const QString &value);
+    Q_INVOKABLE void refreshSelectedMetadata();
+    Q_INVOKABLE void saveStyleToPath(const QString &path);
+    Q_INVOKABLE void applyStyleFromPath(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
     Q_INVOKABLE void restoreHistory(int history_id);
     Q_INVOKABLE void setTagFilter(const QString &tag);
@@ -448,6 +497,9 @@ public:
     Q_INVOKABLE void setRatingFilter(const QString &mode, int value);
     Q_INVOKABLE void toggleColorFilter(const QString &label);
     Q_INVOKABLE void setRejectFilter(const QString &mode);
+    Q_INVOKABLE void setFilterText(const QString &text);
+    Q_INVOKABLE void setMediaFilter(const QString &mode);
+    Q_INVOKABLE void setEditFilter(const QString &mode);
     Q_INVOKABLE void setSort(const QString &field, const QString &direction);
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
@@ -572,6 +624,12 @@ private:
     RgbHistogram scope_histogram_{};
     QImage scope_parade_image_;
     QUrl scope_parade_url_;
+    QImage scope_waveform_image_;
+    QUrl scope_waveform_url_;
+    QImage scope_vectorscope_image_;
+    QUrl scope_vectorscope_url_;
+    QImage scope_split_image_;
+    QUrl scope_split_url_;
     std::uint64_t scope_revision_ = 0;
     QString browse_mode_{QStringLiteral("grid")};
     QString zoom_mode_{QStringLiteral("fit")};

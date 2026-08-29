@@ -8,7 +8,11 @@ Rectangle {
     property var commands
 
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
+    readonly property bool histogramMode: !hasPresenter || presenter.scopeMode === "histogram"
+    readonly property bool waveformMode: hasPresenter && presenter.scopeMode === "waveform"
     readonly property bool paradeMode: hasPresenter && presenter.scopeMode === "parade"
+    readonly property bool vectorscopeMode: hasPresenter && presenter.scopeMode === "vectorscope"
+    readonly property bool splitMode: hasPresenter && presenter.scopeMode === "split"
 
     color: Theme.imageSurroundColor
     implicitHeight: Fonts.scaledUiSize(120)
@@ -33,7 +37,7 @@ Rectangle {
         Canvas {
             id: histogramCanvas
             anchors.fill: parent
-            visible: !root.paradeMode
+            visible: root.histogramMode
             onPaint: {
                 const ctx = getContext("2d");
                 ctx.reset();
@@ -78,11 +82,15 @@ Rectangle {
 
         Image {
             anchors.fill: parent
-            visible: root.paradeMode
+            visible: !root.histogramMode
             fillMode: Image.Stretch
             asynchronous: false
             cache: false
-            source: root.hasPresenter ? root.presenter.scopeParadeUrl : ""
+            source: !root.hasPresenter ? ""
+                    : root.waveformMode ? root.presenter.scopeWaveformUrl
+                    : root.paradeMode ? root.presenter.scopeParadeUrl
+                    : root.vectorscopeMode ? root.presenter.scopeVectorscopeUrl
+                    : root.presenter.scopeSplitUrl
             opacity: 0.95
         }
 
@@ -90,7 +98,7 @@ Rectangle {
             model: 8
             Rectangle {
                 required property int index
-                visible: root.paradeMode
+                visible: root.waveformMode || root.paradeMode
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 1
@@ -111,6 +119,27 @@ Rectangle {
                 color: Qt.rgba(1, 1, 1, 0.28)
             }
         }
+
+        Canvas {
+            anchors.fill: parent
+            visible: root.vectorscopeMode
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+                const cx = width / 2;
+                const cy = height / 2;
+                const radius = Math.min(width, height) * 0.46;
+                ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.25);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                ctx.moveTo(cx - radius, cy);
+                ctx.lineTo(cx + radius, cy);
+                ctx.moveTo(cx, cy - radius);
+                ctx.lineTo(cx, cy + radius);
+                ctx.stroke();
+            }
+        }
     }
 
     RowLayout {
@@ -125,13 +154,16 @@ Rectangle {
 
         SegmentedControl {
             Layout.alignment: Qt.AlignVCenter
-            model: [qsTr("Histogram"), qsTr("Parade")]
-            currentIndex: root.paradeMode ? 1 : 0
+            model: [qsTr("Histogram"), qsTr("Waveform"), qsTr("Parade"), qsTr("Vectorscope"), qsTr("Split")]
+            currentIndex: root.waveformMode ? 1
+                          : root.paradeMode ? 2
+                          : root.vectorscopeMode ? 3
+                          : root.splitMode ? 4 : 0
             enabled: root.hasPresenter
             onActivated: function (index) {
                 if (root.commands)
                     root.commands.run(root.commands.ids.viewSetScopeMode,
-                                      index === 1 ? "parade" : "histogram");
+                                      ["histogram", "waveform", "parade", "vectorscope", "split"][index]);
             }
         }
 

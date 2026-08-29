@@ -30,12 +30,30 @@ ravo_configure_target(ravo_export_metadata_encoder_tests)
 ravo_copy_windows_runtime_dlls(ravo_export_metadata_encoder_tests)
 gtest_discover_tests(ravo_export_metadata_encoder_tests PROPERTIES LABELS "ravo-unit")
 
+add_executable(ravo_preview_cache_tests preview_cache_test.cpp)
+target_link_libraries(ravo_preview_cache_tests
+  PRIVATE GTest::gtest_main ravo_adapters Qt6::Core)
+target_include_directories(ravo_preview_cache_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ravo_configure_target(ravo_preview_cache_tests)
+ravo_copy_windows_runtime_dlls(ravo_preview_cache_tests)
+gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
+
 add_executable(ravo_contract_tests
   cli_test.cpp
+  canvas_frame_test.cpp
   color_correction_test.cpp
   color_harmonizer_test.cpp
+  color_reconstruction_test.cpp
+  color_zones_test.cpp
+  dehaze_test.cpp
   mask_graph_test.cpp
+  monochrome_test.cpp
+  output_dither_test.cpp
   recursive_gaussian_test.cpp
+  retouch_test.cpp
+  sharpen_test.cpp
+  split_toning_test.cpp
+  watermark_test.cpp
   engine_test.cpp
   input_color_test.cpp
   jpeg_cli_test.cpp
@@ -295,13 +313,17 @@ add_executable(ravo_desktop_command_tests
   export_option_conversion_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui)
-target_include_directories(ravo_desktop_command_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ravo_desktop_command_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/Ravo/desktop/src)
 target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n"
   RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml"
   RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopHistoryPanel.qml"
+  RAVO_STUDIO_SCOPE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ScopePanel.qml"
   RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibrarySidePanel.qml"
   RAVO_STUDIO_EXPORT_OPTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ExportOptionsDialog.qml"
+  RAVO_STUDIO_ACTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioActions.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
 add_dependencies(ravo_desktop_command_tests ravo_studio_translations)
 ravo_configure_target(ravo_desktop_command_tests)

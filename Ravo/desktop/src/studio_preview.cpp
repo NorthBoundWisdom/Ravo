@@ -19,6 +19,22 @@
 
 namespace ravo
 {
+namespace
+{
+
+[[nodiscard]] QImage scope_image(const RgbScopeImage &scope)
+{
+    if (scope.width == 0U || scope.height == 0U ||
+        scope.rgb.size() != static_cast<std::size_t>(scope.width) * scope.height * 3U)
+        return {};
+    const QImage view(scope.rgb.data(), static_cast<int>(scope.width),
+                      static_cast<int>(scope.height), static_cast<int>(scope.width * 3U),
+                      QImage::Format_RGB888);
+    return view.copy();
+}
+
+} // namespace
+
 QUrl StudioPresenter::previewUrl() const
 {
     return preview_url_;
@@ -59,6 +75,12 @@ void StudioPresenter::clear_scopes()
     scope_histogram_ = {};
     scope_parade_image_ = QImage();
     scope_parade_url_.clear();
+    scope_waveform_image_ = QImage();
+    scope_waveform_url_.clear();
+    scope_vectorscope_image_ = QImage();
+    scope_vectorscope_url_.clear();
+    scope_split_image_ = QImage();
+    scope_split_url_.clear();
     ++scope_revision_;
     emit scopesChanged();
 }
@@ -110,7 +132,10 @@ void StudioPresenter::refresh_scopes(const QImage &image)
     }
     auto histogram = collect_rgb_histogram(raster);
     auto parade = collect_rgb_parade(raster);
-    if (!histogram || !parade)
+    auto waveform = collect_rgb_waveform(raster);
+    auto vectorscope = collect_uv_vectorscope(raster);
+    auto split = collect_split_scope(raster);
+    if (!histogram || !parade || !waveform || !vectorscope || !split)
     {
         clear_scopes();
         return;
@@ -130,9 +155,17 @@ void StudioPresenter::refresh_scopes(const QImage &image)
                           static_cast<int>(parade_value.bins * 9U), QImage::Format_RGB888);
         scope_parade_image_ = view.copy();
     }
+    scope_waveform_image_ = scope_image(waveform.value());
+    scope_vectorscope_image_ = scope_image(vectorscope.value());
+    scope_split_image_ = scope_image(split.value());
     ++scope_revision_;
     scope_parade_url_ =
         QUrl(QStringLiteral("image://studioScope/parade?r=%1").arg(scope_revision_));
+    scope_waveform_url_ =
+        QUrl(QStringLiteral("image://studioScope/waveform?r=%1").arg(scope_revision_));
+    scope_vectorscope_url_ =
+        QUrl(QStringLiteral("image://studioScope/vectorscope?r=%1").arg(scope_revision_));
+    scope_split_url_ = QUrl(QStringLiteral("image://studioScope/split?r=%1").arg(scope_revision_));
     emit scopesChanged();
 }
 
@@ -180,7 +213,8 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             {
                 std::copy_n(owned.constScanLine(y), static_cast<std::size_t>(owned.width()) * 3U,
                             rgb.begin() + static_cast<std::ptrdiff_t>(
-                                              static_cast<std::size_t>(y) * owned.width() * 3U));
+                                              static_cast<std::size_t>(y) *
+                                              static_cast<std::size_t>(owned.width()) * 3U));
             }
             auto composited = engine_->composite_preview_mask_overlay(
                 rgb, static_cast<std::uint32_t>(owned.width()),
@@ -192,7 +226,8 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
                 for (int y = 0; y < displayed.height(); ++y)
                 {
                     std::copy_n(rgb.data() + static_cast<std::ptrdiff_t>(
-                                                 static_cast<std::size_t>(y) * displayed.width() * 3U),
+                                                 static_cast<std::size_t>(y) *
+                                                 static_cast<std::size_t>(displayed.width()) * 3U),
                                 static_cast<std::size_t>(displayed.width()) * 3U,
                                 displayed.scanLine(y));
                 }
@@ -233,8 +268,11 @@ QString StudioPresenter::scopeMode() const
 
 void StudioPresenter::setScopeMode(const QString &mode)
 {
-    const QString next =
-        mode == QLatin1String("parade") ? QStringLiteral("parade") : QStringLiteral("histogram");
+    const QString next = mode == QLatin1String("waveform")    ? QStringLiteral("waveform") :
+                         mode == QLatin1String("parade")      ? QStringLiteral("parade") :
+                         mode == QLatin1String("vectorscope") ? QStringLiteral("vectorscope") :
+                         mode == QLatin1String("split")       ? QStringLiteral("split") :
+                                                                QStringLiteral("histogram");
     if (scope_mode_ == next)
     {
         return;
@@ -271,6 +309,36 @@ QUrl StudioPresenter::scopeParadeUrl() const
 QImage StudioPresenter::scopeParadeImage() const
 {
     return scope_parade_image_;
+}
+
+QUrl StudioPresenter::scopeWaveformUrl() const
+{
+    return scope_waveform_url_;
+}
+
+QImage StudioPresenter::scopeWaveformImage() const
+{
+    return scope_waveform_image_;
+}
+
+QUrl StudioPresenter::scopeVectorscopeUrl() const
+{
+    return scope_vectorscope_url_;
+}
+
+QImage StudioPresenter::scopeVectorscopeImage() const
+{
+    return scope_vectorscope_image_;
+}
+
+QUrl StudioPresenter::scopeSplitUrl() const
+{
+    return scope_split_url_;
+}
+
+QImage StudioPresenter::scopeSplitImage() const
+{
+    return scope_split_image_;
 }
 
 void StudioPresenter::ensureThumbnail(const QString &asset_id)

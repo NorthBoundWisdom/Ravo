@@ -55,19 +55,23 @@ frozen IOP is retired.
 
 ## Geometry, ROI and resource contracts
 
-- Define coordinate spaces, resampling, canvas growth, tiling and mask
-  transforms before the queued geometry/deformation rows execute.
+- ADR-0070 accepts Canvas growth and an attached photo-content frame for
+  full-frame mask evaluation. Remaining geometry/deformation rows must define
+  resampling, tiling, sub-ROI, and composed content-frame transforms before
+  they execute after Canvas; unsupported combinations continue to fail.
 - External image/LUT/SVG/font resources require versioned lookup, immutable
   task ownership and deterministic missing/corrupt behavior.
 
 ## Export workflow expansion
 
-- Batch job persistence, presets/styles, and still-undecided export workflow.
+- Background batch-job persistence and reusable export-option presets remain
+  undecided; bounded foreground batch export and recipe styles are accepted.
 - Bounded Catalog-owned embedded JPEG/PNG/TIFF metadata is accepted under
   [ADR-0038](../Ravo/docs/adr/0038-embedded-export-metadata.md) and
   [ADR-0040](../Ravo/docs/adr/0040-capture-time-gps-metadata.md).
-  Sidecar/history policy, metadata refresh, and privacy stripping remain later
-  S9/J6 work.
+  ADR-0063/0064 accept no automatic sidecars, atomic metadata refresh, and
+  full/no-location/none privacy. PNG pHYs, TIFF multipage masks, and shared old
+  format/job retirement remain under their specific owners.
 
 ## Catalog and source-file lifecycle
 

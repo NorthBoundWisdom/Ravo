@@ -21,6 +21,9 @@ PROTECTED_PATHS: tuple[tuple[str, str], ...] = (
     ("legacy/host/packaging", "packaging"),
 )
 RETIRED_SRC_LIST = Path("DevDocs/phase0/legacy-retired-src-paths.txt")
+RETIRED_HOST_DATA_LIST = Path(
+    "DevDocs/phase0/legacy-retired-host-data-paths.txt"
+)
 JPEG_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_jpeg_wrapper_consumers.json"
 )
@@ -48,8 +51,25 @@ DNG_WRITER_CONSUMERS = Path(
 # Leftover CMake registries may drop retired add_iop / add_library lines.
 # Their blobs are not freeze-identical after an accepted retirement.
 MUTABLE_LEFTOVER_SRC_PATHS = {
+    "imageio/CMakeLists.txt",
     "iop/CMakeLists.txt",
     "libs/CMakeLists.txt",
+}
+# Accepted owner retirement may require a mechanical removal from a shared
+# leftover file. Pin that complete resulting blob instead of making the whole
+# file mutable for future edits.
+PINNED_PATCHED_LEFTOVER_SRC_BLOBS = {
+    "CMakeLists.txt": "08af50c6c3ff4d24798dbf860b6119fed5fe7cf5",
+    "gui/workspace.c": "85581ac3d97c075c13fd31c0c1ed2b715cbaac06",
+}
+PINNED_PATCHED_LEFTOVER_HOST_DATA_BLOBS = {
+    "CMakeLists.txt": "11fb303d0598adccf0bc1e67c1c9432cdb112d78",
+    "darktableconfig.xml.in": "f642d83ba2faf1d31df5f83cb6e542dd54817dc7",
+    "kernels/basic.cl": "292017cef33623a65a0056dea8120d3227b2ffec",
+    "kernels/extended.cl": "9ea9ef1fb4538bfd0966c83b95247c558c9745d7",
+}
+MUTABLE_LEFTOVER_HOST_DATA_PATHS = {
+    "kernels/programs.conf",
 }
 CPP_SOURCE_SUFFIXES = {
     ".c",
@@ -489,10 +509,10 @@ def run_git(repository_root: Path, *arguments: str) -> str:
     return completed.stdout.rstrip("\n")
 
 
-def load_retired_src_paths(repository_root: Path) -> set[str]:
-    path = repository_root / RETIRED_SRC_LIST
+def load_retired_paths(repository_root: Path, manifest_path: Path) -> set[str]:
+    path = repository_root / manifest_path
     if not path.is_file():
-        raise FreezeCheckError(f"missing retired-path list: {RETIRED_SRC_LIST}")
+        raise FreezeCheckError(f"missing retired-path list: {manifest_path}")
     retired: set[str] = set()
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
@@ -524,38 +544,71 @@ def verify_exact_tree(
     return frozen_tree
 
 
-def verify_src_with_retirements(
-    repository_root: Path, freeze: str, retired: set[str]
+def verify_tree_with_retirements(
+    repository_root: Path,
+    freeze: str,
+    current_path: str,
+    freeze_path: str,
+    retired: set[str],
+    mutable: set[str],
 ) -> str:
-    frozen_files = list_tree(repository_root, f"{freeze}:src")
-    current_files = list_tree(repository_root, "HEAD:legacy/src")
+    frozen_files = list_tree(repository_root, f"{freeze}:{freeze_path}")
+    current_files = list_tree(repository_root, f"HEAD:{current_path}")
+    present_retired = sorted(
+        relative
+        for relative in retired
+        if (repository_root / current_path / relative).exists()
+        or (repository_root / current_path / relative).is_symlink()
+    )
+    if present_retired:
+        raise FreezeCheckError(
+            f"retired {current_path} paths still exist: "
+            + ", ".join(present_retired)
+        )
     unknown_retired = sorted(retired - frozen_files)
     if unknown_retired:
         raise FreezeCheckError(
-            "retired src paths are not in the freeze tree: " + ", ".join(unknown_retired)
+            f"retired {current_path} paths are not in the freeze tree: "
+            + ", ".join(unknown_retired)
         )
     unexpected_deleted = sorted(frozen_files - current_files - retired)
     if unexpected_deleted:
         raise FreezeCheckError(
-            "committed legacy/src is missing files that are not retired: "
+            f"committed {current_path} is missing files that are not retired: "
             + ", ".join(unexpected_deleted)
         )
     unexpected_added = sorted(current_files - frozen_files)
     if unexpected_added:
         raise FreezeCheckError(
-            "committed legacy/src has files that are not in the freeze tree: "
+            f"committed {current_path} has files that are not in the freeze tree: "
             + ", ".join(unexpected_added)
         )
     for relative in sorted(current_files):
-        if relative in MUTABLE_LEFTOVER_SRC_PATHS:
+        if relative in mutable:
             continue
-        frozen_blob = blob_id(repository_root, f"{freeze}:src/{relative}")
-        current_blob = blob_id(repository_root, f"HEAD:legacy/src/{relative}")
+        frozen_blob = blob_id(repository_root, f"{freeze}:{freeze_path}/{relative}")
+        current_blob = blob_id(repository_root, f"HEAD:{current_path}/{relative}")
+        pinned_blobs = (
+            PINNED_PATCHED_LEFTOVER_SRC_BLOBS
+            if current_path == "legacy/src"
+            else PINNED_PATCHED_LEFTOVER_HOST_DATA_BLOBS
+            if current_path == "legacy/host/data"
+            else {}
+        )
+        pinned_blob = pinned_blobs.get(relative)
+        if pinned_blob is not None:
+            if current_blob not in {frozen_blob, pinned_blob}:
+                raise FreezeCheckError(
+                    f"committed patched leftover {current_path}/{relative} differs "
+                    f"from both freeze and pinned retirement blobs"
+                )
+            continue
         if frozen_blob != current_blob:
             raise FreezeCheckError(
-                f"committed leftover legacy/src/{relative} differs from freeze src/{relative}"
+                f"committed leftover {current_path}/{relative} differs from "
+                f"freeze {freeze_path}/{relative}"
             )
-    return blob_id(repository_root, f"{freeze}:src")
+    return blob_id(repository_root, f"{freeze}:{freeze_path}")
 
 
 def porcelain_path(line: str) -> str:
@@ -568,7 +621,10 @@ def porcelain_path(line: str) -> str:
 
 
 def verify_worktree(
-    repository_root: Path, current_paths: list[str], retired: set[str]
+    repository_root: Path,
+    current_paths: list[str],
+    retired_src: set[str],
+    retired_host_data: set[str],
 ) -> None:
     worktree_changes = run_git(
         repository_root,
@@ -582,11 +638,47 @@ def verify_worktree(
     for line in worktree_changes.splitlines():
         path = porcelain_path(line)
         prefix = line[:2] if len(line) >= 2 else ""
-        relative = path[len("legacy/src/") :] if path.startswith("legacy/src/") else ""
+        src_relative = path[len("legacy/src/") :] if path.startswith("legacy/src/") else ""
+        host_data_relative = (
+            path[len("legacy/host/data/") :]
+            if path.startswith("legacy/host/data/")
+            else ""
+        )
         deleted = "D" in prefix
-        if path.startswith("legacy/src/") and deleted and relative in retired:
+        if path.startswith("legacy/src/") and deleted and src_relative in retired_src:
             continue
-        if path.startswith("legacy/src/") and relative in MUTABLE_LEFTOVER_SRC_PATHS:
+        if (
+            path.startswith("legacy/host/data/")
+            and deleted
+            and host_data_relative in retired_host_data
+        ):
+            continue
+        if (
+            path.startswith("legacy/src/")
+            and src_relative in MUTABLE_LEFTOVER_SRC_PATHS
+        ):
+            continue
+        if (
+            path.startswith("legacy/src/")
+            and src_relative in PINNED_PATCHED_LEFTOVER_SRC_BLOBS
+        ):
+            current_blob = run_git(repository_root, "hash-object", path)
+            if current_blob == PINNED_PATCHED_LEFTOVER_SRC_BLOBS[src_relative]:
+                continue
+        if (
+            path.startswith("legacy/host/data/")
+            and host_data_relative in PINNED_PATCHED_LEFTOVER_HOST_DATA_BLOBS
+        ):
+            current_blob = run_git(repository_root, "hash-object", path)
+            if (
+                current_blob
+                == PINNED_PATCHED_LEFTOVER_HOST_DATA_BLOBS[host_data_relative]
+            ):
+                continue
+        if (
+            path.startswith("legacy/host/data/")
+            and host_data_relative in MUTABLE_LEFTOVER_HOST_DATA_PATHS
+        ):
             continue
         unexpected.append(path or line)
     if unexpected:
@@ -610,21 +702,40 @@ def verify(
 ]:
     freeze = run_git(repository_root, "rev-parse", f"{freeze_commit}^{{commit}}")
     run_git(repository_root, "merge-base", "--is-ancestor", freeze, "HEAD^{commit}")
-    retired = load_retired_src_paths(repository_root)
+    retired_src = load_retired_paths(repository_root, RETIRED_SRC_LIST)
+    retired_host_data = load_retired_paths(
+        repository_root, RETIRED_HOST_DATA_LIST
+    )
 
     trees: dict[str, str] = {}
     current_paths: list[str] = []
     for current_path, freeze_path in PROTECTED_PATHS:
         if current_path == "legacy/src":
-            trees[current_path] = verify_src_with_retirements(
-                repository_root, freeze, retired
+            trees[current_path] = verify_tree_with_retirements(
+                repository_root,
+                freeze,
+                current_path,
+                freeze_path,
+                retired_src,
+                MUTABLE_LEFTOVER_SRC_PATHS,
+            )
+        elif current_path == "legacy/host/data":
+            trees[current_path] = verify_tree_with_retirements(
+                repository_root,
+                freeze,
+                current_path,
+                freeze_path,
+                retired_host_data,
+                MUTABLE_LEFTOVER_HOST_DATA_PATHS,
             )
         else:
             trees[current_path] = verify_exact_tree(
                 repository_root, freeze, current_path, freeze_path
             )
         current_paths.append(current_path)
-    verify_worktree(repository_root, current_paths, retired)
+    verify_worktree(
+        repository_root, current_paths, retired_src, retired_host_data
+    )
     jpeg_wrapper = verify_jpeg_wrapper_consumers(repository_root)
     png_wrapper = verify_png_wrapper_consumers(repository_root)
     tiff_wrapper = verify_tiff_wrapper_consumers(repository_root)
