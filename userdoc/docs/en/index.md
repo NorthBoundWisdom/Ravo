@@ -1,9 +1,15 @@
 # Ravo User Handbook
 
-Ravo is a local photo library and RAW editor. Ravo Studio brings cataloging,
-review, non-destructive Develop, and export into one desktop workspace. The
-`ravo` command-line client exposes the same catalog and image engine for
-scripts, CI, and headless workflows.
+Ravo is an open-source RAW photo editor, local photo library manager, and
+non-destructive color grading application for Windows, macOS, and Linux. It is a
+complete C++20 and Qt 6 redesign that takes the photo workflow and image
+processing of darktable 0.9 as its reference, and it is under active
+development.
+
+Ravo Studio brings cataloging, browsing, culling and review, non-destructive
+Develop, and export into one desktop workspace. The `ravo` command-line client
+exposes the same catalog and image engine for scripts, CI, and headless
+workflows.
 
 ## Three things to know first
 

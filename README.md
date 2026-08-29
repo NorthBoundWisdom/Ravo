@@ -1,59 +1,149 @@
-# Ravo
+# Ravo — Open-Source RAW Photo Editor, Photo Library Manager, and Color Grading Software
 
 [![CI](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml/badge.svg)](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C.svg)](Ravo/ARCHITECTURE.md)
+[![Qt 6 Quick](https://img.shields.io/badge/Qt-6%20Quick%2FQML-41CD52.svg)](Ravo/ARCHITECTURE.md)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#install-and-build-from-source)
+[![Status](https://img.shields.io/badge/status-in%20active%20development-orange.svg)](#project-status)
 
-> A photo library and RAW editor rebuilt for local photography workflows.
+> **Ravo is a free and open-source RAW photo editor, digital-asset / photo
+> library manager, and non-destructive color grading application for Windows,
+> macOS, and Linux.**
 
-Ravo is a cross-platform local photo library and RAW editor rebuilt from the photo-workflow and image-processing implementation of **darktable 0.9**. The frozen darktable source and test fixtures are read-only behavioral evidence; Ravo is a new C++20 and Qt 6 implementation with its own service layer, not a wrapper around the former GTK application. It neither depends on nor launches the old application at runtime.
+Ravo is a **complete redesign**, not a fork: a from-scratch C++20 and Qt 6
+implementation that takes the photo-workflow and image-processing behavior of
+**darktable 0.9** as its reference. The frozen darktable source tree and test
+fixtures in [`legacy/`](legacy/README.md) are read-only behavioral evidence.
+Ravo ships its own service layer, catalog, CPU image engine, command-line
+client, and Qt Quick desktop application, and it never links, loads, or launches
+the old GTK program at runtime.
 
-Ravo Studio brings the library, browsing, filtering, review, and non-destructive editing into one local workspace. The `ravo` CLI exposes the same core capabilities to automated and headless workflows.
+**Ravo Studio** is the desktop application: photo library, browsing, filtering,
+rating and review, non-destructive develop, and export in one local workspace.
+The **`ravo` CLI** exposes the same catalog, recipe, render, and export services
+for scripting, batch processing, CI, and headless servers.
 
-## User documentation
+If you are looking for an **open-source Lightroom or darktable alternative**, a
+**RAW converter**, or a **local photo cataloging and color grading tool** that
+never touches your originals, Ravo is being built for exactly that workflow.
 
-Read the [Ravo User Handbook](userdoc/README.md), or visit the
-[online documentation](https://northboundwisdom.github.io/Ravo/).
+## Project status
 
-## Ravo Studio
+Ravo is **under continuous development and has not reached 1.0**. The core loop
+already works end to end — create or open a local library, reference-only
+import, browse and review, non-destructive develop, and local export — and
+dozens of image operations are implemented against the frozen darktable
+reference. Expect gaps, evolving schemas, and platform-specific validation
+status. There is no binary release channel yet; build from source.
 
-![Ravo Studio gallery view showing a local photo grid, histogram, photo details, and metadata panel.](assets/screenshots/ravo-studio-gallery.png)
+Ravo is **not yet a complete darktable replacement**. Historic blend modes,
+remaining image operations, sidecar/history metadata policy, GPU acceleration,
+and end-to-end installation verification on every platform are still open.
+[The Ravo product document](Ravo/README.md) and the
+[active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
+validation status, and next work item.
+
+## 中文简介
+
+**Ravo 是一款开源（GPLv3）的 RAW 照片管理与调色软件**，参考 darktable 0.9 的照片
+工作流与图像处理行为**完全重新设计**，使用 C++20 与 Qt 6 从零实现，支持
+Windows、macOS 和 Linux。
+
+- **Ravo Studio** 桌面端：本地照片库、浏览与筛选、评分与挑片、非破坏性修图、导出。
+- **`ravo` 命令行**：同一套服务，可用于脚本、批处理与无界面环境。
+- **绝不修改原片**：导入只记录引用，不复制、移动、重命名或改写源文件。
+- 界面提供**简体中文与英文**。
+- 项目**仍在持续开发中**，尚未发布 1.0 与预编译安装包，目前需从源码构建。
+
+## Screenshots
+
+![Ravo Studio gallery view: open-source photo library manager showing a local RAW and JPEG photo grid, histogram, photo details, and metadata panel.](assets/screenshots/ravo-studio-gallery.png)
 
 *Gallery: browse JPEG and RAW photos, then inspect metadata, ratings, tags, and histograms.*
 
-![Ravo Studio edit view showing a single photo with non-destructive White Balance and Color Calibration controls.](assets/screenshots/ravo-studio-edit.png)
+![Ravo Studio edit view: non-destructive RAW develop with White Balance and Color Calibration controls.](assets/screenshots/ravo-studio-edit.png)
 
 *Edit: inspect a photo and adjust Develop parameters without changing the original.*
 
 ## Built for photography
 
-- **Original-safe by default:** reference-only import never copies, moves, renames, or rewrites source files during import or editing.
-- **A local library:** a portable SQLite catalog stores photos, ratings, color labels, rejection state, tags, metadata, and editing history.
-- **Focused browsing:** gallery grid and loupe views, Fit / Fill / 100% zoom, filtering and sorting, histograms, and RGB parade.
-- **Non-destructive Develop:** edits are versioned recipes; previews, CLI commands, and exports use the same CPU image engine.
-- **RAW-oriented:** JPEG, PNG, TIFF, and LibRaw-supported RAW files are accepted. The RAW path uses the Sigmoid Standard SDR display transform.
-- **Predictable export:** export JPEG, PNG, TIFF, or the original file, with explicit output-conflict and cancellation results.
+- **Original-safe by default:** reference-only import never copies, moves,
+  renames, or rewrites source files during import or editing.
+- **A local photo library:** a portable SQLite catalog stores photos, ratings,
+  color labels, rejection state, tags, metadata, and editing history. No cloud
+  account, no subscription, no telemetry.
+- **Focused browsing and culling:** gallery grid and loupe views, filmstrip,
+  folder tree, Fit / Fill / 100% zoom, magnifier, filtering and sorting, plus
+  histogram, waveform, RGB parade, vectorscope, and split scopes.
+- **Non-destructive develop:** edits are versioned recipes with history,
+  snapshots, undo/redo, and before/after; previews, CLI commands, and exports
+  all run through the same CPU image engine.
+- **Reusable presets and styles:** `.rstyle.json` styles capture a full recipe;
+  Lightroom Classic CRS XMP presets and strict darktable XMP history can be
+  imported through explicit commands.
+- **Predictable export:** single or batch export to JPEG, PNG, TIFF, or an exact
+  original copy, with typed format options, metadata privacy modes, and explicit
+  output-conflict and cancellation results. Existing files are never silently
+  overwritten.
+- **Scriptable:** every catalog, recipe, render, and export capability is
+  reachable from the `ravo` CLI with machine-readable JSON output.
+- **Localized:** Ravo Studio ships English and Simplified Chinese, driven by one
+  C++ command registry with menus, shortcuts, and a command palette
+  (`Cmd/Ctrl+Shift+P`).
 
-## Current capabilities and scope
+## Supported file formats
 
-Ravo is actively developed and already supports the core loop of creating or opening a local library, reference-only import, browsing and review, non-destructive Develop, and local export. Current editing operations include RAW highlight reconstruction, post-demosaic Color Reconstruction, source-exact D50 Lab sharpening, ordered mask-based clone/heal/blur/fill Retouch, source-linear dark-channel dehazing, Canvas, final Output Frame, Dither/Posterize and deterministic text Watermark, hot-pixel and chromatic-aberration correction, denoising, lens correction, white balance, color calibration, Color Balance RGB, Color Equalizer plus optional Color Zones, source-filtered Monochrome, full Split Toning, a graduated filter, RGB and Tone curves, and tone equalizer. Single and bounded multi-selection exports share typed JPEG/PNG/TIFF/original-copy options and atomic no-replace publication.
+| Direction | Formats |
+| --- | --- |
+| Import | JPEG, PNG, TIFF, plus BMP / GIF / WebP through Qt image plugins |
+| RAW import | LibRaw-decoded RAW such as `.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.orf`, `.rw2` and other recognized suffixes |
+| Export | JPEG, PNG (8/16-bit), TIFF (uint8/uint16/float16/float32), or an exact original copy |
 
-Ravo is not yet a complete darktable replacement. Its bounded canonical mask
-graph includes Studio overlay, owned group editing, and path/brush authoring;
-historic blend modes and the leftover GTK mask-manager consumers remain.
-Additional image operations, sidecar/history metadata policy, and end-to-end
-installation verification on every platform also remain in progress.
-[The Ravo product document](Ravo/README.md) and the
-[active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
-validation status, and next work item.
+Full RAW develop currently requires a **Bayer-sensor** file decoded by the
+pinned LibRaw path. Fujifilm X-Trans and other non-Bayer sensors are explicitly
+unsupported for develop today, though an embedded JPEG can still provide a
+gallery thumbnail. See the
+[format coverage matrix](userdoc/docs/en/qa/format-coverage.md) for the exact
+boundaries.
 
-## The rewrite path
+## Editing and color grading tools
 
-The frozen darktable 0.9 copy in [`legacy/`](legacy/README.md) is used only for static source reading and fixture validation. Ravo production code does not include old private headers, link old libraries, load old plugins, or configure, build, or run the former application. Its Engine, CLI, and Studio are one independent implementation.
+The CPU engine currently implements RAW highlight reconstruction, hot-pixel and
+chromatic-aberration correction, denoising, lens correction, white balance,
+input/output ICC color management with soft proof, camera color calibration,
+color checker fitting, post-demosaic color reconstruction, RGB primaries,
+Color Balance RGB, color equalizer and optional color zones, color harmonizer,
+color correction and contrast, monochrome, split toning, graduated filter, RGB
+and tone curves, tone equalizer, D50 Lab sharpening, dark-channel dehazing,
+mask-based clone / heal / blur / fill retouch, canvas and output frame, dither
+and posterize, and a deterministic text watermark. RAW output uses the Sigmoid
+Standard SDR display transform. Masks form a typed graph — gradient, circle,
+ellipse, parametric, path, brush, and ordered groups — with a live Studio
+overlay.
 
-This path retains verified photography behavior while removing the former GTK UI, dynamic plugin ABI, global state, and OpenCL path in favor of a clearer C++20 and Qt 6 architecture.
+The engine is **CPU-only today**; GPU acceleration is planned as an independent
+adapter behind the correctness and performance gates in
+[`DevDocs/GPU_Baseline.md`](DevDocs/GPU_Baseline.md), and the old OpenCL path is
+not ported.
 
-## Build from source
+## Documentation
 
-Prepare a workspace for the first time:
+Read the [Ravo User Handbook](userdoc/README.md), or visit the
+[online documentation](https://northboundwisdom.github.io/Ravo/).
+
+- [Ravo capabilities and CLI reference](Ravo/README.md)
+- [Architecture and data lifetimes](Ravo/ARCHITECTURE.md)
+- [Testing and validation strategy](Ravo/TESTING.md)
+- [Migration policy and capability ledger](Ravo/MIGRATION.md)
+- [Active migration work](TODO_LEGACY_MIGRATION.md)
+- [Developer documentation index](DevDocs/README.md)
+- [Frozen darktable 0.9 reference tree](legacy/README.md)
+
+## Install and build from source
+
+There are no prebuilt downloads yet, so Ravo is built from source with CMake
+presets. Prepare a workspace for the first time:
 
 ```text
 git submodule update --init FreeCM
@@ -69,18 +159,47 @@ cmake --build --preset mac_clang_debug
 ./build/mac_clang_debug/Ravo/desktop/ravo_studio.app/Contents/MacOS/ravo_studio
 ```
 
-Use `win_msvc_debug` / `win_msvc_release` on Windows and `linux_clang_*` on Linux. [The Ravo developer guide](Ravo/README.md) and [Packaging](DevDocs/Packaging.md) describe complete build, test, package, and platform instructions.
+Use `win_msvc_debug` / `win_msvc_release` on Windows and `linux_clang_*` on
+Linux. [The Ravo developer guide](Ravo/README.md) and
+[Packaging](DevDocs/Packaging.md) describe complete build, test, package, and
+platform instructions.
 
-## Learn more
+## How Ravo relates to darktable
 
-- [Ravo capabilities and CLI](Ravo/README.md)
-- [Architecture and data lifetimes](Ravo/ARCHITECTURE.md)
-- [Testing and validation strategy](Ravo/TESTING.md)
-- [Migration policy and capability ledger](Ravo/MIGRATION.md)
-- [Active migration work](TODO_LEGACY_MIGRATION.md)
-- [Developer documentation index](DevDocs/README.md)
-- [Frozen darktable 0.9 reference tree](legacy/README.md)
+Ravo keeps the photography behavior that darktable 0.9 proved, and drops the
+implementation that made it hard to evolve. The frozen copy in
+[`legacy/`](legacy/README.md) is used only for static source reading and fixture
+validation: Ravo production code does not include old private headers, link old
+libraries, load old plugins, or configure, build, or run the former
+application.
+
+What changed: the GTK UI, the dynamic plugin ABI, global mutable state, and the
+OpenCL path are replaced by a Qt 6 Quick front end, built-in versioned
+operations, explicit ownership and cancellation, and a service layer shared by
+the CLI and the desktop app. Ravo does not open a darktable library in place;
+historical XMP history is converted through an explicit, strict CLI import that
+reports unsupported state instead of silently approximating it.
+
+## Contributing
+
+Issues and pull requests are welcome. Start with
+[`AGENTS.md`](AGENTS.md) for repository-wide engineering constraints,
+[`Ravo/AGENTS.md`](Ravo/AGENTS.md) for the `Ravo/` subtree, and
+[`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md) for the current work
+queue. Behavior changes need matching Ravo unit or contract tests; `legacy/` is
+read-only.
 
 ## License
 
-Ravo is distributed under the [GNU General Public License, version 3](LICENSE).
+Ravo is distributed under the
+[GNU General Public License, version 3](LICENSE). Third-party components are
+listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+**Keywords:** open source RAW photo editor, RAW converter, RAW developer, photo
+library manager, digital asset management, photo cataloging software, color
+grading software, non-destructive photo editing, darktable alternative,
+Lightroom alternative, cross-platform photo editor, Windows macOS Linux, C++20,
+Qt 6, QML, LibRaw, SQLite catalog, ICC color management, photo culling, batch
+export, command-line photo processing.

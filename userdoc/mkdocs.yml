@@ -1,5 +1,8 @@
 site_name: Ravo User Handbook
-site_description: User guide and QA appendix for Ravo Studio and the ravo CLI
+site_description: >-
+  User guide and QA appendix for Ravo, an open-source RAW photo editor, photo
+  library manager, and non-destructive color grading application for Windows,
+  macOS, and Linux. Covers Ravo Studio and the ravo command-line client.
 site_url: https://northboundwisdom.github.io/Ravo/
 docs_dir: docs/en
 site_dir: site
