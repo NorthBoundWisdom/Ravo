@@ -44,18 +44,6 @@ and end-to-end installation verification on every platform are still open.
 [active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
 validation status, and next work item.
 
-## 中文简介
-
-**Ravo 是一款开源（GPLv3）的 RAW 照片管理与调色软件**，参考 darktable 0.9 的照片
-工作流与图像处理行为**完全重新设计**，使用 C++20 与 Qt 6 从零实现，支持
-Windows、macOS 和 Linux。
-
-- **Ravo Studio** 桌面端：本地照片库、浏览与筛选、评分与挑片、非破坏性修图、导出。
-- **`ravo` 命令行**：同一套服务，可用于脚本、批处理与无界面环境。
-- **绝不修改原片**：导入只记录引用，不复制、移动、重命名或改写源文件。
-- 界面提供**简体中文与英文**。
-- 项目**仍在持续开发中**，尚未发布 1.0 与预编译安装包，目前需从源码构建。
-
 ## Screenshots
 
 ![Ravo Studio gallery view: open-source photo library manager showing a local RAW and JPEG photo grid, histogram, photo details, and metadata panel.](assets/screenshots/ravo-studio-gallery.png)
