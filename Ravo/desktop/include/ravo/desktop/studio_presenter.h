@@ -59,6 +59,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantList scopeHistogramRed READ scopeHistogramRed NOTIFY scopesChanged)
     Q_PROPERTY(QVariantList scopeHistogramGreen READ scopeHistogramGreen NOTIFY scopesChanged)
     Q_PROPERTY(QVariantList scopeHistogramBlue READ scopeHistogramBlue NOTIFY scopesChanged)
+    Q_PROPERTY(QVariantList scopeHistogramLuma READ scopeHistogramLuma NOTIFY scopesChanged)
     Q_PROPERTY(double scopeHistogramMax READ scopeHistogramMax NOTIFY scopesChanged)
     Q_PROPERTY(QUrl scopeParadeUrl READ scopeParadeUrl NOTIFY scopesChanged)
     Q_PROPERTY(QUrl scopeWaveformUrl READ scopeWaveformUrl NOTIFY scopesChanged)
@@ -136,6 +137,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editRetouch READ editRetouch NOTIFY editChanged)
     Q_PROPERTY(double editClarity READ editClarity NOTIFY editChanged)
     Q_PROPERTY(double editVignette READ editVignette NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editVignetteParams READ editVignetteParams NOTIFY editChanged)
     Q_PROPERTY(double editGrain READ editGrain NOTIFY editChanged)
     Q_PROPERTY(double editBloom READ editBloom NOTIFY editChanged)
     Q_PROPERTY(double editSoften READ editSoften NOTIFY editChanged)
@@ -169,6 +171,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editRgbLevels READ editRgbLevels NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurve READ editToneCurve NOTIFY editChanged)
     Q_PROPERTY(QVariantList editToneCurveSamples READ editToneCurveSamples NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editCurve READ editCurve NOTIFY editChanged)
+    Q_PROPERTY(QVariantList editCurvePoints READ editCurvePoints NOTIFY editChanged)
+    Q_PROPERTY(QVariantList editCurveSamples READ editCurveSamples NOTIFY editChanged)
     Q_PROPERTY(bool editSigmoidEnabled READ editSigmoidEnabled NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
@@ -206,6 +211,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedCopyright READ selectedCopyright NOTIFY selectionChanged)
     Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
+    Q_PROPERTY(QVariantList editPresets READ editPresets NOTIFY presetsChanged)
     Q_PROPERTY(qlonglong activeHistoryId READ activeHistoryId NOTIFY editChanged)
     Q_PROPERTY(qlonglong activeHistorySeq READ activeHistorySeq NOTIFY editChanged)
     Q_PROPERTY(QString tagFilter READ tagFilter NOTIFY filterChanged)
@@ -267,6 +273,7 @@ public:
     [[nodiscard]] QVariantList scopeHistogramRed() const;
     [[nodiscard]] QVariantList scopeHistogramGreen() const;
     [[nodiscard]] QVariantList scopeHistogramBlue() const;
+    [[nodiscard]] QVariantList scopeHistogramLuma() const;
     [[nodiscard]] double scopeHistogramMax() const noexcept;
     [[nodiscard]] QUrl scopeParadeUrl() const;
     [[nodiscard]] QImage scopeParadeImage() const;
@@ -344,6 +351,7 @@ public:
     [[nodiscard]] QVariantMap editRetouch() const;
     [[nodiscard]] double editClarity() const noexcept;
     [[nodiscard]] double editVignette() const noexcept;
+    [[nodiscard]] QVariantMap editVignetteParams() const;
     [[nodiscard]] double editGrain() const noexcept;
     [[nodiscard]] double editBloom() const noexcept;
     [[nodiscard]] double editSoften() const noexcept;
@@ -375,6 +383,9 @@ public:
     [[nodiscard]] QVariantMap editRgbLevels() const;
     [[nodiscard]] QVariantList editToneCurve() const;
     [[nodiscard]] QVariantList editToneCurveSamples() const;
+    [[nodiscard]] QVariantMap editCurve() const;
+    [[nodiscard]] QVariantList editCurvePoints() const;
+    [[nodiscard]] QVariantList editCurveSamples() const;
     [[nodiscard]] bool editSigmoidEnabled() const noexcept;
     [[nodiscard]] double editSigmoidContrast() const noexcept;
     [[nodiscard]] double editSigmoidSkew() const noexcept;
@@ -470,6 +481,11 @@ public:
     void retranslate();
     Q_INVOKABLE void setToneCurve(const QVariantList &points);
     Q_INVOKABLE void previewToneCurve(const QVariantList &points);
+    Q_INVOKABLE void setCurveFamily(int family);
+    Q_INVOKABLE void setCurveChannel(int channel);
+    Q_INVOKABLE void setCurvePoints(const QString &family, int channel, const QVariantList &points);
+    Q_INVOKABLE void previewCurvePoints(const QString &family, int channel,
+                                        const QVariantList &points);
     Q_INVOKABLE void setCropRect(double x, double y, double width, double height);
     Q_INVOKABLE void previewCropRect(double x, double y, double width, double height);
     Q_INVOKABLE void setCropAspect(const QString &aspect);
@@ -505,6 +521,8 @@ public:
     Q_INVOKABLE void refreshSelectedMetadata();
     Q_INVOKABLE void saveStyleToPath(const QString &path);
     Q_INVOKABLE void applyStyleFromPath(const QString &path);
+    [[nodiscard]] QVariantList editPresets() const;
+    Q_INVOKABLE void importPresetFromPath(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
     Q_INVOKABLE void renameSnapshot(int history_id, const QString &label);
     Q_INVOKABLE void restoreHistory(int history_id);
@@ -538,6 +556,7 @@ signals:
     void folderChanged();
     void editChanged();
     void copiedEditsChanged();
+    void presetsChanged();
     void libraryWorkChanged();
     void thumbnailsChanged();
 
@@ -562,6 +581,8 @@ private:
     void load_develop_for_selection();
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
     void reload_recipe_history();
+    void reload_presets();
+    [[nodiscard]] QString presets_directory() const;
     void sync_active_history();
     [[nodiscard]] DevelopParams baseline_develop() const;
     [[nodiscard]] DevelopParams develop_from_history_entry(const RecipeHistoryEntry &entry) const;
@@ -634,6 +655,7 @@ private:
     FolderListModel folders_;
     LibraryQuery query_;
     QString catalog_path_;
+    QVariantList develop_presets_;
     QString startup_catalog_path_;
     bool import_work_active_ = false;
     int import_work_completed_ = 0;
@@ -677,7 +699,13 @@ private:
     PreviewRequestOwner develop_preview_owner_;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
+    void apply_curve_points(const QString &family, int channel, const QVariantList &points,
+                            DevelopEdit edit);
+    void sync_curve_ui_from_develop();
+
     DevelopParams develop_{};
+    int curve_family_ = 0;
+    int curve_channel_ = 0;
     DevelopParams saved_develop_{};
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;

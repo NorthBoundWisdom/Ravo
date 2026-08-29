@@ -296,6 +296,11 @@ QVariantList StudioPresenter::scopeHistogramBlue() const
     return histogram_channel_list(scope_histogram_.blue);
 }
 
+QVariantList StudioPresenter::scopeHistogramLuma() const
+{
+    return histogram_channel_list(scope_histogram_.luma);
+}
+
 double StudioPresenter::scopeHistogramMax() const noexcept
 {
     return static_cast<double>(scope_histogram_.max_count);

@@ -42,10 +42,11 @@ cancelled or discarded; a late result must not replace the newest edit.
 
 ## Edit pane controls
 
-The current Edit pane is a grading stack first: White Balance, Light, Color
-Equalizer, then Color. Geometry, Tone equalizer, Graduated ND, Detail, Effects,
-RAW repair, and profiles follow. Every numeric control has a reset action; each
-section can also be reset from its section menu.
+The current Edit pane is a grading stack first: White Balance, Light, Curves,
+Color Equalizer, Color, then Camera Calibration. Geometry, Tone equalizer,
+Graduated ND, Detail, Effects, RAW repair, and profiles follow. Every numeric
+control has a reset action; each section can also be reset from its section
+menu.
 
 Scopes stay above the Edit list, so they remain visible while you change White
 Balance, Color Equalizer, or Color Balance RGB.
@@ -123,15 +124,12 @@ reports the missing state rather than reverting to a generic Kelvin/tint
 approximation. `ravo inspect` reports as-shot and camera-reference coefficients
 for RAW. `ravo catalog develop --pick-white=x,y` uses the same sample path.
 
-### Color Calibration and RGB Primaries
+### Color Calibration
 
-**Color Calibration** exposes a 3×3 output-row-by-input-channel matrix in the
-linear sRGB D50 workspace. Keep the diagonal at its identity values when no
-calibration is required.
-
-**RGB Primaries** exposes hue and purity for red, green, and blue, plus achromatic
-tint hue and purity. Hue is shown in degrees in Studio and stored in the
-versioned recipe.
+**Color Calibration** (the later Calibration section) exposes a 3×3
+output-row-by-input-channel matrix in the linear sRGB D50 workspace. Keep the
+diagonal at its identity values when no matrix mix is required. Camera
+Calibration on the default grading path is the separate RGB-primaries editor.
 
 ### Light
 
@@ -142,8 +140,22 @@ Light controls include:
 - Optional exposure-bias and highlight-preservation compensation.
 - Deflicker percentile and target EV when Deflicker is selected.
 - Contrast, Highlights, Shadows, Whites, Blacks, and Gamma.
-- A draggable monotone Tone Curve. Click to add a point; double-click an
-  interior point to remove it; use **Reset curve** to return to identity.
+
+### Curves
+
+**Curves** is a first-class grading tool after Light:
+
+- **RGB** (default) is a working-space RGB curve with linked RGB or
+  independent Red/Green/Blue channels, a histogram behind the plot, and
+  Monotonic / Centripetal / Cubic interpolation.
+- Linked RGB also has parametric **Shadows / Darks / Lights / Highlights**
+  sliders. Point curve is applied after the parametric map.
+- **Tone** is the Lab/XYZ/RGB-linked luminance curve. Lab independent exposes
+  Master, a, and b.
+- Click to add a point (up to 20); drag to reshape; double-click or Delete
+  removes an interior point; arrow keys nudge the selected point.
+
+Compensate middle grey and region splits stay under **Curves · more**.
 
 For RAW, the **Sigmoid Display · Standard SDR** group exposes Contrast, Skew,
 and Preserve Hue. RAW uses Sigmoid as its default display transform; a default
@@ -155,9 +167,15 @@ unsupported raster analysis cases.
 ### Color Equalizer
 
 **Color Equalizer** is the default eight-band hue partition (Red, Orange,
-Yellow, Green, Cyan, Blue, Lavender, Magenta). Choose Saturation, Hue, or
+Yellow, Green, Aqua, Blue, Purple, Magenta). Choose Saturation, Hue, or
 Lightness, then edit all eight bands. It is separate from Graduated ND;
 bypassing one does not bypass the other.
+
+### Camera Calibration
+
+**Camera Calibration** adjusts working-space primaries: shadow-tint hue/purity
+and red/green/blue hue and saturation. It is the same `ravo.color.primaries`
+operation as before, placed on the default grading path.
 
 ### Color
 
@@ -236,32 +254,37 @@ created. Use the operation's enable/reset control separately when needed.
 
 The current pane exposes:
 
-- **Detail**: Sharpen, Radius, Threshold, Retouch, Clarity, and Grain. Sharpen applies a
-  scale-aware separable unsharp mask to D50 Lab lightness only; Radius uses a
-  0–8 Studio working range while versioned recipes retain the full 0–99 source
-  range. Borders and chroma remain unchanged. Retouch adds ordered circle
-  regions for Clone, Heal, Gaussian/Bilateral Blur, or Erase/Color Fill. Target
-  position, radius/feather/opacity, clone/heal source position, blur radius,
-  fill color, and fill brightness are explicit. Remove deletes that region;
-  reset of the Detail section removes all Retouch regions.
-- **Effects**: Vignette, Bloom, Soften, Dehaze, Output Dither / Posterize,
-  Output Frame, and Text Watermark. Dehaze exposes Strength, Distance, and
-  adaptive window scaling. It runs on source-linear RAW using
-  dark-channel ambient/depth estimation and a guided transmission filter;
-  encoded raster input returns an explicit unsupported result. Output Dither
-  runs after Output Color and offers deterministic random noise, all supported
-  Floyd–Steinberg bit-depth/gray/RGB modes, and 2–8-level posterization. Auto
-  applies Floyd–Steinberg only to integer export targets; preview and float
-  output are range-clipped without automatic diffusion. Random damping is in
-  dB, and **Reset output dither** removes the explicit operation. Output Frame
-  runs after Dither and exposes orientation, dimension basis, constant/image/
-  custom aspect, size, horizontal and vertical image position, border colour,
-  plus optional line size, offset, and colour. It is visible in preview and is
-  part of JPEG, PNG, and TIFF export dimensions. Text Watermark runs after the
-  frame and uses a portable fixed 5×7 font. Set its text, colour, opacity,
-  short-side height, rotation, alignment, and offsets. `{stem}` and
-  `{asset_id}` expand from the current recipe source; unsupported characters or
-  tokens fail explicitly.
+- **Detail**: Sharpen, Radius, Masking, luminance/color denoise plus radius,
+  Retouch, Clarity, and Grain. Sharpen applies a scale-aware separable unsharp
+  mask to D50 Lab lightness only; Radius uses a 0–8 Studio working range while
+  versioned recipes retain the full 0–99 source range. Masking is the existing
+  sharpen threshold (0–100). Denoise is the accepted post-demosaic profile
+  denoise and follows the Detail bypass lamp, including on JPEG. Borders and
+  chroma remain unchanged by sharpen. Retouch adds ordered circle regions for
+  Clone, Heal, Gaussian/Bilateral Blur, or Erase/Color Fill. Target position,
+  radius/feather/opacity, clone/heal source position, blur radius, fill color,
+  and fill brightness are explicit. Remove deletes that region; reset of the
+  Detail section removes all Retouch regions.
+- **Effects**: Vignette (signed amount, midpoint, feather, roundness, and
+  centre), Bloom, Soften, Dehaze, Output Dither / Posterize, Output Frame, and
+  Text Watermark. Positive vignette darkens the corners; negative lightens
+  them. Highlight-priority, colour-priority, and paint-overlay vignette styles
+  are not offered. Dehaze exposes Strength, Distance, and adaptive window
+  scaling. It runs on source-linear RAW using dark-channel ambient/depth
+  estimation and a guided transmission filter; encoded raster input returns an
+  explicit unsupported result. Output Dither runs after Output Color and offers
+  deterministic random noise, all supported Floyd–Steinberg bit-depth/gray/RGB
+  modes, and 2–8-level posterization. Auto applies Floyd–Steinberg only to
+  integer export targets; preview and float output are range-clipped without
+  automatic diffusion. Random damping is in dB, and **Reset output dither**
+  removes the explicit operation. Output Frame runs after Dither and exposes
+  orientation, dimension basis, constant/image/custom aspect, size, horizontal
+  and vertical image position, border colour, plus optional line size, offset,
+  and colour. It is visible in preview and is part of JPEG, PNG, and TIFF
+  export dimensions. Text Watermark runs after the frame and uses a portable
+  fixed 5×7 font. Set its text, colour, opacity, short-side height, rotation,
+  alignment, and offsets. `{stem}` and `{asset_id}` expand from the current
+  recipe source; unsupported characters or tokens fail explicitly.
 
 Use the reset button beside a control when you want to remove only that effect.
 
@@ -277,6 +300,18 @@ undone during the session.
 Ravo validates the complete template before applying it. Legacy `.dtstyle`
 files are not partially imported because their dynamic IOP parameters may not
 have accepted Ravo equivalents.
+
+The Edit left rail lists **Presets** above History. **Import…** copies a
+Lightroom Classic `.xmp` or a Ravo `.rstyle.json` into a `Ravo Presets` folder
+next to the open library, then applies it to the selected photo. Click a listed
+preset to apply it again. **File → Import Preset…** is the same command.
+
+**File → Apply Recipe Style…** also accepts a Lightroom Classic `.xmp` preset
+(`crs:` Camera Raw settings). Ravo maps that look onto White Balance, Light,
+Curves, Color Equalizer, Color, Camera Calibration, Detail, and Effects, then
+commits through ordinary history. Crop, masks, Retouch, and profiles stay with
+the destination photo. Adobe Standard is not loaded. Unknown CRS keys and
+Kelvin/tint white balance fail instead of applying a partial look.
 
 ### RAW Repair / Denoise / Lens
 
@@ -320,9 +355,9 @@ rewrite the preview cache as a new edit.
 - **Copy Edits** (`Cmd/Ctrl+Shift+C`) stores the current complete develop
   recipe in a session clipboard. **Paste** (`Cmd/Ctrl+Alt+V`) applies that
   whole recipe to the active photo as a normal history step, including masks.
-  **Paste Light** applies White Balance and Light only. **Paste Color** applies
-  Color and Color Equalizer parameters and keeps the destination photo's mask
-  attachments. The clipboard is not a file and is not the system pasteboard.
+  **Paste Light** applies White Balance, Light, and Curves. **Paste Color** applies
+  Color, Color Equalizer, and Camera Calibration and keeps the destination
+  photo's mask attachments. The clipboard is not a file and is not the system pasteboard.
   Style save/apply remains the portable artifact.
 - A control reset changes one field back to its default.
 - A mask-control reset keeps its attached editable mask. **Reset to all**

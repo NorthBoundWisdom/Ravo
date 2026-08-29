@@ -125,6 +125,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/InspectorSidePanel.qml
     qml/inspect/PhotoInfoPanel.qml
     qml/inspect/DevelopHistoryPanel.qml
+    qml/inspect/DevelopPresetPanel.qml
     qml/inspect/DevelopPanel.qml
     qml/inspect/ColorGradeWheel.qml
     qml/inspect/ToneCurveEditor.qml

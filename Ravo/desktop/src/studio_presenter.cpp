@@ -1173,6 +1173,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                         return;
                     }
                     catalog_path_ = qstring_from_utf8(path);
+                    reload_presets();
                     selected_asset_id_.clear();
                     clear_displayed_preview();
                     thumbnail_requests_.clear();

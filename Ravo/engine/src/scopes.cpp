@@ -144,6 +144,11 @@ Result<RgbHistogram> collect_rgb_histogram(const RasterBuffer &raster)
         ++histogram.red[raster.srgb[index]];
         ++histogram.green[raster.srgb[index + 1U]];
         ++histogram.blue[raster.srgb[index + 2U]];
+        const auto luma = static_cast<std::uint8_t>(std::clamp(
+            std::lround(0.2126 * raster.srgb[index] + 0.7152 * raster.srgb[index + 1U] +
+                        0.0722 * raster.srgb[index + 2U]),
+            0L, 255L));
+        ++histogram.luma[luma];
     }
     // Frozen helper skips bin 0 when computing channel maxima so crushed
     // blacks do not flatten the plot.

@@ -963,6 +963,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == "ravo.color.rgbcurve")
+        {
+            auto curve = validate_rgb_curve_parameters(operation.parameters);
+            if (!curve)
+            {
+                auto error = curve.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.color.input")
         {
             auto input_color = validate_input_color_parameters(operation.parameters);

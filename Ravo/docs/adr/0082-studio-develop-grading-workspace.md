@@ -15,10 +15,11 @@ another leftover IOP.
 
 ## Decision
 
-- Studio's default Develop order is White Balance, Light, Color Equalizer,
-  Color (Vibrance/Saturation/Velvia, Color Balance RGB wheels, Split Toning,
-  Monochrome), then Geometry, Tone Equalizer, Graduated ND, Detail, Effects,
-  RAW, and profiles.
+- Studio's default Develop order is White Balance, Light, Curves, Color
+  Equalizer, Color (Vibrance/Saturation/Velvia, Color Balance RGB wheels, Split
+  Toning, Monochrome), Camera Calibration, then Geometry, Tone Equalizer,
+  Graduated ND, Detail, Effects, RAW, and profiles. ADR-0084 owns Curves;
+  ADR-0085 owns Calibration placement and vignette geometry.
 - Color Zones, legacy Color Balance, Color Correction, Color Contrast, Color
   Harmonizer, Color Reconstruction, and the ColorChecker LUT stay available
   under **Color · Advanced**. Color Balance RGB formula, global, and extra
@@ -32,8 +33,9 @@ another leftover IOP.
   hue and chroma together through `studio.edit.set_numbers`.
 - Copy Edits remains a complete `DevelopParams` clipboard (ADR-0078). Paste
   All still replaces the whole recipe, including masks. **Paste Light** applies
-  White Balance plus Light. **Paste Color** applies Color plus Color Equalizer
-  parameters and leaves destination mask attachments unchanged. Unknown
+  White Balance plus Light plus Curves. **Paste Color** applies Color plus Color
+  Equalizer plus Camera Calibration (primaries) and leaves destination mask
+  attachments unchanged. Unknown
   sections fail closed.
 
 ## Consequences

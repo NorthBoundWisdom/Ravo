@@ -756,6 +756,14 @@ TEST(RecipeTest, LeftoverRgbCurveMapsV1PayloadAndMiddleGrey)
     auto restored = develop_from_recipe(recipe.value());
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_NEAR(restored.value().rgb_curve.channels[0][1].y, 0.75, 1e-6);
+
+    write_i32(492U, 0);
+    write_i32(496U, 0);
+    write_i32(500U, 0);
+    write_i32(504U, 0);
+    auto cubic = leftover_rgbcurve_from_v1(identity);
+    ASSERT_TRUE(cubic) << cubic.error().message;
+    EXPECT_EQ(cubic.value().interpolation, kToneCurveInterpolationCubicSpline);
 }
 
 TEST(RecipeTest, LeftoverRawDenoiseMapsV2Payload)
@@ -1162,6 +1170,11 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     DevelopParams params;
     params.sharpen = 0.4;
     params.vignette = 0.5;
+    params.vignette_midpoint = 0.42;
+    params.vignette_falloff = 0.31;
+    params.vignette_shape = 1.8;
+    params.vignette_center_x = -0.1;
+    params.vignette_center_y = 0.2;
     params.velvia = 0.3;
     params.flip_horizontal = 1;
     params.gamma = 1.2;
@@ -1201,7 +1214,11 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     const auto *vignette = operation_by_id(recipe.value(), "ravo.effect.vignette");
     ASSERT_NE(vignette, nullptr);
     ASSERT_TRUE(vignette->parameters.contains("midpoint"));
-    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("midpoint").value), 0.8);
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("midpoint").value), 0.42);
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("falloff").value), 0.31);
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("shape").value), 1.8);
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("center_x").value), -0.1);
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("center_y").value), 0.2);
     const auto valid = validate_recipe(recipe.value(), registry.value());
     ASSERT_TRUE(valid) << valid.error().message;
     auto serialized = serialize_recipe(recipe.value());
@@ -1213,6 +1230,10 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     ASSERT_TRUE(restored) << restored.error().message;
     EXPECT_NEAR(restored.value().sharpen, 0.4, 1e-6);
     EXPECT_NEAR(restored.value().vignette, 0.5, 1e-6);
+    EXPECT_NEAR(restored.value().vignette_midpoint, 0.42, 1e-6);
+    EXPECT_NEAR(restored.value().vignette_shape, 1.8, 1e-6);
+    EXPECT_NEAR(restored.value().vignette_center_x, -0.1, 1e-6);
+    EXPECT_NEAR(restored.value().vignette_center_y, 0.2, 1e-6);
     EXPECT_EQ(restored.value().flip_horizontal, 1);
     EXPECT_NEAR(restored.value().raw_highlights, 0.7, 1e-6);
     EXPECT_NEAR(restored.value().hot_pixels_strength, 0.25, 1e-6);
@@ -1274,6 +1295,8 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     grade_source.vibrance = 0.2;
     grade_source.color_eq_sat[1] = 0.3;
     grade_source.vignette = 0.5;
+    grade_source.rgb_curve.parametric_shadows = 0.3;
+    grade_source.primaries.red_purity = 1.25;
     DevelopParams grade_dest;
     grade_dest.exposure_ev = -0.2;
     grade_dest.vibrance = -0.1;
@@ -1281,6 +1304,7 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     grade_dest.vignette = 0.9;
     EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "light"));
     EXPECT_NEAR(grade_dest.exposure_ev, 0.4, 1e-6);
+    EXPECT_NEAR(grade_dest.rgb_curve.parametric_shadows, 0.3, 1e-6);
     EXPECT_NEAR(grade_dest.vibrance, -0.1, 1e-6);
     EXPECT_NEAR(grade_dest.color_eq_sat[1], -0.4, 1e-6);
     EXPECT_NEAR(grade_dest.vignette, 0.9, 1e-6);
@@ -1288,6 +1312,7 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_NEAR(grade_dest.exposure_ev, 0.4, 1e-6);
     EXPECT_NEAR(grade_dest.vibrance, 0.2, 1e-6);
     EXPECT_NEAR(grade_dest.color_eq_sat[1], 0.3, 1e-6);
+    EXPECT_NEAR(grade_dest.primaries.red_purity, 1.25, 1e-6);
     EXPECT_NEAR(grade_dest.vignette, 0.9, 1e-6);
     EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "all"));
     EXPECT_NEAR(grade_dest.vignette, 0.5, 1e-6);
@@ -1360,6 +1385,63 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     const double previous_width = inscribed.crop_width;
     constrain_crop_to_straighten(inscribed, 1.5);
     EXPECT_NEAR(inscribed.crop_width, previous_width, 1e-6);
+}
+
+TEST(RecipeTest, VignetteAndProfileDenoiseFollowOwnedSections)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+
+    DevelopParams bright;
+    bright.vignette = -0.21;
+    bright.vignette_midpoint = 0.31;
+    bright.vignette_falloff = 0.5;
+    bright.vignette_shape = 1.0;
+    ASSERT_TRUE(apply_develop_field_strict(bright, "vignette", -0.21));
+    auto bright_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.jpg", std::nullopt}, bright);
+    ASSERT_TRUE(bright_recipe) << bright_recipe.error().message;
+    ASSERT_TRUE(validate_recipe(bright_recipe.value(), registry.value()))
+        << validate_recipe(bright_recipe.value(), registry.value()).error().message;
+    const auto *vignette = operation_by_id(bright_recipe.value(), "ravo.effect.vignette");
+    ASSERT_NE(vignette, nullptr);
+    EXPECT_DOUBLE_EQ(std::get<double>(vignette->parameters.at("amount").value), -0.21);
+    auto bright_restored = develop_from_recipe(bright_recipe.value());
+    ASSERT_TRUE(bright_restored) << bright_restored.error().message;
+    EXPECT_NEAR(bright_restored.value().vignette, -0.21, 1e-6);
+    EXPECT_NEAR(bright_restored.value().vignette_midpoint, 0.31, 1e-6);
+
+    DevelopParams denoise;
+    denoise.denoise = 0.4;
+    denoise.denoise_chroma = 0.6;
+    denoise.denoise_radius = 1.5;
+    denoise.detail_effect_enabled = false;
+    denoise.raw_effect_enabled = true;
+    auto disabled = recipe_from_develop({"asset-1", "file:///fixture.jpg", std::nullopt}, denoise);
+    ASSERT_TRUE(disabled) << disabled.error().message;
+    const auto *profile = operation_by_id(disabled.value(), "ravo.detail.denoiseprofile");
+    ASSERT_NE(profile, nullptr);
+    EXPECT_FALSE(profile->enabled);
+    EXPECT_TRUE(develop_section_modified(denoise, "detail"));
+    EXPECT_FALSE(develop_section_modified(denoise, "raw"));
+
+    denoise.detail_effect_enabled = true;
+    denoise.raw_effect_enabled = false;
+    auto enabled = recipe_from_develop({"asset-1", "file:///fixture.jpg", std::nullopt}, denoise);
+    ASSERT_TRUE(enabled) << enabled.error().message;
+    profile = operation_by_id(enabled.value(), "ravo.detail.denoiseprofile");
+    ASSERT_NE(profile, nullptr);
+    EXPECT_TRUE(profile->enabled);
+
+    EXPECT_TRUE(reset_develop_section(denoise, "raw"));
+    EXPECT_NEAR(denoise.denoise, 0.4, 1e-6);
+    EXPECT_NEAR(denoise.denoise_chroma, 0.6, 1e-6);
+    EXPECT_TRUE(reset_develop_field(denoise, "denoiseChroma"));
+    EXPECT_NEAR(denoise.denoise, 0.4, 1e-6);
+    EXPECT_NEAR(denoise.denoise_chroma, 1.0, 1e-6);
+    EXPECT_TRUE(reset_develop_section(denoise, "detail"));
+    EXPECT_NEAR(denoise.denoise, 0.0, 1e-6);
+    EXPECT_NEAR(denoise.denoise_radius, 1.0, 1e-6);
 }
 
 TEST(RecipeTest, CropMinShortEdgeIsMinOf300AndHalfShortSide)
@@ -2848,6 +2930,47 @@ TEST(RecipeTest, ToneCurveRoundTripAndRejectsUnknownColourPolicy)
     EXPECT_FALSE(restored.value().is_identity());
     EXPECT_TRUE(reset_develop_field(restored.value(), "toneCurve"));
     EXPECT_TRUE(restored.value().tone_curve.empty());
+
+    const std::vector<ToneCurvePoint> s_curve{{0.0, 0.0}, {0.3, 0.62}, {1.0, 1.0}};
+    const double hermite = evaluate_tone_curve(s_curve, 0.55);
+    const double centripetal =
+        evaluate_tone_curve(s_curve, 0.55, kToneCurveInterpolationCatmullRom);
+    const double cubic = evaluate_tone_curve(s_curve, 0.55, kToneCurveInterpolationCubicSpline);
+    EXPECT_NE(hermite, centripetal);
+    EXPECT_NE(hermite, cubic);
+    EXPECT_GE(hermite, 0.0);
+    EXPECT_LE(hermite, 1.0);
+
+    DevelopParams parametric;
+    parametric.rgb_curve.parametric_shadows = 0.4;
+    EXPECT_FALSE(parametric.rgb_curve.is_identity());
+    EXPECT_GT(evaluate_rgb_curve_parametric(parametric.rgb_curve, 0.08), 0.08);
+    auto parametric_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, parametric);
+    ASSERT_TRUE(parametric_recipe) << parametric_recipe.error().message;
+    ASSERT_TRUE(validate_recipe(parametric_recipe.value(), registry.value()));
+    auto parametric_restored = develop_from_recipe(parametric_recipe.value());
+    ASSERT_TRUE(parametric_restored) << parametric_restored.error().message;
+    EXPECT_NEAR(parametric_restored.value().rgb_curve.parametric_shadows, 0.4, 1e-6);
+    EXPECT_TRUE(develop_section_modified(parametric_restored.value(), "curves"));
+    EXPECT_TRUE(reset_develop_section(parametric_restored.value(), "curves"));
+    EXPECT_FALSE(develop_section_modified(parametric_restored.value(), "curves"));
+
+    DevelopParams independent_lab;
+    independent_lab.tone_curve = {{0.0, 0.0}, {0.5, 0.6}, {1.0, 1.0}};
+    independent_lab.tone_curve_a = {{0.0, 0.0}, {0.5, 0.4}, {1.0, 1.0}};
+    independent_lab.tone_curve_working_space = std::string(kToneCurveWorkingSpaceLabIndependent);
+    independent_lab.tone_curve_channel_mode = std::string(kToneCurveChannelModeIndependent);
+    independent_lab.tone_curve_interpolation = std::string(kToneCurveInterpolationCatmullRom);
+    auto lab_recipe =
+        recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, independent_lab);
+    ASSERT_TRUE(lab_recipe) << lab_recipe.error().message;
+    ASSERT_TRUE(validate_recipe(lab_recipe.value(), registry.value()));
+    auto lab_restored = develop_from_recipe(lab_recipe.value());
+    ASSERT_TRUE(lab_restored) << lab_restored.error().message;
+    ASSERT_EQ(lab_restored.value().tone_curve_a.size(), 3U);
+    EXPECT_NEAR(lab_restored.value().tone_curve_a[1].y, 0.4, 1e-6);
+    EXPECT_EQ(lab_restored.value().tone_curve_interpolation, kToneCurveInterpolationCatmullRom);
 
     auto serialized = serialize_recipe(recipe.value());
     ASSERT_TRUE(serialized) << serialized.error().message;

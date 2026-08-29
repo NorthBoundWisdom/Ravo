@@ -5,6 +5,7 @@ target_sources(ravo_adapters
     src/export_metadata_encoder.cpp
     src/filesystem_preview_cache.cpp
     src/jpeg_encoder.cpp
+    src/crs_xmp.cpp
     src/legacy_xmp.cpp
     src/png_encoder.cpp
     src/qt_raster_decoder.cpp

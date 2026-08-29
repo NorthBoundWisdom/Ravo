@@ -1,4 +1,5 @@
 #include "ravo/adapters/legacy_xmp.h"
+#include "ravo/adapters/crs_xmp.h"
 
 #include <algorithm>
 #include <array>
@@ -4316,6 +4317,12 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     if (!valid_asset)
     {
         return valid_asset.error();
+    }
+    if (is_crs_xmp_document(request.xmp_utf8))
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Camera Raw XMP is not leftover darktable history",
+                          {{"reason", "crs_requires_crs_importer"}});
     }
     if (request.xmp_utf8.size() > static_cast<std::size_t>(std::numeric_limits<qsizetype>::max()))
     {

@@ -96,7 +96,7 @@ socket; `ravo --json` remains the machine client.
 | `develop-fields` | List every closed Develop `--set` field name, kind, and range. |
 | `inspect <input>` | Inspect a supported RAW input's format, dimensions, and camera identity. |
 | `recipe validate <recipe>` | Parse and validate a recipe without rendering it. |
-| `recipe import-xmp <xmp> ...` | Convert a strictly supported legacy XMP subset into a versioned recipe file. |
+| `recipe import-xmp <xmp> ...` | Convert a strictly supported leftover darktable XMP subset, or a Lightroom CRS preset, into a versioned recipe file. |
 | `render <input> ...` | Render a validated recipe to an atomic PNG output using CPU. |
 | `catalog ...` | Create, query, edit, preview, history-manage, and export a Ravo catalog. |
 
@@ -152,10 +152,14 @@ ravo recipe import-xmp "/work/photo.xmp" \
   --output "/work/photo.recipe.json" --json
 ```
 
-The converter accepts only strict, evidenced legacy state. Empty history and
-specific default-unmasked operation records have supported mappings. Masks,
-custom blend state, multiple or conflicting instances, unknown data, malformed
-payloads, and unsupported history combinations return `unsupported` or
+The converter accepts only strict, evidenced leftover darktable state, or a
+Camera Raw Settings (`crs:`) document. Empty leftover history and specific
+default-unmasked operation records have supported mappings. A CRS preset maps
+onto accepted Develop owners. Unknown `crs:` keys, Kelvin/tint white balance,
+custom DCP profiles, and mixed darktable+CRS documents return `unsupported`.
+Adobe Standard is not applied and is listed in `omitted`. Masks, custom leftover
+blend state, multiple or conflicting instances, unknown data, malformed
+payloads, and unsupported history combinations also return `unsupported` or
 `validation`; they are not silently approximated.
 
 ## Create and list a catalog
@@ -244,6 +248,16 @@ ravo catalog develop --catalog "/work/Ravo Library.sqlite" \
   --set highlights=-0.2 --set toneEqMidtones=0.15 \
   --set watermarkEnabled=1 --watermark-text "RAVO {stem}" --json
 ```
+
+Apply a Lightroom CRS preset onto the current Develop recipe:
+
+```text
+ravo catalog develop --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --from-xmp "/presets/look.xmp" --json
+```
+
+That overlays mapped look groups and keeps crop, masks, Retouch, and profiles.
+`--from-xmp` can be combined with later `--set` values.
 
 Convenience flags are available for `--exposure-ev`, `--saturation`, and
 `--contrast`. Use repeated `--set name=value` for the numeric Develop fields

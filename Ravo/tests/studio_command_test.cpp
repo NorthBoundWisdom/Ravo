@@ -911,18 +911,21 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     const auto source = QString::fromUtf8(panel.readAll());
     const auto white_balance = source.indexOf(QStringLiteral("sectionId: \"whiteBalance\""));
     const auto light = source.indexOf(QStringLiteral("sectionId: \"light\""));
+    const auto curves = source.indexOf(QStringLiteral("sectionId: \"curves\""));
     const auto color_eq = source.indexOf(QStringLiteral("sectionId: \"colorEqualizer\""));
     const auto color = source.indexOf(QStringLiteral("sectionId: \"color\""));
     const auto geometry = source.indexOf(QStringLiteral("sectionId: \"geometry\""));
     const auto graduated = source.indexOf(QStringLiteral("sectionId: \"graduated\""));
     ASSERT_GE(white_balance, 0);
     ASSERT_GE(light, 0);
+    ASSERT_GE(curves, 0);
     ASSERT_GE(color_eq, 0);
     ASSERT_GE(color, 0);
     ASSERT_GE(geometry, 0);
     ASSERT_GE(graduated, 0);
     EXPECT_LT(white_balance, light);
-    EXPECT_LT(light, color_eq);
+    EXPECT_LT(light, curves);
+    EXPECT_LT(curves, color_eq);
     EXPECT_LT(color_eq, color);
     EXPECT_LT(color, geometry);
     EXPECT_LT(geometry, graduated);
@@ -940,6 +943,31 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"colorEqBand\" + modelData.index")));
     EXPECT_TRUE(source.contains(QStringLiteral("editColorEqBands")));
     EXPECT_TRUE(source.contains(QStringLiteral("satField")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveFamily\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveChannel\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveEditor\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Curves\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Monotonic\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("histogramMode")));
+    EXPECT_TRUE(source.contains(QStringLiteral("previewCurve")));
+    EXPECT_TRUE(source.contains(QStringLiteral("rgbCurveShadows")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Camera Calibration\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Aqua")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Purple")));
+    EXPECT_TRUE(source.contains(QStringLiteral("vignetteMidpoint")));
+    EXPECT_TRUE(source.contains(QStringLiteral("vignetteCenterX")));
+    EXPECT_TRUE(source.contains(QStringLiteral("vignetteCenterY")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Luminance denoise\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Color denoise\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("denoiseChroma")));
+    const auto detail_section = source.indexOf(QStringLiteral("sectionId: \"detail\""));
+    const auto raw_section = source.indexOf(QStringLiteral("sectionId: \"raw\""));
+    const auto luma_denoise = source.indexOf(QStringLiteral("qsTr(\"Luminance denoise\")"));
+    ASSERT_GE(detail_section, 0);
+    ASSERT_GE(raw_section, 0);
+    ASSERT_GE(luma_denoise, 0);
+    EXPECT_GT(luma_denoise, detail_section);
+    EXPECT_LT(luma_denoise, raw_section);
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"whiteBalancePickActive\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("setWhiteBalancePickActive")));
     QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
@@ -992,11 +1020,12 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Reset all\")")));
     const QStringList order{
         QStringLiteral("whiteBalance"), QStringLiteral("light"),
-        QStringLiteral("colorEqualizer"), QStringLiteral("color"),
+        QStringLiteral("curves"),       QStringLiteral("colorEqualizer"),
+        QStringLiteral("color"),        QStringLiteral("primaries"),
         QStringLiteral("geometry"),     QStringLiteral("toneEqual"),
         QStringLiteral("graduated"),    QStringLiteral("effects"),
         QStringLiteral("detail"),       QStringLiteral("raw"),
-        QStringLiteral("calibration"),  QStringLiteral("primaries"),
+        QStringLiteral("calibration"),
         QStringLiteral("inputProfile"), QStringLiteral("profileGamma"),
         QStringLiteral("outputProfile"),
     };
@@ -1047,7 +1076,13 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
         << library.errorString().toStdString();
     const auto library_source = QString::fromUtf8(library.readAll());
+    EXPECT_TRUE(library_source.contains(QStringLiteral("DevelopPresetPanel")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("DevelopHistoryPanel")));
+    const auto preset_panel = library_source.indexOf(QStringLiteral("DevelopPresetPanel"));
+    const auto history_panel = library_source.indexOf(QStringLiteral("DevelopHistoryPanel"));
+    ASSERT_GE(preset_panel, 0);
+    ASSERT_GE(history_panel, 0);
+    EXPECT_LT(preset_panel, history_panel);
     EXPECT_TRUE(library_source.contains(QStringLiteral("developOpen")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("visible: !root.developOpen")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("id: zoomModeBar")));
@@ -1606,11 +1641,30 @@ TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)
     EXPECT_TRUE(source.contains(QStringLiteral("id: styleSaveDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: styleApplyDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("*.rstyle.json")));
+    EXPECT_TRUE(source.contains(QStringLiteral("*.xmp")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.styleSavePath")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.styleApplyPath")));
     EXPECT_TRUE(source.contains(QStringLiteral("id === ids.styleSave")));
     EXPECT_TRUE(source.contains(QStringLiteral("id === ids.styleApply")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: presetImportDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImport")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImportPath")));
     EXPECT_FALSE(source.contains(QStringLiteral("darktable_style")));
+}
+
+TEST(StudioQmlContract, DevelopPresetPanelSitsAboveHistoryAndImportsThroughCommands)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PRESET_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Presets\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"presetImportButton\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"presetList\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("editPresets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImport")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetApplyPath")));
+    EXPECT_FALSE(source.contains(QStringLiteral("OpenCL")));
 }
 
 TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)

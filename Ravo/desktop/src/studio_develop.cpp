@@ -9,7 +9,11 @@
 #include <utility>
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
+#include <QUrl>
 #include <QMetaObject>
 #include <QMutexLocker>
 #include <QString>
@@ -21,6 +25,7 @@
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/recipe/style.h"
+#include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/text_file.h"
 #include "studio_qt.h"
 
@@ -461,6 +466,16 @@ double StudioPresenter::editClarity() const noexcept
 double StudioPresenter::editVignette() const noexcept
 {
     return develop_.vignette;
+}
+
+QVariantMap StudioPresenter::editVignetteParams() const
+{
+    return {{QStringLiteral("amount"), develop_.vignette},
+            {QStringLiteral("midpoint"), develop_.vignette_midpoint},
+            {QStringLiteral("falloff"), develop_.vignette_falloff},
+            {QStringLiteral("shape"), develop_.vignette_shape},
+            {QStringLiteral("centerX"), develop_.vignette_center_x},
+            {QStringLiteral("centerY"), develop_.vignette_center_y}};
 }
 
 double StudioPresenter::editGrain() const noexcept
@@ -1433,7 +1448,130 @@ QVariantList StudioPresenter::editToneCurve() const
 
 QVariantList StudioPresenter::editToneCurveSamples() const
 {
-    return tone_curve_sample_list(develop_.tone_curve);
+    return tone_curve_sample_list(develop_.tone_curve, develop_.tone_curve_interpolation);
+}
+
+namespace
+{
+
+[[nodiscard]] int preserve_colors_index(const std::string &name) noexcept
+{
+    static const std::array<std::string_view, 7> names{
+        kToneCurvePreserveColorsNone, kToneCurvePreserveColorsLuminance,
+        kToneCurvePreserveColorsMax,  kToneCurvePreserveColorsAverage,
+        kToneCurvePreserveColorsSum,  kToneCurvePreserveColorsNorm,
+        kToneCurvePreserveColorsPower};
+    for (int index = 0; index < static_cast<int>(names.size()); ++index)
+    {
+        if (name == names[static_cast<std::size_t>(index)])
+        {
+            return index;
+        }
+    }
+    return 1;
+}
+
+[[nodiscard]] int working_space_index(const std::string &name) noexcept
+{
+    if (name == kToneCurveWorkingSpaceLab)
+        return 1;
+    if (name == kToneCurveWorkingSpaceXyz)
+        return 2;
+    if (name == kToneCurveWorkingSpaceLabIndependent)
+        return 3;
+    if (name == kToneCurveWorkingSpaceSrgb)
+        return 4;
+    if (name == kToneCurveWorkingSpaceLinearRgb)
+        return 5;
+    return 0;
+}
+
+[[nodiscard]] const std::vector<ToneCurvePoint> &
+curve_points_for(const DevelopParams &params, const int family, const int channel)
+{
+    if (family == 0)
+    {
+        const auto index = channel <= 0 ? 0 : std::clamp(channel - 1, 0, 2);
+        return params.rgb_curve.channels[static_cast<std::size_t>(index)];
+    }
+    if (channel == 1)
+        return params.tone_curve_a;
+    if (channel == 2)
+        return params.tone_curve_b;
+    return params.tone_curve;
+}
+
+} // namespace
+
+QVariantMap StudioPresenter::editCurve() const
+{
+    const bool rgb_family = curve_family_ == 0;
+    const bool linked = rgb_family ? develop_.rgb_curve.mode != kRgbLevelsModeIndependent :
+                                     develop_.tone_curve_channel_mode != kToneCurveChannelModeIndependent &&
+                                         develop_.tone_curve_working_space !=
+                                             kToneCurveWorkingSpaceLabIndependent;
+    QString histogram_mode = QStringLiteral("luma");
+    if (rgb_family)
+    {
+        if (curve_channel_ == 1)
+            histogram_mode = QStringLiteral("red");
+        else if (curve_channel_ == 2)
+            histogram_mode = QStringLiteral("green");
+        else if (curve_channel_ == 3)
+            histogram_mode = QStringLiteral("blue");
+        else
+            histogram_mode = QStringLiteral("rgb");
+    }
+    return {{QStringLiteral("familyIndex"), curve_family_},
+            {QStringLiteral("channel"), curve_channel_},
+            {QStringLiteral("linked"), linked},
+            {QStringLiteral("histogramMode"), histogram_mode},
+            {QStringLiteral("interpolationIndex"),
+             curve_interpolation_index(rgb_family ? develop_.rgb_curve.interpolation :
+                                                    develop_.tone_curve_interpolation)},
+            {QStringLiteral("preserveIndex"),
+             preserve_colors_index(rgb_family ? develop_.rgb_curve.preserve_colors :
+                                                develop_.tone_curve_preserve_colors)},
+            {QStringLiteral("compensate"), develop_.rgb_curve.compensate_middle_grey},
+            {QStringLiteral("workingSpaceIndex"),
+             working_space_index(develop_.tone_curve_working_space)},
+            {QStringLiteral("channelModeIndex"),
+             develop_.tone_curve_channel_mode == kToneCurveChannelModeIndependent ? 1 : 0},
+            {QStringLiteral("parametricShadows"), develop_.rgb_curve.parametric_shadows},
+            {QStringLiteral("parametricDarks"), develop_.rgb_curve.parametric_darks},
+            {QStringLiteral("parametricLights"), develop_.rgb_curve.parametric_lights},
+            {QStringLiteral("parametricHighlights"), develop_.rgb_curve.parametric_highlights},
+            {QStringLiteral("split0"), develop_.rgb_curve.parametric_split_shadows},
+            {QStringLiteral("split1"), develop_.rgb_curve.parametric_split_mid},
+            {QStringLiteral("split2"), develop_.rgb_curve.parametric_split_highlights}};
+}
+
+QVariantList StudioPresenter::editCurvePoints() const
+{
+    return tone_curve_to_variant(curve_points_for(develop_, curve_family_, curve_channel_));
+}
+
+QVariantList StudioPresenter::editCurveSamples() const
+{
+    const auto interpolation = curve_family_ == 0 ? develop_.rgb_curve.interpolation :
+                                                    develop_.tone_curve_interpolation;
+    if (curve_family_ == 0 && curve_channel_ <= 0 &&
+        !rgb_curve_parametric_is_identity(develop_.rgb_curve))
+    {
+        constexpr int kSamples = 65;
+        QVariantList samples;
+        samples.reserve(kSamples);
+        for (int index = 0; index < kSamples; ++index)
+        {
+            const double x = static_cast<double>(index) / static_cast<double>(kSamples - 1);
+            samples.push_back(evaluate_tone_curve(
+                develop_.rgb_curve.channels[0],
+                evaluate_rgb_curve_parametric(develop_.rgb_curve, x), interpolation));
+        }
+        return samples;
+    }
+    return tone_curve_sample_list(curve_points_for(develop_, curve_family_, curve_channel_),
+                                  interpolation);
 }
 
 bool StudioPresenter::editSigmoidEnabled() const noexcept
@@ -1545,9 +1683,9 @@ QVariantList StudioPresenter::editColorEqBands() const
                                    QT_TRANSLATE_NOOP("DevelopPanel", "Orange"),
                                    QT_TRANSLATE_NOOP("DevelopPanel", "Yellow"),
                                    QT_TRANSLATE_NOOP("DevelopPanel", "Green"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Cyan"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Aqua"),
                                    QT_TRANSLATE_NOOP("DevelopPanel", "Blue"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Lavender"),
+                                   QT_TRANSLATE_NOOP("DevelopPanel", "Purple"),
                                    QT_TRANSLATE_NOOP("DevelopPanel", "Magenta")};
     QVariantList bands;
     for (int index = 0; index < static_cast<int>(kColorEqualizerBandCount); ++index)
@@ -1710,6 +1848,11 @@ double StudioPresenter::editToneEqWhites() const noexcept
 QVariantList StudioPresenter::recipeHistory() const
 {
     return recipe_history_;
+}
+
+QVariantList StudioPresenter::editPresets() const
+{
+    return develop_presets_;
 }
 
 qlonglong StudioPresenter::activeHistoryId() const noexcept
@@ -2099,6 +2242,7 @@ void StudioPresenter::load_develop_for_selection()
                     }
                     develop_ = params.value();
                     saved_develop_ = develop_;
+                    sync_curve_ui_from_develop();
                     sync_active_history();
                     emit editChanged();
                 },
@@ -2571,6 +2715,28 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
         setError(qstring_from_utf8(text.error().message));
         return;
     }
+    if (is_crs_xmp_document(text.value()))
+    {
+        auto imported = import_crs_xmp(
+            {text.value(), {asset->id, asset->normalized_uri, asset->content_fingerprint}});
+        if (!imported)
+        {
+            setError(qstring_from_utf8(imported.error().message));
+            return;
+        }
+        auto params = develop_;
+        apply_crs_look(params, imported.value().look, imported.value().mask);
+        mutate_develop(std::move(params), DevelopEdit::Commit);
+        const auto name = imported.value().name.empty() ?
+                              QString() :
+                              QString::fromStdString(imported.value().name);
+        setStatus(name.isEmpty() ?
+                      QCoreApplication::translate("StudioPresenter", "Lightroom preset applied.") :
+                      QCoreApplication::translate("StudioPresenter",
+                                                  "Lightroom preset “%1” applied.")
+                          .arg(name));
+        return;
+    }
     auto style = parse_recipe_style_json(text.value());
     if (!style)
     {
@@ -2603,6 +2769,135 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
         return;
     }
     mutate_develop(std::move(params).value(), DevelopEdit::Commit);
+}
+
+QString StudioPresenter::presets_directory() const
+{
+    if (catalog_path_.isEmpty())
+        return {};
+    return QDir(QFileInfo(catalog_path_).absolutePath()).filePath(QStringLiteral("Ravo Presets"));
+}
+
+void StudioPresenter::reload_presets()
+{
+    QVariantList presets;
+    const QString directory = presets_directory();
+    if (!directory.isEmpty())
+    {
+        const QDir dir(directory);
+        const auto entries = dir.entryInfoList({QStringLiteral("*.xmp"), QStringLiteral("*.XMP"),
+                                                QStringLiteral("*.rstyle.json")},
+                                               QDir::Files, QDir::Name | QDir::IgnoreCase);
+        for (const auto &entry : entries)
+        {
+            QString name = entry.completeBaseName();
+            QString kind = QStringLiteral("style");
+            const auto text = read_utf8_text_file(utf8_from_qstring(entry.absoluteFilePath()),
+                                                  kRecipeStyleFileMaxBytes);
+            if (text && is_crs_xmp_document(text.value()))
+            {
+                kind = QStringLiteral("crs");
+                auto parsed_name = crs_xmp_preset_name(text.value());
+                if (parsed_name && !parsed_name.value().empty())
+                    name = QString::fromStdString(parsed_name.value());
+            }
+            else if (text)
+            {
+                auto style = parse_recipe_style_json(text.value());
+                if (!style)
+                    continue;
+                name = QString::fromStdString(style.value().name);
+            }
+            else
+            {
+                continue;
+            }
+            presets.push_back(QVariantMap{{QStringLiteral("name"), name},
+                                          {QStringLiteral("path"), entry.absoluteFilePath()},
+                                          {QStringLiteral("kind"), kind}});
+        }
+    }
+    develop_presets_ = std::move(presets);
+    emit presetsChanged();
+}
+
+void StudioPresenter::importPresetFromPath(const QString &path)
+{
+    QString input_path = path.trimmed();
+    if (input_path.startsWith(QStringLiteral("file:")))
+        input_path = QUrl(input_path).toLocalFile();
+    const QFileInfo source(input_path);
+    if (!source.exists() || !source.isFile())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        return;
+    }
+    const QString directory = presets_directory();
+    if (directory.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Open a library to import presets."));
+        return;
+    }
+    if (!QDir().mkpath(directory))
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset folder could not be created."));
+        return;
+    }
+    auto text = read_utf8_text_file(utf8_from_qstring(input_path), kRecipeStyleFileMaxBytes);
+    if (!text)
+    {
+        setError(qstring_from_utf8(text.error().message));
+        return;
+    }
+    QString stem = source.completeBaseName();
+    QString suffix = QStringLiteral(".rstyle.json");
+    if (is_crs_xmp_document(text.value()))
+    {
+        auto imported = import_crs_xmp({text.value(), {"preset", "ravo-preset://library", std::nullopt}});
+        if (!imported)
+        {
+            setError(qstring_from_utf8(imported.error().message));
+            return;
+        }
+        if (!imported.value().name.empty())
+            stem = QString::fromStdString(imported.value().name);
+        suffix = QStringLiteral(".xmp");
+    }
+    else
+    {
+        auto style = parse_recipe_style_json(text.value());
+        if (!style)
+        {
+            setError(qstring_from_utf8(style.error().message));
+            return;
+        }
+        stem = QString::fromStdString(style.value().name);
+    }
+    stem.replace(QRegularExpression(QStringLiteral(R"([\\/:*?"<>|])")), QStringLiteral("-"));
+    if (stem.trimmed().isEmpty())
+        stem = QStringLiteral("preset");
+    QString destination = QDir(directory).filePath(stem + suffix);
+    if (QFileInfo::exists(destination) &&
+        QFileInfo(destination).canonicalFilePath() != source.canonicalFilePath())
+    {
+        int serial = 2;
+        while (QFileInfo::exists(QDir(directory).filePath(stem + QStringLiteral("-") +
+                                                          QString::number(serial) + suffix)))
+            ++serial;
+        destination =
+            QDir(directory).filePath(stem + QStringLiteral("-") + QString::number(serial) + suffix);
+    }
+    if (QFileInfo(destination).canonicalFilePath() != source.canonicalFilePath())
+    {
+        QFile::remove(destination);
+        if (!QFile::copy(input_path, destination))
+        {
+            setError(QCoreApplication::translate("StudioPresenter", "Preset could not be copied."));
+            return;
+        }
+    }
+    reload_presets();
+    applyStyleFromPath(destination);
 }
 
 void StudioPresenter::addRetouchRegion(const QVariantMap &values)
@@ -2740,16 +3035,99 @@ void StudioPresenter::removeRetouchRegion(const int index)
 
 void StudioPresenter::setToneCurve(const QVariantList &points)
 {
-    DevelopParams next = develop_;
-    next.tone_curve = tone_curve_from_variant(points);
-    mutate_develop(std::move(next), DevelopEdit::Commit);
+    setCurvePoints(QStringLiteral("tone"), 0, points);
 }
 
 void StudioPresenter::previewToneCurve(const QVariantList &points)
 {
+    previewCurvePoints(QStringLiteral("tone"), 0, points);
+}
+
+void StudioPresenter::setCurveFamily(const int family)
+{
+    const int next = family == 1 ? 1 : 0;
+    if (curve_family_ == next)
+        return;
+    curve_family_ = next;
+    curve_channel_ = 0;
+    emit editChanged();
+}
+
+void StudioPresenter::setCurveChannel(const int channel)
+{
+    const int max_channel = curve_family_ == 0 ? 3 : 2;
+    const int next = std::clamp(channel, 0, max_channel);
+    if (curve_channel_ == next)
+        return;
+    curve_channel_ = next;
+    emit editChanged();
+}
+
+void StudioPresenter::apply_curve_points(const QString &family, const int channel,
+                                         const QVariantList &points, const DevelopEdit edit)
+{
     DevelopParams next = develop_;
-    next.tone_curve = tone_curve_from_variant(points);
-    mutate_develop(std::move(next), DevelopEdit::Preview);
+    const int family_index = family == QLatin1String("tone") ? 1 : 0;
+    curve_family_ = family_index;
+    if (family_index == 0)
+    {
+        curve_channel_ = std::clamp(channel, 0, 3);
+        if (curve_channel_ <= 0)
+        {
+            next.rgb_curve.mode = std::string(kRgbLevelsModeLinked);
+            next.rgb_curve.channels[0] = tone_curve_from_variant(points);
+        }
+        else
+        {
+            next.rgb_curve.mode = std::string(kRgbLevelsModeIndependent);
+            next.rgb_curve.channels[static_cast<std::size_t>(curve_channel_ - 1)] =
+                tone_curve_from_variant(points);
+        }
+    }
+    else
+    {
+        curve_channel_ = std::clamp(channel, 0, 2);
+        if (curve_channel_ == 1)
+        {
+            next.tone_curve_channel_mode = std::string(kToneCurveChannelModeIndependent);
+            next.tone_curve_a = tone_curve_from_variant(points);
+        }
+        else if (curve_channel_ == 2)
+        {
+            next.tone_curve_channel_mode = std::string(kToneCurveChannelModeIndependent);
+            next.tone_curve_b = tone_curve_from_variant(points);
+        }
+        else
+        {
+            next.tone_curve = tone_curve_from_variant(points);
+        }
+    }
+    mutate_develop(std::move(next), edit);
+}
+
+void StudioPresenter::setCurvePoints(const QString &family, const int channel,
+                                     const QVariantList &points)
+{
+    apply_curve_points(family, channel, points, DevelopEdit::Commit);
+}
+
+void StudioPresenter::previewCurvePoints(const QString &family, const int channel,
+                                         const QVariantList &points)
+{
+    apply_curve_points(family, channel, points, DevelopEdit::Preview);
+}
+
+void StudioPresenter::sync_curve_ui_from_develop()
+{
+    if (!develop_.rgb_curve.is_identity())
+        curve_family_ = 0;
+    else if (!tone_curve_is_identity(develop_.tone_curve) ||
+             !tone_curve_is_identity(develop_.tone_curve_a) ||
+             !tone_curve_is_identity(develop_.tone_curve_b))
+        curve_family_ = 1;
+    else
+        curve_family_ = 0;
+    curve_channel_ = 0;
 }
 
 void StudioPresenter::previewDevelopNumber(const QString &name, const double value)

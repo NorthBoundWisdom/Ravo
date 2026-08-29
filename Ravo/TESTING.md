@@ -54,10 +54,16 @@ toggle the floating panel command. Copy/paste edit tests pin an empty session
 clipboard, copy/paste no-ops
 without a selection, History/context-menu/command wiring, and ADR-0078's
 complete-recipe clipboard (not a history-stack merge or style file).
-Paste Light / Paste Color apply White Balance+Light or Color+Color Equalizer
-from that clipboard; QML contract tests pin the default grading stack, Color
-Equalizer versus Graduated ND, Color Balance RGB wheels, Color · Advanced,
-the eight-band Color Equalizer mixer, and RAW white-balance pick wiring.
+Paste Light / Paste Color apply White Balance+Light+Curves or Color+Color
+Equalizer+Camera Calibration from that clipboard. CRS XMP tests pin leftover
+rejection of Camera Raw documents, PV2012 mapping onto Develop owners, overlay
+that keeps destination crop, unknown-key/Kelvin fail-closed, and
+`recipe import-xmp` dialect=crs. The Edit left-rail QML contract pins Presets
+above History with Import and apply commands. QML contract tests pin the
+default grading stack, first-class Curves, Camera Calibration after Color,
+vignette geometry including centre, HSL band names, Detail profile denoise,
+Color Equalizer versus Graduated ND, Color
+Balance RGB wheels, Color · Advanced, and RAW white-balance pick wiring.
 Engine tests pin CFA sampling of a warm Bayer patch to manual coefficients;
 catalog tests reject raster pick.
 Session undo is the single stack for right-panel Develop commits and
@@ -70,7 +76,7 @@ click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
 and QML smoke; same-asset review notifications are required not to reset pan.
 Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
 than a C++ timing contract. Scope
-tests pin histogram bins/max, Waveform/Parade 8/9 white placement and RGB
+tests pin histogram bins/max plus Rec.709 luma, Waveform/Parade 8/9 white placement and RGB
 composition, neutral-center versus saturated-red D50 u*v*, exact image sizes,
 Split left equality and max-preserved right signal, exact-buffer rejection,
 five presenter/command/QML modes, provider URLs, translations, and offscreen

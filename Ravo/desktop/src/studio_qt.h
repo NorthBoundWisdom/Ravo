@@ -63,7 +63,9 @@ namespace ravo
     return points;
 }
 
-[[nodiscard]] inline QVariantList tone_curve_sample_list(const std::vector<ToneCurvePoint> &points)
+[[nodiscard]] inline QVariantList tone_curve_sample_list(const std::vector<ToneCurvePoint> &points,
+                                                        const std::string_view interpolation =
+                                                            kToneCurveInterpolationMonotoneHermite)
 {
     constexpr int kSamples = 65;
     QVariantList samples;
@@ -71,7 +73,7 @@ namespace ravo
     for (int index = 0; index < kSamples; ++index)
     {
         const double x = static_cast<double>(index) / static_cast<double>(kSamples - 1);
-        samples.push_back(evaluate_tone_curve(points, x));
+        samples.push_back(evaluate_tone_curve(points, x, interpolation));
     }
     return samples;
 }

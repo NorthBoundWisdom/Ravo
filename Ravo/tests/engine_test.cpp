@@ -6536,6 +6536,84 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
     EXPECT_EQ(raw_on_raster.error().code, ErrorCode::kUnsupported);
 }
 
+TEST(EngineFacadeTest, VignetteHonorsSignedAmountShapeAndCenter)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    const auto source = solid_raster(32, 32, 200, 200, 200);
+    const auto luma_at = [](const RenderedImage &image, const std::uint32_t x, const std::uint32_t y)
+    {
+        const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
+        return static_cast<int>(image.rgb[index]) + static_cast<int>(image.rgb[index + 1U]) +
+               static_cast<int>(image.rgb[index + 2U]);
+    };
+
+    auto darken = render_op(engine.value(), source,
+                            {"ravo.effect.vignette",
+                             1,
+                             "vig-dark",
+                             true,
+                             {{"amount", ParameterValue{1.0}},
+                              {"midpoint", ParameterValue{0.2}},
+                              {"falloff", ParameterValue{0.8}},
+                              {"shape", ParameterValue{1.0}},
+                              {"center_x", ParameterValue{0.0}},
+                              {"center_y", ParameterValue{0.0}}},
+                             std::nullopt});
+    ASSERT_TRUE(darken) << darken.error().message;
+    EXPECT_GT(luma_at(darken.value(), 16, 16), luma_at(darken.value(), 0, 0));
+
+    auto brighten = render_op(engine.value(), source,
+                              {"ravo.effect.vignette",
+                               1,
+                               "vig-bright",
+                               true,
+                               {{"amount", ParameterValue{-1.0}},
+                                {"midpoint", ParameterValue{0.2}},
+                                {"falloff", ParameterValue{0.8}}},
+                               std::nullopt});
+    ASSERT_TRUE(brighten) << brighten.error().message;
+    EXPECT_LT(luma_at(brighten.value(), 16, 16), luma_at(brighten.value(), 0, 0));
+
+    auto shifted = render_op(engine.value(), source,
+                             {"ravo.effect.vignette",
+                              1,
+                              "vig-shift",
+                              true,
+                              {{"amount", ParameterValue{1.0}},
+                               {"midpoint", ParameterValue{0.1}},
+                               {"falloff", ParameterValue{0.9}},
+                               {"center_x", ParameterValue{0.8}},
+                               {"center_y", ParameterValue{0.0}}},
+                              std::nullopt});
+    ASSERT_TRUE(shifted) << shifted.error().message;
+    EXPECT_LT(luma_at(shifted.value(), 0, 16), luma_at(shifted.value(), 31, 16));
+
+    auto round = render_op(engine.value(), source,
+                           {"ravo.effect.vignette",
+                            1,
+                            "vig-round",
+                            true,
+                            {{"amount", ParameterValue{1.0}},
+                             {"midpoint", ParameterValue{0.2}},
+                             {"falloff", ParameterValue{0.8}},
+                             {"shape", ParameterValue{1.0}}},
+                            std::nullopt});
+    auto diamond = render_op(engine.value(), source,
+                             {"ravo.effect.vignette",
+                              1,
+                              "vig-diamond",
+                              true,
+                              {{"amount", ParameterValue{1.0}},
+                               {"midpoint", ParameterValue{0.2}},
+                               {"falloff", ParameterValue{0.8}},
+                               {"shape", ParameterValue{5.0}}},
+                              std::nullopt});
+    ASSERT_TRUE(round) << round.error().message;
+    ASSERT_TRUE(diamond) << diamond.error().message;
+    EXPECT_NE(round.value().rgb, diamond.value().rgb);
+}
+
 TEST(EngineFacadeTest, BasicAdjustmentParametersFollowDarktableCpuResponse)
 {
     const WorkingImage source{1, 1, {0.08F, 0.18F, 0.40F}, {}, {}, {}, {}};
@@ -7268,6 +7346,9 @@ TEST(EngineFacadeTest, RgbHistogramMatchesFrozenDisplayBinning)
     EXPECT_EQ(histogram.value().blue[20], 32U);
     EXPECT_EQ(histogram.value().red[0], 0U);
     EXPECT_EQ(histogram.value().max_count, 32U);
+    EXPECT_GT(histogram.value().luma[static_cast<std::size_t>(
+                  std::lround(0.2126 * 220 + 0.7152 * 20 + 0.0722 * 20))],
+              0U);
 
     RasterBuffer empty;
     auto rejected = collect_rgb_histogram(empty);
@@ -7551,6 +7632,32 @@ TEST(EngineFacadeTest, RgbCurveMatchesHermiteLutAndIndependentChannels)
                                 rgb_curve_to_parameters(compensated), std::nullopt});
     ASSERT_TRUE(with_grey) << with_grey.error().message;
     EXPECT_NE(with_grey.value().rgb, brighter.value().rgb);
+
+    RgbCurveParams cubic;
+    cubic.mode = std::string(kRgbLevelsModeLinked);
+    cubic.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    cubic.interpolation = std::string(kToneCurveInterpolationCubicSpline);
+    cubic.channels[0] = {{0.0, 0.0}, {0.25, 0.8}, {1.0, 1.0}};
+    RgbCurveParams hermite_steep = cubic;
+    hermite_steep.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
+    auto cubic_render = render_op(engine.value(), gray,
+                                  {"ravo.color.rgbcurve", 1, "curve-cubic", true,
+                                   rgb_curve_to_parameters(cubic), std::nullopt});
+    auto hermite_steep_render = render_op(engine.value(), gray,
+                                          {"ravo.color.rgbcurve", 1, "curve-hermite-steep", true,
+                                           rgb_curve_to_parameters(hermite_steep), std::nullopt});
+    ASSERT_TRUE(cubic_render) << cubic_render.error().message;
+    ASSERT_TRUE(hermite_steep_render) << hermite_steep_render.error().message;
+    EXPECT_NE(cubic_render.value().rgb, hermite_steep_render.value().rgb);
+
+    RgbCurveParams parametric;
+    parametric.preserve_colors = std::string(kToneCurvePreserveColorsNone);
+    parametric.parametric_shadows = 0.6;
+    auto lifted_shadows = render_op(engine.value(), solid_raster(8, 8, 32, 32, 32),
+                                    {"ravo.color.rgbcurve", 1, "curve-parametric", true,
+                                     rgb_curve_to_parameters(parametric), std::nullopt});
+    ASSERT_TRUE(lifted_shadows) << lifted_shadows.error().message;
+    EXPECT_GT(lifted_shadows.value().rgb[0], 32);
 }
 
 TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)

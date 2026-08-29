@@ -465,6 +465,11 @@ ApplicationWindow {
         styleApplyDialog.openDialog();
     }
 
+    function openPresetImportDialog() {
+        presetImportDialog.currentFolder = studio.defaultCatalogFolder;
+        presetImportDialog.openDialog();
+    }
+
     function startLibrarySession() {
         if (studio.catalogOpen)
             return;
@@ -573,6 +578,8 @@ ApplicationWindow {
                 openStyleSaveDialog();
             else if (id === ids.styleApply)
                 openStyleApplyDialog();
+            else if (id === ids.presetImport)
+                openPresetImportDialog();
             else if (id === ids.windowSettings)
                 window.settingsOpen = true;
             else if (id === ids.windowClose)
@@ -1316,9 +1323,19 @@ ApplicationWindow {
         id: styleApplyDialog
         dialogTitle: qsTr("Apply Recipe Style")
         dialogMode: "open"
-        nameFilters: [qsTr("Ravo recipe style (*.rstyle.json)")]
+        nameFilters: [qsTr("Ravo recipe style (*.rstyle.json)"), qsTr("Lightroom preset (*.xmp)")]
         onFileAccepted: function (filePath) {
             studioActions.run(studioActions.ids.styleApplyPath, filePath);
+        }
+    }
+
+    QmlFileDialogPage {
+        id: presetImportDialog
+        dialogTitle: qsTr("Import Preset")
+        dialogMode: "open"
+        nameFilters: [qsTr("Lightroom preset (*.xmp)"), qsTr("Ravo recipe style (*.rstyle.json)")]
+        onFileAccepted: function (filePath) {
+            studioActions.run(studioActions.ids.presetImportPath, filePath);
         }
     }
 }

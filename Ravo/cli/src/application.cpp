@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
@@ -215,6 +216,7 @@ struct CatalogCliArguments
     std::vector<std::pair<std::string, double>> develop_sets;
     std::optional<std::pair<double, double>> pick_white;
     std::optional<std::string_view> watermark_text;
+    std::string_view from_xmp;
     std::string_view output;
     std::string_view output_directory;
     std::string_view filename_template;
@@ -431,6 +433,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "--watermark-text was specified more than once");
             result.watermark_text = value;
+        }
+        else if (option == "--from-xmp")
+        {
+            if (!result.from_xmp.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "--from-xmp was specified twice");
+            }
+            result.from_xmp = value;
         }
         else if (option == "--max-edge")
         {
@@ -1074,6 +1084,20 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     }};
 }
 
+[[nodiscard]] JsonValue crs_omissions_json(const std::vector<CrsOmission> &omitted)
+{
+    JsonValue::Array items;
+    for (const auto &item : omitted)
+    {
+        items.push_back(JsonValue{JsonValue::Object{
+            {"key", item.key},
+            {"reason", item.reason},
+            {"value", item.value},
+        }});
+    }
+    return JsonValue{std::move(items)};
+}
+
 [[nodiscard]] JsonValue develop_fields_json()
 {
     JsonValue::Array fields;
@@ -1154,6 +1178,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "--baseline is only valid for catalog probe");
+    }
+    if (!flags.value().from_xmp.empty() && subcommand != "develop")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--from-xmp is only valid for catalog develop");
     }
     auto scoped = reject_scoped_export_options(flags.value(), subcommand);
     if (!scoped)
@@ -1475,6 +1504,26 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return params.error();
         }
+        std::string crs_name;
+        std::vector<CrsOmission> crs_omitted;
+        if (!flags.value().from_xmp.empty())
+        {
+            auto xmp = read_utf8_text_file(flags.value().from_xmp);
+            if (!xmp)
+                return xmp.error();
+            if (!is_crs_xmp_document(xmp.value()))
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "catalog develop --from-xmp requires Camera Raw settings XMP",
+                                  {{"reason", "unsupported_xmp_dialect"}});
+            }
+            auto imported = import_crs_xmp({xmp.value(), loaded.value().asset});
+            if (!imported)
+                return imported.error();
+            apply_crs_look(params.value(), imported.value().look, imported.value().mask);
+            crs_name = imported.value().name;
+            crs_omitted = imported.value().omitted;
+        }
         if (flags.value().pick_white)
         {
             if (std::abs(params.value().straighten_degrees) > 1.0e-4 ||
@@ -1512,7 +1561,14 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return saved.error();
         }
-        return asset_to_json(saved.value());
+        auto json_asset = asset_to_json(saved.value());
+        if (flags.value().from_xmp.empty())
+            return json_asset;
+        JsonValue::Object object =
+            json_asset.object_if() != nullptr ? *json_asset.object_if() : JsonValue::Object{};
+        object.emplace("omitted", crs_omissions_json(crs_omitted));
+        object.emplace("preset_name", crs_name);
+        return JsonValue{std::move(object)};
     }
     if (subcommand == "rate")
     {
@@ -1911,12 +1967,32 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         }
         LegacyXmpImportRequest request{
             xmp.value(), {std::string(positional[4]), std::string(positional[6]), std::nullopt}};
-        auto recipe = import_legacy_xmp(request);
-        if (!recipe)
+        Recipe recipe;
+        std::string dialect = "legacy";
+        std::string preset_name;
+        std::vector<CrsOmission> omitted;
+        if (is_crs_xmp_document(xmp.value()))
         {
-            return emit(recipe.error(), json);
+            auto imported = import_crs_xmp(request);
+            if (!imported)
+            {
+                return emit(imported.error(), json);
+            }
+            recipe = std::move(imported.value().recipe);
+            dialect = "crs";
+            preset_name = imported.value().name;
+            omitted = imported.value().omitted;
         }
-        auto serialized = serialize_recipe(recipe.value());
+        else
+        {
+            auto imported = import_legacy_xmp(request);
+            if (!imported)
+            {
+                return emit(imported.error(), json);
+            }
+            recipe = std::move(imported).value();
+        }
+        auto serialized = serialize_recipe(recipe);
         if (!serialized)
         {
             return emit(serialized.error(), json);
@@ -1926,14 +2002,18 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         {
             return emit(written.error(), json);
         }
-        return emit(JsonValue{JsonValue::Object{
-                        {"asset_id", recipe.value().asset.id},
-                        {"operation_count",
-                         JsonValue::number(std::to_string(recipe.value().operations.size()))},
-                        {"output", std::string(positional[8])},
-                        {"schema_version",
-                         JsonValue::number(std::to_string(recipe.value().schema_version))}}},
-                    json);
+        JsonValue::Object payload{
+            {"asset_id", recipe.asset.id},
+            {"dialect", dialect},
+            {"operation_count", JsonValue::number(std::to_string(recipe.operations.size()))},
+            {"output", std::string(positional[8])},
+            {"schema_version", JsonValue::number(std::to_string(recipe.schema_version))}};
+        if (dialect == "crs")
+        {
+            payload.emplace("omitted", crs_omissions_json(omitted));
+            payload.emplace("preset_name", preset_name);
+        }
+        return emit(JsonValue{std::move(payload)}, json);
     }
     if (positional.size() == 3 && positional[0] == "recipe" && positional[1] == "style-validate")
     {

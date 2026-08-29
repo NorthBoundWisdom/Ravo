@@ -549,7 +549,16 @@ Result<OperationRegistry> make_phase1_registry()
                ParameterValue{
                    ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
            }},
-           std::nullopt, std::nullopt}},
+           std::nullopt, std::nullopt},
+          {"parametric_shadows", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0},
+          {"parametric_darks", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0},
+          {"parametric_lights", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0},
+          {"parametric_highlights", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0},
+          {"parametric_split_shadows", ParameterType::kNumber, false, ParameterValue{0.25}, 0.05,
+           0.90},
+          {"parametric_split_mid", ParameterType::kNumber, false, ParameterValue{0.50}, 0.10, 0.95},
+          {"parametric_split_highlights", ParameterType::kNumber, false, ParameterValue{0.75}, 0.15,
+           0.98}},
          false,
          true},
         {"ravo.core.tonecurve",
@@ -564,6 +573,22 @@ Result<OperationRegistry> make_phase1_registry()
           {"preserve_colors", ParameterType::kString, false, ParameterValue{"average"},
            std::nullopt, std::nullopt},
           {"points", ParameterType::kArray, false,
+           ParameterValue{ParameterValue::Array{
+               ParameterValue{
+                   ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
+               ParameterValue{
+                   ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
+           }},
+           std::nullopt, std::nullopt},
+          {"points_a", ParameterType::kArray, false,
+           ParameterValue{ParameterValue::Array{
+               ParameterValue{
+                   ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
+               ParameterValue{
+                   ParameterValue::Object{{"x", ParameterValue{1.0}}, {"y", ParameterValue{1.0}}}},
+           }},
+           std::nullopt, std::nullopt},
+          {"points_b", ParameterType::kArray, false,
            ParameterValue{ParameterValue::Array{
                ParameterValue{
                    ParameterValue::Object{{"x", ParameterValue{0.0}}, {"y", ParameterValue{0.0}}}},
@@ -802,9 +827,12 @@ Result<OperationRegistry> make_phase1_registry()
         {"ravo.effect.vignette",
          "Vignette",
          1,
-         {{"amount", ParameterType::kNumber, false, ParameterValue{0.0}, 0.0, 1.0},
+         {{"amount", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0},
           {"midpoint", ParameterType::kNumber, false, ParameterValue{0.8}, 0.0, 1.0},
-          {"falloff", ParameterType::kNumber, false, ParameterValue{0.5}, 0.05, 1.0}},
+          {"falloff", ParameterType::kNumber, false, ParameterValue{0.5}, 0.05, 1.0},
+          {"shape", ParameterType::kNumber, false, ParameterValue{1.0}, 0.5, 5.0},
+          {"center_x", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0},
+          {"center_y", ParameterType::kNumber, false, ParameterValue{0.0}, -1.0, 1.0}},
          false,
          true},
         {"ravo.effect.grain",

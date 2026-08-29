@@ -65,6 +65,8 @@ inline constexpr std::string_view kToneCurveWorkingSpaceLab = "lab";
 inline constexpr std::string_view kToneCurveWorkingSpaceXyz = "xyz";
 inline constexpr std::string_view kToneCurveWorkingSpaceLabIndependent = "lab_independent";
 inline constexpr std::string_view kToneCurveInterpolationMonotoneHermite = "monotone_hermite";
+inline constexpr std::string_view kToneCurveInterpolationCatmullRom = "catmull_rom";
+inline constexpr std::string_view kToneCurveInterpolationCubicSpline = "cubic_spline";
 inline constexpr std::string_view kToneCurveChannelModeRgb = "rgb";
 inline constexpr std::string_view kToneCurveChannelModeIndependent = "independent";
 inline constexpr std::string_view kToneCurvePreserveColorsAverage = "average";
@@ -239,6 +241,13 @@ struct RgbCurveParams
         {{ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}},
          {ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}},
          {ToneCurvePoint{0.0, 0.0}, ToneCurvePoint{1.0, 1.0}}}};
+    double parametric_shadows = 0.0;
+    double parametric_darks = 0.0;
+    double parametric_lights = 0.0;
+    double parametric_highlights = 0.0;
+    double parametric_split_shadows = 0.25;
+    double parametric_split_mid = 0.50;
+    double parametric_split_highlights = 0.75;
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const RgbCurveParams &) const noexcept = default;
@@ -288,6 +297,11 @@ struct DevelopParams
     RetouchParams retouch;
     double clarity = 0.0;
     double vignette = 0.0;
+    double vignette_midpoint = 0.8;
+    double vignette_falloff = 0.5;
+    double vignette_shape = 1.0;
+    double vignette_center_x = 0.0;
+    double vignette_center_y = 0.0;
     double grain = 0.0;
     double bloom = 0.0;
     double soften = 0.0;
@@ -339,7 +353,12 @@ struct DevelopParams
     RgbLevelsParams rgb_levels;
     RgbCurveParams rgb_curve;
     std::vector<ToneCurvePoint> tone_curve;
+    std::vector<ToneCurvePoint> tone_curve_a;
+    std::vector<ToneCurvePoint> tone_curve_b;
     std::string tone_curve_working_space{std::string(kToneCurveWorkingSpaceSrgb)};
+    std::string tone_curve_interpolation{std::string(kToneCurveInterpolationMonotoneHermite)};
+    std::string tone_curve_channel_mode{std::string(kToneCurveChannelModeRgb)};
+    std::string tone_curve_preserve_colors{std::string(kToneCurvePreserveColorsAverage)};
     bool sigmoid_enabled = false;
     double sigmoid_contrast = kSigmoidContrastDefault;
     double sigmoid_skew = kSigmoidSkewDefault;
@@ -408,6 +427,7 @@ struct DevelopParams
     bool tone_equal_effect_enabled = true;
     bool graduated_effect_enabled = true;
     bool color_eq_effect_enabled = true; // Color Equalizer is independent of Graduated ND.
+    bool curves_effect_enabled = true;
 
     [[nodiscard]] bool is_identity() const noexcept;
     [[nodiscard]] bool operator==(const DevelopParams &) const noexcept = default;
@@ -415,8 +435,17 @@ struct DevelopParams
 
 [[nodiscard]] bool tone_curve_is_identity(const std::vector<ToneCurvePoint> &points) noexcept;
 void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept;
+[[nodiscard]] bool curve_interpolation_is_supported(std::string_view interpolation) noexcept;
+[[nodiscard]] int curve_interpolation_index(std::string_view interpolation) noexcept;
+[[nodiscard]] std::string_view curve_interpolation_from_index(int index) noexcept;
+[[nodiscard]] Result<std::string_view> parse_curve_interpolation(std::string_view interpolation);
 [[nodiscard]] double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points,
                                          double x) noexcept;
+[[nodiscard]] double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, double x,
+                                         std::string_view interpolation) noexcept;
+[[nodiscard]] bool rgb_curve_parametric_is_identity(const RgbCurveParams &params) noexcept;
+[[nodiscard]] double evaluate_rgb_curve_parametric(const RgbCurveParams &params, double x) noexcept;
+void clamp_rgb_curve(RgbCurveParams &params) noexcept;
 [[nodiscard]] Result<ToneCurveWorkingSpace> parse_tone_curve_working_space(std::string_view text);
 [[nodiscard]] std::string_view tone_curve_working_space_name(ToneCurveWorkingSpace space) noexcept;
 [[nodiscard]] Result<std::vector<ToneCurvePoint>>
@@ -426,6 +455,8 @@ parse_rgb_curve_points(const ParameterValue &value);
 [[nodiscard]] ParameterValue
 tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
 [[nodiscard]] Result<void> validate_tone_curve_parameters(
+    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<void> validate_rgb_curve_parameters(
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] Result<void>
 validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);

@@ -5,13 +5,22 @@ Item {
     id: root
     property var points: []
     property var samples: []
+    property var histogramRed: []
+    property var histogramGreen: []
+    property var histogramBlue: []
+    property var histogramLuma: []
+    property double histogramMax: 0
+    property string histogramMode: "rgb"
     property bool editorEnabled: true
+    property int selectedIndex: 0
+    property int maxPoints: 20
     property var pendingPoints: []
     signal curveEdited(var points)
     signal curveCommitted(var points)
 
-    implicitHeight: Math.max(180, width)
+    implicitHeight: Math.max(220, width)
     clip: true
+    focus: true
 
     readonly property int padding: 10
     readonly property real plotWidth: Math.max(1, width - padding * 2)
@@ -65,9 +74,10 @@ Item {
     function hitIndex(px, py) {
         let best = -1;
         let bestDistance = 14;
-        for (let index = 0; index < root.points.length; ++index) {
-            const dx = toCanvasX(Number(root.points[index].x)) - px;
-            const dy = toCanvasY(Number(root.points[index].y)) - py;
+        const list = root.pendingPoints.length ? root.pendingPoints : root.points;
+        for (let index = 0; index < list.length; ++index) {
+            const dx = toCanvasX(Number(list[index].x)) - px;
+            const dy = toCanvasY(Number(list[index].y)) - py;
             const distance = Math.hypot(dx, dy);
             if (distance <= bestDistance) {
                 bestDistance = distance;
@@ -89,10 +99,39 @@ Item {
             list[last].y = Math.min(1, Math.max(0, list[last].y));
             return;
         }
-        const minX = Number(list[index - 1].x) + 0.01;
-        const maxX = Number(list[index + 1].x) - 0.01;
+        const minX = Number(list[index - 1].x) + 0.0025;
+        const maxX = Number(list[index + 1].x) - 0.0025;
         list[index].x = Math.min(maxX, Math.max(minX, list[index].x));
         list[index].y = Math.min(1, Math.max(0, list[index].y));
+    }
+
+    function nudgeSelected(dx, dy) {
+        if (!root.editorEnabled)
+            return;
+        let next = root.clonePoints();
+        const index = Math.min(next.length - 1, Math.max(0, root.selectedIndex));
+        next[index].x = Number(next[index].x) + dx;
+        next[index].y = Number(next[index].y) + dy;
+        root.constrainPoint(next, index);
+        root.emitEdited(next);
+        root.emitCommitted();
+    }
+
+    function drawHistogram(ctx, values, color) {
+        if (!values || values.length < 2 || root.histogramMax <= 0)
+            return;
+        ctx.beginPath();
+        ctx.moveTo(root.toCanvasX(0), root.toCanvasY(0));
+        const last = values.length - 1;
+        for (let k = 0; k < values.length; ++k) {
+            const x = k / last;
+            const y = Math.min(1, Number(values[k] || 0) / root.histogramMax);
+            ctx.lineTo(root.toCanvasX(x), root.toCanvasY(y));
+        }
+        ctx.lineTo(root.toCanvasX(1), root.toCanvasY(0));
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
     }
 
     Rectangle {
@@ -104,6 +143,7 @@ Item {
 
     Canvas {
         id: canvas
+        objectName: "toneCurveCanvas"
         anchors.fill: parent
         onPaint: {
             const ctx = getContext("2d");
@@ -123,6 +163,21 @@ Item {
                 ctx.lineTo(root.padding + root.plotWidth, root.toCanvasY(t));
                 ctx.stroke();
             }
+            ctx.globalCompositeOperation = "lighter";
+            if (root.histogramMode === "red")
+                root.drawHistogram(ctx, root.histogramRed, Qt.rgba(1, 0.2, 0.15, 0.45));
+            else if (root.histogramMode === "green")
+                root.drawHistogram(ctx, root.histogramGreen, Qt.rgba(0.15, 1, 0.2, 0.45));
+            else if (root.histogramMode === "blue")
+                root.drawHistogram(ctx, root.histogramBlue, Qt.rgba(0.2, 0.4, 1, 0.45));
+            else if (root.histogramMode === "luma")
+                root.drawHistogram(ctx, root.histogramLuma, Qt.rgba(0.85, 0.85, 0.85, 0.4));
+            else {
+                root.drawHistogram(ctx, root.histogramRed, Qt.rgba(1, 0.2, 0.15, 0.28));
+                root.drawHistogram(ctx, root.histogramGreen, Qt.rgba(0.15, 1, 0.2, 0.28));
+                root.drawHistogram(ctx, root.histogramBlue, Qt.rgba(0.2, 0.4, 1, 0.28));
+            }
+            ctx.globalCompositeOperation = "source-over";
             ctx.strokeStyle = Theme.midColor;
             ctx.beginPath();
             ctx.moveTo(root.toCanvasX(0), root.toCanvasY(0));
@@ -144,12 +199,13 @@ Item {
                 }
                 ctx.stroke();
             }
-            ctx.fillStyle = Theme.textColor;
-            for (let index = 0; index < root.points.length; ++index) {
-                const px = root.toCanvasX(Number(root.points[index].x));
-                const py = root.toCanvasY(Number(root.points[index].y));
+            const list = root.points;
+            for (let index = 0; index < list.length; ++index) {
+                const px = root.toCanvasX(Number(list[index].x));
+                const py = root.toCanvasY(Number(list[index].y));
                 ctx.beginPath();
-                ctx.arc(px, py, 5, 0, Math.PI * 2);
+                ctx.arc(px, py, index === root.selectedIndex ? 6 : 5, 0, Math.PI * 2);
+                ctx.fillStyle = index === root.selectedIndex ? Theme.accentColor : Theme.textColor;
                 ctx.fill();
             }
         }
@@ -164,9 +220,10 @@ Item {
         property bool dragging: false
 
         onPressed: function (mouse) {
+            root.forceActiveFocus();
             let next = root.clonePoints();
             let index = root.hitIndex(mouse.x, mouse.y);
-            if (index < 0 && next.length < 16) {
+            if (index < 0 && next.length < root.maxPoints) {
                 const added = root.fromCanvas(mouse.x, mouse.y);
                 let insertAt = next.length - 1;
                 for (let cursor = 1; cursor < next.length; ++cursor) {
@@ -182,6 +239,8 @@ Item {
             }
             activeIndex = index;
             dragging = index >= 0;
+            if (index >= 0)
+                root.selectedIndex = index;
         }
         onPositionChanged: function (mouse) {
             if (!dragging || activeIndex < 0)
@@ -212,8 +271,36 @@ Item {
                 return;
             const next = root.clonePoints();
             next.splice(index, 1);
+            root.selectedIndex = Math.min(index, next.length - 1);
             root.emitEdited(next);
             root.emitCommitted();
+        }
+    }
+
+    Keys.onPressed: function (event) {
+        if (!root.editorEnabled)
+            return;
+        if (event.key === Qt.Key_Left) {
+            root.nudgeSelected(-0.01, 0);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Right) {
+            root.nudgeSelected(0.01, 0);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Up) {
+            root.nudgeSelected(0, 0.01);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Down) {
+            root.nudgeSelected(0, -0.01);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_Backspace) {
+            if (root.selectedIndex > 0 && root.selectedIndex < root.points.length - 1) {
+                const next = root.clonePoints();
+                next.splice(root.selectedIndex, 1);
+                root.selectedIndex = Math.min(root.selectedIndex, next.length - 1);
+                root.emitEdited(next);
+                root.emitCommitted();
+                event.accepted = true;
+            }
         }
     }
 
@@ -223,6 +310,27 @@ Item {
             canvas.requestPaint();
         }
         function onSamplesChanged() {
+            canvas.requestPaint();
+        }
+        function onHistogramRedChanged() {
+            canvas.requestPaint();
+        }
+        function onHistogramGreenChanged() {
+            canvas.requestPaint();
+        }
+        function onHistogramBlueChanged() {
+            canvas.requestPaint();
+        }
+        function onHistogramLumaChanged() {
+            canvas.requestPaint();
+        }
+        function onHistogramMaxChanged() {
+            canvas.requestPaint();
+        }
+        function onHistogramModeChanged() {
+            canvas.requestPaint();
+        }
+        function onSelectedIndexChanged() {
             canvas.requestPaint();
         }
         function onWidthChanged() {

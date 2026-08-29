@@ -301,13 +301,14 @@ void estimate_exp(const float *x, const float *y, const int num, float coeff[3])
     return eval_exp(coeff, x);
 }
 
-void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float> &lut)
+void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float> &lut,
+                    const std::string_view interpolation = kToneCurveInterpolationMonotoneHermite)
 {
     lut.assign(static_cast<std::size_t>(kToneCurveLut), 0.0F);
     for (int k = 0; k < kToneCurveLut; ++k)
     {
         lut[static_cast<std::size_t>(k)] = static_cast<float>(evaluate_tone_curve(
-            points, static_cast<double>(k) / static_cast<double>(kToneCurveLut)));
+            points, static_cast<double>(k) / static_cast<double>(kToneCurveLut), interpolation));
     }
 }
 
@@ -321,7 +322,7 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     }
     const auto interpolation = parameter_string(
         operation, "interpolation", std::string(kToneCurveInterpolationMonotoneHermite));
-    if (interpolation != kToneCurveInterpolationMonotoneHermite)
+    if (!curve_interpolation_is_supported(interpolation))
     {
         return make_error(ErrorCode::kValidation, "Tone curve interpolation is unsupported",
                           {{"interpolation", interpolation}});
@@ -379,9 +380,9 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
     std::vector<float> table_l;
     std::vector<float> table_a;
     std::vector<float> table_b;
-    build_unit_lut(points, table_l);
-    build_unit_lut(points_a, table_a);
-    build_unit_lut(points_b, table_b);
+    build_unit_lut(points, table_l, interpolation);
+    build_unit_lut(points_a, table_a, interpolation);
+    build_unit_lut(points_b, table_b, interpolation);
     for (int k = 0; k < kToneCurveLut; ++k)
     {
         table_l[static_cast<std::size_t>(k)] *= 100.0F;
@@ -1618,7 +1619,7 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     }
     const auto interpolation = parameter_string(
         operation, "interpolation", std::string(kToneCurveInterpolationMonotoneHermite));
-    if (interpolation != kToneCurveInterpolationMonotoneHermite)
+    if (!curve_interpolation_is_supported(interpolation))
     {
         return make_error(ErrorCode::kValidation, "RGB curve interpolation is unsupported",
                           {{"interpolation", interpolation}});
@@ -1729,11 +1730,37 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     std::array<float, 3> xm{};
     const std::array<const std::vector<ToneCurvePoint> *, 3> channels{
         &red_points.value(), &green_points.value(), &blue_points.value()};
+    RgbCurveParams parametric;
+    parametric.parametric_shadows = parameter(operation, "parametric_shadows", 0.0);
+    parametric.parametric_darks = parameter(operation, "parametric_darks", 0.0);
+    parametric.parametric_lights = parameter(operation, "parametric_lights", 0.0);
+    parametric.parametric_highlights = parameter(operation, "parametric_highlights", 0.0);
+    parametric.parametric_split_shadows = parameter(operation, "parametric_split_shadows", 0.25);
+    parametric.parametric_split_mid = parameter(operation, "parametric_split_mid", 0.50);
+    parametric.parametric_split_highlights =
+        parameter(operation, "parametric_split_highlights", 0.75);
+    clamp_rgb_curve(parametric);
+    const bool apply_parametric =
+        mode == kRgbLevelsModeLinked && !rgb_curve_parametric_is_identity(parametric);
     const int lut_count = mode == kRgbLevelsModeIndependent ? 3 : 1;
     for (int channel = 0; channel < lut_count; ++channel)
     {
-        build_unit_lut(*channels[static_cast<std::size_t>(channel)],
-                       tables[static_cast<std::size_t>(channel)]);
+        if (apply_parametric && channel == 0)
+        {
+            auto &lut = tables[0];
+            lut.assign(static_cast<std::size_t>(kToneCurveLut), 0.0F);
+            for (int k = 0; k < kToneCurveLut; ++k)
+            {
+                const double x = static_cast<double>(k) / static_cast<double>(kToneCurveLut);
+                lut[static_cast<std::size_t>(k)] = static_cast<float>(evaluate_tone_curve(
+                    *channels[0], evaluate_rgb_curve_parametric(parametric, x), interpolation));
+            }
+        }
+        else
+        {
+            build_unit_lut(*channels[static_cast<std::size_t>(channel)],
+                           tables[static_cast<std::size_t>(channel)], interpolation);
+        }
         const auto &points = *channels[static_cast<std::size_t>(channel)];
         xm[static_cast<std::size_t>(channel)] =
             points.empty() ? 1.0F : static_cast<float>(points.back().x);
@@ -1914,9 +1941,10 @@ void apply_bloom(WorkingImage &image, const double amount)
 }
 
 void apply_vignette(WorkingImage &image, const double amount, const double midpoint,
-                    const double falloff)
+                    const double falloff, const double shape, const double center_x,
+                    const double center_y)
 {
-    if (amount <= 0.0 || image.width == 0 || image.height == 0)
+    if (std::abs(amount) <= 1.0e-8 || image.width == 0 || image.height == 0)
     {
         return;
     }
@@ -1924,13 +1952,13 @@ void apply_vignette(WorkingImage &image, const double amount, const double midpo
     const float saturation = -static_cast<float>(amount) * 0.5F;
     const float dscale = static_cast<float>(std::clamp(midpoint, 0.0, 1.0));
     const float fscale = std::max(0.05F, static_cast<float>(falloff));
-    const float shape = 1.0F;
-    const float exp1 = 2.0F / shape;
-    const float exp2 = shape / 2.0F;
+    const float shape_clamped = std::clamp(static_cast<float>(shape), 0.5F, 5.0F);
+    const float exp1 = 2.0F / shape_clamped;
+    const float exp2 = shape_clamped / 2.0F;
     const float xscale = 2.0F / static_cast<float>(image.width);
     const float yscale = 2.0F / static_cast<float>(image.height);
-    const float cx = 1.0F;
-    const float cy = 1.0F;
+    const float cx = 1.0F + static_cast<float>(std::clamp(center_x, -1.0, 1.0));
+    const float cy = 1.0F + static_cast<float>(std::clamp(center_y, -1.0, 1.0));
     for (std::uint32_t y = 0; y < image.height; ++y)
     {
         for (std::uint32_t x = 0; x < image.width; ++x)
@@ -3180,7 +3208,10 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         {
             apply_vignette(image, parameter(operation, "amount", 0.0),
                            parameter(operation, "midpoint", 0.8),
-                           parameter(operation, "falloff", 0.5));
+                           parameter(operation, "falloff", 0.5),
+                           parameter(operation, "shape", 1.0),
+                           parameter(operation, "center_x", 0.0),
+                           parameter(operation, "center_y", 0.0));
             continue;
         }
         if (operation.id == "ravo.effect.grain")

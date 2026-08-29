@@ -1000,15 +1000,86 @@ ColumnLayout {
                     onClicked: if (root.commands)
                         root.commands.resetControl("rgbLevels")
                 }
-                CustomLabel {
-                    text: qsTr("Tone Curve")
+            }
+        }
+        DevelopSection {
+            title: qsTr("Curves")
+            sectionId: "curves"
+            ColumnLayout {
+                Layout.fillWidth: true
+                width: parent.width
+                CustomComboBox {
+                    objectName: "curveFamily"
                     Layout.fillWidth: true
+                    model: [qsTr("RGB"), qsTr("Tone")]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editCurve.familyIndex : 0
+                    onActivated: if (root.hasPresenter)
+                        root.presenter.setCurveFamily(currentIndex)
+                }
+                CustomComboBox {
+                    objectName: "curveChannel"
+                    Layout.fillWidth: true
+                    model: root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ?
+                        [qsTr("Master"), qsTr("a"), qsTr("b")] :
+                        [qsTr("RGB"), qsTr("Red"), qsTr("Green"), qsTr("Blue")]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editCurve.channel : 0
+                    onActivated: if (root.hasPresenter)
+                        root.presenter.setCurveChannel(currentIndex)
+                }
+                CustomComboBox {
+                    objectName: "curveInterpolation"
+                    Layout.fillWidth: true
+                    model: [qsTr("Monotonic"), qsTr("Centripetal"), qsTr("Cubic")]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editCurve.interpolationIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber(
+                            root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ?
+                                "toneCurveInterpolation" : "rgbCurveInterpolation", currentIndex)
+                }
+                CustomComboBox {
+                    Layout.fillWidth: true
+                    visible: !root.hasPresenter || root.presenter.editCurve.linked
+                    model: [
+                        qsTr("None"),
+                        qsTr("Luminance"),
+                        qsTr("Max RGB"),
+                        qsTr("Average RGB"),
+                        qsTr("Sum RGB"),
+                        qsTr("Norm RGB"),
+                        qsTr("Basic power")
+                    ]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editCurve.preserveIndex : 1
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber(
+                            root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ?
+                                "toneCurvePreserve" : "rgbCurvePreserve", currentIndex)
+                }
+                CustomComboBox {
+                    Layout.fillWidth: true
+                    visible: root.hasPresenter && root.presenter.editCurve.familyIndex === 1
+                    model: [qsTr("RGB, linked"), qsTr("Lab"), qsTr("XYZ"), qsTr("Lab independent"), qsTr("sRGB"), qsTr("Linear RGB")]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editCurve.workingSpaceIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("toneCurveWorkingSpace", currentIndex)
                 }
                 ToneCurveEditor {
+                    id: curveEditor
+                    objectName: "curveEditor"
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 200
+                    Layout.preferredHeight: 220
                     editorEnabled: root.hasSelection
-                    points: root.hasPresenter ? root.presenter.editToneCurve : [
+                    histogramMode: root.hasPresenter ? root.presenter.editCurve.histogramMode : "rgb"
+                    histogramRed: root.hasPresenter ? root.presenter.scopeHistogramRed : []
+                    histogramGreen: root.hasPresenter ? root.presenter.scopeHistogramGreen : []
+                    histogramBlue: root.hasPresenter ? root.presenter.scopeHistogramBlue : []
+                    histogramLuma: root.hasPresenter ? root.presenter.scopeHistogramLuma : []
+                    histogramMax: root.hasPresenter ? root.presenter.scopeHistogramMax : 0
+                    points: root.hasPresenter ? root.presenter.editCurvePoints : [
                         {
                             "x": 0,
                             "y": 0
@@ -1018,27 +1089,142 @@ ColumnLayout {
                             "y": 1
                         }
                     ]
-                    samples: root.hasPresenter ? root.presenter.editToneCurveSamples : []
+                    samples: root.hasPresenter ? root.presenter.editCurveSamples : []
                     onCurveEdited: function (points) {
                         if (root.commands)
-                            root.commands.previewToneCurve(points);
+                            root.commands.previewCurve(
+                                root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb",
+                                root.hasPresenter ? root.presenter.editCurve.channel : 0, points);
                     }
                     onCurveCommitted: function (points) {
                         if (root.commands)
-                            root.commands.setToneCurve(points);
+                            root.commands.setCurve(
+                                root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb",
+                                root.hasPresenter ? root.presenter.editCurve.channel : 0, points);
                     }
                 }
                 CustomLabel {
-                    text: qsTr("Drag points to reshape. Click to add. Double-click an interior point to remove it.")
+                    text: qsTr("Drag points to reshape. Click to add. Double-click or Delete removes an interior point. Arrow keys nudge the selected point.")
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                     opacity: 0.75
                 }
-                CustomButton {
-                    text: qsTr("Reset curve")
-                    enabled: root.hasSelection
-                    onClicked: if (root.commands)
-                        root.commands.resetControl("toneCurve")
+                Repeater {
+                    model: [
+                        {
+                            "title": qsTr("Shadows"),
+                            "key": "parametricShadows",
+                            "field": "rgbCurveShadows"
+                        },
+                        {
+                            "title": qsTr("Darks"),
+                            "key": "parametricDarks",
+                            "field": "rgbCurveDarks"
+                        },
+                        {
+                            "title": qsTr("Lights"),
+                            "key": "parametricLights",
+                            "field": "rgbCurveLights"
+                        },
+                        {
+                            "title": qsTr("Highlights"),
+                            "key": "parametricHighlights",
+                            "field": "rgbCurveHighlights"
+                        }
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        visible: !root.hasPresenter || (root.presenter.editCurve.familyIndex === 0 && root.presenter.editCurve.linked)
+                        title: modelData.title
+                        from: -1
+                        to: 1
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        showReset: true
+                        resetValue: 0
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : 0
+                        onValueChanged: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(modelData.field)
+                    }
+                }
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Curves · more")
+                    expanded: false
+                    CustomCheckBox {
+                        text: qsTr("Compensate middle grey")
+                        visible: !root.hasPresenter || root.presenter.editCurve.familyIndex === 0
+                        enabled: root.hasSelection
+                        checked: root.hasPresenter && root.presenter.editCurve.compensate
+                        onToggled: if (root.commands)
+                            root.commands.setDevelopNumber("rgbCurveCompensate", checked ? 1 : 0)
+                    }
+                    Repeater {
+                        model: [
+                            {
+                                "title": qsTr("Split · shadows/darks"),
+                                "key": "split0",
+                                "field": "rgbCurveSplit0",
+                                "reset": 0.25
+                            },
+                            {
+                                "title": qsTr("Split · darks/lights"),
+                                "key": "split1",
+                                "field": "rgbCurveSplit1",
+                                "reset": 0.5
+                            },
+                            {
+                                "title": qsTr("Split · lights/highlights"),
+                                "key": "split2",
+                                "field": "rgbCurveSplit2",
+                                "reset": 0.75
+                            }
+                        ]
+                        delegate: CustomSlider {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            visible: !root.hasPresenter || (root.presenter.editCurve.familyIndex === 0 && root.presenter.editCurve.linked)
+                            title: modelData.title
+                            from: 0.05
+                            to: 0.95
+                            stepSize: 0.01
+                            validatorDecimals: 2
+                            showReset: true
+                            resetValue: modelData.reset
+                            delayedCommit: true
+                            enabled: root.hasSelection
+                            value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : modelData.reset
+                            onValueChanged: if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueCommitted: function (value) {
+                                if (root.commands)
+                                    root.commands.setDevelopNumber(modelData.field, value);
+                            }
+                            onResetRequested: if (root.commands)
+                                root.commands.resetControl(modelData.field)
+                        }
+                    }
+                    CustomButton {
+                        text: qsTr("Reset RGB curve")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("rgbCurve")
+                    }
+                    CustomButton {
+                        text: qsTr("Reset tone curve")
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl("toneCurve")
+                    }
                 }
             }
         }
@@ -1086,6 +1272,12 @@ ColumnLayout {
                         onResetRequested: if (root.commands)
                             root.commands.resetControl(fieldName)
                     }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                    text: qsTr("Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.")
                 }
             }
         }
@@ -2645,6 +2837,99 @@ ColumnLayout {
             }
         }
         DevelopSection {
+            title: qsTr("Camera Calibration")
+            sectionId: "primaries"
+            ColumnLayout {
+                Layout.fillWidth: true
+                width: parent.width
+                Repeater {
+                    model: [
+                        {
+                            "title": qsTr("Shadow tint hue"),
+                            "key": "achromaticTintHueDegrees",
+                            "field": "primariesAchromaticHueDegrees",
+                            "minimum": -180,
+                            "maximum": 180,
+                            "reset": 0,
+                            "step": 0.1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Shadow tint purity"),
+                            "key": "achromaticTintPurity",
+                            "field": "primariesAchromaticPurity",
+                            "minimum": 0,
+                            "maximum": 0.5,
+                            "reset": 0,
+                            "step": 0.002,
+                            "decimals": 3
+                        },
+                        {
+                            "title": qsTr("Red hue"),
+                            "key": "redHueDegrees",
+                            "field": "primariesRedHueDegrees",
+                            "minimum": -90,
+                            "maximum": 90,
+                            "reset": 0,
+                            "step": 0.1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Red saturation"),
+                            "key": "redPurity",
+                            "field": "primariesRedPurity",
+                            "minimum": 0.2,
+                            "maximum": 3,
+                            "reset": 1,
+                            "step": 0.01,
+                            "decimals": 2
+                        },
+                        {
+                            "title": qsTr("Green hue"),
+                            "key": "greenHueDegrees",
+                            "field": "primariesGreenHueDegrees",
+                            "minimum": -90,
+                            "maximum": 90,
+                            "reset": 0,
+                            "step": 0.1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Green saturation"),
+                            "key": "greenPurity",
+                            "field": "primariesGreenPurity",
+                            "minimum": 0.2,
+                            "maximum": 3,
+                            "reset": 1,
+                            "step": 0.01,
+                            "decimals": 2
+                        },
+                        {
+                            "title": qsTr("Blue hue"),
+                            "key": "blueHueDegrees",
+                            "field": "primariesBlueHueDegrees",
+                            "minimum": -90,
+                            "maximum": 90,
+                            "reset": 0,
+                            "step": 0.1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Blue saturation"),
+                            "key": "bluePurity",
+                            "field": "primariesBluePurity",
+                            "minimum": 0.2,
+                            "maximum": 3,
+                            "reset": 1,
+                            "step": 0.01,
+                            "decimals": 2
+                        }
+                    ]
+                    delegate: PrimariesSlider {}
+                }
+            }
+        }
+        DevelopSection {
             title: qsTr("Geometry")
             sectionId: "geometry"
             ColumnLayout {
@@ -3009,8 +3294,10 @@ ColumnLayout {
                 CustomSlider {
                     Layout.fillWidth: true
                     title: qsTr("Vignette")
-                    from: 0
+                    from: -1
                     to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
                     showReset: true
                     resetValue: 0
                     delayedCommit: true
@@ -3024,6 +3311,111 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("vignette")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Vignette midpoint")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0.8
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editVignetteParams.midpoint : 0.8
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("vignetteMidpoint", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("vignetteMidpoint", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("vignetteMidpoint")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Vignette feather")
+                    from: 0.05
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0.5
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editVignetteParams.falloff : 0.5
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("vignetteFalloff", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("vignetteFalloff", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("vignetteFalloff")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Vignette roundness")
+                    from: 0.5
+                    to: 5
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 1
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editVignetteParams.shape : 1
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("vignetteShape", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("vignetteShape", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("vignetteShape")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Vignette center X")
+                    from: -1
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editVignetteParams.centerX : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("vignetteCenterX", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("vignetteCenterX", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("vignetteCenterX")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Vignette center Y")
+                    from: -1
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editVignetteParams.centerY : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("vignetteCenterY", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("vignetteCenterY", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("vignetteCenterY")
                 }
                 CustomSlider {
                     Layout.fillWidth: true
@@ -3435,7 +3827,7 @@ ColumnLayout {
                 }
                 CustomSlider {
                     Layout.fillWidth: true
-                    title: qsTr("Threshold")
+                    title: qsTr("Masking")
                     from: 0
                     to: 100
                     stepSize: 0.1
@@ -3453,6 +3845,69 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("sharpenThreshold")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Luminance denoise")
+                    from: 0
+                    to: 1
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editDenoise : 0
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("denoise", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("denoise", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("denoise")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Color denoise")
+                    from: 0
+                    to: 1
+                    stepSize: 0.05
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 1
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editDenoiseChroma : 1
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("denoiseChroma", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("denoiseChroma", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("denoiseChroma")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Denoise radius")
+                    from: 0.5
+                    to: 8
+                    stepSize: 0.1
+                    validatorDecimals: 1
+                    showReset: true
+                    resetValue: 1
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editDenoiseRadius : 1
+                    onValueChanged: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("denoiseRadius", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("denoiseRadius", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("denoiseRadius")
                 }
                 ColumnLayout {
                     id: retouchEditor
@@ -3835,27 +4290,6 @@ ColumnLayout {
                 }
                 CustomSlider {
                     Layout.fillWidth: true
-                    title: qsTr("Denoise")
-                    from: 0
-                    to: 1
-                    stepSize: 0.05
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editDenoise : 0
-                    onValueChanged: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("denoise", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("denoise", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("denoise")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
                     title: qsTr("Lens distortion")
                     from: -1
                     to: 1
@@ -3966,99 +4400,6 @@ ColumnLayout {
                     fieldName: "channelMixerBB"
                     currentValue: root.hasPresenter ? root.presenter.editChannelMixerBB : 1
                     identityValue: 1
-                }
-            }
-        }
-        DevelopSection {
-            title: qsTr("RGB Primaries")
-            sectionId: "primaries"
-            ColumnLayout {
-                Layout.fillWidth: true
-                width: parent.width
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Achromatic tint hue"),
-                            "key": "achromaticTintHueDegrees",
-                            "field": "primariesAchromaticHueDegrees",
-                            "minimum": -180,
-                            "maximum": 180,
-                            "reset": 0,
-                            "step": 0.1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Achromatic tint purity"),
-                            "key": "achromaticTintPurity",
-                            "field": "primariesAchromaticPurity",
-                            "minimum": 0,
-                            "maximum": 0.2,
-                            "reset": 0,
-                            "step": 0.002,
-                            "decimals": 3
-                        },
-                        {
-                            "title": qsTr("Red hue"),
-                            "key": "redHueDegrees",
-                            "field": "primariesRedHueDegrees",
-                            "minimum": -20,
-                            "maximum": 20,
-                            "reset": 0,
-                            "step": 0.1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Red purity"),
-                            "key": "redPurity",
-                            "field": "primariesRedPurity",
-                            "minimum": 0.5,
-                            "maximum": 1.5,
-                            "reset": 1,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Green hue"),
-                            "key": "greenHueDegrees",
-                            "field": "primariesGreenHueDegrees",
-                            "minimum": -20,
-                            "maximum": 20,
-                            "reset": 0,
-                            "step": 0.1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Green purity"),
-                            "key": "greenPurity",
-                            "field": "primariesGreenPurity",
-                            "minimum": 0.5,
-                            "maximum": 1.5,
-                            "reset": 1,
-                            "step": 0.01,
-                            "decimals": 2
-                        },
-                        {
-                            "title": qsTr("Blue hue"),
-                            "key": "blueHueDegrees",
-                            "field": "primariesBlueHueDegrees",
-                            "minimum": -20,
-                            "maximum": 20,
-                            "reset": 0,
-                            "step": 0.1,
-                            "decimals": 1
-                        },
-                        {
-                            "title": qsTr("Blue purity"),
-                            "key": "bluePurity",
-                            "field": "primariesBluePurity",
-                            "minimum": 0.5,
-                            "maximum": 1.5,
-                            "reset": 1,
-                            "step": 0.01,
-                            "decimals": 2
-                        }
-                    ]
-                    delegate: PrimariesSlider {}
                 }
             }
         }

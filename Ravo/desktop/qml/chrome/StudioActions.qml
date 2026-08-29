@@ -60,6 +60,12 @@ Item {
     function setDevelopText(name, value) { root.run(root.ids.editSetText, {"name": name, "value": value}); }
     function previewToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points, "live": true}); }
     function setToneCurve(points) { root.run(root.ids.editSetToneCurve, {"points": points}); }
+    function previewCurve(family, channel, points) {
+        root.run(root.ids.editSetToneCurve, {"family": family, "channel": channel, "points": points, "live": true});
+    }
+    function setCurve(family, channel, points) {
+        root.run(root.ids.editSetToneCurve, {"family": family, "channel": channel, "points": points});
+    }
     function addRetouchRegion(region) { root.run(root.ids.editAddRetouchRegion, region); }
     function removeRetouchRegion(index) { root.run(root.ids.editRemoveRetouchRegion, index); }
     function resetSection(section) { root.run(root.ids.editResetSection, section); }

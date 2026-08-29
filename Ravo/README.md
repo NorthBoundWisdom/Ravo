@@ -73,10 +73,10 @@ Current implementation status:
   recipe without appending; newer steps dim until a later parameter edit
   discards them in the same recipe transaction. Section lamps are gray at
   identity, green when modified, and black when those parameters are kept but
-  bypassed. The default grading stack is White Balance, Light, Color Equalizer,
-  and Color Balance RGB wheels (ADR-0082). Color Equalizer is an eight-band
-  named mixer; Bayer RAW white-balance pick writes manual coefficients
-  (ADR-0083);
+  bypassed. The default grading stack is White Balance, Light, Curves, Color Equalizer,
+  Color Balance RGB wheels, and Camera Calibration (ADR-0082/0084/0085). Color
+  Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
+  manual coefficients (ADR-0083);
   plus before/after, session undo/redo, and Paste Light / Paste Color.
   RAW interactive preview reuses a scene-linear working image; superseded
   requests cancel and late results are dropped by revision; recipe/history/
@@ -86,7 +86,9 @@ Current implementation status:
   template including masks, profiles, and enabled/bypass state. CLI can create,
   validate, and apply styles; Studio saves/applies them through explicit file
   dialogs and ordinary recipe history. Legacy `.dtstyle` is structurally
-  unsupported rather than partially dropping unknown IOPs (ADR-0065).
+  unsupported rather than partially dropping unknown IOPs (ADR-0065). Lightroom
+  Classic CRS XMP presets import and apply through the same explicit path onto
+  accepted Develop owners; unknown Adobe-only state fails closed (ADR-0086).
 - RAW Repair provides `ravo.raw.hotpixels` v1 on an owned Bayer CFA copy under
   the frozen same-colour four-neighbor path. `ravo.raw.cacorrect` v1 retains
   RawTherapee two-pass tile/polynomial fitting and avoid-color-shift. Unit
@@ -538,7 +540,7 @@ ravo --version --json
 ravo operations --json
 ravo develop-fields --json
 ravo inspect <input> --json
-ravo recipe import-xmp <legacy.xmp> --asset-id <id> --input <input-uri> --output <recipe> --json
+ravo recipe import-xmp <legacy-or-crs.xmp> --asset-id <id> --input <input-uri> --output <recipe> --json
 ravo recipe validate <recipe> --json
 ravo recipe style-create <recipe> --name <name> --output <style.rstyle.json> --json
 ravo recipe style-validate <style.rstyle.json> --json
@@ -552,7 +554,7 @@ ravo catalog fields --json
 ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--max-edge N] [--output <file.png>] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--set <field>=<number>]... [--exposure-ev N] [--watermark-text <text>] --json
+ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--exposure-ev N] [--watermark-text <text>] --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog tag --catalog <library.sqlite> --asset-id <id> [--add <tags>] [--remove <tags>] --json
 ravo catalog metadata --catalog <library.sqlite> --asset-id <id> [--title <text>] [--description <text>] [--creator <text>] [--copyright <text>] --json

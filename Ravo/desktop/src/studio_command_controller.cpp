@@ -103,6 +103,9 @@ inline constexpr auto kStyleSave = "studio.style.save";
 inline constexpr auto kStyleSavePath = "studio.style.save_path";
 inline constexpr auto kStyleApply = "studio.style.apply";
 inline constexpr auto kStyleApplyPath = "studio.style.apply_path";
+inline constexpr auto kPresetImport = "studio.preset.import";
+inline constexpr auto kPresetImportPath = "studio.preset.import_path";
+inline constexpr auto kPresetApplyPath = "studio.preset.apply_path";
 inline constexpr auto kWindowSettings = "studio.window.show_settings";
 inline constexpr auto kWindowAssistant = "studio.window.toggle_assistant";
 inline constexpr auto kWindowClose = "studio.window.close";
@@ -390,6 +393,9 @@ QStringList command_ids()
             QLatin1String(command::kStyleSavePath),
             QLatin1String(command::kStyleApply),
             QLatin1String(command::kStyleApplyPath),
+            QLatin1String(command::kPresetImport),
+            QLatin1String(command::kPresetImportPath),
+            QLatin1String(command::kPresetApplyPath),
             QLatin1String(command::kWindowSettings),
             QLatin1String(command::kWindowAssistant),
             QLatin1String(command::kWindowClose),
@@ -447,6 +453,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Apply Recipe Style...")), file,
         {QStringLiteral("recipe"), QStringLiteral("preset")}, QStringLiteral("file.style"), 20,
         true);
+    add(command::kPresetImport, command::kPresetImport,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Import Preset...")), file,
+        {QStringLiteral("preset"), QStringLiteral("lightroom"), QStringLiteral("xmp")},
+        QStringLiteral("file.style"), 30, true);
     add(command::kWindowClose, command::kWindowClose,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Close Window")), file,
         {QStringLiteral("window")}, QStringLiteral("file.window"), 10, true,
@@ -958,6 +968,15 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [present](const QVariant &argument, const QString &)
         { present(command::kStyleApply, argument); });
     add(command::kStyleApplyPath, Condition::kDevelopSelection, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.applyStyleFromPath(argument.toString()); });
+    add(command::kPresetImport, Condition::kReadySelection, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kPresetImport, argument); });
+    add(command::kPresetImportPath, Condition::kReadySelection, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.importPresetFromPath(argument.toString()); });
+    add(command::kPresetApplyPath, Condition::kReadySelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.applyStyleFromPath(argument.toString()); });
     add(
@@ -1475,10 +1494,24 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
+            const auto family = fields.value(QStringLiteral("family")).toString();
+            const int channel = fields.value(QStringLiteral("channel"), 0).toInt();
+            const auto points = fields.value(QStringLiteral("points")).toList();
             if (fields.value(QStringLiteral("live")).toBool())
-                presenter_.previewToneCurve(fields.value(QStringLiteral("points")).toList());
+            {
+                if (family.isEmpty())
+                    presenter_.previewToneCurve(points);
+                else
+                    presenter_.previewCurvePoints(family, channel, points);
+            }
+            else if (family.isEmpty())
+            {
+                presenter_.setToneCurve(points);
+            }
             else
-                presenter_.setToneCurve(fields.value(QStringLiteral("points")).toList());
+            {
+                presenter_.setCurvePoints(family, channel, points);
+            }
         });
     add(
         command::kEditAddRetouchRegion, Condition::kDevelopSelection,
@@ -1707,6 +1740,9 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("styleSavePath"), QLatin1String(command::kStyleSavePath)},
         {QStringLiteral("styleApply"), QLatin1String(command::kStyleApply)},
         {QStringLiteral("styleApplyPath"), QLatin1String(command::kStyleApplyPath)},
+        {QStringLiteral("presetImport"), QLatin1String(command::kPresetImport)},
+        {QStringLiteral("presetImportPath"), QLatin1String(command::kPresetImportPath)},
+        {QStringLiteral("presetApplyPath"), QLatin1String(command::kPresetApplyPath)},
         {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
         {QStringLiteral("windowAssistant"), QLatin1String(command::kWindowAssistant)},
         {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},

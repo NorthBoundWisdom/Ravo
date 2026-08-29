@@ -91,3 +91,6 @@ supersession relationship when direction changes.
 | [0081](0081-studio-assistant-endpoint-panel.md) | Accepted | Typed assistant URL/model/key settings and a floating non-modal Studio panel; Qt Network is desktop-only. |
 | [0082](0082-studio-develop-grading-workspace.md) | Accepted | Studio default Develop order is a grading stack; Color EQ is separate from Graduated ND; Color Balance RGB uses wheels; paste can apply Light or Color from a complete clipboard. |
 | [0083](0083-color-eq-bands-and-white-balance-pick.md) | Accepted | Eight-band Color Equalizer editor; RAW inspect reports WB coefficients; Bayer CFA pick writes manual temperature coefficients. |
+| [0084](0084-studio-grading-curves.md) | Accepted | First-class Curves section authors RGB and Tone operations; interpolators, histogram, and parametric regions. |
+| [0085](0085-interchange-ready-grading-tools.md) | Accepted | Vignette geometry, Camera Calibration on the grading path, HSL band names, and Detail NR before any Lightroom CRS adapter. |
+| [0086](0086-lightroom-crs-interchange.md) | Accepted | Fail-closed Camera Raw XMP import/apply onto accepted Develop owners; leftover empty-history swallow is rejected. |

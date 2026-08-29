@@ -227,6 +227,7 @@ struct RgbHistogram
     std::array<std::uint32_t, kRgbHistogramBins> red{};
     std::array<std::uint32_t, kRgbHistogramBins> green{};
     std::array<std::uint32_t, kRgbHistogramBins> blue{};
+    std::array<std::uint32_t, kRgbHistogramBins> luma{};
     std::uint32_t max_count = 0;
 };
 

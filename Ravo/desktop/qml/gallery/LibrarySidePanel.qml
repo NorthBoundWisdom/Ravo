@@ -534,6 +534,15 @@ Rectangle {
             }
         }
 
+        DevelopPresetPanel {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Fonts.scaledUiSize(176)
+            Layout.minimumHeight: Fonts.scaledUiSize(120)
+            visible: root.developOpen
+            presenter: root.presenter
+            commands: root.commands
+        }
+
         DevelopHistoryPanel {
             Layout.fillWidth: true
             Layout.fillHeight: root.developOpen

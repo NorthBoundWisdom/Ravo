@@ -187,7 +187,7 @@ covered.
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
 | T1 | basecurve — iop/basecurve.c | yes | Queued / ALG; depends on explicit input-profile state; camera presets, exposure fusion, curve interpolation |
-| T2 | rgbcurve — iop/rgbcurve.c | yes | Accepted monotone-hermite linked/independent/preserve-colors plus live working-matrix middle-grey uncompensate (ADR-0052/0053). Remaining: Catmull-Rom/cubic; dedicated Studio editor; leftover IOP stays until freeze census is zero |
+| T2 | rgbcurve — iop/rgbcurve.c | yes | Accepted linked/independent/preserve-colors, middle-grey uncompensate, leftover interpolators, and Studio Curves editor plus parametric regions (ADR-0052/0053/0084). Leftover IOP stays until freeze census is zero |
 | T3 | rgblevels — iop/rgblevels.c | yes | Accepted recipe/engine/Studio path (ADR-0051). Auto-levels picker stays history-baked; leftover IOP remains until freeze census is zero |
 | T4 | filmicrgb — iop/filmicrgb.c | yes | Queued / ALG; Sigmoid remains default; complete scene/display, chroma/gamut/reconstruction modes |
 | T5 | agx — iop/agx.c | yes | Queued / ALG; Sigmoid remains default; AgX curve, primaries, gamut path |

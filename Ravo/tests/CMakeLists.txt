@@ -40,6 +40,7 @@ gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
 
 add_executable(ravo_contract_tests
   cli_test.cpp
+  crs_xmp_test.cpp
   canvas_frame_test.cpp
   color_correction_test.cpp
   color_harmonizer_test.cpp
@@ -322,6 +323,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml"
   RAVO_STUDIO_COLOR_GRADE_WHEEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ColorGradeWheel.qml"
   RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopHistoryPanel.qml"
+  RAVO_STUDIO_DEVELOP_PRESET_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPresetPanel.qml"
   RAVO_STUDIO_SCOPE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ScopePanel.qml"
   RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibrarySidePanel.qml"
   RAVO_STUDIO_LIBRARY_FILTER_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibraryFilterBar.qml"

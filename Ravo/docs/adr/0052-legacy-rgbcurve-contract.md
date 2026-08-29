@@ -32,8 +32,8 @@ profile Lab uncompensate (`dt_ioppr_uncompensate_middle_grey`).
 ## Consequences
 
 Compensate-off leftover RGB-curve histories become one canonical operation.
-Studio can persist imported recipes through Develop round-trip; a dedicated
-curve editor is later P2 UI work.
+Studio can persist imported recipes through Develop round-trip. ADR-0084 adds
+the dedicated Curves editor, leftover interpolators, and parametric regions.
 
 ## Rejected alternatives
 

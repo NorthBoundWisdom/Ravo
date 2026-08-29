@@ -86,58 +86,165 @@ void add_operation(Recipe &recipe, std::string id, std::string instance_id,
 
 struct ToneCurveSpline
 {
+    enum class Kind : std::uint8_t
+    {
+        kHermite = 0,
+        kCubic = 1,
+    };
     std::vector<ToneCurvePoint> points;
-    std::vector<double> tangents;
+    std::vector<double> coeffs;
+    Kind kind = Kind::kHermite;
 };
 
-[[nodiscard]] ToneCurveSpline make_tone_curve_spline(const std::vector<ToneCurvePoint> &points)
+[[nodiscard]] std::size_t tone_curve_interval(const std::vector<ToneCurvePoint> &points,
+                                              const double x) noexcept
+{
+    if (points.size() < 2)
+    {
+        return 0;
+    }
+    std::size_t index = points.size() - 2U;
+    for (std::size_t cursor = 0; cursor + 1 < points.size(); ++cursor)
+    {
+        if (x < points[cursor + 1U].x)
+        {
+            return cursor;
+        }
+    }
+    return index;
+}
+
+[[nodiscard]] ToneCurveSpline make_hermite_spline(const std::vector<ToneCurvePoint> &points,
+                                                  const bool monotone)
 {
     ToneCurveSpline spline;
     spline.points = points;
+    spline.kind = ToneCurveSpline::Kind::kHermite;
     if (points.size() < 2)
     {
         return spline;
     }
     const auto count = points.size();
+    spline.coeffs.assign(count, 0.0);
+    spline.coeffs.front() = (points[1].y - points[0].y) / (points[1].x - points[0].x);
+    spline.coeffs.back() =
+        (points[count - 1U].y - points[count - 2U].y) / (points[count - 1U].x - points[count - 2U].x);
+    for (std::size_t index = 1; index + 1 < count; ++index)
+    {
+        if (monotone)
+        {
+            const double left =
+                (points[index].y - points[index - 1U].y) / (points[index].x - points[index - 1U].x);
+            const double right =
+                (points[index + 1U].y - points[index].y) / (points[index + 1U].x - points[index].x);
+            spline.coeffs[index] = left * right <= 0.0 ? 0.0 : 0.5 * (left + right);
+        }
+        else
+        {
+            spline.coeffs[index] = (points[index + 1U].y - points[index - 1U].y) /
+                                   (points[index + 1U].x - points[index - 1U].x);
+        }
+    }
+    if (!monotone)
+    {
+        return spline;
+    }
     std::vector<double> delta(count - 1U);
     for (std::size_t index = 0; index + 1 < count; ++index)
     {
         const double dx = points[index + 1U].x - points[index].x;
         delta[index] = dx > 1e-12 ? (points[index + 1U].y - points[index].y) / dx : 0.0;
     }
-    spline.tangents.assign(count, 0.0);
-    spline.tangents.front() = delta.front();
-    spline.tangents.back() = delta.back();
-    for (std::size_t index = 1; index + 1 < count; ++index)
-    {
-        if (delta[index - 1U] * delta[index] <= 0.0)
-        {
-            spline.tangents[index] = 0.0;
-        }
-        else
-        {
-            spline.tangents[index] = 0.5 * (delta[index - 1U] + delta[index]);
-        }
-    }
     for (std::size_t index = 0; index + 1 < count; ++index)
     {
         if (std::abs(delta[index]) <= 1e-12)
         {
-            spline.tangents[index] = 0.0;
-            spline.tangents[index + 1U] = 0.0;
+            spline.coeffs[index] = 0.0;
+            spline.coeffs[index + 1U] = 0.0;
             continue;
         }
-        const double alpha = spline.tangents[index] / delta[index];
-        const double beta = spline.tangents[index + 1U] / delta[index];
+        const double alpha = spline.coeffs[index] / delta[index];
+        const double beta = spline.coeffs[index + 1U] / delta[index];
         const double sumsq = alpha * alpha + beta * beta;
         if (sumsq > 9.0)
         {
             const double tau = 3.0 / std::sqrt(sumsq);
-            spline.tangents[index] = tau * alpha * delta[index];
-            spline.tangents[index + 1U] = tau * beta * delta[index];
+            spline.coeffs[index] = tau * alpha * delta[index];
+            spline.coeffs[index + 1U] = tau * beta * delta[index];
         }
     }
     return spline;
+}
+
+[[nodiscard]] ToneCurveSpline make_cubic_spline(const std::vector<ToneCurvePoint> &points)
+{
+    ToneCurveSpline spline;
+    spline.points = points;
+    spline.kind = ToneCurveSpline::Kind::kCubic;
+    if (points.size() < 2)
+    {
+        return spline;
+    }
+    const auto count = points.size();
+    spline.coeffs.assign(count, 0.0);
+    if (count < 3)
+    {
+        return spline;
+    }
+    const auto interior = count - 2U;
+    std::vector<double> lower(interior, 0.0);
+    std::vector<double> diagonal(interior, 0.0);
+    std::vector<double> upper(interior, 0.0);
+    std::vector<double> rhs(interior, 0.0);
+    for (std::size_t index = 1; index + 1 < count; ++index)
+    {
+        const auto slot = index - 1U;
+        const double h0 = points[index].x - points[index - 1U].x;
+        const double h1 = points[index + 1U].x - points[index].x;
+        if (h0 <= 1e-12 || h1 <= 1e-12)
+        {
+            return make_hermite_spline(points, true);
+        }
+        lower[slot] = h0 / 6.0;
+        diagonal[slot] = (h0 + h1) / 3.0;
+        upper[slot] = h1 / 6.0;
+        rhs[slot] = (points[index + 1U].y - points[index].y) / h1 -
+                    (points[index].y - points[index - 1U].y) / h0;
+    }
+    std::vector<double> c_prime(interior, 0.0);
+    std::vector<double> d_prime(interior, 0.0);
+    if (std::abs(diagonal[0]) <= 1e-12)
+    {
+        return make_hermite_spline(points, true);
+    }
+    c_prime[0] = upper[0] / diagonal[0];
+    d_prime[0] = rhs[0] / diagonal[0];
+    for (std::size_t index = 1; index < interior; ++index)
+    {
+        const double denom = diagonal[index] - lower[index] * c_prime[index - 1U];
+        if (std::abs(denom) <= 1e-12)
+        {
+            return make_hermite_spline(points, true);
+        }
+        c_prime[index] = index + 1 < interior ? upper[index] / denom : 0.0;
+        d_prime[index] = (rhs[index] - lower[index] * d_prime[index - 1U]) / denom;
+    }
+    spline.coeffs[count - 2U] = d_prime[interior - 1U];
+    for (std::size_t index = interior - 1U; index-- > 0U;)
+    {
+        spline.coeffs[index + 1U] = d_prime[index] - c_prime[index] * spline.coeffs[index + 2U];
+    }
+    return spline;
+}
+
+[[nodiscard]] ToneCurveSpline make_tone_curve_spline(const std::vector<ToneCurvePoint> &points,
+                                                     const std::string_view interpolation)
+{
+    if (interpolation == kToneCurveInterpolationCubicSpline)
+    {
+        return make_cubic_spline(points);
+    }
+    return make_hermite_spline(points, interpolation != kToneCurveInterpolationCatmullRom);
 }
 
 [[nodiscard]] double evaluate_tone_curve_spline(const ToneCurveSpline &spline, const double x)
@@ -154,17 +261,23 @@ struct ToneCurveSpline
     {
         return spline.points.back().y;
     }
-    std::size_t index = 0;
-    while (index + 2 < spline.points.size() && x > spline.points[index + 1U].x)
-    {
-        ++index;
-    }
+    const auto index = tone_curve_interval(spline.points, x);
     const auto &left = spline.points[index];
     const auto &right = spline.points[index + 1U];
     const double dx = right.x - left.x;
     if (dx <= 1e-12)
     {
         return left.y;
+    }
+    if (spline.kind == ToneCurveSpline::Kind::kCubic)
+    {
+        const double dt = x - left.x;
+        const double ypp0 = index < spline.coeffs.size() ? spline.coeffs[index] : 0.0;
+        const double ypp1 = index + 1U < spline.coeffs.size() ? spline.coeffs[index + 1U] : 0.0;
+        const double b = (right.y - left.y) / dx - (ypp1 + 2.0 * ypp0) * dx / 6.0;
+        const double c = ypp0 / 2.0;
+        const double d = (ypp1 - ypp0) / (6.0 * dx);
+        return left.y + b * dt + c * dt * dt + d * dt * dt * dt;
     }
     const double t = (x - left.x) / dx;
     const double t2 = t * t;
@@ -173,8 +286,9 @@ struct ToneCurveSpline
     const double h10 = t3 - 2.0 * t2 + t;
     const double h01 = -2.0 * t3 + 3.0 * t2;
     const double h11 = t3 - t2;
-    return h00 * left.y + h10 * dx * spline.tangents[index] + h01 * right.y +
-           h11 * dx * spline.tangents[index + 1U];
+    const double m0 = index < spline.coeffs.size() ? spline.coeffs[index] : 0.0;
+    const double m1 = index + 1U < spline.coeffs.size() ? spline.coeffs[index + 1U] : 0.0;
+    return h00 * left.y + h10 * dx * m0 + h01 * right.y + h11 * dx * m1;
 }
 
 [[nodiscard]] const std::string *as_string_if(const ParameterValue &value)
@@ -1181,6 +1295,158 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept
             continue;
         }
         params.rgb_levels.levels[field.channel][field.stop] = value;
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool apply_rgb_curve_field(DevelopParams &params, const std::string_view name,
+                                         const double value) noexcept
+{
+    if (name == "rgbCurveMode")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.rgb_curve.mode = value == 1.0 ? std::string(kRgbLevelsModeIndependent) :
+                                               std::string(kRgbLevelsModeLinked);
+        return true;
+    }
+    if (name == "rgbCurvePreserve")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(value, 0, 6, index))
+        {
+            return false;
+        }
+        params.rgb_curve.preserve_colors =
+            std::string(rgb_levels_preserve_names()[static_cast<std::size_t>(index)]);
+        return true;
+    }
+    if (name == "rgbCurveInterpolation")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(value, 0, 2, index))
+        {
+            return false;
+        }
+        params.rgb_curve.interpolation =
+            std::string(curve_interpolation_from_index(static_cast<int>(index)));
+        return true;
+    }
+    if (name == "rgbCurveCompensate")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.rgb_curve.compensate_middle_grey = value == 1.0;
+        return true;
+    }
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+    if (name == "rgbCurveShadows")
+    {
+        params.rgb_curve.parametric_shadows = value;
+        return true;
+    }
+    if (name == "rgbCurveDarks")
+    {
+        params.rgb_curve.parametric_darks = value;
+        return true;
+    }
+    if (name == "rgbCurveLights")
+    {
+        params.rgb_curve.parametric_lights = value;
+        return true;
+    }
+    if (name == "rgbCurveHighlights")
+    {
+        params.rgb_curve.parametric_highlights = value;
+        return true;
+    }
+    if (name == "rgbCurveSplit0")
+    {
+        params.rgb_curve.parametric_split_shadows = value;
+        return true;
+    }
+    if (name == "rgbCurveSplit1")
+    {
+        params.rgb_curve.parametric_split_mid = value;
+        return true;
+    }
+    if (name == "rgbCurveSplit2")
+    {
+        params.rgb_curve.parametric_split_highlights = value;
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] bool reset_rgb_curve_field(DevelopParams &params, const std::string_view name) noexcept
+{
+    const RgbCurveParams defaults;
+    if (name == "rgbCurve")
+    {
+        params.rgb_curve = defaults;
+        return true;
+    }
+    if (name == "rgbCurveMode")
+    {
+        params.rgb_curve.mode = defaults.mode;
+        return true;
+    }
+    if (name == "rgbCurvePreserve")
+    {
+        params.rgb_curve.preserve_colors = defaults.preserve_colors;
+        return true;
+    }
+    if (name == "rgbCurveInterpolation")
+    {
+        params.rgb_curve.interpolation = defaults.interpolation;
+        return true;
+    }
+    if (name == "rgbCurveCompensate")
+    {
+        params.rgb_curve.compensate_middle_grey = defaults.compensate_middle_grey;
+        return true;
+    }
+    if (name == "rgbCurveShadows")
+    {
+        params.rgb_curve.parametric_shadows = defaults.parametric_shadows;
+        return true;
+    }
+    if (name == "rgbCurveDarks")
+    {
+        params.rgb_curve.parametric_darks = defaults.parametric_darks;
+        return true;
+    }
+    if (name == "rgbCurveLights")
+    {
+        params.rgb_curve.parametric_lights = defaults.parametric_lights;
+        return true;
+    }
+    if (name == "rgbCurveHighlights")
+    {
+        params.rgb_curve.parametric_highlights = defaults.parametric_highlights;
+        return true;
+    }
+    if (name == "rgbCurveSplit0")
+    {
+        params.rgb_curve.parametric_split_shadows = defaults.parametric_split_shadows;
+        return true;
+    }
+    if (name == "rgbCurveSplit1")
+    {
+        params.rgb_curve.parametric_split_mid = defaults.parametric_split_mid;
+        return true;
+    }
+    if (name == "rgbCurveSplit2")
+    {
+        params.rgb_curve.parametric_split_highlights = defaults.parametric_split_highlights;
         return true;
     }
     return false;
@@ -2460,13 +2726,190 @@ void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept
     points = std::move(merged);
 }
 
+bool curve_interpolation_is_supported(const std::string_view interpolation) noexcept
+{
+    return interpolation.empty() || interpolation == kToneCurveInterpolationMonotoneHermite ||
+           interpolation == kToneCurveInterpolationCatmullRom ||
+           interpolation == kToneCurveInterpolationCubicSpline;
+}
+
+int curve_interpolation_index(const std::string_view interpolation) noexcept
+{
+    if (interpolation == kToneCurveInterpolationCatmullRom)
+    {
+        return 1;
+    }
+    if (interpolation == kToneCurveInterpolationCubicSpline)
+    {
+        return 2;
+    }
+    return 0;
+}
+
+std::string_view curve_interpolation_from_index(const int index) noexcept
+{
+    if (index == 1)
+    {
+        return kToneCurveInterpolationCatmullRom;
+    }
+    if (index == 2)
+    {
+        return kToneCurveInterpolationCubicSpline;
+    }
+    return kToneCurveInterpolationMonotoneHermite;
+}
+
+Result<std::string_view> parse_curve_interpolation(const std::string_view interpolation)
+{
+    if (curve_interpolation_is_supported(interpolation))
+    {
+        return interpolation.empty() ? kToneCurveInterpolationMonotoneHermite : interpolation;
+    }
+    return make_error(ErrorCode::kValidation, "Curve interpolation is unsupported",
+                      {{"interpolation", std::string(interpolation)}});
+}
+
 double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, const double x) noexcept
+{
+    return evaluate_tone_curve(points, x, kToneCurveInterpolationMonotoneHermite);
+}
+
+double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, const double x,
+                           const std::string_view interpolation) noexcept
 {
     if (tone_curve_is_identity(points))
     {
         return std::clamp(x, 0.0, 1.0);
     }
-    return evaluate_tone_curve_spline(make_tone_curve_spline(points), x);
+    const auto kind = curve_interpolation_is_supported(interpolation) ?
+                          interpolation :
+                          kToneCurveInterpolationMonotoneHermite;
+    return evaluate_tone_curve_spline(make_tone_curve_spline(points, kind), x);
+}
+
+[[nodiscard]] double parametric_hermite01(const double t) noexcept
+{
+    const double clamped = std::clamp(t, 0.0, 1.0);
+    return clamped * clamped * (3.0 - 2.0 * clamped);
+}
+
+[[nodiscard]] double parametric_fade_out(const double x, const double start,
+                                         const double end) noexcept
+{
+    if (x <= start)
+    {
+        return 1.0;
+    }
+    if (x >= end || end <= start)
+    {
+        return 0.0;
+    }
+    return 1.0 - parametric_hermite01((x - start) / (end - start));
+}
+
+[[nodiscard]] double parametric_fade_in(const double x, const double start,
+                                        const double end) noexcept
+{
+    if (x <= start || end <= start)
+    {
+        return 0.0;
+    }
+    if (x >= end)
+    {
+        return 1.0;
+    }
+    return parametric_hermite01((x - start) / (end - start));
+}
+
+[[nodiscard]] double parametric_bump(const double x, const double left, const double peak,
+                                     const double right) noexcept
+{
+    if (x <= left || x >= right)
+    {
+        return 0.0;
+    }
+    if (x <= peak)
+    {
+        return parametric_fade_in(x, left, peak);
+    }
+    return parametric_fade_out(x, peak, right);
+}
+
+bool rgb_curve_parametric_is_identity(const RgbCurveParams &params) noexcept
+{
+    return near(params.parametric_shadows, 0.0) && near(params.parametric_darks, 0.0) &&
+           near(params.parametric_lights, 0.0) && near(params.parametric_highlights, 0.0);
+}
+
+double evaluate_rgb_curve_parametric(const RgbCurveParams &params, const double x) noexcept
+{
+    const double input = std::clamp(x, 0.0, 1.0);
+    if (rgb_curve_parametric_is_identity(params))
+    {
+        return input;
+    }
+    const double split0 = params.parametric_split_shadows;
+    const double split1 = params.parametric_split_mid;
+    const double split2 = params.parametric_split_highlights;
+    const double delta = params.parametric_shadows * parametric_fade_out(input, 0.0, split0) +
+                         params.parametric_darks * parametric_bump(input, 0.0, split0, split1) +
+                         params.parametric_lights * parametric_bump(input, split0, split1, split2) +
+                         params.parametric_highlights * parametric_fade_in(input, split2, 1.0);
+    return std::clamp(input + 0.35 * delta, 0.0, 1.0);
+}
+
+void clamp_rgb_curve(RgbCurveParams &params) noexcept
+{
+    for (auto &channel : params.channels)
+    {
+        for (auto &point : channel)
+        {
+            point.x = clamp_value(point.x, 0.0, 1.0);
+            point.y = clamp_value(point.y, 0.0, 1.0);
+        }
+        std::sort(channel.begin(), channel.end(),
+                  [](const ToneCurvePoint &left, const ToneCurvePoint &right)
+                  { return left.x < right.x; });
+        if (channel.size() < kToneCurveMinPoints)
+        {
+            channel = {{0.0, 0.0}, {1.0, 1.0}};
+        }
+        while (channel.size() > kToneCurveMaxPoints)
+        {
+            channel.erase(channel.begin() + static_cast<std::ptrdiff_t>(channel.size() / 2));
+        }
+    }
+    if (params.mode != kRgbLevelsModeIndependent)
+    {
+        params.mode = std::string(kRgbLevelsModeLinked);
+    }
+    if (!curve_interpolation_is_supported(params.interpolation))
+    {
+        params.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
+    }
+    params.parametric_shadows = clamp_value(params.parametric_shadows, -1.0, 1.0);
+    params.parametric_darks = clamp_value(params.parametric_darks, -1.0, 1.0);
+    params.parametric_lights = clamp_value(params.parametric_lights, -1.0, 1.0);
+    params.parametric_highlights = clamp_value(params.parametric_highlights, -1.0, 1.0);
+    params.parametric_split_shadows = clamp_value(params.parametric_split_shadows, 0.05, 0.90);
+    params.parametric_split_mid = clamp_value(params.parametric_split_mid, 0.10, 0.95);
+    params.parametric_split_highlights = clamp_value(params.parametric_split_highlights, 0.15, 0.98);
+    if (params.parametric_split_mid < params.parametric_split_shadows + 0.05)
+    {
+        params.parametric_split_mid = params.parametric_split_shadows + 0.05;
+    }
+    if (params.parametric_split_highlights < params.parametric_split_mid + 0.05)
+    {
+        params.parametric_split_highlights = std::min(0.98, params.parametric_split_mid + 0.05);
+    }
+    if (params.parametric_split_mid > params.parametric_split_highlights - 0.05)
+    {
+        params.parametric_split_mid = params.parametric_split_highlights - 0.05;
+    }
+    if (params.parametric_split_shadows > params.parametric_split_mid - 0.05)
+    {
+        params.parametric_split_shadows = params.parametric_split_mid - 0.05;
+    }
 }
 
 Result<ToneCurveWorkingSpace> parse_tone_curve_working_space(const std::string_view text)
@@ -2528,7 +2971,7 @@ Result<std::vector<ToneCurvePoint>> parse_tone_curve_points(const ParameterValue
     }
     if (array->size() < kToneCurveMinPoints || array->size() > kToneCurveMaxPoints)
     {
-        return make_error(ErrorCode::kValidation, "Tone curve must have between 2 and 16 points",
+        return make_error(ErrorCode::kValidation, "Tone curve must have between 2 and 20 points",
                           {{"point_count", std::to_string(array->size())}});
     }
     std::vector<ToneCurvePoint> points;
@@ -2653,7 +3096,7 @@ validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::
     if (const auto found = parameters.find("interpolation"); found != parameters.end())
     {
         const auto *text = as_string_if(found->second);
-        if (text == nullptr || *text != kToneCurveInterpolationMonotoneHermite)
+        if (text == nullptr || !curve_interpolation_is_supported(*text))
         {
             return make_error(ErrorCode::kValidation, "Tone curve interpolation is unsupported",
                               {{"interpolation", text == nullptr ? std::string() : *text}});
@@ -2689,6 +3132,72 @@ validate_tone_curve_parameters(const std::map<std::string, ParameterValue, std::
         {
             return points.error();
         }
+    }
+    if (const auto found = parameters.find("points_a"); found != parameters.end())
+    {
+        auto points = parse_tone_curve_points(found->second);
+        if (!points)
+        {
+            return points.error();
+        }
+    }
+    if (const auto found = parameters.find("points_b"); found != parameters.end())
+    {
+        auto points = parse_tone_curve_points(found->second);
+        if (!points)
+        {
+            return points.error();
+        }
+    }
+    return {};
+}
+
+Result<void>
+validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    if (const auto found = parameters.find("mode"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr || (*text != kRgbLevelsModeLinked && *text != kRgbLevelsModeIndependent))
+        {
+            return make_error(ErrorCode::kValidation, "RGB curve mode is unsupported",
+                              {{"mode", text == nullptr ? std::string() : *text}});
+        }
+    }
+    if (const auto found = parameters.find("interpolation"); found != parameters.end())
+    {
+        const auto *text = as_string_if(found->second);
+        if (text == nullptr || !curve_interpolation_is_supported(*text))
+        {
+            return make_error(ErrorCode::kValidation, "RGB curve interpolation is unsupported",
+                              {{"interpolation", text == nullptr ? std::string() : *text}});
+        }
+    }
+    const auto parse_points = [&](const char *name) -> Result<void>
+    {
+        const auto found = parameters.find(name);
+        if (found == parameters.end())
+        {
+            return {};
+        }
+        auto points = parse_rgb_curve_points(found->second);
+        if (!points)
+        {
+            return points.error();
+        }
+        return {};
+    };
+    if (auto red = parse_points("points"); !red)
+    {
+        return red.error();
+    }
+    if (auto green = parse_points("points_g"); !green)
+    {
+        return green.error();
+    }
+    if (auto blue = parse_points("points_b"); !blue)
+    {
+        return blue.error();
     }
     return {};
 }
@@ -2895,7 +3404,12 @@ void clamp_develop(DevelopParams &params) noexcept
         region.fill_brightness = clamp_value(region.fill_brightness, -1.0, 1.0);
     }
     params.clarity = clamp_value(params.clarity, -1.0, 1.0);
-    params.vignette = clamp_value(params.vignette, 0.0, 1.0);
+    params.vignette = clamp_value(params.vignette, -1.0, 1.0);
+    params.vignette_midpoint = clamp_value(params.vignette_midpoint, 0.0, 1.0);
+    params.vignette_falloff = clamp_value(params.vignette_falloff, 0.05, 1.0);
+    params.vignette_shape = clamp_value(params.vignette_shape, 0.5, 5.0);
+    params.vignette_center_x = clamp_value(params.vignette_center_x, -1.0, 1.0);
+    params.vignette_center_y = clamp_value(params.vignette_center_y, -1.0, 1.0);
     params.grain = clamp_value(params.grain, 0.0, 1.0);
     params.bloom = clamp_value(params.bloom, 0.0, 1.0);
     params.soften = clamp_value(params.soften, 0.0, 1.0);
@@ -2950,26 +3464,7 @@ void clamp_develop(DevelopParams &params) noexcept
     params.split_toning.mix = clamp_value(params.split_toning.mix, 0.0, 1.0);
     params.gamma = clamp_value(params.gamma, 0.2, 3.0);
     clamp_rgb_levels(params.rgb_levels);
-    for (auto &channel : params.rgb_curve.channels)
-    {
-        for (auto &point : channel)
-        {
-            point.x = clamp_value(point.x, 0.0, 1.0);
-            point.y = clamp_value(point.y, 0.0, 1.0);
-        }
-        if (channel.size() < kToneCurveMinPoints)
-        {
-            channel = {{0.0, 0.0}, {1.0, 1.0}};
-        }
-    }
-    if (params.rgb_curve.mode != kRgbLevelsModeIndependent)
-    {
-        params.rgb_curve.mode = std::string(kRgbLevelsModeLinked);
-    }
-    if (params.rgb_curve.interpolation != kToneCurveInterpolationMonotoneHermite)
-    {
-        params.rgb_curve.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
-    }
+    clamp_rgb_curve(params.rgb_curve);
     params.sigmoid_contrast =
         clamp_value(params.sigmoid_contrast, kSigmoidContrastMin, kSigmoidContrastMax);
     params.sigmoid_skew = clamp_value(params.sigmoid_skew, kSigmoidSkewMin, kSigmoidSkewMax);
@@ -3071,7 +3566,31 @@ void clamp_develop(DevelopParams &params) noexcept
     {
         params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceRgb);
     }
+    if (!curve_interpolation_is_supported(params.tone_curve_interpolation))
+    {
+        params.tone_curve_interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
+    }
+    if (params.tone_curve_channel_mode != kToneCurveChannelModeIndependent)
+    {
+        params.tone_curve_channel_mode = std::string(kToneCurveChannelModeRgb);
+    }
+    if (params.tone_curve_working_space == kToneCurveWorkingSpaceLabIndependent)
+    {
+        params.tone_curve_channel_mode = std::string(kToneCurveChannelModeIndependent);
+    }
+    if (params.tone_curve_preserve_colors != kToneCurvePreserveColorsNone &&
+        params.tone_curve_preserve_colors != kToneCurvePreserveColorsLuminance &&
+        params.tone_curve_preserve_colors != kToneCurvePreserveColorsMax &&
+        params.tone_curve_preserve_colors != kToneCurvePreserveColorsAverage &&
+        params.tone_curve_preserve_colors != kToneCurvePreserveColorsSum &&
+        params.tone_curve_preserve_colors != kToneCurvePreserveColorsNorm &&
+        params.tone_curve_preserve_colors != kToneCurvePreserveColorsPower)
+    {
+        params.tone_curve_preserve_colors = std::string(kToneCurvePreserveColorsAverage);
+    }
     clamp_tone_curve(params.tone_curve);
+    clamp_tone_curve(params.tone_curve_a);
+    clamp_tone_curve(params.tone_curve_b);
 }
 
 bool DevelopParams::is_identity() const noexcept
@@ -3102,7 +3621,9 @@ bool DevelopParams::is_identity() const noexcept
            !monochrome_present && !monochrome_enabled && !monochrome_mask_id.has_value() &&
            !split_toning_present && !split_toning_enabled && !split_toning_mask_id.has_value() &&
            near(gamma, kDevelopGammaDefault) && rgb_levels.is_identity() &&
-           rgb_curve.is_identity() && tone_curve_is_identity(tone_curve) && !sigmoid_enabled &&
+           rgb_curve.is_identity() && tone_curve_is_identity(tone_curve) &&
+           tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
+           !sigmoid_enabled &&
            near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
            near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
            near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
@@ -3685,6 +4206,36 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
+    if (name == "vignetteMidpoint")
+    {
+        params.vignette_midpoint = value;
+
+        return true;
+    }
+    if (name == "vignetteFalloff")
+    {
+        params.vignette_falloff = value;
+
+        return true;
+    }
+    if (name == "vignetteShape")
+    {
+        params.vignette_shape = value;
+
+        return true;
+    }
+    if (name == "vignetteCenterX")
+    {
+        params.vignette_center_x = value;
+
+        return true;
+    }
+    if (name == "vignetteCenterY")
+    {
+        params.vignette_center_y = value;
+
+        return true;
+    }
     if (name == "grain")
     {
         params.grain = value;
@@ -4031,6 +4582,57 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     if (apply_rgb_levels_field(params, name, value))
     {
 
+        return true;
+    }
+    if (apply_rgb_curve_field(params, name, value))
+    {
+
+        return true;
+    }
+    if (name == "toneCurveInterpolation")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(value, 0, 2, index))
+        {
+            return false;
+        }
+        params.tone_curve_interpolation =
+            std::string(curve_interpolation_from_index(static_cast<int>(index)));
+        return true;
+    }
+    if (name == "toneCurveChannelMode")
+    {
+        if (value != 0.0 && value != 1.0)
+        {
+            return false;
+        }
+        params.tone_curve_channel_mode = value == 1.0 ? std::string(kToneCurveChannelModeIndependent) :
+                                                        std::string(kToneCurveChannelModeRgb);
+        return true;
+    }
+    if (name == "toneCurvePreserve")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(value, 0, 6, index))
+        {
+            return false;
+        }
+        params.tone_curve_preserve_colors =
+            std::string(rgb_levels_preserve_names()[static_cast<std::size_t>(index)]);
+        return true;
+    }
+    if (name == "toneCurveWorkingSpace")
+    {
+        std::int64_t index = 0;
+        if (!exact_develop_integer(value, 0, 5, index))
+        {
+            return false;
+        }
+        static constexpr std::array<std::string_view, 6> spaces{
+            kToneCurveWorkingSpaceRgb, kToneCurveWorkingSpaceLab, kToneCurveWorkingSpaceXyz,
+            kToneCurveWorkingSpaceLabIndependent, kToneCurveWorkingSpaceSrgb,
+            kToneCurveWorkingSpaceLinearRgb};
+        params.tone_curve_working_space = std::string(spaces[static_cast<std::size_t>(index)]);
         return true;
     }
     if (name == "sigmoidContrast")
@@ -4593,6 +5195,17 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "rawHighlightsClip",
         "rawHighlightsMode",
         "renderingIntent",
+        "rgbCurveCompensate",
+        "rgbCurveDarks",
+        "rgbCurveHighlights",
+        "rgbCurveInterpolation",
+        "rgbCurveLights",
+        "rgbCurveMode",
+        "rgbCurvePreserve",
+        "rgbCurveShadows",
+        "rgbCurveSplit0",
+        "rgbCurveSplit1",
+        "rgbCurveSplit2",
         "rgbLevelsMode",
         "rgbLevelsPreserve",
         "saturation",
@@ -4614,6 +5227,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "splitShadowsHue",
         "splitToningEnabled",
         "straighten",
+        "toneCurveChannelMode",
+        "toneCurveInterpolation",
+        "toneCurvePreserve",
+        "toneCurveWorkingSpace",
         "toneEqBlacks",
         "toneEqHighlights",
         "toneEqMidtones",
@@ -4622,6 +5239,11 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "velvia",
         "vibrance",
         "vignette",
+        "vignetteCenterX",
+        "vignetteCenterY",
+        "vignetteFalloff",
+        "vignetteMidpoint",
+        "vignetteShape",
         "watermarkAlignmentIndex",
         "watermarkBlue",
         "watermarkEnabled",
@@ -5015,9 +5637,28 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.clarity = identity.clarity;
     }
-    else if (name == "vignette")
+    else if (name == "vignette" || name == "vignetteMidpoint" || name == "vignetteFalloff" ||
+             name == "vignetteShape" || name == "vignetteCenterX" || name == "vignetteCenterY")
     {
-        params.vignette = identity.vignette;
+        if (name == "vignetteMidpoint")
+            params.vignette_midpoint = identity.vignette_midpoint;
+        else if (name == "vignetteFalloff")
+            params.vignette_falloff = identity.vignette_falloff;
+        else if (name == "vignetteShape")
+            params.vignette_shape = identity.vignette_shape;
+        else if (name == "vignetteCenterX")
+            params.vignette_center_x = identity.vignette_center_x;
+        else if (name == "vignetteCenterY")
+            params.vignette_center_y = identity.vignette_center_y;
+        else
+        {
+            params.vignette = identity.vignette;
+            params.vignette_midpoint = identity.vignette_midpoint;
+            params.vignette_falloff = identity.vignette_falloff;
+            params.vignette_shape = identity.vignette_shape;
+            params.vignette_center_x = identity.vignette_center_x;
+            params.vignette_center_y = identity.vignette_center_y;
+        }
     }
     else if (name == "grain")
     {
@@ -5144,10 +5785,39 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     else if (reset_rgb_levels_field(params, name))
     {
     }
-    else if (name == "toneCurve")
+    else if (reset_rgb_curve_field(params, name))
     {
-        params.tone_curve.clear();
-        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
+    }
+    else if (name == "toneCurve" || name == "toneCurveInterpolation" ||
+             name == "toneCurveChannelMode" || name == "toneCurvePreserve" ||
+             name == "toneCurveWorkingSpace")
+    {
+        if (name == "toneCurveInterpolation")
+        {
+            params.tone_curve_interpolation = identity.tone_curve_interpolation;
+        }
+        else if (name == "toneCurveChannelMode")
+        {
+            params.tone_curve_channel_mode = identity.tone_curve_channel_mode;
+        }
+        else if (name == "toneCurvePreserve")
+        {
+            params.tone_curve_preserve_colors = identity.tone_curve_preserve_colors;
+        }
+        else if (name == "toneCurveWorkingSpace")
+        {
+            params.tone_curve_working_space = identity.tone_curve_working_space;
+        }
+        else
+        {
+            params.tone_curve.clear();
+            params.tone_curve_a.clear();
+            params.tone_curve_b.clear();
+            params.tone_curve_working_space = identity.tone_curve_working_space;
+            params.tone_curve_interpolation = identity.tone_curve_interpolation;
+            params.tone_curve_channel_mode = identity.tone_curve_channel_mode;
+            params.tone_curve_preserve_colors = identity.tone_curve_preserve_colors;
+        }
     }
     else if (name == "sigmoidContrast")
     {
@@ -5179,14 +5849,17 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.raw_ca_iterations = identity.raw_ca_iterations;
         params.raw_ca_avoid_shift = identity.raw_ca_avoid_shift;
     }
-    else if (name == "denoise" || name == "denoiseChroma" || name == "denoiseRadius")
+    else if (name == "denoise")
     {
         params.denoise = identity.denoise;
-        if (name != "denoise")
-        {
-            params.denoise_chroma = identity.denoise_chroma;
-            params.denoise_radius = identity.denoise_radius;
-        }
+    }
+    else if (name == "denoiseChroma")
+    {
+        params.denoise_chroma = identity.denoise_chroma;
+    }
+    else if (name == "denoiseRadius")
+    {
+        params.denoise_radius = identity.denoise_radius;
     }
     else if (name == "lensK1" || name == "lensK2" || name == "lensTcaR" || name == "lensTcaB" ||
              name == "lensVignetting" || name == "lensMode" || name == "lensFocal")
@@ -5344,9 +6017,6 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.blacks = identity.blacks;
         params.gamma = identity.gamma;
         params.rgb_levels = identity.rgb_levels;
-        params.rgb_curve = identity.rgb_curve;
-        params.tone_curve.clear();
-        params.tone_curve_working_space = std::string(kToneCurveWorkingSpaceSrgb);
         params.sigmoid_contrast = identity.sigmoid_contrast;
         params.sigmoid_skew = identity.sigmoid_skew;
         params.sigmoid_display_white = identity.sigmoid_display_white;
@@ -5357,6 +6027,18 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.tone_eq_midtones = identity.tone_eq_midtones;
         params.tone_eq_highlights = identity.tone_eq_highlights;
         params.tone_eq_whites = identity.tone_eq_whites;
+    }
+    else if (section == "curves")
+    {
+        params.rgb_curve = identity.rgb_curve;
+        params.tone_curve.clear();
+        params.tone_curve_a.clear();
+        params.tone_curve_b.clear();
+        params.tone_curve_working_space = identity.tone_curve_working_space;
+        params.tone_curve_interpolation = identity.tone_curve_interpolation;
+        params.tone_curve_channel_mode = identity.tone_curve_channel_mode;
+        params.tone_curve_preserve_colors = identity.tone_curve_preserve_colors;
+        params.curves_effect_enabled = identity.curves_effect_enabled;
     }
     else if (section == "color")
     {
@@ -5418,6 +6100,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     else if (section == "effects")
     {
         params.vignette = identity.vignette;
+        params.vignette_midpoint = identity.vignette_midpoint;
+        params.vignette_falloff = identity.vignette_falloff;
+        params.vignette_shape = identity.vignette_shape;
+        params.vignette_center_x = identity.vignette_center_x;
+        params.vignette_center_y = identity.vignette_center_y;
         params.bloom = identity.bloom;
         params.soften = identity.soften;
         params.dehaze = identity.dehaze;
@@ -5443,9 +6130,6 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.raw_ca_avoid_shift = identity.raw_ca_avoid_shift;
         params.raw_denoise_threshold = identity.raw_denoise_threshold;
         params.raw_denoise_bands = identity.raw_denoise_bands;
-        params.denoise = identity.denoise;
-        params.denoise_chroma = identity.denoise_chroma;
-        params.denoise_radius = identity.denoise_radius;
         params.lens_k1 = identity.lens_k1;
         params.lens_vignetting = identity.lens_vignetting;
     }
@@ -5545,9 +6229,6 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
         dest.blacks = source.blacks;
         dest.gamma = source.gamma;
         dest.rgb_levels = source.rgb_levels;
-        dest.rgb_curve = source.rgb_curve;
-        dest.tone_curve = source.tone_curve;
-        dest.tone_curve_working_space = source.tone_curve_working_space;
         dest.sigmoid_contrast = source.sigmoid_contrast;
         dest.sigmoid_skew = source.sigmoid_skew;
         dest.sigmoid_display_white = source.sigmoid_display_white;
@@ -5555,6 +6236,18 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
         dest.sigmoid_hue_preservation = source.sigmoid_hue_preservation;
         dest.sigmoid_enabled = source.sigmoid_enabled;
         dest.light_effect_enabled = source.light_effect_enabled;
+    }
+    else if (section == "curves")
+    {
+        dest.rgb_curve = source.rgb_curve;
+        dest.tone_curve = source.tone_curve;
+        dest.tone_curve_a = source.tone_curve_a;
+        dest.tone_curve_b = source.tone_curve_b;
+        dest.tone_curve_working_space = source.tone_curve_working_space;
+        dest.tone_curve_interpolation = source.tone_curve_interpolation;
+        dest.tone_curve_channel_mode = source.tone_curve_channel_mode;
+        dest.tone_curve_preserve_colors = source.tone_curve_preserve_colors;
+        dest.curves_effect_enabled = source.curves_effect_enabled;
     }
     else if (section == "color")
     {
@@ -5619,6 +6312,11 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
     else if (section == "effects")
     {
         dest.vignette = source.vignette;
+        dest.vignette_midpoint = source.vignette_midpoint;
+        dest.vignette_falloff = source.vignette_falloff;
+        dest.vignette_shape = source.vignette_shape;
+        dest.vignette_center_x = source.vignette_center_x;
+        dest.vignette_center_y = source.vignette_center_y;
         dest.bloom = source.bloom;
         dest.soften = source.soften;
         dest.dehaze = source.dehaze;
@@ -5645,9 +6343,6 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
         dest.raw_ca_avoid_shift = source.raw_ca_avoid_shift;
         dest.raw_denoise_threshold = source.raw_denoise_threshold;
         dest.raw_denoise_bands = source.raw_denoise_bands;
-        dest.denoise = source.denoise;
-        dest.denoise_chroma = source.denoise_chroma;
-        dest.denoise_radius = source.denoise_radius;
         dest.lens_k1 = source.lens_k1;
         dest.lens_vignetting = source.lens_vignetting;
         dest.raw_effect_enabled = source.raw_effect_enabled;
@@ -5691,12 +6386,14 @@ bool apply_develop_grade(DevelopParams &dest, const DevelopParams &source,
     if (grade == "light")
     {
         return apply_develop_section(dest, source, "whiteBalance") &&
-               apply_develop_section(dest, source, "light");
+               apply_develop_section(dest, source, "light") &&
+               apply_develop_section(dest, source, "curves");
     }
     if (grade == "color")
     {
         return apply_develop_section(dest, source, "color") &&
-               apply_develop_section(dest, source, "colorEqualizer");
+               apply_develop_section(dest, source, "colorEqualizer") &&
+               apply_develop_section(dest, source, "primaries");
     }
     return false;
 }
@@ -5749,13 +6446,18 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                !near(params.highlights, 0.0) || !near(params.shadows, 0.0) ||
                !near(params.whites, 0.0) || !near(params.blacks, 0.0) ||
                !near(params.gamma, kDevelopGammaDefault) || !params.rgb_levels.is_identity() ||
-               !params.rgb_curve.is_identity() || !tone_curve_is_identity(params.tone_curve) ||
                params.sigmoid_enabled ||
                !near(params.sigmoid_contrast, identity.sigmoid_contrast) ||
                !near(params.sigmoid_skew, identity.sigmoid_skew) ||
                !near(params.sigmoid_display_white, identity.sigmoid_display_white) ||
                !near(params.sigmoid_display_black, identity.sigmoid_display_black) ||
                !near(params.sigmoid_hue_preservation, identity.sigmoid_hue_preservation);
+    }
+    if (section == "curves")
+    {
+        return !params.rgb_curve.is_identity() || !tone_curve_is_identity(params.tone_curve) ||
+               !tone_curve_is_identity(params.tone_curve_a) ||
+               !tone_curve_is_identity(params.tone_curve_b);
     }
     if (section == "color")
     {
@@ -5781,7 +6483,7 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
                !near(params.sharpen_radius, identity.sharpen_radius) ||
                !near(params.sharpen_threshold, identity.sharpen_threshold) ||
                !params.retouch.is_identity() || !near(params.clarity, 0.0) ||
-               !near(params.grain, 0.0);
+               !near(params.grain, 0.0) || !near(params.denoise, 0.0);
     }
     if (section == "effects")
     {
@@ -5796,8 +6498,7 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     {
         return !near(params.raw_highlights, 0.0) || !near(params.hot_pixels_strength, 0.0) ||
                params.raw_ca_iterations > 0 || !near(params.raw_denoise_threshold, 0.0) ||
-               !near(params.denoise, 0.0) || !near(params.lens_k1, 0.0) ||
-               !near(params.lens_vignetting, 0.0);
+               !near(params.lens_k1, 0.0) || !near(params.lens_vignetting, 0.0);
     }
     if (section == "toneEqual")
     {
@@ -5880,6 +6581,10 @@ bool develop_section_effect_enabled(const DevelopParams &params, const std::stri
     {
         return params.color_eq_effect_enabled;
     }
+    if (section == "curves")
+    {
+        return params.curves_effect_enabled;
+    }
     return false;
 }
 
@@ -5945,6 +6650,10 @@ bool set_develop_section_effect_enabled(DevelopParams &params, const std::string
     else if (section == "colorEqualizer")
     {
         params.color_eq_effect_enabled = enabled;
+    }
+    else if (section == "curves")
+    {
+        params.curves_effect_enabled = enabled;
     }
     else
     {
@@ -6096,7 +6805,15 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                      !near(before.crop_x, after.crop_x) || !near(before.crop_y, after.crop_y) ||
                          !near(before.crop_width, after.crop_width) ||
                          !near(before.crop_height, after.crop_height));
-    add_named_change(changes, "toneCurve", before.tone_curve != after.tone_curve);
+    add_named_change(changes, "toneCurve",
+                     before.tone_curve != after.tone_curve ||
+                         before.tone_curve_a != after.tone_curve_a ||
+                         before.tone_curve_b != after.tone_curve_b ||
+                         before.tone_curve_interpolation != after.tone_curve_interpolation ||
+                         before.tone_curve_channel_mode != after.tone_curve_channel_mode ||
+                         before.tone_curve_preserve_colors != after.tone_curve_preserve_colors ||
+                         before.tone_curve_working_space != after.tone_curve_working_space);
+    add_toggle_change(changes, "curves", before.curves_effect_enabled, after.curves_effect_enabled);
     add_named_change(changes, "whiteBalance", before.temperature != after.temperature);
     add_named_change(changes, "inputProfile", before.input_color != after.input_color);
     add_named_change(changes, "outputProfile", before.output_color != after.output_color);
@@ -6475,7 +7192,7 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       {{"strength", ParameterValue{clamped.denoise}},
                        {"chroma", ParameterValue{clamped.denoise_chroma}},
                        {"radius", ParameterValue{clamped.denoise_radius}}},
-                      1, std::nullopt, clamped.raw_effect_enabled);
+                      1, std::nullopt, clamped.detail_effect_enabled);
     }
     if (clamped.lens_mode == kLensModeLookup || !near(clamped.lens_k1, 0.0) ||
         !near(clamped.lens_k2, 0.0) || !near(clamped.lens_tca_r, 1.0) ||
@@ -6608,18 +7325,30 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     {
         add_operation(recipe, "ravo.color.rgbcurve", "rgbcurve-1",
                       rgb_curve_to_parameters(clamped.rgb_curve), 1, std::nullopt,
-                      clamped.light_effect_enabled);
+                      clamped.curves_effect_enabled);
     }
-    if (!tone_curve_is_identity(clamped.tone_curve))
+    const bool tone_independent =
+        clamped.tone_curve_channel_mode == kToneCurveChannelModeIndependent ||
+        clamped.tone_curve_working_space == kToneCurveWorkingSpaceLabIndependent;
+    if (!tone_curve_is_identity(clamped.tone_curve) ||
+        (tone_independent && (!tone_curve_is_identity(clamped.tone_curve_a) ||
+                              !tone_curve_is_identity(clamped.tone_curve_b))))
     {
-        add_operation(
-            recipe, "ravo.core.tonecurve", "tonecurve-1",
-            {{"working_space", ParameterValue{clamped.tone_curve_working_space}},
-             {"interpolation", ParameterValue{std::string(kToneCurveInterpolationMonotoneHermite)}},
-             {"channel_mode", ParameterValue{std::string(kToneCurveChannelModeRgb)}},
-             {"preserve_colors", ParameterValue{std::string(kToneCurvePreserveColorsAverage)}},
-             {"points", tone_curve_points_to_parameter(clamped.tone_curve)}},
-            1, std::nullopt, clamped.light_effect_enabled);
+        std::map<std::string, ParameterValue, std::less<>> curve_parameters{
+            {"working_space", ParameterValue{clamped.tone_curve_working_space}},
+            {"interpolation", ParameterValue{clamped.tone_curve_interpolation}},
+            {"channel_mode", ParameterValue{clamped.tone_curve_channel_mode}},
+            {"preserve_colors", ParameterValue{clamped.tone_curve_preserve_colors}},
+            {"points", tone_curve_points_to_parameter(clamped.tone_curve)}};
+        if (tone_independent)
+        {
+            curve_parameters.emplace("points_a",
+                                     tone_curve_points_to_parameter(clamped.tone_curve_a));
+            curve_parameters.emplace("points_b",
+                                     tone_curve_points_to_parameter(clamped.tone_curve_b));
+        }
+        add_operation(recipe, "ravo.core.tonecurve", "tonecurve-1", std::move(curve_parameters), 1,
+                      std::nullopt, clamped.curves_effect_enabled);
     }
     if (clamped.color_balance_enabled)
     {
@@ -6768,8 +7497,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     {
         add_operation(recipe, "ravo.effect.vignette", "vignette-1",
                       {{"amount", ParameterValue{clamped.vignette}},
-                       {"midpoint", ParameterValue{0.8}},
-                       {"falloff", ParameterValue{0.5}}},
+                       {"midpoint", ParameterValue{clamped.vignette_midpoint}},
+                       {"falloff", ParameterValue{clamped.vignette_falloff}},
+                       {"shape", ParameterValue{clamped.vignette_shape}},
+                       {"center_x", ParameterValue{clamped.vignette_center_x}},
+                       {"center_y", ParameterValue{clamped.vignette_center_y}}},
                       1, std::nullopt, clamped.effects_effect_enabled);
     }
     if (!near(clamped.grain, 0.0))
@@ -7203,7 +7935,21 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             {
                 return blue.error();
             }
-            note_section("light", operation.enabled);
+            params.rgb_curve.parametric_shadows =
+                number("parametric_shadows", params.rgb_curve.parametric_shadows);
+            params.rgb_curve.parametric_darks =
+                number("parametric_darks", params.rgb_curve.parametric_darks);
+            params.rgb_curve.parametric_lights =
+                number("parametric_lights", params.rgb_curve.parametric_lights);
+            params.rgb_curve.parametric_highlights =
+                number("parametric_highlights", params.rgb_curve.parametric_highlights);
+            params.rgb_curve.parametric_split_shadows =
+                number("parametric_split_shadows", params.rgb_curve.parametric_split_shadows);
+            params.rgb_curve.parametric_split_mid =
+                number("parametric_split_mid", params.rgb_curve.parametric_split_mid);
+            params.rgb_curve.parametric_split_highlights =
+                number("parametric_split_highlights", params.rgb_curve.parametric_split_highlights);
+            note_section("curves", operation.enabled);
         }
         else if (operation.id == "ravo.core.tonecurve")
         {
@@ -7215,17 +7961,58 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
                     params.tone_curve_working_space = *text;
                 }
             }
-            if (const auto found = operation.parameters.find("points");
+            if (const auto found = operation.parameters.find("interpolation");
                 found != operation.parameters.end())
             {
-                auto points = parse_tone_curve_points(found->second);
-                if (!points)
+                if (const auto *text = as_string_if(found->second); text != nullptr)
                 {
-                    return points.error();
+                    params.tone_curve_interpolation = *text;
                 }
-                params.tone_curve = std::move(points).value();
             }
-            note_section("light", operation.enabled);
+            if (const auto found = operation.parameters.find("channel_mode");
+                found != operation.parameters.end())
+            {
+                if (const auto *text = as_string_if(found->second); text != nullptr)
+                {
+                    params.tone_curve_channel_mode = *text;
+                }
+            }
+            if (const auto found = operation.parameters.find("preserve_colors");
+                found != operation.parameters.end())
+            {
+                if (const auto *text = as_string_if(found->second); text != nullptr)
+                {
+                    params.tone_curve_preserve_colors = *text;
+                }
+            }
+            const auto take_tone_points = [&](const char *name,
+                                              std::vector<ToneCurvePoint> &target) -> Result<void>
+            {
+                if (const auto found = operation.parameters.find(name);
+                    found != operation.parameters.end())
+                {
+                    auto points = parse_tone_curve_points(found->second);
+                    if (!points)
+                    {
+                        return points.error();
+                    }
+                    target = std::move(points).value();
+                }
+                return {};
+            };
+            if (auto points = take_tone_points("points", params.tone_curve); !points)
+            {
+                return points.error();
+            }
+            if (auto points = take_tone_points("points_a", params.tone_curve_a); !points)
+            {
+                return points.error();
+            }
+            if (auto points = take_tone_points("points_b", params.tone_curve_b); !points)
+            {
+                return points.error();
+            }
+            note_section("curves", operation.enabled);
         }
         else if (operation.id == "ravo.color.vibrance")
         {
@@ -7400,6 +8187,11 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         else if (operation.id == "ravo.effect.vignette")
         {
             params.vignette = number("amount", params.vignette);
+            params.vignette_midpoint = number("midpoint", params.vignette_midpoint);
+            params.vignette_falloff = number("falloff", params.vignette_falloff);
+            params.vignette_shape = number("shape", params.vignette_shape);
+            params.vignette_center_x = number("center_x", params.vignette_center_x);
+            params.vignette_center_y = number("center_y", params.vignette_center_y);
             note_section("effects", operation.enabled);
         }
         else if (operation.id == "ravo.effect.grain")
@@ -7551,7 +8343,7 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.denoise = number("strength", params.denoise);
             params.denoise_chroma = number("chroma", params.denoise_chroma);
             params.denoise_radius = number("radius", params.denoise_radius);
-            note_section("raw", operation.enabled);
+            note_section("detail", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.lens")
         {
@@ -7890,6 +8682,10 @@ rgb_levels_to_parameters(const RgbLevelsParams &params)
 
 bool RgbCurveParams::is_identity() const noexcept
 {
+    if (!rgb_curve_parametric_is_identity(*this))
+    {
+        return false;
+    }
     if (mode == kRgbLevelsModeIndependent)
     {
         return tone_curve_is_identity(channels[0]) && tone_curve_is_identity(channels[1]) &&
@@ -7994,10 +8790,25 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
                               {{"legacy_operation", "rgbcurve"},
                                {"reason", "unsupported_legacy_rgbcurve_nodes"}});
         }
-        if (type != kMonotoneHermite)
+        if (type != 0 && type != 1 && type != kMonotoneHermite)
         {
             return make_error(ErrorCode::kUnsupported,
                               "Legacy RGB curve interpolation is unsupported",
+                              {{"legacy_operation", "rgbcurve"},
+                               {"reason", "unsupported_legacy_rgbcurve_interpolation"}});
+        }
+        const auto interpolation = curve_interpolation_from_index(type == kMonotoneHermite ? 0 :
+                                                                  type == 1                ? 1 :
+                                                                                             2);
+        if (channel == 0)
+        {
+            result.interpolation = std::string(interpolation);
+        }
+        else if (result.mode == kRgbLevelsModeIndependent &&
+                 result.interpolation != interpolation)
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy RGB curve mixed interpolators are unsupported",
                               {{"legacy_operation", "rgbcurve"},
                                {"reason", "unsupported_legacy_rgbcurve_interpolation"}});
         }
@@ -8027,20 +8838,33 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
         }
         result.channels[channel] = std::move(points);
     }
-    result.interpolation = std::string(kToneCurveInterpolationMonotoneHermite);
     return result;
 }
 
 std::map<std::string, ParameterValue, std::less<>>
 rgb_curve_to_parameters(const RgbCurveParams &params)
 {
-    return {{"mode", ParameterValue{params.mode}},
-            {"preserve_colors", ParameterValue{params.preserve_colors}},
-            {"interpolation", ParameterValue{params.interpolation}},
-            {"compensate_middle_grey", ParameterValue{params.compensate_middle_grey}},
-            {"points", tone_curve_points_to_parameter(params.channels[0])},
-            {"points_g", tone_curve_points_to_parameter(params.channels[1])},
-            {"points_b", tone_curve_points_to_parameter(params.channels[2])}};
+    auto parameters = std::map<std::string, ParameterValue, std::less<>>{
+        {"mode", ParameterValue{params.mode}},
+        {"preserve_colors", ParameterValue{params.preserve_colors}},
+        {"interpolation", ParameterValue{params.interpolation}},
+        {"compensate_middle_grey", ParameterValue{params.compensate_middle_grey}},
+        {"points", tone_curve_points_to_parameter(params.channels[0])},
+        {"points_g", tone_curve_points_to_parameter(params.channels[1])},
+        {"points_b", tone_curve_points_to_parameter(params.channels[2])}};
+    if (!rgb_curve_parametric_is_identity(params))
+    {
+        parameters.emplace("parametric_shadows", ParameterValue{params.parametric_shadows});
+        parameters.emplace("parametric_darks", ParameterValue{params.parametric_darks});
+        parameters.emplace("parametric_lights", ParameterValue{params.parametric_lights});
+        parameters.emplace("parametric_highlights", ParameterValue{params.parametric_highlights});
+        parameters.emplace("parametric_split_shadows",
+                           ParameterValue{params.parametric_split_shadows});
+        parameters.emplace("parametric_split_mid", ParameterValue{params.parametric_split_mid});
+        parameters.emplace("parametric_split_highlights",
+                           ParameterValue{params.parametric_split_highlights});
+    }
+    return parameters;
 }
 
 Result<void> leftover_rawdenoise_from_v2(const std::vector<std::uint8_t> &payload,

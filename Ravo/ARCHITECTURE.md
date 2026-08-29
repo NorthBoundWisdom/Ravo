@@ -346,20 +346,35 @@ is still its independent operation formula, not an alias for generic mask
 geometry. Historic blend modes and leftover GTK mask-manager consumers remain
 outside this tranche.
 
-`ravo.core.tonecurve` implements the frozen C RGB-linked default:
-Lab D50 → ProPhoto, `preserve_colors=average`, a 0–1 point list, and
-`interpolation=monotone_hermite`. `working_space=lab|xyz|lab_independent`
-is an explicit C mode; Inspector forwards points and recipe/engine evaluates.
+Explicit Lightroom CRS XMP import lives in the adapters target, not the leftover
+darktable history importer. The leftover path rejects `crs:` rather than treating
+it as empty history. Mapping writes `DevelopParams` and `recipe_from_develop`;
+Studio lists imported presets above History on the Edit left rail. Import copies
+a CRS XMP or `.rstyle.json` into `Ravo Presets` next to the library and applies
+it to the selected photo. `catalog develop --from-xmp` is the same overlay
+without replacing crop, masks, or profiles (ADR-0086).
+
+Studio's Curves section authors two operations without folding them.
+`ravo.color.rgbcurve` is the default RGB/R/G/B working-space curve, with
+optional preserve-colors, middle-grey uncompensate, and a parametric
+shadows/darks/lights/highlights map composed as `point_curve(parametric(x))`.
+`ravo.core.tonecurve` remains the Lab D50 → ProPhoto RGB-linked default with
+`preserve_colors=average` and explicit `lab` / `xyz` / `lab_independent`
+working spaces. Both share recipe-owned `monotone_hermite`, `catmull_rom`,
+and `cubic_spline` evaluators (2–20 nodes). QML draws the plot and histogram;
+C++ owns points and commits. Histogram bins come from the engine-owned
+display RGB8 histogram plus Rec.709 luma.
 
 The lightweight P1 global controls do not stand in for the later full-module
 migration queue. Contrast, Saturation, and Vibrance use the darktable basic-
 adjustments CPU response;
-Lab-backed controls share the engine's D50 working conversion; hidden Grain,
-Vignette, Bloom, and Soften defaults use the corresponding source parameters,
-while Sharpen is now independently accepted below. Studio presents
+Lab-backed controls share the engine's D50 working conversion; Grain, Bloom,
+and Soften defaults use the corresponding source parameters, while Sharpen and
+post-crop vignette geometry (signed amount, midpoint, falloff, shape, centre)
+are independently accepted below (ADR-0085). Studio presents
 darktable-equivalent soft ranges while recipe validation retains the explicit
-hard bounds. Full `shadhi`, `gamma`, `grain`, `vignette`, `bloom`, and `soften`
-capability acceptance remains governed by the root migration queue rather than
+hard bounds. Full leftover `shadhi`, `gamma`, `grain`, `vignette`, `bloom`, and
+`soften` IOP acceptance remains governed by the root migration queue rather than
 inferred from these global controls. Dehaze is independently accepted below.
 
 `ravo.repair.retouch` is the first operation with an ordered set of internal
@@ -894,10 +909,11 @@ The Ravo Studio first version owns:
   tag filter, and Import/Export; Edit's left rail is the selected photo's
   recipe history and snapshots. Clicking a step previews that recipe and dims
   newer rows; a subsequent parameter edit discards the dimmed rows. The default
-  Edit grading stack is White Balance, Light, Color Equalizer, and Color
-  Balance RGB wheels; overlapping Lab color tools stay under Color · Advanced
-  (ADR-0082). Color Equalizer exposes eight named bands; Bayer white-balance
-  pick writes manual temperature coefficients (ADR-0083);
+  Edit grading stack is White Balance, Light, Curves, Color Equalizer, Color
+  Balance RGB wheels, and Camera Calibration; overlapping Lab color tools stay
+  under Color · Advanced (ADR-0082/0084/0085). Color Equalizer exposes eight
+  named bands; Bayer white-balance pick writes manual temperature coefficients
+  (ADR-0083);
 - shared scopes above the right Gallery/Edit panel, remaining visible while
   the Edit list scrolls: frozen 256-bin RGB Histogram, overlaid Waveform, RGB
   Parade, fixed linear D50 CIE u*v* Vectorscope, and Waveform/Vectorscope
