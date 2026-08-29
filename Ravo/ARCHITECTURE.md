@@ -55,7 +55,20 @@ Exiv2, LensFun, LibJpegTurbo, and LibTIFF are pinned migration source roots.
 Configure validates the exact materialized sources. The accepted engine-private
 RAW metadata adapter is the only Exiv2 consumer; other roots do not link a
 product target until their corresponding lens-database or codec adapter is
-accepted. Future public contracts continue to carry owned metadata,
+accepted. Ravo does not expose Exiv2's upstream CMake options.
+`ravo_add_private_exiv2()` compiles one frozen private profile:
+
+| Surface | Frozen value |
+| --- | --- |
+| Linkage | static `exiv2lib`, `EXCLUDE_FROM_ALL` |
+| Read path | filesystem `ImageFactory::open`, plus in-memory TIFF from PNG `eXIf` |
+| Containers | BMFF on (CR3); Exiv2 XMP SDK, PNG codec, video, webready/curl, Brotli, NLS, inih, and Nikon lens data off |
+| Extra targets | CLI, samples, unit/fuzz tests, and docs off |
+
+Public configure still has only Ravo `BUILD_TESTING`. That flag never enables
+Exiv2 tests or docs.
+
+Future public contracts continue to carry owned metadata,
 calibration, or encoded bytes rather than third-party handles. Existing
 QSQLITE, zlib/libpng PNG input, and Qt JPEG/TIFF input runtime ownership is
 unchanged. The adapter-private libpng/ZLIB encoder owns PNG output bit depth

@@ -345,12 +345,18 @@ endif()
 
 # Exposure metadata stays behind the engine's RAW adapter. Keep the pinned
 # Exiv2 source fully offline and omit every unrelated application/test surface.
+# These assignments are a frozen private profile, not public CMake options.
+# Ravo BUILD_TESTING never enables Exiv2 tests or docs.
 function(ravo_add_private_exiv2)
   # Exiv2's 3.11 policy floor predates CMP0077/CMP0074. Supply the parent
   # defaults so its option() calls honor this function-scoped offline profile.
   set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
   set(CMAKE_POLICY_DEFAULT_CMP0074 NEW)
   set(BUILD_SHARED_LIBS OFF)
+  set(EXIV2_ENABLE_FILESYSTEM_ACCESS ON)
+  set(EXIV2_ENABLE_BMFF ON)
+  set(EXIV2_ENABLE_DYNAMIC_RUNTIME ON)
+  set(BUILD_WITH_STACK_PROTECTOR ON)
   set(EXIV2_ENABLE_XMP OFF)
   set(EXIV2_ENABLE_EXTERNAL_XMP OFF)
   set(EXIV2_ENABLE_PNG OFF)
@@ -358,11 +364,9 @@ function(ravo_add_private_exiv2)
   set(EXIV2_ENABLE_LENSDATA OFF)
   set(EXIV2_ENABLE_WEBREADY OFF)
   set(EXIV2_ENABLE_CURL OFF)
-  set(EXIV2_ENABLE_BMFF ON)
   set(EXIV2_ENABLE_BROTLI OFF)
   set(EXIV2_ENABLE_VIDEO OFF)
   set(EXIV2_ENABLE_INIH OFF)
-  set(EXIV2_ENABLE_FILESYSTEM_ACCESS ON)
   # Ravo already found Zlib for its own codec graph. Do not let that parent
   # result define EXV_HAVE_LIBZ after Exiv2's PNG sources were disabled.
   set(ZLIB_FOUND OFF)
@@ -372,8 +376,14 @@ function(ravo_add_private_exiv2)
   set(EXIV2_BUILD_FUZZ_TESTS OFF)
   set(EXIV2_BUILD_DOC OFF)
   set(EXIV2_TEAM_PACKAGING OFF)
+  set(EXIV2_TEAM_EXTRA_WARNINGS OFF)
+  set(EXIV2_TEAM_WARNINGS_AS_ERRORS OFF)
+  set(EXIV2_TEAM_USE_SANITIZERS OFF)
+  set(EXIV2_TEAM_OSS_FUZZ OFF)
   set(BUILD_WITH_CCACHE OFF)
   set(BUILD_WITH_COVERAGE OFF)
+  message(STATUS
+    "Ravo frozen private Exiv2 profile: static Exif+BMFF; no XMP SDK, PNG, CLI, tests, or docs")
 
   # FindIconv can expose the active Xcode SDK's usr/include as a system include.
   # AppleClang already searches that directory through its SDK, while repeating
@@ -401,6 +411,40 @@ function(ravo_add_private_exiv2)
     target_include_directories(exiv2lib SYSTEM INTERFACE
       "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>")
   endif()
+  foreach(_ravo_exiv2_option IN ITEMS
+      EXIV2_ENABLE_XMP
+      EXIV2_ENABLE_EXTERNAL_XMP
+      EXIV2_ENABLE_PNG
+      EXIV2_ENABLE_NLS
+      EXIV2_ENABLE_LENSDATA
+      EXIV2_ENABLE_DYNAMIC_RUNTIME
+      EXIV2_ENABLE_WEBREADY
+      EXIV2_ENABLE_CURL
+      EXIV2_ENABLE_BMFF
+      EXIV2_ENABLE_BROTLI
+      EXIV2_ENABLE_VIDEO
+      EXIV2_ENABLE_INIH
+      EXIV2_ENABLE_FILESYSTEM_ACCESS
+      EXIV2_BUILD_SAMPLES
+      EXIV2_BUILD_EXIV2_COMMAND
+      EXIV2_BUILD_UNIT_TESTS
+      EXIV2_BUILD_FUZZ_TESTS
+      EXIV2_BUILD_DOC
+      EXIV2_TEAM_EXTRA_WARNINGS
+      EXIV2_TEAM_WARNINGS_AS_ERRORS
+      EXIV2_TEAM_USE_SANITIZERS
+      EXIV2_TEAM_OSS_FUZZ
+      EXIV2_TEAM_PACKAGING
+      BUILD_WITH_STACK_PROTECTOR
+      BUILD_WITH_CCACHE
+      BUILD_WITH_COVERAGE
+      EXTRA_COMPILE_FLAGS)
+    if(DEFINED CACHE{${_ravo_exiv2_option}})
+      set(${_ravo_exiv2_option} "${${_ravo_exiv2_option}}" CACHE INTERNAL
+        "Ravo frozen private Exiv2 profile" FORCE)
+    endif()
+  endforeach()
+  unset(_ravo_exiv2_option)
 endfunction()
 ravo_add_private_exiv2()
 if(NOT TARGET Exiv2::exiv2lib)
