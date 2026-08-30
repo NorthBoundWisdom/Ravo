@@ -1,72 +1,48 @@
 ---
-name: "i18n-translation-workflow"
-description: "Ravo Studio Qt/QML 中英本地化更新、翻译记忆复用和译包验证工作流。"
-version: 0.2.1
+name: i18n-translation-workflow
+description: Ravo Studio Qt/QML multilingual catalog extraction, translation-memory reuse, and package validation.
+metadata:
+  version: 0.3.0
 ---
 
-# Ravo Studio i18n 翻译工作流
+# Ravo Studio i18n workflow
 
-本 skill 是 Ravo Studio 的翻译资产唯一更新入口。它维护：
+Use this skill when adding or updating Ravo Studio translations. The versioned owner is
+`Ravo/desktop/i18n/locales.json`; do not hard-code a parallel locale list.
 
-- Ravo/desktop/i18n/RavoStudio_en_US.ts
-- Ravo/desktop/i18n/RavoStudio_zh_CN.ts
-- Ravo/desktop/i18n/zh_translate.ini
+## Boundaries
 
-zh_translate.ini 是持久翻译记忆：更新 source 后，已翻译条目会按
-context::source 优先、source 次之复用；它可保留已经从当前 UI 移除的历史条目。
-.ts 则始终只反映当前 source。不要手工编辑 .ts，也不要在 CMake 构建目录保存翻译源文件。
+- Translate Studio UI strings only. Keep CLI JSON, service/engine errors, and documentation source text in English.
+- Update `.ts` catalogs through this workflow, not by manually adding messages.
+- Preserve placeholders, URLs, resource paths, file extensions, shortcuts, product names, and explicit line breaks.
+- Every manifest locale must be complete before packaging. Missing or invalid catalogs fail explicitly.
+- Translation memories are locale-specific `RavoStudio_<locale>.memory.ini` files and are versioned inputs.
 
-## 正常入口
+## Extraction
 
-    python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --part 1
-    # 只修改 zh_translate.ini 中值为 <unfinished> 的项，保持 key 与顺序不变。
-    python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --part 2
+```text
+python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py \
+  --repo-root . --part 1 --lupdate /path/to/lupdate
+```
 
-新项目首次建库或需要全自动草稿时：
+This extracts every manifest catalog, makes the source catalog an English identity catalog,
+and synchronizes active messages into each selected translation memory. Use repeatable
+`--locale <code>` only when deliberately updating a subset. `--clean-ts` is destructive and
+must be explicitly requested.
 
-    python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py \
-      --part all --auto-translate --translation-provider mymemory
+## Translation
 
-可选 OpenAI provider 只在显式传入 --auto-translate --translation-provider openai 时
-调用，读取 OPENAI_API_KEY 或 --openai-api-key；不得把密钥写入仓库。自动翻译后的
-术语、快捷键、占位符、产品名和文件格式必须人工复核。
+Fill `<unfinished>` values in each locale memory. Reuse exact translations where the context
+and source key are unchanged. Review terminology and naturalness per locale; machine output is
+a draft, not acceptance evidence.
 
-## 阶段和脚本
+## Apply and validate
 
-- 1_add_qstr_to_qml.py：保守地把直接 QML 显示文本标记为 qsTr()。
-- 2_update_translations.py：用 lupdate 扫描 Ravo/desktop，刷新中英 TS。
-- 3_add_json_strings_to_ts.py：只在 Ravo/desktop/config/ 存在 JSON UI 字符串时运行。
-- 4_update_zh_trans_ini.py：把新 source 与持久中文翻译记忆同步。
-- 5_apply_chinese_translations.py：将记忆写回中文 TS。
-- 6_fix_english_translations.py：将英文 TS 的 source 文本补全为英文翻译。
+```text
+python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py \
+  --repo-root . --part 2
+```
 
-0_update_ts.py -p1 编排 1–4，-p2 编排 5–6；run_i18n_workflow.py 是首选入口。
-
-## 提交门槛与维护节奏
-
-- 普通功能开发和评审不以译文措辞、翻译完整度或 source 提取清单作为阻塞项；这些内容由
-  定期本地化维护集中处理。
-- 不为单个 UI 文本、具体译文或提取清单新增专项自动化测试。现有译包装载 smoke 只保护
-  编译与 context 接线，不把逐条翻译变成功能验收门槛。
-- 功能代码仍应使用 Qt 可提取标记；顺手可安全修正时直接修正，否则记录给下一次本地化维护，
-  不阻塞无关功能提交。
-- 下列强约束和完整成功标准适用于显式执行本地化维护时，不扩大普通功能提交的门槛。
-
-## 强约束
-
-1. 先运行第一阶段，再补齐 zh_translate.ini，最后运行第二阶段。
-2. 只能修改 <unfinished> 的 value；不可增删、重排或改写 key。
-3. 保留 %1、%L1、%n、\\n、格式串、URL、资源路径、文件扩展名、JSON/QML/C++ 标识符。
-4. C++ 可见文本必须使用 Qt 可提取的 QCoreApplication::translate 或
-   QT_TRANSLATE_NOOP，不能依赖未注册的自定义包装函数。
-5. 成功标准是中英 TS 均无 active type="unfinished"，再由
-   ravo_studio_translations 编译 .qm。缺少 lupdate、无法解析的 ini、顺序破坏、
-   未完成翻译或无效 XML 都必须失败。
-
-## 翻译原则
-
-- 中文采用简体中文、摄影软件语境和稳定术语；Ravo Studio、RAW、ICC、D50、sRGB 等产品和
-  技术专有名词按语境保留。
-- 相同 source 在不同 context 语义不同，优先使用 context::source 记忆项。
-- 不确定的术语保持英文并记录待确认，不得猜测或制造语义替换。
-- 译包缺失时运行时会明确告警并显示英文；这不是翻译更新成功的替代结果。
+Part 2 refuses incomplete memories, applies them to `.ts`, and runs manifest-wide structural
+validation. Then build `ravo_studio_translations`, run the localization contract tests, and run
+`ravo_studio_localization_smoke` for package/runtime evidence.

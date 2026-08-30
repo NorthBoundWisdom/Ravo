@@ -20,7 +20,8 @@ def find_repo_root() -> Path:
 
 
 def workflow_script_path(repo_root: Path, script_name: str) -> Path:
-    return repo_root / ".codex" / "skills" / "i18n-translation-workflow" / script_name
+    del repo_root
+    return Path(__file__).resolve().parent / script_name
 
 
 def run_legacy_script(

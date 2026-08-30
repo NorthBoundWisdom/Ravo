@@ -99,3 +99,4 @@ supersession relationship when direction changes.
 | [0089](0089-exact-interactive-prefix-cache.md) | Accepted | Foreground 960px previews retain an exact pre-light RGB prefix and owner-scoped row team, with successful-only publication and a 30ms Release P90 intent-to-image gate. |
 | [0090](0090-versioned-live-studio-control.md) | Accepted | Same-user, revision-checked live Studio selection/recipe control through CLI, with exact no-replace preview artifacts. |
 | [0091](0091-monotonic-whites-blacks-response.md) | Accepted | Whites/Blacks use monotonic scene-EV luminance envelopes and a shared positive RGB scale; preview v8 retires subtractive black clipping. |
+| [0093](0093-versioned-studio-locale-catalog.md) | Accepted | One embedded manifest owns Studio locales, aliases, catalogs, and memories; packaging and smoke require the complete set while machine contracts stay English. |

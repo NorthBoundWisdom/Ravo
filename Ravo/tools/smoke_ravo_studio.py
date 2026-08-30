@@ -1,42 +1,41 @@
 #!/usr/bin/env python3
-"""Launch Ravo Studio, confirm QML loaded, then exit.
-
-Used as a ravo_studio POST_BUILD smoke check. The binary must accept --smoke.
-"""
+"""Launch Ravo Studio offscreen for one or more UI locales."""
 
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: smoke_ravo_studio.py <ravo_studio_binary>", file=sys.stderr)
-        return 2
-    binary = sys.argv[1]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("binary")
+    parser.add_argument("--language", action="append", default=[])
+    args = parser.parse_args()
     env = os.environ.copy()
     env.setdefault("QT_QPA_PLATFORM", "offscreen")
-    try:
-        completed = subprocess.run(
-            (binary, "--smoke"),
-            env=env,
-            check=False,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        print(f"Ravo Studio smoke timed out: {binary}", file=sys.stderr)
-        return 1
-    except OSError as error:
-        print(f"Ravo Studio smoke failed to start {binary}: {error}", file=sys.stderr)
-        return 1
-    if completed.returncode != 0:
-        print(
-            f"Ravo Studio smoke failed: {binary} --smoke exited {completed.returncode}",
-            file=sys.stderr,
-        )
-    return completed.returncode
+    languages: list[str | None] = args.language or [None]
+    for language in languages:
+        command = [args.binary, "--smoke"]
+        if language is not None:
+            command.extend(("--language", language))
+        try:
+            completed = subprocess.run(command, env=env, check=False, timeout=30)
+        except subprocess.TimeoutExpired:
+            print(f"Ravo Studio smoke timed out: {' '.join(command)}", file=sys.stderr)
+            return 1
+        except OSError as error:
+            print(f"Ravo Studio smoke failed to start {args.binary}: {error}", file=sys.stderr)
+            return 1
+        if completed.returncode != 0:
+            print(
+                f"Ravo Studio smoke failed: {' '.join(command)} exited {completed.returncode}",
+                file=sys.stderr,
+            )
+            return completed.returncode
+    return 0
 
 
 if __name__ == "__main__":

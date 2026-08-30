@@ -65,9 +65,11 @@ Current implementation status:
   command controller, wait for the saved preview, and publish an exact
   no-replace probe PNG. Selection and state revisions reject stale requests;
   no assistant credential or image byte enters the socket (ADR-0090).
-- Studio UI supports English and Simplified Chinese. The desktop-owned language
+- Studio UI supports English, German, Spanish, French, Brazilian Portuguese,
+  Simplified and Traditional Chinese, Japanese, and Korean. The desktop-owned language
   manager synchronously persists the normalized selected language, repairs a
-  malformed stored value to English, loads only the build-produced Qt catalog,
+  malformed stored value to English, resolves system-locale aliases from the
+  versioned locale manifest, and loads only the build-produced Qt catalog,
   and leaves the prior language active on package or persistence failure.
   Service/engine machine errors remain outside the translation contract. Other
   current view controls are session state rather than hidden settings
@@ -524,15 +526,15 @@ modules, runtime plugins, and desktop requires renewed three-platform results.
 
 ## Studio localization
 
-Studio localization source is versioned under desktop/i18n, while QM files are
-build output. Refresh source and reuse the persistent Chinese translation
-memory with the project-local
+Studio localization source and the locale manifest are versioned under
+`desktop/i18n`, while QM files are build output. Refresh source and reuse each
+locale's persistent translation memory with the project-local
 [i18n workflow](../.codex/skills/i18n-translation-workflow/SKILL.md):
 
 ~~~text
-python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --part 1
-# Translate only <unfinished> values in Ravo/desktop/i18n/zh_translate.ini.
-python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --part 2
+python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --repo-root . --part 1 --lupdate /path/to/lupdate
+# Translate only <unfinished> values in the selected RavoStudio_<locale>.memory.ini files.
+python3 .codex/skills/i18n-translation-workflow/run_i18n_workflow.py --repo-root . --part 2
 cmake --build --preset mac_clang_debug --target ravo_studio_translations
 ~~~
 
@@ -687,7 +689,7 @@ meets the root TODO's release-transition and rollback gates.
 - [TESTING.md](TESTING.md): first-version catalog/import/viewer and frozen
   fixture acceptance;
 - [i18n workflow](../.codex/skills/i18n-translation-workflow/SKILL.md):
-  source extraction, Chinese translation memory, and catalog validation;
+  source extraction, locale-specific translation memory, and catalog validation;
 - [ADR index](docs/adr/README.md): durable architecture decisions;
 - [root legacy migration TODO](../TODO_LEGACY_MIGRATION.md): unfinished
   execution items and gates only.

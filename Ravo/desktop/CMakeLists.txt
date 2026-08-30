@@ -3,6 +3,11 @@ qt_policy(SET QTP0004 NEW)
 
 add_library(ravo_desktop STATIC)
 
+qt_add_resources(ravo_desktop "studio_locale_manifest"
+  PREFIX "/ravo/studio/i18n"
+  BASE "${CMAKE_CURRENT_SOURCE_DIR}/i18n"
+  FILES i18n/locales.json)
+
 target_sources(ravo_desktop
   PRIVATE
     src/asset_list_model.cpp

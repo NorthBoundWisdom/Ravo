@@ -194,16 +194,20 @@ channel sums plus display-luma movement; a qualitative “looks less strong”
 result is not an acceptance value.
 
 Localization packaging is a desktop build contract: tracked TS XML must remain
-well formed and the `ravo_studio_translations` target must compile both catalogs.
+well formed and the `ravo_studio_translations` target must compile every catalog
+declared by the versioned locale manifest.
 Translation wording, completeness, and source-extraction inventory are periodic
 localization-maintenance work rather than per-feature acceptance gates. Feature
 slices do not add assertions for individual translated strings or extraction
 lists; the existing compiled-catalog smoke remains only as a packaging/context
 wiring signal. During an explicit localization-maintenance run,
 `Ravo/tools/check_i18n.py` requires no active unfinished/empty translations,
-matching placeholders/newlines, and English source identity. Refresh catalogs
-only through the project i18n workflow so current source and historical Chinese
-translations remain separate and reproducible.
+matching placeholders/newlines/protected literals, and English source identity.
+Contract tests resolve representative system aliases, prove missing packages
+leave the prior language active, and load every manifest QM; the offscreen smoke
+launches every locale. Refresh catalogs only through the project i18n workflow
+so current source and locale-specific historical translations remain separate
+and reproducible.
 
 ## Test framework and target boundaries
 
@@ -911,8 +915,8 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
 - Studio settings tests isolate QSettings storage and prove corrupt persisted
   language removal, English fallback, alias normalization, synchronous
   persistence, unsupported-language rejection, and preservation of the prior
-  durable value. Translation package smoke separately proves both catalogs
-  compile with no active unfinished strings (ADR-0066).
+  durable value. Translation package smoke separately proves every manifest
+  catalog compiles with no active unfinished strings (ADR-0066/0093).
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
   schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
   tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero

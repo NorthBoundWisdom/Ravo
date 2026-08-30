@@ -102,15 +102,18 @@ Commands that depend on current control values are not in the command palette.
 QML retains only transient focus/popup state and thin action binding, not a
 second table of IDs, titles, shortcuts, or enablement.
 
-Desktop localization is likewise presentation-only. The desktop-owned language
-manager selects only en_US or zh_CN, persists that UI preference locally, and
-owns the QTranslator lifetime. It installs a verified candidate before
+Desktop localization is likewise presentation-only. One versioned locale
+manifest owns supported locale codes, native display names, aliases, catalogs,
+and translation memories. The desktop-owned language manager parses that
+embedded manifest on the main thread, persists the normalized UI preference
+locally, and owns the QTranslator lifetime. It installs a verified candidate before
 discarding the prior translator, synchronously persists a normalized value,
 then asks the QML engine and command controller to retranslate. A malformed
 stored value is removed and falls back to English; a package or settings-write
 failure is reported and leaves active state unchanged. Source TS catalogs and
-the Chinese translation memory are repository assets; CMake validates and
-compiles them to build-local QM files, which are the only files deployed with
+locale-specific translation memories are repository assets; CMake derives its
+complete catalog set from the same manifest, validates it, and compiles it to
+build-local QM files, which are the only files deployed with
 Studio. This is the only persistent Studio preference: view controls remain
 session state, and catalog, service, recipe, export, task, and engine values
 stay in typed owning contracts. No old configuration key is read (ADR-0066).

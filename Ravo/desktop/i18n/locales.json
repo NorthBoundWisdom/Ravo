@@ -1,0 +1,15 @@
+{
+  "schema": "ravo-studio-locales/v1",
+  "sourceLocale": "en_US",
+  "locales": [
+    {"code":"en_US","nativeName":"English","translationTarget":"English (United States)","providerCode":"en-US","catalog":"RavoStudio_en_US.ts","aliases":["en","en_*"]},
+    {"code":"de_DE","nativeName":"Deutsch","translationTarget":"German (Germany)","providerCode":"de-DE","catalog":"RavoStudio_de_DE.ts","memory":"RavoStudio_de_DE.memory.ini","aliases":["de","de_*"]},
+    {"code":"es_ES","nativeName":"Español","translationTarget":"neutral Spanish","providerCode":"es-ES","catalog":"RavoStudio_es_ES.ts","memory":"RavoStudio_es_ES.memory.ini","aliases":["es","es_*"]},
+    {"code":"fr_FR","nativeName":"Français","translationTarget":"French (France)","providerCode":"fr-FR","catalog":"RavoStudio_fr_FR.ts","memory":"RavoStudio_fr_FR.memory.ini","aliases":["fr","fr_*"]},
+    {"code":"pt_BR","nativeName":"Português (Brasil)","translationTarget":"Brazilian Portuguese","providerCode":"pt-BR","catalog":"RavoStudio_pt_BR.ts","memory":"RavoStudio_pt_BR.memory.ini","aliases":["pt","pt_br_*"]},
+    {"code":"zh_CN","nativeName":"简体中文","translationTarget":"Simplified Chinese","providerCode":"zh-CN","catalog":"RavoStudio_zh_CN.ts","memory":"RavoStudio_zh_CN.memory.ini","aliases":["zh","zh_cn_*","zh_hans","zh_hans_*","zh_sg","zh_sg_*"]},
+    {"code":"zh_TW","nativeName":"繁體中文","translationTarget":"Traditional Chinese","providerCode":"zh-TW","catalog":"RavoStudio_zh_TW.ts","memory":"RavoStudio_zh_TW.memory.ini","aliases":["zh_tw_*","zh_hant","zh_hant_*","zh_hk","zh_hk_*","zh_mo","zh_mo_*"]},
+    {"code":"ja_JP","nativeName":"日本語","translationTarget":"Japanese","providerCode":"ja-JP","catalog":"RavoStudio_ja_JP.ts","memory":"RavoStudio_ja_JP.memory.ini","aliases":["ja","ja_*"]},
+    {"code":"ko_KR","nativeName":"한국어","translationTarget":"Korean","providerCode":"ko-KR","catalog":"RavoStudio_ko_KR.ts","memory":"RavoStudio_ko_KR.memory.ini","aliases":["ko","ko_*"]}
+  ]
+}

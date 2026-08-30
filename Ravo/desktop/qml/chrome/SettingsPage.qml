@@ -67,14 +67,18 @@ Rectangle {
                 id: languageCombo
                 Layout.preferredWidth: 220
                 textRole: "label"
-                model: [
-                    { "code": "en_US", "label": qsTr("English") },
-                    { "code": "zh_CN", "label": qsTr("Simplified Chinese") }
-                ]
-                currentIndex: root.languageManager &&
-                              root.languageManager.language === "zh_CN" ? 1 : 0
+                model: root.languageManager ? root.languageManager.languageOptions : []
+                currentIndex: {
+                    if (!root.languageManager)
+                        return -1
+                    for (let index = 0; index < model.length; ++index) {
+                        if (model[index].code === root.languageManager.language)
+                            return index
+                    }
+                    return -1
+                }
                 onActivated: function (index) {
-                    if (root.languageManager)
+                    if (root.languageManager && index >= 0)
                         root.languageManager.setLanguage(model[index].code)
                 }
             }

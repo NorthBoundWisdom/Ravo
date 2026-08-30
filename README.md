@@ -78,7 +78,8 @@ validation status, and next work item.
   reachable from the `ravo` CLI with machine-readable JSON output. The same
   CLI can discover a running Studio session, read its revisioned selection and
   recipe, commit strict Develop fields, and obtain the latest no-replace PNG.
-- **Localized:** Ravo Studio ships English and Simplified Chinese, driven by one
+- **Localized:** Ravo Studio ships English, German, Spanish, French, Brazilian
+  Portuguese, Simplified and Traditional Chinese, Japanese, and Korean, driven by one
   C++ command registry with menus, shortcuts, and a command palette
   (`Cmd/Ctrl+Shift+P`).
 

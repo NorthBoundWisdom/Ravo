@@ -99,6 +99,13 @@ TEST(StudioSettingsTest, LanguageSettingNormalizesPersistsAndRepairsCorruption)
     StudioLanguageManager manager;
     ASSERT_TRUE(manager.initialize()) << manager.lastError().toStdString();
     EXPECT_EQ(manager.language(), QStringLiteral("en_US"));
+    EXPECT_EQ(manager.supportedLanguages(),
+              QStringList({QStringLiteral("en_US"), QStringLiteral("de_DE"),
+                           QStringLiteral("es_ES"), QStringLiteral("fr_FR"),
+                           QStringLiteral("pt_BR"), QStringLiteral("zh_CN"),
+                           QStringLiteral("zh_TW"), QStringLiteral("ja_JP"),
+                           QStringLiteral("ko_KR")}));
+    EXPECT_EQ(manager.languageOptions().size(), manager.supportedLanguages().size());
     {
         QSettings settings;
         EXPECT_FALSE(settings.contains(QStringLiteral("desktop/language")));
@@ -109,7 +116,7 @@ TEST(StudioSettingsTest, LanguageSettingNormalizesPersistsAndRepairsCorruption)
         EXPECT_EQ(settings.value(QStringLiteral("desktop/language")).toString(),
                   QStringLiteral("en_US"));
     }
-    EXPECT_FALSE(manager.setLanguage(QStringLiteral("fr_FR")));
+    EXPECT_FALSE(manager.setLanguage(QStringLiteral("ar_SA")));
     EXPECT_EQ(manager.language(), QStringLiteral("en_US"));
     EXPECT_FALSE(manager.lastError().isEmpty());
     {
@@ -121,6 +128,27 @@ TEST(StudioSettingsTest, LanguageSettingNormalizesPersistsAndRepairsCorruption)
     QCoreApplication::setOrganizationName(previous_organization);
     QCoreApplication::setApplicationName(previous_application);
     QSettings::setDefaultFormat(previous_format);
+}
+
+TEST(StudioSettingsTest, LocaleAliasesNormalizeAndMissingCatalogFailsExplicitly)
+{
+    ensure_qt_core();
+    StudioLanguageManager manager(QStringList{QStringLiteral(RAVO_STUDIO_TRANSLATION_DIR)});
+    ASSERT_TRUE(manager.initialize(QStringLiteral("fr-CA")))
+        << manager.lastError().toStdString();
+    EXPECT_EQ(manager.language(), QStringLiteral("fr_FR"));
+    ASSERT_TRUE(manager.initialize(QStringLiteral("zh-Hant-HK")))
+        << manager.lastError().toStdString();
+    EXPECT_EQ(manager.language(), QStringLiteral("zh_TW"));
+
+    QTemporaryDir empty_directory;
+    ASSERT_TRUE(empty_directory.isValid());
+    StudioLanguageManager missing(QStringList{empty_directory.path()});
+    ASSERT_TRUE(missing.initialize(QStringLiteral("en_US")))
+        << missing.lastError().toStdString();
+    EXPECT_FALSE(missing.setLanguage(QStringLiteral("de-DE")));
+    EXPECT_EQ(missing.language(), QStringLiteral("en_US"));
+    EXPECT_FALSE(missing.lastError().isEmpty());
 }
 
 void ensure_qt_core()
@@ -2463,6 +2491,20 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("JPEG 质量必须在 5 到 100 之间"));
 
     QCoreApplication::removeTranslator(&translator);
+}
+
+TEST(StudioLocalization, EveryManifestCatalogActivates)
+{
+    ensure_qt_core();
+    StudioLanguageManager manager(QStringList{QStringLiteral(RAVO_STUDIO_TRANSLATION_DIR)});
+    ASSERT_TRUE(manager.initialize(QStringLiteral("en_US")))
+        << manager.lastError().toStdString();
+    for (const auto &language : manager.supportedLanguages())
+    {
+        ASSERT_TRUE(manager.initialize(language))
+            << language.toStdString() << ": " << manager.lastError().toStdString();
+        EXPECT_EQ(manager.language(), language);
+    }
 }
 
 TEST(StudioCommands, CommandPaletteUsesQtPortablePrimaryModifierPolicy)

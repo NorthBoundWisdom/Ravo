@@ -110,15 +110,16 @@ otherwise it opens the Create Library dialog.
 
 ## Choose the Studio language
 
-Studio supports English and Simplified Chinese. English is selected with:
+Studio supports English, German, Spanish, French, Brazilian Portuguese,
+Simplified and Traditional Chinese, Japanese, and Korean. English is selected with:
 
 ```text
 --language en_US
 ```
 
 The in-app path is **File → Settings → Language**. The selection is persisted
-for the next launch. If a build does not contain the produced Chinese Qt
-translation package, selecting Chinese reports the missing package instead of
+for the next launch. If a build does not contain the selected Qt translation
+package, selecting that language reports the missing package instead of
 silently showing a partial translation.
 
 ## Result

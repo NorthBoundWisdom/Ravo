@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-30
+
+- Replaced the Chinese-only pipeline with the versioned multilingual locale manifest.
+- Added per-locale context-aware translation memories and manifest-wide validation.
+- Made the workflow portable between the Codex and Grok skill directories.
+
 ## [0.2.0] - 2026-08-26
 
 - 从 RobimPCR 迁移到 Ravo，改用 Ravo/desktop、RavoStudio_zh_CN.ts 和

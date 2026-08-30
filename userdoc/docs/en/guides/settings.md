@@ -75,15 +75,15 @@ current window after a successful switch.
 
 ## Common questions
 
-### Why is there no language list for every system locale?
+### Which languages are supported?
 
-Only English and Simplified Chinese are part of the current Studio translation
-contract.
+The Studio translation contract includes English, German, Spanish, French,
+Brazilian Portuguese, Simplified and Traditional Chinese, Japanese, and Korean.
 
 ### Why did a language switch fail?
 
-The requested language may be unsupported, or the build may be missing the
-produced Chinese `.qm` package. The error text identifies the condition.
+The requested language may be unsupported, or the build may be missing its
+produced `.qm` package. The error text identifies the condition.
 
 ### Does changing the language change photo rendering?
 

@@ -80,7 +80,7 @@ QString first_public_family(QFontDatabase::WritingSystem writing_system)
 // Offscreen QPA and Qt generic families request "Sans Serif", which is not a
 // CoreText face. Never look up missing names; keep the platform system font
 // when it is real, then match fallbacks against QFontDatabase::families().
-QStringList studio_ui_font_families(const QFont &system_font)
+QStringList studio_ui_font_families(const QFont &system_font, const QString &language)
 {
     const QStringList installed = QFontDatabase::families();
     QStringList families;
@@ -127,20 +127,74 @@ QStringList studio_ui_font_families(const QFont &system_font)
         append_family(families, first_public_family(QFontDatabase::Latin));
     }
 
-    const qsizetype latin_count = families.size();
-    for (const auto &family :
-         {QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
-          QStringLiteral("Songti SC"), QStringLiteral("Noto Sans CJK SC"),
-          QStringLiteral("Noto Sans SC"), QStringLiteral("Source Han Sans SC"),
-          QStringLiteral("Microsoft YaHei UI"), QStringLiteral("Microsoft YaHei"),
-          QStringLiteral("WenQuanYi Zen Hei"), QStringLiteral("WenQuanYi Micro Hei"),
-          QStringLiteral("Droid Sans Fallback")})
+    auto append_script = [&](const QStringList &candidates,
+                             const QFontDatabase::WritingSystem writing_system)
     {
-        append_installed(family);
+        const qsizetype before = families.size();
+        for (const auto &family : candidates)
+            append_installed(family);
+        if (families.size() == before)
+            append_family(families, first_public_family(writing_system));
+    };
+    auto append_simplified = [&]()
+    {
+        append_script({QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
+                       QStringLiteral("Noto Sans CJK SC"), QStringLiteral("Noto Sans SC"),
+                       QStringLiteral("Source Han Sans SC"),
+                       QStringLiteral("Microsoft YaHei UI"),
+                       QStringLiteral("Microsoft YaHei")},
+                      QFontDatabase::SimplifiedChinese);
+    };
+    auto append_traditional = [&]()
+    {
+        append_script({QStringLiteral("PingFang TC"), QStringLiteral("Hiragino Sans CNS"),
+                       QStringLiteral("Noto Sans CJK TC"), QStringLiteral("Noto Sans TC"),
+                       QStringLiteral("Microsoft JhengHei UI"),
+                       QStringLiteral("Microsoft JhengHei")},
+                      QFontDatabase::TraditionalChinese);
+    };
+    auto append_japanese = [&]()
+    {
+        append_script({QStringLiteral("Hiragino Sans"), QStringLiteral("Yu Gothic UI"),
+                       QStringLiteral("Yu Gothic"), QStringLiteral("Meiryo"),
+                       QStringLiteral("Noto Sans CJK JP"), QStringLiteral("Noto Sans JP")},
+                      QFontDatabase::Japanese);
+    };
+    auto append_korean = [&]()
+    {
+        append_script({QStringLiteral("Apple SD Gothic Neo"),
+                       QStringLiteral("Malgun Gothic"),
+                       QStringLiteral("Noto Sans CJK KR"), QStringLiteral("Noto Sans KR")},
+                      QFontDatabase::Korean);
+    };
+
+    if (language == QLatin1String("zh_TW"))
+    {
+        append_traditional();
+        append_simplified();
+        append_japanese();
+        append_korean();
     }
-    if (families.size() == latin_count)
+    else if (language == QLatin1String("ja_JP"))
     {
-        append_family(families, first_public_family(QFontDatabase::SimplifiedChinese));
+        append_japanese();
+        append_simplified();
+        append_traditional();
+        append_korean();
+    }
+    else if (language == QLatin1String("ko_KR"))
+    {
+        append_korean();
+        append_simplified();
+        append_traditional();
+        append_japanese();
+    }
+    else
+    {
+        append_simplified();
+        append_traditional();
+        append_japanese();
+        append_korean();
     }
     return families;
 }
@@ -206,14 +260,6 @@ int main(int argc, char *argv[])
 #endif
 
     QQuickStyle::setStyle(QStringLiteral("Basic"));
-    QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-    const QStringList families = studio_ui_font_families(ui_font);
-    if (!families.isEmpty())
-    {
-        ui_font.setFamilies(families);
-        ui_font.setStyleHint(QFont::AnyStyle);
-    }
-    QGuiApplication::setFont(ui_font);
     ravo::init_logging("RavoStudio");
     const QStringList arguments = QCoreApplication::arguments();
     const bool smoke = arguments.contains(QStringLiteral("--smoke"));
@@ -236,7 +282,7 @@ int main(int argc, char *argv[])
         {
             if (index + 1 >= arguments.size() || arguments.at(index + 1).trimmed().isEmpty())
             {
-                LOG_ERROR(ravo::logger(), "--language requires en_US or zh_CN");
+                LOG_ERROR(ravo::logger(), "--language requires a locale code");
                 ravo::shutdown_logging();
                 return 1;
             }
@@ -248,7 +294,7 @@ int main(int argc, char *argv[])
             requested_language = argument.mid(QStringLiteral("--language=").size());
             if (requested_language.trimmed().isEmpty())
             {
-                LOG_ERROR(ravo::logger(), "--language requires en_US or zh_CN");
+                LOG_ERROR(ravo::logger(), "--language requires a locale code");
                 ravo::shutdown_logging();
                 return 1;
             }
@@ -264,6 +310,20 @@ int main(int argc, char *argv[])
         ravo::shutdown_logging();
         return 1;
     }
+    auto apply_ui_font = [&language_manager]()
+    {
+        QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+        const QStringList families = studio_ui_font_families(ui_font, language_manager.language());
+        if (!families.isEmpty())
+        {
+            ui_font.setFamilies(families);
+            ui_font.setStyleHint(QFont::AnyStyle);
+        }
+        QGuiApplication::setFont(ui_font);
+    };
+    apply_ui_font();
+    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
+                     &application, apply_ui_font);
     ravo::StudioPresenter presenter;
     ravo::StudioCommandController command_controller(presenter);
     ravo::StudioAssistantController assistant_controller;
