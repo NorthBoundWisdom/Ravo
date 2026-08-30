@@ -76,6 +76,7 @@ Item {
     function previewCropRect(x, y, width, height) { root.run(root.ids.editSetCrop, {"x": x, "y": y, "width": width, "height": height, "live": true}); }
     function setCropRect(x, y, width, height) { root.run(root.ids.editSetCrop, {"x": x, "y": y, "width": width, "height": height}); }
     function setCropAspect(aspect) { root.run(root.ids.editSetCropAspect, aspect); }
+    function autoPerspective(mode) { root.run(root.ids.editAutoPerspective, mode); }
     function toggleCropTool() { root.trigger(root.ids.editCropTool); }
 
     component RegisteredAction: Action {

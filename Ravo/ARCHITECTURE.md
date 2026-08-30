@@ -36,7 +36,7 @@ restoring the old GTK, dynamic IOP ABI, or global state.
 | --- | --- | --- | --- |
 | `ravo_foundation` | errors, IDs, cancellation, basic resource contracts | standard library, QtCore where needed | recipe, engine, catalog, UI |
 | `ravo_recipe` | recipes, operation schema, version upgrades | foundation, QtCore where needed | codec, database, UI |
-| `ravo_engine` | inspect, operation registry, CPU render/preview | foundation, recipe, engine ports, QtCore where needed | catalog, services, CLI, UI, old `src` |
+| `ravo_engine` | inspect, operation registry, CPU render/preview, offline numeric fitting | foundation resource types, recipe, engine ports, QtCore where needed | catalog, services, CLI, UI, old `src` |
 | `ravo_domain` | Asset/Catalog, Import/Preview state, repository ports | foundation | SQLite, codec, engine-private types, UI |
 | `ravo_services` | create/open/import/list/preview use cases and task orchestration | domain, engine facade | SQL, QML/presentation types, third-party codec types |
 | `ravo_adapters` | SQLite, filesystem, RAW/raster codecs, preview cache | matching ports, Qt Core/Gui/Sql, pinned third-party dependencies | QML/UI state, old core |
@@ -188,14 +188,14 @@ and is released on selection change, Develop exit, crop/pick/mask entry, or
 window destruction. The existing single-photo Before/After command remains a
 separate view toggle.
 
-Develop crop is interactive: crop-tool preview removes crop and straighten,
-while Qt Quick rotates the working image. Photo and overlay share the GPU
-transform; the crop frame remains screen-axis aligned and inscribed in the
-rotated image. Selection and crop-handle dragging change in-memory parameters
-only; release writes the recipe through the same Develop commit path as the
-right-panel controls. History restore, Original, and snapshot restore use that
-path with a session undo step and without appending a new history row. Export
-continues to use CPU straighten, not an engine GPU adapter. Deleting a photo
+Develop crop is interactive: crop-tool preview removes only the final crop and
+renders the canonical CPU Perspective operation, including angle. Photo and
+mask overlay therefore arrive in the same post-homography coordinates; the
+crop frame remains screen-axis aligned. Selection and crop-handle dragging
+change in-memory parameters only; release writes the recipe through the same
+Develop commit path as the right-panel controls. History restore, Original,
+and snapshot restore use that path with a session undo step and without
+appending a new history row. Deleting a photo
 normally removes only the catalog record
 and preview cache. The explicit “Delete from Disk” command deletes the source
 after confirmation, then removes the catalog record. QML resources are built
@@ -257,8 +257,9 @@ suffix or TIFF RAW container with no embedded JPEG must first-frame-decode
 before `commit_imported_asset`. Import does not perform a 1600px full decode
 when a browse JPEG exists. It validates trusted metadata before transactionally
 publishing an asset. Cancellation stops undispatched work; committed results
-remain valid. Missing, directory, unrecognized, unpack-failed, oversized, and
-X-Trans/non-Bayer full-decode inputs fail with stable `reason` context.
+remain valid. Missing, directory, unrecognized, unpack-failed, oversized,
+malformed or mandatory-unsupported DNG opcode, and unsupported CFA
+full-decode inputs fail with stable `reason` context.
 
 ### Preview
 
@@ -272,8 +273,12 @@ RAW uses the Ravo CPU engine, while JPEG/PNG/TIFF use the raster adapter. Both
 share orientation, colour, alpha, scaling, finite-value, and error contracts.
 Catalog import fully decodes JPEG/PNG/TIFF before publication and reuses that
 RGB8 thumbnail. A recognized raster error never becomes a RAW inspect except
-`unsupported_tiff_raw_container`. First-frame RAW decode is 16-bit Bayer only;
-`.dng` uses the same LibRaw path. X-Trans may browse from embedded JPEG.
+`unsupported_tiff_raw_container`. First-frame RAW decode accepts validated
+16-bit RGB Bayer 2×2 and X-Trans 6×6 CFA state.
+`.dng` uses the same LibRaw path, but copies OpcodeList2/3 bytes into bounded
+immutable Ravo values before the LibRaw owner is destroyed. Inspect exposes
+supported correction state and optional skips plus CFA family/size and the
+sensor-default demosaic mode without running a render.
 Preview cache is atomically written outside the database, keyed by source
 fingerprint, target dimensions, and contract version. A cached PNG without the
 8-byte PNG signature is a miss and is deleted. Corrupt or missing cache
@@ -341,6 +346,28 @@ and the explicit colour contract remain valid. The first viewer needs only the
 minimal CPU chain that yields a trusted preview; later editing UI maps the
 versioned schema only and owns neither a second algorithm nor history format.
 
+External 3D LUT state is a recipe-owned path plus declared input/output colour
+spaces, interpolation, and strength; QML only selects and displays those
+values. The Engine owns bounded `.cube` parsing, colour conversion,
+interpolation, cancellation, and a thread-safe process LRU of immutable parsed
+snapshots. Every snapshot has a complete-content fingerprint. CatalogService
+validates that resource before committing a recipe, and the same fingerprint
+participates in persistent preview identity; a missing, changed-to-invalid, or
+unsupported file is a structured failure and cannot reuse a stale snapshot.
+Neither Catalog nor QML parses LUT bytes, and no external colour subprocess or
+second graph is introduced (ADR-0096).
+
+Offline camera-noise calibration is not recipe or catalog state. Foundation
+owns its handle-free camera identity, black-subtracted uint16
+mean/variance/count samples and fitted Gaussian/Poisson resource values. Engine
+performs a bounded deterministic robust fit; the JSON adapter owns the strict
+sample/profile schemas and canonical
+SHA-256 payload; Services owns cancellation-aware, race-safe atomic no-replace
+publication. CLI only composes those owners. The command never discovers or
+writes an implicit profile directory, and the current denoisers do not load the
+artifact automatically. Measurement/extraction and later profile selection are
+separate gates (ADR-0096).
+
 S3.1 adds a recipe-owned canonical mask graph under
 [ADR-0043](docs/adr/0043-canonical-mask-graph-foundation.md). Each immutable
 node has its own schema version and typed all/linear-gradient/circle/rotated-
@@ -363,7 +390,11 @@ join exactly. Canvas may additionally attach an immutable photo-content
 subframe: evaluation runs against that original content rectangle and pads the
 added area with alpha zero. Attached-subframe evaluation is currently
 full-frame only; a sub-ROI rejects rather than translating coordinates
-implicitly. It owns only an alpha result and depth-first group
+implicitly. Preview overlay alpha is evaluated on that attached frame before
+post-Canvas Perspective/straighten/crop, then travels through the same ordered
+geometry with bounded bilinear resampling. A later masked consumer is rejected
+once composed geometry has discarded the attached-frame coordinates. It owns
+only an alpha result and depth-first group
 accumulator/child scratch through RAII; stored and expanded graph-work limits
 bound shared-DAG recomputation. Invalid ROI/stride/sample count,
 non-finite values, missing parametric operation output, cancellation, overflow,
@@ -535,6 +566,46 @@ cancellation fail without publication. The RAW memory estimate includes the
 five-plane peak and LUT; preview contract v9 first invalidated the former sparse
 pseudo-inverse/linear-mask pixels (ADR-0092).
 
+The private Bayer demosaic owner accepts exactly one RGB 2×2 CFA and one
+explicit `rcd|ppg` mode. RCD is the Bayer absent-operation/default choice and uses
+task-local 194-pixel tiles with a 176-pixel output step and nine-pixel border;
+PPG is a scalar compatibility choice. Unsupported CFA/mode and duplicate
+enabled selection fail structurally—there is no IGV, 3×3, or other hidden
+fallback. Full resolution consumes exact normalized sensor samples. Preview
+reduction averages only source samples with the same CFA colour and phase, so
+resize does not blend mosaic channels before interpolation. Both paths retain
+positive floating-point headroom, check cancellation by row/tile, publish only
+a complete owned RGB buffer, and include prepared CFA/RGB plus RCD tile scratch
+in the RAW memory estimate. Recipe absence/default RCD and explicit PPG share
+CLI, Catalog, Studio, style, undo and cache identity.
+
+The private X-Trans owner accepts exactly the standard RGB 6×6 CFA with
+8 red, 20 green and 8 blue sites. Recipe absence selects Markesteijn 3-pass;
+explicit `markesteijn1|markesteijn3` select four/eight directional candidates.
+Task-local 122-pixel tiles use mirrored input extension and 12/17-pixel
+borders, while preview reduction preserves CFA colour and phase. RCD/PPG on
+X-Trans and Markesteijn on Bayer fail with `demosaic_sensor_mismatch`; no mode
+fallback is allowed. The memory estimate includes the prepared CFA, owned RGB
+output and every concurrent tile scratch owner.
+
+`ravo.raw.denoise` runs on the owned decoded copy before either demosaic path.
+Its Bayer path keeps four dense 2×2 planes. Its X-Trans path follows the frozen
+nearest-neighbour RGB reconstruction, square-root variance stabilization,
+five-level hat-wavelet threshold and square write-back only to matching CFA
+sites. A separate output plane makes cancellation atomic; full-plane wavelet
+scratch participates in the preflight memory budget.
+
+DNG OpcodeList2 GainMap runs after black/white linear-reference normalization
+and before CFA interpolation. Supported OpcodeList3 GainMap,
+WarpRectilinear, and FixVignetteRadial run in declared order after demosaic
+while the buffer is still camera RGB, then white balance and Input Color run.
+The private adapter owns all parsed values, applies DNG's `[0, 1]` clip after
+each List2/List3 opcode, and preserves repeated operations. Known malformed or
+unknown mandatory operations fail before publication; unknown optional
+operations are retained as inspect-visible skip records. Warp uses bounded
+cubic sampling and rejects unsupported out-of-frame geometry. Opcode maps and
+the warp destination buffer participate in RAW memory estimation.
+
 `ravo.color.temperature` v1 fixes `camera_cfa_or_linear_rgb` and
 `channel_scale_v4`. It normally parses four-channel coefficients from LibRaw
 as-shot metadata in `DecodedRaw`, and may use camera-reference, explicit
@@ -590,8 +661,9 @@ and only presents engine-computed soft-proof/gamut pixels.
 colour/effect operations. Its frozen integer placement owns four percentage
 extents, five opaque fill colours, dimension caps, and the attached photo
 content frame used by masks and Retouch. Nested Canvas, Canvas masks, attached
-sub-ROI evaluation, and enabled geometry after Canvas reject explicitly; G1/G4/
-G6 must supply a composed transform before that ordering is accepted.
+sub-ROI evaluation, post-Canvas rotate/flip/lens, and another mask consumer
+after composed geometry reject explicitly. Canonical Perspective/straighten
+and crop consume the attached frame and transform preview alpha beside pixels.
 
 `ravo.output.dither` v1 consumes profiled encoded RGB immediately after Output
 Color. Random TEA, source-order Floyd–Steinberg, posterize, and target-aware auto
@@ -782,6 +854,26 @@ contracts. Shared `extended.cl`, order/modulegroup/usermanual names, the sepia
 style, and frozen fixtures remain D0.3/D0.4/S14/E1 cleanup or evidence owners.
 [ADR-0031](docs/adr/0031-colorcontrast-contract.md) freezes this boundary.
 
+`ravo.color.velvia` v2 follows Color Contrast in linear Rec.709. Its canonical
+state is explicit presence/enabled, strength `0..100`, mid-tones bias `0..1`,
+and an optional mask. The engine retains the frozen float order: min/max RGB,
+HSL-style luminance and saturation, low-saturation plus midtone-bias weight,
+strength multiplication, per-channel distance from half the other-channel
+sum, and `[0,1]` clamp. Strength zero is bit-preserving identity. Schema-v1
+Ravo amount remains an upgrade input only and maps to strength times 100.
+
+The operation accepts only declared linear-Rec709 finite working pixels.
+Dimensions, buffers, profile, parameters, allocation, row/pre-publication
+cancellation, and source ownership fail before publication. Canonical masks
+run through the shared evaluator and normal mix. Strict import accepts only
+the exact enabled 0063 version-2 singleton, eight-byte parameter payload, and
+blend-v10 default-unmasked envelope. Recipe, CLI, Catalog, Studio, history,
+styles, preview, and export consume the same typed state; QML contains no
+Velvia math. The old IOP, exclusive kernel, and icons are retired while shared
+order/module-group/manual names and frozen fixtures remain with their owners.
+[ADR-0095](docs/adr/0095-velvia-weighted-saturation-contract.md) freezes this
+boundary.
+
 `ravo.color.colorharmonizer` v1 is a bounded profile-aware colour operation,
 not an alias for Color Equalizer, Color Balance RGB, or an HSL nearest-hue
 control. Its exact 17-field flat schema fixes
@@ -895,6 +987,33 @@ No GTK preview-grid cache, historic blend graph, tile-local approximation, or
 OpenCL owner enters Ravo. [ADR-0055](docs/adr/0055-colorreconstruction-bilateral-grid-contract.md)
 freezes these boundaries.
 
+`ravo.detail.texture` v1 is the optional local-texture owner before Sharpen.
+Recipe stores signed strength, an original-input-pixel detail threshold and a
+bounded integer iteration count; the identity default emits no operation.
+Develop, CLI, Catalog and Studio share those fields, with the common Texture
+control above Sharpen and scale/iterations kept in a collapsed advanced group.
+
+The Engine measures linear-Rec.709 luminance and uses the private scalar
+self-guided filter shared with Tone Equalizer. A fine radius of
+`3.5 * detail_threshold * canonical_scale` and a four-times-coarser radius
+produce two bands. Only the filter guide is bounded to `[1e-5,32]`; the result
+uses a positive luminance ratio on the original RGB, so channel ratios,
+negative gamut components and unbounded positive highlights are not
+independently clipped. Each later iteration halves its blend. The caller's
+buffer remains borrowed, result/profile metadata are owned, and no partial
+result crosses publication.
+
+The RAW preflight includes middle/base plus the shared filter's four live float
+planes. Invalid dimensions/profile/scale/parameters, non-finite samples,
+allocation and cancellation at input, filter, output-row or publication
+checkpoints return structured failures. The opt-in Release contract caps the
+production operation at 30 ms for each committed 960×640 RAW buffer. ART's
+mask/resampling/application/OpenMP owners and the rejected Local Laplacian
+pyramids remain outside production. Filmulator's physical-development model is
+also test-only research after its 155–157 ms CPU result failed the interaction
+budget. [ADR-0096](docs/adr/0096-reference-algorithm-assimilation-boundary.md)
+records the selection and rejection evidence.
+
 `ravo.detail.sharpen` schema v2 is the accepted scale-aware D50 Lab L* USM.
 The explicit schema fixes `working_space=lab_d50`,
 `algorithm=separable_gaussian_usm_v1`, radius, amount, and threshold. Current
@@ -1007,11 +1126,12 @@ The Ravo Studio first version owns:
   tag filter, and Import/Export; Edit's left rail is the selected photo's
   recipe history and snapshots. Clicking a step previews that recipe and dims
   newer rows; a subsequent parameter edit discards the dimmed rows. The default
-  Edit grading stack is White Balance, Light, Curves, Color Equalizer, Color
-  Balance RGB wheels, and Camera Calibration; overlapping Lab color tools stay
-  under Color · Advanced (ADR-0082/0084/0085). Color Equalizer exposes eight
-  named bands; Bayer white-balance pick writes manual temperature coefficients
-  (ADR-0083);
+  Edit grading stack is Light, Curves, Color Equalizer, Color Balance RGB
+  wheels, and Camera Calibration; Light begins with the independently resettable
+  White Balance subsection before its common tone controls. Overlapping Lab
+  color tools stay under Color · Advanced (ADR-0082/0084/0085). Color Equalizer
+  exposes eight named bands; Bayer white-balance pick writes manual temperature
+  coefficients (ADR-0083);
 - shared scopes above the right Gallery/Edit panel, remaining visible while
   the Edit list scrolls: frozen 256-bin RGB Histogram, overlaid Waveform, RGB
   Parade, fixed linear D50 CIE u*v* Vectorscope, and Waveform/Vectorscope

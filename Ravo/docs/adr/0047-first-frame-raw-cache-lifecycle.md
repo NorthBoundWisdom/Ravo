@@ -1,6 +1,6 @@
 # ADR-0047: First-frame RAW decode, DNG routing, and preview-cache miss
 
-- Status: Accepted
+- Status: Accepted; demosaic scope extended by [ADR-0096](0096-reference-algorithm-assimilation-boundary.md)
 - Date: 2026-08-28
 - Extends: [ADR-0046](0046-catalog-raster-raw-import-routing.md)
 

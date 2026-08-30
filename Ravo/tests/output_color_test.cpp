@@ -948,9 +948,10 @@ TEST(OutputColorTest, FrozenNopAndMire1HaveSrgbWideAndFileIccReferences)
     const auto file_sums = sums(file.value());
     EXPECT_EQ(file.value().color_profile.icc_bytes, file_profile);
 
-    const std::array<std::uint64_t, 3> srgb_reference{315223U, 294062U, 276997U};
-    const std::array<std::uint64_t, 3> wide_reference{313102U, 295339U, 281568U};
-    const std::array<std::uint64_t, 3> file_reference{316541U, 296731U, 280878U};
+    // Ravo-owned output references after the default RCD demosaic.
+    const std::array<std::uint64_t, 3> srgb_reference{320524U, 298916U, 285474U};
+    const std::array<std::uint64_t, 3> wide_reference{318180U, 300123U, 288835U};
+    const std::array<std::uint64_t, 3> file_reference{320958U, 300625U, 288162U};
     for (std::size_t channel = 0; channel < 3U; ++channel)
     {
         EXPECT_NEAR(static_cast<double>(srgb_sums[channel]),

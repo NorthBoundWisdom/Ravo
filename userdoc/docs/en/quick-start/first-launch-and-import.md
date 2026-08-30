@@ -63,7 +63,7 @@ Ravo considers these raster extensions as import candidates:
 | PNG | `.png` | RGB PNG input with supported color metadata. |
 | TIFF | `.tif`, `.tiff` | Supported baseline TIFF layouts only; multipage, tiled, floating-point, and other unsupported layouts fail explicitly. |
 | Other raster | `.bmp`, `.gif`, `.webp` | Decode depends on the matching Qt runtime plugin and valid file content. |
-| RAW | Common LibRaw files such as `.arw`, `.cr2`, `.cr3`, `.nef`, `.dng`, `.raf`, `.orf`, and `.rw2` | The actual sensor/container must be supported by the pinned LibRaw path. First-frame Develop decode is Bayer; X-Trans may still show an embedded thumbnail. |
+| RAW | Common LibRaw files such as `.arw`, `.cr2`, `.cr3`, `.nef`, `.dng`, `.raf`, `.orf`, and `.rw2` | The actual sensor/container must be supported by the pinned LibRaw path. First-frame Develop decode supports validated RGB Bayer and X-Trans CFA data. |
 
 The scanner also recognizes additional RAW suffixes handled by the current
 source. A suffix alone does not guarantee a successful import: malformed data,

@@ -66,7 +66,13 @@ PINNED_PATCHED_LEFTOVER_HOST_DATA_BLOBS = {
     "CMakeLists.txt": "11fb303d0598adccf0bc1e67c1c9432cdb112d78",
     "darktableconfig.xml.in": "f642d83ba2faf1d31df5f83cb6e542dd54817dc7",
     "kernels/basic.cl": "292017cef33623a65a0056dea8120d3227b2ffec",
-    "kernels/extended.cl": "9ea9ef1fb4538bfd0966c83b95247c558c9745d7",
+    "kernels/extended.cl": "5db44b7245f51a9fe41a1e060707ecaf194a67cf",
+}
+# A predecessor is accepted only while an uncommitted worktree already hashes
+# to the current pin. This permits pre-commit validation of one reviewed
+# retirement without accepting a clean rollback to an older patched blob.
+PINNED_PATCHED_LEFTOVER_HOST_DATA_PREDECESSORS = {
+    "kernels/extended.cl": {"9ea9ef1fb4538bfd0966c83b95247c558c9745d7"},
 }
 MUTABLE_LEFTOVER_HOST_DATA_PATHS = {
     "kernels/programs.conf",
@@ -597,7 +603,20 @@ def verify_tree_with_retirements(
         )
         pinned_blob = pinned_blobs.get(relative)
         if pinned_blob is not None:
-            if current_blob not in {frozen_blob, pinned_blob}:
+            predecessor_blobs = (
+                PINNED_PATCHED_LEFTOVER_HOST_DATA_PREDECESSORS.get(relative, set())
+                if current_path == "legacy/host/data"
+                else set()
+            )
+            working_blob = (
+                run_git(repository_root, "hash-object", f"{current_path}/{relative}")
+                if (repository_root / current_path / relative).is_file()
+                else ""
+            )
+            pending_current_pin = (
+                current_blob in predecessor_blobs and working_blob == pinned_blob
+            )
+            if current_blob not in {frozen_blob, pinned_blob} and not pending_current_pin:
                 raise FreezeCheckError(
                     f"committed patched leftover {current_path}/{relative} differs "
                     f"from both freeze and pinned retirement blobs"

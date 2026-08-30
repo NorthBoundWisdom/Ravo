@@ -58,18 +58,24 @@ Balance, Color Equalizer, or Color Balance RGB.
 - Enter **Crop & Rotate** mode.
 - Choose a free, 1:1, 3:2, 4:3, 5:4, or 16:9 crop aspect.
 - Drag the crop frame to crop.
-- Drag outside the crop frame, or use Option/Alt-drag, to straighten.
+- Adjust **Angle**, **Vertical**, **Horizontal**, and **Shear** for manual
+  perspective correction. Choose Bilinear, Lanczos 2, or Lanczos 3 sampling,
+  and use **Constrain crop** to remove invalid transformed edges.
+- Use **Auto**, **Vertical**, or **Horizontal** to analyze a bounded in-memory
+  preview. A photo without usable lines reports an error and keeps the current
+  correction.
 - Enable **Enlarge Canvas** to reveal independent left, right, top, and bottom
   growth from 0 through 100 percent, using Green, Red, Blue, Black, or White
   fill. The checkbox is off by default; those extra controls stay hidden until
   it is enabled.
 
-Crop and straighten values are normalized recipe coordinates. The crop overlay
-is a preview aid; commit the frame to store the change.
+Crop values are normalized recipe coordinates. Perspective is rendered before
+the screen-axis crop overlay; commit the frame to store the crop change.
 
 Canvas keeps masks and Retouch coordinates attached to the original photo and
-does not select the added area. A recipe that enables rotate, flip, straighten,
-crop, or lens geometry after Canvas currently reports an explicit unsupported
+does not select the added area. Perspective/Angle and crop transform that mask
+overlay with the photo. Rotate, flip, or lens geometry after Canvas, or another
+masked edit after composed geometry, reports an explicit unsupported
 composition instead of applying stale coordinates.
 
 ### Input Profile
@@ -181,7 +187,15 @@ operation as before, placed on the default grading path.
 
 The Color section currently exposes:
 
-- Vibrance, Saturation, and Velvia.
+- Vibrance and Saturation.
+- **Velvia**, with an enable switch, strength `0..100`, and mid-tones bias
+  `0..1`. It boosts low-saturation colours with the frozen weighted response;
+  imported canonical masks remain preserved/read-only in this panel.
+- **3D LUT**, which selects a `.cube` file and declares its input and output
+  colour spaces, tetrahedral or trilinear interpolation, and strength. Choose
+  the spaces the LUT was authored for; Ravo does not infer them from a file
+  name. Missing, changed-to-invalid, 1D, or malformed files stop preview/export
+  with an explicit error rather than silently applying an identity look.
 - **Color Balance RGB · linear sRGB D50 / Filmlight Yrg**, with Shadows /
   Midtones / Highlights wheels for hue and chroma plus a luminance slider.
   Formula, global, and extra numeric fields stay under **Color Balance RGB ·
@@ -254,8 +268,12 @@ created. Use the operation's enable/reset control separately when needed.
 
 The current pane exposes:
 
-- **Detail**: Sharpen, Radius, Masking, luminance/color denoise plus radius,
-  Retouch, Clarity, and Grain. Sharpen applies a scale-aware separable unsharp
+- **Detail**: Texture, Sharpen, Radius, Masking, luminance/color denoise plus
+  radius, Retouch, Clarity, and Grain. Texture is a hue-preserving two-band
+  guided luminance control for fine and mid-scale surface detail; its scale and
+  iteration controls stay under **Texture · more**. Zero leaves the image
+  unchanged, negative values soften texture, and positive values strengthen it
+  without clipping positive HDR highlights. Sharpen applies a scale-aware separable unsharp
   mask to D50 Lab lightness only; Radius uses a 0–8 Studio working range while
   versioned recipes retain the full 0–99 source range. Masking is the existing
   sharpen threshold (0–100). Denoise is the accepted post-demosaic profile
@@ -318,17 +336,23 @@ Kelvin/tint white balance fail instead of applying a partial look.
 
 ### RAW Repair / Denoise / Lens
 
-For supported Bayer RAW inputs, this group includes:
+For supported Bayer and X-Trans RAW inputs, **Demosaicing** defaults to Auto:
+RCD for Bayer and Markesteijn 3-pass for X-Trans. PPG is a Bayer compatibility
+choice; Markesteijn 1-pass is the faster X-Trans alternative. Explicit modes
+for the wrong sensor fail instead of silently choosing another algorithm.
+
+This group also includes:
 
 - Hot pixels, threshold, and the permissive three-neighbor mode.
 - RAW chromatic aberration iterations and **Avoid CA color shift**.
 - Highlight reconstruction.
-- Denoise.
+- RAW denoise for Bayer and X-Trans.
 - Manual lens distortion and lens vignetting controls.
 
-RAW-only operations can return an explicit unsupported result for raster,
-non-Bayer, X-Trans, or otherwise unsupported sources. They are not replaced by
-a raster approximation.
+Hot-pixel repair, highlight reconstruction, and RAW chromatic-aberration
+correction currently remain Bayer-only. RAW-only operations return an explicit
+unsupported result for raster or otherwise unsupported sources; they are not
+replaced by a raster approximation.
 
 ### Tone equalizer and Graduated ND
 

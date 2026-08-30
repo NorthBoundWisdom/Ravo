@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <iterator>
 #include <numbers>
 #include <string_view>
@@ -76,6 +77,9 @@ QVariantMap StudioPresenter::editWhiteBalance() const
             {QStringLiteral("fourth"), coefficients[3]},
             {QStringLiteral("canPick"), selectedMediaType() == QLatin1String("image/x-raw") &&
                                             std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
+                                            std::abs(develop_.perspective_vertical) <= 1.0e-4 &&
+                                            std::abs(develop_.perspective_horizontal) <= 1.0e-4 &&
+                                            std::abs(develop_.perspective_shear) <= 1.0e-4 &&
                                             !develop_.canvas_enabled}};
 }
 
@@ -294,6 +298,16 @@ double StudioPresenter::editStraighten() const noexcept
     return develop_.straighten_degrees;
 }
 
+QVariantMap StudioPresenter::editPerspective() const
+{
+    return {{QStringLiteral("vertical"), develop_.perspective_vertical},
+            {QStringLiteral("horizontal"), develop_.perspective_horizontal},
+            {QStringLiteral("shear"), develop_.perspective_shear},
+            {QStringLiteral("constrainCrop"), develop_.perspective_constrain_crop},
+            {QStringLiteral("interpolationIndex"),
+             static_cast<int>(develop_.perspective_interpolation_index)}};
+}
+
 QString StudioPresenter::cropAspect() const
 {
     return crop_aspect_;
@@ -370,8 +384,7 @@ void StudioPresenter::valid_crop_rect(double &x, double &y, double &width, doubl
     const double ratio = cropAspectRatio() > 0.0 ?
                              cropAspectRatio() / std::max(working_aspect, 1e-6) :
                              develop_.crop_width / std::max(develop_.crop_height, 1e-6);
-    inscribed_crop_for_straighten(develop_.straighten_degrees, working_aspect, ratio, x, y, width,
-                                  height);
+    inscribed_crop_for_straighten(0.0, working_aspect, ratio, x, y, width, height);
 }
 
 double StudioPresenter::validCropX() const
@@ -437,6 +450,13 @@ double StudioPresenter::editSharpenRadius() const noexcept
 double StudioPresenter::editSharpenThreshold() const noexcept
 {
     return develop_.sharpen_threshold;
+}
+
+QVariantMap StudioPresenter::editTexture() const
+{
+    return {{QStringLiteral("strength"), develop_.texture.strength},
+            {QStringLiteral("detailThreshold"), develop_.texture.detail_threshold},
+            {QStringLiteral("iterations"), develop_.texture.iterations}};
 }
 
 QVariantMap StudioPresenter::editRetouch() const
@@ -653,7 +673,58 @@ QVariantMap StudioPresenter::editWatermark() const
 
 double StudioPresenter::editVelvia() const noexcept
 {
-    return develop_.velvia;
+    return develop_.velvia_enabled ? develop_.velvia.strength / 100.0 : 0.0;
+}
+
+QVariantMap StudioPresenter::editVelviaParams() const
+{
+    return {{QStringLiteral("present"), develop_.velvia_present},
+            {QStringLiteral("enabled"), develop_.velvia_enabled},
+            {QStringLiteral("masked"), develop_.velvia_mask_id.has_value()},
+            {QStringLiteral("strength"), develop_.velvia.strength},
+            {QStringLiteral("bias"), develop_.velvia.bias}};
+}
+
+QVariantMap StudioPresenter::editLut3d() const
+{
+    static constexpr std::array<const char *, 6> space_labels{
+        QT_TRANSLATE_NOOP("DevelopPanel", "sRGB"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Adobe RGB"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Rec. 709"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Linear Rec. 709"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Linear Rec. 2020"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Linear ProPhoto RGB"),
+    };
+    static constexpr std::array<const char *, 2> interpolation_labels{
+        QT_TRANSLATE_NOOP("DevelopPanel", "Tetrahedral"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Trilinear"),
+    };
+    const auto index_of = [](const auto &values, const std::string_view selected)
+    {
+        const auto found = std::find(values.begin(), values.end(), selected);
+        return found == values.end() ? 0 : static_cast<int>(std::distance(values.begin(), found));
+    };
+    QVariantList spaces;
+    spaces.reserve(static_cast<qsizetype>(space_labels.size()));
+    for (const char *label : space_labels)
+        spaces.push_back(QCoreApplication::translate("DevelopPanel", label));
+    QVariantList interpolations;
+    interpolations.reserve(static_cast<qsizetype>(interpolation_labels.size()));
+    for (const char *label : interpolation_labels)
+        interpolations.push_back(QCoreApplication::translate("DevelopPanel", label));
+    return {{QStringLiteral("present"), develop_.lut3d_present},
+            {QStringLiteral("enabled"), develop_.lut3d_enabled},
+            {QStringLiteral("filePath"), qstring_from_utf8(develop_.lut3d.file_path)},
+            {QStringLiteral("hasFile"), !develop_.lut3d.file_path.empty()},
+            {QStringLiteral("inputSpaceIndex"),
+             index_of(kLut3dSelectableSpaces, develop_.lut3d.input_space)},
+            {QStringLiteral("outputSpaceIndex"),
+             index_of(kLut3dSelectableSpaces, develop_.lut3d.output_space)},
+            {QStringLiteral("interpolationIndex"),
+             index_of(kLut3dSelectableInterpolations, develop_.lut3d.interpolation)},
+            {QStringLiteral("strength"), develop_.lut3d.strength},
+            {QStringLiteral("spaceChoices"), spaces},
+            {QStringLiteral("interpolationChoices"), interpolations}};
 }
 
 QVariantMap StudioPresenter::editLegacyColorBalance() const
@@ -1607,9 +1678,31 @@ double StudioPresenter::editSigmoidHuePreservation() const noexcept
     return develop_.sigmoid_hue_preservation;
 }
 
+int StudioPresenter::editDemosaicModeIndex() const noexcept
+{
+    if (develop_.demosaic_mode == kDemosaicModePpg)
+    {
+        return 1;
+    }
+    if (develop_.demosaic_mode == kDemosaicModeMarkesteijn1)
+    {
+        return 2;
+    }
+    if (develop_.demosaic_mode == kDemosaicModeMarkesteijn3)
+    {
+        return 3;
+    }
+    return 0;
+}
+
 double StudioPresenter::editRawHighlights() const noexcept
 {
     return develop_.raw_highlights;
+}
+
+double StudioPresenter::editRawDenoiseThreshold() const noexcept
+{
+    return develop_.raw_denoise_threshold;
 }
 
 double StudioPresenter::editHotPixelsStrength() const noexcept
@@ -1723,7 +1816,9 @@ void StudioPresenter::setWhiteBalancePickActive(const bool active)
 {
     const bool enabled = active && selectedMediaType() == QLatin1String("image/x-raw") &&
                          std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
-                         !develop_.canvas_enabled;
+                         std::abs(develop_.perspective_vertical) <= 1.0e-4 &&
+                         std::abs(develop_.perspective_horizontal) <= 1.0e-4 &&
+                         std::abs(develop_.perspective_shear) <= 1.0e-4 && !develop_.canvas_enabled;
     if (white_balance_pick_active_ == enabled)
     {
         return;
@@ -1754,10 +1849,13 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
         setWhiteBalancePickActive(false);
         return;
     }
-    if (std::abs(develop_.straighten_degrees) > 1.0e-4 || develop_.canvas_enabled)
+    if (std::abs(develop_.straighten_degrees) > 1.0e-4 ||
+        std::abs(develop_.perspective_vertical) > 1.0e-4 ||
+        std::abs(develop_.perspective_horizontal) > 1.0e-4 ||
+        std::abs(develop_.perspective_shear) > 1.0e-4 || develop_.canvas_enabled)
     {
         setError(QCoreApplication::translate(
-            "DevelopPanel", "White-balance pick is unavailable with straighten or Canvas"));
+            "DevelopPanel", "White-balance pick is unavailable with Perspective or Canvas"));
         setWhiteBalancePickActive(false);
         return;
     }
@@ -1803,6 +1901,95 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
                         setStatus(QCoreApplication::translate("StudioPresenter",
                                                               "White balance sampled."));
                     }
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::autoPerspective(const QString &mode_name)
+{
+    PerspectiveAnalysisMode mode = PerspectiveAnalysisMode::kFull;
+    if (mode_name == QLatin1String("vertical"))
+        mode = PerspectiveAnalysisMode::kVertical;
+    else if (mode_name == QLatin1String("horizontal"))
+        mode = PerspectiveAnalysisMode::kHorizontal;
+    else if (mode_name != QLatin1String("full"))
+    {
+        setError(QCoreApplication::translate("DevelopPanel",
+                                             "Perspective analysis mode is unsupported"));
+        return;
+    }
+    if (selected_asset_id_.isEmpty())
+        return;
+    const auto asset_id = utf8_from_qstring(selected_asset_id_);
+    const DevelopParams analysis_develop = develop_;
+    const auto revision = perspective_analysis_owner_.supersede("perspective_analysis_superseded");
+    const auto cancellation = perspective_analysis_owner_.begin();
+    executor_.post(
+        [this, asset_id, revision, analysis_develop, mode, cancellation]() mutable
+        {
+            Result<PerspectiveAnalysis> analysis =
+                make_error(ErrorCode::kIo, "Engine session is closed");
+            if (service_ != nullptr && engine_)
+            {
+                PreviewRequest request;
+                request.asset_id = asset_id;
+                request.max_edge = 900U;
+                request.request_revision = revision;
+                request.ignore_crop = true;
+                request.ignore_straighten = true;
+                request.persist_preview_record = false;
+                request.cancellation = cancellation;
+                auto preview = service_->request_preview(request, analysis_develop);
+                if (!preview)
+                {
+                    analysis = preview.error();
+                }
+                else
+                {
+                    RasterBuffer raster;
+                    raster.width = preview.value().width;
+                    raster.height = preview.value().height;
+                    raster.source_width = raster.width;
+                    raster.source_height = raster.height;
+                    raster.srgb = std::move(preview).value().rgb;
+                    const std::size_t expected =
+                        static_cast<std::size_t>(raster.width) * raster.height * 3U;
+                    if (raster.width == 0U || raster.height == 0U || raster.srgb.size() != expected)
+                    {
+                        analysis =
+                            make_error(ErrorCode::kValidation,
+                                       "Perspective analysis render has an invalid RGB extent",
+                                       {{"reason", "invalid_perspective_analysis_raster"}});
+                    }
+                    else
+                    {
+                        analysis = engine_->analyze_perspective(raster, mode, cancellation);
+                    }
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, revision, analysis = std::move(analysis)]() mutable
+                {
+                    if (!perspective_analysis_owner_.accepts(revision, asset_id,
+                                                             utf8_from_qstring(selected_asset_id_)))
+                        return;
+                    if (!analysis)
+                    {
+                        if (analysis.error().code != ErrorCode::kCancelled)
+                            setError(qstring_from_utf8(analysis.error().message));
+                        return;
+                    }
+                    DevelopParams next = develop_;
+                    next.straighten_degrees = analysis.value().params.rotation_degrees;
+                    next.perspective_vertical = analysis.value().params.vertical_shift;
+                    next.perspective_horizontal = analysis.value().params.horizontal_shift;
+                    next.perspective_shear = analysis.value().params.shear;
+                    next.perspective_constrain_crop = true;
+                    if (mutate_develop(std::move(next), DevelopEdit::Commit))
+                        setStatus(QCoreApplication::translate("StudioPresenter",
+                                                              "Perspective corrected."));
                 },
                 Qt::QueuedConnection);
         });
@@ -1903,14 +2090,24 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Vibrance");
     if (field == "saturation")
         return QCoreApplication::translate("DevelopPanel", "Saturation");
-    if (field == "velvia")
+    if (field == "velvia" || field == "velviaEnabled")
         return QCoreApplication::translate("DevelopPanel", "Velvia");
+    if (field == "velviaStrength")
+        return QCoreApplication::translate("DevelopPanel", "Velvia strength");
+    if (field == "velviaBias")
+        return QCoreApplication::translate("DevelopPanel", "Velvia mid-tones bias");
     if (field == "gamma")
         return QCoreApplication::translate("DevelopPanel", "Gamma");
     if (field == "rgbLevels")
         return QCoreApplication::translate("DevelopPanel", "RGB levels");
     if (field == "sharpen")
         return QCoreApplication::translate("DevelopPanel", "Sharpen");
+    if (field == "texture")
+        return QCoreApplication::translate("DevelopPanel", "Texture");
+    if (field == "textureDetailThreshold")
+        return QCoreApplication::translate("DevelopPanel", "Texture scale");
+    if (field == "textureIterations")
+        return QCoreApplication::translate("DevelopPanel", "Texture iterations");
     if (field == "retouch")
         return QCoreApplication::translate("DevelopPanel", "Retouch");
     if (field == "clarity")
@@ -2361,7 +2558,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
-        .ignore_straighten = crop_guides,
+        .ignore_straighten = false,
         .refresh_preview = refresh_preview,
         .settle_preview = needs_first_preview,
         .overlay_mask_id = current_overlay_mask_id(params),
@@ -2408,7 +2605,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
-        .ignore_straighten = crop_guides,
+        .ignore_straighten = false,
         .overlay_mask_id = current_overlay_mask_id(params),
     };
     kick_develop_work();
@@ -2492,7 +2689,7 @@ void StudioPresenter::enqueue_preview()
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
-        .ignore_straighten = crop_guides,
+        .ignore_straighten = false,
         .settle_preview = progressive_develop,
         .overlay_mask_id = current_overlay_mask_id(develop_),
     };
@@ -2750,7 +2947,7 @@ void StudioPresenter::kick_develop_work()
                         assets_.markOriginalMissing(job.asset_id);
                         emit selectionChanged();
                     }
-                    if (job.ignore_crop && job.ignore_straighten && crop_tool_active_)
+                    if (job.ignore_crop && crop_tool_active_)
                     {
                         crop_guide_ready_ = true;
                     }
@@ -2828,12 +3025,9 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     {
         return;
     }
-    if (name == QLatin1String("straighten"))
-    {
-        fit_geometry_crop(next);
-    }
     const bool keep_crop_guide =
-        crop_tool_active_ && crop_guide_ready_ && name == QLatin1String("straighten");
+        crop_tool_active_ && crop_guide_ready_ &&
+        (name == QLatin1String("straighten") || name.startsWith(QLatin1String("perspective")));
     mutate_develop(std::move(next), DevelopEdit::Commit, !keep_crop_guide, field);
 }
 
@@ -3712,7 +3906,6 @@ void StudioPresenter::previewDevelopNumber(const QString &name, const double val
     }
     if (name == QLatin1String("straighten"))
     {
-        fit_geometry_crop(next);
         if (crop_tool_active_)
         {
             mutate_develop(std::move(next), DevelopEdit::Overlay);
@@ -3829,12 +4022,11 @@ void StudioPresenter::setCropToolActive(const bool active)
         }
         setZoomMode(QStringLiteral("fit"));
         DevelopParams next = develop_;
-        fit_geometry_crop(next);
-        // Overlay paints as soon as the tool is on. crop_guide_ready waits for a
-        // preview with crop/straighten stripped so QML does not rotate twice.
-        crop_guide_ready_ = std::abs(next.straighten_degrees) < 1e-4 && next.crop_width >= 0.999 &&
-                            next.crop_height >= 0.999 && std::abs(next.crop_x) < 1e-6 &&
-                            std::abs(next.crop_y) < 1e-6;
+        // Geometry is rendered by the canonical Perspective owner while Crop
+        // is stripped. The overlay therefore edits normalized coordinates in
+        // the actual post-perspective frame without reproducing a homography
+        // in QML.
+        crop_guide_ready_ = false;
         if (mutate_develop(std::move(next), DevelopEdit::Commit))
         {
             return;
@@ -3870,10 +4062,6 @@ void StudioPresenter::resetControl(const QString &name)
     else if (!reset_develop_field(next, field))
     {
         return;
-    }
-    if (name == QLatin1String("straighten"))
-    {
-        fit_geometry_crop(next);
     }
     mutate_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
@@ -4149,12 +4337,18 @@ double StudioPresenter::selected_working_aspect() const
 
 void StudioPresenter::constrain_geometry_crop(DevelopParams &params) const
 {
+    const double rotation = params.straighten_degrees;
+    params.straighten_degrees = 0.0;
     constrain_crop_to_straighten(params, selected_working_aspect());
+    params.straighten_degrees = rotation;
 }
 
 void StudioPresenter::fit_geometry_crop(DevelopParams &params) const
 {
+    const double rotation = params.straighten_degrees;
+    params.straighten_degrees = 0.0;
     fit_crop_to_straighten(params, selected_working_aspect());
+    params.straighten_degrees = rotation;
 }
 
 } // namespace ravo

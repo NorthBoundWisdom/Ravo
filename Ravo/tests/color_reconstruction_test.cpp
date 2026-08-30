@@ -549,11 +549,12 @@ TEST(ColorReconstructionTest, Frozen0052HasARealRawReferenceAndBudgetAccounting)
         }
     }
     // Ravo-owned macOS reference for the verbatim 0052 v3 payload on the
-    // committed RAW. The envelope accounts for supported-platform libm and
-    // decoder variation without using the prohibited old runner as an oracle.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 281228.0, 2500.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 257215.0, 2500.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 236879.0, 2500.0);
+    // committed RAW with the default RCD demosaic. The envelope accounts for
+    // supported-platform libm and decoder variation without using the
+    // prohibited old runner as an oracle.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 284425.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 261073.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 247429.0, 2500.0);
 
     Recipe without_reconstruction = recipe.value();
     std::erase_if(without_reconstruction.operations, [](const OperationInstance &operation)

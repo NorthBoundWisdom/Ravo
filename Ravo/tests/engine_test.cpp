@@ -1513,15 +1513,26 @@ TEST(EngineFacadeTest, ClassifiesMissingDirectoryTruncatedAndUnrecognizedRaw)
     std::filesystem::remove_all(root, ignored);
 }
 
-TEST(EngineFacadeTest, FirstFrameDecodeRejectsXTransSensor)
+TEST(EngineFacadeTest, FirstFrameDecodePreservesXTransCfaPhase)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     auto decoded = engine.value().decode_raw_frame(mire1_xtrans_path(), CancellationToken{});
-    ASSERT_FALSE(decoded);
-    EXPECT_EQ(decoded.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(decoded.error().context.at("reason"), "unsupported_raw_sensor");
-    EXPECT_EQ(decoded.error().context.at("sensor"), "xtrans");
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value().cfa_width, 6U);
+    EXPECT_EQ(decoded.value().cfa_height, 6U);
+    EXPECT_EQ(decoded.value().cfa_channels.size(), 36U);
+    EXPECT_EQ(
+        std::count(decoded.value().cfa_channels.begin(), decoded.value().cfa_channels.end(), 0U),
+        8);
+    EXPECT_EQ(
+        std::count(decoded.value().cfa_channels.begin(), decoded.value().cfa_channels.end(), 1U),
+        20);
+    EXPECT_EQ(
+        std::count(decoded.value().cfa_channels.begin(), decoded.value().cfa_channels.end(), 2U),
+        8);
+    EXPECT_EQ(decoded.value().pixels.size(),
+              static_cast<std::size_t>(decoded.value().width) * decoded.value().height);
 }
 
 TEST(EngineFacadeTest, DecodeExposesAsShotAndCameraReferenceWhiteBalance)
@@ -1804,12 +1815,13 @@ TEST(EngineFacadeTest, ExposureDeflickerHasAFrozenRawReferenceAndPreservesTheSou
             sums[channel] += rendered.value().rgb[index + channel];
         }
     }
-    // Ravo-owned reference statistics for the original pre-repair RAW histogram and
-    // the frozen default deflicker target. The tolerance permits platform libm/SIMD
-    // rounding without accepting a changed histogram source or exposure formula.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 251749.0, 1500.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 234182.0, 1500.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 220350.0, 1500.0);
+    // Ravo-owned reference statistics for the original pre-repair RAW histogram,
+    // the default RCD demosaic, and the frozen default deflicker target. The
+    // tolerance permits platform libm/SIMD rounding without accepting a changed
+    // histogram source or exposure formula.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 256096.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 238181.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 227249.0, 1500.0);
     EXPECT_EQ(decoded.value().pixels, original_pixels);
     const auto source_after = source_file_snapshot(mire1_path());
     ASSERT_TRUE(source_after.has_value());
@@ -3617,7 +3629,7 @@ TEST(ExposureAnalysisTest, RawInputColorPrimariesAndProfileConversionPreserveOne
     EXPECT_EQ(raw.pixels, original_pixels);
 }
 
-TEST(EngineFacadeTest, RawDenoiseSmoothsBayerSpikeAndRejectsNonBayer)
+TEST(EngineFacadeTest, RawDenoiseSmoothsBayerAndXTransSpikes)
 {
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
@@ -3656,11 +3668,17 @@ TEST(EngineFacadeTest, RawDenoiseSmoothsBayerSpikeAndRejectsNonBayer)
     DecodedRaw xtrans = raw;
     xtrans.cfa_width = 6;
     xtrans.cfa_height = 6;
-    xtrans.cfa_channels.assign(36U, 1);
-    auto rejected =
+    xtrans.cfa_channels = {1, 2, 1, 1, 0, 1, 0, 1, 0, 2, 1, 2, 1, 2, 1, 1, 0, 1,
+                           1, 0, 1, 1, 2, 1, 2, 1, 2, 0, 1, 0, 1, 0, 1, 1, 2, 1};
+    const auto xtrans_source = xtrans.pixels;
+    auto denoised_xtrans =
         engine.value().linear_working_from_raw(xtrans, recipe, 64U, 64U, CancellationToken{});
-    ASSERT_FALSE(rejected);
-    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_raw_sensor");
+    auto original_xtrans =
+        engine.value().linear_working_from_raw(xtrans, identity, 64U, 64U, CancellationToken{});
+    ASSERT_TRUE(denoised_xtrans) << denoised_xtrans.error().message;
+    ASSERT_TRUE(original_xtrans) << original_xtrans.error().message;
+    EXPECT_NE(denoised_xtrans.value().rgb, original_xtrans.value().rgb);
+    EXPECT_EQ(xtrans.pixels, xtrans_source);
 }
 
 TEST(EngineFacadeTest, HotPixelsMatchesFrozenBayerNeighbourContract)
@@ -7766,11 +7784,12 @@ TEST(EngineFacadeTest, SigmoidHasARealRawReference)
             clipped_channels += value == 255 ? 1U : 0U;
         }
     }
-    // Ravo-owned macOS reference statistics for the pinned mire1.cr2 fixture.
-    // The tolerance permits platform libm/SIMD rounding without accepting a changed look.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 304823.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 281792.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 263085.0, 2000.0);
+    // Ravo-owned macOS reference statistics for the pinned mire1.cr2 fixture
+    // after the default RCD demosaic. The tolerance permits platform libm/SIMD
+    // rounding without accepting a changed look.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 310551.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 285591.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 269480.0, 2000.0);
     EXPECT_LT(clipped_channels, rendered.value().rgb.size() / 100U);
 }
 
@@ -7820,18 +7839,18 @@ TEST(EngineFacadeTest, TemperatureManualAndCameraReferenceHaveRealRawReferences)
     auto manual = render_temperature(test::temperature_0000_params());
     ASSERT_TRUE(manual) << manual.error().message;
     const auto manual_sums = sums(manual.value());
-    EXPECT_NEAR(static_cast<double>(manual_sums[0]), 304283.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(manual_sums[1]), 280917.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(manual_sums[2]), 261889.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(manual_sums[0]), 310551.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(manual_sums[1]), 285591.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(manual_sums[2]), 269480.0, 2000.0);
 
     TemperatureParams reference;
     reference.mode = std::string(kTemperatureModeCameraReference);
     auto camera = render_temperature(reference);
     ASSERT_TRUE(camera) << camera.error().message;
     const auto camera_sums = sums(camera.value());
-    EXPECT_NEAR(static_cast<double>(camera_sums[0]), 363500.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(camera_sums[1]), 284155.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(camera_sums[2]), 241746.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(camera_sums[0]), 372514.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(camera_sums[1]), 289629.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(camera_sums[2]), 248367.0, 2000.0);
     EXPECT_NE(camera_sums, manual_sums);
 }
 
@@ -7901,10 +7920,11 @@ TEST(EngineFacadeTest, ChannelMixerHasARealRawReference)
             sums[channel] += rendered.value().rgb[index + channel];
         }
     }
-    // Ravo-owned reference for the frozen 0085 default CAT16 parameters on mire1.cr2.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 253873.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 290768.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 298343.0, 2000.0);
+    // Ravo-owned reference for the frozen 0085 default CAT16 parameters on
+    // mire1.cr2 after the default RCD demosaic.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 258339.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 296045.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 307843.0, 2000.0);
 }
 
 TEST(EngineFacadeTest, ColorBalanceRgb0083HasARealRawReference)
@@ -7979,9 +7999,9 @@ TEST(EngineFacadeTest, ColorChecker0098HasARealRawReferenceAndPreservesTheSource
     }
     // Ravo-owned macOS reference for the verbatim frozen 0098 active patch set on
     // the pinned RAW fixture. The independent scalar oracle above owns fit parity.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 295886.0, 2500.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 283466.0, 2500.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 247458.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[0]), 308446.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 293347.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 246523.0, 2500.0);
     const auto source_after = source_file_snapshot(mire1_path());
     ASSERT_TRUE(source_after.has_value());
     EXPECT_EQ(*source_after, *source_before);
@@ -8027,9 +8047,9 @@ TEST(EngineFacadeTest, LegacyColorBalanceV4HasARealRawReferenceAndPreservesTheSo
     // Ravo-owned reference for the frozen v4 LGG path on the pinned RAW fixture.
     // The tolerance permits cross-platform libm rounding without accepting a mode,
     // working-space, or channel-order change.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 370241.0, 2500.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 274553.0, 2500.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 346452.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[0]), 378994.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 281591.0, 2500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 356197.0, 2500.0);
     const auto source_after = source_file_snapshot(mire1_path());
     ASSERT_TRUE(source_after.has_value());
     EXPECT_EQ(*source_after, *source_before);
@@ -8068,10 +8088,11 @@ TEST(EngineFacadeTest, HotPixelsHasARealRawReferenceAndKeepsDecodedFrameImmutabl
             sums[channel] += rendered.value().rgb[index + channel];
         }
     }
-    // Ravo-owned reference for the frozen default Bayer neighbour contract on mire1.cr2.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 304270.0, 1500.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 280908.0, 1500.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 261887.0, 1500.0);
+    // Ravo-owned reference for hot-pixel repair followed by the default RCD
+    // demosaic on mire1.cr2.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 310551.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 285591.0, 1500.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 269480.0, 1500.0);
 }
 
 TEST(EngineFacadeTest, RawCaCorrectRunsFrozenDefaultOnMire1)
@@ -8122,9 +8143,9 @@ TEST(EngineFacadeTest, RawCaCorrectRunsFrozenDefaultOnMire1)
             sums[channel] += rendered.value().rgb[index + channel];
         }
     }
-    EXPECT_NEAR(static_cast<double>(sums[0]), 303686.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 280852.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 262220.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[0]), 309659.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 285554.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 269558.0, 2000.0);
 }
 
 TEST(EngineFacadeTest, RawCaCorrectCoversFrozen0084AvoidShiftParameters)
@@ -8160,9 +8181,9 @@ TEST(EngineFacadeTest, RawCaCorrectCoversFrozen0084AvoidShiftParameters)
             sums[channel] += rendered.value().rgb[index + channel];
         }
     }
-    EXPECT_NEAR(static_cast<double>(sums[0]), 304117.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 280976.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 261636.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[0]), 310081.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 285694.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 268986.0, 2000.0);
 }
 
 TEST(EngineFacadeTest, LinearWorkingRenderMatchesDirectRawRender)

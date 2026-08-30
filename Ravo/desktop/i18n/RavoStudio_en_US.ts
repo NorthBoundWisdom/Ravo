@@ -501,10 +501,6 @@
             <translation>Pick white on photo</translation>
         </message>
         <message>
-            <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
-            <translation>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</translation>
-        </message>
-        <message>
             <source>Curves</source>
             <translation>Curves</translation>
         </message>
@@ -637,6 +633,66 @@
             <translation>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</translation>
         </message>
         <message>
+            <source>Enable Velvia</source>
+            <translation>Enable Velvia</translation>
+        </message>
+        <message>
+            <source>Strength</source>
+            <translation>Strength</translation>
+        </message>
+        <message>
+            <source>Mid-tones bias</source>
+            <translation>Mid-tones bias</translation>
+        </message>
+        <message>
+            <source>Loaded Velvia mask is preserved but edited outside this panel.</source>
+            <translation>Loaded Velvia mask is preserved but edited outside this panel.</translation>
+        </message>
+        <message>
+            <source>Disable and reset Velvia</source>
+            <translation>Disable and reset Velvia</translation>
+        </message>
+        <message>
+            <source>3D LUT</source>
+            <translation>3D LUT</translation>
+        </message>
+        <message>
+            <source>Choose a .cube file</source>
+            <translation>Choose a .cube file</translation>
+        </message>
+        <message>
+            <source>Choose…</source>
+            <translation>Choose…</translation>
+        </message>
+        <message>
+            <source>Enable 3D LUT</source>
+            <translation>Enable 3D LUT</translation>
+        </message>
+        <message>
+            <source>Input color space</source>
+            <translation>Input color space</translation>
+        </message>
+        <message>
+            <source>3D LUT input color space</source>
+            <translation>3D LUT input color space</translation>
+        </message>
+        <message>
+            <source>Output color space</source>
+            <translation>Output color space</translation>
+        </message>
+        <message>
+            <source>3D LUT output color space</source>
+            <translation>3D LUT output color space</translation>
+        </message>
+        <message>
+            <source>3D LUT interpolation</source>
+            <translation>3D LUT interpolation</translation>
+        </message>
+        <message>
+            <source>Disable and reset 3D LUT</source>
+            <translation>Disable and reset 3D LUT</translation>
+        </message>
+        <message>
             <source>Reset Color Balance RGB</source>
             <translation>Reset Color Balance RGB</translation>
         </message>
@@ -699,6 +755,42 @@
         <message>
             <source>Blue saturation</source>
             <translation>Blue saturation</translation>
+        </message>
+        <message>
+            <source>Vertical</source>
+            <translation>Vertical</translation>
+        </message>
+        <message>
+            <source>Horizontal</source>
+            <translation>Horizontal</translation>
+        </message>
+        <message>
+            <source>Analyze visible lines and apply a bounded perspective correction</source>
+            <translation>Analyze visible lines and apply a bounded perspective correction</translation>
+        </message>
+        <message>
+            <source>Shear</source>
+            <translation>Shear</translation>
+        </message>
+        <message>
+            <source>Constrain crop</source>
+            <translation>Constrain crop</translation>
+        </message>
+        <message>
+            <source>Bilinear — fast</source>
+            <translation>Bilinear — fast</translation>
+        </message>
+        <message>
+            <source>Lanczos 2</source>
+            <translation>Lanczos 2</translation>
+        </message>
+        <message>
+            <source>Lanczos 3 — best quality</source>
+            <translation>Lanczos 3 — best quality</translation>
+        </message>
+        <message>
+            <source>Perspective interpolation</source>
+            <translation>Perspective interpolation</translation>
         </message>
         <message>
             <source>Vignette midpoint</source>
@@ -877,6 +969,22 @@
             <translation>Reset watermark</translation>
         </message>
         <message>
+            <source>Texture</source>
+            <translation>Texture</translation>
+        </message>
+        <message>
+            <source>Texture · more</source>
+            <translation>Texture · more</translation>
+        </message>
+        <message>
+            <source>Texture scale</source>
+            <translation>Texture scale</translation>
+        </message>
+        <message>
+            <source>Texture iterations</source>
+            <translation>Texture iterations</translation>
+        </message>
+        <message>
             <source>Masking</source>
             <translation>Masking</translation>
         </message>
@@ -995,6 +1103,34 @@
         <message>
             <source>Remove</source>
             <translation>Remove</translation>
+        </message>
+        <message>
+            <source>Demosaicing</source>
+            <translation>Demosaicing</translation>
+        </message>
+        <message>
+            <source>Auto — RCD / Markesteijn 3</source>
+            <translation>Auto — RCD / Markesteijn 3</translation>
+        </message>
+        <message>
+            <source>PPG — Bayer compatibility</source>
+            <translation>PPG — Bayer compatibility</translation>
+        </message>
+        <message>
+            <source>Markesteijn 1 — X-Trans fast</source>
+            <translation>Markesteijn 1 — X-Trans fast</translation>
+        </message>
+        <message>
+            <source>Markesteijn 3 — X-Trans quality</source>
+            <translation>Markesteijn 3 — X-Trans quality</translation>
+        </message>
+        <message>
+            <source>Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.</source>
+            <translation>Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.</translation>
+        </message>
+        <message>
+            <source>RAW wavelet denoise</source>
+            <translation>RAW wavelet denoise</translation>
         </message>
         <message>
             <source>Input Profile</source>
@@ -1275,6 +1411,18 @@
         <message>
             <source>RGB levels</source>
             <translation>RGB levels</translation>
+        </message>
+        <message>
+            <source>Choose 3D LUT</source>
+            <translation>Choose 3D LUT</translation>
+        </message>
+        <message>
+            <source>Cube LUT (*.cube *.CUBE)</source>
+            <translation>Cube LUT (*.cube *.CUBE)</translation>
+        </message>
+        <message>
+            <source>Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.</source>
+            <translation>Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.</translation>
         </message>
         <message>
             <source>RGB, linked</source>
@@ -2037,6 +2185,26 @@
             <translation>Bottom right</translation>
         </message>
         <message>
+            <source>Rec. 709</source>
+            <translation>Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 709</source>
+            <translation>Linear Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 2020</source>
+            <translation>Linear Rec. 2020</translation>
+        </message>
+        <message>
+            <source>Tetrahedral</source>
+            <translation>Tetrahedral</translation>
+        </message>
+        <message>
+            <source>Trilinear</source>
+            <translation>Trilinear</translation>
+        </message>
+        <message>
             <source>Saturated colors</source>
             <translation>Saturated colors</translation>
         </message>
@@ -2257,8 +2425,20 @@
             <translation>White-balance pick requires a Bayer RAW original</translation>
         </message>
         <message>
-            <source>White-balance pick is unavailable with straighten or Canvas</source>
-            <translation>White-balance pick is unavailable with straighten or Canvas</translation>
+            <source>White-balance pick is unavailable with Perspective or Canvas</source>
+            <translation>White-balance pick is unavailable with Perspective or Canvas</translation>
+        </message>
+        <message>
+            <source>Perspective analysis mode is unsupported</source>
+            <translation>Perspective analysis mode is unsupported</translation>
+        </message>
+        <message>
+            <source>Velvia strength</source>
+            <translation>Velvia strength</translation>
+        </message>
+        <message>
+            <source>Velvia mid-tones bias</source>
+            <translation>Velvia mid-tones bias</translation>
         </message>
         <message>
             <source>Luminance</source>
@@ -3940,6 +4120,10 @@
         <message>
             <source>White balance sampled.</source>
             <translation>White balance sampled.</translation>
+        </message>
+        <message>
+            <source>Perspective corrected.</source>
+            <translation>Perspective corrected.</translation>
         </message>
         <message>
             <source>Style path must not be empty.</source>

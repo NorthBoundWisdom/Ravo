@@ -11,17 +11,23 @@ Current implementation status:
 
 - Foundation/recipe/engine/adapters/CLI/test scaffolding and versioned
   JSON/error contracts are complete.
-- `ravo inspect` reads the first LibRaw-supported 16-bit Bayer RAW slice and
-  reports width and height in camera-oriented display dimensions.
+- `ravo inspect` reads the first LibRaw-supported 16-bit Bayer or X-Trans RAW
+  slice, reports camera-oriented display dimensions, CFA family/size and the
+  sensor-default demosaic mode, and exposes owned DNG
+  OpcodeList2/3 presence, supported correction counts, and explicitly skipped
+  optional opcode IDs.
 - `ravo render` executes the canonical bounded RAW/raster recipe, including
   crop, black/white normalization, camera WB, profile-aware camera-to-working
-  conversion, basic 3×3 Bayer interpolation, exposure, declared output-profile
-  conversion, embedded ICC state, and atomic PNG output.
+  conversion, bounded DNG GainMap/WarpRectilinear/FixVignetteRadial correction,
+  tiled RCD Bayer demosaic by default or explicit PPG, and Markesteijn 3-pass
+  X-Trans demosaic by default or explicit 1/3-pass, exposure,
+  declared output-profile conversion,
+  embedded ICC state, and atomic PNG output.
 - Legacy XMP supports empty history, a strict nop baseline with explicit
   `colorin`/`colorout` mapping, and the frozen exposure v5/v6/v7 final-revision
   boundary. Exact default-unmasked singleton state maps to the canonical recipe;
-  leftover flip/crop/ashift-rotation, rgblevels v1, rgbcurve v1
-  including middle-grey uncompensate, and Bayer rawdenoise v2 also map
+  leftover flip/crop/ashift generic perspective, rgblevels v1, rgbcurve v1
+  including middle-grey uncompensate, and Bayer/X-Trans rawdenoise v2 also map
   (ADR-0048–0054).
   Mask, custom blend, multi-instance, and conflicting-revision state rejects
   structurally.
@@ -29,9 +35,16 @@ Current implementation status:
   import, preview cache outside the library, and the `ravo_studio` Qt Quick
   window using controls from the `GeoControls` source root. Catalog fully
   decodes JPEG/PNG/TIFF before inserting an asset; only TIFF RAW containers
-  may fall through to LibRaw (ADR-0046). First-frame Bayer RAW/DNG uses pinned
-  LibRaw crop/black/white/CFA/flip plus 3×3 interpolation; missing, corrupt,
-  unrecognized, oversized, X-Trans, and cancelled inputs fail structurally.
+  may fall through to LibRaw (ADR-0046). First-frame Bayer/X-Trans RAW/DNG uses pinned
+  LibRaw crop/black/white/CFA/flip plus owned DNG OpcodeList2/3 metadata and
+  RCD or Markesteijn 3-pass according to CFA; PPG and Markesteijn 1/3-pass are
+  explicit recipe/CLI/Studio choices.
+  GainMap executes after linear-reference normalization;
+  supported List3 corrections execute after demosaic and before white balance
+  and input colour. Missing, corrupt, unrecognized, oversized, malformed or
+  mandatory-unsupported DNG opcodes, unsupported/non-RGB CFA, sensor/mode
+  mismatch, and cancelled inputs fail structurally; optional skips remain
+  visible in inspect state and no lower-quality demosaic fallback is selected.
   Catalog unpacks a RAW with no embedded JPEG before publication. A corrupt
   preview PNG is a cache miss and is rebuilt on request or after close/reopen.
   The cache has a 512 MiB hard byte budget, promotes valid hits, and evicts the
@@ -93,8 +106,11 @@ Current implementation status:
   a new step. Section lamps are gray at identity, green when modified, and
   black when those parameters are kept but bypassed. The default grading stack
   is White Balance, Light, Curves, Color Equalizer, Color Balance RGB wheels,
-  and Camera Calibration (ADR-0082/0084/0085). Color
-  Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
+  and Camera Calibration (ADR-0082/0084/0085). Color Equalizer is an eight-band
+  named mixer. Light begins
+  with White Balance, then presents Exposure, Contrast, Highlights, Shadows,
+  Whites, and Blacks; Exposure mode and black point, Deflicker, Sigmoid shaping,
+  Gamma, and RGB Levels follow. Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
   plus single-photo Before/After, a toolbar Left/Right comparison whose two
   panes share zoom and pan, session undo/redo, and Paste Light / Paste Color.
@@ -136,6 +152,11 @@ Current implementation status:
   and gives Radius defined multiscale spatial behavior. Luminance and Chroma
   mix separately into an owned result; scale, finite, cancellation, and exact
   memory preflight failures publish nothing (ADR-0094).
+- RAW denoise v2 owns the frozen five-band square-root wavelet path before
+  demosaic. Bayer processes four 2×2 CFA planes; X-Trans reconstructs one
+  dense nearest-neighbour plane for each RGB channel before the same transform
+  and writes back only matching sensels. Cancellation publishes no partial
+  CFA, and its peak four-float-plane scratch is included in the RAW budget.
 - White Balance provides `ravo.color.temperature` v1 before demosaic using
   R/G1/B/G2 four-channel coefficients. LibRaw `cam_mul` / `pre_mul` provide
   as-shot and camera-reference defaults; manual stores explicit coefficients,
@@ -249,9 +270,16 @@ Current implementation status:
   Color and optional Dither, with constant/image/custom aspect, orientation,
   basis, position, border colour, and an optional coloured line. Catalog
   preview/reopen and JPEG/PNG/TIFF export share the resulting dimensions.
-  Canvas followed by enabled rotate/flip/straighten/crop/lens geometry is an
-  explicit unsupported state until those geometry transforms own content-frame
-  composition.
+  Perspective/straighten and crop transform both pixels and preview-mask alpha
+  from that attached frame. Canvas followed by rotate, flip, or lens geometry,
+  or by a new mask consumer after composed geometry, remains an explicit
+  unsupported state.
+- Perspective is one canonical scene-linear homography for angle, vertical and
+  horizontal correction, shear, constrained maximal safe crop, and bilinear,
+  Lanczos2, or Lanczos3 sampling. The CLI and Studio use the same bounded Hough
+  line detector and robust fitter; no-line, degenerate, cancelled, malformed,
+  or resource-invalid analysis fails without changing the recipe. Crop remains
+  a subsequent normalized operation, and export executes the same CPU path.
 - Text Watermark is the final encoded-output recipe stage after Frame and
   before sample packing. It uses a versioned built-in 5×7 font, bounded ASCII
   text, `{stem}`/`{asset_id}` expansion, RGB/opacity, scale, rotation, nine-way
@@ -393,6 +421,34 @@ Current implementation status:
   doubled-distance weight, blend and clamp order; the exact 0062 v1 singleton
   maps and the old fixed-saturation/compression shortcut is removed
   (ADR-0075).
+- Velvia provides `ravo.color.velvia` v2 in linear Rec.709 with strength and
+  mid-tones bias. It preserves the frozen luminance/saturation weighting so
+  low-saturation pixels receive the strongest colour boost, then applies the
+  source per-channel clamp. Canonical masks, strict 0063 v2 import, and typed
+  CLI/Catalog/Studio save/reopen/export replace the former one-slider,
+  fixed-bias persistence path (ADR-0095).
+- 3D LUT provides optional `ravo.color.lut3d` v1 after Velvia. A recipe names
+  one bounded `.cube` file, explicit input and output colour spaces, trilinear
+  or tetrahedral interpolation, and strength. The engine converts from and
+  back to canonical linear Rec.709, honours per-channel `DOMAIN_MIN/MAX`, and
+  blends in unbounded linear light without an output clamp. A process-wide
+  eight-entry LRU retains immutable parsed snapshots keyed by canonical path
+  and complete-file fingerprint; changed, missing, malformed, non-finite,
+  oversized, 1D, or unsupported resources fail without stale/identity
+  fallback. CLI inspection and text-field mutation, Catalog cache identity,
+  Studio, and export share this owner. Frozen legacy XMP only records a mutable
+  external path and is rejected as `unsupported_legacy_lut3d_resource`
+  (ADR-0096).
+- Offline camera-noise calibration fits
+  `variance = gaussian_variance + poisson_slope × signal` from a strict,
+  versioned mean/variance/count sample document in black-subtracted uint16
+  sensor units. A deterministic Theil–Sen/MAD selection followed by weighted
+  non-negative least squares rejects bounded outliers and never substitutes a
+  default profile. `ravo noise calibrate` publishes a canonical SHA-256 profile
+  only to an explicit atomic no-replace destination; `noise inspect` validates
+  the checksum. Neither command mutates a catalog, source image, or implicit
+  user directory, and profile lookup by denoisers remains a separate contract
+  (ADR-0096).
 - Color Reconstruction provides `ravo.color.colorreconstruct` v1 immediately
   before Output Color. It reproduces the frozen D50 Lab full-frame bilateral
   grid: non-clipped colors are weighted by none/chroma/hue precedence, blurred
@@ -403,6 +459,17 @@ Current implementation status:
   masks, custom blend, multiple instances, and other versions reject. CLI,
   Catalog save/reopen/export, and Studio expose the same five photographic
   parameters; GTK/OpenCL and tile-local substitutes are not supported.
+- Texture provides optional `ravo.detail.texture` schema v1 before Sharpen in
+  linear Rec.709. Strength zero is identity; signed strength, original-input
+  detail scale, and one to five iterations drive a bounded two-band
+  self-guided luminance decomposition. Output is applied as a positive RGB
+  ratio, preserving hue and unclipped HDR highlights instead of clipping
+  channels. The six-float-plane peak, canonical scale, finite input/output,
+  cancellation, source ownership, Recipe/CLI/Catalog/Studio persistence and a
+  Release 30 ms algorithm gate are tested. Studio puts the common Texture
+  control first in Detail and collapses scale/iterations. Local Laplacian and
+  Filmulator physical development were measured but do not enter production
+  (ADR-0096).
 - Sharpen provides `ravo.detail.sharpen` schema v2 in D50 Lab. Radius is scaled
   from original-input pixels, multiplied by the frozen 2.5 support, and capped
   at a 12-pixel convolution radius while retaining the requested Gaussian
@@ -582,6 +649,9 @@ ravo --version --json
 ravo operations --json
 ravo develop-fields --json
 ravo inspect <input> --json
+ravo lut inspect <look.cube> --json
+ravo noise calibrate <samples.json> --output <profile.json> --json
+ravo noise inspect <profile.json> --json
 ravo recipe import-xmp <legacy-or-crs.xmp> --asset-id <id> --input <input-uri> --output <recipe> --json
 ravo recipe validate <recipe> --json
 ravo recipe style-create <recipe> --name <name> --output <style.rstyle.json> --json
@@ -593,10 +663,10 @@ ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
 ravo catalog list --catalog <library.sqlite> --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog fields --json
-ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--max-edge N] [--output <file.png>] --json
+ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--set-text <field>=<text>]... [--max-edge N] [--output <file.png>] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
 ravo catalog refresh-metadata --catalog <library.sqlite> --asset-id <id> --json
-ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--exposure-ev N] [--watermark-text <text>] --json
+ravo catalog develop --catalog <library.sqlite> --asset-id <id> [--from-xmp <preset.xmp>] [--set <field>=<number>]... [--set-text <field>=<text>]... [--exposure-ev N] [--watermark-text <text>] --json
 ravo catalog recipe --catalog <library.sqlite> --asset-id <id> --json
 ravo catalog tag --catalog <library.sqlite> --asset-id <id> [--add <tags>] [--remove <tags>] --json
 ravo catalog metadata --catalog <library.sqlite> --asset-id <id> [--title <text>] [--description <text>] [--creator <text>] [--copyright <text>] --json
@@ -625,14 +695,15 @@ An existing output path returns structured `conflict`; it is never overwritten
 implicitly. Catalog commands call the same services as Studio and serve as the
 headless acceptance client.
 
-`ravo develop-fields` and `ravo catalog fields` list every closed `--set` name,
-kind, and range owned by `apply_develop_field_strict`, plus `watermarkText` and
+`ravo develop-fields` and `ravo catalog fields` list every closed numeric or
+text field, kind, and numeric range owned by the strict Develop helpers, plus
 the canonical-mask prefixes. They do not require a catalog. `catalog probe` is
 a read-only Develop diagnostic. It renders the current recipe, or the
 synthesized product baseline with `--baseline`, through the same non-persistent
-interactive-preview path as Studio. Repeated `--set name=value` overrides
-accept every numeric Develop field, reject unknown, duplicate, non-finite, or
-out-of-range values, and return dimensions, output-profile ID, RGB
+interactive-preview path as Studio. Repeated `--set name=value` and `--set-text
+name=value` overrides accept the advertised fields, reject unknown, duplicate,
+non-finite, invalid-resource, or out-of-range values, and return dimensions,
+output-profile ID, RGB
 sums/means/extrema/clipping counts, and display-luma mean. Optional
 `--output <file.png>` writes a throwaway display PNG of that in-memory preview
 with atomic no-replace publication; it is not a catalog preview record. The

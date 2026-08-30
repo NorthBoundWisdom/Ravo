@@ -666,11 +666,12 @@ TEST(DehazeTest, FrozenV1HasARealRawReferenceAndBudgetAccounting)
         sums[1] += rendered.value().rgb[index + 1U];
         sums[2] += rendered.value().rgb[index + 2U];
     }
-    // Ravo-owned reference for the frozen v1 parameters. The independent
-    // dark-channel/guided-filter oracle above owns mathematical parity.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 1037037.0, 5000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 953562.0, 5000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 885367.0, 5000.0);
+    // Ravo-owned reference for the frozen v1 parameters after the default RCD
+    // demosaic. The independent dark-channel/guided-filter oracle above owns
+    // mathematical parity.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 1043509.0, 5000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 953476.0, 5000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 896177.0, 5000.0);
 
     Recipe baseline = recipe;
     std::erase_if(baseline.operations, [](const OperationInstance &operation)

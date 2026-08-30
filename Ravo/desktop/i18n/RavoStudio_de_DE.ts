@@ -261,10 +261,6 @@
             <translation>Weißpunkt im Foto auswählen</translation>
         </message>
         <message>
-            <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
-            <translation>Klicken Sie auf eine neutrale Fläche im Foto. Nur RAW; Ausrichten und Leinwand müssen deaktiviert sein.</translation>
-        </message>
-        <message>
             <source>Red coefficient</source>
             <translation>Roter Koeffizient</translation>
         </message>
@@ -339,6 +335,18 @@
         <message>
             <source>Highlights</source>
             <translation>Lichter</translation>
+        </message>
+        <message>
+            <source>Choose 3D LUT</source>
+            <translation>3D-LUT auswählen</translation>
+        </message>
+        <message>
+            <source>Cube LUT (*.cube *.CUBE)</source>
+            <translation>Cube-LUT (*.cube *.CUBE)</translation>
+        </message>
+        <message>
+            <source>Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.</source>
+            <translation>Klicken Sie auf eine neutrale Fläche im Foto. Nur RAW; Perspektive und Leinwand müssen deaktiviert sein.</translation>
         </message>
         <message>
             <source>Shadows</source>
@@ -615,6 +623,66 @@
         <message>
             <source>Velvia</source>
             <translation>Velvia</translation>
+        </message>
+        <message>
+            <source>Enable Velvia</source>
+            <translation>Velvia aktivieren</translation>
+        </message>
+        <message>
+            <source>Strength</source>
+            <translation>Stärke</translation>
+        </message>
+        <message>
+            <source>Mid-tones bias</source>
+            <translation>Mitteltönengewichtung</translation>
+        </message>
+        <message>
+            <source>Loaded Velvia mask is preserved but edited outside this panel.</source>
+            <translation>Die geladene Velvia-Maske bleibt erhalten, wird aber außerhalb dieses Bereichs bearbeitet.</translation>
+        </message>
+        <message>
+            <source>Disable and reset Velvia</source>
+            <translation>Velvia deaktivieren und zurücksetzen</translation>
+        </message>
+        <message>
+            <source>3D LUT</source>
+            <translation>3D-LUT</translation>
+        </message>
+        <message>
+            <source>Choose a .cube file</source>
+            <translation>.cube-Datei auswählen</translation>
+        </message>
+        <message>
+            <source>Choose…</source>
+            <translation>Auswählen…</translation>
+        </message>
+        <message>
+            <source>Enable 3D LUT</source>
+            <translation>3D-LUT aktivieren</translation>
+        </message>
+        <message>
+            <source>Input color space</source>
+            <translation>Eingabefarbraum</translation>
+        </message>
+        <message>
+            <source>3D LUT input color space</source>
+            <translation>3D-LUT-Eingabefarbraum</translation>
+        </message>
+        <message>
+            <source>Output color space</source>
+            <translation>Ausgabefarbraum</translation>
+        </message>
+        <message>
+            <source>3D LUT output color space</source>
+            <translation>3D-LUT-Ausgabefarbraum</translation>
+        </message>
+        <message>
+            <source>3D LUT interpolation</source>
+            <translation>3D-LUT-Interpolation</translation>
+        </message>
+        <message>
+            <source>Disable and reset 3D LUT</source>
+            <translation>3D-LUT deaktivieren und zurücksetzen</translation>
         </message>
         <message>
             <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
@@ -1213,6 +1281,42 @@
             <translation>Ziehen Sie den Rahmen zum Zuschneiden. Ziehen Sie außerhalb des Rahmens oder mit Option/Alt zum Ausrichten.</translation>
         </message>
         <message>
+            <source>Vertical</source>
+            <translation>Vertikal</translation>
+        </message>
+        <message>
+            <source>Horizontal</source>
+            <translation>Horizontal</translation>
+        </message>
+        <message>
+            <source>Analyze visible lines and apply a bounded perspective correction</source>
+            <translation>Sichtbare Linien analysieren und eine begrenzte Perspektivkorrektur anwenden</translation>
+        </message>
+        <message>
+            <source>Shear</source>
+            <translation>Scherung</translation>
+        </message>
+        <message>
+            <source>Constrain crop</source>
+            <translation>Zuschnitt begrenzen</translation>
+        </message>
+        <message>
+            <source>Bilinear — fast</source>
+            <translation>Bilinear — schnell</translation>
+        </message>
+        <message>
+            <source>Lanczos 2</source>
+            <translation>Lanczos 2</translation>
+        </message>
+        <message>
+            <source>Lanczos 3 — best quality</source>
+            <translation>Lanczos 3 — beste Qualität</translation>
+        </message>
+        <message>
+            <source>Perspective interpolation</source>
+            <translation>Perspektivinterpolation</translation>
+        </message>
+        <message>
             <source>Custom</source>
             <translation>Benutzerdefiniert</translation>
         </message>
@@ -1469,6 +1573,22 @@
             <translation>Detail</translation>
         </message>
         <message>
+            <source>Texture</source>
+            <translation>Struktur</translation>
+        </message>
+        <message>
+            <source>Texture · more</source>
+            <translation>Struktur · mehr</translation>
+        </message>
+        <message>
+            <source>Texture scale</source>
+            <translation>Strukturgröße</translation>
+        </message>
+        <message>
+            <source>Texture iterations</source>
+            <translation>Struktur-Durchläufe</translation>
+        </message>
+        <message>
             <source>Sharpen</source>
             <translation>Schärfen</translation>
         </message>
@@ -1607,6 +1727,34 @@
         <message>
             <source>RAW Repair / Denoise / Lens</source>
             <translation>RAW-Reparatur / Rauschreduzierung / Objektiv</translation>
+        </message>
+        <message>
+            <source>Demosaicing</source>
+            <translation>Demosaicing</translation>
+        </message>
+        <message>
+            <source>Auto — RCD / Markesteijn 3</source>
+            <translation>Automatisch — RCD / Markesteijn 3</translation>
+        </message>
+        <message>
+            <source>PPG — Bayer compatibility</source>
+            <translation>PPG — Bayer-Kompatibilität</translation>
+        </message>
+        <message>
+            <source>Markesteijn 1 — X-Trans fast</source>
+            <translation>Markesteijn 1 — X-Trans schnell</translation>
+        </message>
+        <message>
+            <source>Markesteijn 3 — X-Trans quality</source>
+            <translation>Markesteijn 3 — X-Trans Qualität</translation>
+        </message>
+        <message>
+            <source>Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.</source>
+            <translation>Automatisch wählt RCD für Bayer und Markesteijn mit 3 Durchläufen für X-Trans. Explizit unpassende Sensormodi schlagen fehl, statt den Algorithmus zu wechseln.</translation>
+        </message>
+        <message>
+            <source>RAW wavelet denoise</source>
+            <translation>RAW-Wavelet-Entrauschen</translation>
         </message>
         <message>
             <source>Hot pixels</source>
@@ -1965,6 +2113,26 @@
             <translation>Unten rechts</translation>
         </message>
         <message>
+            <source>Rec. 709</source>
+            <translation>Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 709</source>
+            <translation>Linear Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 2020</source>
+            <translation>Linear Rec. 2020</translation>
+        </message>
+        <message>
+            <source>Tetrahedral</source>
+            <translation>Tetraedrisch</translation>
+        </message>
+        <message>
+            <source>Trilinear</source>
+            <translation>Trilinear</translation>
+        </message>
+        <message>
             <source>Saturated colors</source>
             <translation>Gesättigte Farben</translation>
         </message>
@@ -2265,8 +2433,20 @@
             <translation>Der Weißabgleich-Pipette ist nur mit einem Bayer-RAW-Original verfügbar</translation>
         </message>
         <message>
-            <source>White-balance pick is unavailable with straighten or Canvas</source>
-            <translation>Die Weißabgleich-Pipette ist bei Ausrichten oder Leinwand nicht verfügbar</translation>
+            <source>White-balance pick is unavailable with Perspective or Canvas</source>
+            <translation>Die Weißabgleich-Pipette ist bei aktiver Perspektive oder Leinwand nicht verfügbar</translation>
+        </message>
+        <message>
+            <source>Perspective analysis mode is unsupported</source>
+            <translation>Der Perspektivanalysemodus wird nicht unterstützt</translation>
+        </message>
+        <message>
+            <source>Velvia strength</source>
+            <translation>Velvia-Stärke</translation>
+        </message>
+        <message>
+            <source>Velvia mid-tones bias</source>
+            <translation>Velvia-Mitteltönengewichtung</translation>
         </message>
         <message>
             <source>Denoise</source>
@@ -3828,6 +4008,10 @@
         <message>
             <source>White balance sampled.</source>
             <translation>Weißabgleich erfasst.</translation>
+        </message>
+        <message>
+            <source>Perspective corrected.</source>
+            <translation>Perspektive korrigiert.</translation>
         </message>
         <message>
             <source>Style path must not be empty.</source>

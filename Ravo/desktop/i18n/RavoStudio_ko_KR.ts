@@ -261,10 +261,6 @@
             <translation>사진에서 흰색 선택</translation>
         </message>
         <message>
-            <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
-            <translation>사진의 중성 패치를 클릭하세요. RAW에서만 사용할 수 있으며, 수평 보정과 캔버스는 꺼져 있어야 합니다.</translation>
-        </message>
-        <message>
             <source>Red coefficient</source>
             <translation>빨강 계수</translation>
         </message>
@@ -339,6 +335,18 @@
         <message>
             <source>Highlights</source>
             <translation>하이라이트</translation>
+        </message>
+        <message>
+            <source>Choose 3D LUT</source>
+            <translation>3D LUT 선택</translation>
+        </message>
+        <message>
+            <source>Cube LUT (*.cube *.CUBE)</source>
+            <translation>Cube LUT (*.cube *.CUBE)</translation>
+        </message>
+        <message>
+            <source>Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.</source>
+            <translation>사진의 중성 영역을 클릭하세요. RAW에서만 사용할 수 있으며 원근 보정과 캔버스는 꺼져 있어야 합니다.</translation>
         </message>
         <message>
             <source>Shadows</source>
@@ -615,6 +623,66 @@
         <message>
             <source>Velvia</source>
             <translation>Velvia</translation>
+        </message>
+        <message>
+            <source>Enable Velvia</source>
+            <translation>Velvia 활성화</translation>
+        </message>
+        <message>
+            <source>Strength</source>
+            <translation>강도</translation>
+        </message>
+        <message>
+            <source>Mid-tones bias</source>
+            <translation>중간톤 바이어스</translation>
+        </message>
+        <message>
+            <source>Loaded Velvia mask is preserved but edited outside this panel.</source>
+            <translation>불러온 Velvia 마스크는 유지되지만 이 패널 밖에서 편집됩니다.</translation>
+        </message>
+        <message>
+            <source>Disable and reset Velvia</source>
+            <translation>Velvia 비활성화 및 초기화</translation>
+        </message>
+        <message>
+            <source>3D LUT</source>
+            <translation>3D LUT</translation>
+        </message>
+        <message>
+            <source>Choose a .cube file</source>
+            <translation>.cube 파일 선택</translation>
+        </message>
+        <message>
+            <source>Choose…</source>
+            <translation>선택…</translation>
+        </message>
+        <message>
+            <source>Enable 3D LUT</source>
+            <translation>3D LUT 활성화</translation>
+        </message>
+        <message>
+            <source>Input color space</source>
+            <translation>입력 색 공간</translation>
+        </message>
+        <message>
+            <source>3D LUT input color space</source>
+            <translation>3D LUT 입력 색 공간</translation>
+        </message>
+        <message>
+            <source>Output color space</source>
+            <translation>출력 색 공간</translation>
+        </message>
+        <message>
+            <source>3D LUT output color space</source>
+            <translation>3D LUT 출력 색 공간</translation>
+        </message>
+        <message>
+            <source>3D LUT interpolation</source>
+            <translation>3D LUT 보간</translation>
+        </message>
+        <message>
+            <source>Disable and reset 3D LUT</source>
+            <translation>3D LUT 비활성화 및 초기화</translation>
         </message>
         <message>
             <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
@@ -1213,6 +1281,42 @@
             <translation>프레임을 드래그하여 자르세요. 프레임 밖을 드래그하거나 Option/Alt-드래그하여 수평을 맞춥니다.</translation>
         </message>
         <message>
+            <source>Vertical</source>
+            <translation>수직</translation>
+        </message>
+        <message>
+            <source>Horizontal</source>
+            <translation>수평</translation>
+        </message>
+        <message>
+            <source>Analyze visible lines and apply a bounded perspective correction</source>
+            <translation>보이는 선을 분석하여 제한된 원근 보정 적용</translation>
+        </message>
+        <message>
+            <source>Shear</source>
+            <translation>기울이기</translation>
+        </message>
+        <message>
+            <source>Constrain crop</source>
+            <translation>자르기 제한</translation>
+        </message>
+        <message>
+            <source>Bilinear — fast</source>
+            <translation>쌍선형 — 빠름</translation>
+        </message>
+        <message>
+            <source>Lanczos 2</source>
+            <translation>Lanczos 2</translation>
+        </message>
+        <message>
+            <source>Lanczos 3 — best quality</source>
+            <translation>Lanczos 3 — 최고 품질</translation>
+        </message>
+        <message>
+            <source>Perspective interpolation</source>
+            <translation>원근 보간</translation>
+        </message>
+        <message>
             <source>Custom</source>
             <translation>사용자 지정</translation>
         </message>
@@ -1469,6 +1573,22 @@
             <translation>디테일</translation>
         </message>
         <message>
+            <source>Texture</source>
+            <translation>텍스처</translation>
+        </message>
+        <message>
+            <source>Texture · more</source>
+            <translation>텍스처 · 더 보기</translation>
+        </message>
+        <message>
+            <source>Texture scale</source>
+            <translation>텍스처 스케일</translation>
+        </message>
+        <message>
+            <source>Texture iterations</source>
+            <translation>텍스처 반복 횟수</translation>
+        </message>
+        <message>
             <source>Sharpen</source>
             <translation>선명도</translation>
         </message>
@@ -1607,6 +1727,34 @@
         <message>
             <source>RAW Repair / Denoise / Lens</source>
             <translation>RAW 복구 / 노이즈 제거 / 렌즈</translation>
+        </message>
+        <message>
+            <source>Demosaicing</source>
+            <translation>디모자이킹</translation>
+        </message>
+        <message>
+            <source>Auto — RCD / Markesteijn 3</source>
+            <translation>자동 — RCD / Markesteijn 3</translation>
+        </message>
+        <message>
+            <source>PPG — Bayer compatibility</source>
+            <translation>PPG — Bayer 호환</translation>
+        </message>
+        <message>
+            <source>Markesteijn 1 — X-Trans fast</source>
+            <translation>Markesteijn 1 — X-Trans 빠름</translation>
+        </message>
+        <message>
+            <source>Markesteijn 3 — X-Trans quality</source>
+            <translation>Markesteijn 3 — X-Trans 고품질</translation>
+        </message>
+        <message>
+            <source>Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.</source>
+            <translation>자동 모드는 Bayer에 RCD를, X-Trans에 Markesteijn 3패스를 선택합니다. 센서와 맞지 않는 모드를 명시하면 알고리즘을 바꾸지 않고 실패합니다.</translation>
+        </message>
+        <message>
+            <source>RAW wavelet denoise</source>
+            <translation>RAW 웨이블릿 노이즈 제거</translation>
         </message>
         <message>
             <source>Hot pixels</source>
@@ -1965,6 +2113,26 @@
             <translation>오른쪽 아래</translation>
         </message>
         <message>
+            <source>Rec. 709</source>
+            <translation>Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 709</source>
+            <translation>선형 Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 2020</source>
+            <translation>선형 Rec. 2020</translation>
+        </message>
+        <message>
+            <source>Tetrahedral</source>
+            <translation>사면체</translation>
+        </message>
+        <message>
+            <source>Trilinear</source>
+            <translation>삼선형</translation>
+        </message>
+        <message>
             <source>Saturated colors</source>
             <translation>고채도 색상</translation>
         </message>
@@ -2265,8 +2433,20 @@
             <translation>화이트 밸런스 선택에는 Bayer RAW 원본이 필요합니다</translation>
         </message>
         <message>
-            <source>White-balance pick is unavailable with straighten or Canvas</source>
-            <translation>수평 조정 또는 캔버스를 사용하면 화이트 밸런스 선택을 사용할 수 없습니다</translation>
+            <source>White-balance pick is unavailable with Perspective or Canvas</source>
+            <translation>원근 보정 또는 캔버스가 활성화된 경우 화이트 밸런스 선택을 사용할 수 없습니다</translation>
+        </message>
+        <message>
+            <source>Perspective analysis mode is unsupported</source>
+            <translation>원근 분석 모드는 지원되지 않습니다</translation>
+        </message>
+        <message>
+            <source>Velvia strength</source>
+            <translation>Velvia 강도</translation>
+        </message>
+        <message>
+            <source>Velvia mid-tones bias</source>
+            <translation>Velvia 중간톤 바이어스</translation>
         </message>
         <message>
             <source>Denoise</source>
@@ -3828,6 +4008,10 @@
         <message>
             <source>White balance sampled.</source>
             <translation>화이트 밸런스를 추출했습니다.</translation>
+        </message>
+        <message>
+            <source>Perspective corrected.</source>
+            <translation>원근 보정이 완료되었습니다.</translation>
         </message>
         <message>
             <source>Style path must not be empty.</source>

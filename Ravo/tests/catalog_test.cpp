@@ -46,6 +46,7 @@
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/sharpen.h"
+#include "ravo/recipe/texture.h"
 #include "ravo/services/catalog_service.h"
 
 #include "capture_metadata_test_support.h"
@@ -1014,6 +1015,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     ASSERT_TRUE(rated) << rated.error().message;
 
     DevelopParams params;
+    params.demosaic_mode = std::string(kDemosaicModePpg);
     params.exposure_ev = 0.75;
     params.saturation = -0.2;
     params.vignette = 0.35;
@@ -1032,6 +1034,7 @@ TEST_F(CatalogServiceTest, DevelopRecipePersistsIndependentlyOfReview)
     ASSERT_TRUE(loaded) << loaded.error().message;
     auto roundtrip = develop_from_recipe(loaded.value());
     ASSERT_TRUE(roundtrip) << roundtrip.error().message;
+    EXPECT_EQ(roundtrip.value().demosaic_mode, kDemosaicModePpg);
     EXPECT_NEAR(roundtrip.value().exposure_ev, 0.75, 1e-6);
     EXPECT_NEAR(roundtrip.value().saturation, -0.2, 1e-6);
     EXPECT_NEAR(roundtrip.value().vignette, 0.35, 1e-6);
@@ -3246,6 +3249,12 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     edited.value().output_color.output_profile = std::string(kInputProfileDisplayP3);
     edited.value().output_color.rendering_intent = std::string(kColorIntentRelative);
     edited.value().color_balance_rgb = test::color_balance_0093_params();
+    edited.value().straighten_degrees = 2.0;
+    edited.value().perspective_vertical = 0.08;
+    edited.value().perspective_horizontal = -0.05;
+    edited.value().perspective_shear = 0.015;
+    edited.value().perspective_constrain_crop = true;
+    edited.value().perspective_interpolation_index = 2;
     clamp_develop(edited.value());
 
     PreviewRequest preview;
@@ -3279,9 +3288,27 @@ TEST_F(CatalogServiceTest, MigratedDevelopControlsPersistAndReproducePixelsAfter
     ASSERT_TRUE(after_reopen) << after_reopen.error().message;
     EXPECT_EQ(after_reopen.value().rgb, before_reopen.value().rgb);
     EXPECT_EQ(after_reopen.value().color_profile, before_reopen.value().color_profile);
+
+    PreviewRequest settled = preview;
+    settled.persist_preview_record = true;
+    auto settled_preview = service->request_preview(settled);
+    ASSERT_TRUE(settled_preview) << settled_preview.error().message;
+    const auto export_path = (root / "migrated-develop-perspective.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = preview.max_edge;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage preview_image(QString::fromStdString(settled_preview.value().cache_path));
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(preview_image.isNull());
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(export_image, preview_image);
 }
 
-TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
+TEST_F(CatalogServiceTest, IgnoreStraightenRemovesCanonicalPerspectiveForAnalysis)
 {
     auto created = open_service(true);
     ASSERT_TRUE(created) << created.error().message;
@@ -3297,6 +3324,10 @@ TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
 
     DevelopParams tilted;
     tilted.straighten_degrees = 20.0;
+    tilted.perspective_vertical = 0.15;
+    tilted.perspective_horizontal = -0.08;
+    tilted.perspective_shear = 0.02;
+    tilted.perspective_constrain_crop = false;
     PreviewRequest baked;
     baked.asset_id = asset_id;
     baked.max_edge = kInteractivePreviewMaxEdge;
@@ -3309,7 +3340,10 @@ TEST_F(CatalogServiceTest, IgnoreStraightenKeepsWorkingImageCorners)
     auto unstraightened = service->request_preview(guide, tilted);
     ASSERT_TRUE(unstraightened) << unstraightened.error().message;
     ASSERT_FALSE(unstraightened.value().rgb.empty());
-    ASSERT_EQ(unstraightened.value().rgb.size(), straightened.value().rgb.size());
+    EXPECT_EQ(unstraightened.value().width, 48U);
+    EXPECT_EQ(unstraightened.value().height, 32U);
+    EXPECT_TRUE(straightened.value().width != unstraightened.value().width ||
+                straightened.value().height != unstraightened.value().height);
     EXPECT_LT(straightened.value().rgb[0] + straightened.value().rgb[1] +
                   straightened.value().rgb[2],
               unstraightened.value().rgb[0] + unstraightened.value().rgb[1] +
@@ -3682,6 +3716,79 @@ TEST_F(CatalogServiceTest, OutputDitherPersistsRebuildsAndExportsTheDisplayedPix
     auto rebuilt = service->request_preview(preview_request);
     ASSERT_TRUE(rebuilt) << rebuilt.error().message;
     QImage rebuilt_image(QString::fromStdString(rebuilt.value().cache_path));
+    ASSERT_FALSE(rebuilt_image.isNull());
+    EXPECT_EQ(rebuilt_image, export_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
+}
+
+TEST_F(CatalogServiceTest, VelviaPersistsRebuildsAndExportsTheDisplayedPixels)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = (root / "velvia-source.png").string();
+    QImage image(12, 8, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    for (int row = 0; row < image.height(); ++row)
+    {
+        for (int column = 0; column < image.width(); ++column)
+        {
+            image.setPixelColor(column, row,
+                                QColor((column * 23 + row * 7) % 256,
+                                       (column * 11 + row * 29) % 256,
+                                       (column * 31 + row * 3) % 256));
+        }
+    }
+    ASSERT_TRUE(image.save(QString::fromStdString(source_path), "PNG"));
+    const auto source_hash = file_sha256(source_path);
+    auto imported = service->import_one(source_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    PreviewRequest preview_request;
+    preview_request.asset_id = asset_id;
+    auto baseline = service->request_preview(preview_request);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
+    ASSERT_FALSE(baseline_image.isNull());
+
+    DevelopParams develop;
+    develop.velvia_present = true;
+    develop.velvia_enabled = true;
+    develop.velvia = {100.0, 0.15};
+    ASSERT_TRUE(service->save_develop(asset_id, develop));
+    auto preview = service->request_preview(preview_request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    const QImage preview_image(QString::fromStdString(preview.value().cache_path));
+    ASSERT_FALSE(preview_image.isNull());
+    EXPECT_NE(preview.value().cache_key, baseline.value().cache_key);
+    EXPECT_NE(preview_image, baseline_image);
+
+    const auto export_path = (root / "velvia-export.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage export_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(export_image.isNull());
+    EXPECT_EQ(preview_image, export_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(std::filesystem::remove(preview.value().cache_path));
+    ASSERT_TRUE(open_service(false));
+    auto restored = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored) << restored.error().message;
+    auto restored_develop = develop_from_recipe(restored.value());
+    ASSERT_TRUE(restored_develop) << restored_develop.error().message;
+    EXPECT_TRUE(restored_develop.value().velvia_present);
+    EXPECT_TRUE(restored_develop.value().velvia_enabled);
+    EXPECT_EQ(restored_develop.value().velvia, (VelviaParams{100.0, 0.15}));
+    auto rebuilt = service->request_preview(preview_request);
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    const QImage rebuilt_image(QString::fromStdString(rebuilt.value().cache_path));
     ASSERT_FALSE(rebuilt_image.isNull());
     EXPECT_EQ(rebuilt_image, export_image);
     EXPECT_EQ(file_sha256(source_path), source_hash);
@@ -4977,35 +5084,33 @@ TEST_F(CatalogServiceTest, DngSuffixImportsAsRawWithoutRewritingTheSource)
     EXPECT_TRUE(std::filesystem::exists(*imported.value().preview_cache_path));
 }
 
-TEST_F(CatalogServiceTest, XTransMayBrowseButNeverPublishesAFailedFullDecode)
+TEST_F(CatalogServiceTest, XTransImportsAndPublishesAnEngineRenderedPreview)
 {
     ASSERT_TRUE(open_service(true));
     const auto path = xtrans_fixture_path();
     const auto hash = file_sha256(path);
     auto decoded = engine.decode_raw_frame(path, CancellationToken{});
-    ASSERT_FALSE(decoded);
-    EXPECT_EQ(decoded.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(decoded.error().context.at("reason"), "unsupported_raw_sensor");
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    EXPECT_EQ(decoded.value().cfa_width, 6U);
+    EXPECT_EQ(decoded.value().cfa_height, 6U);
 
     auto imported = service->import_one(path, CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     EXPECT_EQ(file_sha256(path), hash);
-    if (imported.value().asset)
-    {
-        EXPECT_EQ(imported.value().status, ImportItemStatus::kImported);
-        EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
-        ASSERT_TRUE(imported.value().preview_cache_path);
-        EXPECT_TRUE(std::filesystem::exists(*imported.value().preview_cache_path));
-    }
-    else
-    {
-        EXPECT_TRUE(imported.value().status == ImportItemStatus::kUnsupported ||
-                    imported.value().status == ImportItemStatus::kFailed);
-        ASSERT_TRUE(imported.value().error);
-        auto assets = service->list_assets();
-        ASSERT_TRUE(assets) << assets.error().message;
-        EXPECT_TRUE(assets.value().empty());
-    }
+    ASSERT_TRUE(imported.value().asset);
+    EXPECT_EQ(imported.value().status, ImportItemStatus::kImported);
+    EXPECT_EQ(imported.value().asset->media_type, kMediaTypeRaw);
+    ASSERT_TRUE(imported.value().preview_cache_path);
+    EXPECT_TRUE(std::filesystem::exists(*imported.value().preview_cache_path));
+
+    PreviewRequest request;
+    request.asset_id = imported.value().asset->id;
+    request.max_edge = 320U;
+    auto preview = service->request_preview(request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    EXPECT_EQ(preview.value().width, 320U);
+    EXPECT_GT(preview.value().height, 0U);
+    EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
 }
 
 TEST_F(CatalogServiceTest, CancellationAfterRawInspectPreventsPublication)
@@ -5442,6 +5547,111 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
     std::filesystem::remove_all(cache_root, ignored);
 }
 
+TEST(PerspectiveInteractivePerformanceProbe, MeasuresWarmManualTransformWithoutCatalogMutation)
+{
+    const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (catalog_path == nullptr || asset_id == nullptr)
+    {
+        GTEST_SKIP() << "set RAVO_INTERACTIVE_PERF_CATALOG and RAVO_INTERACTIVE_PERF_ASSET_ID";
+    }
+
+    const std::uint32_t max_edge =
+        std::getenv("RAVO_INTERACTIVE_PERF_MAX_EDGE") != nullptr ?
+            static_cast<std::uint32_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_PERF_MAX_EDGE"))) :
+            kInteractivePreviewMaxEdge;
+    const std::size_t runs =
+        std::getenv("RAVO_INTERACTIVE_PERF_RUNS") != nullptr ?
+            static_cast<std::size_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_PERF_RUNS"))) :
+            9U;
+    ASSERT_GT(max_edge, 0U);
+    ASSERT_GT(runs, 0U);
+
+    auto created_engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(created_engine) << created_engine.error().message;
+    auto repository = SqliteCatalogRepository::open(catalog_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    const auto cache_root = make_temp_root();
+    auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
+    ASSERT_TRUE(cache) << cache.error().message;
+    CatalogService measured(created_engine.value(), std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+
+    auto recipe = measured.load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto baseline = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = max_edge;
+    request.persist_preview_record = false;
+    request.prefer_embedded_preview = false;
+    auto warm = measured.request_preview(request, baseline.value());
+    ASSERT_TRUE(warm) << warm.error().message;
+    ASSERT_FALSE(warm.value().rgb.empty());
+
+    std::vector<std::int64_t> render_elapsed_ms;
+    std::vector<std::int64_t> visible_elapsed_ms;
+    render_elapsed_ms.reserve(runs);
+    visible_elapsed_ms.reserve(runs);
+    for (std::size_t run = 0U; run < runs; ++run)
+    {
+        auto adjusted = baseline.value();
+        const double offset = static_cast<double>(static_cast<int>(run % 9U) - 4) * 0.015;
+        adjusted.perspective_vertical = std::clamp(adjusted.perspective_vertical + offset,
+                                                   kPerspectiveShiftMin, kPerspectiveShiftMax);
+        adjusted.perspective_constrain_crop = true;
+        adjusted.perspective_interpolation_index = 2;
+        const auto started = std::chrono::steady_clock::now();
+        auto preview = measured.request_preview(request, adjusted);
+        const auto rendered = std::chrono::steady_clock::now();
+        ASSERT_TRUE(preview) << preview.error().message;
+        ASSERT_FALSE(preview.value().rgb.empty());
+        const QImage view(preview.value().rgb.data(), static_cast<int>(preview.value().width),
+                          static_cast<int>(preview.value().height),
+                          static_cast<int>(preview.value().width * 3U), QImage::Format_RGB888);
+        const QImage owned = view.copy();
+        RasterBuffer raster;
+        raster.width = preview.value().width;
+        raster.height = preview.value().height;
+        raster.srgb.resize(static_cast<std::size_t>(raster.width) * raster.height * 3U);
+        for (std::uint32_t row = 0U; row < raster.height; ++row)
+        {
+            std::copy_n(
+                owned.constScanLine(static_cast<int>(row)),
+                static_cast<std::size_t>(raster.width) * 3U,
+                raster.srgb.begin() +
+                    static_cast<std::ptrdiff_t>(static_cast<std::size_t>(row) * raster.width * 3U));
+        }
+        auto histogram = collect_rgb_histogram(raster);
+        ASSERT_TRUE(histogram) << histogram.error().message;
+        const auto visible = std::chrono::steady_clock::now();
+        render_elapsed_ms.push_back(
+            std::chrono::duration_cast<std::chrono::milliseconds>(rendered - started).count());
+        visible_elapsed_ms.push_back(
+            std::chrono::duration_cast<std::chrono::milliseconds>(visible - started).count());
+    }
+    std::sort(render_elapsed_ms.begin(), render_elapsed_ms.end());
+    std::sort(visible_elapsed_ms.begin(), visible_elapsed_ms.end());
+    const auto p90_index = (visible_elapsed_ms.size() * 9U - 1U) / 10U;
+    const auto visible_p90 = visible_elapsed_ms[p90_index];
+    std::cerr << "perspective_interactive_edge=" << max_edge << " runs=" << runs
+              << " render_min_ms=" << render_elapsed_ms.front()
+              << " render_median_ms=" << render_elapsed_ms[render_elapsed_ms.size() / 2U]
+              << " render_p90_ms=" << render_elapsed_ms[p90_index]
+              << " render_max_ms=" << render_elapsed_ms.back()
+              << " visible_min_ms=" << visible_elapsed_ms.front()
+              << " visible_median_ms=" << visible_elapsed_ms[visible_elapsed_ms.size() / 2U]
+              << " visible_p90_ms=" << visible_p90
+              << " visible_max_ms=" << visible_elapsed_ms.back() << '\n';
+    if (const char *budget = std::getenv("RAVO_PERSPECTIVE_PERF_P90_BUDGET_MS"))
+        EXPECT_LE(visible_p90, std::stoll(budget));
+
+    ASSERT_TRUE(measured.close());
+    std::error_code ignored;
+    std::filesystem::remove_all(cache_root, ignored);
+}
+
 TEST(InteractivePreviewQualityProbe, ComparesInteractiveEdgesWithSettledDisplayPixels)
 {
     const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
@@ -5547,6 +5757,91 @@ TEST(InteractivePreviewQualityProbe, ComparesInteractiveEdgesWithSettledDisplayP
     ASSERT_TRUE(measured.close());
     std::error_code ignored;
     std::filesystem::remove_all(cache_root, ignored);
+}
+
+TEST_F(CatalogServiceTest, TexturePersistsAndReproducesPreviewAndExportAfterReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source_path = (root / "texture.png").string();
+    QImage source(96, 64, QImage::Format_RGB888);
+    source.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    for (int row = 0; row < source.height(); ++row)
+    {
+        for (int column = 0; column < source.width(); ++column)
+        {
+            const int checker = ((column / 2 + row / 2) & 1) == 0 ? -18 : 18;
+            source.setPixelColor(column, row,
+                                 QColor(std::clamp(110 + checker + column / 4, 0, 255),
+                                        std::clamp(90 + checker + row / 3, 0, 255),
+                                        std::clamp(70 + checker, 0, 255)));
+        }
+    }
+    ASSERT_TRUE(source.save(QString::fromStdString(source_path), "PNG"));
+    const auto source_hash = file_sha256(source_path);
+    auto imported = service->import_one(source_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const std::string asset_id = imported.value().asset->id;
+
+    PreviewRequest preview;
+    preview.asset_id = asset_id;
+    preview.max_edge = 96U;
+    preview.persist_preview_record = true;
+    auto baseline = service->request_preview(preview);
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    const QImage baseline_image(QString::fromStdString(baseline.value().cache_path));
+    ASSERT_FALSE(baseline_image.isNull());
+
+    auto recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto develop = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    develop.value().texture = TextureParams{0.75, 4.0, 1};
+    ASSERT_TRUE(service->save_develop(asset_id, develop.value()));
+
+    auto stored = service->load_recipe(asset_id);
+    ASSERT_TRUE(stored) << stored.error().message;
+    const auto operation =
+        std::find_if(stored.value().operations.begin(), stored.value().operations.end(),
+                     [](const OperationInstance &item) { return item.id == kTextureOperationId; });
+    ASSERT_NE(operation, stored.value().operations.end());
+    auto stored_params = texture_from_parameters(operation->parameters);
+    ASSERT_TRUE(stored_params) << stored_params.error().message;
+    EXPECT_EQ(stored_params.value(), develop.value().texture);
+
+    auto before_reopen = service->request_preview(preview);
+    ASSERT_TRUE(before_reopen) << before_reopen.error().message;
+    const QImage before_reopen_image(QString::fromStdString(before_reopen.value().cache_path));
+    ASSERT_FALSE(before_reopen_image.isNull());
+    EXPECT_NE(before_reopen_image, baseline_image);
+
+    const auto export_path = (root / "texture-export.png").string();
+    ExportRequest export_request;
+    export_request.asset_id = asset_id;
+    export_request.output_path = export_path;
+    export_request.format = ExportFormat::kPng;
+    export_request.max_edge = 96U;
+    auto exported = service->export_asset(export_request);
+    ASSERT_TRUE(exported) << exported.error().message;
+    const QImage exported_image(QString::fromStdString(export_path));
+    ASSERT_FALSE(exported_image.isNull());
+    EXPECT_EQ(exported_image, before_reopen_image);
+
+    ASSERT_TRUE(service->close());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto restored_recipe = service->load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().texture, develop.value().texture);
+    auto after_reopen = service->request_preview(preview);
+    ASSERT_TRUE(after_reopen) << after_reopen.error().message;
+    EXPECT_EQ(after_reopen.value().cache_key, before_reopen.value().cache_key);
+    const QImage after_reopen_image(QString::fromStdString(after_reopen.value().cache_path));
+    ASSERT_FALSE(after_reopen_image.isNull());
+    EXPECT_EQ(after_reopen_image, before_reopen_image);
+    EXPECT_EQ(file_sha256(source_path), source_hash);
 }
 
 } // namespace

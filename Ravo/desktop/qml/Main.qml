@@ -931,16 +931,7 @@ ApplicationWindow {
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
                                 readonly property real baseW: sourceW * containScale
                                 readonly property real baseH: sourceH * containScale
-                                readonly property real rotateScale: {
-                                    if (!(studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady))
-                                        return 1;
-                                    const rad = Math.abs(studio.editStraighten) * Math.PI / 180;
-                                    const c = Math.cos(rad);
-                                    const s = Math.sin(rad);
-                                    const aabbW = c * baseW + s * baseH;
-                                    const aabbH = s * baseW + c * baseH;
-                                    return Math.min(width / Math.max(aabbW, 1), height / Math.max(aabbH, 1));
-                                }
+                                readonly property real rotateScale: 1
 
                                 Item {
                                     id: photoPlane
@@ -948,7 +939,10 @@ ApplicationWindow {
                                     height: previewStage.baseH * previewStage.rotateScale
                                     x: (previewStage.width - width) / 2
                                     y: (previewStage.height - height) / 2
-                                    rotation: studio.browseMode === "develop" && studio.cropToolActive && studio.cropGuideReady ? studio.editStraighten : 0
+                                    // Crop mode receives the post-Perspective preview. Keeping
+                                    // this item untransformed makes the overlay coordinates the
+                                    // same normalized frame used by the engine and export.
+                                    rotation: 0
                                     transformOrigin: Item.Center
                                     antialiasing: true
 
@@ -1037,7 +1031,7 @@ ApplicationWindow {
                                         color: "transparent"
                                         border.width: 1
                                         border.color: Qt.rgba(1, 1, 1, 0.92)
-                                        visible: studio.browseMode === "develop" && studio.cropToolActive && Math.abs(studio.editStraighten) > 0.04
+                                        visible: false
                                         antialiasing: true
                                     }
                                 }

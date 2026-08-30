@@ -54,14 +54,14 @@ supersession relationship when direction changes.
 | [0044](0044-studio-canonical-mask-authoring.md) | Accepted | Studio authors bounded owned Color Harmonizer/Graduated ND canonical leaves through strict recipe helpers and read-only presenter maps; overlay, group/path/brush, M1, and C14 retirement remain later work. |
 | [0045](0045-studio-mask-overlay-group-path.md) | Accepted | Studio overlay, owned group editor, and path/brush complete the P0 mask surface; Color Harmonizer's frozen IOP retires while leftover GTK mask-manager consumers remain. |
 | [0046](0046-catalog-raster-raw-import-routing.md) | Accepted | Catalog fully decodes JPEG/PNG/TIFF before publication and only TIFF RAW containers may fall through to LibRaw. |
-| [0047](0047-first-frame-raw-cache-lifecycle.md) | Accepted | First-frame Bayer LibRaw/DNG decode, structured RAW errors, corrupt PNG cache miss, and close/reopen preview; leftover wrappers and full demosaic stay later. |
+| [0047](0047-first-frame-raw-cache-lifecycle.md) | Accepted; demosaic scope extended by 0096 | First-frame Bayer LibRaw/DNG lifecycle; ADR-0096 adds bounded DNG corrections, Bayer RCD/PPG and X-Trans Markesteijn. |
 | [0048](0048-legacy-flip-orientation-contract.md) | Accepted | Leftover flip v2 orientation bits map to canonical rotate-then-flip; NULL/NONE stay identity because EXIF is applied at decode. |
 | [0049](0049-legacy-crop-box-contract.md) | Accepted | Leftover crop v1–v3 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1 is identity. |
-| [0050](0050-ashift-rotation-and-export-scale.md) | Accepted | Leftover ashift rotation-only maps to straighten; Catalog export `max_edge` owns final scale. Perspective ashift stays later G6. |
+| [0050](0050-ashift-rotation-and-export-scale.md) | Accepted; generalized by 0096 | Original rotation-only ashift boundary and Catalog export `max_edge`; ADR-0096 adds canonical generic Perspective. |
 | [0051](0051-legacy-rgblevels-contract.md) | Accepted | Leftover rgblevels v1 maps to `ravo.color.rgblevels` with leftover LUT/clip math; auto-levels picker stays history-baked. |
 | [0052](0052-legacy-rgbcurve-contract.md) | Accepted; extended by 0053 | Leftover rgbcurve v1 monotone-hermite maps to `ravo.color.rgbcurve`. Middle-grey compensation is 0053. |
 | [0053](0053-rgbcurve-middle-grey-uncompensate.md) | Accepted | RGB curve `compensate_middle_grey` remaps nodes through the live working D50 matrix; `0060` imports. |
-| [0054](0054-legacy-rawdenoise-contract.md) | Accepted | Leftover Bayer rawdenoise v2 maps to `ravo.raw.denoise` wavelet/threshold; X-Trans stays later. |
+| [0054](0054-legacy-rawdenoise-contract.md) | Accepted; X-Trans extended by 0096 | Leftover Bayer rawdenoise v2 maps to `ravo.raw.denoise` wavelet/threshold; ADR-0096 adds the separate X-Trans path. |
 | [0055](0055-colorreconstruction-bilateral-grid-contract.md) | Accepted | Color Reconstruction owns the full-frame D50 Lab bilateral grid, canonical spatial scale, strict 0052 import, and one Develop/CLI/Catalog/Studio path. |
 | [0056](0056-source-exact-lab-sharpen.md) | Accepted | Sharpen schema v2 replaces the approximation with the frozen scale-aware separable D50 Lab L* USM and strict three-record import. |
 | [0057](0057-source-linear-dark-channel-dehaze.md) | Accepted | Dehaze schema v2 replaces the shortcut with source-linear ambient/depth estimation and bounded RGB guided-filter transmission. |
@@ -102,3 +102,5 @@ supersession relationship when direction changes.
 | [0092](0092-edge-preserving-tone-equalizer.md) | Accepted | Five controls drive the full nine-band Tone Equalizer through a normalized EV RBF and scale-stable log-guided mask; preview v9 retires sparse-curve halos and dark-detail loss. |
 | [0093](0093-versioned-studio-locale-catalog.md) | Accepted | One embedded manifest owns Studio locales, aliases, catalogs, and memories; packaging and smoke require the complete set while machine contracts stay English. |
 | [0094](0094-adaptive-profile-denoise.md) | Accepted | Profile Denoise calibrates Y0U0V0 wavelet noise from bounded MAD samples, gives Radius defined spatial behavior, separates luminance/chroma mixing, and invalidates fixed-profile pixels with preview v10. |
+| [0095](0095-velvia-weighted-saturation-contract.md) | Accepted | Velvia owns the frozen low-saturation/midtone-weighted linear-RGB boost, typed strength/bias, canonical masks, strict 0063 import, and complete product persistence. |
+| [0096](0096-reference-algorithm-assimilation-boundary.md) | Accepted | External research enters only through bounded Ravo owners with exact provenance and CPU-first gates; Texture is accepted, while Local Laplacian and the over-budget Filmulator model are rejected from production. |

@@ -26,6 +26,7 @@
 #endif
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/camera_noise_profile.h"
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/qt_raster_decoder.h"
@@ -33,9 +34,11 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/control/live_control.h"
 #include "ravo/foundation/json.h"
+#include "ravo/engine/noise_calibration.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/style.h"
 #include "ravo/services/catalog_service.h"
+#include "ravo/services/artifact_publication.h"
 
 namespace ravo
 {
@@ -224,6 +227,7 @@ struct CatalogCliArguments
     std::optional<double> contrast;
     std::optional<std::uint32_t> max_edge;
     std::vector<std::pair<std::string, double>> develop_sets;
+    std::vector<std::pair<std::string, std::string>> develop_text_sets;
     std::optional<std::pair<double, double>> pick_white;
     std::optional<std::string_view> watermark_text;
     std::string_view from_xmp;
@@ -571,6 +575,18 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return parsed.error();
             }
             result.develop_sets.emplace_back(owned.substr(0, split), parsed.value());
+        }
+        else if (option == "--set-text")
+        {
+            const auto owned = std::string(value);
+            const auto split = owned.find('=');
+            if (split == std::string::npos || split == 0U)
+            {
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--set-text requires name=value", {{"value", owned}});
+            }
+            result.develop_text_sets.emplace_back(owned.substr(0U, split),
+                                                  owned.substr(split + 1U));
         }
         else if (option == "--watermark-text")
         {
@@ -1032,6 +1048,18 @@ apply_develop_overrides(DevelopParams &params, const CatalogCliArguments &flags)
             return result.error();
         }
     }
+    for (const auto &[name, value] : flags.develop_text_sets)
+    {
+        if (!names.emplace(name).second)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Develop field was specified more than once", {{"name", name}});
+        DevelopParams candidate = params;
+        auto assigned = apply_develop_text_field_strict(candidate, name, value);
+        if (!assigned)
+            return assigned.error();
+        params = std::move(candidate);
+        applied.push_back({name, value});
+    }
     if (flags.watermark_text.has_value())
     {
         constexpr std::string_view name = "watermarkText";
@@ -1272,8 +1300,221 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"fields", std::move(fields)},
         {"prefixes", std::move(prefixes)},
         {"set", "--set name=value"},
-        {"text", "--watermark-text"},
+        {"set_text", "--set-text name=value"},
+        {"watermark_text", "--watermark-text"},
     }};
+}
+
+[[nodiscard]] Result<PerspectiveAnalysisMode> perspective_analysis_mode(
+    const std::string_view value)
+{
+    if (value == "vertical")
+        return PerspectiveAnalysisMode::kVertical;
+    if (value == "horizontal")
+        return PerspectiveAnalysisMode::kHorizontal;
+    if (value == "full")
+        return PerspectiveAnalysisMode::kFull;
+    return make_error(ErrorCode::kInvalidArgument, "Perspective analysis mode is unsupported",
+                      {{"mode", std::string(value)}});
+}
+
+[[nodiscard]] Result<JsonValue>
+run_perspective_analysis(const EngineFacade &engine,
+                         const std::span<const std::string_view> positional)
+{
+    if (positional.size() != 3U && positional.size() != 5U)
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "Usage: ravo perspective analyze <input> [--mode vertical|horizontal|full]");
+    if (positional[0] != "perspective" || positional[1] != "analyze")
+        return make_error(ErrorCode::kInvalidArgument, "Unknown Perspective command");
+    std::string_view mode_name = "full";
+    if (positional.size() == 5U)
+    {
+        if (positional[3] != "--mode")
+            return make_error(ErrorCode::kInvalidArgument, "Unknown Perspective option",
+                              {{"option", std::string(positional[3])}});
+        mode_name = positional[4];
+    }
+    auto mode = perspective_analysis_mode(mode_name);
+    if (!mode)
+        return mode.error();
+    const CancellationToken cancellation;
+    constexpr std::uint32_t kAnalysisRenderMaxEdge = 900U;
+    RasterBuffer raster;
+    QtRasterDecoder raster_decoder;
+    auto decoded = raster_decoder.decode(positional[2], kAnalysisRenderMaxEdge, cancellation);
+    if (decoded)
+    {
+        if (decoded.value().pixel_format != RasterPixelFormat::kRgb8)
+            return make_error(ErrorCode::kUnsupported,
+                              "Perspective analysis requires an RGB8 raster",
+                              {{"reason", "unsupported_analysis_pixel_format"}});
+        raster.width = decoded.value().width;
+        raster.height = decoded.value().height;
+        raster.source_width = decoded.value().source_width;
+        raster.source_height = decoded.value().source_height;
+        raster.color_profile = decoded.value().color_profile;
+        raster.srgb = std::move(decoded).value().rgb;
+    }
+    else
+    {
+        if (decoded.error().code != ErrorCode::kUnsupported)
+            return decoded.error();
+        auto inspection = engine.inspect(positional[2], cancellation);
+        if (!inspection)
+            return inspection.error();
+        if (inspection.value().width == 0U || inspection.value().height == 0U)
+            return make_error(ErrorCode::kValidation,
+                              "Perspective input dimensions are unavailable",
+                              {{"reason", "invalid_dimensions"}});
+        const double scale = std::min(
+            1.0, static_cast<double>(kAnalysisRenderMaxEdge) /
+                     static_cast<double>(
+                         std::max(inspection.value().width, inspection.value().height)));
+        const auto width = std::max<std::uint32_t>(
+            16U, static_cast<std::uint32_t>(std::lround(inspection.value().width * scale)));
+        const auto height = std::max<std::uint32_t>(
+            16U, static_cast<std::uint32_t>(std::lround(inspection.value().height * scale)));
+        DevelopParams develop;
+        auto recipe = recipe_from_develop(
+            {"perspective-analysis", std::string(positional[2]), std::nullopt}, develop);
+        if (!recipe)
+            return recipe.error();
+        RenderRequest request;
+        request.asset = recipe.value().asset;
+        request.recipe = std::move(recipe).value();
+        request.output_width = width;
+        request.output_height = height;
+        request.memory_budget_bytes = 1024ULL * 1024ULL * 1024ULL;
+        request.worker_count = 1U;
+        request.deterministic = true;
+        request.cancellation = cancellation;
+        request.correlation_id = "perspective-analysis";
+        auto rendered = engine.render_to_image(request);
+        if (!rendered)
+            return rendered.error();
+        raster.width = rendered.value().width;
+        raster.height = rendered.value().height;
+        raster.source_width = raster.width;
+        raster.source_height = raster.height;
+        raster.color_profile = rendered.value().color_profile;
+        raster.srgb = std::move(rendered).value().rgb;
+    }
+    auto analysis = engine.analyze_perspective(raster, mode.value(), cancellation);
+    if (!analysis)
+        return analysis.error();
+
+    const auto &params = analysis.value().params;
+    JsonValue::Array lines;
+    lines.reserve(analysis.value().lines.size());
+    const double normalized_width = static_cast<double>(std::max(1U, raster.width - 1U));
+    const double normalized_height = static_cast<double>(std::max(1U, raster.height - 1U));
+    for (const auto &line : analysis.value().lines)
+    {
+        lines.emplace_back(JsonValue::Object{
+            {"orientation",
+             line.orientation == PerspectiveGuideOrientation::kVertical ? "vertical" :
+                                                                          "horizontal"},
+            {"weight", JsonValue::number(std::to_string(line.weight))},
+            {"x1", JsonValue::number(std::to_string(line.x1 / normalized_width))},
+            {"x2", JsonValue::number(std::to_string(line.x2 / normalized_width))},
+            {"y1", JsonValue::number(std::to_string(line.y1 / normalized_height))},
+            {"y2", JsonValue::number(std::to_string(line.y2 / normalized_height))},
+        });
+    }
+    return JsonValue{JsonValue::Object{
+        {"algorithm", "bounded_hough_robust_fit_v1"},
+        {"analyzed_height", JsonValue::number(std::to_string(analysis.value().analyzed_height))},
+        {"analyzed_width", JsonValue::number(std::to_string(analysis.value().analyzed_width))},
+        {"horizontal_line_count",
+         JsonValue::number(std::to_string(analysis.value().horizontal_line_count))},
+        {"input", std::string(positional[2])},
+        {"lines", std::move(lines)},
+        {"mode", std::string(mode_name)},
+        {"params",
+         JsonValue::Object{
+             {"constrain_crop", params.constrain_crop},
+             {"horizontal_shift", JsonValue::number(std::to_string(params.horizontal_shift))},
+             {"interpolation", params.interpolation},
+             {"rotation_degrees", JsonValue::number(std::to_string(params.rotation_degrees))},
+             {"shear", JsonValue::number(std::to_string(params.shear))},
+             {"vertical_shift", JsonValue::number(std::to_string(params.vertical_shift))},
+         }},
+        {"residual_degrees", JsonValue::number(std::to_string(analysis.value().residual_degrees))},
+        {"vertical_line_count",
+         JsonValue::number(std::to_string(analysis.value().vertical_line_count))},
+    }};
+}
+
+[[nodiscard]] JsonValue camera_noise_profile_json(const CameraNoiseProfile &profile,
+                                                  const std::string_view path)
+{
+    return JsonValue::Object{
+        {"fit_policy", std::string(kCameraNoiseFitPolicy)},
+        {"gaussian_variance", JsonValue::number(std::to_string(profile.fit.gaussian_variance))},
+        {"input_sample_count",
+         JsonValue::number(std::to_string(profile.fit.input_sample_count))},
+        {"iso", JsonValue::number(std::to_string(profile.identity.iso))},
+        {"make", profile.identity.make},
+        {"model", profile.identity.model},
+        {"path", std::string(path)},
+        {"payload_sha256", profile.payload_sha256},
+        {"poisson_slope", JsonValue::number(std::to_string(profile.fit.poisson_slope))},
+        {"retained_sample_count",
+         JsonValue::number(std::to_string(profile.fit.retained_sample_count))},
+        {"schema", std::string(kCameraNoiseProfileSchema)},
+        {"source_samples_sha256", profile.source_samples_sha256},
+        {"units", std::string(kCameraNoiseSignalUnits)},
+        {"version", JsonValue::number(std::to_string(kCameraNoiseProfileSchemaVersion))},
+        {"weighted_r_squared",
+         JsonValue::number(std::to_string(profile.fit.weighted_r_squared))},
+        {"weighted_rmse", JsonValue::number(std::to_string(profile.fit.weighted_rmse))},
+    };
+}
+
+[[nodiscard]] Result<JsonValue>
+run_noise_command(const std::span<const std::string_view> positional)
+{
+    if (positional.size() == 3U && positional[1] == "inspect")
+    {
+        auto text = read_utf8_text_file(positional[2], kCameraNoiseDocumentMaximumBytes);
+        if (!text)
+            return text.error();
+        auto profile = parse_camera_noise_profile_json(text.value());
+        if (!profile)
+            return profile.error();
+        return camera_noise_profile_json(profile.value(), positional[2]);
+    }
+    if (positional.size() != 5U || positional[1] != "calibrate" ||
+        positional[3] != "--output")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Usage: ravo noise <calibrate <samples.json> --output <profile.json>|"
+                          "inspect <profile.json>>");
+
+    auto text = read_utf8_text_file(positional[2], kCameraNoiseDocumentMaximumBytes);
+    if (!text)
+        return text.error();
+    auto document = parse_camera_noise_calibration_json(text.value());
+    if (!document)
+        return document.error();
+    auto fit = fit_camera_noise(document.value().samples, CancellationToken{});
+    if (!fit)
+        return fit.error();
+    auto source_sha = camera_noise_calibration_sha256(document.value());
+    if (!source_sha)
+        return source_sha.error();
+    auto serialized = serialize_camera_noise_profile_json(
+        document.value().identity, fit.value(), source_sha.value());
+    if (!serialized)
+        return serialized.error();
+    auto published = publish_text_artifact_no_replace(positional[4], serialized.value());
+    if (!published)
+        return published.error();
+    auto profile = parse_camera_noise_profile_json(serialized.value());
+    if (!profile)
+        return profile.error();
+    return camera_noise_profile_json(profile.value(), positional[4]);
 }
 
 [[nodiscard]] bool ends_with_png(const std::string_view path) noexcept
@@ -2697,6 +2938,40 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
         }
         return emit(JsonValue{JsonValue::Object{{"operations", std::move(operations)}}}, json);
     }
+    if (positional.front() == "perspective")
+    {
+        return emit(run_perspective_analysis(engine_, positional), json);
+    }
+    if (positional.front() == "noise")
+    {
+        return emit(run_noise_command(positional), json);
+    }
+    if (positional.front() == "lut")
+    {
+        if (positional.size() != 3U || positional[1] != "inspect")
+            return emit(make_error(ErrorCode::kInvalidArgument,
+                                   "Usage: ravo lut inspect <file.cube>"),
+                        json);
+        auto inspected = engine_.inspect_lut3d(positional[2], CancellationToken{});
+        if (!inspected)
+            return emit(inspected.error(), json);
+        const auto channels = [](const std::array<float, 3> &values)
+        {
+            JsonValue::Array array;
+            for (const float value : values)
+                array.push_back(JsonValue::number(std::to_string(value)));
+            return array;
+        };
+        return emit(JsonValue{JsonValue::Object{
+                        {"domain_max", channels(inspected.value().domain_max)},
+                        {"domain_min", channels(inspected.value().domain_min)},
+                        {"fingerprint", inspected.value().fingerprint},
+                        {"path", inspected.value().canonical_path},
+                        {"size", JsonValue::number(std::to_string(inspected.value().size))},
+                        {"title", inspected.value().title},
+                    }},
+                    json);
+    }
     if (positional.size() == 3 && positional[0] == "recipe" && positional[1] == "validate")
     {
         auto text = read_utf8_text_file(positional[2]);
@@ -2899,11 +3174,41 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
                 return items;
             };
             data.emplace("has_as_shot_white_balance", inspected.value().has_as_shot_white_balance);
+            data.emplace("raw_sensor", inspected.value().raw_sensor);
+            data.emplace("cfa_width",
+                         JsonValue::number(std::to_string(inspected.value().cfa_width)));
+            data.emplace("cfa_height",
+                         JsonValue::number(std::to_string(inspected.value().cfa_height)));
+            data.emplace("default_demosaic_mode",
+                         inspected.value().default_demosaic_mode);
             data.emplace("as_shot_white_balance", coeffs(inspected.value().as_shot_white_balance));
             data.emplace("has_camera_reference_white_balance",
                          inspected.value().has_camera_reference_white_balance);
             data.emplace("camera_reference_white_balance",
                          coeffs(inspected.value().camera_reference_white_balance));
+            data.emplace("dng_opcode_list2_present",
+                         inspected.value().dng_opcode_list2_present);
+            data.emplace("dng_opcode_list3_present",
+                         inspected.value().dng_opcode_list3_present);
+            data.emplace("dng_gain_map_count",
+                         JsonValue::number(std::to_string(inspected.value().dng_gain_map_count)));
+            data.emplace("dng_has_warp_rectilinear",
+                         inspected.value().dng_has_warp_rectilinear);
+            data.emplace("dng_has_fix_vignette_radial",
+                         inspected.value().dng_has_fix_vignette_radial);
+            const auto opcode_ids = [](const std::vector<std::uint32_t> &values)
+            {
+                JsonValue::Array items;
+                for (const std::uint32_t value : values)
+                {
+                    items.push_back(JsonValue::number(std::to_string(value)));
+                }
+                return items;
+            };
+            data.emplace("dng_skipped_optional_opcode_list2",
+                         opcode_ids(inspected.value().dng_skipped_optional_opcode_list2));
+            data.emplace("dng_skipped_optional_opcode_list3",
+                         opcode_ids(inspected.value().dng_skipped_optional_opcode_list3));
         }
         return emit(JsonValue{std::move(data)}, json);
     }

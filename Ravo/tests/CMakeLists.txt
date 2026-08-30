@@ -41,27 +41,38 @@ gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
 add_executable(ravo_contract_tests
   cli_test.cpp
   crs_xmp_test.cpp
+  bayer_demosaic_test.cpp
   canvas_frame_test.cpp
   color_correction_test.cpp
   color_harmonizer_test.cpp
   color_reconstruction_test.cpp
   color_zones_test.cpp
   dehaze_test.cpp
+  dng_opcodes_test.cpp
+  film_development_research_test.cpp
   mask_graph_test.cpp
+  lut3d_test.cpp
+  local_detail_research_test.cpp
   monochrome_test.cpp
+  noise_calibration_test.cpp
   output_dither_test.cpp
   recursive_gaussian_test.cpp
   retouch_test.cpp
   sharpen_test.cpp
   split_toning_test.cpp
+  texture_test.cpp
+  velvia_test.cpp
   watermark_test.cpp
+  xtrans_demosaic_test.cpp
   engine_test.cpp
   input_color_test.cpp
   jpeg_cli_test.cpp
   output_color_test.cpp
+  perspective_test.cpp
   profile_gamma_test.cpp
   primaries_test.cpp)
-target_link_libraries(ravo_contract_tests PRIVATE GTest::gtest_main ravo_cli Qt6::Gui ZLIB::ZLIB)
+target_link_libraries(ravo_contract_tests
+  PRIVATE GTest::gtest_main ravo_cli ravo_libtiff Qt6::Gui ZLIB::ZLIB)
 target_include_directories(ravo_contract_tests PRIVATE
   $<TARGET_PROPERTY:lcms2,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>

@@ -19,15 +19,19 @@
 #include "ravo/recipe/color_reconstruction.h"
 #include "ravo/recipe/color_zones.h"
 #include "ravo/recipe/dehaze.h"
+#include "ravo/recipe/lut3d.h"
 #include "ravo/recipe/monochrome.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/output_dither.h"
+#include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/texture.h"
+#include "ravo/recipe/velvia.h"
 #include "ravo/recipe/watermark.h"
 
 namespace ravo
@@ -262,6 +266,10 @@ struct DevelopParams
     // helper may author bounded Studio-owned leaves, while ordinary edits,
     // previews, saves, undo, and reopen preserve every valid attachment.
     std::vector<Mask> masks;
+    // Structural RAW choice: an absent recipe operation means the RCD default.
+    // Unlike raw_effect_enabled this cannot be bypassed, because every Bayer
+    // source still needs exactly one demosaic owner.
+    std::string demosaic_mode{std::string(kDemosaicModeRcd)};
     TemperatureParams temperature;
     bool profile_gamma_enabled = false;
     ProfileGammaParams profile_gamma;
@@ -287,6 +295,11 @@ struct DevelopParams
     std::int64_t flip_horizontal = 0;
     std::int64_t flip_vertical = 0;
     double straighten_degrees = 0.0;
+    double perspective_vertical = 0.0;
+    double perspective_horizontal = 0.0;
+    double perspective_shear = 0.0;
+    bool perspective_constrain_crop = true;
+    std::int64_t perspective_interpolation_index = 2;
     double crop_x = 0.0;
     double crop_y = 0.0;
     double crop_width = 1.0;
@@ -297,6 +310,7 @@ struct DevelopParams
     double sharpen = 0.0;
     double sharpen_radius = 2.0;
     double sharpen_threshold = 0.5;
+    TextureParams texture;
     RetouchParams retouch;
     double clarity = 0.0;
     double vignette = 0.0;
@@ -320,7 +334,13 @@ struct DevelopParams
     bool watermark_present = false;
     bool watermark_enabled = false;
     WatermarkParams watermark;
-    double velvia = 0.0;
+    bool velvia_present = false;
+    bool velvia_enabled = false;
+    VelviaParams velvia;
+    std::optional<std::string> velvia_mask_id;
+    bool lut3d_present = false;
+    bool lut3d_enabled = false;
+    Lut3dParams lut3d;
     bool color_balance_enabled = false;
     ColorBalanceParams color_balance;
     bool color_checker_enabled = false;
@@ -528,11 +548,12 @@ struct LeftoverCropBox
 [[nodiscard]] Result<LeftoverCropBox> leftover_crop_box_to_geometry(float left, float top,
                                                                     float right, float bottom);
 
-// Maps leftover ashift rotation onto canonical straighten when lens shift/shear
-// are identity. Non-zero perspective remains unsupported G6 work.
-[[nodiscard]] Result<double> leftover_ashift_rotation_to_straighten(float rotation,
-                                                                    float lensshift_v,
-                                                                    float lensshift_h, float shear);
+// Maps the leftover ashift generic lens model onto canonical perspective. The
+// adapter remains responsible for rejecting legacy-only lens/crop modes before
+// calling this bounded head conversion.
+[[nodiscard]] Result<PerspectiveParams>
+leftover_ashift_to_perspective(float rotation, float lensshift_v, float lensshift_h, float shear,
+                               bool constrain_crop);
 
 [[nodiscard]] Result<RgbLevelsParams>
 leftover_rgblevels_from_v1(std::int32_t autoscale, std::int32_t preserve_colors,

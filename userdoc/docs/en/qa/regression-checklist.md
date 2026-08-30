@@ -46,6 +46,8 @@ contracts.
       confirm preview scale and full export keep the intended filter response.
 - [ ] Exercise Split Toning shadow/highlight hue+saturation, balance,
       compression, mix, and an attached mask.
+- [ ] Exercise Velvia strength and mid-tones bias at both endpoints; confirm
+      preview, save/reopen, export, reset, and an attached mask agree.
 - [ ] Confirm interactive preview cannot replace a newer committed request.
 - [ ] Exercise Before/After, per-control reset, section reset, Reset all,
       Undo, Redo, and Copy/Paste Edits onto a second photo.

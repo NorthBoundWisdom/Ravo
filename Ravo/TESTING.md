@@ -69,8 +69,9 @@ commands. Copy Info and Copy Parameters tests pin the
 `ravo.debug.photo` / `ravo.debug.parameters` / `ravo.debug.preset` clipboard
 payloads, current saved/pending canonical recipe text, empty selection/unknown-file
 failure, and photo/preset context-menu command wiring (QML does not assemble
-the identity or parameter text). QML contract tests pin the
-default grading stack, first-class Curves, Camera Calibration after Color,
+the identity or parameter text). QML contract tests pin the default grading
+stack, Lightroom-style White Balance and common-first Light control order,
+first-class Curves, Camera Calibration after Color,
 vignette geometry including centre, HSL band names, Detail profile denoise,
 Color Equalizer versus Graduated ND, Color
 Balance RGB wheels, Color · Advanced, and RAW white-balance pick wiring.
@@ -270,21 +271,40 @@ recognized but unimplemented TIFF layouts stay `unsupported` and do not become
 RAW; a camera TIFF without a RAW suffix may still import through
 `unsupported_tiff_raw_container`. First-frame RAW/DNG coverage includes
 structured LibRaw reasons, `.dng` suffix import of the Bayer fixture, X-Trans
-`unsupported_raw_sensor`, unpack-before-publish when no embedded JPEG exists,
+6×6 decode and Engine-rendered preview publication, unpack-before-publish when no embedded JPEG exists,
 RAW import cancellation, corrupt PNG cache miss, and close/reopen preview.
-Full RCD/PPG/X-Trans demosaic and DNG GainMap opcodes remain later. Leftover
+`DngOpcodeTest` freezes the big-endian OpcodeList2/3 envelope, checked bounds,
+four-parity and partial GainMaps, declared operation order, repeated List3
+operations, cubic WarpRectilinear, radial vignette correction, logical-range
+clipping, unknown mandatory/optional policy, cancellation, memory ownership,
+and a libtiff-written CFA DNG that crosses the LibRaw inspect/decode boundary
+without changing its source. A Pixel 6 public reference identified by SHA-256
+`c564190aa06cc8006abf3e856e9ca40f9d8af699b1a7f917b6dcfb72975fdf58`
+is the manual CLI render reference for four List2 GainMaps plus one List3 Warp.
+`BayerDemosaicTest` freezes RCD/PPG smooth-field accuracy, a sharp monochrome
+edge false-colour envelope, same-CFA preview reduction, cancellation/memory,
+unsupported/duplicate state, source immutability and quantized goldens from
+`mire1.cr2`. `XTransDemosaicTest` freezes validated 8/20/8 CFA phase,
+Markesteijn 1/3-pass smooth-field accuracy, same-CFA preview reduction,
+sensor/mode mismatch, cancellation/memory, source immutability and a quantized
+golden from `mire1-xtrans.raf`. Recipe/CLI/Catalog/Studio persistence is tested
+independently. Leftover
 flip v2 orientation bits 1–7 map to canonical rotate-then-flip; `NULL`/`NONE`
 stay identity because camera EXIF is applied at decode. Leftover crop v1–v3
 left/top/right/bottom maps to canonical x/y/width/height; full-frame 0,0,1,1
-is identity. Leftover ashift v4/v5 rotation-only maps to straighten; non-zero
-lens shift/shear stay `unsupported_legacy_ashift_perspective`. Export
+is identity. Leftover ashift v4/v5 generic rotation, vertical/horizontal lens
+shift and shear map to canonical Perspective. Specific-lens mode, unsupported
+crop modes, manual crop boxes, masks, custom blends, and ambiguous UI state
+fail structurally. Export
 `max_edge` is the G7 output-size contract. Leftover rgblevels v1 maps to
 `ravo.color.rgblevels` with the frozen 65536 LUT, linked/independent modes,
 and last-write singleton import of `0054`/`0055`. Auto-levels picker UI is not
 a live engine pass. Leftover rgbcurve v1 monotone-hermite maps to
 `ravo.color.rgbcurve`, including `compensate_middle_grey` through the live
-working D50 matrix so `0060` imports. Leftover rawdenoise v2 Bayer wavelet
-maps to `ravo.raw.denoise`; X-Trans stays unsupported.
+working D50 matrix so `0060` imports. Leftover rawdenoise v2 Bayer and X-Trans
+square-root wavelet paths map to `ravo.raw.denoise`; cancellation leaves the
+borrowed decoded frame unchanged and the four-float-plane peak is included in
+RAW memory preflight.
 
 - Compare the source image hash/size/mtime before and after import to prove a
   reference-only path does not modify the original.
@@ -361,9 +381,11 @@ quantization math (ADR-0069).
 
 Canvas/Frame tests pin both strict schemas, explicit-default Develop state,
 operation uniqueness, Output Color → optional Dither → Frame ordering, and the
-explicit rejection of enabled geometry after Canvas. Canvas references freeze
+explicit rejection of post-Canvas rotate/flip/lens or a mask consumer after
+composed geometry. Canvas references freeze
 percentage truncation, asymmetric placement, fill pixels, attached photo frame,
-All/Circle mask coordinates, and zero alpha outside the content rectangle.
+All/Circle mask coordinates, zero alpha outside the content rectangle, and
+pixel-for-pixel overlay-alpha composition through Perspective plus crop.
 Frame references freeze constant/aspect/basis/orientation layout and the full
 4×4 source-order border-line endpoint result. Invalid dimensions, aspect
 underflow, layout/profile/buffer/non-finite input, nested/masked operations,
@@ -372,6 +394,18 @@ Exact 0157 Canvas plus 0030/0154/0155 Frame records map; modified payload state
 rejects. Catalog deletes cache, reopens, and exports PNG/JPEG/TIFF with exact
 dimensions; CLI, Studio presenter/QML, compiled translations, and offscreen
 smoke share the same fields (ADR-0070).
+
+Perspective tests pin the exact eight-field schema, identity, bounded homography
+and inverse, deterministic maximal safe crop, bilinear/Lanczos2/Lanczos3
+quantized grid goldens, finite/resource/cancellation failure, source ownership,
+and robust guide fitting with outliers. A synthetic axis grid covers bounded
+Sobel/non-maximum suppression/Hough detection and explicit no-line failure.
+CLI analysis emits normalized last-pixel coordinates and does not mutate its
+input; Catalog save/cache-delete/reopen/export reproduces the same result;
+Studio shares the async service path and analyzes an in-memory 900-edge preview
+with crop and existing Perspective removed. Exact frozen v4/v5 generic ashift
+payloads cover legacy import; the complete 0018 history is not a full positive
+oracle because unrelated `mask_manager` state remains unsupported (ADR-0096).
 
 Watermark tests pin the ten-field schema, printable subset, unknown token and
 Unicode rejection, `{stem}`/`{asset_id}` expansion, Develop round-trip, unique
@@ -411,6 +445,41 @@ ownership, row/pre-publication cancellation, and the exact 0062 v1 singleton
 plus modified-payload rejection. CLI/Catalog/Studio cover seven controls,
 preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
 (ADR-0075).
+
+Velvia tests pin the exact four-field schema-v2 contract, schema-v1 and CLI
+amount upgrades, strength/bias bounds, independent dark/midtone/highlight
+scalar calculations at bias 0, 0.15, and 1, zero-strength identity, canonical
+All-mask equality, invalid dimensions/profile/non-finite state, row
+cancellation, source ownership, and the exact 0063 v2 singleton plus modified
+and disabled rejection. CLI exposes the canonical enable/strength/bias fields;
+Catalog proves preview difference, source hash safety, export equality, cache
+delete, close/reopen, and exact rebuilt pixels; Studio QML and compiled
+translations cover the complete editor (ADR-0095).
+
+3D LUT tests pin the exact five-field schema, red-fastest `.cube` order,
+independent trilinear and tetrahedral cross-term goldens, per-channel domain
+mapping, explicit transfer/primary conversions, unbounded linear-strength
+blend, and zero-strength resource validation. Parser tests reject 1D, unknown,
+misordered, oversized, overlong, malformed, non-finite, count-mismatched,
+missing, and cancelled inputs. Content mutation changes the fingerprint and a
+subsequent corrupt file fails instead of using the previous LRU entry. A real
+CLI subprocess saves a LUT through `--set-text`, reopens the Catalog, proves a
+read-only strength probe, exports PNG, preserves source hash/size/mtime, and
+retains the stored recipe after resource failure. `lut inspect`, field
+discovery, Studio presenter/QML, compiled translations, and offscreen smoke
+cover the supported surface. Synthetic legacy state asserts the stable
+`unsupported_legacy_lut3d_resource` rejection because old XMP does not contain
+an immutable LUT artifact (ADR-0096).
+
+Camera-noise calibration tests recover a known Gaussian/Poisson model from
+weighted uint16-domain samples while rejecting injected variance outliers.
+They pin minimum/maximum sample count, signal-span and finite numeric bounds,
+pre-cancellation, strict JSON fields/units, canonical source SHA-256,
+deterministic profile bytes and payload-tamper rejection. A real CLI subprocess
+publishes and inspects the profile, preserves the source sample document, and
+proves an existing destination is never replaced. The tests do not imply that
+the current denoisers consume the artifact; profile lookup remains separately
+gated (ADR-0096).
 
 ## Preview and viewer
 
@@ -998,6 +1067,31 @@ compare the 960px and former 640px complete pipelines with the 1600px settled
 display pixels; `RAVO_INTERACTIVE_QUALITY_MIN_PSNR_DB` adds a local PSNR gate.
 Both probes skip without explicit fixture variables and leave recipe and
 preview-record state unchanged.
+
+`PerspectiveInteractivePerformanceProbe` uses the same Release-only catalog
+and asset variables, warms the normal CatalogService working buffer, sweeps
+manual vertical correction without saving, and includes owned RGB8 plus
+histogram publication work. `RAVO_PERSPECTIVE_PERF_MAX_EDGE`,
+`RAVO_PERSPECTIVE_PERF_RUNS`, and
+`RAVO_PERSPECTIVE_PERF_P90_BUDGET_MS` select its workload and visible P90 gate.
+It skips without explicit fixture variables and verifies that recipe and
+preview-record state remain unchanged.
+
+`LocalDetailResearchProbe` is the reproducible selection record for bounded
+Texture versus the rejected Local Laplacian prototype and the already accepted
+Sharpen/Tone Equalizer semantics. Run a Release contract binary with
+`RAVO_LOCAL_DETAIL_RESEARCH=1`. It reports texture gain, mean movement, step
+halo, prototype memory and timing on both committed RAW fixtures, then applies
+the production Texture owner. The production operation must remain below
+30 ms for each 960×640 working buffer; this is its complete algorithm budget,
+not a claim that service and display latency are zero.
+
+`FilmDevelopmentResearchProbe` is intentionally test-only. With
+`RAVO_FILM_DEVELOPMENT_RESEARCH=1`, it runs the Ravo-owned reaction, diffusion,
+reservoir and agitation prototype on the same committed RAW buffers and reports
+stage medians, extra peak bytes, spatial-context response and agitation
+difference. Its current result rejects product integration; the probe must not
+be linked into Engine or used as a hidden slow fallback.
 
 ## Local labels and validation cadence
 

@@ -1,5 +1,9 @@
 #include "image_ops.h"
 
+#include "bayer_demosaic.h"
+#include "dng_opcodes.h"
+#include "xtrans_demosaic.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -27,10 +31,12 @@
 #include "d50_lab.h"
 #include "dehaze.h"
 #include "hsl.h"
+#include "lut3d.h"
 #include "mask_evaluator.h"
 #include "monochrome.h"
 #include "output_color.h"
 #include "parallel_rows.h"
+#include "perspective_transform.h"
 #include "primaries.h"
 #include "raw_temperature.h"
 #include "ravo/recipe/develop.h"
@@ -38,6 +44,7 @@
 #include "ravo/recipe/watermark.h"
 #include "retouch.h"
 #include "sharpen.h"
+#include "texture.h"
 #include "split_toning.h"
 #include "velvia.h"
 #include "ravo/recipe/profile_gamma.h"
@@ -1231,7 +1238,7 @@ Result<void> apply_vibrance_saturation(WorkingImage &image, const double vibranc
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
-    output.mask_attached_frame = image.mask_attached_frame;
+    output.mask_attached_frame.reset();
     if (turns == 2)
     {
         output.width = image.width;
@@ -1308,7 +1315,7 @@ Result<void> apply_vibrance_saturation(WorkingImage &image, const double vibranc
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
-    output.mask_attached_frame = image.mask_attached_frame;
+    output.mask_attached_frame.reset();
     output.width = crop_w;
     output.height = crop_h;
     output.rgb.resize(static_cast<std::size_t>(crop_w) * crop_h * 3U);
@@ -1333,7 +1340,7 @@ Result<void> apply_vibrance_saturation(WorkingImage &image, const double vibranc
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
-    output.mask_attached_frame = image.mask_attached_frame;
+    output.mask_attached_frame.reset();
     output.width = image.width;
     output.height = image.height;
     output.rgb.resize(image.rgb.size());
@@ -1405,7 +1412,7 @@ void sample_bilinear(const WorkingImage &image, double sx, double sy, float *rgb
     output.color_profile = image.color_profile;
     output.exposure_analysis = image.exposure_analysis;
     output.canonical_roi_scale = image.canonical_roi_scale;
-    output.mask_attached_frame = image.mask_attached_frame;
+    output.mask_attached_frame.reset();
     output.width = image.width;
     output.height = image.height;
     output.rgb.assign(image.rgb.size(), 0.0F);
@@ -2641,27 +2648,29 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
                                       const std::array<float, 4> &white_balance,
                                       const CancellationToken &cancellation)
 {
+    const std::string_view mode = raw.cfa_width == 6U && raw.cfa_height == 6U ?
+                                      kXTransDemosaicModeMarkesteijn3 :
+                                      kBayerDemosaicModeRcd;
+    return working_from_raw(raw, width, height, white_balance, mode, cancellation);
+}
+
+Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t width,
+                                      const std::uint32_t height,
+                                      const std::array<float, 4> &white_balance,
+                                      const std::string_view demosaic_mode,
+                                      const CancellationToken &cancellation)
+{
     if (width == 0 || height == 0)
     {
         return make_error(ErrorCode::kInvalidArgument, "Render output dimensions must be non-zero");
     }
-    for (std::size_t channel = 0; channel < white_balance.size(); ++channel)
-    {
-        if (!std::isfinite(white_balance[channel]) || white_balance[channel] <= 0.0F ||
-            white_balance[channel] > 8.0F)
-        {
-            return make_error(ErrorCode::kValidation,
-                              "RAW temperature coefficient is outside (0, 8]",
-                              {{"channel", std::to_string(channel)}});
-        }
-    }
-    if (raw.cfa_width == 0 || raw.cfa_height == 0 ||
-        raw.cfa_channels.size() != static_cast<std::size_t>(raw.cfa_width) * raw.cfa_height ||
-        std::any_of(raw.cfa_channels.begin(), raw.cfa_channels.end(),
-                    [](const std::uint8_t channel) { return channel >= 4U; }))
+    const bool bayer = raw.cfa_width == 2U && raw.cfa_height == 2U;
+    const bool xtrans = raw.cfa_width == 6U && raw.cfa_height == 6U;
+    if (!bayer && !xtrans)
     {
         return make_error(ErrorCode::kUnsupported,
-                          "RAW temperature requires a one-to-four-channel CFA pattern");
+                          "RAW demosaic requires a supported Bayer or X-Trans CFA",
+                          {{"reason", "unsupported_raw_sensor"}});
     }
     const int turns = normalized_rotate_quarters(raw.rotate_quarters);
     std::uint32_t original_display_width = raw.width;
@@ -2670,76 +2679,78 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     std::uint32_t demosaic_width = width;
     std::uint32_t demosaic_height = height;
     apply_display_rotation_to_size(demosaic_width, demosaic_height, turns);
-    WorkingImage image;
-    image.width = demosaic_width;
-    image.height = demosaic_height;
-    image.rgb.resize(static_cast<std::size_t>(demosaic_width) * demosaic_height * 3U);
-    image.color_profile = raw.color_profile;
-    const float denominator = static_cast<float>(
-        std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
-
-    auto rows = for_each_row(
-        demosaic_height, cancellation,
-        [&](const std::uint32_t output_y)
-        {
-            const std::uint32_t source_y = std::min(
-                raw.height - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_y) *
-                                                           raw.height / demosaic_height));
-            for (std::uint32_t output_x = 0; output_x < demosaic_width; ++output_x)
-            {
-                const std::uint32_t source_x = std::min(
-                    raw.width - 1, static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) *
-                                                              raw.width / demosaic_width));
-                std::array<float, 3> sum{};
-                std::array<std::uint32_t, 3> count{};
-                for (int offset_y = -1; offset_y <= 1; ++offset_y)
-                {
-                    const std::uint32_t y =
-                        static_cast<std::uint32_t>(std::clamp(static_cast<int>(source_y) + offset_y,
-                                                              0, static_cast<int>(raw.height) - 1));
-                    for (int offset_x = -1; offset_x <= 1; ++offset_x)
-                    {
-                        const std::uint32_t x = static_cast<std::uint32_t>(
-                            std::clamp(static_cast<int>(source_x) + offset_x, 0,
-                                       static_cast<int>(raw.width) - 1));
-                        const std::uint8_t cfa_channel =
-                            raw.cfa_channels[(y % raw.cfa_height) * raw.cfa_width +
-                                             (x % raw.cfa_width)];
-                        if (cfa_channel >= white_balance.size())
-                        {
-                            continue;
-                        }
-                        const std::size_t channel = cfa_channel == 3U ? 1U : cfa_channel;
-                        const float sample = std::max(
-                            0.0F, (static_cast<float>(
-                                       raw.pixels[static_cast<std::size_t>(y) * raw.width + x]) -
-                                   static_cast<float>(raw.black_level)) /
-                                      denominator);
-                        sum[channel] += sample * white_balance[cfa_channel];
-                        ++count[channel];
-                    }
-                }
-
-                std::array<float, 3> camera_rgb{};
-                for (std::size_t channel = 0; channel < camera_rgb.size(); ++channel)
-                {
-                    const float sample = count[channel] == 0 ?
-                                             0.0F :
-                                             sum[channel] / static_cast<float>(count[channel]);
-                    camera_rgb[channel] = sample;
-                }
-                const std::size_t output_index =
-                    (static_cast<std::size_t>(output_y) * demosaic_width + output_x) * 3U;
-                std::copy(camera_rgb.begin(), camera_rgb.end(),
-                          image.rgb.begin() + static_cast<std::ptrdiff_t>(output_index));
-            }
-        });
-    if (!rows)
+    const bool defer_white_balance = raw.dng_opcodes && !raw.dng_opcodes->list3_operations.empty();
+    Result<WorkingImage> image =
+        make_error(ErrorCode::kUnsupported, "RAW demosaic mode does not match the sensor",
+                   {{"reason", "demosaic_sensor_mismatch"}});
+    if (bayer)
     {
-        return rows.error();
+        auto mode = parse_bayer_demosaic_mode(demosaic_mode);
+        if (!mode)
+        {
+            if (demosaic_mode == kXTransDemosaicModeMarkesteijn1 ||
+                demosaic_mode == kXTransDemosaicModeMarkesteijn3)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Markesteijn demosaic requires an X-Trans 6x6 CFA",
+                                  {{"demosaic_mode", std::string(demosaic_mode)},
+                                   {"reason", "demosaic_sensor_mismatch"},
+                                   {"sensor", "bayer"}});
+            }
+            return mode.error();
+        }
+        image = demosaic_bayer(raw, demosaic_width, demosaic_height, white_balance, mode.value(),
+                               cancellation);
     }
-    auto oriented = turns == 0 ? Result<WorkingImage>(std::move(image)) :
-                                 rotate_working(std::move(image), turns);
+    else
+    {
+        auto mode = parse_xtrans_demosaic_mode(demosaic_mode);
+        if (!mode)
+        {
+            if (demosaic_mode == kBayerDemosaicModeRcd || demosaic_mode == kBayerDemosaicModePpg)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "RCD and PPG demosaic require a Bayer 2x2 CFA",
+                                  {{"demosaic_mode", std::string(demosaic_mode)},
+                                   {"reason", "demosaic_sensor_mismatch"},
+                                   {"sensor", "xtrans"}});
+            }
+            return mode.error();
+        }
+        image = demosaic_xtrans(raw, demosaic_width, demosaic_height, white_balance, mode.value(),
+                                cancellation);
+    }
+    if (!image)
+        return image.error();
+    auto corrected = raw.dng_opcodes ? apply_dng_opcode_list3(std::move(image).value(),
+                                                              *raw.dng_opcodes, cancellation) :
+                                       Result<WorkingImage>(std::move(image).value());
+    if (!corrected)
+    {
+        return corrected.error();
+    }
+    if (defer_white_balance)
+    {
+        auto rows = for_each_row(
+            corrected.value().height, cancellation,
+            [&](const std::uint32_t y)
+            {
+                for (std::uint32_t x = 0U; x < corrected.value().width; ++x)
+                {
+                    const std::size_t base =
+                        (static_cast<std::size_t>(y) * corrected.value().width + x) * 3U;
+                    corrected.value().rgb[base] *= white_balance[0];
+                    corrected.value().rgb[base + 1U] *= white_balance[1];
+                    corrected.value().rgb[base + 2U] *= white_balance[2];
+                }
+            });
+        if (!rows)
+        {
+            return rows.error();
+        }
+    }
+    auto oriented = turns == 0 ? Result<WorkingImage>(std::move(corrected).value()) :
+                                 rotate_working(std::move(corrected).value(), turns);
     if (!oriented)
     {
         return oriented.error();
@@ -2922,6 +2933,33 @@ catch (const std::bad_alloc &)
                       {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
 }
 
+[[nodiscard]] Result<WorkingImage> apply_masked_velvia(WorkingImage image, const Recipe &recipe,
+                                                       const OperationInstance &operation,
+                                                       const CancellationToken &cancellation)
+try
+{
+    WorkingImage pre_operation = std::move(image);
+    OperationInstance unmasked = operation;
+    unmasked.mask_id.reset();
+    auto operation_output = apply_velvia(pre_operation, unmasked, cancellation);
+    if (!operation_output)
+        return operation_output.error();
+    auto alpha = evaluate_operation_mask(pre_operation, operation_output.value(), recipe,
+                                         *operation.mask_id, cancellation);
+    if (!alpha)
+        return alpha.error();
+    auto mixed = normal_mask_mix(pre_operation.rgb, operation_output.value().rgb, alpha.value(),
+                                 cancellation);
+    if (!mixed)
+        return mixed.error();
+    return std::move(operation_output).value();
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Masked Velvia allocation failed",
+                      {{"operation_id", operation.id}, {"reason", "allocation_failed"}});
+}
+
 [[nodiscard]] Result<WorkingImage> apply_masked_graduated_nd(WorkingImage image,
                                                              const Recipe &recipe,
                                                              const OperationInstance &operation,
@@ -2977,7 +3015,8 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.mask_id.has_value() && operation.id != kColorHarmonizerOperationId &&
             operation.id != kColorZonesOperationId && operation.id != kMonochromeOperationId &&
-            operation.id != kSplitToningOperationId && operation.id != "ravo.effect.graduatednd")
+            operation.id != kSplitToningOperationId && operation.id != kVelviaOperationId &&
+            operation.id != "ravo.effect.graduatednd")
         {
             return make_error(ErrorCode::kUnsupported,
                               "Operation does not support canonical mask evaluation",
@@ -3156,6 +3195,17 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             image = std::move(straightened).value();
             continue;
         }
+        if (operation.id == kPerspectiveOperationId)
+        {
+            auto params = perspective_from_parameters(operation.parameters);
+            if (!params)
+                return params.error();
+            auto transformed = apply_perspective(image, params.value(), cancellation);
+            if (!transformed)
+                return transformed.error();
+            image = std::move(transformed).value();
+            continue;
+        }
         if (operation.id == kCanvasOperationId)
         {
             auto expanded = apply_canvas(std::move(image), operation, cancellation);
@@ -3287,14 +3337,26 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             image = std::move(reconstructed).value();
             continue;
         }
-        if (operation.id == "ravo.color.velvia")
+        if (operation.id == kVelviaOperationId)
         {
-            auto velvia = apply_velvia(std::move(image), operation, cancellation);
+            auto velvia =
+                operation.mask_id.has_value() ?
+                    apply_masked_velvia(std::move(image), recipe, operation, cancellation) :
+                    apply_velvia(std::move(image), operation, cancellation);
             if (!velvia)
             {
                 return velvia.error();
             }
             image = std::move(velvia).value();
+            continue;
+        }
+        if (operation.id == kLut3dOperationId)
+        {
+            auto mapped =
+                apply_lut3d(std::move(image), operation, process_lut3d_cache(), cancellation);
+            if (!mapped)
+                return mapped.error();
+            image = std::move(mapped).value();
             continue;
         }
         if (operation.id == kMonochromeOperationId)
@@ -3327,6 +3389,16 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 return sharpened.error();
             }
             image = std::move(sharpened).value();
+            continue;
+        }
+        if (operation.id == kTextureOperationId)
+        {
+            auto textured = apply_texture(image, operation, cancellation);
+            if (!textured)
+            {
+                return textured.error();
+            }
+            image = std::move(textured).value();
             continue;
         }
         if (operation.id == kRetouchOperationId)
@@ -3472,6 +3544,135 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                           {{"operation_id", operation.id}});
     }
     return image;
+}
+
+Result<AlphaPlane> apply_recipe_geometry_to_alpha(AlphaPlane alpha, const Recipe &recipe,
+                                                  const CancellationToken &cancellation)
+try
+{
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    const std::uint64_t pixels = static_cast<std::uint64_t>(alpha.width) * alpha.height;
+    if (alpha.width == 0U || alpha.height == 0U || pixels != alpha.alpha.size() ||
+        pixels > std::vector<float>{}.max_size() / 3U)
+    {
+        return make_error(ErrorCode::kValidation, "Mask overlay alpha plane is invalid",
+                          {{"reason", "invalid_mask_overlay_alpha"}});
+    }
+
+    WorkingImage image;
+    image.width = alpha.width;
+    image.height = alpha.height;
+    image.rgb.resize(static_cast<std::size_t>(pixels) * 3U);
+    for (std::uint32_t row = 0U; row < alpha.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+            return active.error();
+        for (std::uint32_t column = 0U; column < alpha.width; ++column)
+        {
+            const std::size_t pixel = static_cast<std::size_t>(row) * alpha.width + column;
+            const float value = alpha.alpha[pixel];
+            if (!std::isfinite(value))
+                return make_error(ErrorCode::kValidation,
+                                  "Mask overlay alpha contains NaN or infinity",
+                                  {{"reason", "nonfinite_mask_overlay_alpha"},
+                                   {"sample_index", std::to_string(pixel)}});
+            image.rgb[pixel * 3U] = value;
+            image.rgb[pixel * 3U + 1U] = value;
+            image.rgb[pixel * 3U + 2U] = value;
+        }
+    }
+
+    std::size_t replay_begin = 0U;
+    for (std::size_t index = 0U; index < recipe.operations.size(); ++index)
+    {
+        if (recipe.operations[index].enabled && recipe.operations[index].id == kCanvasOperationId)
+            replay_begin = index + 1U;
+    }
+    for (std::size_t index = replay_begin; index < recipe.operations.size(); ++index)
+    {
+        const auto &operation = recipe.operations[index];
+        active = cancellation.check();
+        if (!active)
+            return active.error();
+        if (!operation.enabled)
+            continue;
+        if (operation.id == "ravo.geometry.rotate")
+        {
+            auto transformed = rotate_working(
+                std::move(image), static_cast<int>(parameter(operation, "quarters", 0.0)));
+            if (!transformed)
+                return transformed.error();
+            image = std::move(transformed).value();
+        }
+        else if (operation.id == "ravo.geometry.flip")
+        {
+            auto transformed =
+                flip_working(std::move(image), parameter(operation, "horizontal", 0.0) != 0.0,
+                             parameter(operation, "vertical", 0.0) != 0.0);
+            if (!transformed)
+                return transformed.error();
+            image = std::move(transformed).value();
+        }
+        else if (operation.id == "ravo.geometry.straighten")
+        {
+            auto transformed =
+                straighten_working(std::move(image), parameter(operation, "degrees", 0.0));
+            if (!transformed)
+                return transformed.error();
+            image = std::move(transformed).value();
+        }
+        else if (operation.id == kPerspectiveOperationId)
+        {
+            auto params = perspective_from_parameters(operation.parameters);
+            if (!params)
+                return params.error();
+            params.value().interpolation = std::string(kPerspectiveInterpolationBilinear);
+            auto transformed = apply_perspective(image, params.value(), cancellation);
+            if (!transformed)
+                return transformed.error();
+            image = std::move(transformed).value();
+        }
+        else if (operation.id == "ravo.geometry.crop")
+        {
+            auto transformed = crop_working(
+                std::move(image), parameter(operation, "x", 0.0), parameter(operation, "y", 0.0),
+                parameter(operation, "width", 1.0), parameter(operation, "height", 1.0));
+            if (!transformed)
+                return transformed.error();
+            image = std::move(transformed).value();
+        }
+    }
+
+    AlphaPlane output;
+    output.width = image.width;
+    output.height = image.height;
+    output.alpha.resize(static_cast<std::size_t>(image.width) * image.height);
+    for (std::uint32_t row = 0U; row < image.height; ++row)
+    {
+        active = cancellation.check();
+        if (!active)
+            return active.error();
+        for (std::uint32_t column = 0U; column < image.width; ++column)
+        {
+            const std::size_t pixel = static_cast<std::size_t>(row) * image.width + column;
+            const float value = image.rgb[pixel * 3U];
+            if (!std::isfinite(value))
+                return make_error(ErrorCode::kValidation,
+                                  "Transformed mask overlay alpha is non-finite",
+                                  {{"reason", "nonfinite_mask_overlay_alpha"},
+                                   {"sample_index", std::to_string(pixel)}});
+            output.alpha[pixel] = std::clamp(value, 0.0F, 1.0F);
+        }
+    }
+    return output;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Mask overlay geometry allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 Result<std::vector<std::uint8_t>> encode_png_bytes(const RenderedImage &image, const bool fast)

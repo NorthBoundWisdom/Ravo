@@ -553,12 +553,13 @@ TEST(SharpenTest, FrozenDefaultHasARealRawReferenceAndBudgetAccounting)
         sums[1] += rendered.value().rgb[index + 1U];
         sums[2] += rendered.value().rgb[index + 2U];
     }
-    // Ravo-owned reference for the frozen default v1 payload at a scale where
-    // its source radius is observable. The scalar oracle above owns exact CPU
-    // parity; this envelope permits supported-platform decoder/libm variation.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 17107037.0, 15000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 15750925.0, 15000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 14726542.0, 15000.0);
+    // Ravo-owned reference for the frozen default v1 payload after the default
+    // RCD demosaic, at a scale where its source radius is observable. The
+    // scalar oracle above owns exact CPU parity; this envelope permits
+    // supported-platform decoder/libm variation.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 17266767.0, 15000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 15817540.0, 15000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 14818995.0, 15000.0);
 
     Recipe baseline = recipe;
     std::erase_if(baseline.operations, [](const OperationInstance &operation)

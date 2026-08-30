@@ -43,22 +43,22 @@ frozen IOP is retired.
 
 ## RAW and optical contracts
 
-- Each queued RAW row needs explicit stage placement, unsupported sensor policy,
-  real fixture and memory/time budget.
+- ADR-0096 fixes the serial RAW/optical decision order and fail-closed ownership
+  boundary. Exact per-operation stage placement, real fixtures, and measured
+  memory/time limits remain the active execution gates in the root TODO.
 
 ## Color, profile and creative-look contracts
 
 - Define explicit workspace/profile/gamut ownership and overlap with accepted
   defaults before each queued color operation freezes its schema.
-- LUT support requires an explicit format/profile adapter and deterministic
-  missing/invalid-file behavior.
 
 ## Geometry, ROI and resource contracts
 
-- ADR-0070 accepts Canvas growth and an attached photo-content frame for
-  full-frame mask evaluation. Remaining geometry/deformation rows must define
-  resampling, tiling, sub-ROI, and composed content-frame transforms before
-  they execute after Canvas; unsupported combinations continue to fail.
+- ADR-0070/0093 accept Canvas growth, an attached photo-content frame, and
+  ordered Perspective/straighten/crop composition of pixels plus preview
+  alpha. Rotate/flip/lens after Canvas, attached sub-ROI evaluation, and a new
+  mask consumer after composed geometry remain explicit failures until their
+  resampling and coordinate owners are defined.
 - External image/LUT/SVG/font resources require versioned lookup, immutable
   task ownership and deterministic missing/corrupt behavior.
 

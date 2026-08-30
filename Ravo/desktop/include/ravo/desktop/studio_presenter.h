@@ -121,6 +121,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editCanvas READ editCanvas NOTIFY editChanged)
     Q_PROPERTY(bool editCanvasEnabled READ editCanvasEnabled NOTIFY editChanged)
     Q_PROPERTY(double editStraighten READ editStraighten NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editPerspective READ editPerspective NOTIFY editChanged)
     Q_PROPERTY(QString cropAspect READ cropAspect NOTIFY editChanged)
     Q_PROPERTY(double cropAspectRatio READ cropAspectRatio NOTIFY editChanged)
     Q_PROPERTY(int selectedWorkingWidth READ selectedWorkingWidth NOTIFY editChanged)
@@ -137,6 +138,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSharpen READ editSharpen NOTIFY editChanged)
     Q_PROPERTY(double editSharpenRadius READ editSharpenRadius NOTIFY editChanged)
     Q_PROPERTY(double editSharpenThreshold READ editSharpenThreshold NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editTexture READ editTexture NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editRetouch READ editRetouch NOTIFY editChanged)
     Q_PROPERTY(double editClarity READ editClarity NOTIFY editChanged)
     Q_PROPERTY(double editVignette READ editVignette NOTIFY editChanged)
@@ -151,6 +153,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QVariantMap editOutputFrame READ editOutputFrame NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editWatermark READ editWatermark NOTIFY editChanged)
     Q_PROPERTY(double editVelvia READ editVelvia NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editVelviaParams READ editVelviaParams NOTIFY editChanged)
+    Q_PROPERTY(QVariantMap editLut3d READ editLut3d NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editLegacyColorBalance READ editLegacyColorBalance NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorChecker READ editColorChecker NOTIFY editChanged)
     Q_PROPERTY(QVariantMap editColorBalanceRgb READ editColorBalanceRgb NOTIFY editChanged)
@@ -181,7 +185,9 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(double editSigmoidContrast READ editSigmoidContrast NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidSkew READ editSigmoidSkew NOTIFY editChanged)
     Q_PROPERTY(double editSigmoidHuePreservation READ editSigmoidHuePreservation NOTIFY editChanged)
+    Q_PROPERTY(int editDemosaicModeIndex READ editDemosaicModeIndex NOTIFY editChanged)
     Q_PROPERTY(double editRawHighlights READ editRawHighlights NOTIFY editChanged)
+    Q_PROPERTY(double editRawDenoiseThreshold READ editRawDenoiseThreshold NOTIFY editChanged)
     Q_PROPERTY(double editHotPixelsStrength READ editHotPixelsStrength NOTIFY editChanged)
     Q_PROPERTY(double editHotPixelsThreshold READ editHotPixelsThreshold NOTIFY editChanged)
     Q_PROPERTY(bool editHotPixelsPermissive READ editHotPixelsPermissive NOTIFY editChanged)
@@ -339,6 +345,7 @@ public:
     [[nodiscard]] QVariantMap editCanvas() const;
     [[nodiscard]] bool editCanvasEnabled() const noexcept;
     [[nodiscard]] double editStraighten() const noexcept;
+    [[nodiscard]] QVariantMap editPerspective() const;
     [[nodiscard]] QString cropAspect() const;
     [[nodiscard]] double cropAspectRatio() const noexcept;
     [[nodiscard]] int selectedWorkingWidth() const;
@@ -354,6 +361,7 @@ public:
     [[nodiscard]] double editSharpen() const noexcept;
     [[nodiscard]] double editSharpenRadius() const noexcept;
     [[nodiscard]] double editSharpenThreshold() const noexcept;
+    [[nodiscard]] QVariantMap editTexture() const;
     [[nodiscard]] QVariantMap editRetouch() const;
     [[nodiscard]] double editClarity() const noexcept;
     [[nodiscard]] double editVignette() const noexcept;
@@ -368,6 +376,8 @@ public:
     [[nodiscard]] QVariantMap editOutputFrame() const;
     [[nodiscard]] QVariantMap editWatermark() const;
     [[nodiscard]] double editVelvia() const noexcept;
+    [[nodiscard]] QVariantMap editVelviaParams() const;
+    [[nodiscard]] QVariantMap editLut3d() const;
     [[nodiscard]] QVariantMap editLegacyColorBalance() const;
     [[nodiscard]] QVariantMap editColorChecker() const;
     [[nodiscard]] QVariantMap editColorBalanceRgb() const;
@@ -396,7 +406,9 @@ public:
     [[nodiscard]] double editSigmoidContrast() const noexcept;
     [[nodiscard]] double editSigmoidSkew() const noexcept;
     [[nodiscard]] double editSigmoidHuePreservation() const noexcept;
+    [[nodiscard]] int editDemosaicModeIndex() const noexcept;
     [[nodiscard]] double editRawHighlights() const noexcept;
+    [[nodiscard]] double editRawDenoiseThreshold() const noexcept;
     [[nodiscard]] double editHotPixelsStrength() const noexcept;
     [[nodiscard]] double editHotPixelsThreshold() const noexcept;
     [[nodiscard]] bool editHotPixelsPermissive() const noexcept;
@@ -503,6 +515,7 @@ public:
     [[nodiscard]] bool whiteBalancePickActive() const noexcept;
     Q_INVOKABLE void setWhiteBalancePickActive(bool active);
     Q_INVOKABLE void pickWhiteBalance(double preview_x, double preview_y);
+    Q_INVOKABLE void autoPerspective(const QString &mode);
     Q_INVOKABLE void resetControl(const QString &name);
     Q_INVOKABLE void resetSection(const QString &section);
     Q_INVOKABLE bool sectionModified(const QString &section) const;
@@ -732,6 +745,7 @@ private:
     bool busy_ = false;
     bool preview_loading_ = false;
     PreviewRequestOwner develop_preview_owner_;
+    PreviewRequestOwner perspective_analysis_owner_;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
     void apply_curve_points(const QString &family, int channel, const QVariantList &points,

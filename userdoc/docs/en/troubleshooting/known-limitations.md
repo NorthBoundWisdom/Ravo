@@ -63,6 +63,16 @@ unmasked blend. The complete historical document still rejects when unrelated
 operations have no accepted mapping.
 Split Toning maps only the exact enabled 0062 v1 singleton with its default
 unmasked blend; other payload, mask, blend, or multi-instance states reject.
+Velvia maps only the exact enabled 0063 v2 singleton with its default unmasked
+blend; other payload, enabled state, mask, blend, or multi-instance state
+rejects.
+The three frozen 3D-LUT histories contain mutable machine-local external paths,
+not the referenced LUT bytes or a content checksum. Ravo does not guess or
+relocate those resources: legacy import returns
+`unsupported_legacy_lut3d_resource`. Select the original `.cube` explicitly in
+Ravo and declare the colour spaces it was authored for. The initial adapter
+supports 3D `.cube` files with tetrahedral or trilinear interpolation; 1D,
+pyramid, Hald image, OCIO, and CTL inputs are unsupported.
 
 ### CPU render backend
 
@@ -112,10 +122,11 @@ RAW repair, camera metadata modes, and some profile operations require the
 corresponding source state. Ravo rejects an invalid or unsupported combination;
 it does not replace it with a hidden generic algorithm.
 
-Canvas is opaque solid growth and currently cannot be followed by enabled
-rotate, flip, straighten, crop, or lens geometry. That combination returns a
-structured unsupported result until composed content-frame transforms are
-implemented. Output Frame is final encoded-output decoration, not transparent
+Canvas is opaque solid growth. Perspective/straighten and crop can follow it
+because pixels and preview-mask alpha share the same transform. Post-Canvas
+rotate, flip, or lens geometry, attached sub-ROI mask evaluation, and another
+masked operation after composed geometry return a structured unsupported
+result. Output Frame is final encoded-output decoration, not transparent
 padding.
 
 Text Watermark uses a built-in 5×7 ASCII font and only `{stem}` and
@@ -133,6 +144,9 @@ than expecting the colour-filter controls to reshape it.
 
 Studio preserves an attached Split Toning mask but does not edit that mask in
 the Split Toning panel.
+
+Studio preserves an attached Velvia mask but does not edit that mask in the
+Velvia panel.
 
 ### Platform acceptance
 

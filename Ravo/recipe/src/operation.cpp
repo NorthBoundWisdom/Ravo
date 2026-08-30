@@ -16,12 +16,15 @@
 #include "ravo/recipe/color_zones.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/dehaze.h"
+#include "ravo/recipe/lut3d.h"
 #include "ravo/recipe/monochrome.h"
+#include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/texture.h"
 #include "ravo/recipe/watermark.h"
 #include "ravo/recipe/velvia.h"
 
@@ -83,6 +86,36 @@ exposure_boolean(const std::map<std::string, ParameterValue, std::less<>> &param
 }
 
 } // namespace
+
+Result<std::string>
+demosaic_mode_from_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    const auto found = parameters.find("mode");
+    if (found == parameters.end())
+    {
+        return std::string(kDemosaicModeRcd);
+    }
+    const auto *mode = std::get_if<std::string>(&found->second.value);
+    if (mode == nullptr ||
+        (*mode != kDemosaicModeRcd && *mode != kDemosaicModePpg &&
+         *mode != kDemosaicModeMarkesteijn1 && *mode != kDemosaicModeMarkesteijn3))
+    {
+        return make_error(ErrorCode::kUnsupported, "RAW demosaic mode is unsupported",
+                          {{"reason", "unsupported_demosaic_mode"}});
+    }
+    return *mode;
+}
+
+Result<void>
+validate_demosaic_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters)
+{
+    auto mode = demosaic_mode_from_parameters(parameters);
+    if (!mode)
+    {
+        return mode.error();
+    }
+    return {};
+}
 
 bool ExposureParams::is_identity() const noexcept
 {
@@ -307,7 +340,13 @@ Result<OperationRegistry> make_phase1_registry()
     return OperationRegistry::create({
         {"ravo.core.identity", "Identity", 1, {}, false, false},
         {"ravo.raw.prepare", "RAW prepare", 1, {}, false, false},
-        {"ravo.raw.demosaic", "RAW demosaic", 1, {}, false, false},
+        {std::string(kDemosaicOperationId),
+         "RAW demosaic",
+         1,
+         {{"mode", ParameterType::kString, false, ParameterValue{std::string(kDemosaicModeRcd)},
+           std::nullopt, std::nullopt}},
+         false,
+         true},
         {std::string(kProfileGammaOperationId),
          "Unbreak input profile",
          kProfileGammaOperationSchemaVersion,
@@ -489,6 +528,25 @@ Result<OperationRegistry> make_phase1_registry()
          "Straighten",
          1,
          {{"degrees", ParameterType::kNumber, false, ParameterValue{0.0}, -45.0, 45.0}},
+         false,
+         true},
+        {std::string(kPerspectiveOperationId),
+         "Perspective",
+         kPerspectiveOperationSchemaVersion,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"algorithm", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"rotation_degrees", ParameterType::kNumber, true, std::nullopt, kPerspectiveRotationMin,
+           kPerspectiveRotationMax},
+          {"vertical_shift", ParameterType::kNumber, true, std::nullopt, kPerspectiveShiftMin,
+           kPerspectiveShiftMax},
+          {"horizontal_shift", ParameterType::kNumber, true, std::nullopt, kPerspectiveShiftMin,
+           kPerspectiveShiftMax},
+          {"shear", ParameterType::kNumber, true, std::nullopt, kPerspectiveShearMin,
+           kPerspectiveShearMax},
+          {"constrain_crop", ParameterType::kBoolean, true, std::nullopt, std::nullopt,
+           std::nullopt},
+          {"interpolation", ParameterType::kString, true, std::nullopt, std::nullopt,
+           std::nullopt}},
          false,
          true},
         {"ravo.core.gamma",
@@ -760,12 +818,21 @@ Result<OperationRegistry> make_phase1_registry()
         {std::string(kVelviaOperationId),
          "Velvia",
          kVelviaOperationSchemaVersion,
-         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt,
-           std::nullopt},
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
           {"algorithm", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
           {"strength", ParameterType::kNumber, true, std::nullopt, 0.0, 100.0},
           {"bias", ParameterType::kNumber, true, std::nullopt, 0.0, 1.0}},
          true,
+         true},
+        {std::string(kLut3dOperationId),
+         "3D LUT",
+         kLut3dOperationSchemaVersion,
+         {{"file_path", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"input_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"output_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"interpolation", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"strength", ParameterType::kNumber, true, std::nullopt, 0.0, 1.0}},
+         false,
          true},
         {std::string(kMonochromeOperationId),
          "Monochrome",
@@ -804,6 +871,19 @@ Result<OperationRegistry> make_phase1_registry()
            kSharpenAmountMax},
           {"threshold", ParameterType::kNumber, true, std::nullopt, kSharpenThresholdMin,
            kSharpenThresholdMax}},
+         false,
+         true},
+        {std::string(kTextureOperationId),
+         "Texture",
+         kTextureOperationSchemaVersion,
+         {{"working_space", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"algorithm", ParameterType::kString, true, std::nullopt, std::nullopt, std::nullopt},
+          {"strength", ParameterType::kNumber, true, std::nullopt, kTextureStrengthMin,
+           kTextureStrengthMax},
+          {"detail_threshold", ParameterType::kNumber, true, std::nullopt,
+           kTextureDetailThresholdMin, kTextureDetailThresholdMax},
+          {"iterations", ParameterType::kInteger, true, std::nullopt,
+           static_cast<double>(kTextureIterationsMin), static_cast<double>(kTextureIterationsMax)}},
          false,
          true},
         {std::string(kRetouchOperationId),

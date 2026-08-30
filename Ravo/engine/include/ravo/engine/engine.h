@@ -17,6 +17,7 @@
 #include "ravo/foundation/color.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/operation.h"
+#include "ravo/recipe/perspective.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo
@@ -216,6 +217,44 @@ struct LinearWorkingBuffer
     std::optional<AttachedPixelFrame> mask_attached_frame;
 };
 
+enum class PerspectiveAnalysisMode : std::uint8_t
+{
+    kVertical = 0,
+    kHorizontal = 1,
+    kFull = 2,
+};
+
+enum class PerspectiveGuideOrientation : std::uint8_t
+{
+    kVertical = 0,
+    kHorizontal = 1,
+};
+
+struct PerspectiveGuideLine
+{
+    double x1 = 0.0;
+    double y1 = 0.0;
+    double x2 = 0.0;
+    double y2 = 0.0;
+    double weight = 1.0;
+    PerspectiveGuideOrientation orientation = PerspectiveGuideOrientation::kVertical;
+
+    [[nodiscard]] bool operator==(const PerspectiveGuideLine &) const noexcept = default;
+};
+
+struct PerspectiveAnalysis
+{
+    PerspectiveParams params;
+    std::vector<PerspectiveGuideLine> lines;
+    std::uint32_t vertical_line_count = 0U;
+    std::uint32_t horizontal_line_count = 0U;
+    std::uint32_t analyzed_width = 0U;
+    std::uint32_t analyzed_height = 0U;
+    double residual_degrees = 0.0;
+};
+
+struct DngOpcodeMetadata;
+
 // Caller-owned, bounded cache for one exact interactive-preview source generation.
 // The owner must discard this value whenever the associated LinearWorkingBuffer changes and
 // must serialize access to it. Engine publishes a new prefix only after successful completion.
@@ -309,6 +348,9 @@ struct DecodedRaw
     std::uint32_t exposure_deflicker_white_level = 0;
     RawExposureMetadata exposure_metadata;
     ColorProfileState color_profile;
+    // Parsed DNG opcodes are immutable owned values. LibRaw pointers never
+    // cross decode_raw_frame or survive the decoder which supplied them.
+    std::shared_ptr<const DngOpcodeMetadata> dng_opcodes;
     std::vector<std::uint8_t> cfa_channels;
     std::vector<std::uint16_t> pixels;
 };
@@ -335,10 +377,21 @@ struct InspectionResult
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     bool is_raw = false;
+    std::string raw_sensor;
+    std::uint32_t cfa_width = 0;
+    std::uint32_t cfa_height = 0;
+    std::string default_demosaic_mode;
     bool has_as_shot_white_balance = false;
     std::array<double, 4> as_shot_white_balance{1.0, 1.0, 1.0, 1.0};
     bool has_camera_reference_white_balance = false;
     std::array<double, 4> camera_reference_white_balance{1.0, 1.0, 1.0, 1.0};
+    bool dng_opcode_list2_present = false;
+    bool dng_opcode_list3_present = false;
+    std::uint32_t dng_gain_map_count = 0;
+    bool dng_has_warp_rectilinear = false;
+    bool dng_has_fix_vignette_radial = false;
+    std::vector<std::uint32_t> dng_skipped_optional_opcode_list2;
+    std::vector<std::uint32_t> dng_skipped_optional_opcode_list3;
     std::optional<double> iso;
     std::optional<double> aperture;
     std::optional<double> focal_length_mm;
@@ -360,6 +413,18 @@ struct RawInspectPreview
 {
     InspectionResult inspection;
     std::optional<EmbeddedPreview> embedded_preview;
+};
+
+struct Lut3dInspection
+{
+    std::string canonical_path;
+    std::string fingerprint;
+    std::string title;
+    std::uint32_t size = 0U;
+    std::array<float, 3> domain_min{};
+    std::array<float, 3> domain_max{};
+
+    [[nodiscard]] bool operator==(const Lut3dInspection &) const noexcept = default;
 };
 
 struct ProgressEvent
@@ -444,6 +509,13 @@ public:
     [[nodiscard]] Result<void> validate(const Recipe &recipe) const;
     [[nodiscard]] Result<std::string> input_color_cache_fingerprint(const Recipe &recipe) const;
     [[nodiscard]] Result<std::string> output_color_cache_fingerprint(const Recipe &recipe) const;
+    // Reads and validates the complete bounded .cube snapshot. The process cache
+    // is content-addressed; a changed or corrupt file can never reuse stale data.
+    [[nodiscard]] Result<Lut3dInspection>
+    inspect_lut3d(std::string_view path, const CancellationToken &cancellation) const;
+    [[nodiscard]] Result<std::string>
+    lut3d_cache_fingerprint(const Recipe &recipe,
+                            const CancellationToken &cancellation = {}) const;
 
     // The sink is borrowed only for the duration of this synchronous call.
     [[nodiscard]] Result<RenderResult> render(const RenderRequest &request,
@@ -452,6 +524,11 @@ public:
                                                         const RasterBuffer *raster = nullptr) const;
     [[nodiscard]] Result<DecodedRaw> decode_raw_frame(std::string_view input_uri,
                                                       const CancellationToken &cancellation) const;
+    // Bounded deterministic intent analysis. The raster is borrowed for this
+    // synchronous call and is never retained or mutated.
+    [[nodiscard]] Result<PerspectiveAnalysis>
+    analyze_perspective(const RasterBuffer &raster, PerspectiveAnalysisMode mode,
+                        const CancellationToken &cancellation) const;
     [[nodiscard]] Result<std::array<double, 4>>
     sample_white_balance(const DecodedRaw &raw, const WhiteBalancePickRequest &request) const;
     [[nodiscard]] Result<LinearWorkingBuffer>

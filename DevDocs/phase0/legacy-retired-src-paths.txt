@@ -79,3 +79,9 @@ iop/watermark.c
 iop/colorzones.c
 iop/monochrome.c
 iop/splittoning.c
+iop/velvia.c
+iop/ashift.c
+iop/ashift_lsd.c
+iop/ashift_nmsimplex.c
+iop/rawdenoise.c
+iop/lut3d.c

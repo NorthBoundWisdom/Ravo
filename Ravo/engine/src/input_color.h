@@ -31,5 +31,10 @@ struct ProfiledColorBuffer
 [[nodiscard]] Result<LinearWorkingBuffer>
 convert_working_profile(const LinearWorkingBuffer &input, std::string_view target_profile,
                         const CancellationToken &cancellation);
+// Resolves the matrix/profile tag for a built-in linear working space without
+// transforming pixels. This remains engine-private so resource adapters and UI
+// code cannot manufacture colour-profile state.
+[[nodiscard]] Result<ColorProfileState>
+builtin_linear_working_profile_state(std::string_view target_profile);
 
 } // namespace ravo

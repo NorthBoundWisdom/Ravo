@@ -3354,6 +3354,12 @@ validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::les
 
 void clamp_develop(DevelopParams &params) noexcept
 {
+    if (params.demosaic_mode != kDemosaicModeRcd && params.demosaic_mode != kDemosaicModePpg &&
+        params.demosaic_mode != kDemosaicModeMarkesteijn1 &&
+        params.demosaic_mode != kDemosaicModeMarkesteijn3)
+    {
+        params.demosaic_mode = std::string(kDemosaicModeRcd);
+    }
     clamp_temperature(params.temperature);
     const auto clamp_profile_gamma_value =
         [](double &value, const double default_value, const double minimum, const double maximum)
@@ -3468,6 +3474,14 @@ void clamp_develop(DevelopParams &params) noexcept
     params.flip_vertical = flag01(params.flip_vertical);
     params.straighten_degrees =
         clamp_value(params.straighten_degrees, kDevelopStraightenMin, kDevelopStraightenMax);
+    params.perspective_vertical =
+        clamp_value(params.perspective_vertical, kPerspectiveShiftMin, kPerspectiveShiftMax);
+    params.perspective_horizontal =
+        clamp_value(params.perspective_horizontal, kPerspectiveShiftMin, kPerspectiveShiftMax);
+    params.perspective_shear =
+        clamp_value(params.perspective_shear, kPerspectiveShearMin, kPerspectiveShearMax);
+    params.perspective_interpolation_index =
+        std::clamp<std::int64_t>(params.perspective_interpolation_index, 0, 2);
     params.crop_width = clamp_value(params.crop_width, 0.01, 1.0);
     params.crop_height = clamp_value(params.crop_height, 0.01, 1.0);
     params.crop_x = clamp_value(params.crop_x, 0.0, 1.0 - params.crop_width);
@@ -3487,6 +3501,12 @@ void clamp_develop(DevelopParams &params) noexcept
         clamp_value(params.sharpen_radius, kSharpenRadiusMin, kSharpenRadiusMax);
     params.sharpen_threshold =
         clamp_value(params.sharpen_threshold, kSharpenThresholdMin, kSharpenThresholdMax);
+    params.texture.strength =
+        clamp_value(params.texture.strength, kTextureStrengthMin, kTextureStrengthMax);
+    params.texture.detail_threshold = clamp_value(
+        params.texture.detail_threshold, kTextureDetailThresholdMin, kTextureDetailThresholdMax);
+    params.texture.iterations = std::clamp<std::int64_t>(
+        params.texture.iterations, kTextureIterationsMin, kTextureIterationsMax);
     params.retouch.num_scales =
         std::clamp<std::int64_t>(params.retouch.num_scales, 0, kRetouchMaxScales);
     params.retouch.merge_from_scale =
@@ -3555,7 +3575,17 @@ void clamp_develop(DevelopParams &params) noexcept
         clamp_value(params.watermark.rotation_degrees, -180.0, 180.0);
     if (watermark_alignment_name(params.watermark.alignment).empty())
         params.watermark.alignment = WatermarkAlignment::kBottomRight;
-    params.velvia = clamp_value(params.velvia, 0.0, 1.0);
+    params.velvia.strength = clamp_value(params.velvia.strength, 0.0, 100.0);
+    params.velvia.bias = clamp_value(params.velvia.bias, 0.0, 1.0);
+    if (!lut3d_space_supported(params.lut3d.input_space))
+        params.lut3d.input_space = std::string(kLut3dSpaceSrgb);
+    if (!lut3d_space_supported(params.lut3d.output_space))
+        params.lut3d.output_space = std::string(kLut3dSpaceSrgb);
+    if (!lut3d_interpolation_supported(params.lut3d.interpolation))
+        params.lut3d.interpolation = std::string(kLut3dInterpolationTetrahedral);
+    params.lut3d.strength = clamp_value(params.lut3d.strength, 0.0, 1.0);
+    if (params.lut3d_enabled)
+        params.lut3d_present = true;
     params.monochrome.filter_a = clamp_value(params.monochrome.filter_a, -128.0, 128.0);
     params.monochrome.filter_b = clamp_value(params.monochrome.filter_b, -128.0, 128.0);
     params.monochrome.size = clamp_value(params.monochrome.size, 0.5, 3.0);
@@ -3705,8 +3735,9 @@ bool DevelopParams::is_identity() const noexcept
 {
     return masks.empty() && !color_harmonizer_present && !color_harmonizer_mask_id.has_value() &&
            !graduated_present && !graduated_enabled && !graduated_mask_id.has_value() &&
-           temperature.is_identity() && !profile_gamma_enabled && input_color.is_identity() &&
-           output_color.is_identity() && primaries.is_identity() && channel_mixer.is_identity() &&
+           demosaic_mode == kDemosaicModeRcd && temperature.is_identity() &&
+           !profile_gamma_enabled && input_color.is_identity() && output_color.is_identity() &&
+           primaries.is_identity() && channel_mixer.is_identity() &&
            exposure_mode == kExposureModeManual && near(exposure_black, 0.0) &&
            near(exposure_ev, 0.0) &&
            near(exposure_deflicker_percentile, kExposureDeflickerPercentileDefault) &&
@@ -3715,26 +3746,31 @@ bool DevelopParams::is_identity() const noexcept
            near(contrast, 0.0) && near(highlights, 0.0) && near(shadows, 0.0) &&
            near(whites, 0.0) && near(blacks, 0.0) && near(vibrance, 0.0) && near(saturation, 0.0) &&
            rotate_quarters % 4 == 0 && flip_horizontal == 0 && flip_vertical == 0 &&
-           near(straighten_degrees, 0.0) && near(crop_x, 0.0) && near(crop_y, 0.0) &&
-           near(crop_width, 1.0) && near(crop_height, 1.0) && !canvas_present && !canvas_enabled &&
-           near(sharpen, 0.0) && near(sharpen_radius, 2.0) && near(sharpen_threshold, 0.5) &&
+           near(straighten_degrees, 0.0) && near(perspective_vertical, 0.0) &&
+           near(perspective_horizontal, 0.0) && near(perspective_shear, 0.0) && near(crop_x, 0.0) &&
+           near(crop_y, 0.0) && near(crop_width, 1.0) && near(crop_height, 1.0) &&
+           !canvas_present && !canvas_enabled && near(sharpen, 0.0) && near(sharpen_radius, 2.0) &&
+           near(sharpen_threshold, 0.5) && near(texture.strength, 0.0) &&
+           near(texture.detail_threshold, 0.2) && texture.iterations == 1 &&
            retouch.is_identity() && near(clarity, 0.0) && near(vignette, 0.0) && near(grain, 0.0) &&
            near(bloom, 0.0) && near(soften, 0.0) && near(dehaze, 0.0) &&
            near(dehaze_distance, 0.2) && dehaze_adaptive && !output_dither_present &&
            !output_dither_enabled && !frame_present && !frame_enabled && !watermark_present &&
-           !watermark_enabled && near(velvia, 0.0) && !color_balance_enabled &&
-           !color_checker_enabled && color_balance_rgb.is_identity() && !color_correction_enabled &&
-           !color_contrast_enabled && !color_reconstruction_enabled && !color_zones_present &&
-           !color_zones_enabled && !color_zones_mask_id.has_value() && !color_harmonizer_enabled &&
-           !monochrome_present && !monochrome_enabled && !monochrome_mask_id.has_value() &&
-           !split_toning_present && !split_toning_enabled && !split_toning_mask_id.has_value() &&
-           near(gamma, kDevelopGammaDefault) && rgb_levels.is_identity() &&
-           rgb_curve.is_identity() && tone_curve_is_identity(tone_curve) &&
-           tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
-           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
-           raw_ca_iterations == 0 && near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) &&
-           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
-           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !watermark_enabled && !velvia_present && !velvia_enabled &&
+           !velvia_mask_id.has_value() && !lut3d_present && !lut3d_enabled &&
+           !color_balance_enabled && !color_checker_enabled && color_balance_rgb.is_identity() &&
+           !color_correction_enabled && !color_contrast_enabled && !color_reconstruction_enabled &&
+           !color_zones_present && !color_zones_enabled && !color_zones_mask_id.has_value() &&
+           !color_harmonizer_enabled && !monochrome_present && !monochrome_enabled &&
+           !monochrome_mask_id.has_value() && !split_toning_present && !split_toning_enabled &&
+           !split_toning_mask_id.has_value() && near(gamma, kDevelopGammaDefault) &&
+           rgb_levels.is_identity() && rgb_curve.is_identity() &&
+           tone_curve_is_identity(tone_curve) && tone_curve_is_identity(tone_curve_a) &&
+           tone_curve_is_identity(tone_curve_b) && !sigmoid_enabled && near(raw_highlights, 0.0) &&
+           near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
+           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
+           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
+           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -3753,12 +3789,25 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return std::nullopt;
         }
         const auto index = static_cast<std::int64_t>(std::llround(value));
-        if (index < 0 || index >= static_cast<std::int64_t>(options.size()))
+        if (std::abs(value - static_cast<double>(index)) > 1.0e-9 || index < 0 ||
+            index >= static_cast<std::int64_t>(options.size()))
         {
             return std::nullopt;
         }
         return std::string(options[static_cast<std::size_t>(index)]);
     };
+    if (name == "demosaicModeIndex")
+    {
+        const auto mode = selected(
+            std::array<std::string_view, 4>{kDemosaicModeRcd, kDemosaicModePpg,
+                                            kDemosaicModeMarkesteijn1, kDemosaicModeMarkesteijn3});
+        if (!mode)
+        {
+            return false;
+        }
+        params.demosaic_mode = std::move(*mode);
+        return true;
+    }
     if (apply_temperature_field(params.temperature, name, value))
     {
         return true;
@@ -4217,6 +4266,41 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
+    if (name == "perspectiveVertical")
+    {
+        if (!std::isfinite(value))
+            return false;
+        params.perspective_vertical = value;
+        return true;
+    }
+    if (name == "perspectiveHorizontal")
+    {
+        if (!std::isfinite(value))
+            return false;
+        params.perspective_horizontal = value;
+        return true;
+    }
+    if (name == "perspectiveShear")
+    {
+        if (!std::isfinite(value))
+            return false;
+        params.perspective_shear = value;
+        return true;
+    }
+    if (name == "perspectiveConstrainCrop")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.perspective_constrain_crop = value == 1.0;
+        return true;
+    }
+    if (name == "perspectiveInterpolationIndex")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
+            return false;
+        params.perspective_interpolation_index = static_cast<std::int64_t>(value);
+        return true;
+    }
     if (name == "cropX")
     {
         params.crop_x = value;
@@ -4298,6 +4382,28 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     if (name == "sharpenThreshold")
     {
         params.sharpen_threshold = value;
+
+        return true;
+    }
+    if (name == "texture")
+    {
+        params.texture.strength = value;
+
+        return true;
+    }
+    if (name == "textureDetailThreshold")
+    {
+        params.texture.detail_threshold = value;
+
+        return true;
+    }
+    if (name == "textureIterations")
+    {
+        if (!std::isfinite(value) || std::floor(value) != value)
+        {
+            return false;
+        }
+        params.texture.iterations = static_cast<std::int64_t>(value);
 
         return true;
     }
@@ -4541,8 +4647,82 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     }
     if (name == "velvia")
     {
-        params.velvia = value;
+        if (value == 0.0)
+        {
+            const DevelopParams identity;
+            params.velvia_present = identity.velvia_present;
+            params.velvia_enabled = identity.velvia_enabled;
+            params.velvia = identity.velvia;
+            params.velvia_mask_id = identity.velvia_mask_id;
+            return true;
+        }
+        params.velvia_present = true;
+        params.velvia_enabled = true;
+        params.color_effect_enabled = true;
+        params.velvia.strength = value * 100.0;
 
+        return true;
+    }
+    if (name == "velviaEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.velvia_present = true;
+        params.velvia_enabled = value == 1.0;
+        if (params.velvia_enabled)
+            params.color_effect_enabled = true;
+
+        return true;
+    }
+    if (name == "velviaStrength" || name == "velviaBias")
+    {
+        params.velvia_present = true;
+        params.velvia_enabled = true;
+        params.color_effect_enabled = true;
+        double *target = name == "velviaStrength" ? &params.velvia.strength : &params.velvia.bias;
+        *target = value;
+
+        return true;
+    }
+    if (name == "lut3dEnabled")
+    {
+        if (value != 0.0 && value != 1.0)
+            return false;
+        params.lut3d_enabled = value == 1.0;
+        params.lut3d_present = params.lut3d_enabled || !params.lut3d.file_path.empty();
+        if (params.lut3d_enabled)
+            params.color_effect_enabled = true;
+        return true;
+    }
+    if (name == "lut3dInputSpaceIndex" || name == "lut3dOutputSpaceIndex")
+    {
+        const auto space = selected(kLut3dSelectableSpaces);
+        if (!space)
+            return false;
+        params.lut3d_present = true;
+        params.lut3d_enabled = true;
+        params.color_effect_enabled = true;
+        (name == "lut3dInputSpaceIndex" ? params.lut3d.input_space : params.lut3d.output_space) =
+            *space;
+        return true;
+    }
+    if (name == "lut3dInterpolationIndex")
+    {
+        const auto interpolation = selected(kLut3dSelectableInterpolations);
+        if (!interpolation)
+            return false;
+        params.lut3d_present = true;
+        params.lut3d_enabled = true;
+        params.color_effect_enabled = true;
+        params.lut3d.interpolation = *interpolation;
+        return true;
+    }
+    if (name == "lut3dStrength")
+    {
+        params.lut3d_present = true;
+        params.lut3d_enabled = true;
+        params.color_effect_enabled = true;
+        params.lut3d.strength = value;
         return true;
     }
     if (apply_legacy_color_balance_field(params.color_balance, name, value))
@@ -4772,6 +4952,12 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     {
         params.raw_highlights_mode = value >= 0.5 ? std::string(kRawHighlightsModeInpaint) :
                                                     std::string(kRawHighlightsModeClip);
+
+        return true;
+    }
+    if (name == "rawDenoiseThreshold")
+    {
+        params.raw_denoise_threshold = value;
 
         return true;
     }
@@ -5210,6 +5396,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "dehaze",
         "dehazeAdaptive",
         "dehazeDistance",
+        "demosaicModeIndex",
         "denoise",
         "denoiseChroma",
         "denoiseRadius",
@@ -5240,6 +5427,11 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "lensTcaB",
         "lensTcaR",
         "lensVignetting",
+        "lut3dEnabled",
+        "lut3dInputSpaceIndex",
+        "lut3dInterpolationIndex",
+        "lut3dOutputSpaceIndex",
+        "lut3dStrength",
         "monochrome",
         "monochromeEnabled",
         "monochromeFilterA",
@@ -5268,6 +5460,11 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "outputFrameSize",
         "outputProfile",
         "outputRenderingIntent",
+        "perspectiveConstrainCrop",
+        "perspectiveHorizontal",
+        "perspectiveInterpolationIndex",
+        "perspectiveShear",
+        "perspectiveVertical",
         "primariesAchromaticHueDegrees",
         "primariesAchromaticPurity",
         "primariesBlueHueDegrees",
@@ -5289,6 +5486,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "proofProfile",
         "rawCaAvoidShift",
         "rawCaIterations",
+        "rawDenoiseThreshold",
         "rawHighlights",
         "rawHighlightsClip",
         "rawHighlightsMode",
@@ -5334,7 +5532,13 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         "toneEqMidtones",
         "toneEqShadows",
         "toneEqWhites",
+        "texture",
+        "textureDetailThreshold",
+        "textureIterations",
         "velvia",
+        "velviaBias",
+        "velviaEnabled",
+        "velviaStrength",
         "vibrance",
         "vignette",
         "vignetteCenterX",
@@ -5459,6 +5663,29 @@ Result<void> apply_develop_field_strict(DevelopParams &params, const std::string
 Result<void> apply_develop_text_field_strict(DevelopParams &params, const std::string_view name,
                                              const std::string_view value)
 {
+    if (name == "lut3dFile")
+    {
+        DevelopParams candidate = params;
+        if (value.empty())
+        {
+            const DevelopParams identity;
+            candidate.lut3d_present = identity.lut3d_present;
+            candidate.lut3d_enabled = identity.lut3d_enabled;
+            candidate.lut3d = identity.lut3d;
+        }
+        else
+        {
+            candidate.lut3d_present = true;
+            candidate.lut3d_enabled = true;
+            candidate.color_effect_enabled = true;
+            candidate.lut3d.file_path = std::string(value);
+            auto valid = lut3d_to_parameters(candidate.lut3d);
+            if (!valid)
+                return valid.error();
+        }
+        params = std::move(candidate);
+        return {};
+    }
     if (name != "watermarkText")
         return make_error(ErrorCode::kInvalidArgument, "Develop text field is unsupported",
                           {{"name", std::string(name)}});
@@ -5512,11 +5739,12 @@ std::vector<DevelopSetField> list_develop_set_fields()
             develop_set_field_accepts(name, 0.0) && develop_set_field_accepts(name, 1.0) &&
             !develop_set_field_accepts(name, 0.5) && !develop_set_field_accepts(name, 2.0) &&
             !develop_set_field_accepts(name, -1.0);
+        const bool indexed_choice = name.ends_with("Index");
         DevelopSetField field;
         field.name = name;
-        field.kind = toggle  ? DevelopSetFieldKind::Toggle :
-                     integer ? DevelopSetFieldKind::Integer :
-                               DevelopSetFieldKind::Number;
+        field.kind = toggle && !indexed_choice ? DevelopSetFieldKind::Toggle :
+                     integer                   ? DevelopSetFieldKind::Integer :
+                                                 DevelopSetFieldKind::Number;
         field.minimum = develop_set_field_extreme(name, *seed, -1.0, integer || toggle);
         field.maximum = develop_set_field_extreme(name, *seed, 1.0, integer || toggle);
         if (toggle)
@@ -5530,6 +5758,10 @@ std::vector<DevelopSetField> list_develop_set_fields()
     text.name = "watermarkText";
     text.kind = DevelopSetFieldKind::Text;
     fields.push_back(std::move(text));
+    DevelopSetField lut_path;
+    lut_path.name = "lut3dFile";
+    lut_path.kind = DevelopSetFieldKind::Text;
+    fields.push_back(std::move(lut_path));
     std::sort(fields.begin(), fields.end(),
               [](const DevelopSetField &left, const DevelopSetField &right)
               { return left.name < right.name; });
@@ -5543,7 +5775,11 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         return static_cast<bool>(reset_develop_mask_field(params, name));
     }
     DevelopParams identity;
-    if (reset_temperature_field(params.temperature, name))
+    if (name == "demosaicModeIndex")
+    {
+        params.demosaic_mode = identity.demosaic_mode;
+    }
+    else if (reset_temperature_field(params.temperature, name))
     {
     }
     else if (name == "profileGammaEnabled")
@@ -5697,6 +5933,26 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.straighten_degrees = identity.straighten_degrees;
     }
+    else if (name == "perspectiveVertical")
+    {
+        params.perspective_vertical = identity.perspective_vertical;
+    }
+    else if (name == "perspectiveHorizontal")
+    {
+        params.perspective_horizontal = identity.perspective_horizontal;
+    }
+    else if (name == "perspectiveShear")
+    {
+        params.perspective_shear = identity.perspective_shear;
+    }
+    else if (name == "perspectiveConstrainCrop")
+    {
+        params.perspective_constrain_crop = identity.perspective_constrain_crop;
+    }
+    else if (name == "perspectiveInterpolationIndex")
+    {
+        params.perspective_interpolation_index = identity.perspective_interpolation_index;
+    }
     else if (name == "crop" || name == "cropX" || name == "cropY" || name == "cropWidth" ||
              name == "cropHeight")
     {
@@ -5724,6 +5980,21 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         else if (name == "sharpenThreshold")
         {
             params.sharpen_threshold = identity.sharpen_threshold;
+        }
+    }
+    else if (name == "texture" || name == "textureDetailThreshold" || name == "textureIterations")
+    {
+        if (name == "textureDetailThreshold")
+        {
+            params.texture.detail_threshold = identity.texture.detail_threshold;
+        }
+        else if (name == "textureIterations")
+        {
+            params.texture.iterations = identity.texture.iterations;
+        }
+        else
+        {
+            params.texture = identity.texture;
         }
     }
     else if (name == "retouch")
@@ -5815,7 +6086,48 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     }
     else if (name == "velvia")
     {
+        params.velvia_present = identity.velvia_present;
+        params.velvia_enabled = identity.velvia_enabled;
         params.velvia = identity.velvia;
+        params.velvia_mask_id = identity.velvia_mask_id;
+    }
+    else if (name == "velviaEnabled")
+    {
+        params.velvia_enabled = identity.velvia_enabled;
+    }
+    else if (name == "velviaStrength")
+    {
+        params.velvia.strength = identity.velvia.strength;
+    }
+    else if (name == "velviaBias")
+    {
+        params.velvia.bias = identity.velvia.bias;
+    }
+    else if (name == "lut3d" || name == "lut3dFile")
+    {
+        params.lut3d_present = identity.lut3d_present;
+        params.lut3d_enabled = identity.lut3d_enabled;
+        params.lut3d = identity.lut3d;
+    }
+    else if (name == "lut3dEnabled")
+    {
+        params.lut3d_enabled = identity.lut3d_enabled;
+    }
+    else if (name == "lut3dInputSpaceIndex")
+    {
+        params.lut3d.input_space = identity.lut3d.input_space;
+    }
+    else if (name == "lut3dOutputSpaceIndex")
+    {
+        params.lut3d.output_space = identity.lut3d.output_space;
+    }
+    else if (name == "lut3dInterpolationIndex")
+    {
+        params.lut3d.interpolation = identity.lut3d.interpolation;
+    }
+    else if (name == "lut3dStrength")
+    {
+        params.lut3d.strength = identity.lut3d.strength;
     }
     else if (reset_legacy_color_balance_field(params.color_balance, name))
     {
@@ -5933,6 +6245,10 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.raw_highlights = identity.raw_highlights;
         params.raw_highlights_clip = identity.raw_highlights_clip;
         params.raw_highlights_mode = identity.raw_highlights_mode;
+    }
+    else if (name == "rawDenoiseThreshold")
+    {
+        params.raw_denoise_threshold = identity.raw_denoise_threshold;
     }
     else if (name == "hotPixelsStrength" || name == "hotPixelsThreshold" ||
              name == "hotPixelsPermissive")
@@ -6060,6 +6376,11 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.flip_horizontal = 0;
         params.flip_vertical = 0;
         params.straighten_degrees = 0.0;
+        params.perspective_vertical = identity.perspective_vertical;
+        params.perspective_horizontal = identity.perspective_horizontal;
+        params.perspective_shear = identity.perspective_shear;
+        params.perspective_constrain_crop = identity.perspective_constrain_crop;
+        params.perspective_interpolation_index = identity.perspective_interpolation_index;
         params.crop_x = 0.0;
         params.crop_y = 0.0;
         params.crop_width = 1.0;
@@ -6141,7 +6462,13 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     {
         params.vibrance = identity.vibrance;
         params.saturation = identity.saturation;
+        params.velvia_present = identity.velvia_present;
+        params.velvia_enabled = identity.velvia_enabled;
         params.velvia = identity.velvia;
+        params.velvia_mask_id = identity.velvia_mask_id;
+        params.lut3d_present = identity.lut3d_present;
+        params.lut3d_enabled = identity.lut3d_enabled;
+        params.lut3d = identity.lut3d;
         params.color_balance_enabled = identity.color_balance_enabled;
         params.color_balance = identity.color_balance;
         params.color_checker_enabled = identity.color_checker_enabled;
@@ -6187,6 +6514,7 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
         params.sharpen = identity.sharpen;
         params.sharpen_radius = identity.sharpen_radius;
         params.sharpen_threshold = identity.sharpen_threshold;
+        params.texture = identity.texture;
         params.retouch = identity.retouch;
         params.clarity = identity.clarity;
         params.grain = identity.grain;
@@ -6217,6 +6545,7 @@ bool reset_develop_section(DevelopParams &params, const std::string_view section
     }
     else if (section == "raw")
     {
+        params.demosaic_mode = identity.demosaic_mode;
         params.raw_highlights = identity.raw_highlights;
         params.raw_highlights_clip = identity.raw_highlights_clip;
         params.raw_highlights_mode = identity.raw_highlights_mode;
@@ -6266,6 +6595,11 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
         dest.flip_horizontal = source.flip_horizontal;
         dest.flip_vertical = source.flip_vertical;
         dest.straighten_degrees = source.straighten_degrees;
+        dest.perspective_vertical = source.perspective_vertical;
+        dest.perspective_horizontal = source.perspective_horizontal;
+        dest.perspective_shear = source.perspective_shear;
+        dest.perspective_constrain_crop = source.perspective_constrain_crop;
+        dest.perspective_interpolation_index = source.perspective_interpolation_index;
         dest.crop_x = source.crop_x;
         dest.crop_y = source.crop_y;
         dest.crop_width = source.crop_width;
@@ -6350,7 +6684,12 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
     {
         dest.vibrance = source.vibrance;
         dest.saturation = source.saturation;
+        dest.velvia_present = source.velvia_present;
+        dest.velvia_enabled = source.velvia_enabled;
         dest.velvia = source.velvia;
+        dest.lut3d_present = source.lut3d_present;
+        dest.lut3d_enabled = source.lut3d_enabled;
+        dest.lut3d = source.lut3d;
         dest.color_balance_enabled = source.color_balance_enabled;
         dest.color_balance = source.color_balance;
         dest.color_checker_enabled = source.color_checker_enabled;
@@ -6398,6 +6737,7 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
         dest.sharpen = source.sharpen;
         dest.sharpen_radius = source.sharpen_radius;
         dest.sharpen_threshold = source.sharpen_threshold;
+        dest.texture = source.texture;
         dest.retouch = source.retouch;
         dest.clarity = source.clarity;
         dest.grain = source.grain;
@@ -6430,6 +6770,7 @@ bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
     }
     else if (section == "raw")
     {
+        dest.demosaic_mode = source.demosaic_mode;
         dest.raw_highlights = source.raw_highlights;
         dest.raw_highlights_clip = source.raw_highlights_clip;
         dest.raw_highlights_mode = source.raw_highlights_mode;
@@ -6502,6 +6843,8 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     {
         return params.rotate_quarters % 4 != 0 || params.flip_horizontal != 0 ||
                params.flip_vertical != 0 || !near(params.straighten_degrees, 0.0) ||
+               !near(params.perspective_vertical, 0.0) ||
+               !near(params.perspective_horizontal, 0.0) || !near(params.perspective_shear, 0.0) ||
                !near(params.crop_x, 0.0) || !near(params.crop_y, 0.0) ||
                !near(params.crop_width, 1.0) || !near(params.crop_height, 1.0) ||
                params.canvas_present || params.canvas_enabled;
@@ -6559,16 +6902,17 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     if (section == "color")
     {
         return !near(params.vibrance, 0.0) || !near(params.saturation, 0.0) ||
-               !near(params.velvia, 0.0) || params.color_balance_enabled ||
-               !params.color_balance.is_identity() || params.color_checker_enabled ||
-               !params.color_balance_rgb.is_identity() || params.color_correction_enabled ||
-               params.color_contrast_enabled || params.color_reconstruction_enabled ||
-               params.color_zones_present || params.color_zones_enabled ||
-               params.color_zones_mask_id.has_value() || params.color_harmonizer_enabled ||
-               params.color_harmonizer_present || params.monochrome_present ||
-               params.monochrome_enabled || params.monochrome_mask_id.has_value() ||
-               params.split_toning_present || params.split_toning_enabled ||
-               params.split_toning_mask_id.has_value();
+               params.velvia_present || params.velvia_enabled ||
+               params.velvia_mask_id.has_value() || params.lut3d_present || params.lut3d_enabled ||
+               params.color_balance_enabled || !params.color_balance.is_identity() ||
+               params.color_checker_enabled || !params.color_balance_rgb.is_identity() ||
+               params.color_correction_enabled || params.color_contrast_enabled ||
+               params.color_reconstruction_enabled || params.color_zones_present ||
+               params.color_zones_enabled || params.color_zones_mask_id.has_value() ||
+               params.color_harmonizer_enabled || params.color_harmonizer_present ||
+               params.monochrome_present || params.monochrome_enabled ||
+               params.monochrome_mask_id.has_value() || params.split_toning_present ||
+               params.split_toning_enabled || params.split_toning_mask_id.has_value();
     }
     if (section == "colorHarmonizer")
     {
@@ -6579,6 +6923,9 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
         return !near(params.sharpen, 0.0) ||
                !near(params.sharpen_radius, identity.sharpen_radius) ||
                !near(params.sharpen_threshold, identity.sharpen_threshold) ||
+               !near(params.texture.strength, identity.texture.strength) ||
+               !near(params.texture.detail_threshold, identity.texture.detail_threshold) ||
+               params.texture.iterations != identity.texture.iterations ||
                !params.retouch.is_identity() || !near(params.clarity, 0.0) ||
                !near(params.grain, 0.0) || !near(params.denoise, 0.0);
     }
@@ -6593,9 +6940,10 @@ bool develop_section_modified(const DevelopParams &params, const std::string_vie
     }
     if (section == "raw")
     {
-        return !near(params.raw_highlights, 0.0) || !near(params.hot_pixels_strength, 0.0) ||
-               params.raw_ca_iterations > 0 || !near(params.raw_denoise_threshold, 0.0) ||
-               !near(params.lens_k1, 0.0) || !near(params.lens_vignetting, 0.0);
+        return params.demosaic_mode != kDemosaicModeRcd || !near(params.raw_highlights, 0.0) ||
+               !near(params.hot_pixels_strength, 0.0) || params.raw_ca_iterations > 0 ||
+               !near(params.raw_denoise_threshold, 0.0) || !near(params.lens_k1, 0.0) ||
+               !near(params.lens_vignetting, 0.0);
     }
     if (section == "toneEqual")
     {
@@ -6829,7 +7177,15 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_scaled_change(changes, "blacks", before.blacks, after.blacks, 10.0);
     add_scaled_change(changes, "vibrance", before.vibrance, after.vibrance, 10.0);
     add_scaled_change(changes, "saturation", before.saturation, after.saturation, 10.0);
-    add_scaled_change(changes, "velvia", before.velvia, after.velvia, 10.0);
+    add_named_change(changes, "velvia",
+                     before.velvia_present != after.velvia_present ||
+                         before.velvia_enabled != after.velvia_enabled ||
+                         before.velvia != after.velvia ||
+                         before.velvia_mask_id != after.velvia_mask_id);
+    add_named_change(changes, "lut3d",
+                     before.lut3d_present != after.lut3d_present ||
+                         before.lut3d_enabled != after.lut3d_enabled ||
+                         before.lut3d != after.lut3d);
     add_scaled_change(changes, "gamma", before.gamma, after.gamma, 10.0);
     add_named_change(changes, "rgbLevels", before.rgb_levels != after.rgb_levels);
     add_named_change(changes, "rgbCurve", before.rgb_curve != after.rgb_curve);
@@ -6837,6 +7193,11 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_scaled_change(changes, "sharpenRadius", before.sharpen_radius, after.sharpen_radius, 1.0);
     add_scaled_change(changes, "sharpenThreshold", before.sharpen_threshold,
                       after.sharpen_threshold, 1.0);
+    add_scaled_change(changes, "texture", before.texture.strength, after.texture.strength, 10.0);
+    add_scaled_change(changes, "textureDetailThreshold", before.texture.detail_threshold,
+                      after.texture.detail_threshold, 1.0);
+    add_scaled_change(changes, "textureIterations", static_cast<double>(before.texture.iterations),
+                      static_cast<double>(after.texture.iterations), 1.0);
     add_named_change(changes, "retouch", before.retouch != after.retouch);
     add_scaled_change(changes, "clarity", before.clarity, after.clarity, 10.0);
     add_scaled_change(changes, "vignette", before.vignette, after.vignette, 10.0);
@@ -6877,6 +7238,17 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
     add_scaled_change(changes, "denoise", before.denoise, after.denoise, 10.0);
     add_scaled_change(changes, "straighten", before.straighten_degrees, after.straighten_degrees,
                       1.0);
+    add_scaled_change(changes, "perspectiveVertical", before.perspective_vertical,
+                      after.perspective_vertical, 10.0);
+    add_scaled_change(changes, "perspectiveHorizontal", before.perspective_horizontal,
+                      after.perspective_horizontal, 10.0);
+    add_scaled_change(changes, "perspectiveShear", before.perspective_shear,
+                      after.perspective_shear, 10.0);
+    add_toggle_change(changes, "perspectiveConstrainCrop", before.perspective_constrain_crop,
+                      after.perspective_constrain_crop);
+    add_named_change(changes, "perspectiveInterpolation",
+                     before.perspective_interpolation_index !=
+                         after.perspective_interpolation_index);
     add_scaled_change(changes, "toneEqBlacks", before.tone_eq_blacks, after.tone_eq_blacks, 1.0);
     add_scaled_change(changes, "toneEqShadows", before.tone_eq_shadows, after.tone_eq_shadows, 1.0);
     add_scaled_change(changes, "toneEqMidtones", before.tone_eq_midtones, after.tone_eq_midtones,
@@ -6911,6 +7283,7 @@ std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                          before.tone_curve_preserve_colors != after.tone_curve_preserve_colors ||
                          before.tone_curve_working_space != after.tone_curve_working_space);
     add_toggle_change(changes, "curves", before.curves_effect_enabled, after.curves_effect_enabled);
+    add_named_change(changes, "demosaic", before.demosaic_mode != after.demosaic_mode);
     add_named_change(changes, "whiteBalance", before.temperature != after.temperature);
     add_named_change(changes, "inputProfile", before.input_color != after.input_color);
     add_named_change(changes, "outputProfile", before.output_color != after.output_color);
@@ -7210,7 +7583,10 @@ void strip_straighten_operations(Recipe &recipe)
 {
     recipe.operations.erase(std::remove_if(recipe.operations.begin(), recipe.operations.end(),
                                            [](const OperationInstance &operation)
-                                           { return operation.id == "ravo.geometry.straighten"; }),
+                                           {
+                                               return operation.id == "ravo.geometry.straighten" ||
+                                                      operation.id == kPerspectiveOperationId;
+                                           }),
                             recipe.operations.end());
 }
 
@@ -7221,6 +7597,11 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
     Recipe recipe;
     recipe.asset = std::move(asset);
     recipe.masks = clamped.masks;
+    if (clamped.demosaic_mode != kDemosaicModeRcd)
+    {
+        add_operation(recipe, std::string(kDemosaicOperationId), "demosaic-1",
+                      {{"mode", ParameterValue{clamped.demosaic_mode}}}, 1, std::nullopt, true);
+    }
     if (!clamped.temperature.is_identity())
     {
         add_operation(recipe, "ravo.color.temperature", "temperature-1",
@@ -7485,11 +7866,24 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       std::move(color_contrast).value(), kColorContrastOperationSchemaVersion,
                       std::nullopt, clamped.color_effect_enabled);
     }
-    if (!near(clamped.velvia, 0.0))
+    if (clamped.velvia_present || clamped.velvia_enabled || clamped.velvia_mask_id.has_value())
     {
-        add_operation(recipe, "ravo.color.velvia", "velvia-1",
-                      {{"amount", ParameterValue{clamped.velvia}}, {"bias", ParameterValue{1.0}}},
-                      1, std::nullopt, clamped.color_effect_enabled);
+        auto velvia = velvia_to_parameters(clamped.velvia);
+        if (!velvia)
+            return velvia.error();
+        add_operation(recipe, std::string(kVelviaOperationId), "velvia-1",
+                      std::move(velvia).value(), kVelviaOperationSchemaVersion,
+                      clamped.velvia_mask_id,
+                      clamped.color_effect_enabled && clamped.velvia_enabled);
+    }
+    if (clamped.lut3d_present || clamped.lut3d_enabled)
+    {
+        auto lut = lut3d_to_parameters(clamped.lut3d);
+        if (!lut)
+            return lut.error();
+        add_operation(recipe, std::string(kLut3dOperationId), "lut3d-1", std::move(lut).value(),
+                      kLut3dOperationSchemaVersion, std::nullopt,
+                      clamped.color_effect_enabled && clamped.lut3d_enabled);
     }
     if (!near(clamped.vibrance, 0.0))
     {
@@ -7544,6 +7938,17 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                       std::move(split).value(), kSplitToningOperationSchemaVersion,
                       clamped.split_toning_mask_id,
                       clamped.color_effect_enabled && clamped.split_toning_enabled);
+    }
+    if (!near(clamped.texture.strength, 0.0))
+    {
+        auto texture = texture_to_parameters(clamped.texture);
+        if (!texture)
+        {
+            return texture.error();
+        }
+        add_operation(recipe, std::string(kTextureOperationId), "texture-1",
+                      std::move(texture).value(), kTextureOperationSchemaVersion, std::nullopt,
+                      clamped.detail_effect_enabled);
     }
     if (!near(clamped.sharpen, 0.0))
     {
@@ -7623,11 +8028,26 @@ Result<Recipe> recipe_from_develop(AssetDescriptor asset, const DevelopParams &p
                        {"vertical", ParameterValue{clamped.flip_vertical}}},
                       1, std::nullopt, clamped.geometry_effect_enabled);
     }
-    if (!near(clamped.straighten_degrees, 0.0))
+    if (!near(clamped.straighten_degrees, 0.0) || !near(clamped.perspective_vertical, 0.0) ||
+        !near(clamped.perspective_horizontal, 0.0) || !near(clamped.perspective_shear, 0.0))
     {
-        add_operation(recipe, "ravo.geometry.straighten", "straighten-1",
-                      {{"degrees", ParameterValue{clamped.straighten_degrees}}}, 1, std::nullopt,
-                      clamped.geometry_effect_enabled);
+        static constexpr std::array<std::string_view, 3> kInterpolations{
+            kPerspectiveInterpolationBilinear, kPerspectiveInterpolationLanczos2,
+            kPerspectiveInterpolationLanczos3};
+        PerspectiveParams perspective;
+        perspective.rotation_degrees = clamped.straighten_degrees;
+        perspective.vertical_shift = clamped.perspective_vertical;
+        perspective.horizontal_shift = clamped.perspective_horizontal;
+        perspective.shear = clamped.perspective_shear;
+        perspective.constrain_crop = clamped.perspective_constrain_crop;
+        perspective.interpolation =
+            kInterpolations[static_cast<std::size_t>(clamped.perspective_interpolation_index)];
+        auto parameters = perspective_to_parameters(perspective);
+        if (!parameters)
+            return parameters.error();
+        add_operation(recipe, std::string(kPerspectiveOperationId), "perspective-1",
+                      std::move(parameters).value(), kPerspectiveOperationSchemaVersion,
+                      std::nullopt, clamped.geometry_effect_enabled);
     }
     if (!near(clamped.crop_x, 0.0) || !near(clamped.crop_y, 0.0) ||
         !near(clamped.crop_width, 1.0) || !near(clamped.crop_height, 1.0))
@@ -7708,6 +8128,8 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
 {
     DevelopParams params;
     params.masks = recipe.masks;
+    bool demosaic_present = false;
+    bool perspective_geometry_present = false;
     std::map<std::string, std::pair<bool, bool>, std::less<>> section_flags;
     const auto note_section = [&](const std::string_view section, const bool enabled)
     {
@@ -7735,7 +8157,29 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             }
             return as_integer(found->second, fallback);
         };
-        if (operation.id == "ravo.color.temperature")
+        if (operation.id == kDemosaicOperationId)
+        {
+            if (demosaic_present)
+            {
+                return make_error(ErrorCode::kValidation,
+                                  "Develop contains duplicate RAW demosaic operations",
+                                  {{"reason", "duplicate_demosaic_operation"}});
+            }
+            if (!operation.enabled)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop cannot disable the RAW demosaic owner",
+                                  {{"reason", "disabled_demosaic_operation"}});
+            }
+            auto mode = demosaic_mode_from_parameters(operation.parameters);
+            if (!mode)
+            {
+                return mode.error();
+            }
+            params.demosaic_mode = std::move(mode).value();
+            demosaic_present = true;
+        }
+        else if (operation.id == "ravo.color.temperature")
         {
             auto temperature = temperature_from_parameters(operation.parameters);
             if (!temperature)
@@ -8139,9 +8583,37 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.saturation = number("amount", params.saturation);
             note_section("color", operation.enabled);
         }
-        else if (operation.id == "ravo.color.velvia")
+        else if (operation.id == kVelviaOperationId)
         {
-            params.velvia = number("amount", params.velvia);
+            if (params.velvia_present)
+                return make_error(ErrorCode::kValidation,
+                                  "Develop contains duplicate Velvia operations",
+                                  {{"reason", "duplicate_velvia"}});
+            OperationInstance canonical = operation;
+            auto upgraded = upgrade_velvia_operation(canonical);
+            if (!upgraded)
+                return upgraded.error();
+            auto velvia = velvia_from_parameters(canonical.parameters);
+            if (!velvia)
+                return velvia.error();
+            params.velvia_present = true;
+            params.velvia_enabled = operation.enabled;
+            params.velvia = velvia.value();
+            params.velvia_mask_id = operation.mask_id;
+            note_section("color", operation.enabled);
+        }
+        else if (operation.id == kLut3dOperationId)
+        {
+            if (params.lut3d_present)
+                return make_error(ErrorCode::kValidation,
+                                  "Develop contains duplicate 3D LUT operations",
+                                  {{"reason", "duplicate_lut3d"}});
+            auto lut = lut3d_from_parameters(operation.parameters);
+            if (!lut)
+                return lut.error();
+            params.lut3d_present = true;
+            params.lut3d_enabled = operation.enabled;
+            params.lut3d = std::move(lut).value();
             note_section("color", operation.enabled);
         }
         else if (operation.id == "ravo.color.colorbalancergb")
@@ -8284,6 +8756,22 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
             params.sharpen_threshold = sharpen.value().threshold;
             note_section("detail", operation.enabled);
         }
+        else if (operation.id == kTextureOperationId)
+        {
+            if (operation.mask_id.has_value())
+            {
+                return make_error(
+                    ErrorCode::kUnsupported, "Develop Texture masks are unsupported",
+                    {{"operation_id", operation.id}, {"reason", "unsupported_texture_mask"}});
+            }
+            auto texture = texture_from_parameters(operation.parameters);
+            if (!texture)
+            {
+                return texture.error();
+            }
+            params.texture = texture.value();
+            note_section("detail", operation.enabled);
+        }
         else if (operation.id == kRetouchOperationId)
         {
             auto retouch = retouch_from_parameters(operation.parameters);
@@ -8365,7 +8853,56 @@ Result<DevelopParams> develop_from_recipe(const Recipe &recipe)
         }
         else if (operation.id == "ravo.geometry.straighten")
         {
+            if (perspective_geometry_present)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Develop does not allow duplicate perspective geometry",
+                                  {{"reason", "duplicate_perspective_operation"}});
+            }
+            if (operation.mask_id.has_value())
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Perspective masks are unsupported",
+                                  {{"reason", "unsupported_perspective_mask"}});
+            }
             params.straighten_degrees = number("degrees", params.straighten_degrees);
+            perspective_geometry_present = true;
+            note_section("geometry", operation.enabled);
+        }
+        else if (operation.id == kPerspectiveOperationId)
+        {
+            if (perspective_geometry_present)
+            {
+                return make_error(ErrorCode::kConflict,
+                                  "Develop does not allow duplicate perspective geometry",
+                                  {{"reason", "duplicate_perspective_operation"}});
+            }
+            if (operation.schema_version != kPerspectiveOperationSchemaVersion)
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Perspective schema version is unsupported",
+                                  {{"schema_version", std::to_string(operation.schema_version)},
+                                   {"reason", "unsupported_perspective_schema"}});
+            }
+            if (operation.mask_id.has_value())
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Develop Perspective masks are unsupported",
+                                  {{"reason", "unsupported_perspective_mask"}});
+            }
+            auto perspective = perspective_from_parameters(operation.parameters);
+            if (!perspective)
+                return perspective.error();
+            params.straighten_degrees = perspective.value().rotation_degrees;
+            params.perspective_vertical = perspective.value().vertical_shift;
+            params.perspective_horizontal = perspective.value().horizontal_shift;
+            params.perspective_shear = perspective.value().shear;
+            params.perspective_constrain_crop = perspective.value().constrain_crop;
+            params.perspective_interpolation_index =
+                perspective.value().interpolation == kPerspectiveInterpolationBilinear ? 0 :
+                perspective.value().interpolation == kPerspectiveInterpolationLanczos2 ? 1 :
+                                                                                         2;
+            perspective_geometry_present = true;
             note_section("geometry", operation.enabled);
         }
         else if (operation.id == "ravo.geometry.crop")
@@ -8665,8 +9202,10 @@ Result<LeftoverCropBox> leftover_crop_box_to_geometry(const float left, const fl
     return box;
 }
 
-Result<double> leftover_ashift_rotation_to_straighten(const float rotation, const float lensshift_v,
-                                                      const float lensshift_h, const float shear)
+Result<PerspectiveParams> leftover_ashift_to_perspective(const float rotation,
+                                                         const float lensshift_v,
+                                                         const float lensshift_h, const float shear,
+                                                         const bool constrain_crop)
 {
     if (!std::isfinite(rotation) || !std::isfinite(lensshift_v) || !std::isfinite(lensshift_h) ||
         !std::isfinite(shear))
@@ -8675,23 +9214,25 @@ Result<double> leftover_ashift_rotation_to_straighten(const float rotation, cons
             ErrorCode::kUnsupported, "Legacy ashift head contains a non-finite value",
             {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_head"}});
     }
-    constexpr float kNearZero = 1.0e-4F;
-    if (std::fabs(lensshift_v) > kNearZero || std::fabs(lensshift_h) > kNearZero ||
-        std::fabs(shear) > kNearZero)
+    if (rotation < static_cast<float>(kPerspectiveRotationMin) ||
+        rotation > static_cast<float>(kPerspectiveRotationMax) ||
+        lensshift_v < static_cast<float>(kPerspectiveShiftMin) ||
+        lensshift_v > static_cast<float>(kPerspectiveShiftMax) ||
+        lensshift_h < static_cast<float>(kPerspectiveShiftMin) ||
+        lensshift_h > static_cast<float>(kPerspectiveShiftMax) ||
+        shear < static_cast<float>(kPerspectiveShearMin) ||
+        shear > static_cast<float>(kPerspectiveShearMax))
     {
         return make_error(
-            ErrorCode::kUnsupported,
-            "Legacy ashift perspective is outside the rotation-only straighten contract",
-            {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_perspective"}});
+            ErrorCode::kUnsupported, "Legacy ashift exceeds canonical perspective range",
+            {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_range"}});
     }
-    if (std::fabs(rotation) > static_cast<float>(kDevelopStraightenMax))
-    {
-        return make_error(ErrorCode::kUnsupported,
-                          "Legacy ashift rotation exceeds canonical straighten range",
-                          {{"legacy_operation", "ashift"},
-                           {"reason", "unsupported_legacy_ashift_rotation_range"}});
-    }
-    return static_cast<double>(rotation);
+    return PerspectiveParams{static_cast<double>(rotation),
+                             static_cast<double>(lensshift_v),
+                             static_cast<double>(lensshift_h),
+                             static_cast<double>(shear),
+                             constrain_crop,
+                             std::string(kPerspectiveInterpolationLanczos3)};
 }
 
 bool RgbLevelsParams::is_identity() const noexcept

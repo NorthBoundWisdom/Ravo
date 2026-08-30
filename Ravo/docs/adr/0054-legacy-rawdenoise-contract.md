@@ -1,6 +1,6 @@
 # ADR-0054: Leftover RAW denoise maps to `ravo.raw.denoise`
 
-- Status: Accepted
+- Status: Accepted; X-Trans extended by [ADR-0096](0096-reference-algorithm-assimilation-boundary.md)
 - Date: 2026-08-29
 - Extends: [ADR-0053](0053-rgbcurve-middle-grey-uncompensate.md)
 

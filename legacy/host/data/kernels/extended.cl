@@ -206,37 +206,6 @@ channelmixer (read_only image2d_t in, write_only image2d_t out, const int width,
 
 
 __kernel void
-velvia (read_only image2d_t in, write_only image2d_t out, const int width, const int height,
-        const float strength, const float bias)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x >= width || y >= height) return;
-
-  float4 pixel = read_imagef(in, sampleri, (int2)(x, y));
-
-  // calculate vibrance, and apply boost velvia saturation at least saturated pixels
-  const float pmax = fmax(pixel.x, fmax(pixel.y, pixel.z));     // max value in RGB set
-  const float pmin = fmin(pixel.x, fmin(pixel.y, pixel.z));     // min value in RGB set
-  const float plum = (pmax + pmin) / 2.0f;                // pixel luminocity
-  const float psat = (plum <= 0.5f) ? (pmax-pmin)/(1e-5f + pmax+pmin) : (pmax-pmin)/(1e-5f + fmax(0.0f, 2.0f-pmax-pmin));
-
-  const float pweight = clipf(((1.0f- (1.5f*psat)) + ((1.0f+(fabs(plum-0.5f)*2.0f))*(1.0f-bias))) / (1.0f+(1.0f-bias))); // The weight of pixel
-  const float saturation = strength*pweight;      // So lets calculate the final affection of filter on pixel
-
-  float4 opixel;
-
-  opixel.x = clipf(pixel.x + saturation*(pixel.x-0.5f*(pixel.y+pixel.z)));
-  opixel.y = clipf(pixel.y + saturation*(pixel.y-0.5f*(pixel.z+pixel.x)));
-  opixel.z = clipf(pixel.z + saturation*(pixel.z-0.5f*(pixel.x+pixel.y)));
-  opixel.w = pixel.w;
-
-  write_imagef (out, (int2)(x, y), opixel);
-}
-
-
-__kernel void
 colorcontrast (read_only image2d_t in, write_only image2d_t out, const int width, const int height,
                const float4 scale, const float4 offset, const int unbound)
 {

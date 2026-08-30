@@ -299,8 +299,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             return output_fingerprint.error();
         }
+        auto lut_fingerprint =
+            engine_->lut3d_cache_fingerprint(recipe, request.cancellation);
+        if (!lut_fingerprint)
+        {
+            return lut_fingerprint.error();
+        }
         return fnv1a64_hex(serialized.value() + "|" + color_fingerprint.value() + "|" +
-                           output_fingerprint.value());
+                           output_fingerprint.value() + "|" + lut_fingerprint.value());
     };
     std::string edit_digest = "identity";
     if (!edit_recipe.operations.empty())

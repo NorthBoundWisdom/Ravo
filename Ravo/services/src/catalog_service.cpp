@@ -693,6 +693,11 @@ Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::str
     {
         return valid.error();
     }
+    auto lut_fingerprint = engine_->lut3d_cache_fingerprint(stored);
+    if (!lut_fingerprint)
+    {
+        return lut_fingerprint.error();
+    }
     auto params = develop_from_recipe(stored);
     if (!params)
     {

@@ -2,6 +2,8 @@ add_library(ravo_engine STATIC)
 
 target_sources(ravo_engine
   PRIVATE
+    src/bayer_demosaic.cpp
+    src/bayer_demosaic.h
     src/capability_ops.cpp
     src/canvas_frame.cpp
     src/canvas_frame.h
@@ -24,23 +26,32 @@ target_sources(ravo_engine
     src/dehaze.h
     src/dt_ucs.cpp
     src/dt_ucs.h
+    src/dng_opcodes.cpp
+    src/dng_opcodes.h
     src/harmony_geometry.cpp
     src/harmony_geometry.h
     src/hsl.h
     src/engine.cpp
+    src/guided_filter.cpp
+    src/guided_filter.h
     src/image_ops.cpp
     src/input_color.cpp
     src/input_color.h
+    src/lut3d.cpp
+    src/lut3d.h
     src/mask_evaluator.cpp
     src/mask_evaluator.h
     src/mask_path.cpp
     src/mask_path.h
     src/monochrome.cpp
     src/monochrome.h
+    src/noise_calibration.cpp
     src/output_color.h
     src/output_dither.cpp
     src/output_dither.h
     src/parallel_rows.h
+    src/perspective_transform.cpp
+    src/perspective_transform.h
     src/profile_gamma.cpp
     src/profile_gamma.h
     src/primaries.cpp
@@ -61,10 +72,14 @@ target_sources(ravo_engine
     src/sharpen.h
     src/split_toning.cpp
     src/split_toning.h
+    src/texture.cpp
+    src/texture.h
     src/watermark.cpp
     src/watermark.h
     src/velvia.cpp
-    src/velvia.h)
+    src/velvia.h
+    src/xtrans_demosaic.cpp
+    src/xtrans_demosaic.h)
 
 target_include_directories(ravo_engine
   PUBLIC

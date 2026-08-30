@@ -261,10 +261,6 @@
             <translation>写真上の白を選択</translation>
         </message>
         <message>
-            <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
-            <translation>写真内のニュートラルな領域をクリックします。RAW のみ対応です。傾き補正と Canvas はオフにする必要があります。</translation>
-        </message>
-        <message>
             <source>Red coefficient</source>
             <translation>赤の係数</translation>
         </message>
@@ -339,6 +335,18 @@
         <message>
             <source>Highlights</source>
             <translation>ハイライト</translation>
+        </message>
+        <message>
+            <source>Choose 3D LUT</source>
+            <translation>3D LUTを選択</translation>
+        </message>
+        <message>
+            <source>Cube LUT (*.cube *.CUBE)</source>
+            <translation>Cube LUT (*.cube *.CUBE)</translation>
+        </message>
+        <message>
+            <source>Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.</source>
+            <translation>写真内のニュートラルな領域をクリックします。RAW のみ。遠近補正とキャンバスはオフにしてください。</translation>
         </message>
         <message>
             <source>Shadows</source>
@@ -615,6 +623,66 @@
         <message>
             <source>Velvia</source>
             <translation>Velvia</translation>
+        </message>
+        <message>
+            <source>Enable Velvia</source>
+            <translation>Velviaを有効化</translation>
+        </message>
+        <message>
+            <source>Strength</source>
+            <translation>強度</translation>
+        </message>
+        <message>
+            <source>Mid-tones bias</source>
+            <translation>中間調バイアス</translation>
+        </message>
+        <message>
+            <source>Loaded Velvia mask is preserved but edited outside this panel.</source>
+            <translation>読み込まれたVelviaマスクは保持されますが、このパネル外で編集されます。</translation>
+        </message>
+        <message>
+            <source>Disable and reset Velvia</source>
+            <translation>Velviaを無効化してリセット</translation>
+        </message>
+        <message>
+            <source>3D LUT</source>
+            <translation>3D LUT</translation>
+        </message>
+        <message>
+            <source>Choose a .cube file</source>
+            <translation>.cube ファイルを選択</translation>
+        </message>
+        <message>
+            <source>Choose…</source>
+            <translation>選択…</translation>
+        </message>
+        <message>
+            <source>Enable 3D LUT</source>
+            <translation>3D LUTを有効化</translation>
+        </message>
+        <message>
+            <source>Input color space</source>
+            <translation>入力色空間</translation>
+        </message>
+        <message>
+            <source>3D LUT input color space</source>
+            <translation>3D LUT入力色空間</translation>
+        </message>
+        <message>
+            <source>Output color space</source>
+            <translation>出力色空間</translation>
+        </message>
+        <message>
+            <source>3D LUT output color space</source>
+            <translation>3D LUT出力色空間</translation>
+        </message>
+        <message>
+            <source>3D LUT interpolation</source>
+            <translation>3D LUT補間</translation>
+        </message>
+        <message>
+            <source>Disable and reset 3D LUT</source>
+            <translation>3D LUTを無効化してリセット</translation>
         </message>
         <message>
             <source>Color Balance RGB · linear sRGB D50 / Filmlight Yrg</source>
@@ -1213,6 +1281,42 @@
             <translation>フレームをドラッグして切り抜きます。外側をドラッグするか、Option/Alt キーを押しながらドラッグして傾きを補正します。</translation>
         </message>
         <message>
+            <source>Vertical</source>
+            <translation>垂直</translation>
+        </message>
+        <message>
+            <source>Horizontal</source>
+            <translation>水平</translation>
+        </message>
+        <message>
+            <source>Analyze visible lines and apply a bounded perspective correction</source>
+            <translation>可視線を解析し、範囲を制限した遠近補正を適用</translation>
+        </message>
+        <message>
+            <source>Shear</source>
+            <translation>せん断</translation>
+        </message>
+        <message>
+            <source>Constrain crop</source>
+            <translation>クロップを制限</translation>
+        </message>
+        <message>
+            <source>Bilinear — fast</source>
+            <translation>バイリニア — 高速</translation>
+        </message>
+        <message>
+            <source>Lanczos 2</source>
+            <translation>Lanczos 2</translation>
+        </message>
+        <message>
+            <source>Lanczos 3 — best quality</source>
+            <translation>Lanczos 3 — 最高品質</translation>
+        </message>
+        <message>
+            <source>Perspective interpolation</source>
+            <translation>遠近補間</translation>
+        </message>
+        <message>
             <source>Custom</source>
             <translation>カスタム</translation>
         </message>
@@ -1469,6 +1573,22 @@
             <translation>詳細</translation>
         </message>
         <message>
+            <source>Texture</source>
+            <translation>テクスチャ</translation>
+        </message>
+        <message>
+            <source>Texture · more</source>
+            <translation>テクスチャ · 詳細</translation>
+        </message>
+        <message>
+            <source>Texture scale</source>
+            <translation>テクスチャのスケール</translation>
+        </message>
+        <message>
+            <source>Texture iterations</source>
+            <translation>テクスチャの反復回数</translation>
+        </message>
+        <message>
             <source>Sharpen</source>
             <translation>シャープ化</translation>
         </message>
@@ -1607,6 +1727,34 @@
         <message>
             <source>RAW Repair / Denoise / Lens</source>
             <translation>RAW 修復 / ノイズ除去 / レンズ</translation>
+        </message>
+        <message>
+            <source>Demosaicing</source>
+            <translation>デモザイク</translation>
+        </message>
+        <message>
+            <source>Auto — RCD / Markesteijn 3</source>
+            <translation>自動 — RCD / Markesteijn 3</translation>
+        </message>
+        <message>
+            <source>PPG — Bayer compatibility</source>
+            <translation>PPG — Bayer互換</translation>
+        </message>
+        <message>
+            <source>Markesteijn 1 — X-Trans fast</source>
+            <translation>Markesteijn 1 — X-Trans高速</translation>
+        </message>
+        <message>
+            <source>Markesteijn 3 — X-Trans quality</source>
+            <translation>Markesteijn 3 — X-Trans高品質</translation>
+        </message>
+        <message>
+            <source>Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.</source>
+            <translation>自動ではBayerにRCD、X-TransにMarkesteijn 3パスを選択します。センサーに適合しないモードを明示すると、アルゴリズムを切り替えずに失敗します。</translation>
+        </message>
+        <message>
+            <source>RAW wavelet denoise</source>
+            <translation>RAWウェーブレットノイズ除去</translation>
         </message>
         <message>
             <source>Hot pixels</source>
@@ -1965,6 +2113,26 @@
             <translation>右下</translation>
         </message>
         <message>
+            <source>Rec. 709</source>
+            <translation>Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 709</source>
+            <translation>リニアRec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 2020</source>
+            <translation>リニアRec. 2020</translation>
+        </message>
+        <message>
+            <source>Tetrahedral</source>
+            <translation>四面体</translation>
+        </message>
+        <message>
+            <source>Trilinear</source>
+            <translation>三線形</translation>
+        </message>
+        <message>
             <source>Saturated colors</source>
             <translation>飽和色</translation>
         </message>
@@ -2265,8 +2433,20 @@
             <translation>ホワイト バランスの選択には Bayer RAW の元画像が必要です</translation>
         </message>
         <message>
-            <source>White-balance pick is unavailable with straighten or Canvas</source>
-            <translation>傾き補正または Canvas 使用時はホワイト バランスの選択を利用できません</translation>
+            <source>White-balance pick is unavailable with Perspective or Canvas</source>
+            <translation>遠近補正またはキャンバスが有効な場合、ホワイトバランススポイトは使用できません</translation>
+        </message>
+        <message>
+            <source>Perspective analysis mode is unsupported</source>
+            <translation>遠近補正解析モードはサポートされていません</translation>
+        </message>
+        <message>
+            <source>Velvia strength</source>
+            <translation>Velviaの強度</translation>
+        </message>
+        <message>
+            <source>Velvia mid-tones bias</source>
+            <translation>Velviaの中間調バイアス</translation>
         </message>
         <message>
             <source>Denoise</source>
@@ -3828,6 +4008,10 @@
         <message>
             <source>White balance sampled.</source>
             <translation>ホワイト バランスをサンプリングしました。</translation>
+        </message>
+        <message>
+            <source>Perspective corrected.</source>
+            <translation>遠近補正しました。</translation>
         </message>
         <message>
             <source>Style path must not be empty.</source>

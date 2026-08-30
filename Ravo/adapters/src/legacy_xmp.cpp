@@ -32,9 +32,11 @@
 #include "ravo/recipe/monochrome.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/output_dither.h"
+#include "ravo/recipe/perspective.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/velvia.h"
 
 namespace ravo
 {
@@ -408,6 +410,12 @@ struct LegacyMonochromeCandidate
 };
 
 struct LegacySplitToningCandidate
+{
+    QXmlStreamAttributes attributes;
+    std::uint64_t history_position = 0;
+};
+
+struct LegacyVelviaCandidate
 {
     QXmlStreamAttributes attributes;
     std::uint64_t history_position = 0;
@@ -1493,6 +1501,26 @@ decode_legacy_split_toning_parameters(const std::string &version, const std::str
     params.mix = 1.0;
     auto canonical = split_toning_to_parameters(params);
     return canonical ? Result<SplitToningParams>{params} : canonical.error();
+}
+
+[[nodiscard]] Result<VelviaParams> decode_legacy_velvia_parameters(const std::string &version,
+                                                                   const std::string_view encoded)
+{
+    constexpr std::string_view frozen = "0000c8429a99193e";
+    if (version != "2" || encoded != frozen)
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Velvia state is outside the frozen evidence",
+                          {{"legacy_operation", "velvia"},
+                           {"legacy_version", version},
+                           {"reason", "unsupported_legacy_velvia_parameters"}});
+    auto decoded = decode_legacy_parameter_blob(encoded, 8U, "velvia");
+    if (!decoded)
+        return decoded.error();
+    VelviaParams params;
+    params.strength = read_f32(decoded.value(), 0U);
+    params.bias = read_f32(decoded.value(), 4U);
+    auto canonical = velvia_to_parameters(params);
+    return canonical ? Result<VelviaParams>{params} : canonical.error();
 }
 
 [[nodiscard]] Result<FrameParams> decode_legacy_frame_parameters(const std::string &version,
@@ -2756,6 +2784,52 @@ map_split_toning_candidate(const LegacySplitToningCandidate &candidate)
                              std::nullopt};
 }
 
+[[nodiscard]] Result<OperationInstance> map_velvia_candidate(const LegacyVelviaCandidate &candidate)
+{
+    for (const auto &attribute : candidate.attributes)
+    {
+        const auto name = attribute.name();
+        if (name.contains(u"mask") || !is_allowed_canvas_frame_attribute(name) ||
+            attribute.namespaceUri() != u"http://darktable.sf.net/")
+            return make_error(
+                ErrorCode::kUnsupported, "Legacy Velvia contains unproven history state",
+                {{"attribute", utf8(name)}, {"reason", "unsupported_legacy_velvia_attribute"}});
+    }
+    const auto version = required_attribute(candidate.attributes, u"modversion", "velvia");
+    const auto enabled = required_attribute(candidate.attributes, u"enabled", "velvia");
+    const auto encoded = required_attribute(candidate.attributes, u"params", "velvia");
+    const auto blend_version =
+        required_attribute(candidate.attributes, u"blendop_version", "velvia");
+    const auto blend = required_attribute(candidate.attributes, u"blendop_params", "velvia");
+    if (!version || !enabled || !encoded || !blend_version || !blend)
+        return !version       ? version.error() :
+               !enabled       ? enabled.error() :
+               !encoded       ? encoded.error() :
+               !blend_version ? blend_version.error() :
+                                blend.error();
+    if (enabled.value() != "1")
+        return make_error(ErrorCode::kUnsupported, "Legacy Velvia is not enabled",
+                          {{"reason", "unsupported_legacy_velvia_enabled_state"}});
+    constexpr std::string_view frozen_blend =
+        "gz13eJxjYGBgYAZiCQYYOOHEgAYY0QVwggZ7CB6pfNoAAE4AGQc=";
+    if (blend_version.value() != "10" || blend.value() != frozen_blend)
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy Velvia blend is not the frozen unmasked default",
+                          {{"reason", "unsupported_legacy_velvia_blend"}});
+    auto params = decode_legacy_velvia_parameters(version.value(), encoded.value());
+    if (!params)
+        return params.error();
+    auto parameters = velvia_to_parameters(params.value());
+    if (!parameters)
+        return parameters.error();
+    return OperationInstance{std::string(kVelviaOperationId),
+                             kVelviaOperationSchemaVersion,
+                             "legacy-velvia-" + std::to_string(candidate.history_position),
+                             true,
+                             std::move(parameters).value(),
+                             std::nullopt};
+}
+
 [[nodiscard]] bool is_allowed_color_balance_attribute(const QStringView name) noexcept
 {
     return name == u"num" || name == u"operation" || name == u"enabled" || name == u"modversion" ||
@@ -3288,7 +3362,7 @@ constexpr std::string_view kLegacyRawDenoiseBlendGz13 =
         read_f32(decoded.value(), 12U));
 }
 
-[[nodiscard]] Result<double> map_legacy_ashift(const QXmlStreamAttributes &attributes)
+[[nodiscard]] Result<PerspectiveParams> map_legacy_ashift(const QXmlStreamAttributes &attributes)
 {
     for (const auto &attribute : attributes)
     {
@@ -3358,14 +3432,81 @@ constexpr std::string_view kLegacyRawDenoiseBlendGz13 =
             ErrorCode::kUnsupported, "Legacy ashift blend is not a frozen unmasked default",
             {{"legacy_operation", "ashift"}, {"reason", "unsupported_legacy_ashift_blend"}});
     }
-    auto decoded = decode_legacy_parameter_blob_min(encoded.value(), 16U, "ashift");
+    // v4 retains an obsolete UI-only toggle between mode and cropmode. v5
+    // removed it before appending saved guide-line state.
+    const bool version_four = version.value() == "4";
+    const std::size_t crop_mode_offset = version_four ? 40U : 36U;
+    const std::size_t crop_box_offset = version_four ? 44U : 40U;
+    const std::size_t minimum_size = crop_box_offset + 4U * sizeof(float);
+    auto decoded = decode_legacy_parameter_blob_min(encoded.value(), minimum_size, "ashift");
     if (!decoded)
     {
         return decoded.error();
     }
-    return leftover_ashift_rotation_to_straighten(
-        read_f32(decoded.value(), 0U), read_f32(decoded.value(), 4U), read_f32(decoded.value(), 8U),
-        read_f32(decoded.value(), 12U));
+    const float focal_length = read_f32(decoded.value(), 16U);
+    const float crop_factor = read_f32(decoded.value(), 20U);
+    const float orthographic_correction = read_f32(decoded.value(), 24U);
+    const float aspect = read_f32(decoded.value(), 28U);
+    const std::int32_t mode = read_i32(decoded.value(), 32U);
+    if (version_four)
+    {
+        const std::int32_t obsolete_toggle = read_i32(decoded.value(), 36U);
+        if (obsolete_toggle < 0 || obsolete_toggle > 1)
+        {
+            return make_error(ErrorCode::kUnsupported,
+                              "Legacy ashift UI toggle is outside frozen evidence",
+                              {{"legacy_operation", "ashift"},
+                               {"reason", "unsupported_legacy_ashift_geometry_state"}});
+        }
+    }
+    const std::int32_t crop_mode = read_i32(decoded.value(), crop_mode_offset);
+    const std::array<float, 4> crop_box{
+        read_f32(decoded.value(), crop_box_offset),
+        read_f32(decoded.value(), crop_box_offset + sizeof(float)),
+        read_f32(decoded.value(), crop_box_offset + 2U * sizeof(float)),
+        read_f32(decoded.value(), crop_box_offset + 3U * sizeof(float))};
+    if (!std::isfinite(focal_length) || !std::isfinite(crop_factor) ||
+        !std::isfinite(orthographic_correction) || !std::isfinite(aspect) ||
+        !std::all_of(crop_box.begin(), crop_box.end(),
+                     [](const float value) { return std::isfinite(value); }) ||
+        focal_length <= 0.0F || crop_factor <= 0.0F || orthographic_correction < 0.0F ||
+        orthographic_correction > 100.0F || aspect < 0.5F || aspect > 2.0F ||
+        crop_box[0] < 0.0F || crop_box[1] > 1.0F || crop_box[2] < 0.0F ||
+        crop_box[3] > 1.0F || crop_box[1] <= crop_box[0] || crop_box[3] <= crop_box[2])
+    {
+        return make_error(ErrorCode::kUnsupported, "Legacy ashift geometry state is invalid",
+                          {{"legacy_operation", "ashift"},
+                           {"reason", "unsupported_legacy_ashift_geometry_state"}});
+    }
+    if (mode != 0)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy ashift specific-lens mode has no canonical mapping",
+                          {{"legacy_operation", "ashift"},
+                           {"reason", "unsupported_legacy_ashift_lens_mode"}});
+    }
+    if (crop_mode < 0 || crop_mode > 2 || crop_mode == 2)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy ashift crop mode has no canonical mapping",
+                          {{"legacy_operation", "ashift"},
+                           {"reason", "unsupported_legacy_ashift_crop_mode"}});
+    }
+    constexpr float kNearIdentity = 1.0e-4F;
+    const bool full_crop = std::abs(crop_box[0]) <= kNearIdentity &&
+                           std::abs(crop_box[1] - 1.0F) <= kNearIdentity &&
+                           std::abs(crop_box[2]) <= kNearIdentity &&
+                           std::abs(crop_box[3] - 1.0F) <= kNearIdentity;
+    if (crop_mode == 0 && !full_crop)
+    {
+        return make_error(ErrorCode::kUnsupported,
+                          "Legacy ashift manual crop box has no canonical mapping",
+                          {{"legacy_operation", "ashift"},
+                           {"reason", "unsupported_legacy_ashift_crop_box"}});
+    }
+    return leftover_ashift_to_perspective(
+        read_f32(decoded.value(), 0U), read_f32(decoded.value(), 4U),
+        read_f32(decoded.value(), 8U), read_f32(decoded.value(), 12U), crop_mode == 1);
 }
 
 [[nodiscard]] Result<RgbLevelsParams> map_legacy_rgblevels(const QXmlStreamAttributes &attributes)
@@ -4351,6 +4492,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::vector<LegacyColorZonesCandidate> color_zones_candidates;
     std::vector<LegacyMonochromeCandidate> monochrome_candidates;
     std::vector<LegacySplitToningCandidate> split_toning_candidates;
+    std::vector<LegacyVelviaCandidate> velvia_candidates;
     std::vector<LegacyRetouchCandidate> retouch_candidates;
     std::vector<LegacyMaskRecord> legacy_masks;
     std::optional<OperationInstance> input_color;
@@ -4358,7 +4500,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
     std::optional<OperationInstance> primaries;
     std::optional<LeftoverFlipGeometry> flip_geometry;
     std::optional<LeftoverCropBox> crop_box;
-    std::optional<double> ashift_straighten;
+    std::optional<PerspectiveParams> ashift_perspective;
     std::optional<RgbLevelsParams> rgb_levels;
     std::optional<RgbCurveParams> rgb_curve;
     std::optional<LeftoverRawDenoise> raw_denoise;
@@ -4837,6 +4979,19 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 ++history_index;
                 continue;
             }
+            if (operation.value() == "velvia")
+            {
+                auto captured = capture_geometry_singleton<LegacyVelviaCandidate>(
+                    reader.attributes(), "velvia");
+                if (!captured)
+                    return captured.error();
+                if (!velvia_candidates.empty())
+                    return make_error(ErrorCode::kConflict, "Duplicate legacy Velvia",
+                                      {{"reason", "duplicate_legacy_velvia"}});
+                velvia_candidates.push_back(std::move(captured).value());
+                ++history_index;
+                continue;
+            }
             if (operation.value() == "retouch")
             {
                 auto captured = capture_retouch_candidate(reader.attributes());
@@ -4916,7 +5071,7 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                 {
                     return mapped.error();
                 }
-                ashift_straighten = mapped.value();
+                ashift_perspective = std::move(mapped).value();
                 ++history_index;
                 continue;
             }
@@ -4972,6 +5127,14 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                         "Legacy Watermark depends on an unversioned external resource",
                         {{"legacy_operation", "watermark"},
                          {"reason", "unsupported_legacy_watermark_resource"}});
+                }
+                if (operation.value() == "lut3d")
+                {
+                    return make_error(
+                        ErrorCode::kUnsupported,
+                        "Legacy 3D LUT state depends on an unversioned external resource",
+                        {{"legacy_operation", "lut3d"},
+                         {"reason", "unsupported_legacy_lut3d_resource"}});
                 }
                 return make_error(ErrorCode::kUnsupported,
                                   "Legacy XMP operation has no proven canonical recipe mapping",
@@ -5086,6 +5249,13 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
         }
         operations.push_back(std::move(mapped).value());
     }
+    if (!velvia_candidates.empty())
+    {
+        auto mapped = map_velvia_candidate(velvia_candidates.front());
+        if (!mapped)
+            return mapped.error();
+        operations.push_back(std::move(mapped).value());
+    }
     if (!color_zones_candidates.empty())
     {
         auto mapped = map_color_zones_candidate(color_zones_candidates.front());
@@ -5131,14 +5301,15 @@ Result<Recipe> import_legacy_xmp(const LegacyXmpImportRequest &request)
                                   std::nullopt});
         }
     }
-    if (ashift_straighten && std::abs(*ashift_straighten) > 1.0e-4)
+    if (ashift_perspective && !ashift_perspective->is_identity())
     {
-        operations.push_back(OperationInstance{"ravo.geometry.straighten",
-                                               1,
-                                               "legacy-ashift-straighten",
-                                               true,
-                                               {{"degrees", ParameterValue{*ashift_straighten}}},
-                                               std::nullopt});
+        auto parameters = perspective_to_parameters(*ashift_perspective);
+        if (!parameters)
+            return parameters.error();
+        operations.push_back(OperationInstance{std::string(kPerspectiveOperationId),
+                                               kPerspectiveOperationSchemaVersion,
+                                               "legacy-ashift-perspective", true,
+                                               std::move(parameters).value(), std::nullopt});
     }
     if (!canvas_candidates.empty())
     {

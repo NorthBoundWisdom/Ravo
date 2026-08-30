@@ -609,10 +609,11 @@ TEST(PrimariesTest, Frozen0152PayloadHasAMire1ChannelSumReference)
     EXPECT_EQ(rendered.value().width, 64U);
     EXPECT_EQ(rendered.value().height, 48U);
     const auto sums = channel_sums(rendered.value());
-    // Ravo-owned macOS reference for frozen schema-v1 0152 parameters on mire1.cr2.
-    EXPECT_NEAR(static_cast<double>(sums[0]), 318422.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[1]), 278808.0, 2000.0);
-    EXPECT_NEAR(static_cast<double>(sums[2]), 236761.0, 2000.0);
+    // Ravo-owned macOS reference for frozen schema-v1 0152 parameters on
+    // mire1.cr2 after the default RCD demosaic.
+    EXPECT_NEAR(static_cast<double>(sums[0]), 325147.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[1]), 283604.0, 2000.0);
+    EXPECT_NEAR(static_cast<double>(sums[2]), 243133.0, 2000.0);
 }
 
 } // namespace

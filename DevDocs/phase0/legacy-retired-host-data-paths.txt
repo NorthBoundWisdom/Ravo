@@ -51,3 +51,10 @@ pixmaps/plugins/darkroom/monochrome.png
 pixmaps/plugins/darkroom/monochrome.svg
 pixmaps/plugins/darkroom/splittoning.png
 pixmaps/plugins/darkroom/splittoning.svg
+pixmaps/plugins/darkroom/velvia.png
+pixmaps/plugins/darkroom/velvia.svg
+pixmaps/plugins/darkroom/ashift.png
+pixmaps/plugins/darkroom/ashift.svg
+pixmaps/plugins/darkroom/rawdenoise.png
+pixmaps/plugins/darkroom/rawdenoise.svg
+kernels/lut3d.cl

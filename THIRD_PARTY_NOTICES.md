@@ -1,5 +1,139 @@
 # Third-Party Notices
 
+## Adobe Digital Negative (DNG)
+
+Specification: <https://helpx.adobe.com/camera-raw/digital-negative.html>
+
+This product includes DNG technology under license by Adobe.
+
+## RawTherapee RCD demosaic
+
+Source: <https://github.com/Beep6581/RawTherapee/blob/498f62378/rtengine/rcd_demosaic.cc>
+
+Copyright (c) 2017-2020 Luis Sanz Rodriguez and Ingo Weyrich.
+
+RCD 2.3 and its tiled implementation were adapted under the GNU General Public
+License, version 3 or later. Ravo's modified C++20 owner removes RawTherapee
+application state, UI/progress callbacks, OpenMP ownership, and the implicit
+IGV fallback; it adds bounded task-local storage, cancellation, explicit
+errors, and source ownership.
+
+## LibRaw PPG demosaic
+
+Source: <https://github.com/Beep6581/RawTherapee/blob/498f62378/rtengine/libraw/src/demosaic/misc_demosaic.cpp>
+
+Patterned Pixel Grouping interpolation by Alain Desbiolles. Copyright
+2019-2025 LibRaw LLC; the source also identifies Dave Coffin's dcraw decoder
+copyright 1997-2018. Used under the GNU Lesser General Public License version
+2.1 option offered by LibRaw. Ravo's modified floating-point owner removes
+LibRaw storage/callback/OpenMP ownership and integer clipping, and adds bounded
+cancellation and structured failures.
+
+## Markesteijn X-Trans demosaic and RAW denoise
+
+Sources:
+
+- Frozen darktable sources at repository commit
+  `f7ea869a2bd3daafd04186c49f72861b2a574102`:
+  `legacy/src/iop/demosaicing/xtrans.c` and `legacy/src/iop/rawdenoise.c`.
+- RawTherapee commit `498f623784e33fd9a7077fcd8937fe0734033366`:
+  <https://github.com/Beep6581/RawTherapee/blob/498f62378/rtengine/xtrans_demosaic.cc>.
+
+Frank Markesteijn's X-Trans algorithm was adapted to RawTherapee by Ingo
+Weyrich. The referenced files are used under the GNU General Public License,
+version 3 or later. Ravo's modified C++20 owner removes application globals,
+UI/progress callbacks, OpenMP scheduling and unsafe multidimensional pointer
+arithmetic. It adds crop-phased owned 6×6 CFA metadata, same-CFA preview
+reduction, task-local bounded tiles, mirrored borders, cancellation, memory
+preflight, finite checks and structured sensor/mode failures. The separate
+X-Trans RAW-denoise port retains the frozen RGB nearest-neighbour and
+square-root five-band wavelet math while making cancellation publication
+atomic.
+
+## ART / darktable perspective correction
+
+Source: <https://github.com/artraweditor/ART/blob/6f511409afe28b2096c38483a6dfa3afcf167f5b/rtengine/perspectivecorrection.cc>
+
+Copyright (c) 2019 Alberto Griggio. The ART source credits darktable
+`src/iop/ashift.c`, copyright (c) 2016 Ulrich Pegelow, and the ShiftN work of
+Marcus Hebel. Used under the GNU General Public License, version 3 or later.
+Ravo adapts the ShiftN-style homography composition into an independent C++20
+owner and replaces application state, UI callbacks and OpenMP scheduling with
+checked bounds, deterministic safe crop, task-local cancellation, explicit
+interpolation and structured failures.
+
+## darktable / OpenColorIO 3D-LUT interpolation research
+
+Sources reviewed:
+
+- Frozen darktable source at repository commit
+  `f7ea869a2bd3daafd04186c49f72861b2a574102`,
+  `legacy/src/iop/lut3d.c` and `legacy/host/data/kernels/lut3d.cl`.
+- ART commit `6f511409afe28b2096c38483a6dfa3afcf167f5b`,
+  `rtengine/LUT3D.cc`.
+
+The darktable files are copyright (c) 2019–2026 darktable developers and are
+available under the GNU General Public License, version 3 or later. Their
+trilinear routine credits Eskil Steenberg's BSD-licensed `HaldCLUT_correct.c`;
+their tetrahedral routine, and ART's independently reviewed routine, credit the
+OpenColorIO project under BSD-3-Clause.
+
+Ravo's C++20 owner independently implements a strict bounded `.cube` parser,
+red-fastest indexing, trilinear/tetrahedral interpolation, declared colour
+transforms, full-content fingerprinting, immutable LRU lifecycle,
+cancellation, and structured failures. It does not copy the application/UI,
+OpenCL, Hald image, pyramid, OCIO/CTL subprocess, or global cache ownership.
+
+## vkdt camera-noise fitting research
+
+Sources reviewed at vkdt commit `b95b3a0a`:
+
+- `src/pipe/modules/rawhist/main.c` and its histogram shaders;
+- `src/pipe/modules/nprof/main.c`;
+- `doc/howto/noise-profiling/readme.md`.
+
+vkdt is copyright its contributors and distributed under the GNU General
+Public License, version 3 or later. Ravo retains the documented physical model
+`variance = Gaussian + Poisson × signal`, but independently implements a
+bounded C++20 fitter and versioned artifact. It does not copy vkdt's Vulkan
+graph, shader histogram, global module state, implicit configuration install,
+or random fallback coefficients. Ravo adds strict units/schema, deterministic
+robust rejection, non-negative fitting, cancellation, SHA-256 verification,
+atomic no-replace publication and structured failures.
+
+## ART Texture Boost
+
+Source: <https://github.com/artraweditor/ART/blob/6f511409afe28b2096c38483a6dfa3afcf167f5b/rtengine/iptextureboost.cc>
+
+Copyright (c) 2018 Alberto Griggio. Used under the GNU General Public License,
+version 3 or later.
+
+Ravo adapts the two-band strength shaping and guided-luminance decomposition
+into an independent C++20 operation. It replaces ART image/application state,
+mask and resampling ownership, SIMD/OpenMP scheduling and 16-bit scaling with
+explicit linear-Rec.709 input, canonical scale, bounded task-local memory,
+cancellation, structured failures, hue-preserving unbounded RGB application
+and atomic publication. Local Laplacian was evaluated only in a separate
+test-owned decision prototype and is not shipped as an operation.
+
+## Filmulator physical-development research
+
+Sources reviewed at Filmulator commit
+`57fbaec57555432d86d3aa632990cd8fa09114ad`:
+
+- <https://github.com/CarVac/filmulator-gui/blob/57fbaec57555432d86d3aa632990cd8fa09114ad/filmulator-gui/core/filmulate.cpp>;
+- `core/develop.cpp`, `core/diffuse.cpp`, `core/layerMix.cpp`,
+  `core/agitate.cpp`, and `core/exposure.cpp` at the same commit.
+
+Copyright (c) 2013 Omer Mano and Carlo Vaccari. The reviewed files are
+available under the GNU General Public License, version 3 or later.
+
+Ravo contains only an isolated test-owned decision prototype of activation,
+reaction, diffusion, reservoir exchange and agitation. It uses standard
+containers and Ravo inputs and carries no Filmulator matrix, pipeline,
+database, dlib, OpenMP or UI owner. Measurements rejected production
+integration, so there is no Filmulator recipe schema or runtime dependency.
+
 ## Little CMS 2.19.1
 
 Source: <https://github.com/mm2/Little-CMS>

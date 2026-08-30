@@ -99,12 +99,11 @@ TEST(StudioSettingsTest, LanguageSettingNormalizesPersistsAndRepairsCorruption)
     StudioLanguageManager manager;
     ASSERT_TRUE(manager.initialize()) << manager.lastError().toStdString();
     EXPECT_EQ(manager.language(), QStringLiteral("en_US"));
-    EXPECT_EQ(manager.supportedLanguages(),
-              QStringList({QStringLiteral("en_US"), QStringLiteral("de_DE"),
-                           QStringLiteral("es_ES"), QStringLiteral("fr_FR"),
-                           QStringLiteral("pt_BR"), QStringLiteral("zh_CN"),
-                           QStringLiteral("zh_TW"), QStringLiteral("ja_JP"),
-                           QStringLiteral("ko_KR")}));
+    EXPECT_EQ(
+        manager.supportedLanguages(),
+        QStringList({QStringLiteral("en_US"), QStringLiteral("de_DE"), QStringLiteral("es_ES"),
+                     QStringLiteral("fr_FR"), QStringLiteral("pt_BR"), QStringLiteral("zh_CN"),
+                     QStringLiteral("zh_TW"), QStringLiteral("ja_JP"), QStringLiteral("ko_KR")}));
     EXPECT_EQ(manager.languageOptions().size(), manager.supportedLanguages().size());
     {
         QSettings settings;
@@ -134,8 +133,7 @@ TEST(StudioSettingsTest, LocaleAliasesNormalizeAndMissingCatalogFailsExplicitly)
 {
     ensure_qt_core();
     StudioLanguageManager manager(QStringList{QStringLiteral(RAVO_STUDIO_TRANSLATION_DIR)});
-    ASSERT_TRUE(manager.initialize(QStringLiteral("fr-CA")))
-        << manager.lastError().toStdString();
+    ASSERT_TRUE(manager.initialize(QStringLiteral("fr-CA"))) << manager.lastError().toStdString();
     EXPECT_EQ(manager.language(), QStringLiteral("fr_FR"));
     ASSERT_TRUE(manager.initialize(QStringLiteral("zh-Hant-HK")))
         << manager.lastError().toStdString();
@@ -144,8 +142,7 @@ TEST(StudioSettingsTest, LocaleAliasesNormalizeAndMissingCatalogFailsExplicitly)
     QTemporaryDir empty_directory;
     ASSERT_TRUE(empty_directory.isValid());
     StudioLanguageManager missing(QStringList{empty_directory.path()});
-    ASSERT_TRUE(missing.initialize(QStringLiteral("en_US")))
-        << missing.lastError().toStdString();
+    ASSERT_TRUE(missing.initialize(QStringLiteral("en_US"))) << missing.lastError().toStdString();
     EXPECT_FALSE(missing.setLanguage(QStringLiteral("de-DE")));
     EXPECT_EQ(missing.language(), QStringLiteral("en_US"));
     EXPECT_FALSE(missing.lastError().isEmpty());
@@ -756,6 +753,7 @@ TEST(StudioPresenterTest, MigratedColorPropertiesExposeCanonicalIdentity)
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("green")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("blue")).toDouble(), 1.0);
     EXPECT_DOUBLE_EQ(white_balance.value(QStringLiteral("fourth")).toDouble(), 1.0);
+    EXPECT_EQ(presenter.editDemosaicModeIndex(), 0);
     EXPECT_EQ(presenter.editColorEqBands().size(), 8);
     const auto input_color = presenter.editInputColor();
     EXPECT_EQ(input_color.size(), 7);
@@ -1764,6 +1762,72 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     EXPECT_LT(b_offset, unbound);
 }
 
+TEST(StudioQmlContract, VelviaExposesTheFullV2SurfaceThroughGenericDevelopIntents)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+
+    const auto section_begin = source.indexOf(QStringLiteral("objectName: \"velviaEnabled\""));
+    const auto section_end = source.indexOf(QStringLiteral("Color Balance RGB"), section_begin);
+    ASSERT_GE(section_begin, 0);
+    ASSERT_GT(section_end, section_begin);
+    const auto section = source.mid(section_begin, section_end - section_begin);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.enabled")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.strength")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.bias")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editVelviaParams.masked")));
+    EXPECT_TRUE(
+        section.contains(QStringLiteral("setDevelopNumber(\"velviaEnabled\", checked ? 1 : 0)")));
+    EXPECT_TRUE(
+        section.contains(QStringLiteral("previewDevelopNumber(\"velviaStrength\", value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(\"velviaStrength\", value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"velviaBias\", value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("setDevelopNumber(\"velviaBias\", value)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("objectName: \"velviaStrength\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("from: 0")));
+    EXPECT_TRUE(section.contains(QStringLiteral("to: 100")));
+    EXPECT_TRUE(section.contains(QStringLiteral("objectName: \"velviaBias\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("to: 1")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"velvia\")")));
+    EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Disable and reset Velvia\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("frozen_velvia_v2")));
+    EXPECT_FALSE(section.contains(QStringLiteral("luminance"), Qt::CaseInsensitive));
+}
+
+TEST(StudioQmlContract, ThreeDimensionalLutUsesTypedPresenterAndGenericDevelopIntents)
+{
+    StudioPresenter presenter;
+    const auto state = presenter.editLut3d();
+    EXPECT_FALSE(state.value(QStringLiteral("present")).toBool());
+    EXPECT_FALSE(state.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(state.value(QStringLiteral("hasFile")).toBool());
+    EXPECT_EQ(state.value(QStringLiteral("spaceChoices")).toList().size(), 6);
+    EXPECT_EQ(state.value(QStringLiteral("interpolationChoices")).toList().size(), 2);
+
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto begin = source.indexOf(QStringLiteral("objectName: \"lut3dFile\""));
+    const auto end = source.indexOf(QStringLiteral("Color Balance RGB"), begin);
+    ASSERT_GE(begin, 0);
+    ASSERT_GT(end, begin);
+    const auto section = source.mid(begin, end - begin);
+    EXPECT_TRUE(source.contains(QStringLiteral("QmlFileDialogPage")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Cube LUT (*.cube *.CUBE)")));
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editLut3d.filePath")));
+    EXPECT_TRUE(section.contains(QStringLiteral("setDevelopText(\"lut3dFile\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("objectName: \"lut3dEnabled\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("lut3dInputSpaceIndex")));
+    EXPECT_TRUE(section.contains(QStringLiteral("lut3dOutputSpaceIndex")));
+    EXPECT_TRUE(section.contains(QStringLiteral("lut3dInterpolationIndex")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"lut3dStrength\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("resetControl(\"lut3d\")")));
+    EXPECT_FALSE(section.contains(QStringLiteral("LUT_3D_SIZE")));
+}
+
 TEST(StudioQmlContract, ColorHarmonizerLoadsNumericControlsWithoutForbiddenPresentation)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
@@ -1902,6 +1966,38 @@ TEST(StudioQmlContract, SharpenExposesAmountRadiusAndThresholdFromOnePresenter)
     EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
 }
 
+TEST(StudioQmlContract, TextureIsPrimaryDetailControlWithCollapsedAdvancedScale)
+{
+    StudioPresenter presenter;
+    const auto state = presenter.editTexture();
+    EXPECT_DOUBLE_EQ(state.value(QStringLiteral("strength")).toDouble(), 0.0);
+    EXPECT_DOUBLE_EQ(state.value(QStringLiteral("detailThreshold")).toDouble(), 0.2);
+    EXPECT_EQ(state.value(QStringLiteral("iterations")).toLongLong(), 1);
+
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto detail = source.indexOf(QStringLiteral("sectionId: \"detail\""));
+    const auto texture = source.indexOf(QStringLiteral("title: qsTr(\"Texture\")"), detail);
+    const auto sharpen = source.indexOf(QStringLiteral("title: qsTr(\"Sharpen\")"), detail);
+    ASSERT_GE(detail, 0);
+    ASSERT_GT(texture, detail);
+    ASSERT_GT(sharpen, texture);
+    const auto section = source.mid(texture, sharpen - texture);
+    EXPECT_TRUE(section.contains(QStringLiteral("root.presenter.editTexture.strength")));
+    EXPECT_TRUE(section.contains(QStringLiteral("from: -100")));
+    EXPECT_TRUE(section.contains(QStringLiteral("to: 100")));
+    EXPECT_TRUE(section.contains(QStringLiteral("previewDevelopNumber(\"texture\"")));
+    EXPECT_TRUE(section.contains(QStringLiteral("qsTr(\"Texture · more\")")));
+    EXPECT_TRUE(section.contains(QStringLiteral("expanded: false")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editTexture.detailThreshold")));
+    EXPECT_TRUE(section.contains(QStringLiteral("editTexture.iterations")));
+    EXPECT_TRUE(section.contains(QStringLiteral("textureDetailThreshold")));
+    EXPECT_TRUE(section.contains(QStringLiteral("textureIterations")));
+    EXPECT_FALSE(section.contains(QStringLiteral("OpenCL")));
+}
+
 TEST(StudioQmlContract, DehazeExposesStrengthDistanceAndAdaptiveScale)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
@@ -1972,6 +2068,98 @@ TEST(StudioQmlContract, OutputDitherUsesPresenterMethodsWithoutQmlPixelMath)
     EXPECT_TRUE(source.contains(QStringLiteral("resetControl(\"splitToning\")")));
 }
 
+TEST(StudioQmlContract, RawSectionExposesSensorAwareDemosaicAndWaveletDenoise)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto raw = source.indexOf(QStringLiteral("sectionId: \"raw\""));
+    ASSERT_GE(raw, 0);
+    EXPECT_GT(source.indexOf(QStringLiteral("qsTr(\"Auto — RCD / Markesteijn 3\")"), raw), raw);
+    EXPECT_GT(source.indexOf(QStringLiteral("qsTr(\"PPG — Bayer compatibility\")"), raw), raw);
+    EXPECT_GT(source.indexOf(QStringLiteral("qsTr(\"Markesteijn 1 — X-Trans fast\")"), raw), raw);
+    EXPECT_GT(source.indexOf(QStringLiteral("qsTr(\"Markesteijn 3 — X-Trans quality\")"), raw),
+              raw);
+    EXPECT_GT(source.indexOf(QStringLiteral("setDevelopNumber(\"demosaicModeIndex\""), raw), raw);
+    EXPECT_GT(source.indexOf(QStringLiteral("previewDevelopNumber(\"rawDenoiseThreshold\""), raw),
+              raw);
+    EXPECT_GT(source.indexOf(QStringLiteral("selectedMediaType === \"image/x-raw\""), raw), raw);
+}
+
+TEST(StudioQmlContract, LightPresentsWhiteBalanceAndCommonControlsBeforeSpecializedSettings)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto source = QString::fromUtf8(panel.readAll());
+    const auto light_begin = source.indexOf(QStringLiteral("sectionId: \"light\""));
+    const auto light_end = source.indexOf(QStringLiteral("sectionId: \"curves\""), light_begin);
+    ASSERT_GE(light_begin, 0);
+    ASSERT_GT(light_end, light_begin);
+    const auto light = source.mid(light_begin, light_end - light_begin);
+
+    const auto white_balance = light.indexOf(QStringLiteral("sectionId: \"whiteBalance\""));
+    const auto white_balance_mode =
+        light.indexOf(QStringLiteral("setDevelopNumber(\"whiteBalanceMode\""));
+    const auto exposure = light.indexOf(QStringLiteral("previewDevelopNumber(\"exposure\""));
+    const auto sigmoid_contrast =
+        light.indexOf(QStringLiteral("previewDevelopNumber(\"sigmoidContrast\""));
+    const auto raster_contrast = light.indexOf(QStringLiteral("previewDevelopNumber(\"contrast\""));
+    const auto highlights = light.indexOf(QStringLiteral("previewDevelopNumber(\"highlights\""));
+    const auto shadows = light.indexOf(QStringLiteral("previewDevelopNumber(\"shadows\""));
+    const auto whites = light.indexOf(QStringLiteral("previewDevelopNumber(\"whites\""));
+    const auto blacks = light.indexOf(QStringLiteral("previewDevelopNumber(\"blacks\""));
+    const auto exposure_mode = light.indexOf(QStringLiteral("setDevelopNumber(\"exposureMode\""));
+    const auto exposure_black =
+        light.indexOf(QStringLiteral("previewDevelopNumber(\"exposureBlack\""));
+    const auto deflicker =
+        light.indexOf(QStringLiteral("previewDevelopNumber(\"exposureDeflickerPercentile\""));
+    const auto sigmoid_heading =
+        light.indexOf(QStringLiteral("qsTr(\"Sigmoid Display · Standard SDR\")"));
+    const auto sigmoid_skew = light.indexOf(QStringLiteral("previewDevelopNumber(\"sigmoidSkew\""));
+    const auto preserve_hue =
+        light.indexOf(QStringLiteral("previewDevelopNumber(\"sigmoidHuePreservation\""));
+    const auto gamma = light.indexOf(QStringLiteral("previewDevelopNumber(\"gamma\""));
+    const auto rgb_levels = light.indexOf(QStringLiteral("qsTr(\"RGB levels\")"));
+
+    ASSERT_GE(white_balance, 0);
+    ASSERT_GE(white_balance_mode, 0);
+    ASSERT_GE(exposure, 0);
+    ASSERT_GE(sigmoid_contrast, 0);
+    ASSERT_GE(raster_contrast, 0);
+    ASSERT_GE(highlights, 0);
+    ASSERT_GE(shadows, 0);
+    ASSERT_GE(whites, 0);
+    ASSERT_GE(blacks, 0);
+    ASSERT_GE(exposure_mode, 0);
+    ASSERT_GE(exposure_black, 0);
+    ASSERT_GE(deflicker, 0);
+    ASSERT_GE(sigmoid_heading, 0);
+    ASSERT_GE(sigmoid_skew, 0);
+    ASSERT_GE(preserve_hue, 0);
+    ASSERT_GE(gamma, 0);
+    ASSERT_GE(rgb_levels, 0);
+
+    EXPECT_LT(white_balance, white_balance_mode);
+    EXPECT_LT(white_balance_mode, exposure);
+    EXPECT_LT(exposure, sigmoid_contrast);
+    EXPECT_LT(exposure, raster_contrast);
+    EXPECT_LT(sigmoid_contrast, highlights);
+    EXPECT_LT(raster_contrast, highlights);
+    EXPECT_LT(highlights, shadows);
+    EXPECT_LT(shadows, whites);
+    EXPECT_LT(whites, blacks);
+    EXPECT_LT(blacks, exposure_mode);
+    EXPECT_LT(exposure_mode, exposure_black);
+    EXPECT_LT(exposure_black, deflicker);
+    EXPECT_LT(deflicker, sigmoid_heading);
+    EXPECT_LT(sigmoid_heading, sigmoid_skew);
+    EXPECT_LT(sigmoid_skew, preserve_hue);
+    EXPECT_LT(preserve_hue, gamma);
+    EXPECT_LT(gamma, rgb_levels);
+}
+
 TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq)
 {
     QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
@@ -1992,7 +2180,8 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     ASSERT_GE(color, 0);
     ASSERT_GE(geometry, 0);
     ASSERT_GE(graduated, 0);
-    EXPECT_LT(white_balance, light);
+    EXPECT_LT(light, white_balance);
+    EXPECT_LT(white_balance, curves);
     EXPECT_LT(light, curves);
     EXPECT_LT(curves, color_eq);
     EXPECT_LT(color_eq, color);
@@ -2137,14 +2326,21 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Undo\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("qsTr(\"Reset all\")")));
     const QStringList order{
-        QStringLiteral("whiteBalance"), QStringLiteral("light"),
-        QStringLiteral("curves"),       QStringLiteral("colorEqualizer"),
-        QStringLiteral("color"),        QStringLiteral("primaries"),
-        QStringLiteral("geometry"),     QStringLiteral("toneEqual"),
-        QStringLiteral("graduated"),    QStringLiteral("effects"),
-        QStringLiteral("detail"),       QStringLiteral("raw"),
-        QStringLiteral("calibration"),  QStringLiteral("inputProfile"),
-        QStringLiteral("profileGamma"), QStringLiteral("outputProfile"),
+        QStringLiteral("light"),
+        QStringLiteral("curves"),
+        QStringLiteral("colorEqualizer"),
+        QStringLiteral("color"),
+        QStringLiteral("primaries"),
+        QStringLiteral("geometry"),
+        QStringLiteral("toneEqual"),
+        QStringLiteral("graduated"),
+        QStringLiteral("effects"),
+        QStringLiteral("detail"),
+        QStringLiteral("raw"),
+        QStringLiteral("calibration"),
+        QStringLiteral("inputProfile"),
+        QStringLiteral("profileGamma"),
+        QStringLiteral("outputProfile"),
     };
     qsizetype cursor = source.indexOf(QStringLiteral("component DevelopSection"));
     ASSERT_GE(cursor, 0);
@@ -2156,6 +2352,12 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
         EXPECT_GT(found, cursor) << id.toStdString();
         cursor = found + needle.size();
     }
+    const auto light = source.indexOf(QStringLiteral("sectionId: \"light\""));
+    const auto white_balance = source.indexOf(QStringLiteral("sectionId: \"whiteBalance\""), light);
+    const auto curves = source.indexOf(QStringLiteral("sectionId: \"curves\""), light);
+    ASSERT_GE(light, 0);
+    ASSERT_GT(white_balance, light);
+    ASSERT_GT(curves, white_balance);
 }
 
 TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
@@ -2182,9 +2384,14 @@ TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
     ASSERT_GT(geometry_end, geometry_begin);
     const auto geometry = source.mid(geometry_begin, geometry_end - geometry_begin);
     EXPECT_TRUE(geometry.contains(QStringLiteral("Layout.fillWidth: true")));
-    EXPECT_FALSE(geometry.contains(QStringLiteral("qsTr(\"Angle\")")));
-    EXPECT_FALSE(geometry.contains(QStringLiteral("previewDevelopNumber(\"straighten\"")));
-    EXPECT_FALSE(geometry.contains(QStringLiteral("resetControl(\"straighten\")")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("qsTr(\"Angle\")")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"straighten\"")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveVertical\"")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveHorizontal\"")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("\"field\": \"perspectiveShear\"")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("root.commands.autoPerspective(modelData.mode)")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("perspectiveConstrainCrop")));
+    EXPECT_TRUE(geometry.contains(QStringLiteral("perspectiveInterpolationIndex")));
 }
 
 TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterComparison)
@@ -2497,8 +2704,7 @@ TEST(StudioLocalization, EveryManifestCatalogActivates)
 {
     ensure_qt_core();
     StudioLanguageManager manager(QStringList{QStringLiteral(RAVO_STUDIO_TRANSLATION_DIR)});
-    ASSERT_TRUE(manager.initialize(QStringLiteral("en_US")))
-        << manager.lastError().toStdString();
+    ASSERT_TRUE(manager.initialize(QStringLiteral("en_US"))) << manager.lastError().toStdString();
     for (const auto &language : manager.supportedLanguages())
     {
         ASSERT_TRUE(manager.initialize(language))
@@ -2793,7 +2999,9 @@ TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
     EXPECT_TRUE(visible_line.contains(QStringLiteral("cropToolActive")));
     EXPECT_TRUE(visible_line.contains(QStringLiteral("photoPlane.width")));
     EXPECT_FALSE(visible_line.contains(QStringLiteral("cropGuideReady")));
-    EXPECT_TRUE(source.contains(
+    EXPECT_TRUE(source.contains(QStringLiteral("rotation: 0")));
+    EXPECT_TRUE(source.contains(QStringLiteral("straighten: studio.editStraighten")));
+    EXPECT_FALSE(source.contains(
         QStringLiteral("cropToolActive && studio.cropGuideReady ? studio.editStraighten : 0")));
     EXPECT_TRUE(source.contains(QStringLiteral("photoItem: photoPlane")));
     EXPECT_TRUE(source.contains(QStringLiteral("sourceWidth: studio.selectedWorkingWidth")));

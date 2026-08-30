@@ -96,6 +96,7 @@ network listener and does not expose Assistant credentials.
 | `operations` | List registered versioned engine operations and their descriptors. |
 | `develop-fields` | List every closed Develop `--set` field name, kind, and range. |
 | `inspect <input>` | Inspect a supported RAW input's format, dimensions, and camera identity. |
+| `lut inspect <file.cube>` | Validate a bounded 3D LUT and report its canonical path, size, domain, title, and content fingerprint. |
 | `recipe validate <recipe>` | Parse and validate a recipe without rendering it. |
 | `recipe import-xmp <xmp> ...` | Convert a strictly supported leftover darktable XMP subset, or a Lightroom CRS preset, into a versioned recipe file. |
 | `render <input> ...` | Render a validated recipe to an atomic PNG output using CPU. |
@@ -316,6 +317,66 @@ exposed by the current recipe contract, including geometry, profiles, white
 balance, color, RAW repair, lens, tone, and effect fields. Values must be finite
 and each field keeps its own validation bounds. Discover the current names and
 ranges with `ravo develop-fields --json`.
+
+Texture uses `texture` in `[-2,2]`, `textureDetailThreshold` in
+`[0.01,100]` original-input pixels, and integer `textureIterations` in `[1,5]`.
+It is ordered before Sharpen; `texture=0` is identity and is omitted from a
+canonical recipe.
+
+Use repeated `--set-text name=value` for advertised text fields. For example,
+the following selects a profile-explicit 3D LUT; space index `3` is Linear
+Rec709 and interpolation index `0` is tetrahedral:
+
+```text
+ravo catalog develop --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --set-text lut3dFile="/looks/portrait.cube" \
+  --set lut3dInputSpaceIndex=3 --set lut3dOutputSpaceIndex=3 \
+  --set lut3dInterpolationIndex=0 --set lut3dStrength=1 --json
+```
+
+Run `ravo lut inspect "/looks/portrait.cube" --json` first when diagnosing a
+file. An enabled LUT is validated even at zero strength; resource errors never
+become a hidden identity fallback.
+
+## Offline camera-noise calibration
+
+Calibration consumes an explicit version-1 sample document. Means and
+variances use black-subtracted uint16 sensor code values; they are not display
+RGB or normalized `[0,1]` values. Each sample also carries the number of sensor
+observations represented by that estimate:
+
+```json
+{
+  "identity": {"iso": 800, "make": "Sony", "model": "Example Camera"},
+  "samples": [
+    {"count": 4096, "signal_mean": 256, "variance": 153},
+    {"count": 4096, "signal_mean": 2304, "variance": 1177},
+    {"count": 4096, "signal_mean": 4352, "variance": 2201},
+    {"count": 4096, "signal_mean": 6400, "variance": 3225},
+    {"count": 4096, "signal_mean": 8448, "variance": 4249},
+    {"count": 4096, "signal_mean": 10496, "variance": 5273},
+    {"count": 4096, "signal_mean": 12544, "variance": 6297},
+    {"count": 4096, "signal_mean": 14592, "variance": 7321}
+  ],
+  "schema": "ravo.camera-noise-samples",
+  "units": "black_subtracted_uint16_code_values",
+  "version": 1
+}
+```
+
+Fit and inspect a profile with:
+
+```text
+ravo noise calibrate samples.json --output camera-iso800.rnoise.json --json
+ravo noise inspect camera-iso800.rnoise.json --json
+```
+
+The fitter requires 8–1024 samples spanning at least 256 code values, rejects
+malformed/non-finite or insufficient inlier data, and never invents fallback
+coefficients. Output is deterministic, versioned and SHA-256 protected. The
+destination must not already exist; the command never modifies the sample
+file, a photo, a catalog, or an implicit profile directory. Current denoisers
+do not automatically load this artifact.
 
 `--watermark-text` sets the one bounded text field. The current fixed-font
 contract accepts its documented ASCII subset plus newline and the `{stem}` and

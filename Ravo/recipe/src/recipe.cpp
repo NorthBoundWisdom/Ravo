@@ -23,14 +23,17 @@
 #include "ravo/recipe/color_zones.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/dehaze.h"
+#include "ravo/recipe/lut3d.h"
 #include "ravo/recipe/monochrome.h"
 #include "ravo/recipe/operation.h"
 #include "ravo/recipe/output_dither.h"
+#include "ravo/recipe/perspective.h"
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/retouch.h"
 #include "ravo/recipe/sharpen.h"
 #include "ravo/recipe/split_toning.h"
+#include "ravo/recipe/texture.h"
 #include "ravo/recipe/watermark.h"
 #include "ravo/recipe/velvia.h"
 
@@ -953,6 +956,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                                   {{"operation_id", operation.id}, {"parameter", rule.name}});
             }
         }
+        if (operation.id == kDemosaicOperationId)
+        {
+            auto demosaic = validate_demosaic_parameters(operation.parameters);
+            if (!demosaic)
+            {
+                auto error = demosaic.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == "ravo.core.tonecurve")
         {
             auto curve = validate_tone_curve_parameters(operation.parameters);
@@ -1134,6 +1147,16 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
                 return error;
             }
         }
+        if (operation.id == kTextureOperationId)
+        {
+            auto texture = validate_texture_parameters(operation.parameters);
+            if (!texture)
+            {
+                auto error = texture.error();
+                error.context.emplace("operation_id", operation.id);
+                return error;
+            }
+        }
         if (operation.id == kDehazeOperationId)
         {
             auto dehaze = validate_dehaze_parameters(operation.parameters);
@@ -1203,6 +1226,12 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
             auto velvia = velvia_from_parameters(operation.parameters);
             if (!velvia)
                 return velvia.error();
+        }
+        if (operation.id == kLut3dOperationId)
+        {
+            auto lut = lut3d_from_parameters(operation.parameters);
+            if (!lut)
+                return lut.error();
         }
         if (operation.id == "ravo.raw.highlights")
         {
@@ -1404,19 +1433,34 @@ Result<void> validate_recipe(const Recipe &recipe, const OperationRegistry &regi
     }
     if (canvas_index && recipe.operations[*canvas_index].enabled)
     {
+        bool composed_geometry_seen = false;
         for (std::size_t index = *canvas_index + 1U; index < recipe.operations.size(); ++index)
         {
             const auto &operation = recipe.operations[index];
-            if (operation.enabled &&
-                (operation.id == "ravo.geometry.rotate" || operation.id == "ravo.geometry.flip" ||
-                 operation.id == "ravo.geometry.crop" ||
-                 operation.id == "ravo.geometry.straighten" ||
-                 operation.id == "ravo.geometry.lens"))
+            if (!operation.enabled)
+                continue;
+            if (operation.id == "ravo.geometry.rotate" || operation.id == "ravo.geometry.flip" ||
+                operation.id == "ravo.geometry.lens")
             {
                 return make_error(ErrorCode::kUnsupported,
                                   "Canvas does not yet compose with later geometry",
                                   {{"operation_id", operation.id},
                                    {"reason", "canvas_later_geometry_unsupported"}});
+            }
+            if (operation.id == "ravo.geometry.crop" ||
+                operation.id == "ravo.geometry.straighten" ||
+                operation.id == kPerspectiveOperationId)
+            {
+                composed_geometry_seen = true;
+                continue;
+            }
+            if (composed_geometry_seen &&
+                (operation.mask_id.has_value() || operation.id == kRetouchOperationId))
+            {
+                return make_error(ErrorCode::kUnsupported,
+                                  "Canvas-composed geometry cannot precede another mask consumer",
+                                  {{"operation_id", operation.id},
+                                   {"reason", "canvas_geometry_later_mask_unsupported"}});
             }
         }
     }

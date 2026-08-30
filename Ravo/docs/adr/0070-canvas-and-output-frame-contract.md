@@ -1,6 +1,6 @@
 # ADR-0070: Canvas owns the content frame and Frame owns final output margins
 
-- Status: Accepted
+- Status: Accepted; geometry composition extended by [ADR-0096](0096-reference-algorithm-assimilation-boundary.md)
 - Date: 2026-08-29
 - Extends: [ADR-0043](0043-canonical-mask-graph-foundation.md), [ADR-0069](0069-post-output-dither-posterize.md)
 
@@ -24,9 +24,11 @@ padding option would lose recipe state and make mask coordinates ambiguous.
   Retouch source coordinates continue to evaluate against the original photo
   inside that frame, then pad the added area with alpha zero. The current
   evaluator accepts this transform only for a full-frame ROI; sub-ROI
-  evaluation, a nested Canvas, masks on Canvas itself, and enabled geometry
-  after Canvas fail explicitly. G1/G4/G6 must define composed geometry before
-  those combinations become supported.
+  evaluation, a nested Canvas, and masks on Canvas itself fail explicitly.
+  ADR-0096 subsequently accepts Perspective/straighten and crop after Canvas:
+  preview alpha is evaluated in the attached frame and transformed beside the
+  image. Post-Canvas rotate/flip/lens and a mask consumer after composed
+  geometry still fail explicitly.
 - `ravo.output.frame` schema v1 declares `encoded_output_rgb`,
   `frozen_borders_v4`, border and line colours, constant/image/custom aspect,
   orientation, width/height/shorter/longer/automatic basis, size, image
@@ -61,9 +63,10 @@ remains for other frozen kernels. The Overlay literal reference plus old
 order, module-group, and manual names remain owned by M3/D0 until those shared
 files reach their own deletion gates.
 
-Canvas followed by another geometry operation remains an explicit unsupported
-state, not a compatibility fallback. Frame is not transparent padding and does
-not invent an alpha-capable export contract.
+Canvas composition remains deliberately partial, not a compatibility fallback.
+Perspective/straighten and crop have an owned pixel-plus-alpha transform;
+rotate/flip/lens and later mask consumers remain unsupported. Frame is not
+transparent padding and does not invent an alpha-capable export contract.
 
 ## Rejected alternatives
 

@@ -156,6 +156,7 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(shutdown_.cancel("window_closed"));
     static_cast<void>(thumbnail_work_.cancel("window_closed"));
     develop_preview_owner_.cancel("window_closed");
+    perspective_analysis_owner_.cancel("window_closed");
     executor_.submit(
         [this]()
         {
@@ -1527,6 +1528,7 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
     before_after_ = false;
     crop_tool_active_ = false;
     static_cast<void>(develop_preview_owner_.supersede("selection_changed"));
+    static_cast<void>(perspective_analysis_owner_.supersede("selection_changed"));
     pending_preview_.reset();
     load_develop_for_selection();
     publish_selection();

@@ -92,6 +92,14 @@ protected:
     return {utf8.begin(), utf8.end()};
 }
 
+[[nodiscard]] std::string mire1_xtrans_path()
+{
+    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" / "images" /
+                      "mire1-xtrans.raf";
+    const auto utf8 = path.generic_u8string();
+    return {utf8.begin(), utf8.end()};
+}
+
 struct SourceFileSnapshot
 {
     std::uintmax_t size = 0U;
@@ -701,6 +709,33 @@ legacy_primaries_xmp(const std::string_view version = "1", const std::string_vie
     return pixels;
 }
 
+[[nodiscard]] bool write_perspective_grid_png(const std::filesystem::path &path)
+{
+    constexpr std::uint32_t width = 320U;
+    constexpr std::uint32_t height = 240U;
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 3U, 24U);
+    const auto paint = [&](const std::uint32_t x, const std::uint32_t y)
+    {
+        const std::size_t offset = (static_cast<std::size_t>(y) * width + x) * 3U;
+        pixels[offset] = pixels[offset + 1U] = pixels[offset + 2U] = 235U;
+    };
+    for (const std::uint32_t x : {55U, 155U, 265U})
+        for (std::uint32_t y = 18U; y < 222U; ++y)
+            for (std::uint32_t dx = 0U; dx < 3U; ++dx)
+                paint(x + dx - 1U, y);
+    for (const std::uint32_t y : {45U, 118U, 198U})
+        for (std::uint32_t x = 18U; x < 302U; ++x)
+            for (std::uint32_t dy = 0U; dy < 3U; ++dy)
+                paint(x, y + dy - 1U);
+    png_image image{};
+    image.version = PNG_IMAGE_VERSION;
+    image.width = width;
+    image.height = height;
+    image.format = PNG_FORMAT_RGB;
+    return png_image_write_to_file(&image, path.string().c_str(), 0, pixels.data(), 0, nullptr) !=
+           0;
+}
+
 TEST_F(CliTest, VersionJsonUsesTheVersionedEnvelopeAndNoStderrLogs)
 {
     std::ostringstream stdout_stream;
@@ -825,6 +860,57 @@ TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
+TEST_F(CliTest, PerspectiveAnalysisIsStructuredReadOnlyAndRejectsUnknownMode)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-perspective-" + generate_catalog_id());
+    ASSERT_TRUE(std::filesystem::create_directories(root));
+    const auto input = root / "grid.png";
+    ASSERT_TRUE(write_perspective_grid_png(input));
+    const auto before = source_file_snapshot(input.string());
+    ASSERT_TRUE(before.has_value());
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    const std::string input_string = input.generic_string();
+    const std::vector<std::string_view> arguments{"perspective", "analyze", input_string,
+                                                  "--mode",      "full",    "--json"};
+    EXPECT_EQ(application.run(std::span{arguments}), 0) << stderr_stream.str();
+    const auto response = parse_json(stdout_stream.str());
+    ASSERT_TRUE(response) << response.error().message;
+    const auto *data = response.value().find("data");
+    ASSERT_NE(data, nullptr);
+    ASSERT_NE(data->find("algorithm"), nullptr);
+    EXPECT_EQ(*data->find("algorithm")->string_if(), "bounded_hough_robust_fit_v1");
+    ASSERT_NE(data->find("lines"), nullptr);
+    EXPECT_GE(data->find("lines")->array_if()->size(), 4U);
+    for (const auto &line : *data->find("lines")->array_if())
+    {
+        for (const std::string_view coordinate : {"x1", "x2", "y1", "y2"})
+        {
+            ASSERT_NE(line.find(coordinate), nullptr);
+            ASSERT_NE(line.find(coordinate)->number_if(), nullptr);
+            const double value = std::stod(line.find(coordinate)->number_if()->text);
+            EXPECT_GE(value, 0.0);
+            EXPECT_LE(value, 1.0);
+        }
+    }
+    EXPECT_EQ(source_file_snapshot(input.string()), before);
+
+    std::ostringstream bad_stdout;
+    std::ostringstream bad_stderr;
+    const CliApplication bad_application(engine, bad_stdout, bad_stderr);
+    const std::vector<std::string_view> bad_arguments{"perspective", "analyze",  input_string,
+                                                      "--mode",      "diagonal", "--json"};
+    EXPECT_NE(bad_application.run(std::span{bad_arguments}), 0);
+    const auto bad_response = parse_json(bad_stdout.str());
+    ASSERT_TRUE(bad_response) << bad_response.error().message;
+    ASSERT_NE(bad_response.value().find("error"), nullptr);
+    EXPECT_EQ(*bad_response.value().find("error")->find("code")->string_if(), "invalid_argument");
+    EXPECT_TRUE(bad_stderr.str().empty());
+}
+
 TEST_F(CliTest, InspectCommandReturnsFrozenRawMetadata)
 {
     std::ostringstream stdout_stream;
@@ -842,10 +928,38 @@ TEST_F(CliTest, InspectCommandReturnsFrozenRawMetadata)
     ASSERT_NE(raw, nullptr);
     ASSERT_NE(raw->boolean_if(), nullptr);
     EXPECT_TRUE(*raw->boolean_if());
+    ASSERT_NE(data->find("raw_sensor"), nullptr);
+    EXPECT_EQ(*data->find("raw_sensor")->string_if(), "bayer");
+    ASSERT_NE(data->find("cfa_width"), nullptr);
+    EXPECT_EQ(data->find("cfa_width")->number_if()->text, "2");
+    ASSERT_NE(data->find("cfa_height"), nullptr);
+    EXPECT_EQ(data->find("cfa_height")->number_if()->text, "2");
+    ASSERT_NE(data->find("default_demosaic_mode"), nullptr);
+    EXPECT_EQ(*data->find("default_demosaic_mode")->string_if(), "rcd");
     const auto *as_shot = data->find("has_as_shot_white_balance");
     ASSERT_NE(as_shot, nullptr);
     ASSERT_NE(as_shot->boolean_if(), nullptr);
     EXPECT_TRUE(*as_shot->boolean_if());
+    EXPECT_TRUE(stderr_stream.str().empty());
+}
+
+TEST_F(CliTest, InspectCommandReportsXTransCfaAndDefaultDemosaic)
+{
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    const auto input = mire1_xtrans_path();
+    const std::vector<std::string_view> arguments{"inspect", input, "--json"};
+    ASSERT_EQ(application.run(std::span{arguments}), 0) << stdout_stream.str();
+    auto response = parse_json(stdout_stream.str());
+    ASSERT_TRUE(response) << response.error().message;
+    const auto *data = response.value().find("data");
+    ASSERT_NE(data, nullptr);
+    ASSERT_NE(data->find("raw_sensor"), nullptr);
+    EXPECT_EQ(*data->find("raw_sensor")->string_if(), "xtrans");
+    EXPECT_EQ(data->find("cfa_width")->number_if()->text, "6");
+    EXPECT_EQ(data->find("cfa_height")->number_if()->text, "6");
+    EXPECT_EQ(*data->find("default_demosaic_mode")->string_if(), "markesteijn3");
     EXPECT_TRUE(stderr_stream.str().empty());
 }
 
@@ -1261,7 +1375,7 @@ TEST_F(CliTest, LegacyXmpMapsCropBoxOntoCanonicalGeometry)
     return document;
 }
 
-TEST_F(CliTest, LegacyXmpMapsRotationOnlyAshiftOntoStraighten)
+TEST_F(CliTest, LegacyXmpMapsGenericAshiftOntoCanonicalPerspective)
 {
     constexpr std::string_view kIdentity =
         "00000000000000000000000000000000000048420000803f0000c8420000803f0000000000000000000000000000803f000000000000803f00000000";
@@ -1271,23 +1385,49 @@ TEST_F(CliTest, LegacyXmpMapsRotationOnlyAshiftOntoStraighten)
         "90eb913f102db23df853e3bd8cc2753d0000c8420000803f0000c8420000803f000000000000000000000000000000000000803f000000000000803f";
 
     auto identity = import_legacy_xmp(
-        {legacy_ashift_xmp(kIdentity), {"asset-1", "file:///fixture.raw", std::nullopt}});
+        {legacy_ashift_xmp(kIdentity, "5"), {"asset-1", "file:///fixture.raw", std::nullopt}});
     ASSERT_TRUE(identity) << identity.error().message;
     ASSERT_EQ(identity.value().operations.size(), 2U);
 
     auto rotated = import_legacy_xmp(
-        {legacy_ashift_xmp(kRotation), {"asset-1", "file:///fixture.raw", std::nullopt}});
+        {legacy_ashift_xmp(kRotation, "5"), {"asset-1", "file:///fixture.raw", std::nullopt}});
     ASSERT_TRUE(rotated) << rotated.error().message;
     ASSERT_EQ(rotated.value().operations.size(), 3U);
-    EXPECT_EQ(rotated.value().operations[1].id, "ravo.geometry.straighten");
-    EXPECT_NEAR(std::get<double>(rotated.value().operations[1].parameters.at("degrees").value), 2.5,
-                1e-5);
+    EXPECT_EQ(rotated.value().operations[1].id, kPerspectiveOperationId);
+    EXPECT_NEAR(
+        std::get<double>(rotated.value().operations[1].parameters.at("rotation_degrees").value),
+        2.5, 1e-5);
 
     auto perspective = import_legacy_xmp(
         {legacy_ashift_xmp(kPerspective), {"asset-1", "file:///fixture.raw", std::nullopt}});
-    ASSERT_FALSE(perspective);
-    EXPECT_EQ(perspective.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(perspective.error().context.at("reason"), "unsupported_legacy_ashift_perspective");
+    ASSERT_TRUE(perspective) << perspective.error().message;
+    ASSERT_EQ(perspective.value().operations.size(), 3U);
+    EXPECT_EQ(perspective.value().operations[1].id, kPerspectiveOperationId);
+    EXPECT_NEAR(
+        std::get<double>(perspective.value().operations[1].parameters.at("vertical_shift").value),
+        0.087, 1e-6);
+    EXPECT_NEAR(
+        std::get<double>(perspective.value().operations[1].parameters.at("horizontal_shift").value),
+        -0.111, 1e-6);
+    EXPECT_NEAR(std::get<double>(perspective.value().operations[1].parameters.at("shear").value),
+                0.06, 1e-6);
+    EXPECT_EQ(std::get<std::string>(
+                  perspective.value().operations[1].parameters.at("interpolation").value),
+              kPerspectiveInterpolationLanczos3);
+
+    std::string specific_lens(kPerspective);
+    specific_lens.replace(64U, 8U, "01000000");
+    auto unsupported_lens = import_legacy_xmp(
+        {legacy_ashift_xmp(specific_lens), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(unsupported_lens);
+    EXPECT_EQ(unsupported_lens.error().context.at("reason"), "unsupported_legacy_ashift_lens_mode");
+
+    std::string aspect_crop(kPerspective);
+    aspect_crop.replace(80U, 8U, "02000000");
+    auto unsupported_crop = import_legacy_xmp(
+        {legacy_ashift_xmp(aspect_crop), {"asset-1", "file:///fixture.raw", std::nullopt}});
+    ASSERT_FALSE(unsupported_crop);
+    EXPECT_EQ(unsupported_crop.error().context.at("reason"), "unsupported_legacy_ashift_crop_mode");
 }
 
 [[nodiscard]] std::string legacy_rgblevels_xmp(
@@ -3117,7 +3257,17 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
                                                             "--set",
                                                             "vignette=0.4",
                                                             "--set",
-                                                            "velvia=0.2",
+                                                            "texture=0.75",
+                                                            "--set",
+                                                            "textureDetailThreshold=4",
+                                                            "--set",
+                                                            "textureIterations=2",
+                                                            "--set",
+                                                            "velviaEnabled=1",
+                                                            "--set",
+                                                            "velviaStrength=80",
+                                                            "--set",
+                                                            "velviaBias=0.15",
                                                             "--set",
                                                             "outputDitherEnabled=1",
                                                             "--set",
@@ -3587,6 +3737,8 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
     ASSERT_TRUE(minus_one) << minus_one.error().message;
     auto plus_one = run_probe("exposure=1", true);
     ASSERT_TRUE(plus_one) << plus_one.error().message;
+    auto texture = run_probe("texture=0.75", true);
+    ASSERT_TRUE(texture) << texture.error().message;
     const auto baseline_luma = luma_mean(baseline.value());
     const auto minus_one_luma = luma_mean(minus_one.value());
     const auto plus_one_luma = luma_mean(plus_one.value());
@@ -3609,9 +3761,9 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
 
     stdout_stream.str({});
     stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "develop", "--catalog",
-                                                            catalog, "--asset-id", id, "--set",
-                                                            "exposure=1", "--json"}),
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "develop", "--catalog", catalog, "--asset-id", id, "--set",
+                  "exposure=1", "--set", "demosaicModeIndex=1", "--json"}),
               0)
         << stdout_stream.str();
     auto current = run_probe(std::nullopt, false);
@@ -3636,6 +3788,10 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
     ASSERT_NE(listed->array_if(), nullptr);
     EXPECT_GE(listed->array_if()->size(), 50U);
     bool listed_exposure = false;
+    bool listed_demosaic_mode = false;
+    bool listed_raw_denoise = false;
+    bool listed_texture = false;
+    bool listed_texture_iterations = false;
     for (const auto &field : *listed->array_if())
     {
         const auto *name = field.find("name");
@@ -3643,8 +3799,53 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
         {
             listed_exposure = true;
         }
+        if (name != nullptr && name->string_if() != nullptr &&
+            *name->string_if() == "demosaicModeIndex")
+        {
+            listed_demosaic_mode = true;
+            const auto *kind = field.find("kind");
+            ASSERT_NE(kind, nullptr);
+            ASSERT_NE(kind->string_if(), nullptr);
+            EXPECT_EQ(*kind->string_if(), "integer");
+            const auto *minimum = field.find("minimum");
+            const auto *maximum = field.find("maximum");
+            ASSERT_NE(minimum, nullptr);
+            ASSERT_NE(maximum, nullptr);
+            EXPECT_DOUBLE_EQ(std::stod(minimum->number_if()->text), 0.0);
+            EXPECT_DOUBLE_EQ(std::stod(maximum->number_if()->text), 3.0);
+        }
+        if (name != nullptr && name->string_if() != nullptr &&
+            *name->string_if() == "rawDenoiseThreshold")
+        {
+            listed_raw_denoise = true;
+            const auto *minimum = field.find("minimum");
+            const auto *maximum = field.find("maximum");
+            ASSERT_NE(minimum, nullptr);
+            ASSERT_NE(maximum, nullptr);
+            EXPECT_DOUBLE_EQ(std::stod(minimum->number_if()->text), 0.0);
+            EXPECT_DOUBLE_EQ(std::stod(maximum->number_if()->text), 1.0);
+        }
+        if (name != nullptr && name->string_if() != nullptr && *name->string_if() == "texture")
+        {
+            listed_texture = true;
+            EXPECT_DOUBLE_EQ(std::stod(field.find("minimum")->number_if()->text), -2.0);
+            EXPECT_DOUBLE_EQ(std::stod(field.find("maximum")->number_if()->text), 2.0);
+        }
+        if (name != nullptr && name->string_if() != nullptr &&
+            *name->string_if() == "textureIterations")
+        {
+            listed_texture_iterations = true;
+            ASSERT_NE(field.find("kind"), nullptr);
+            EXPECT_EQ(*field.find("kind")->string_if(), "integer");
+            EXPECT_DOUBLE_EQ(std::stod(field.find("minimum")->number_if()->text), 1.0);
+            EXPECT_DOUBLE_EQ(std::stod(field.find("maximum")->number_if()->text), 5.0);
+        }
     }
     EXPECT_TRUE(listed_exposure);
+    EXPECT_TRUE(listed_demosaic_mode);
+    EXPECT_TRUE(listed_raw_denoise);
+    EXPECT_TRUE(listed_texture);
+    EXPECT_TRUE(listed_texture_iterations);
     const auto *prefixes = field_data->find("prefixes");
     ASSERT_NE(prefixes, nullptr);
     ASSERT_NE(prefixes->array_if(), nullptr);
@@ -3667,8 +3868,8 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
     stdout_stream.str({});
     stdout_stream.clear();
     ASSERT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "probe", "--catalog", catalog, "--asset-id", id, "--baseline",
-                  "--set", "exposure=1", "--max-edge", "64", "--output", probe_png, "--json"}),
+                  "catalog", "probe", "--catalog", catalog, "--asset-id", id, "--baseline", "--set",
+                  "exposure=1", "--max-edge", "64", "--output", probe_png, "--json"}),
               0)
         << stdout_stream.str();
     auto probed_file = parse_json(stdout_stream.str());
@@ -3689,9 +3890,9 @@ TEST_F(CliTest, CatalogDevelopProbeIsReadOnlyAndReportsDeterministicPixelStatist
               2);
     stdout_stream.str({});
     stdout_stream.clear();
-    EXPECT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "probe", "--catalog", catalog, "--asset-id", id, "--output", probe_png,
-                  "--json"}),
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "probe", "--catalog",
+                                                            catalog, "--asset-id", id, "--output",
+                                                            probe_png, "--json"}),
               6);
 
     stdout_stream.str({});
@@ -3892,6 +4093,176 @@ TEST_F(CliTest, RealCliColorHarmonizerDevelopSetPersistsAndRejectsInvalidInput)
               std::string::npos);
     EXPECT_NE(serialize_json(after_fail_recipe.value()).find("\"smoothing\":0.5"),
               std::string::npos);
+
+    std::error_code cleanup;
+    std::filesystem::remove_all(root, cleanup);
+}
+
+TEST_F(CliTest, RealCliLut3dPersistsProbesExportsAndRejectsChangedCorruptSource)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-lut3d-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = root / "library.sqlite";
+    const auto cube = root / "red-compression.cube";
+    const auto source = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                        "0000-nop" / "expected.png";
+    const auto source_before = source_file_snapshot(source.string());
+    ASSERT_TRUE(source_before);
+    {
+        std::ofstream output(cube, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output);
+        output << "TITLE \"red compression\"\n"
+                  "LUT_3D_SIZE 2\n"
+                  "DOMAIN_MIN 0 0 0\n"
+                  "DOMAIN_MAX 1 1 1\n"
+                  "0 0 0\n0.2 0 0\n0 1 0\n0.2 1 0\n"
+                  "0 0 1\n0.2 0 1\n0 1 1\n0.2 1 1\n";
+        ASSERT_TRUE(output);
+    }
+
+    struct CliRun
+    {
+        int exit_code = 1;
+        QByteArray stdout_bytes;
+        QByteArray stderr_bytes;
+    };
+    const auto run = [&](const QStringList &arguments) -> CliRun
+    {
+        QProcess process;
+        process.start(QStringLiteral(RAVO_CLI_EXECUTABLE), arguments);
+        EXPECT_TRUE(process.waitForStarted());
+        EXPECT_TRUE(process.waitForFinished());
+        return {process.exitCode(), process.readAllStandardOutput(),
+                process.readAllStandardError()};
+    };
+    const auto parse_data = [](const QByteArray &stdout_bytes) -> Result<JsonValue>
+    {
+        auto response = parse_json(stdout_bytes.toStdString());
+        if (!response)
+            return response.error();
+        const auto *data = response.value().find("data");
+        if (data == nullptr)
+            return make_error(ErrorCode::kValidation, "CLI response is missing data");
+        return *data;
+    };
+    const auto recipe_text = [&](const QString &asset_id) -> Result<std::string>
+    {
+        const auto response =
+            run({QStringLiteral("catalog"), QStringLiteral("recipe"), QStringLiteral("--catalog"),
+                 QString::fromStdString(catalog.string()), QStringLiteral("--asset-id"), asset_id,
+                 QStringLiteral("--json")});
+        if (response.exit_code != 0)
+            return make_error(ErrorCode::kIo, "CLI recipe command failed");
+        auto data = parse_data(response.stdout_bytes);
+        if (!data)
+            return data.error();
+        const auto *recipe = data.value().find("recipe");
+        if (recipe == nullptr)
+            return make_error(ErrorCode::kValidation, "CLI recipe payload is missing recipe");
+        return serialize_json(*recipe);
+    };
+    const auto probe_luma = [&](const QStringList &extra) -> Result<double>
+    {
+        QStringList arguments{QStringLiteral("catalog"), QStringLiteral("probe"),
+                              QStringLiteral("--catalog"), QString::fromStdString(catalog.string()),
+                              QStringLiteral("--asset-id")};
+        arguments.append(extra);
+        arguments.append(
+            {QStringLiteral("--max-edge"), QStringLiteral("64"), QStringLiteral("--json")});
+        const auto response = run(arguments);
+        if (response.exit_code != 0)
+            return make_error(ErrorCode::kIo, "CLI probe command failed",
+                              {{"stdout", response.stdout_bytes.toStdString()}});
+        auto data = parse_data(response.stdout_bytes);
+        if (!data)
+            return data.error();
+        const auto *statistics = data.value().find("statistics");
+        const auto *luma = statistics == nullptr ? nullptr : statistics->find("display_luma_mean");
+        if (luma == nullptr || luma->number_if() == nullptr)
+            return make_error(ErrorCode::kValidation, "CLI probe payload is missing luma");
+        return std::stod(luma->number_if()->text);
+    };
+
+    const auto created =
+        run({QStringLiteral("catalog"), QStringLiteral("create"), QStringLiteral("--path"),
+             QString::fromStdString(catalog.string()), QStringLiteral("--json")});
+    ASSERT_EQ(created.exit_code, 0) << created.stdout_bytes.constData();
+    const auto imported =
+        run({QStringLiteral("catalog"), QStringLiteral("import"), QStringLiteral("--catalog"),
+             QString::fromStdString(catalog.string()), QStringLiteral("--input"),
+             QString::fromStdString(source.string()), QStringLiteral("--json")});
+    ASSERT_EQ(imported.exit_code, 0) << imported.stdout_bytes.constData();
+    auto import_data = parse_data(imported.stdout_bytes);
+    ASSERT_TRUE(import_data) << import_data.error().message;
+    const auto *items = import_data.value().find("items");
+    ASSERT_NE(items, nullptr);
+    ASSERT_NE(items->array_if(), nullptr);
+    ASSERT_EQ(items->array_if()->size(), 1U);
+    const auto *asset = items->array_if()->front().find("asset");
+    const auto *asset_id = asset == nullptr ? nullptr : asset->find("id");
+    ASSERT_NE(asset_id, nullptr);
+    ASSERT_NE(asset_id->string_if(), nullptr);
+    const QString id = QString::fromStdString(*asset_id->string_if());
+
+    auto baseline_luma = probe_luma({id, QStringLiteral("--baseline")});
+    ASSERT_TRUE(baseline_luma) << baseline_luma.error().message;
+    const auto developed =
+        run({QStringLiteral("catalog"), QStringLiteral("develop"), QStringLiteral("--catalog"),
+             QString::fromStdString(catalog.string()), QStringLiteral("--asset-id"), id,
+             QStringLiteral("--set-text"),
+             QStringLiteral("lut3dFile=") + QString::fromStdString(cube.string()),
+             QStringLiteral("--set"), QStringLiteral("lut3dInputSpaceIndex=3"),
+             QStringLiteral("--set"), QStringLiteral("lut3dOutputSpaceIndex=3"),
+             QStringLiteral("--set"), QStringLiteral("lut3dInterpolationIndex=0"),
+             QStringLiteral("--set"), QStringLiteral("lut3dStrength=1"), QStringLiteral("--json")});
+    ASSERT_EQ(developed.exit_code, 0) << developed.stdout_bytes.constData();
+    EXPECT_TRUE(developed.stderr_bytes.isEmpty());
+
+    auto stored = recipe_text(id);
+    ASSERT_TRUE(stored) << stored.error().message;
+    EXPECT_NE(stored.value().find("ravo.color.lut3d"), std::string::npos);
+    EXPECT_NE(stored.value().find(cube.string()), std::string::npos);
+    EXPECT_NE(stored.value().find("linear_rec709"), std::string::npos);
+    auto developed_luma = probe_luma({id});
+    ASSERT_TRUE(developed_luma) << developed_luma.error().message;
+    EXPECT_LT(developed_luma.value(), baseline_luma.value());
+
+    auto zero_strength_luma =
+        probe_luma({id, QStringLiteral("--set"), QStringLiteral("lut3dStrength=0")});
+    ASSERT_TRUE(zero_strength_luma) << zero_strength_luma.error().message;
+    EXPECT_NEAR(zero_strength_luma.value(), baseline_luma.value(), 0.01);
+    auto after_probe = recipe_text(id);
+    ASSERT_TRUE(after_probe) << after_probe.error().message;
+    EXPECT_EQ(after_probe.value(), stored.value());
+
+    const auto exported_path = root / "lut-export.png";
+    const auto exported =
+        run({QStringLiteral("catalog"), QStringLiteral("export"), QStringLiteral("--catalog"),
+             QString::fromStdString(catalog.string()), QStringLiteral("--asset-id"), id,
+             QStringLiteral("--output"), QString::fromStdString(exported_path.string()),
+             QStringLiteral("--format"), QStringLiteral("png"), QStringLiteral("--json")});
+    ASSERT_EQ(exported.exit_code, 0) << exported.stdout_bytes.constData();
+    EXPECT_TRUE(std::filesystem::exists(exported_path));
+    EXPECT_GT(std::filesystem::file_size(exported_path), 8U);
+
+    {
+        std::ofstream output(cube, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output);
+        output << "LUT_3D_SIZE 2\n0 0 0\n";
+    }
+    const auto corrupt =
+        run({QStringLiteral("catalog"), QStringLiteral("probe"), QStringLiteral("--catalog"),
+             QString::fromStdString(catalog.string()), QStringLiteral("--asset-id"), id,
+             QStringLiteral("--max-edge"), QStringLiteral("64"), QStringLiteral("--json")});
+    EXPECT_NE(corrupt.exit_code, 0);
+    auto corrupt_json = parse_json(corrupt.stdout_bytes.toStdString());
+    ASSERT_TRUE(corrupt_json) << corrupt_json.error().message;
+    EXPECT_NE(corrupt_json.value().find("error"), nullptr);
+    auto after_corrupt = recipe_text(id);
+    ASSERT_TRUE(after_corrupt) << after_corrupt.error().message;
+    EXPECT_EQ(after_corrupt.value(), stored.value());
+    EXPECT_EQ(source_file_snapshot(source.string()), source_before);
 
     std::error_code cleanup;
     std::filesystem::remove_all(root, cleanup);

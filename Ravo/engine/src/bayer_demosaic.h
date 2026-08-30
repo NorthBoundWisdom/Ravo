@@ -1,0 +1,35 @@
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <string_view>
+
+#include "image_ops.h"
+
+namespace ravo
+{
+
+enum class BayerDemosaicMode
+{
+    kRcd,
+    kPpg,
+};
+
+inline constexpr std::string_view kBayerDemosaicModeRcd = "rcd";
+inline constexpr std::string_view kBayerDemosaicModePpg = "ppg";
+
+[[nodiscard]] Result<BayerDemosaicMode> parse_bayer_demosaic_mode(std::string_view mode);
+
+// The decoded RAW is borrowed and never mutated. The returned image owns its
+// camera-RGB pixels. Preview-size mosaics use bounded same-CFA area reduction;
+// a full-size request consumes every source sample exactly once.
+[[nodiscard]] Result<WorkingImage>
+demosaic_bayer(const DecodedRaw &raw, std::uint32_t width, std::uint32_t height,
+                const std::array<float, 4> &white_balance, BayerDemosaicMode mode,
+                const CancellationToken &cancellation);
+
+[[nodiscard]] std::uint64_t estimate_bayer_demosaic_memory(std::uint32_t width,
+                                                            std::uint32_t height,
+                                                            BayerDemosaicMode mode) noexcept;
+
+} // namespace ravo

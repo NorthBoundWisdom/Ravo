@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "parallel_rows.h"
+#include "guided_filter.h"
 #include "ravo/recipe/develop.h"
 
 namespace ravo
@@ -47,6 +48,7 @@ constexpr float kChannelMixerNormMin = 1.52587890625e-05F;
 constexpr float kChannelMixerInverseSqrt3 = 0.5773502691896258F;
 
 using detail::for_each_row;
+using detail::self_guided_filter_plane;
 
 using ChannelVector = std::array<float, 3>;
 using ChannelMatrix = std::array<ChannelVector, 3>;
@@ -537,154 +539,6 @@ Result<void> blur_plane(std::vector<float> &plane, const std::uint32_t width,
         return vertical.error();
     }
     return {};
-}
-
-Result<void> box_blur_plane(const std::vector<float> &input, std::vector<float> &output,
-                            const std::uint32_t width, const std::uint32_t height, const int radius,
-                            const CancellationToken &cancellation)
-{
-    output.assign(input.size(), 0.0F);
-    if (input.empty() || width == 0 || height == 0)
-    {
-        return {};
-    }
-    if (radius <= 0)
-    {
-        output = input;
-        return {};
-    }
-    const int window = radius * 2 + 1;
-    std::vector<float> temp(input.size());
-    auto horizontal = for_each_row(
-        height, cancellation,
-        [&](const std::uint32_t y)
-        {
-            double acc = 0.0;
-            for (int x = -radius; x <= radius; ++x)
-            {
-                const int sx = std::clamp(x, 0, static_cast<int>(width) - 1);
-                acc += input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(sx)];
-            }
-            for (std::uint32_t x = 0; x < width; ++x)
-            {
-                temp[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
-                const int drop =
-                    std::clamp(static_cast<int>(x) - radius, 0, static_cast<int>(width) - 1);
-                const int add =
-                    std::clamp(static_cast<int>(x) + radius + 1, 0, static_cast<int>(width) - 1);
-                acc +=
-                    input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(add)] -
-                    input[static_cast<std::size_t>(y) * width + static_cast<std::uint32_t>(drop)];
-            }
-        });
-    if (!horizontal)
-    {
-        return horizontal.error();
-    }
-
-    auto vertical = for_each_row(
-        width, cancellation,
-        [&](const std::uint32_t x)
-        {
-            double acc = 0.0;
-            for (int y = -radius; y <= radius; ++y)
-            {
-                const int sy = std::clamp(y, 0, static_cast<int>(height) - 1);
-                acc += temp[static_cast<std::size_t>(sy) * width + x];
-            }
-            for (std::uint32_t y = 0; y < height; ++y)
-            {
-                output[static_cast<std::size_t>(y) * width + x] = static_cast<float>(acc / window);
-                const int drop =
-                    std::clamp(static_cast<int>(y) - radius, 0, static_cast<int>(height) - 1);
-                const int add =
-                    std::clamp(static_cast<int>(y) + radius + 1, 0, static_cast<int>(height) - 1);
-                acc += temp[static_cast<std::size_t>(add) * width + x] -
-                       temp[static_cast<std::size_t>(drop) * width + x];
-            }
-        });
-    if (!vertical)
-    {
-        return vertical.error();
-    }
-    return {};
-}
-
-Result<void> self_guided_filter_plane(std::vector<float> &plane, const std::uint32_t width,
-                                      const std::uint32_t height, const int radius, const float eps,
-                                      const CancellationToken &cancellation)
-{
-    if (radius <= 0)
-    {
-        return {};
-    }
-    const std::size_t count = plane.size();
-    std::vector<float> mean;
-    std::vector<float> corr;
-    if (auto blurred = box_blur_plane(plane, mean, width, height, radius, cancellation); !blurred)
-    {
-        return blurred.error();
-    }
-    {
-        std::vector<float> squared(count);
-        auto products = for_each_row(height, cancellation,
-                                     [&](const std::uint32_t row)
-                                     {
-                                         const std::size_t begin =
-                                             static_cast<std::size_t>(row) * width;
-                                         const std::size_t end = begin + width;
-                                         for (std::size_t index = begin; index < end; ++index)
-                                         {
-                                             squared[index] = plane[index] * plane[index];
-                                         }
-                                     });
-        if (!products)
-        {
-            return products.error();
-        }
-        if (auto blurred = box_blur_plane(squared, corr, width, height, radius, cancellation);
-            !blurred)
-        {
-            return blurred.error();
-        }
-    }
-    auto coefficients =
-        for_each_row(height, cancellation,
-                     [&](const std::uint32_t row)
-                     {
-                         const std::size_t begin = static_cast<std::size_t>(row) * width;
-                         const std::size_t end = begin + width;
-                         for (std::size_t index = begin; index < end; ++index)
-                         {
-                             const float cov = corr[index] - mean[index] * mean[index];
-                             const float var = std::max(0.0F, cov);
-                             corr[index] = var / (var + eps);
-                             mean[index] -= corr[index] * mean[index];
-                         }
-                     });
-    if (!coefficients)
-    {
-        return coefficients.error();
-    }
-    std::vector<float> mean_a;
-    if (auto blurred = box_blur_plane(corr, mean_a, width, height, radius, cancellation); !blurred)
-    {
-        return blurred.error();
-    }
-    if (auto blurred = box_blur_plane(mean, corr, width, height, radius, cancellation); !blurred)
-    {
-        return blurred.error();
-    }
-    return for_each_row(height, cancellation,
-                        [&](const std::uint32_t row)
-                        {
-                            const std::size_t begin = static_cast<std::size_t>(row) * width;
-                            const std::size_t end = begin + width;
-                            for (std::size_t index = begin; index < end; ++index)
-                            {
-                                plane[index] = mean_a[index] * plane[index] + corr[index];
-                            }
-                        });
 }
 
 bool cholesky_solve(std::vector<float> &a_square, std::vector<float> &y, const std::size_t n)

@@ -12,12 +12,14 @@ target_sources(ravo_recipe
     src/color_input.cpp
     src/color_output.cpp
     src/mask.cpp
+    src/lut3d.cpp
     src/monochrome.cpp
     src/develop_mask.cpp
     src/profile_gamma.cpp
     src/primaries.cpp
     src/operation.cpp
     src/output_dither.cpp
+    src/perspective.cpp
     src/recipe.cpp
     src/retouch.cpp
     src/develop.cpp
@@ -25,6 +27,7 @@ target_sources(ravo_recipe
     src/sharpen.cpp
     src/split_toning.cpp
     src/style.cpp
+    src/texture.cpp
     src/watermark.cpp
     src/velvia.cpp)
 

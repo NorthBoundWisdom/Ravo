@@ -12,6 +12,17 @@ ColumnLayout {
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     spacing: Fonts.smallSpacing
 
+    QmlFileDialogPage {
+        id: lut3dDialog
+        dialogTitle: qsTr("Choose 3D LUT")
+        dialogMode: "open"
+        nameFilters: [qsTr("Cube LUT (*.cube *.CUBE)")]
+        onFileAccepted: function (filePath) {
+            if (root.commands)
+                root.commands.setDevelopText("lut3dFile", filePath);
+        }
+    }
+
     component DevelopSection: CustomEditPanel {
         id: sectionPanel
         showAddButton: false
@@ -482,128 +493,101 @@ ColumnLayout {
         spacing: Fonts.smallSpacing
 
         DevelopSection {
-            title: qsTr("White Balance")
-            sectionId: "whiteBalance"
-            ColumnLayout {
-                Layout.fillWidth: true
-                width: parent.width
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.")
-                    wrapMode: Text.WordWrap
-                    opacity: 0.75
-                }
-                CustomCheckBox {
-                    objectName: "whiteBalancePickActive"
-                    text: qsTr("Pick white on photo")
-                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editWhiteBalance.canPick
-                    checked: root.hasPresenter && root.presenter.whiteBalancePickActive
-                    onToggled: if (root.commands)
-                        root.commands.setWhiteBalancePickActive(checked)
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    visible: root.hasPresenter && root.presenter.whiteBalancePickActive
-                    text: qsTr("Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.")
-                    wrapMode: Text.WordWrap
-                    opacity: 0.75
-                }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Red coefficient"),
-                            "key": "red",
-                            "field": "whiteBalanceRed"
-                        },
-                        {
-                            "title": qsTr("Green coefficient"),
-                            "key": "green",
-                            "field": "whiteBalanceGreen"
-                        },
-                        {
-                            "title": qsTr("Blue coefficient"),
-                            "key": "blue",
-                            "field": "whiteBalanceBlue"
-                        },
-                        {
-                            "title": qsTr("Fourth coefficient"),
-                            "key": "fourth",
-                            "field": "whiteBalanceFourth"
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        visible: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3 || root.presenter.editWhiteBalance.hasCoefficients)
-                        title: modelData.title
-                        from: 0.000001
-                        to: 8
-                        stepSize: 0.01
-                        validatorDecimals: 3
-                        showReset: true
-                        resetValue: 1
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-            }
-        }
-        DevelopSection {
             title: qsTr("Light")
             sectionId: "light"
             ColumnLayout {
                 Layout.fillWidth: true
                 width: parent.width
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Exposure mode")
-                    font.bold: true
-                }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("Manual"), qsTr("Deflicker")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editExposureParams.modeIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("exposureMode", currentIndex)
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Exposure black")
-                    from: -0.1
-                    to: 0.1
-                    stepSize: 0.0001
-                    validatorDecimals: 4
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editExposureParams.black : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposureBlack", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("exposureBlack", value);
+                DevelopSection {
+                    title: qsTr("White Balance")
+                    sectionId: "whiteBalance"
+                    collapsible: false
+                    animateHeight: false
+                    borderWidth: 0
+                    borderRadius: 0
+                    padding: 0
+                    panelColor: "transparent"
+                    titleBarColor: "transparent"
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        width: parent.width
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("As shot"), qsTr("Camera reference"), qsTr("As shot → reference"), qsTr("Manual coefficients")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editWhiteBalance.modeIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("whiteBalanceMode", currentIndex)
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            text: qsTr("Automatic modes resolve camera metadata before demosaic. Manual values scale R, G1, B and G2/CYGM channel 4.")
+                            wrapMode: Text.WordWrap
+                            opacity: 0.75
+                        }
+                        CustomCheckBox {
+                            objectName: "whiteBalancePickActive"
+                            text: qsTr("Pick white on photo")
+                            enabled: root.hasSelection && root.hasPresenter && root.presenter.editWhiteBalance.canPick
+                            checked: root.hasPresenter && root.presenter.whiteBalancePickActive
+                            onToggled: if (root.commands)
+                                root.commands.setWhiteBalancePickActive(checked)
+                        }
+                        CustomLabel {
+                            Layout.fillWidth: true
+                            visible: root.hasPresenter && root.presenter.whiteBalancePickActive
+                            text: qsTr("Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.")
+                            wrapMode: Text.WordWrap
+                            opacity: 0.75
+                        }
+                        Repeater {
+                            model: [
+                                {
+                                    "title": qsTr("Red coefficient"),
+                                    "key": "red",
+                                    "field": "whiteBalanceRed"
+                                },
+                                {
+                                    "title": qsTr("Green coefficient"),
+                                    "key": "green",
+                                    "field": "whiteBalanceGreen"
+                                },
+                                {
+                                    "title": qsTr("Blue coefficient"),
+                                    "key": "blue",
+                                    "field": "whiteBalanceBlue"
+                                },
+                                {
+                                    "title": qsTr("Fourth coefficient"),
+                                    "key": "fourth",
+                                    "field": "whiteBalanceFourth"
+                                }
+                            ]
+                            delegate: CustomSlider {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                visible: root.hasPresenter && (root.presenter.editWhiteBalance.modeIndex === 3 || root.presenter.editWhiteBalance.hasCoefficients)
+                                title: modelData.title
+                                from: 0.000001
+                                to: 8
+                                stepSize: 0.01
+                                validatorDecimals: 3
+                                showReset: true
+                                resetValue: 1
+                                delayedCommit: true
+                                enabled: root.hasSelection
+                                value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
+                                onValueEdited: if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value)
+                                onValueCommitted: function (value) {
+                                    if (root.commands)
+                                        root.commands.setDevelopNumber(modelData.field, value);
+                                }
+                                onResetRequested: if (root.commands)
+                                    root.commands.resetControl(modelData.field)
+                            }
+                        }
                     }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("exposureBlack")
                 }
                 CustomSlider {
                     Layout.fillWidth: true
@@ -627,72 +611,6 @@ ColumnLayout {
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("exposure")
                 }
-                CustomCheckBox {
-                    text: qsTr("Compensate exposure bias")
-                    visible: !root.hasPresenter || root.presenter.editExposureParams.modeIndex === 0
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editExposureParams.compensateExposureBias
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("exposureCompensateBias", checked ? 1 : 0)
-                }
-                CustomCheckBox {
-                    text: qsTr("Compensate highlight preservation")
-                    visible: !root.hasPresenter || root.presenter.editExposureParams.modeIndex === 0
-                    enabled: root.hasSelection
-                    checked: root.hasPresenter && root.presenter.editExposureParams.compensateHighlightPreservation
-                    onToggled: if (root.liveReady && root.commands)
-                        root.commands.setDevelopNumber("exposureCompensateHighlight", checked ? 1 : 0)
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Deflicker percentile")
-                    from: 0
-                    to: 100
-                    stepSize: 0.1
-                    validatorDecimals: 1
-                    showReset: true
-                    resetValue: 50
-                    delayedCommit: true
-                    visible: root.hasPresenter && root.presenter.editExposureParams.modeIndex === 1
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editExposureParams.deflickerPercentile : 50
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposureDeflickerPercentile", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("exposureDeflickerPercentile", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("exposureDeflickerPercentile")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Deflicker target EV")
-                    from: -18
-                    to: 18
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: -4
-                    delayedCommit: true
-                    visible: root.hasPresenter && root.presenter.editExposureParams.modeIndex === 1
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editExposureParams.deflickerTargetEv : -4
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposureDeflickerTarget", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("exposureDeflickerTarget", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("exposureDeflickerTarget")
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    visible: root.hasPresenter && root.presenter.editSigmoidEnabled
-                    text: qsTr("Sigmoid Display · Standard SDR")
-                    font.bold: true
-                }
                 CustomSlider {
                     Layout.fillWidth: true
                     title: qsTr("Contrast")
@@ -714,50 +632,6 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("sigmoidContrast")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Skew")
-                    from: -1
-                    to: 1
-                    stepSize: 0.02
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 0
-                    delayedCommit: true
-                    visible: root.hasPresenter && root.presenter.editSigmoidEnabled
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editSigmoidSkew : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sigmoidSkew", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("sigmoidSkew", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("sigmoidSkew")
-                }
-                CustomSlider {
-                    Layout.fillWidth: true
-                    title: qsTr("Preserve Hue")
-                    from: 0
-                    to: 1
-                    stepSize: 0.01
-                    validatorDecimals: 2
-                    showReset: true
-                    resetValue: 1
-                    delayedCommit: true
-                    visible: root.hasPresenter && root.presenter.editSigmoidEnabled
-                    enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editSigmoidHuePreservation : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sigmoidHuePreservation", value)
-                    onValueCommitted: function (value) {
-                        if (root.commands)
-                            root.commands.setDevelopNumber("sigmoidHuePreservation", value);
-                    }
-                    onResetRequested: if (root.commands)
-                        root.commands.resetControl("sigmoidHuePreservation")
                 }
                 CustomSlider {
                     Layout.fillWidth: true
@@ -856,6 +730,150 @@ ColumnLayout {
                     }
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("blacks")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Exposure mode")
+                    font.bold: true
+                }
+                CustomComboBox {
+                    Layout.fillWidth: true
+                    model: [qsTr("Manual"), qsTr("Deflicker")]
+                    enabled: root.hasSelection
+                    currentIndex: root.hasPresenter ? root.presenter.editExposureParams.modeIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("exposureMode", currentIndex)
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Exposure black")
+                    from: -0.1
+                    to: 0.1
+                    stepSize: 0.0001
+                    validatorDecimals: 4
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editExposureParams.black : 0
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("exposureBlack", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("exposureBlack", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("exposureBlack")
+                }
+                CustomCheckBox {
+                    text: qsTr("Compensate exposure bias")
+                    visible: !root.hasPresenter || root.presenter.editExposureParams.modeIndex === 0
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editExposureParams.compensateExposureBias
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("exposureCompensateBias", checked ? 1 : 0)
+                }
+                CustomCheckBox {
+                    text: qsTr("Compensate highlight preservation")
+                    visible: !root.hasPresenter || root.presenter.editExposureParams.modeIndex === 0
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editExposureParams.compensateHighlightPreservation
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("exposureCompensateHighlight", checked ? 1 : 0)
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Deflicker percentile")
+                    from: 0
+                    to: 100
+                    stepSize: 0.1
+                    validatorDecimals: 1
+                    showReset: true
+                    resetValue: 50
+                    delayedCommit: true
+                    visible: root.hasPresenter && root.presenter.editExposureParams.modeIndex === 1
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editExposureParams.deflickerPercentile : 50
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("exposureDeflickerPercentile", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("exposureDeflickerPercentile", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("exposureDeflickerPercentile")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Deflicker target EV")
+                    from: -18
+                    to: 18
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: -4
+                    delayedCommit: true
+                    visible: root.hasPresenter && root.presenter.editExposureParams.modeIndex === 1
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editExposureParams.deflickerTargetEv : -4
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("exposureDeflickerTarget", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("exposureDeflickerTarget", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("exposureDeflickerTarget")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                    text: qsTr("Sigmoid Display · Standard SDR")
+                    font.bold: true
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Skew")
+                    from: -1
+                    to: 1
+                    stepSize: 0.02
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSigmoidSkew : 0
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("sigmoidSkew", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("sigmoidSkew", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("sigmoidSkew")
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("Preserve Hue")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 1
+                    delayedCommit: true
+                    visible: root.hasPresenter && root.presenter.editSigmoidEnabled
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editSigmoidHuePreservation : 1
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("sigmoidHuePreservation", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("sigmoidHuePreservation", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("sigmoidHuePreservation")
                 }
                 CustomSlider {
                     Layout.fillWidth: true
@@ -1500,24 +1518,188 @@ ColumnLayout {
                     onResetRequested: if (root.commands)
                         root.commands.resetControl("saturation")
                 }
-                CustomSlider {
+                CustomLabel {
                     Layout.fillWidth: true
-                    title: qsTr("Velvia")
+                    text: qsTr("Velvia")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                CustomCheckBox {
+                    objectName: "velviaEnabled"
+                    text: qsTr("Enable Velvia")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editVelviaParams.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("velviaEnabled", checked ? 1 : 0)
+                }
+                CustomSlider {
+                    objectName: "velviaStrength"
+                    Layout.fillWidth: true
+                    title: qsTr("Strength")
                     from: 0
-                    to: 1
+                    to: 100
+                    stepSize: 1
+                    validatorDecimals: 1
                     showReset: true
-                    resetValue: 0
+                    resetValue: 25
                     delayedCommit: true
                     enabled: root.hasSelection
-                    value: root.hasPresenter ? root.presenter.editVelvia : 0
+                    value: root.hasPresenter ? root.presenter.editVelviaParams.strength : 25
                     onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("velvia", value)
+                        root.commands.previewDevelopNumber("velviaStrength", value)
                     onValueCommitted: function (value) {
                         if (root.commands)
-                            root.commands.setDevelopNumber("velvia", value);
+                            root.commands.setDevelopNumber("velviaStrength", value);
                     }
                     onResetRequested: if (root.commands)
+                        root.commands.resetControl("velviaStrength")
+                }
+                CustomSlider {
+                    objectName: "velviaBias"
+                    Layout.fillWidth: true
+                    title: qsTr("Mid-tones bias")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 1
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editVelviaParams.bias : 1
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("velviaBias", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("velviaBias", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("velviaBias")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.72
+                    visible: root.hasPresenter && root.presenter.editVelviaParams.masked
+                    text: qsTr("Loaded Velvia mask is preserved but edited outside this panel.")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset Velvia")
+                    enabled: root.hasSelection
+                    onClicked: if (root.commands)
                         root.commands.resetControl("velvia")
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("3D LUT")
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomTextField {
+                        objectName: "lut3dFile"
+                        Layout.fillWidth: true
+                        maximumLength: 4096
+                        showEmptyIndicator: true
+                        showClipIndicator: true
+                        placeholderText: qsTr("Choose a .cube file")
+                        enabled: root.hasSelection
+                        text: root.hasPresenter ? root.presenter.editLut3d.filePath : ""
+                        onEditingCommitted: function (committedText) {
+                            if (root.commands)
+                                root.commands.setDevelopText("lut3dFile", committedText);
+                        }
+                    }
+                    CustomButton {
+                        text: qsTr("Choose…")
+                        enabled: root.hasSelection
+                        onClicked: lut3dDialog.openDialog()
+                    }
+                }
+                CustomCheckBox {
+                    objectName: "lut3dEnabled"
+                    text: qsTr("Enable 3D LUT")
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.hasFile
+                    checked: root.hasPresenter && root.presenter.editLut3d.enabled
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("lut3dEnabled", checked ? 1 : 0)
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Input color space")
+                }
+                CustomComboBox {
+                    objectName: "lut3dInputSpace"
+                    Layout.fillWidth: true
+                    model: root.hasPresenter ? root.presenter.editLut3d.spaceChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editLut3d.inputSpaceIndex : 0
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.hasFile
+                    Accessible.name: qsTr("3D LUT input color space")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("lut3dInputSpaceIndex", index);
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Output color space")
+                }
+                CustomComboBox {
+                    objectName: "lut3dOutputSpace"
+                    Layout.fillWidth: true
+                    model: root.hasPresenter ? root.presenter.editLut3d.spaceChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editLut3d.outputSpaceIndex : 0
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.hasFile
+                    Accessible.name: qsTr("3D LUT output color space")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("lut3dOutputSpaceIndex", index);
+                    }
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Interpolation")
+                }
+                CustomComboBox {
+                    objectName: "lut3dInterpolation"
+                    Layout.fillWidth: true
+                    model: root.hasPresenter ? root.presenter.editLut3d.interpolationChoices : []
+                    currentIndex: root.hasPresenter ? root.presenter.editLut3d.interpolationIndex : 0
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.hasFile
+                    Accessible.name: qsTr("3D LUT interpolation")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("lut3dInterpolationIndex", index);
+                    }
+                }
+                CustomSlider {
+                    objectName: "lut3dStrength"
+                    Layout.fillWidth: true
+                    title: qsTr("Strength")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 1
+                    delayedCommit: true
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.hasFile
+                    value: root.hasPresenter ? root.presenter.editLut3d.strength : 1
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("lut3dStrength", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("lut3dStrength", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("lut3dStrength")
+                }
+                CustomButton {
+                    text: qsTr("Disable and reset 3D LUT")
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.present
+                    onClicked: if (root.commands)
+                        root.commands.resetControl("lut3d")
                 }
                 CustomLabel {
                     Layout.fillWidth: true
@@ -3254,6 +3436,123 @@ ColumnLayout {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Fonts.size6
+                    Repeater {
+                        model: [
+                            {"label": qsTr("Auto"), "mode": "full"},
+                            {"label": qsTr("Vertical"), "mode": "vertical"},
+                            {"label": qsTr("Horizontal"), "mode": "horizontal"}
+                        ]
+                        delegate: CustomButton {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            text: modelData.label
+                            enabled: root.hasSelection
+                            tooltipText: qsTr("Analyze visible lines and apply a bounded perspective correction")
+                            onClicked: if (root.commands)
+                                root.commands.autoPerspective(modelData.mode)
+                        }
+                    }
+                }
+                Repeater {
+                    model: [
+                        {
+                            "title": qsTr("Angle"),
+                            "key": "angle",
+                            "field": "straighten",
+                            "minimum": -45,
+                            "maximum": 45,
+                            "step": 0.1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Vertical"),
+                            "key": "vertical",
+                            "field": "perspectiveVertical",
+                            "minimum": -2,
+                            "maximum": 2,
+                            "step": 0.01,
+                            "decimals": 2
+                        },
+                        {
+                            "title": qsTr("Horizontal"),
+                            "key": "horizontal",
+                            "field": "perspectiveHorizontal",
+                            "minimum": -2,
+                            "maximum": 2,
+                            "step": 0.01,
+                            "decimals": 2
+                        },
+                        {
+                            "title": qsTr("Shear"),
+                            "key": "shear",
+                            "field": "perspectiveShear",
+                            "minimum": -0.5,
+                            "maximum": 0.5,
+                            "step": 0.005,
+                            "decimals": 3
+                        }
+                    ]
+                    delegate: CustomSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        title: modelData.title
+                        from: modelData.minimum
+                        to: modelData.maximum
+                        stepSize: modelData.step
+                        validatorDecimals: modelData.decimals
+                        showReset: true
+                        resetValue: 0
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ?
+                                   (modelData.field === "straighten" ?
+                                        root.presenter.editStraighten :
+                                        root.presenter.editPerspective[modelData.key]) : 0
+                        onValueEdited: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber(modelData.field, value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl(modelData.field)
+                    }
+                }
+                CustomCheckBox {
+                    id: perspectiveConstrainCropBox
+                    objectName: "perspectiveConstrainCrop"
+                    text: qsTr("Constrain crop")
+                    enabled: root.hasSelection
+                    checked: root.hasPresenter && root.presenter.editPerspective.constrainCrop
+                    onToggled: if (root.liveReady && root.commands)
+                        root.commands.setDevelopNumber("perspectiveConstrainCrop", checked ? 1 : 0)
+                }
+                Connections {
+                    target: root.presenter
+                    function onEditChanged() {
+                        const constrained = root.hasPresenter && root.presenter.editPerspective.constrainCrop;
+                        if (perspectiveConstrainCropBox.checked !== constrained)
+                            perspectiveConstrainCropBox.checked = constrained;
+                    }
+                    function onSelectionChanged() {
+                        perspectiveConstrainCropBox.checked = root.hasPresenter && root.presenter.editPerspective.constrainCrop;
+                    }
+                }
+                CustomComboBox {
+                    objectName: "perspectiveInterpolation"
+                    Layout.fillWidth: true
+                    enabled: root.hasSelection
+                    model: [qsTr("Bilinear — fast"), qsTr("Lanczos 2"), qsTr("Lanczos 3 — best quality")]
+                    currentIndex: root.hasPresenter ? root.presenter.editPerspective.interpolationIndex : 2
+                    Accessible.name: qsTr("Perspective interpolation")
+                    onActivated: function (index) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("perspectiveInterpolationIndex", index);
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Fonts.size6
                     CustomComboBox {
                         Layout.fillWidth: true
                         model: ["free", "1:1", "3:2", "4:3", "5:4", "16:9"]
@@ -4172,6 +4471,74 @@ ColumnLayout {
                 width: parent.width
                 CustomSlider {
                     Layout.fillWidth: true
+                    title: qsTr("Texture")
+                    from: -100
+                    to: 100
+                    stepSize: 1
+                    validatorDecimals: 0
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection
+                    value: root.hasPresenter ? root.presenter.editTexture.strength * 50 : 0
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("texture", value / 50)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("texture", value / 50);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("texture")
+                }
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Texture · more")
+                    expanded: false
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Texture scale")
+                        from: 0.01
+                        to: 10
+                        stepSize: 0.01
+                        validatorDecimals: 2
+                        showReset: true
+                        resetValue: 0.2
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editTexture.detailThreshold : 0.2
+                        onValueEdited: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("textureDetailThreshold", value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("textureDetailThreshold", value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl("textureDetailThreshold")
+                    }
+                    CustomSlider {
+                        Layout.fillWidth: true
+                        title: qsTr("Texture iterations")
+                        from: 1
+                        to: 5
+                        stepSize: 1
+                        validatorDecimals: 0
+                        showReset: true
+                        resetValue: 1
+                        delayedCommit: true
+                        enabled: root.hasSelection
+                        value: root.hasPresenter ? root.presenter.editTexture.iterations : 1
+                        onValueEdited: if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("textureIterations", value)
+                        onValueCommitted: function (value) {
+                            if (root.commands)
+                                root.commands.setDevelopNumber("textureIterations", value);
+                        }
+                        onResetRequested: if (root.commands)
+                            root.commands.resetControl("textureIterations")
+                    }
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
                     title: qsTr("Sharpen")
                     from: 0
                     to: 2
@@ -4574,6 +4941,50 @@ ColumnLayout {
             ColumnLayout {
                 Layout.fillWidth: true
                 width: parent.width
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Demosaicing")
+                }
+                CustomComboBox {
+                    Layout.fillWidth: true
+                    model: [qsTr("Auto — RCD / Markesteijn 3"),
+                            qsTr("PPG — Bayer compatibility"),
+                            qsTr("Markesteijn 1 — X-Trans fast"),
+                            qsTr("Markesteijn 3 — X-Trans quality")]
+                    enabled: root.hasSelection && root.hasPresenter
+                             && root.presenter.selectedMediaType === "image/x-raw"
+                    currentIndex: root.hasPresenter ? root.presenter.editDemosaicModeIndex : 0
+                    onActivated: if (root.commands)
+                        root.commands.setDevelopNumber("demosaicModeIndex", currentIndex)
+                }
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.")
+                    wrapMode: Text.WordWrap
+                    opacity: 0.75
+                }
+                CustomSlider {
+                    Layout.fillWidth: true
+                    title: qsTr("RAW wavelet denoise")
+                    from: 0
+                    to: 1
+                    stepSize: 0.01
+                    validatorDecimals: 2
+                    showReset: true
+                    resetValue: 0
+                    delayedCommit: true
+                    enabled: root.hasSelection && root.hasPresenter
+                             && root.presenter.selectedMediaType === "image/x-raw"
+                    value: root.hasPresenter ? root.presenter.editRawDenoiseThreshold : 0
+                    onValueEdited: if (root.liveReady && root.commands)
+                        root.commands.previewDevelopNumber("rawDenoiseThreshold", value)
+                    onValueCommitted: function (value) {
+                        if (root.commands)
+                            root.commands.setDevelopNumber("rawDenoiseThreshold", value);
+                    }
+                    onResetRequested: if (root.commands)
+                        root.commands.resetControl("rawDenoiseThreshold")
+                }
                 CustomSlider {
                     Layout.fillWidth: true
                     title: qsTr("Hot pixels")

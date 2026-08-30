@@ -2,7 +2,7 @@
 
 > **Status: in progress**
 >
-> **Updated: 2026-08-29**
+> **Updated: 2026-08-31**
 >
 > **Current execution status:** P1 and the accepted everyday P2 surface are
 > complete; P3 has reached typed batch export, deterministic output dither,
@@ -14,14 +14,22 @@
 > C20 Split Toning is accepted and its old owner retired (ADR-0075). Studio's
 > default Develop grading workspace is accepted (ADR-0082) and is not leftover
 > consumption. ADR-0083 accepts the eight-band Color Equalizer editor and Bayer
-> CFA white-balance pick. Next leftover Ready remains P4's C21 Velvia contract;
-> do not start it from this workspace round. Shared S8–S11, J5–J7,
+> CFA white-balance pick. C21 Velvia is accepted and its old owner retired
+> (ADR-0095). Bounded DNG OpcodeList2/3 corrections, CPU RCD/PPG demosaic, and
+> full `G6` Perspective with deterministic safe crop, X-Trans Markesteijn and
+> the separate Bayer/X-Trans RAW denoise path are accepted by ADR-0096; the old
+> ashift and rawdenoise owners are retired. Profile-explicit 3D LUT is accepted
+> and its old CPU/OpenCL owner is retired. Offline deterministic camera-noise
+> calibration and bounded Texture are accepted. The reference-algorithm review
+> is closed by ADR-0096: Local Laplacian was rejected, and the distinct but
+> over-budget Filmulator physical model remains test-only research. Shared
+> S8–S11, J5–J7,
 > U5/U10/J2, format-wrapper,
 > and dynamic-storage deletion still waits for their named old consumers to
 > reach zero. Leftover GTK `mask_manager` / `libs/masks.c` wait for zero
 > develop/history consumers. Do not start C15 or cacorrectrgb until a later
-> exact tranche explicitly authorizes them. Full R1/R2 ALG (GainMap,
-> RCD/PPG/X-Trans) remains outside the first-frame contract.
+> exact tranche explicitly authorizes them. The new RAW work extends rather
+> than silently broadens ADR-0047's first-frame contract.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -79,10 +87,10 @@ explicitly authorized. A priority label alone does not waive those conditions.
 | Priority | User outcome and internal order | Owner IDs / readiness | Acceptance gate |
 | --- | --- | --- | --- |
 | P0 — finish active local-adjustment work | Mask overlay/group editing, path/brush authoring, and Color Harmonizer IOP retirement | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers; **Accepted product surface**. `C15` and `R4` remain explicitly unauthorized | Canonical graph/evaluator/service path with Studio overlay/group/path/brush; C14 retired; leftover GTK mask-manager files wait for zero-consumer proof |
-| P1 — reliably open and view common photos | **Accepted first-frame.** JPEG/PNG/TIFF publication plus Bayer LibRaw/DNG inspect/decode, structured failures, unpack-before-publish, corrupt PNG cache miss, and close/reopen | ADR-0046/0047. Remaining: full `R1`/`R2` ALG, `I1` dispatcher, `S11` byte-budget LRU, leftover `J*` jobs, and wrapper deletion for `I2`/`I4`/`I5`/`I6`/`I7` | Common files open with correct orientation/profile/bit depth; corrupt/missing/oversized/cancelled inputs fail structurally; first preview, cache, close and reopen stay bounded |
-| P2 — everyday Develop controls | **Accepted essential surface.** Flip/crop/rotation-only straighten, RGB levels/curve, Bayer RAW denoise import, highlight colour reconstruction, source-exact sharpen, source-linear guided dehaze, and ordered Retouch are accepted | Remaining `G3` pixel-aspect, full `G6` perspective, leftover `(int)` crop ROI, X-Trans rawdenoise, and dedicated RGB-curve/rawdenoise editors retain independent gates; they do not reopen M2 | One recipe/CLI/Catalog/Studio path per accepted control; real fixture and source-order CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
+| P1 — reliably open and view common photos | **Accepted first-frame, bounded DNG corrections, Bayer RCD/PPG and X-Trans Markesteijn.** | ADR-0046/0047/0093; remaining `R1` crop/black/white exactness and `R2` dual/green matching; `I1`, old `S11`/`J*`, and wrapper deletion remain separate zero-consumer work | Common files open with correct orientation/profile/bit depth; opcode bounds, unsupported CFA, corrupt/missing/oversized/cancelled inputs fail structurally; full and bounded previews remain deterministic |
+| P2 — everyday Develop controls | **Accepted essential surface; full `G6` Perspective and safe crop are accepted and the old owner is retired.** Flip/crop/straighten, RGB levels/curve, Bayer/X-Trans RAW denoise, highlight colour reconstruction, source-exact sharpen, source-linear guided dehaze, and ordered Retouch are accepted | Remaining `G3`, leftover `(int)` crop ROI, dedicated RGB-curve band editor, and non-sequenced work retain independent gates | One recipe/CLI/Catalog/Studio path per accepted control; real fixture and independent CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
 | P3 — library and delivery workflow | **Dependency-blocked cleanup.** Product workflow is accepted; remove shared old owners only when their direct consumers reach zero | `S8`–`S11`, `J5`–`J7`, `U5`, `U10`, `J2`, `I1`, `I10`–`I13` cleanup gates | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
-| P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, Velvia, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T6`, `T1`, `C21`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
+| P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T1`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
 | P5 — specialist and low-frequency tools | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until a later exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget and explicit unsupported-state policy; no simplified substitute or speculative shell |
 | P6 — retirement and repository cleanup | Delete dynamic ABI, old UI, shared globals, resources, runners and empty directories only after their last accepted consumer disappears | `D0.*`, remaining `S5`–`S7`/`S12`–`S14`, `J2`, `I15`, `U*`, cleanup-only `L*`, `H*`, `E*`; Not a standalone feature queue | Whole-repository zero-consumer search, synchronized freeze/inventory/docs, three-platform Ravo package/install evidence, and recoverable release transition |
 
@@ -124,7 +132,7 @@ This section is a lookup index for ownership, dependencies, fixtures, and
 deletion gates. **Its section and row order is not execution priority**; only
 section 2.1 chooses work. Snapshot baseline:
 
-- legacy/src/iop/CMakeLists.txt has 40 unconditional IOP registrations plus the
+- legacy/src/iop/CMakeLists.txt has 35 unconditional IOP registrations plus the
   conditional `liquify`; every remaining owner has a row in section 3.2.
 - legacy/src/libs/CMakeLists.txt has 23 source-backed modules/tools; retired
   export/copy_history/tagging/metadata/history/snapshots registrations are gone.
@@ -167,7 +175,7 @@ General completion gates:
 | D0.4 | common/iop_order.c, libs/modulegroups.c, usermanual_url.c retired names | Final deletion | These files still serve old UI/registry, including shared exposure order/module-group/manual names; remove with their DELETE batch after all algorithm consumers clear |
 | D0.5 | unconsumed iop/choleski.h, equalizer_eaw.h, svd.h, unregistered useless.c | Delete | Search all includes/targets/fixture owners again; add retired list and pass freeze check |
 
-### 3.2 IOP algorithm owner index (48 owners: 46 unconditional + 2 conditional)
+### 3.2 IOP algorithm owner index (47 owners: 45 unconditional + 2 conditional)
 
 The groups below make legacy ownership searchable. They do not define product
 priority or serial order. fixture means static evidence exists, not that it is
@@ -180,7 +188,6 @@ covered.
 | C15 | colorize — iop/colorize.c | yes | Queued / ALG; depends on S1/M1; Lab hue/saturation/source mix |
 | C16 | colormapping — iop/colormapping.c | yes | Queued / ALG; depends on S1; source/target statistics, clusters, determinism |
 | C19 | lowlight — iop/lowlight.c | yes | Queued / ALG; depends on S1; low-light perception curve and LUT |
-| C21 | velvia — iop/velvia.c | yes | Queued / ALG; simplified velvia is not acceptance; reproduce luminance/saturation weighting |
 
 #### B. Display transforms, curves, and LUTs
 
@@ -191,16 +198,14 @@ covered.
 | T3 | rgblevels — iop/rgblevels.c | yes | Accepted recipe/engine/Studio path (ADR-0051). Auto-levels picker stays history-baked; leftover IOP remains until freeze census is zero |
 | T4 | filmicrgb — iop/filmicrgb.c | yes | Queued / ALG; Sigmoid remains default; complete scene/display, chroma/gamut/reconstruction modes |
 | T5 | agx — iop/agx.c | yes | Queued / ALG; Sigmoid remains default; AgX curve, primaries, gamut path |
-| T6 | lut3d — iop/lut3d.c | yes | Queued / ALG; depends on explicit input/output profile state; LUT format adapter, missing/invalid file, interpolation |
 | T7 | negadoctor — iop/negadoctor.c | yes | Queued / ALG; negative input, film base, scanner/profile, picker UI separated |
 
 #### C. RAW preprocess and demosaic
 
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
-| R1 | rawprepare — iop/rawprepare.c | yes | Queued / ALG; first-frame LibRaw crop/black/white/CFA/flip is accepted (ADR-0047). Remaining: DNG GainMap OpcodeList2/3 and the complete frozen crop/black/white path |
-| R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; first-frame Bayer 3×3 is accepted (ADR-0047). Remaining: RCD/PPG, dual/green matching, X-Trans Markesteijn, memory/ROI. Do not treat 3×3 as ALG retirement |
-| R3 | rawdenoise — iop/rawdenoise.c | yes | Accepted Bayer wavelet/threshold (ADR-0054). Remaining: X-Trans path; G1/G3 pull-together; leftover IOP until freeze census is zero |
+| R1 | rawprepare — iop/rawprepare.c | yes | Queued / ALG; first-frame LibRaw crop/black/white/CFA/flip (ADR-0047) and bounded DNG OpcodeList2/3 corrections (ADR-0096) are accepted. Remaining: the complete frozen crop/black/white path and wrapper census |
+| R2 | demosaic — iop/demosaic.c + iop/demosaicing/* | yes | Queued / ALG; CPU Bayer RCD/PPG and X-Trans Markesteijn 1/3-pass, bounded tiles/ROI, quality metrics, persistence and real RAW goldens are accepted (ADR-0096). Remaining: dual/green matching; do not treat common-sensor completion as full ALG retirement |
 | R4 | cacorrectrgb — iop/cacorrectrgb.c | no | Queued / ALG; separate from migrated pre-demosaic cacorrect; create synthetic/RAW fixture first |
 | R6 | rasterfile — iop/rasterfile.c | no | Queued / ALG; depends on I1/M1; raster-source/mask ownership and no-fixture baseline |
 
@@ -212,7 +217,6 @@ covered.
 | G2 | rotatepixels — iop/rotatepixels.c | no | Queued / ALG; depends on G1; sensor/pixel rotation synthetic fixture |
 | G3 | scalepixels — iop/scalepixels.c | no | Queued / ALG; depends on S3; interpolation/ROI/scale contract and synthetic fixture |
 | G4 | crop — iop/crop.c | yes | Queued / ALG; leftover v1–v3 box import and Studio normalized crop/aspect lock are accepted (ADR-0049). Remaining: leftover `(int)` ROI truncation, export `ratio_n`/`ratio_d` snap, mask/distort, and `crop.c` retirement. Keystone is G6 |
-| G6 | ashift — iop/ashift.c + ashift_lsd.c + ashift_nmsimplex.c | yes | Queued / ALG; rotation-only leftover import maps to canonical straighten (ADR-0050). Remaining: lens shift/shear, automatic crop, LSD/RANSAC fit. Do not treat straighten as complete G6 |
 | G7 | finalscale — iop/finalscale.c | no | Queued / ALG; Catalog/CLI export `max_edge` is the product output-size owner (ADR-0050). Remaining: leftover hidden scaler retirement with G3; O1 is accepted |
 | G9 | liquify — iop/liquify.c | yes | Queued / ALG; depends on M1/G4; deformation graph, ROI, cancellation |
 
@@ -236,7 +240,7 @@ covered.
 | ID | IOP / owner | Fixture | Status / dependency / special gate |
 | --- | --- | --- | --- |
 | M1 | mask_manager — iop/mask_manager.c | yes | Queued / DELETE; Studio owns mask presentation. Old dummy IOP remains while develop/history/styles still reference it |
-| M3 | overlay — iop/overlay.c | yes | Queued / ALG; G5 Canvas is accepted; remaining M1/I1 resource lifecycle and alpha composition, including the frozen Overlay literal reference to retired `enlargecanvas` |
+| M3 | overlay — iop/overlay.c | yes | Queued / ALG; G5 Canvas and G6 Perspective alpha composition are accepted; remaining M1/I1 resource lifecycle and the frozen Overlay literal references to retired `enlargecanvas` and `ashift` |
 | M4 | censorize — iop/censorize.c | yes | Queued / ALG; depends on M1/S2; pixelate/blur/noise modes |
 | M6 | bloom — iop/bloom.c | yes | Queued / ALG; simplified bloom is not acceptance; reproduce threshold/blur/mix |
 | M7 | grain — iop/grain.c | yes | Queued / ALG; deterministic noise substitute is not acceptance; reproduce Lab/ISO/channel mode |
@@ -248,7 +252,7 @@ covered.
 
 | ID | Owner paths | Action | Dependency and acceptance gate |
 | --- | --- | --- | --- |
-| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 frozen D50 Lab and S1.2 source-order dt-UCS bridges are complete behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for C3–C21/T1–T7, with no GTK/LCMS concrete type leakage |
+| S1 | common/colorspaces*, chromatic_adaptation.h, illuminants.h, matrices*, custom_primaries*, gamut_mapping.h, darktable_ucs_22_helpers.h, color_*, colorchecker.h, curve_tools*, wb_presets* | CORE: move private colour science into engine | S1.1 frozen D50 Lab and S1.2 source-order dt-UCS bridges are complete behind bit-goldens; S1 remains incomplete and still needs explicit workspace/LUT owners for queued C15/C16/C19 and T1–T7, with no GTK/LCMS concrete type leakage |
 | S2 | common/bilateral*, box_filters*, distance_transform*, dwt*, eaw*, eigf.h, gaussian*, guided_filter*, fast_guided_filter.h, heal*, locallaplacian*, nlmeans_core*, splines*, interpolation*, noiseprofiles*, bspline.h, luminance_mask.h, rgb_norms.h, focus*, histogram*, develop/noise_generator.h, develop/openmp_maths.h | CORE: move primitives into engine | Accept remaining primitives only for an explicitly reopened consumer and do not port OpenCL twins |
 | S3 | develop/blend*, develop/blends/*, develop/masks/*, develop/masks.h | CORE: canonical mask/blend graph | Remaining: further source-backed blend-mode consumers and leftover GTK mask-manager files. Overlay, owned groups, and path/brush are accepted |
 | S4 | develop/develop*, pixelpipe*, pixelpipe_cache*, pixelpipe_hb*, tiling*, imageop*, format* | CORE: converge into Engine facade + services cache/scheduler | `borders_helper.*` is retired with G5/G8. Every other old consumer reaches zero; shared exposure proxy/imageop hooks are cleanup state, not a runtime exposure owner; do not copy dynamic pixelpipe/global state |
@@ -270,7 +274,7 @@ covered.
 | I1 | imageio/imageio.c, imageio_module*, imageio_common.h | CORE/DELETE dispatcher | All formats/storage use Ravo ports; delete dynamic imageio ABI/global registry |
 | I2 | imageio_libraw* | Adapter audit | Core accepted: pinned LibRaw inspect/embedded JPEG/Bayer first-frame decode and structured missing/directory/unrecognized/unpack/sensor/oversized errors (ADR-0047). Remaining: freeze census then delete `imageio_libraw.c`; I1 dispatcher is a separate owner |
 | I3 | imageio_rawspeed* + external RawSpeed wiring | DELETE or independent decoder | Pinned `RawSpeed` source root is reserved. Remaining: format/performance/fixture decision against that root; do not silently fall back to LibRaw |
-| I4 | imageio_dng*, common/dng_opcode* | ALG/adapter | Core accepted: `.dng` and TIFF RAW-container read through LibRaw first-frame (ADR-0047). Remaining: OpcodeList2/3 GainMap with R1; leftover `imageio_dng` writer (J2) and `dng_opcode` (S9) censuses; do not treat LibRaw crop as complete DNG opcode coverage |
+| I4 | imageio_dng*, common/dng_opcode* | ALG/adapter | Core accepted: `.dng` and TIFF RAW-container read through LibRaw first-frame (ADR-0047), plus bounded OpcodeList2/3 GainMap/WarpRectilinear/FixVignetteRadial with structured mandatory/optional policy (ADR-0096). Remaining: leftover `imageio_dng` writer (J2) and `dng_opcode` (S9) censuses |
 | I5 | imageio_jpeg* | Adapter audit | Core accepted: content recognition, EXIF 1–8 scaling, strict APP2 ICC, opaque RGB8, and Catalog full-decode before publication (ADR-0023/0046). Remaining: zero-consumer census then delete `imageio_jpeg.c`; I11 export is a separate owner |
 | I6 | imageio_png* | Adapter audit | Core accepted: content recognition, bit-depth/ICC/cICP/orientation, opaque RGB8, probe-time pixel validation, and Catalog full-decode before publication (ADR-0046). Remaining: interlaced/low-bit stay structured unsupported; zero-consumer census then delete `imageio_png.c`; I12 export is a separate owner |
 | I7 | imageio_tiff* | Adapter audit | Core accepted: classic/BigTIFF recognition, 8/16 RGB/gray, ICC/orientation/alpha discard, probe-time pixel validation, Catalog full-decode before publication, and RAW-container routing that does not steal float/tiled/multi-page layouts (ADR-0046). Remaining: float/multi-page/tiled stay structured unsupported; zero-consumer census then delete `imageio_tiff.c`; keep QTiffPlugin; I13 export is a separate owner |

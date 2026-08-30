@@ -638,24 +638,28 @@ TEST(RecipeTest, LeftoverCropBoxMapsLeftTopRightBottomToCanonicalExtent)
     EXPECT_EQ(empty.error().context.at("reason"), "unsupported_legacy_crop_box");
 }
 
-TEST(RecipeTest, LeftoverAshiftRotationOnlyMapsToStraighten)
+TEST(RecipeTest, LeftoverAshiftGenericHeadMapsToPerspective)
 {
-    auto identity = leftover_ashift_rotation_to_straighten(0.0F, 0.0F, 0.0F, 0.0F);
+    auto identity = leftover_ashift_to_perspective(0.0F, 0.0F, 0.0F, 0.0F, false);
     ASSERT_TRUE(identity) << identity.error().message;
-    EXPECT_NEAR(identity.value(), 0.0, 1e-6);
+    EXPECT_TRUE(identity.value().is_identity());
+    EXPECT_FALSE(identity.value().constrain_crop);
 
-    auto rotated = leftover_ashift_rotation_to_straighten(2.5F, 0.0F, 0.0F, 0.0F);
+    auto rotated = leftover_ashift_to_perspective(2.5F, 0.0F, 0.0F, 0.0F, true);
     ASSERT_TRUE(rotated) << rotated.error().message;
-    EXPECT_NEAR(rotated.value(), 2.5, 1e-6);
+    EXPECT_NEAR(rotated.value().rotation_degrees, 2.5, 1e-6);
+    EXPECT_TRUE(rotated.value().constrain_crop);
+    EXPECT_EQ(rotated.value().interpolation, kPerspectiveInterpolationLanczos3);
 
-    auto perspective = leftover_ashift_rotation_to_straighten(1.14F, 0.087F, -0.111F, 0.06F);
-    ASSERT_FALSE(perspective);
-    EXPECT_EQ(perspective.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(perspective.error().context.at("reason"), "unsupported_legacy_ashift_perspective");
+    auto perspective = leftover_ashift_to_perspective(1.14F, 0.087F, -0.111F, 0.06F, false);
+    ASSERT_TRUE(perspective) << perspective.error().message;
+    EXPECT_NEAR(perspective.value().vertical_shift, 0.087, 1e-6);
+    EXPECT_NEAR(perspective.value().horizontal_shift, -0.111, 1e-6);
+    EXPECT_NEAR(perspective.value().shear, 0.06, 1e-6);
 
-    auto too_large = leftover_ashift_rotation_to_straighten(90.0F, 0.0F, 0.0F, 0.0F);
+    auto too_large = leftover_ashift_to_perspective(90.0F, 0.0F, 0.0F, 0.0F, false);
     ASSERT_FALSE(too_large);
-    EXPECT_EQ(too_large.error().context.at("reason"), "unsupported_legacy_ashift_rotation_range");
+    EXPECT_EQ(too_large.error().context.at("reason"), "unsupported_legacy_ashift_range");
 }
 
 TEST(RecipeTest, LeftoverRgbLevelsMapsV1PayloadAndRoundTrips)
@@ -798,6 +802,7 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     auto registry = make_phase1_registry();
     ASSERT_TRUE(registry) << registry.error().message;
     DevelopParams params;
+    params.demosaic_mode = std::string(kDemosaicModePpg);
     params.temperature = test::temperature_0000_params();
     params.exposure_ev = -0.3;
     params.contrast = 0.2;
@@ -814,12 +819,41 @@ TEST(RecipeTest, DevelopParamsRoundTripThroughCanonicalRecipe)
     ASSERT_TRUE(validate_recipe(parsed.value(), registry.value()));
     auto restored = develop_from_recipe(parsed.value());
     ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().demosaic_mode, kDemosaicModePpg);
     EXPECT_EQ(restored.value().temperature, params.temperature);
     EXPECT_NEAR(restored.value().exposure_ev, -0.3, 1e-6);
     EXPECT_EQ(restored.value().rotate_quarters, 1);
     EXPECT_NEAR(restored.value().crop_width, 0.8, 1e-6);
     EXPECT_FALSE(restored.value().is_identity());
     EXPECT_TRUE(DevelopParams{}.is_identity());
+}
+
+TEST(RecipeTest, XTransDemosaicModesRoundTripAndIndexedFieldsStayBounded)
+{
+    auto registry = make_phase1_registry();
+    ASSERT_TRUE(registry) << registry.error().message;
+    for (const std::string_view mode : {kDemosaicModeMarkesteijn1, kDemosaicModeMarkesteijn3})
+    {
+        DevelopParams params;
+        params.demosaic_mode = std::string(mode);
+        auto recipe = recipe_from_develop({"xtrans", "file:///fixture.raf", std::nullopt}, params);
+        ASSERT_TRUE(recipe) << recipe.error().message;
+        ASSERT_TRUE(validate_recipe(recipe.value(), registry.value()));
+        auto restored = develop_from_recipe(recipe.value());
+        ASSERT_TRUE(restored) << restored.error().message;
+        EXPECT_EQ(restored.value().demosaic_mode, mode);
+    }
+
+    DevelopParams indexed;
+    EXPECT_TRUE(apply_develop_field(indexed, "demosaicModeIndex", 2.0));
+    EXPECT_EQ(indexed.demosaic_mode, kDemosaicModeMarkesteijn1);
+    EXPECT_TRUE(apply_develop_field(indexed, "demosaicModeIndex", 3.0));
+    EXPECT_EQ(indexed.demosaic_mode, kDemosaicModeMarkesteijn3);
+    EXPECT_FALSE(apply_develop_field(indexed, "demosaicModeIndex", 4.0));
+    EXPECT_TRUE(apply_develop_field(indexed, "rawDenoiseThreshold", 0.125));
+    EXPECT_DOUBLE_EQ(indexed.raw_denoise_threshold, 0.125);
+    EXPECT_TRUE(reset_develop_field(indexed, "rawDenoiseThreshold"));
+    EXPECT_DOUBLE_EQ(indexed.raw_denoise_threshold, 0.0);
 }
 
 TEST(RecipeTest, PrimariesUseCanonicalRadiansAndFollowInputBeforeOutput)
@@ -1171,7 +1205,9 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     params.vignette_shape = 1.8;
     params.vignette_center_x = -0.1;
     params.vignette_center_y = 0.2;
-    params.velvia = 0.3;
+    params.velvia_present = true;
+    params.velvia_enabled = true;
+    params.velvia = {30.0, 1.0};
     params.flip_horizontal = 1;
     params.gamma = 1.2;
     params.split_toning_present = true;
@@ -2396,7 +2432,9 @@ TEST(RecipeTest, ColorContrastDevelopFieldsAreStrictResettableAndCanonicallyOrde
     EXPECT_FALSE(develop.is_identity());
 
     develop.color_correction_enabled = true;
-    develop.velvia = 0.25;
+    develop.velvia_present = true;
+    develop.velvia_enabled = true;
+    develop.velvia = {25.0, 1.0};
     auto recipe = recipe_from_develop({"asset-1", "file:///fixture.raw", std::nullopt}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
     const auto *correction = operation_by_id(recipe.value(), kColorCorrectionOperationId);

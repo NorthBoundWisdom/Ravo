@@ -501,10 +501,6 @@
             <translation>在照片中选取白点</translation>
         </message>
         <message>
-            <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
-            <translation>单击照片中的中性色块。仅适用于 RAW，且必须关闭拉直和画布。</translation>
-        </message>
-        <message>
             <source>Curves</source>
             <translation>曲线</translation>
         </message>
@@ -637,6 +633,66 @@
             <translation>八个色相区段对应 Lightroom HSL 混色器：红色、橙色、黄色、绿色、浅绿色、蓝色、紫色、洋红。</translation>
         </message>
         <message>
+            <source>Enable Velvia</source>
+            <translation>启用 Velvia</translation>
+        </message>
+        <message>
+            <source>Strength</source>
+            <translation>强度</translation>
+        </message>
+        <message>
+            <source>Mid-tones bias</source>
+            <translation>中间调偏置</translation>
+        </message>
+        <message>
+            <source>Loaded Velvia mask is preserved but edited outside this panel.</source>
+            <translation>已载入的 Velvia 蒙版会被保留，但需在此面板之外编辑。</translation>
+        </message>
+        <message>
+            <source>Disable and reset Velvia</source>
+            <translation>停用并重置 Velvia</translation>
+        </message>
+        <message>
+            <source>3D LUT</source>
+            <translation>3D LUT</translation>
+        </message>
+        <message>
+            <source>Choose a .cube file</source>
+            <translation>选择 .cube 文件</translation>
+        </message>
+        <message>
+            <source>Choose…</source>
+            <translation>选择…</translation>
+        </message>
+        <message>
+            <source>Enable 3D LUT</source>
+            <translation>启用 3D LUT</translation>
+        </message>
+        <message>
+            <source>Input color space</source>
+            <translation>输入色彩空间</translation>
+        </message>
+        <message>
+            <source>3D LUT input color space</source>
+            <translation>3D LUT 输入色彩空间</translation>
+        </message>
+        <message>
+            <source>Output color space</source>
+            <translation>输出色彩空间</translation>
+        </message>
+        <message>
+            <source>3D LUT output color space</source>
+            <translation>3D LUT 输出色彩空间</translation>
+        </message>
+        <message>
+            <source>3D LUT interpolation</source>
+            <translation>3D LUT 插值</translation>
+        </message>
+        <message>
+            <source>Disable and reset 3D LUT</source>
+            <translation>停用并重置 3D LUT</translation>
+        </message>
+        <message>
             <source>Reset Color Balance RGB</source>
             <translation>重置 RGB 色彩平衡</translation>
         </message>
@@ -699,6 +755,42 @@
         <message>
             <source>Blue saturation</source>
             <translation>蓝色饱和度</translation>
+        </message>
+        <message>
+            <source>Vertical</source>
+            <translation>垂直</translation>
+        </message>
+        <message>
+            <source>Horizontal</source>
+            <translation>水平</translation>
+        </message>
+        <message>
+            <source>Analyze visible lines and apply a bounded perspective correction</source>
+            <translation>分析可见线条并应用受限的透视校正</translation>
+        </message>
+        <message>
+            <source>Shear</source>
+            <translation>错切</translation>
+        </message>
+        <message>
+            <source>Constrain crop</source>
+            <translation>约束裁切</translation>
+        </message>
+        <message>
+            <source>Bilinear — fast</source>
+            <translation>双线性 — 快速</translation>
+        </message>
+        <message>
+            <source>Lanczos 2</source>
+            <translation>Lanczos 2</translation>
+        </message>
+        <message>
+            <source>Lanczos 3 — best quality</source>
+            <translation>Lanczos 3 — 最佳画质</translation>
+        </message>
+        <message>
+            <source>Perspective interpolation</source>
+            <translation>透视插值</translation>
         </message>
         <message>
             <source>Vignette midpoint</source>
@@ -877,6 +969,22 @@
             <translation>重置水印</translation>
         </message>
         <message>
+            <source>Texture</source>
+            <translation>纹理</translation>
+        </message>
+        <message>
+            <source>Texture · more</source>
+            <translation>纹理 · 更多</translation>
+        </message>
+        <message>
+            <source>Texture scale</source>
+            <translation>纹理尺度</translation>
+        </message>
+        <message>
+            <source>Texture iterations</source>
+            <translation>纹理迭代次数</translation>
+        </message>
+        <message>
             <source>Masking</source>
             <translation>蒙版</translation>
         </message>
@@ -995,6 +1103,34 @@
         <message>
             <source>Remove</source>
             <translation>移除</translation>
+        </message>
+        <message>
+            <source>Demosaicing</source>
+            <translation>去马赛克</translation>
+        </message>
+        <message>
+            <source>Auto — RCD / Markesteijn 3</source>
+            <translation>自动 — RCD / Markesteijn 3 次处理</translation>
+        </message>
+        <message>
+            <source>PPG — Bayer compatibility</source>
+            <translation>PPG — Bayer 兼容模式</translation>
+        </message>
+        <message>
+            <source>Markesteijn 1 — X-Trans fast</source>
+            <translation>Markesteijn 1 次处理 — X-Trans 快速</translation>
+        </message>
+        <message>
+            <source>Markesteijn 3 — X-Trans quality</source>
+            <translation>Markesteijn 3 次处理 — X-Trans 高质量</translation>
+        </message>
+        <message>
+            <source>Auto selects RCD for Bayer and Markesteijn 3-pass for X-Trans. Explicit sensor-mismatched modes fail instead of changing algorithms.</source>
+            <translation>自动模式为 Bayer 选择 RCD，为 X-Trans 选择 Markesteijn 3 次处理。显式选择与传感器不匹配的模式时会报错，不会切换算法。</translation>
+        </message>
+        <message>
+            <source>RAW wavelet denoise</source>
+            <translation>RAW 小波降噪</translation>
         </message>
         <message>
             <source>Input Profile</source>
@@ -1275,6 +1411,18 @@
         <message>
             <source>RGB levels</source>
             <translation>RGB 色阶</translation>
+        </message>
+        <message>
+            <source>Choose 3D LUT</source>
+            <translation>选择 3D LUT</translation>
+        </message>
+        <message>
+            <source>Cube LUT (*.cube *.CUBE)</source>
+            <translation>Cube LUT (*.cube *.CUBE)</translation>
+        </message>
+        <message>
+            <source>Click a neutral patch in the photo. RAW only; Perspective and Canvas must be off.</source>
+            <translation>单击照片中的中性色块。仅适用于 RAW，且必须关闭透视和画布。</translation>
         </message>
         <message>
             <source>RGB, linked</source>
@@ -2037,6 +2185,26 @@
             <translation>右下</translation>
         </message>
         <message>
+            <source>Rec. 709</source>
+            <translation>Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 709</source>
+            <translation>线性 Rec. 709</translation>
+        </message>
+        <message>
+            <source>Linear Rec. 2020</source>
+            <translation>线性 Rec. 2020</translation>
+        </message>
+        <message>
+            <source>Tetrahedral</source>
+            <translation>四面体</translation>
+        </message>
+        <message>
+            <source>Trilinear</source>
+            <translation>三线性</translation>
+        </message>
+        <message>
             <source>Saturated colors</source>
             <translation>饱和色彩</translation>
         </message>
@@ -2257,8 +2425,20 @@
             <translation>白平衡取样需要 Bayer RAW 原片</translation>
         </message>
         <message>
-            <source>White-balance pick is unavailable with straighten or Canvas</source>
-            <translation>启用拉直或画布时无法使用白平衡取样</translation>
+            <source>White-balance pick is unavailable with Perspective or Canvas</source>
+            <translation>启用透视或画布时无法使用白平衡取样</translation>
+        </message>
+        <message>
+            <source>Perspective analysis mode is unsupported</source>
+            <translation>不支持该透视分析模式</translation>
+        </message>
+        <message>
+            <source>Velvia strength</source>
+            <translation>Velvia 强度</translation>
+        </message>
+        <message>
+            <source>Velvia mid-tones bias</source>
+            <translation>Velvia 中间调偏置</translation>
         </message>
         <message>
             <source>Luminance</source>
@@ -3940,6 +4120,10 @@
         <message>
             <source>White balance sampled.</source>
             <translation>已取样白平衡。</translation>
+        </message>
+        <message>
+            <source>Perspective corrected.</source>
+            <translation>透视已校正。</translation>
         </message>
         <message>
             <source>Style path must not be empty.</source>

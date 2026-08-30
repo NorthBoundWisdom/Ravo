@@ -96,6 +96,7 @@ inline constexpr auto kEditAddRetouchRegion = "studio.edit.add_retouch_region";
 inline constexpr auto kEditRemoveRetouchRegion = "studio.edit.remove_retouch_region";
 inline constexpr auto kEditSetCrop = "studio.edit.set_crop";
 inline constexpr auto kEditSetCropAspect = "studio.edit.set_crop_aspect";
+inline constexpr auto kEditAutoPerspective = "studio.edit.auto_perspective";
 inline constexpr auto kEditRotateLeft = "studio.edit.rotate_left";
 inline constexpr auto kEditRotateRight = "studio.edit.rotate_right";
 inline constexpr auto kEditFlipHorizontal = "studio.edit.flip_horizontal";
@@ -396,6 +397,7 @@ QStringList command_ids()
             QLatin1String(command::kEditRemoveRetouchRegion),
             QLatin1String(command::kEditSetCrop),
             QLatin1String(command::kEditSetCropAspect),
+            QLatin1String(command::kEditAutoPerspective),
             QLatin1String(command::kEditRotateLeft),
             QLatin1String(command::kEditRotateRight),
             QLatin1String(command::kEditFlipHorizontal),
@@ -1713,6 +1715,18 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kEditSetCropAspect, Condition::kDevelopSelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.setCropAspect(argument.toString()); });
+    add(
+        command::kEditAutoPerspective, Condition::kDevelopSelection,
+        [](const QVariant &argument)
+        {
+            const QString mode = argument.toString();
+            return mode == QLatin1String("vertical") || mode == QLatin1String("horizontal") ||
+                           mode == QLatin1String("full") ?
+                       QString{} :
+                       QStringLiteral("Perspective mode must be vertical, horizontal, or full.");
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.autoPerspective(argument.toString()); });
     add(command::kEditRotateLeft, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.rotateLeft(); });
     add(command::kEditRotateRight, Condition::kDevelopSelection, no_argument,
@@ -1870,6 +1884,7 @@ QVariantMap StudioCommandController::ids() const
          QLatin1String(command::kEditRemoveRetouchRegion)},
         {QStringLiteral("editSetCrop"), QLatin1String(command::kEditSetCrop)},
         {QStringLiteral("editSetCropAspect"), QLatin1String(command::kEditSetCropAspect)},
+        {QStringLiteral("editAutoPerspective"), QLatin1String(command::kEditAutoPerspective)},
         {QStringLiteral("editRotateLeft"), QLatin1String(command::kEditRotateLeft)},
         {QStringLiteral("editRotateRight"), QLatin1String(command::kEditRotateRight)},
         {QStringLiteral("editFlipHorizontal"), QLatin1String(command::kEditFlipHorizontal)},

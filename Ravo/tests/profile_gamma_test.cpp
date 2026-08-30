@@ -497,11 +497,12 @@ TEST(ProfileGammaTest, RecipeOrderPreconditionAndMire1ReferencesCoverBothModes)
     gamma.mode = std::string(kProfileGammaModeGamma);
     std::array<std::array<std::uint64_t, 3>, 2> sums{};
     const std::array<ProfileGammaParams, 2> modes{logarithmic, gamma};
-    // Ravo-owned macOS reference for 64x48 mire1.cr2 with the canonical
-    // profile_gamma defaults followed by the default Sigmoid/output path.
+    // Ravo-owned macOS reference for 64x48 mire1.cr2 with the default RCD
+    // demosaic and the canonical profile_gamma defaults followed by the
+    // default Sigmoid/output path.
     const std::array<std::array<double, 3>, 2> references{
-        std::array<double, 3>{526337.0, 508989.0, 483520.0},
-        std::array<double, 3>{455108.0, 429113.0, 400149.0},
+        std::array<double, 3>{543724.0, 528071.0, 509476.0},
+        std::array<double, 3>{473167.0, 444206.0, 421248.0},
     };
     for (std::size_t index = 0; index < modes.size(); ++index)
     {

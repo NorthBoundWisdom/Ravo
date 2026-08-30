@@ -16,10 +16,12 @@
 #include "dehaze.h"
 #include "image_ops.h"
 #include "input_color.h"
+#include "lut3d.h"
 #include "mask_evaluator.h"
 #include "output_color.h"
 #include "output_dither.h"
 #include "parallel_rows.h"
+#include "perspective_transform.h"
 #include "profile_gamma.h"
 #include "primaries.h"
 #include "raw_ca.h"
@@ -286,6 +288,13 @@ EngineFacade::sample_white_balance(const DecodedRaw &raw,
     return sample_white_balance_coefficients(raw, request);
 }
 
+Result<PerspectiveAnalysis>
+EngineFacade::analyze_perspective(const RasterBuffer &raster, const PerspectiveAnalysisMode mode,
+                                  const CancellationToken &cancellation) const
+{
+    return analyze_perspective_raster(raster, mode, cancellation);
+}
+
 Result<EmbeddedPreview>
 EngineFacade::extract_embedded_preview(const std::string_view input_uri,
                                        const std::uint32_t max_edge,
@@ -363,6 +372,28 @@ Result<std::string> EngineFacade::output_color_cache_fingerprint(const Recipe &r
         return valid.error();
     }
     return ravo::output_color_cache_fingerprint(recipe);
+}
+
+Result<Lut3dInspection>
+EngineFacade::inspect_lut3d(const std::string_view path,
+                            const CancellationToken &cancellation) const
+{
+    auto lut = process_lut3d_cache().load(path, cancellation);
+    if (!lut)
+        return lut.error();
+    return Lut3dInspection{lut.value()->canonical_path, lut.value()->fingerprint,
+                           lut.value()->title, lut.value()->size, lut.value()->domain_min,
+                           lut.value()->domain_max};
+}
+
+Result<std::string>
+EngineFacade::lut3d_cache_fingerprint(const Recipe &recipe,
+                                      const CancellationToken &cancellation) const
+{
+    auto valid = validate(recipe);
+    if (!valid)
+        return valid.error();
+    return lut3d_recipe_cache_fingerprint(recipe, process_lut3d_cache(), cancellation);
 }
 
 Result<RenderResult> EngineFacade::render(const RenderRequest &request,
@@ -465,6 +496,28 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
     {
         return exposure_analysis.error();
     }
+    std::string demosaic_mode(kDemosaicModeRcd);
+    bool has_demosaic_mode = false;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDemosaicOperationId)
+        {
+            continue;
+        }
+        if (has_demosaic_mode)
+        {
+            return make_error(ErrorCode::kConflict,
+                              "Recipe contains more than one enabled RAW demosaic operation",
+                              {{"reason", "duplicate_demosaic_operation"}});
+        }
+        auto selected = demosaic_mode_from_parameters(operation.parameters);
+        if (!selected)
+        {
+            return selected.error();
+        }
+        demosaic_mode = std::move(selected).value();
+        has_demosaic_mode = true;
+    }
     const DecodedRaw *source = &raw;
     DecodedRaw prepared;
     for (const auto &operation : recipe.operations)
@@ -503,8 +556,13 @@ EngineFacade::linear_working_from_raw(const DecodedRaw &raw, const Recipe &recip
             return applied.error();
         }
     }
-    auto demosaiced =
-        working_from_raw(*source, width, height, temperature.value().coefficients, cancellation);
+    if (!has_demosaic_mode && source->cfa_width == 6U && source->cfa_height == 6U)
+    {
+        demosaic_mode = std::string(kDemosaicModeMarkesteijn3);
+    }
+    auto demosaiced = working_from_raw(*source, width, height,
+                                       temperature.value().coefficients, demosaic_mode,
+                                       cancellation);
     if (!demosaiced)
     {
         return demosaiced.error();
@@ -666,40 +724,81 @@ namespace
         }
         image = std::move(operation_working).value();
     }
+    std::optional<AlphaPlane> pending_overlay;
+    if (overlay_alpha != nullptr && overlay_mask_id.has_value() && !overlay_mask_id->empty())
+    {
+        Recipe overlay_recipe = remaining_recipe;
+        std::size_t replay_begin = 0U;
+        for (std::size_t index = 0U; index < overlay_recipe.operations.size(); ++index)
+        {
+            if (overlay_recipe.operations[index].enabled &&
+                overlay_recipe.operations[index].id == kCanvasOperationId)
+                replay_begin = index + 1U;
+        }
+        for (std::size_t index = replay_begin; index < overlay_recipe.operations.size(); ++index)
+        {
+            auto &operation = overlay_recipe.operations[index];
+            if (operation.id == "ravo.geometry.rotate" ||
+                operation.id == "ravo.geometry.flip" ||
+                operation.id == "ravo.geometry.crop" ||
+                operation.id == "ravo.geometry.straighten" ||
+                operation.id == kPerspectiveOperationId)
+                operation.enabled = false;
+        }
+        auto overlay_basis = apply_recipe_ops(image, overlay_recipe, cancellation);
+        if (!overlay_basis)
+            return overlay_basis.error();
+        if (overlay_basis.value().width == 0U || overlay_basis.value().height == 0U ||
+            overlay_basis.value().width > std::numeric_limits<std::uint32_t>::max() / 3U)
+        {
+            return make_error(ErrorCode::kValidation, "Overlay working image is invalid",
+                              {{"reason", "invalid_mask_overlay"}});
+        }
+        const std::uint32_t stride = overlay_basis.value().width * 3U;
+        MaskEvaluationRequest request{
+            .full_width = overlay_basis.value().width,
+            .full_height = overlay_basis.value().height,
+            .roi_x = 0U,
+            .roi_y = 0U,
+            .roi_width = overlay_basis.value().width,
+            .roi_height = overlay_basis.value().height,
+            .input = MaskRgbPlaneView{overlay_basis.value().rgb, stride},
+            .operation_output = MaskRgbPlaneView{overlay_basis.value().rgb, stride},
+            .attached_frame = overlay_basis.value().mask_attached_frame,
+            .cancellation = cancellation,
+        };
+        auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
+        if (!alpha)
+            return alpha.error();
+        auto transformed =
+            apply_recipe_geometry_to_alpha(std::move(alpha).value(), remaining_recipe, cancellation);
+        if (!transformed)
+            return transformed.error();
+        pending_overlay = std::move(transformed).value();
+    }
     auto adjusted = apply_recipe_ops(std::move(image), remaining_recipe, cancellation);
     if (!adjusted)
     {
         return adjusted.error();
     }
-    if (overlay_alpha != nullptr && overlay_mask_id.has_value() && !overlay_mask_id->empty())
+    if (pending_overlay.has_value() &&
+        (pending_overlay->width != adjusted.value().width ||
+         pending_overlay->height != adjusted.value().height))
     {
-        if (adjusted.value().width == 0U || adjusted.value().height == 0U ||
-            adjusted.value().width > std::numeric_limits<std::uint32_t>::max() / 3U)
-        {
-            return make_error(ErrorCode::kValidation, "Overlay working image is invalid",
-                              {{"reason", "invalid_mask_overlay"}});
-        }
-        const std::uint32_t stride = adjusted.value().width * 3U;
-        MaskEvaluationRequest request{
-            .full_width = adjusted.value().width,
-            .full_height = adjusted.value().height,
-            .roi_x = 0U,
-            .roi_y = 0U,
-            .roi_width = adjusted.value().width,
-            .roi_height = adjusted.value().height,
-            .input = MaskRgbPlaneView{adjusted.value().rgb, stride},
-            .operation_output = MaskRgbPlaneView{adjusted.value().rgb, stride},
-            .attached_frame = adjusted.value().mask_attached_frame,
-            .cancellation = cancellation,
-        };
-        auto alpha = evaluate_canonical_mask(recipe.masks, *overlay_mask_id, request);
-        if (!alpha)
-        {
-            return alpha.error();
-        }
-        *overlay_alpha = std::move(alpha).value();
+        return make_error(ErrorCode::kInternal,
+                          "Mask overlay geometry does not match rendered dimensions",
+                          {{"reason", "mask_overlay_geometry_mismatch"},
+                           {"overlay_width", std::to_string(pending_overlay->width)},
+                           {"overlay_height", std::to_string(pending_overlay->height)},
+                           {"render_width", std::to_string(adjusted.value().width)},
+                           {"render_height", std::to_string(adjusted.value().height)}});
     }
-    return apply_output_color(adjusted.value(), output_color.value(), cancellation);
+    auto encoded = apply_output_color(adjusted.value(), output_color.value(), cancellation);
+    if (!encoded)
+        return encoded.error();
+    if (pending_overlay.has_value())
+        *overlay_alpha = std::move(*pending_overlay);
+    return encoded;
 }
 
 [[nodiscard]] Recipe rgb_recipe_after_raw_preprocess(Recipe recipe)

@@ -1612,6 +1612,32 @@ catch (const std::bad_alloc &)
                       {{"reason", "allocation_failed"}});
 }
 
+Result<ColorProfileState>
+builtin_linear_working_profile_state(const std::string_view target_profile)
+try
+{
+    auto profile = make_builtin_profile(target_profile);
+    if (!profile)
+        return profile.error();
+    if (profile.value().model != ColorModel::kRgb || !profile.value().matrix_shaper)
+        return make_error(ErrorCode::kUnsupported,
+                          "3D LUT colour space must define RGB primaries",
+                          {{"profile", std::string(target_profile)}});
+    auto state = profile.value().state;
+    state.kind = ColorProfileKind::kBuiltin;
+    state.model = ColorModel::kRgb;
+    state.identifier = std::string(target_profile);
+    state.matrix_to_xyz_d50 = profile.value().matrix_to_xyz_d50;
+    state.has_matrix = true;
+    state.icc_bytes.clear();
+    return state;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "3D LUT profile allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
 namespace
 {
 

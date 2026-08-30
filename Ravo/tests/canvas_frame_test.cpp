@@ -116,13 +116,45 @@ TEST(CanvasFrameRecipeTest, SchemasDevelopAndOrderAreStrict)
     EXPECT_EQ(restored.value().canvas, canvas);
     EXPECT_EQ(restored.value().frame, frame);
 
+    DevelopParams composed = develop;
+    composed.crop_width = 0.8;
+    composed.perspective_vertical = 0.15;
+    auto composed_recipe =
+        recipe_from_develop({"asset", "file:///fixture.raw", std::nullopt}, composed);
+    ASSERT_TRUE(composed_recipe);
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine);
+    auto composed_ok = engine.value().validate(composed_recipe.value());
+    ASSERT_TRUE(composed_ok) << composed_ok.error().message;
+
+    Mask after_geometry_mask{"late", kCanonicalMaskSchemaVersion, MaskKind::kAll};
+    after_geometry_mask.payload = AllMask{};
+    composed_recipe.value().masks.push_back(std::move(after_geometry_mask));
+    const auto output = std::find_if(
+        composed_recipe.value().operations.begin(), composed_recipe.value().operations.end(),
+        [](const OperationInstance &operation) { return operation.id == "ravo.color.output"; });
+    ASSERT_NE(output, composed_recipe.value().operations.end());
+    composed_recipe.value().operations.insert(
+        output,
+        OperationInstance{"ravo.effect.graduatednd",
+                          1,
+                          "late-mask-consumer",
+                          true,
+                          {{"density_ev", ParameterValue{0.5}},
+                           {"hardness", ParameterValue{0.5}},
+                           {"rotation_deg", ParameterValue{0.0}},
+                           {"offset", ParameterValue{0.0}}},
+                          std::string("late")});
+    auto late_mask = engine.value().validate(composed_recipe.value());
+    ASSERT_FALSE(late_mask);
+    EXPECT_EQ(late_mask.error().context.at("reason"),
+              "canvas_geometry_later_mask_unsupported");
+
     DevelopParams invalid = develop;
-    invalid.crop_width = 0.8;
+    invalid.rotate_quarters = 1;
     auto invalid_recipe =
         recipe_from_develop({"asset", "file:///fixture.raw", std::nullopt}, invalid);
     ASSERT_TRUE(invalid_recipe);
-    auto engine = EngineFacade::create_phase1();
-    ASSERT_TRUE(engine);
     auto rejected = engine.value().validate(invalid_recipe.value());
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().context.at("reason"), "canvas_later_geometry_unsupported");
@@ -215,6 +247,60 @@ TEST(CanvasFrameTest, CanvasPixelsAndMaskAttachedFrameMatchFrozenPlacement)
     ASSERT_TRUE(circle_alpha) << circle_alpha.error().message;
     EXPECT_EQ(circle_alpha.value().alpha[static_cast<std::size_t>(1U) * 7U + 2U], 1.0F);
     EXPECT_EQ(circle_alpha.value().alpha[static_cast<std::size_t>(1U) * 7U], 0.0F);
+}
+
+TEST(CanvasFrameTest, PerspectiveAndCropTransformCanvasAttachedOverlayWithPixels)
+{
+    DevelopParams develop;
+    develop.canvas_present = true;
+    develop.canvas_enabled = true;
+    develop.canvas = CanvasParams{30.0, 30.0, 30.0, 30.0, CanvasColor::kBlue};
+    develop.straighten_degrees = 4.0;
+    develop.perspective_vertical = 0.25;
+    develop.perspective_horizontal = -0.15;
+    develop.perspective_shear = 0.08;
+    develop.perspective_constrain_crop = false;
+    develop.perspective_interpolation_index = 0;
+    develop.crop_x = 0.05;
+    develop.crop_y = 0.05;
+    develop.crop_width = 0.9;
+    develop.crop_height = 0.9;
+    auto recipe = recipe_from_develop({"asset", "file:///fixture.raw", std::nullopt}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    Mask all{"photo", kCanonicalMaskSchemaVersion, MaskKind::kAll};
+    all.payload = AllMask{};
+    recipe.value().masks.push_back(std::move(all));
+
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto rendered = engine.value().render_linear_working(
+        working_image(48U, 32U, {1.0F, 0.0F, 0.0F}), recipe.value(), {}, "photo");
+    ASSERT_TRUE(rendered) << rendered.error().message;
+    ASSERT_EQ(rendered.value().mask_alpha.size(),
+              static_cast<std::size_t>(rendered.value().width) * rendered.value().height);
+
+    std::size_t photo_pixels = 0U;
+    std::size_t background_pixels = 0U;
+    for (std::size_t index = 0U; index < rendered.value().mask_alpha.size(); ++index)
+    {
+        const float alpha = rendered.value().mask_alpha[index];
+        ASSERT_GE(alpha, 0.0F);
+        ASSERT_LE(alpha, 1.0F);
+        const auto red = rendered.value().rgb[index * 3U];
+        const auto blue = rendered.value().rgb[index * 3U + 2U];
+        if (alpha >= 0.9F)
+        {
+            ++photo_pixels;
+            EXPECT_GT(red, blue);
+        }
+        else if (alpha <= 0.1F)
+        {
+            ++background_pixels;
+            EXPECT_LE(red, blue);
+        }
+    }
+    EXPECT_GT(photo_pixels, 100U);
+    EXPECT_GT(background_pixels, 100U);
 }
 
 TEST(CanvasFrameTest, ConstantFrameCopiesImageAndDrawsLineWithFrozenIntegerLayout)

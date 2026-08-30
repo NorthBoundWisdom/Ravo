@@ -5,6 +5,7 @@
 #include "color_zones.h"
 #include "mask_evaluator.h"
 #include "monochrome.h"
+#include "perspective_transform.h"
 #include "recursive_gaussian.h"
 #include "retouch.h"
 
@@ -43,8 +44,12 @@
 
 #include "color_reconstruction.h"
 #include "dehaze.h"
+#include "dng_opcodes.h"
+#include "bayer_demosaic.h"
 #include "sharpen.h"
 #include "split_toning.h"
+#include "texture.h"
+#include "xtrans_demosaic.h"
 
 namespace ravo
 {
@@ -293,6 +298,58 @@ namespace
     }
 }
 
+[[nodiscard]] Result<DngOpcodeListView> libraw_dng_opcode_view(const libraw_data_t &raw,
+                                                               const std::size_t index,
+                                                               const unsigned parsed_field,
+                                                               const std::uint32_t list_number)
+{
+    const auto &opcode = raw.color.dng_levels.rawopcodes[index];
+    // LibRaw copies the selected RAW IFD's opcode payload into dng_levels but,
+    // in releases through 0.21, does not copy that IFD's parsedfields bits.
+    // Treat an owned payload as authoritative presence while retaining the bit
+    // for builds which do propagate it.
+    const bool present = (raw.color.dng_levels.parsedfields & parsed_field) != 0U ||
+                         opcode.len != 0U || opcode.data != nullptr;
+    if (!present)
+    {
+        return DngOpcodeListView{};
+    }
+    if (opcode.len == 0U || opcode.data == nullptr)
+    {
+        return make_error(
+            ErrorCode::kUnsupported,
+            "LibRaw identified a DNG opcode list but did not retain its bounded payload",
+            {{"dng_opcode_list", std::to_string(list_number)},
+             {"reason", "unavailable_dng_opcode_payload"}});
+    }
+    if (opcode.len > kMaxDngOpcodeListBytes)
+    {
+        return make_error(ErrorCode::kUnsupported, "DNG opcode payload exceeds Ravo's byte limit",
+                          {{"bytes", std::to_string(opcode.len)},
+                           {"dng_opcode_list", std::to_string(list_number)},
+                           {"reason", "oversized_dng_opcode_list"}});
+    }
+    const auto *bytes = static_cast<const std::uint8_t *>(opcode.data);
+    return DngOpcodeListView{true, std::span<const std::uint8_t>(bytes, opcode.len)};
+}
+
+[[nodiscard]] Result<std::shared_ptr<const DngOpcodeMetadata>>
+parse_libraw_dng_opcodes(const libraw_data_t &raw)
+{
+    auto list2 = libraw_dng_opcode_view(raw, 1U, LIBRAW_DNGFM_OPCODE2, 2U);
+    if (!list2)
+    {
+        return list2.error();
+    }
+    auto list3 = libraw_dng_opcode_view(raw, 2U, LIBRAW_DNGFM_OPCODE3, 3U);
+    if (!list3)
+    {
+        return list3.error();
+    }
+    return parse_dng_opcode_metadata(list2.value(), list3.value(), raw.sizes.width,
+                                     raw.sizes.height);
+}
+
 } // namespace
 
 Result<RawExposureMetadata> resolve_legacy_exposure_metadata(const LegacyExposureMetadataTags &tags)
@@ -451,6 +508,24 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
     apply_display_rotation_to_size(result.width, result.height,
                                    clockwise_quarters_from_libraw_flip(raw.sizes.flip));
     result.is_raw = true;
+    if (raw.idata.filters == LIBRAW_XTRANS)
+    {
+        result.raw_sensor = "xtrans";
+        result.cfa_width = 6U;
+        result.cfa_height = 6U;
+        result.default_demosaic_mode = std::string(kDemosaicModeMarkesteijn3);
+    }
+    else if (raw.idata.filters != 0U)
+    {
+        result.raw_sensor = "bayer";
+        result.cfa_width = 2U;
+        result.cfa_height = 2U;
+        result.default_demosaic_mode = std::string(kDemosaicModeRcd);
+    }
+    else
+    {
+        result.raw_sensor = "unsupported";
+    }
     if (raw.other.iso_speed > 0.0F)
     {
         result.iso = static_cast<double>(raw.other.iso_speed);
@@ -487,7 +562,33 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
     {
         result.has_camera_reference_white_balance = true;
         result.camera_reference_white_balance = {camera_reference[0], camera_reference[1],
-                                                camera_reference[2], camera_reference[3]};
+                                                 camera_reference[2], camera_reference[3]};
+    }
+    auto dng_opcodes = parse_libraw_dng_opcodes(raw);
+    if (!dng_opcodes)
+    {
+        return dng_opcodes.error();
+    }
+    if (dng_opcodes.value())
+    {
+        const auto &metadata = *dng_opcodes.value();
+        result.dng_opcode_list2_present = metadata.list2_present;
+        result.dng_opcode_list3_present = metadata.list3_present;
+        result.dng_gain_map_count = static_cast<std::uint32_t>(dng_gain_map_count(metadata));
+        result.dng_has_warp_rectilinear =
+            std::any_of(metadata.list3_operations.begin(), metadata.list3_operations.end(),
+                        [](const DngOpcodeList3Operation &operation)
+                        { return std::holds_alternative<DngWarpRectilinear>(operation); });
+        result.dng_has_fix_vignette_radial =
+            std::any_of(metadata.list3_operations.begin(), metadata.list3_operations.end(),
+                        [](const DngOpcodeList3Operation &operation)
+                        { return std::holds_alternative<DngFixVignetteRadial>(operation); });
+        for (const auto &skipped : metadata.skipped_optional)
+        {
+            auto &destination = skipped.list == 2U ? result.dng_skipped_optional_opcode_list2 :
+                                                     result.dng_skipped_optional_opcode_list3;
+            destination.push_back(skipped.id);
+        }
     }
     return result;
 }
@@ -682,7 +783,7 @@ try
     const bool xtrans = raw.idata.filters == LIBRAW_XTRANS;
     const bool missing_raw = raw.rawdata.raw_image == nullptr;
     const bool bayer = !xtrans && raw.idata.filters != 0 && !missing_raw;
-    if (!bayer)
+    if ((!bayer && !xtrans) || missing_raw)
     {
         const char *sensor = "non_bayer";
         if (xtrans)
@@ -694,7 +795,7 @@ try
             sensor = "missing_raw_image";
         }
         return make_error(ErrorCode::kUnsupported,
-                          "The first-frame RAW decoder requires a 16-bit Bayer CFA",
+                          "The first-frame RAW decoder requires a 16-bit Bayer or X-Trans CFA",
                           {{"input_uri", std::string(input_uri)},
                            {"reason", "unsupported_raw_sensor"},
                            {"sensor", sensor}});
@@ -724,6 +825,12 @@ try
                            {"width", std::to_string(sizes.width)}});
     }
 
+    auto dng_opcodes = parse_libraw_dng_opcodes(raw);
+    if (!dng_opcodes)
+    {
+        return dng_opcodes.error();
+    }
+
     DecodedRaw result;
     result.width = sizes.width;
     result.height = sizes.height;
@@ -733,6 +840,7 @@ try
     result.white_level = raw.color.maximum > 0 ? raw.color.maximum : 65535U;
     result.make = raw.idata.make;
     result.model = raw.idata.model;
+    result.dng_opcodes = std::move(dng_opcodes).value();
     float deflicker_black = 0.0F;
     for (std::size_t channel = 0; channel < 4U; ++channel)
     {
@@ -792,15 +900,20 @@ try
         }
     }
 
-    result.cfa_width = 2;
-    result.cfa_height = 2;
-    result.cfa_channels.reserve(4);
+    result.cfa_width = xtrans ? 6U : 2U;
+    result.cfa_height = xtrans ? 6U : 2U;
+    result.cfa_channels.reserve(static_cast<std::size_t>(result.cfa_width) * result.cfa_height);
     for (std::uint32_t y = 0; y < result.cfa_height; ++y)
     {
         for (std::uint32_t x = 0; x < result.cfa_width; ++x)
         {
-            auto channel = channel_for(decoder.value()->COLOR(
-                static_cast<int>(sizes.top_margin + y), static_cast<int>(sizes.left_margin + x)));
+            // LibRaw's xtrans matrix is already shifted to the active crop.
+            // Bayer FC(), by contrast, needs the absolute sensor coordinates.
+            const int color = xtrans ?
+                                  raw.idata.xtrans[y][x] :
+                                  decoder.value()->COLOR(static_cast<int>(sizes.top_margin + y),
+                                                         static_cast<int>(sizes.left_margin + x));
+            auto channel = channel_for(color);
             if (!channel)
             {
                 return channel.error();
@@ -916,6 +1029,47 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
     add_working_bytes(color_lut_bytes);
     add_working_bytes(raw_bytes);
     add_working_bytes(exposure_analysis_bytes);
+    BayerDemosaicMode bayer_demosaic_mode = BayerDemosaicMode::kRcd;
+    XTransDemosaicMode xtrans_demosaic_mode = XTransDemosaicMode::kMarkesteijn3;
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDemosaicOperationId)
+        {
+            continue;
+        }
+        const auto found = operation.parameters.find("mode");
+        if (found != operation.parameters.end())
+        {
+            if (const auto *mode = std::get_if<std::string>(&found->second.value);
+                mode != nullptr && *mode == kDemosaicModePpg)
+            {
+                bayer_demosaic_mode = BayerDemosaicMode::kPpg;
+            }
+            else if (const auto *xtrans_mode = std::get_if<std::string>(&found->second.value);
+                     xtrans_mode != nullptr && *xtrans_mode == kDemosaicModeMarkesteijn1)
+            {
+                xtrans_demosaic_mode = XTransDemosaicMode::kMarkesteijn1;
+            }
+        }
+        break;
+    }
+    const std::uint64_t demosaic_bytes =
+        raw.cfa_width == 6U && raw.cfa_height == 6U ?
+            estimate_xtrans_demosaic_memory(width, height, xtrans_demosaic_mode) :
+            estimate_bayer_demosaic_memory(width, height, bayer_demosaic_mode);
+    add_working_bytes(demosaic_bytes > float_rgb_bytes ? demosaic_bytes - float_rgb_bytes : 0U);
+    if (raw.dng_opcodes)
+    {
+        add_working_bytes(estimate_dng_opcode_memory(*raw.dng_opcodes));
+        const bool has_warp = std::any_of(
+            raw.dng_opcodes->list3_operations.begin(), raw.dng_opcodes->list3_operations.end(),
+            [](const DngOpcodeList3Operation &operation)
+            { return std::holds_alternative<DngWarpRectilinear>(operation); });
+        if (has_warp)
+        {
+            add_working_bytes(float_rgb_bytes);
+        }
+    }
     bool owns_raw_copy = false;
     for (const auto &operation : recipe.operations)
     {
@@ -1123,6 +1277,39 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
             assign_number("threshold", params.threshold);
             add_working_bytes(detail::sharpen_working_bytes(width, height, params));
         }
+        if (operation.id == kTextureOperationId)
+        {
+            TextureParams params;
+            const auto assign_number = [&](const std::string_view name, double &target) noexcept
+            {
+                const auto found = operation.parameters.find(std::string(name));
+                if (found == operation.parameters.end())
+                {
+                    return;
+                }
+                if (const auto *value = std::get_if<double>(&found->second.value); value != nullptr)
+                {
+                    target = *value;
+                }
+                else if (const auto *integer = std::get_if<std::int64_t>(&found->second.value);
+                         integer != nullptr)
+                {
+                    target = static_cast<double>(*integer);
+                }
+            };
+            assign_number("strength", params.strength);
+            assign_number("detail_threshold", params.detail_threshold);
+            if (const auto iterations = operation.parameters.find("iterations");
+                iterations != operation.parameters.end())
+            {
+                if (const auto *value = std::get_if<std::int64_t>(&iterations->second.value);
+                    value != nullptr)
+                {
+                    params.iterations = *value;
+                }
+            }
+            add_working_bytes(detail::texture_working_bytes(width, height, params));
+        }
         if (operation.id == kDehazeOperationId)
         {
             DehazeParams params;
@@ -1241,6 +1428,18 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
             if (!params)
                 return std::numeric_limits<std::uint64_t>::max();
             auto layout = compute_frame_layout(decorated_width, decorated_height, params.value());
+            if (!layout)
+                return std::numeric_limits<std::uint64_t>::max();
+            decorated_width = layout.value().output_width;
+            decorated_height = layout.value().output_height;
+        }
+        else if (operation.id == kPerspectiveOperationId)
+        {
+            auto params = perspective_from_parameters(operation.parameters);
+            if (!params)
+                return std::numeric_limits<std::uint64_t>::max();
+            auto layout =
+                compute_perspective_layout(decorated_width, decorated_height, params.value());
             if (!layout)
                 return std::numeric_limits<std::uint64_t>::max();
             decorated_width = layout.value().output_width;
