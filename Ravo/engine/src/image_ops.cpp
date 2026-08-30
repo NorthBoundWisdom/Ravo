@@ -233,15 +233,17 @@ void estimate_exp(const float *x, const float *y, const int num, float coeff[3])
     return value <= 0.04045F ? value / 12.92F : std::pow((value + 0.055F) / 1.055F, 2.4F);
 }
 
-void build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float> &lut,
-                    const std::string_view interpolation = kToneCurveInterpolationMonotoneHermite)
+[[nodiscard]] Result<void>
+build_unit_lut(const std::vector<ToneCurvePoint> &points, std::vector<float> &lut,
+               const std::string_view interpolation = kToneCurveInterpolationMonotoneHermite)
 {
-    lut.assign(static_cast<std::size_t>(kToneCurveLut), 0.0F);
-    for (int k = 0; k < kToneCurveLut; ++k)
+    auto built = build_tone_curve_lut(points, interpolation, kToneCurveLut);
+    if (!built)
     {
-        lut[static_cast<std::size_t>(k)] = static_cast<float>(evaluate_tone_curve(
-            points, static_cast<double>(k) / static_cast<double>(kToneCurveLut), interpolation));
+        return built.error();
     }
+    lut = std::move(built).value();
+    return {};
 }
 
 Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &operation,
@@ -310,25 +312,41 @@ Result<void> apply_tone_curve(WorkingImage &image, const OperationInstance &oper
         return {};
     }
 
-    std::vector<float> table_l;
-    std::vector<float> table_a;
-    std::vector<float> table_b;
-    build_unit_lut(points, table_l, interpolation);
-    build_unit_lut(points_a, table_a, interpolation);
-    build_unit_lut(points_b, table_b, interpolation);
-    for (int k = 0; k < kToneCurveLut; ++k)
-    {
-        table_l[static_cast<std::size_t>(k)] *= 100.0F;
-        table_a[static_cast<std::size_t>(k)] =
-            table_a[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
-        table_b[static_cast<std::size_t>(k)] =
-            table_b[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
-    }
-
     const bool rgb_linked = !independent && space.value() != ToneCurveWorkingSpace::kLab &&
                             space.value() != ToneCurveWorkingSpace::kXyz;
     const bool xyz_linked = space.value() == ToneCurveWorkingSpace::kXyz;
     const bool lab_linked = space.value() == ToneCurveWorkingSpace::kLab && !independent;
+    const bool lab_independent = !rgb_linked && !xyz_linked && !lab_linked;
+
+    std::vector<float> table_l;
+    std::vector<float> table_a;
+    std::vector<float> table_b;
+    if (auto built = build_unit_lut(points, table_l, interpolation); !built)
+    {
+        return built.error();
+    }
+    if (lab_independent)
+    {
+        if (auto built = build_unit_lut(points_a, table_a, interpolation); !built)
+        {
+            return built.error();
+        }
+        if (auto built = build_unit_lut(points_b, table_b, interpolation); !built)
+        {
+            return built.error();
+        }
+    }
+    for (int k = 0; k < kToneCurveLut; ++k)
+    {
+        table_l[static_cast<std::size_t>(k)] *= 100.0F;
+        if (lab_independent)
+        {
+            table_a[static_cast<std::size_t>(k)] =
+                table_a[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
+            table_b[static_cast<std::size_t>(k)] =
+                table_b[static_cast<std::size_t>(k)] * 256.0F - 128.0F;
+        }
+    }
 
     if (xyz_linked)
     {
@@ -1750,8 +1768,12 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
         }
         else
         {
-            build_unit_lut(*channels[static_cast<std::size_t>(channel)],
-                           tables[static_cast<std::size_t>(channel)], interpolation);
+            auto built = build_unit_lut(*channels[static_cast<std::size_t>(channel)],
+                                        tables[static_cast<std::size_t>(channel)], interpolation);
+            if (!built)
+            {
+                return built.error();
+            }
         }
         const auto &points = *channels[static_cast<std::size_t>(channel)];
         xm[static_cast<std::size_t>(channel)] =
@@ -3227,12 +3249,10 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.effect.vignette")
         {
-            apply_vignette(image, parameter(operation, "amount", 0.0),
-                           parameter(operation, "midpoint", 0.8),
-                           parameter(operation, "falloff", 0.5),
-                           parameter(operation, "shape", 1.0),
-                           parameter(operation, "center_x", 0.0),
-                           parameter(operation, "center_y", 0.0));
+            apply_vignette(
+                image, parameter(operation, "amount", 0.0), parameter(operation, "midpoint", 0.8),
+                parameter(operation, "falloff", 0.5), parameter(operation, "shape", 1.0),
+                parameter(operation, "center_x", 0.0), parameter(operation, "center_y", 0.0));
             continue;
         }
         if (operation.id == "ravo.effect.grain")

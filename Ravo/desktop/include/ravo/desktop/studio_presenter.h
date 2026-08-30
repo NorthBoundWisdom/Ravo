@@ -655,6 +655,7 @@ private:
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;
+    CancellationSource thumbnail_work_;
     QTimer *catalog_revision_timer_ = nullptr;
     bool catalog_poll_in_flight_ = false;
     std::int64_t observed_catalog_revision_ = -1;

@@ -222,10 +222,10 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     fit_within_max_edge(source_width, source_height, request.max_edge, width, height);
     const auto fingerprint = asset.content_fingerprint.value_or("none");
     const bool embedded_browse =
-        request.prefer_embedded_preview && request.persist_preview_record &&
-        is_raw_media_type(working.media_type) && !live_develop.has_value() &&
-        !request.ignore_edits && !request.ignore_crop && !request.ignore_straighten &&
-        !working.has_edits;
+        request.purpose == PreviewPurpose::kBrowse && request.prefer_embedded_preview &&
+        request.persist_preview_record && is_raw_media_type(working.media_type) &&
+        !live_develop.has_value() && !request.ignore_edits && !request.ignore_crop &&
+        !request.ignore_straighten && !working.has_edits;
     if (embedded_browse && original_exists)
     {
         const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
@@ -383,8 +383,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
             }
         }
     }
-    const bool interactive =
-        !request.persist_preview_record || request.overlay_mask_id.has_value();
+    const bool interactive = !request.persist_preview_record || request.overlay_mask_id.has_value();
     const auto cache_key = make_preview_cache_key(asset.id, width, height, fingerprint,
                                                   interactive ? "interactive" : edit_digest);
 
@@ -427,18 +426,21 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
 
     const auto render_started = std::chrono::steady_clock::now();
     RenderedImage rendered;
+    const PreviewLane lane = request.purpose == PreviewPurpose::kBrowse ?
+                                 PreviewLane::kBackgroundBrowse :
+                                 PreviewLane::kForegroundDevelop;
     if (is_raw_media_type(working.media_type))
     {
         auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
-                                            height, request.max_edge, request.cancellation);
+                                            height, request.max_edge, request.cancellation, lane);
         if (!linear)
         {
             return linear.error();
         }
         Recipe rgb_recipe = edit_recipe;
         disable_raw_preprocess(rgb_recipe);
-        auto applied = engine_->render_linear_working(*linear.value(), rgb_recipe,
-                                                      request.cancellation, request.overlay_mask_id);
+        auto applied = engine_->render_linear_working(
+            *linear.value(), rgb_recipe, request.cancellation, request.overlay_mask_id);
         if (!applied)
         {
             return applied.error();
@@ -448,13 +450,13 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     else
     {
         auto linear = cached_linear_working(working, location.value().path, edit_recipe, width,
-                                            height, request.max_edge, request.cancellation);
+                                            height, request.max_edge, request.cancellation, lane);
         if (!linear)
         {
             return linear.error();
         }
-        auto applied = engine_->render_linear_working(*linear.value(), edit_recipe,
-                                                      request.cancellation, request.overlay_mask_id);
+        auto applied = engine_->render_linear_working(
+            *linear.value(), edit_recipe, request.cancellation, request.overlay_mask_id);
         if (!applied)
         {
             return applied.error();
@@ -535,7 +537,8 @@ Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord 
     }
     if (is_raster_media_type(asset.media_type))
     {
-        auto source = decode_preview_source(asset, path, max_edge, cancellation);
+        auto source = decode_preview_source(asset, path, max_edge, cancellation,
+                                            PreviewLane::kForegroundDevelop);
         if (!source)
         {
             return source.error();
@@ -552,37 +555,46 @@ Result<RenderedExportImage> CatalogService::render_for_export(const AssetRecord 
 
 Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &asset,
                                                             const std::string_view path,
-                                                            const CancellationToken &cancellation)
+                                                            const CancellationToken &cancellation,
+                                                            const PreviewLane lane)
 {
     if (engine_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
     const auto fingerprint = asset.content_fingerprint.value_or("none");
-    if (decoded_raw_.has_value() && decoded_raw_->asset_id == asset.id &&
-        decoded_raw_->fingerprint == fingerprint && decoded_raw_->path == path)
+    auto &cache_entry = lane == PreviewLane::kBackgroundBrowse ? browse_decoded_raw_ : decoded_raw_;
+    if (cache_entry.has_value() && cache_entry->asset_id == asset.id &&
+        cache_entry->fingerprint == fingerprint && cache_entry->path == path)
     {
-        return &decoded_raw_->raw;
+        return &cache_entry->raw;
     }
-    auto decoded = engine_->decode_raw_frame(path, cancellation);
-    if (!decoded)
+    auto decoded_frame = engine_->decode_raw_frame(path, cancellation);
+    if (!decoded_frame)
     {
-        return decoded.error();
+        return decoded_frame.error();
     }
-    decoded_raw_ = CachedRawFrame{std::string(asset.id), fingerprint, std::string(path),
-                                  std::move(decoded).value()};
-    for (auto &working : linear_working_)
+    cache_entry = CachedRawFrame{std::string(asset.id), fingerprint, std::string(path),
+                                 std::move(decoded_frame).value()};
+    if (lane == PreviewLane::kBackgroundBrowse)
     {
-        working.reset();
+        browse_linear_working_.reset();
     }
-    return &decoded_raw_->raw;
+    else
+    {
+        for (auto &working : linear_working_)
+        {
+            working.reset();
+        }
+    }
+    return &cache_entry->raw;
 }
 
 Result<const LinearWorkingBuffer *>
 CatalogService::cached_linear_working(const AssetRecord &asset, const std::string_view path,
                                       const Recipe &recipe, const std::uint32_t width,
                                       const std::uint32_t height, const std::uint32_t max_edge,
-                                      const CancellationToken &cancellation)
+                                      const CancellationToken &cancellation, const PreviewLane lane)
 {
     if (engine_ == nullptr)
     {
@@ -598,21 +610,34 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         (is_raw_media_type(asset.media_type) ? raw_preprocess_key(recipe) :
                                                input_color_preprocess_key(recipe)) +
         ":" + color_fingerprint.value();
-    for (auto &working : linear_working_)
+    const auto matches = [&](const CachedLinearWorking &working)
     {
-        if (working.has_value() && working->asset_id == asset.id &&
-            working->fingerprint == fingerprint && working->max_edge == max_edge &&
-            working->preprocess_key == preprocess_key && working->buffer.width == width &&
-            working->buffer.height == height)
+        return working.asset_id == asset.id && working.fingerprint == fingerprint &&
+               working.max_edge == max_edge && working.preprocess_key == preprocess_key &&
+               working.buffer.width == width && working.buffer.height == height;
+    };
+    if (lane == PreviewLane::kBackgroundBrowse)
+    {
+        if (browse_linear_working_.has_value() && matches(*browse_linear_working_))
         {
-            return &working->buffer;
+            return &browse_linear_working_->buffer;
+        }
+    }
+    else
+    {
+        for (auto &working : linear_working_)
+        {
+            if (working.has_value() && matches(*working))
+            {
+                return &working->buffer;
+            }
         }
     }
 
     LinearWorkingBuffer buffer;
     if (is_raw_media_type(asset.media_type))
     {
-        auto raw = cached_raw_frame(asset, path, cancellation);
+        auto raw = cached_raw_frame(asset, path, cancellation, lane);
         if (!raw)
         {
             return raw.error();
@@ -627,7 +652,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
     }
     else
     {
-        auto source = decode_preview_source(asset, path, max_edge, cancellation);
+        auto source = decode_preview_source(asset, path, max_edge, cancellation, lane);
         if (!source)
         {
             return source.error();
@@ -640,23 +665,31 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         buffer = std::move(working).value();
     }
 
+    CachedLinearWorking cached{std::string(asset.id), fingerprint, max_edge, preprocess_key,
+                               std::move(buffer)};
+    if (lane == PreviewLane::kBackgroundBrowse)
+    {
+        browse_linear_working_ = std::move(cached);
+        return &browse_linear_working_->buffer;
+    }
     const std::size_t slot = max_edge <= kInteractivePreviewMaxEdge ? 0U : 1U;
-    linear_working_[slot] = CachedLinearWorking{std::string(asset.id), fingerprint, max_edge,
-                                                preprocess_key, std::move(buffer)};
+    linear_working_[slot] = std::move(cached);
     return &linear_working_[slot]->buffer;
 }
 
 Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,
                                                            const std::string_view path,
                                                            const std::uint32_t max_edge,
-                                                           const CancellationToken &cancellation)
+                                                           const CancellationToken &cancellation,
+                                                           const PreviewLane lane)
 {
     const auto fingerprint = asset.content_fingerprint.value_or("none");
-    if (decoded_preview_source_.has_value() && decoded_preview_source_->asset_id == asset.id &&
-        decoded_preview_source_->fingerprint == fingerprint &&
-        decoded_preview_source_->max_edge == max_edge)
+    auto &cache_entry = lane == PreviewLane::kBackgroundBrowse ? browse_decoded_preview_source_ :
+                                                                 decoded_preview_source_;
+    if (cache_entry.has_value() && cache_entry->asset_id == asset.id &&
+        cache_entry->fingerprint == fingerprint && cache_entry->max_edge == max_edge)
     {
-        return decoded_preview_source_->raster;
+        return cache_entry->raster;
     }
 
     RasterBuffer raster;
@@ -726,9 +759,9 @@ Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &as
                           {{"media_type", asset.media_type}, {"asset_id", asset.id}});
     }
 
-    decoded_preview_source_ =
+    cache_entry =
         DecodedPreviewSource{std::string(asset.id), fingerprint, max_edge, std::move(raster)};
-    return decoded_preview_source_->raster;
+    return cache_entry->raster;
 }
 
 } // namespace ravo

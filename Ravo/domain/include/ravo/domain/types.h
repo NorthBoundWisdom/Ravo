@@ -32,7 +32,7 @@ inline constexpr std::size_t kTagMaxLength = 128;
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
 inline constexpr std::int64_t kPreviewContractVersion = 7;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
-inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 640;
+inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 960;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;
 inline constexpr std::string_view kEmbeddedBrowsePreviewDigest = "embedded-jpeg-orient";
 inline constexpr int kDefaultJpegQuality = 95;
@@ -456,18 +456,25 @@ struct ImportItemResult
     std::optional<TaskError> error;
 };
 
+enum class PreviewPurpose
+{
+    kDevelop,
+    kBrowse,
+};
+
 struct PreviewRequest
 {
     std::string asset_id;
     std::uint32_t max_edge = kDefaultPreviewMaxEdge;
     std::uint64_t request_revision = 0;
+    PreviewPurpose purpose = PreviewPurpose::kDevelop;
     bool ignore_edits = false;
     bool ignore_crop = false;
     bool ignore_straighten = false;
     bool persist_preview_record = true;
-    // Gallery/import thumbnails may use a RAW embedded JPEG. Develop, loupe, scopes,
-    // export and interactive preview must leave this false so processed pixels stay
-    // on the CPU RAW + Sigmoid contract.
+    // Browse requests may use a RAW embedded JPEG. Develop, loupe, scopes, export and
+    // interactive preview must leave this false so processed pixels stay on the CPU
+    // RAW + Sigmoid contract. Purpose independently owns cache/scheduling isolation.
     bool prefer_embedded_preview = false;
     CancellationToken cancellation{};
     std::string correlation_id;

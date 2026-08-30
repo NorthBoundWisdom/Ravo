@@ -16,6 +16,8 @@ public:
                                                      std::function<void()> callback);
     [[nodiscard]] static std::array<std::optional<std::uint32_t>, 2>
     linear_working_max_edges(const CatalogService &service);
+    [[nodiscard]] static std::optional<std::uint32_t>
+    browse_linear_working_max_edge(const CatalogService &service);
 };
 
 } // namespace ravo::testing

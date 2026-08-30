@@ -20,7 +20,7 @@ the already prepared settled working image.
 
 - An ordinary committed Develop change saves through the existing atomic
   recipe/history/revision transaction, then renders the same parameters at
-  `kInteractivePreviewMaxEdge`. Studio publishes those owned RGB pixels
+  `kInteractivePreviewMaxEdge` (960px). Studio publishes those owned RGB pixels
   directly and queues the same request revision at `kDefaultPreviewMaxEdge`
   for persisted settlement. There is no approximate recipe or reduced
   operation set.
@@ -32,6 +32,11 @@ the already prepared settled working image.
   class and one for the settled size class. Both remain keyed by asset, source
   fingerprint, target size, and RAW/input-colour preprocess state. New RAW
   ownership and close clear both slots.
+- Gallery thumbnail decode/working state is a separate bounded background lane.
+  A Develop request cancels active thumbnail work and takes foreground queue
+  priority, so browse work cannot evict or queue ahead of the selected photo.
+  Entering Develop renders the interactive stage before the settled stage to
+  prepare the first slider interaction.
 - Rebuildable preview-cache PNG uses libpng's latency-first mode and one write
   into the documented maximum output bound. Normal engine/output export PNG
   retains the ordinary compression path.
@@ -41,12 +46,17 @@ the already prepared settled working image.
   different path. Per-pixel arithmetic and reduction order remain
   deterministic. Denoise wavelet scratch stores its three real YUV channels
   without a fourth padding component.
+- Recipe owns dense tone/RGB point-curve LUT construction. It prepares the
+  selected interpolator once per curve and samples the same positions and
+  scalar evaluator results that Engine previously requested one at a time.
+  Engine remains the LUT consumer, and exact scalar/LUT equality for every
+  supported interpolator is a unit-test contract.
 
 ## Consequences
 
 Studio can show the changed look before full preview settlement, while the
 persisted result, cache identity, and export path remain exact. The additional
-640px working slot raises bounded session memory modestly and avoids rebuilding
+960px working slot raises bounded session memory modestly and avoids rebuilding
 the larger linear image after the first stage. Fast cache PNG may consume more
 of the existing 512 MiB LRU budget, but it is disposable and pixel/profile
 equivalent when decoded. This decision adds neither a GPU/CPU fallback nor a

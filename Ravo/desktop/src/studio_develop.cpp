@@ -2424,8 +2424,10 @@ void StudioPresenter::enqueue_preview()
     emit previewChanged();
     static_cast<void>(develop_preview_owner_.supersede("preview_superseded"));
     const bool crop_guides = crop_tool_active_ && !before_after_;
+    const bool progressive_develop = browse_mode_ == QLatin1String("develop") &&
+                                     !mask_overlay_visible_ && !crop_guides && !before_after_;
     pending_preview_ = PendingDevelopWork{
-        .interactive = mask_overlay_visible_ || crop_guides,
+        .interactive = mask_overlay_visible_ || crop_guides || progressive_develop,
         .params = develop_,
         .history_write = RecipeHistoryWrite::kUnchanged,
         .discard_history_after_seq = {},
@@ -2433,6 +2435,7 @@ void StudioPresenter::enqueue_preview()
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
         .ignore_straighten = crop_guides,
+        .settle_preview = progressive_develop,
         .overlay_mask_id = current_overlay_mask_id(develop_),
     };
     kick_develop_work();
@@ -2457,8 +2460,10 @@ void StudioPresenter::kick_develop_work()
     }
     else
     {
+        kickPreviewWarmup();
         return;
     }
+    static_cast<void>(thumbnail_work_.cancel("foreground_preview_requested"));
     develop_job_in_flight_ = true;
     const auto revision = develop_preview_owner_.revision();
     const auto cancellation = develop_preview_owner_.begin();
@@ -2628,7 +2633,8 @@ void StudioPresenter::kick_develop_work()
                     kick_develop_work();
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 void StudioPresenter::setDevelopNumber(const QString &name, const double value)

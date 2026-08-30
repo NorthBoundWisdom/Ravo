@@ -6,10 +6,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 #include <new>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <vector>
+
+#include "parallel_rows.h"
 
 namespace ravo
 {
@@ -826,24 +830,44 @@ Result<void> apply_color_balance_rgb(WorkingImage &image, const OperationInstanc
         return make_error(ErrorCode::kValidation,
                           "Color Balance RGB input buffer is empty or undersized");
     }
-    for (std::uint32_t row = 0; row < image.height; ++row)
+    std::mutex error_mutex;
+    std::size_t first_error_index = std::numeric_limits<std::size_t>::max();
+    std::optional<TaskError> first_error;
+    const auto remember_error = [&](const std::size_t index, TaskError error)
     {
-        auto active = cancellation.check();
-        if (!active)
+        const std::lock_guard lock(error_mutex);
+        if (index < first_error_index)
         {
-            return active.error();
+            first_error_index = index;
+            first_error = std::move(error);
         }
-        for (std::uint32_t column = 0; column < image.width; ++column)
+    };
+    auto validated = detail::for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
         {
-            const std::size_t index = (static_cast<std::size_t>(row) * image.width + column) * 3U;
-            const Vec3 input{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
-            if (!finite(input))
+            for (std::uint32_t column = 0; column < image.width; ++column)
             {
-                return make_error(ErrorCode::kValidation,
-                                  "Color Balance RGB input contains a non-finite sample",
-                                  {{"sample_index", std::to_string(index)}});
+                const std::size_t index =
+                    (static_cast<std::size_t>(row) * image.width + column) * 3U;
+                const Vec3 input{image.rgb[index], image.rgb[index + 1U], image.rgb[index + 2U]};
+                if (!finite(input))
+                {
+                    remember_error(
+                        index, make_error(ErrorCode::kValidation,
+                                          "Color Balance RGB input contains a non-finite sample",
+                                          {{"sample_index", std::to_string(index)}}));
+                    return;
+                }
             }
-        }
+        });
+    if (!validated)
+    {
+        return validated.error();
+    }
+    if (first_error)
+    {
+        return std::move(*first_error);
     }
 
     const DerivedParams params = derive(source);
@@ -874,79 +898,93 @@ Result<void> apply_color_balance_rgb(WorkingImage &image, const OperationInstanc
         return make_error(ErrorCode::kInternal, "Color Balance RGB ran out of memory");
     }
 
-    for (std::uint32_t row = 0; row < image.height; ++row)
+    first_error_index = std::numeric_limits<std::size_t>::max();
+    first_error.reset();
+    auto processed = detail::for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            for (std::uint32_t column = 0; column < image.width; ++column)
+            {
+                const std::size_t index =
+                    (static_cast<std::size_t>(row) * image.width + column) * 3U;
+                Vec3 working{std::max(image.rgb[index], 0.0F),
+                             std::max(image.rgb[index + 1U], 0.0F),
+                             std::max(image.rgb[index + 2U], 0.0F)};
+                Vec3 lms = mat_apply(rgb_to_lms, working);
+                Vec3 yrg = lms_to_yrg(lms);
+                Vec4 ych = yrg_to_ych(yrg);
+                ych[0] = std::max(ych[0], 0.0F);
+                const ColorBalanceRgbMasks masks = opacity_masks(ych[0], params);
+
+                const float hue_x = ych[2];
+                const float hue_y = ych[3];
+                ych[2] = std::fma(hue_cosine, hue_x, -hue_sine * hue_y);
+                ych[3] = std::fma(hue_sine, hue_x, hue_cosine * hue_y);
+                const float chroma_boost =
+                    params.chroma_global + dot_masks(masks.opacity, params.chroma);
+                const float vibrance =
+                    params.vibrance * (1.0F - std::pow(ych[1], std::abs(params.vibrance)));
+                ych[1] *= std::max(1.0F + chroma_boost + vibrance, 0.0F);
+                gamut_check_yrg(ych);
+
+                yrg = ych_to_yrg(ych);
+                lms = yrg_to_lms(yrg);
+                Vec3 grading = mat_apply(kLmsToGradingRgb, lms);
+                for (std::size_t channel = 0; channel < grading.size(); ++channel)
+                {
+                    grading[channel] += params.global[channel];
+                    grading[channel] *=
+                        masks.complement[2] *
+                            (masks.complement[0] + masks.opacity[0] * params.shadows[channel]) +
+                        masks.opacity[2] * params.highlights[channel];
+                    const float sign = grading[channel] < 0.0F ? -1.0F : 1.0F;
+                    grading[channel] = std::pow(std::abs(grading[channel]) / params.white_fulcrum,
+                                                params.midtones[channel]) *
+                                       sign * params.white_fulcrum;
+                }
+                lms = mat_apply(kGradingRgbToLms, grading);
+                yrg = lms_to_yrg(lms);
+                yrg[0] =
+                    std::pow(std::max(yrg[0] / params.white_fulcrum, 0.0F), params.midtones_y) *
+                    params.white_fulcrum;
+                yrg[0] =
+                    params.grey_fulcrum * std::pow(yrg[0] / params.grey_fulcrum, params.contrast);
+                lms = yrg_to_lms(yrg);
+                Vec3 xyz = mat_apply(kLms2006ToXyzD65, lms);
+                Result<void> adjusted =
+                    params.jzazbz ? apply_jzazbz(xyz, masks, params, gamut.value()) :
+                                    apply_dt_ucs(xyz, masks, params, gamut.value(), l_white);
+                if (!adjusted)
+                {
+                    remember_error(index, adjusted.error());
+                    return;
+                }
+                working = mat_apply(xyz_to_working, xyz);
+                for (float &sample : working)
+                {
+                    sample = std::max(sample, 0.0F);
+                }
+                if (!finite(working))
+                {
+                    remember_error(index,
+                                   make_error(ErrorCode::kValidation,
+                                              "Color Balance RGB produced a non-finite sample",
+                                              {{"sample_index", std::to_string(index)}}));
+                    return;
+                }
+                output[index] = working[0];
+                output[index + 1U] = working[1];
+                output[index + 2U] = working[2];
+            }
+        });
+    if (!processed)
     {
-        auto active = cancellation.check();
-        if (!active)
-        {
-            return active.error();
-        }
-        for (std::uint32_t column = 0; column < image.width; ++column)
-        {
-            const std::size_t index = (static_cast<std::size_t>(row) * image.width + column) * 3U;
-            Vec3 working{std::max(image.rgb[index], 0.0F), std::max(image.rgb[index + 1U], 0.0F),
-                         std::max(image.rgb[index + 2U], 0.0F)};
-            Vec3 lms = mat_apply(rgb_to_lms, working);
-            Vec3 yrg = lms_to_yrg(lms);
-            Vec4 ych = yrg_to_ych(yrg);
-            ych[0] = std::max(ych[0], 0.0F);
-            const ColorBalanceRgbMasks masks = opacity_masks(ych[0], params);
-
-            const float hue_x = ych[2];
-            const float hue_y = ych[3];
-            ych[2] = std::fma(hue_cosine, hue_x, -hue_sine * hue_y);
-            ych[3] = std::fma(hue_sine, hue_x, hue_cosine * hue_y);
-            const float chroma_boost =
-                params.chroma_global + dot_masks(masks.opacity, params.chroma);
-            const float vibrance =
-                params.vibrance * (1.0F - std::pow(ych[1], std::abs(params.vibrance)));
-            ych[1] *= std::max(1.0F + chroma_boost + vibrance, 0.0F);
-            gamut_check_yrg(ych);
-
-            yrg = ych_to_yrg(ych);
-            lms = yrg_to_lms(yrg);
-            Vec3 grading = mat_apply(kLmsToGradingRgb, lms);
-            for (std::size_t channel = 0; channel < grading.size(); ++channel)
-            {
-                grading[channel] += params.global[channel];
-                grading[channel] *=
-                    masks.complement[2] *
-                        (masks.complement[0] + masks.opacity[0] * params.shadows[channel]) +
-                    masks.opacity[2] * params.highlights[channel];
-                const float sign = grading[channel] < 0.0F ? -1.0F : 1.0F;
-                grading[channel] = std::pow(std::abs(grading[channel]) / params.white_fulcrum,
-                                            params.midtones[channel]) *
-                                   sign * params.white_fulcrum;
-            }
-            lms = mat_apply(kGradingRgbToLms, grading);
-            yrg = lms_to_yrg(lms);
-            yrg[0] = std::pow(std::max(yrg[0] / params.white_fulcrum, 0.0F), params.midtones_y) *
-                     params.white_fulcrum;
-            yrg[0] = params.grey_fulcrum * std::pow(yrg[0] / params.grey_fulcrum, params.contrast);
-            lms = yrg_to_lms(yrg);
-            Vec3 xyz = mat_apply(kLms2006ToXyzD65, lms);
-            Result<void> adjusted = params.jzazbz ?
-                                        apply_jzazbz(xyz, masks, params, gamut.value()) :
-                                        apply_dt_ucs(xyz, masks, params, gamut.value(), l_white);
-            if (!adjusted)
-            {
-                return adjusted.error();
-            }
-            working = mat_apply(xyz_to_working, xyz);
-            for (float &sample : working)
-            {
-                sample = std::max(sample, 0.0F);
-            }
-            if (!finite(working))
-            {
-                return make_error(ErrorCode::kValidation,
-                                  "Color Balance RGB produced a non-finite sample",
-                                  {{"sample_index", std::to_string(index)}});
-            }
-            output[index] = working[0];
-            output[index + 1U] = working[1];
-            output[index + 2U] = working[2];
-        }
+        return processed.error();
+    }
+    if (first_error)
+    {
+        return std::move(*first_error);
     }
     image.rgb.swap(output);
     return {};

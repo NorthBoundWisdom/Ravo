@@ -8,7 +8,7 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM lock modes, `--update`, and publication order |
 | [Packaging.md](Packaging.md) | FreeCM release packaging, platform artifacts, and CI ownership |
 | [GPU_Baseline.md](GPU_Baseline.md) | CPU gold samples and later GPU performance gates |
-| [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities after the accepted mask graph, Studio overlay/group/path/brush surface, and Color Harmonizer retirement |
+| [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities, including live Studio agent control over the accepted CLI/service baseline |
 | [phase0/README.md](phase0/README.md) | Historical frozen-fixture evidence, contracts, and decision records |
 | [concepts/p0-library-grid.svg](concepts/p0-library-grid.svg) | Ravo Studio concept-reference artwork |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |

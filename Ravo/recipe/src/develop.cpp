@@ -11,6 +11,7 @@
 #include <limits>
 #include <iomanip>
 #include <map>
+#include <new>
 #include <numbers>
 #include <set>
 #include <sstream>
@@ -127,8 +128,8 @@ struct ToneCurveSpline
     const auto count = points.size();
     spline.coeffs.assign(count, 0.0);
     spline.coeffs.front() = (points[1].y - points[0].y) / (points[1].x - points[0].x);
-    spline.coeffs.back() =
-        (points[count - 1U].y - points[count - 2U].y) / (points[count - 1U].x - points[count - 2U].x);
+    spline.coeffs.back() = (points[count - 1U].y - points[count - 2U].y) /
+                           (points[count - 1U].x - points[count - 2U].x);
     for (std::size_t index = 1; index + 1 < count; ++index)
     {
         if (monotone)
@@ -1386,7 +1387,8 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept
     return false;
 }
 
-[[nodiscard]] bool reset_rgb_curve_field(DevelopParams &params, const std::string_view name) noexcept
+[[nodiscard]] bool reset_rgb_curve_field(DevelopParams &params,
+                                         const std::string_view name) noexcept
 {
     const RgbCurveParams defaults;
     if (name == "rgbCurve")
@@ -2787,6 +2789,51 @@ double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, const doub
     return evaluate_tone_curve_spline(make_tone_curve_spline(points, kind), x);
 }
 
+Result<std::vector<float>> build_tone_curve_lut(const std::vector<ToneCurvePoint> &points,
+                                                const std::string_view interpolation,
+                                                const std::size_t sample_count)
+try
+{
+    if (sample_count == 0U)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Tone curve LUT sample count must be non-zero");
+    }
+    if (sample_count > std::vector<float>{}.max_size())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Tone curve LUT sample count exceeds the supported size",
+                          {{"reason", "sample_count_too_large"}});
+    }
+    if (!curve_interpolation_is_supported(interpolation))
+    {
+        return make_error(ErrorCode::kValidation, "Tone curve interpolation is unsupported",
+                          {{"interpolation", std::string(interpolation)}});
+    }
+    std::vector<float> lut(sample_count, 0.0F);
+    if (tone_curve_is_identity(points))
+    {
+        for (std::size_t index = 0; index < sample_count; ++index)
+        {
+            lut[index] =
+                static_cast<float>(static_cast<double>(index) / static_cast<double>(sample_count));
+        }
+        return lut;
+    }
+    const ToneCurveSpline spline = make_tone_curve_spline(points, interpolation);
+    for (std::size_t index = 0; index < sample_count; ++index)
+    {
+        const double x = static_cast<double>(index) / static_cast<double>(sample_count);
+        lut[index] = static_cast<float>(evaluate_tone_curve_spline(spline, x));
+    }
+    return lut;
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Tone curve LUT allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
 [[nodiscard]] double parametric_hermite01(const double t) noexcept
 {
     const double clamped = std::clamp(t, 0.0, 1.0);
@@ -2898,7 +2945,8 @@ void clamp_rgb_curve(RgbCurveParams &params) noexcept
     params.parametric_highlights = clamp_value(params.parametric_highlights, -1.0, 1.0);
     params.parametric_split_shadows = clamp_value(params.parametric_split_shadows, 0.05, 0.90);
     params.parametric_split_mid = clamp_value(params.parametric_split_mid, 0.10, 0.95);
-    params.parametric_split_highlights = clamp_value(params.parametric_split_highlights, 0.15, 0.98);
+    params.parametric_split_highlights =
+        clamp_value(params.parametric_split_highlights, 0.15, 0.98);
     if (params.parametric_split_mid < params.parametric_split_shadows + 0.05)
     {
         params.parametric_split_mid = params.parametric_split_shadows + 0.05;
@@ -3164,7 +3212,8 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
     if (const auto found = parameters.find("mode"); found != parameters.end())
     {
         const auto *text = as_string_if(found->second);
-        if (text == nullptr || (*text != kRgbLevelsModeLinked && *text != kRgbLevelsModeIndependent))
+        if (text == nullptr ||
+            (*text != kRgbLevelsModeLinked && *text != kRgbLevelsModeIndependent))
         {
             return make_error(ErrorCode::kValidation, "RGB curve mode is unsupported",
                               {{"mode", text == nullptr ? std::string() : *text}});
@@ -3197,17 +3246,13 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
     {
         const auto *text = as_string_if(found->second);
         if (text == nullptr ||
-            (*text != kToneCurvePreserveColorsNone &&
-             *text != kToneCurvePreserveColorsLuminance &&
-             *text != kToneCurvePreserveColorsMax &&
-             *text != kToneCurvePreserveColorsAverage &&
-             *text != kToneCurvePreserveColorsSum &&
-             *text != kToneCurvePreserveColorsNorm &&
+            (*text != kToneCurvePreserveColorsNone && *text != kToneCurvePreserveColorsLuminance &&
+             *text != kToneCurvePreserveColorsMax && *text != kToneCurvePreserveColorsAverage &&
+             *text != kToneCurvePreserveColorsSum && *text != kToneCurvePreserveColorsNorm &&
              *text != kToneCurvePreserveColorsPower))
         {
-            return make_error(
-                ErrorCode::kValidation, "RGB curve preserve_colors is unsupported",
-                {{"preserve_colors", text == nullptr ? std::string() : *text}});
+            return make_error(ErrorCode::kValidation, "RGB curve preserve_colors is unsupported",
+                              {{"preserve_colors", text == nullptr ? std::string() : *text}});
         }
         preserve_colors = *text;
     }
@@ -3244,8 +3289,8 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
             compensate = *flag;
     }
     bool parametric_active = false;
-    for (const auto name : {"parametric_shadows", "parametric_darks", "parametric_lights",
-                            "parametric_highlights"})
+    for (const auto name :
+         {"parametric_shadows", "parametric_darks", "parametric_lights", "parametric_highlights"})
     {
         if (const auto found = parameters.find(name); found != parameters.end())
         {
@@ -3254,8 +3299,8 @@ validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::l
         }
     }
     if (application_space == kRgbCurveApplicationSpaceDisplaySrgb &&
-        (mode != kRgbLevelsModeIndependent ||
-         preserve_colors != kToneCurvePreserveColorsNone || compensate || parametric_active))
+        (mode != kRgbLevelsModeIndependent || preserve_colors != kToneCurvePreserveColorsNone ||
+         compensate || parametric_active))
     {
         return make_error(
             ErrorCode::kValidation,
@@ -3686,11 +3731,10 @@ bool DevelopParams::is_identity() const noexcept
            near(gamma, kDevelopGammaDefault) && rgb_levels.is_identity() &&
            rgb_curve.is_identity() && tone_curve_is_identity(tone_curve) &&
            tone_curve_is_identity(tone_curve_a) && tone_curve_is_identity(tone_curve_b) &&
-           !sigmoid_enabled &&
-           near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) && raw_ca_iterations == 0 &&
-           near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) && near(lens_k1, 0.0) &&
-           near(lens_k2, 0.0) && near(lens_tca_r, 1.0) && near(lens_tca_b, 1.0) &&
-           near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
+           !sigmoid_enabled && near(raw_highlights, 0.0) && near(hot_pixels_strength, 0.0) &&
+           raw_ca_iterations == 0 && near(raw_denoise_threshold, 0.0) && near(denoise, 0.0) &&
+           near(lens_k1, 0.0) && near(lens_k2, 0.0) && near(lens_tca_r, 1.0) &&
+           near(lens_tca_b, 1.0) && near(lens_vignetting, 0.0) && lens_mode != kLensModeLookup &&
            bands_near_zero(color_eq_hue) && bands_near_zero(color_eq_sat) &&
            bands_near_zero(color_eq_light) && near(graduated_density, 0.0) &&
            near(tone_eq_blacks, 0.0) && near(tone_eq_shadows, 0.0) && near(tone_eq_midtones, 0.0) &&
@@ -4215,7 +4259,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         return true;
     }
     if (name == "canvasLeft" || name == "canvasRight" || name == "canvasTop" ||
-             name == "canvasBottom")
+        name == "canvasBottom")
     {
         params.canvas_present = true;
         params.canvas_enabled = true;
@@ -4387,8 +4431,8 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         return true;
     }
     if (name == "outputFrameBorderRed" || name == "outputFrameBorderGreen" ||
-             name == "outputFrameBorderBlue" || name == "outputFrameLineRed" ||
-             name == "outputFrameLineGreen" || name == "outputFrameLineBlue")
+        name == "outputFrameBorderBlue" || name == "outputFrameLineRed" ||
+        name == "outputFrameLineGreen" || name == "outputFrameLineBlue")
     {
         params.frame_present = true;
         params.frame_enabled = true;
@@ -4421,8 +4465,8 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         return true;
     }
     if (name == "outputFrameSize" || name == "outputFramePositionH" ||
-             name == "outputFramePositionV" || name == "outputFrameLineSize" ||
-             name == "outputFrameLineOffset")
+        name == "outputFramePositionV" || name == "outputFrameLineSize" ||
+        name == "outputFrameLineOffset")
     {
         params.frame_present = true;
         params.frame_enabled = true;
@@ -4469,7 +4513,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         return true;
     }
     if (name == "watermarkOpacity" || name == "watermarkScale" || name == "watermarkOffsetX" ||
-             name == "watermarkOffsetY" || name == "watermarkRotation")
+        name == "watermarkOffsetY" || name == "watermarkRotation")
     {
         params.watermark_present = true;
         params.watermark_enabled = true;
@@ -4509,32 +4553,26 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     }
     if (apply_color_checker_field(params, name, value))
     {
-
         return true;
     }
     if (apply_color_balance_field(params.color_balance_rgb, name, value))
     {
-
         return true;
     }
     if (apply_color_correction_field(params, name, value))
     {
-
         return true;
     }
     if (apply_color_contrast_field(params, name, value))
     {
-
         return true;
     }
     if (apply_color_reconstruction_field(params, name, value))
     {
-
         return true;
     }
     if (apply_color_harmonizer_field(params, name, value))
     {
-
         return true;
     }
     if (name == "monochrome")
@@ -4558,8 +4596,8 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
-    if (name == "monochromeFilterA" || name == "monochromeFilterB" ||
-             name == "monochromeSize" || name == "monochromeHighlights" || name == "monochromeMix")
+    if (name == "monochromeFilterA" || name == "monochromeFilterB" || name == "monochromeSize" ||
+        name == "monochromeHighlights" || name == "monochromeMix")
     {
         params.monochrome_present = true;
         params.monochrome_enabled = true;
@@ -4622,7 +4660,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         return true;
     }
     if (name == "splitShadowSaturation" || name == "splitHighlightSaturation" ||
-             name == "splitCompress" || name == "splitMix")
+        name == "splitCompress" || name == "splitMix")
     {
         params.split_toning_present = true;
         params.split_toning_enabled = true;
@@ -4644,12 +4682,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     }
     if (apply_rgb_levels_field(params, name, value))
     {
-
         return true;
     }
     if (apply_rgb_curve_field(params, name, value))
     {
-
         return true;
     }
     if (name == "toneCurveInterpolation")
@@ -4669,8 +4705,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         {
             return false;
         }
-        params.tone_curve_channel_mode = value == 1.0 ? std::string(kToneCurveChannelModeIndependent) :
-                                                        std::string(kToneCurveChannelModeRgb);
+        params.tone_curve_channel_mode = value == 1.0 ?
+                                             std::string(kToneCurveChannelModeIndependent) :
+                                             std::string(kToneCurveChannelModeRgb);
         return true;
     }
     if (name == "toneCurvePreserve")
@@ -4692,9 +4729,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         static constexpr std::array<std::string_view, 6> spaces{
-            kToneCurveWorkingSpaceRgb, kToneCurveWorkingSpaceLab, kToneCurveWorkingSpaceXyz,
-            kToneCurveWorkingSpaceLabIndependent, kToneCurveWorkingSpaceSrgb,
-            kToneCurveWorkingSpaceLinearRgb};
+            kToneCurveWorkingSpaceRgb,  kToneCurveWorkingSpaceLab,
+            kToneCurveWorkingSpaceXyz,  kToneCurveWorkingSpaceLabIndependent,
+            kToneCurveWorkingSpaceSrgb, kToneCurveWorkingSpaceLinearRgb};
         params.tone_curve_working_space = std::string(spaces[static_cast<std::size_t>(index)]);
         return true;
     }
@@ -4876,8 +4913,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         return true;
     }
     if (name == "colorZonesLightnessInterpolationIndex" ||
-             name == "colorZonesChromaInterpolationIndex" ||
-             name == "colorZonesHueInterpolationIndex")
+        name == "colorZonesChromaInterpolationIndex" || name == "colorZonesHueInterpolationIndex")
     {
         if (!std::isfinite(value) || std::floor(value) != value || value < 0.0 || value > 2.0)
             return false;
@@ -5024,7 +5060,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     return false;
 }
 
-
 [[nodiscard]] bool develop_set_field_accepts(const std::string_view name, const double value)
 {
     DevelopParams params;
@@ -5033,8 +5068,8 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
 [[nodiscard]] std::optional<double> first_accepted_develop_set_value(const std::string_view name)
 {
-    static constexpr double kSeeds[] = {0.0,  1.0,  0.5,  -1.0, 2.0,  -0.5, 0.1,  0.01, 0.2,
-                                        3.0,  4.0,  5.0,  8.0,  10.0, 18.0, -18.0, 45.0, -45.0,
+    static constexpr double kSeeds[] = {0.0,  1.0,   0.5,   -1.0,  2.0,    -0.5, 0.1,   0.01, 0.2,
+                                        3.0,  4.0,   5.0,   8.0,   10.0,   18.0, -18.0, 45.0, -45.0,
                                         90.0, 100.0, 180.0, 360.0, -100.0, 0.25, -0.25, 1.5};
     for (const double seed : kSeeds)
     {
@@ -5473,11 +5508,10 @@ std::vector<DevelopSetField> list_develop_set_fields()
         const bool half = develop_set_field_accepts(name, *seed + 0.5) ||
                           develop_set_field_accepts(name, *seed - 0.5);
         const bool integer = !half;
-        const bool toggle = develop_set_field_accepts(name, 0.0) &&
-                            develop_set_field_accepts(name, 1.0) &&
-                            !develop_set_field_accepts(name, 0.5) &&
-                            !develop_set_field_accepts(name, 2.0) &&
-                            !develop_set_field_accepts(name, -1.0);
+        const bool toggle =
+            develop_set_field_accepts(name, 0.0) && develop_set_field_accepts(name, 1.0) &&
+            !develop_set_field_accepts(name, 0.5) && !develop_set_field_accepts(name, 2.0) &&
+            !develop_set_field_accepts(name, -1.0);
         DevelopSetField field;
         field.name = name;
         field.kind = toggle  ? DevelopSetFieldKind::Toggle :
@@ -8885,8 +8919,7 @@ Result<RgbCurveParams> leftover_rgbcurve_from_v1(const std::vector<std::uint8_t>
         {
             result.interpolation = std::string(interpolation);
         }
-        else if (result.mode == kRgbLevelsModeIndependent &&
-                 result.interpolation != interpolation)
+        else if (result.mode == kRgbLevelsModeIndependent && result.interpolation != interpolation)
         {
             return make_error(ErrorCode::kUnsupported,
                               "Legacy RGB curve mixed interpolators are unsupported",

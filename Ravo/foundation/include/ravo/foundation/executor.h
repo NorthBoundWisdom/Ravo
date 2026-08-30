@@ -1,10 +1,10 @@
 #pragma once
 
 #include <condition_variable>
+#include <deque>
 #include <functional>
 #include <future>
 #include <mutex>
-#include <queue>
 #include <stdexcept>
 #include <thread>
 #include <type_traits>
@@ -12,6 +12,12 @@
 
 namespace ravo
 {
+
+enum class TaskPriority
+{
+    kNormal,
+    kForeground,
+};
 
 // Single owned worker. Callers must not post after wait() and must not detach work.
 class SerialExecutor
@@ -22,7 +28,7 @@ public:
     SerialExecutor &operator=(const SerialExecutor &) = delete;
     ~SerialExecutor();
 
-    bool post(std::function<void()> task);
+    bool post(std::function<void()> task, TaskPriority priority = TaskPriority::kNormal);
     void request_stop();
     void wait_idle();
     void wait();
@@ -76,7 +82,8 @@ private:
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::condition_variable idle_cv_;
-    std::queue<std::function<void()>> tasks_;
+    std::deque<std::function<void()>> foreground_tasks_;
+    std::deque<std::function<void()>> normal_tasks_;
     bool stop_ = false;
     bool running_ = false;
     std::thread::id worker_id_{};

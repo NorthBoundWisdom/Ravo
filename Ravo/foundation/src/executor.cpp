@@ -90,7 +90,7 @@ SerialExecutor::~SerialExecutor()
     wait();
 }
 
-bool SerialExecutor::post(std::function<void()> task)
+bool SerialExecutor::post(std::function<void()> task, const TaskPriority priority)
 {
     {
         std::lock_guard lock(mutex_);
@@ -98,7 +98,8 @@ bool SerialExecutor::post(std::function<void()> task)
         {
             return false;
         }
-        tasks_.push(std::move(task));
+        auto &queue = priority == TaskPriority::kForeground ? foreground_tasks_ : normal_tasks_;
+        queue.push_back(std::move(task));
     }
     cv_.notify_one();
     return true;
@@ -116,7 +117,8 @@ void SerialExecutor::request_stop()
 void SerialExecutor::wait_idle()
 {
     std::unique_lock lock(mutex_);
-    idle_cv_.wait(lock, [this]() { return tasks_.empty() && !running_; });
+    idle_cv_.wait(lock, [this]()
+                  { return foreground_tasks_.empty() && normal_tasks_.empty() && !running_; });
 }
 
 void SerialExecutor::wait()
@@ -162,22 +164,24 @@ void SerialExecutor::run_loop()
         std::function<void()> task;
         {
             std::unique_lock lock(mutex_);
-            cv_.wait(lock, [this]() { return stop_ || !tasks_.empty(); });
-            if (stop_ && tasks_.empty())
+            cv_.wait(lock, [this]()
+                     { return stop_ || !foreground_tasks_.empty() || !normal_tasks_.empty(); });
+            if (stop_ && foreground_tasks_.empty() && normal_tasks_.empty())
             {
                 running_ = false;
                 idle_cv_.notify_all();
                 return;
             }
-            task = std::move(tasks_.front());
-            tasks_.pop();
+            auto &queue = foreground_tasks_.empty() ? normal_tasks_ : foreground_tasks_;
+            task = std::move(queue.front());
+            queue.pop_front();
             running_ = true;
         }
         task();
         {
             std::lock_guard lock(mutex_);
             running_ = false;
-            if (tasks_.empty())
+            if (foreground_tasks_.empty() && normal_tasks_.empty())
             {
                 idle_cv_.notify_all();
             }

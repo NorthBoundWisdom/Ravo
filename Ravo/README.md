@@ -45,6 +45,8 @@ Current implementation status:
   filtering and stable import/capture/name/rating/size sorting; additive
   Cmd/Ctrl click and range Shift selection; plus RGB
   Histogram/Waveform/Parade/D50-u*v*-Vectorscope/Split scopes in the right panel.
+  Preview refresh computes the Curves histogram plus the currently visible
+  scope instead of rebuilding all five diagnostics on every slider event.
   Photo navigation uses bounded Flickable pan plus a normalized left
   navigator; hovering the inspect photo shows a magnifier and a click animates
   to 1:1 while restoring the last Fit/Fill/custom view (ADR-0076). Active-photo,
@@ -78,9 +80,9 @@ Current implementation status:
   Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
   plus before/after, session undo/redo, and Paste Light / Paste Color.
-  RAW preview retains bounded 640px interactive and 1600px settled
+  RAW preview retains bounded 960px interactive and 1600px settled
   scene-linear working images. An ordinary committed edit publishes the exact
-  640px in-memory result first, then replaces it with the exact persisted
+  960px in-memory result first, then replaces it with the exact persisted
   1600px result. Superseded requests cancel and late results are dropped by
   revision; recipe/history/revision save atomically. Preview-cache PNG favors
   latency because it is rebuildable, while export encoding is unchanged
@@ -601,7 +603,12 @@ command reloads the stored recipe and preview-record set after rendering and
 fails if either changed. CLI logging remains file-only so machine JSON is the
 only stdout content. An open Ravo Studio window observes the same catalog
 revision: another client's committed write is applied within one second
-without an MCP or process-control channel.
+without an MCP or process-control channel. The current CLI requires an explicit
+catalog path and asset ID; it does not expose a running Studio window's current
+selection or unsaved presentation state. Callers must not infer a write target
+from process logs or recent preview activity. `catalog probe --output` is the
+supported way to obtain a directly inspectable image artifact without taking a
+window screenshot or mutating the catalog.
 
 ## Names and directories
 

@@ -35,6 +35,56 @@ constraint.
 - Recipes, operation IDs, parameter schemas, and machine JSON must be
   versioned. Do not serialize object memory layout or UI state.
 
+## Machine automation and agent control
+
+- The root prohibition on Computer Use applies to every Ravo task. Do not use
+  accessibility trees, synthetic UI input, or window screenshots as a fallback
+  when a CLI, service, or state contract is missing.
+- Use the executable from the active Ravo build and its machine JSON surface.
+  The supported inspection sequence is `catalog list` for explicit asset
+  identity, `catalog recipe` / `catalog history` for stored state, and
+  `catalog probe --set <field>=<value> --output <unique.png> --json` for a
+  non-persistent parameter response. Inspect the emitted PNG directly with a
+  local image reader. Use `catalog develop` only for an explicitly identified
+  persistent edit, then re-read recipe/history and the structured result.
+- `catalog probe` is the current visual-automation owner. It must remain
+  read-only, use the same interactive preview service as Studio, publish an
+  atomic no-replace artifact, report display-RGB statistics, and prove that
+  recipe serialization and preview records did not change. Do not add a second
+  screenshot renderer or external decoder as an oracle.
+- The CLI currently does not expose a running Studio window's current
+  selection. Process arguments, open-file lists, preview cache activity, and
+  log messages may help diagnose a process but are not authoritative targets
+  for a write. Require a catalog path and asset ID, or implement the live
+  session contract below before performing a selection-relative command.
+- A live Studio automation contract, when implemented, is owned by desktop C++
+  for ephemeral session state and routes mutations through the existing
+  `StudioCommandController`; persistent work continues through services. Its
+  immutable snapshot must at least identify protocol version, session ID,
+  catalog path/revision, primary and selected asset IDs, browse mode, saved or
+  pending recipe revision, and preview resource identity. Mutations carry the
+  observed session and selection revisions and fail explicitly on stale state,
+  catalog close, selection change, cancellation, or command unavailability.
+- A local control transport must be same-user, bounded, non-networked by
+  default, multi-session aware, and destroyed with its Studio owner. It must
+  not expose QObjects, raw pointers, SQLite handles, engine buffers, settings
+  secrets, or a writable singleton. UI-main-thread snapshots and command
+  dispatch remain short; decode/render/database work stays in existing
+  owner-managed tasks.
+- CLI is the mandatory protocol client because its versioned JSON, exit codes,
+  and subprocess tests are cross-platform and deterministic. An MCP server is
+  optional and may expose the same snapshots, commands, and image results as
+  tools/resources only after the underlying contract exists. MCP must not add
+  state, permissions, render paths, or mutations unavailable through the shared
+  contract and CLI acceptance client.
+- Large image bytes do not belong inline in CLI JSON. New or extended
+  image-result contracts return a no-replace local artifact path plus MIME type,
+  dimensions, color-profile identity, content hash, and lifecycle; an MCP
+  adapter may return those same immutable bytes as an image resource. Tests
+  cover invalid/stale sessions, wrong asset/revision, concurrent Studio and CLI
+  writes, cancellation, output conflict, process exit cleanup, bounded
+  messages/images, and absence of sensitive settings.
+
 ## Dependency rules
 
 - The repository-root active lock manages third-party source-root state. Before
@@ -134,9 +184,11 @@ constraint.
   are desktop-only, `Qt6::QuickTest` and QML tests are desktop-test-only; every
   Ravo target rejects Qt Widgets and frozen `src`/GTK dependencies.
 - For desktop, validate business behavior through service integration tests
-  first, then conduct minimum manual Create/Open, Import, select, Fit, and 100%
-  acceptance. Qt Quick Test and UI smoke do not replace the domain/service
-  contract.
+  first, then exercise supported intents through the CLI/control contract and
+  run QML load/offscreen smoke. Do not use Computer Use to satisfy a manual
+  acceptance step; add the missing machine interface or report the user-run
+  visual check as untested. Qt Quick Test, CLI artifacts, and UI smoke do not
+  replace the domain/service contract.
 - For an operation, run parameter/schema, synthetic-boundary, old-XMP mapping,
   and committed RAW/PNG/metadata fixture checks. Do not launch an old process
   for live differential output.

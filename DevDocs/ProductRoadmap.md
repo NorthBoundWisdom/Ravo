@@ -86,6 +86,47 @@ frozen IOP is retired.
 - These remain outside the local review/develop baseline until privacy,
   indexing, persistence and user-facing failure behavior are defined.
 
+## Local agent automation and live Studio control
+
+The accepted headless baseline is the versioned `ravo --json` interface.
+Explicit catalog and asset IDs select stored state; `catalog recipe` and
+`catalog history` inspect it, `catalog probe` produces read-only statistics and
+an optional no-replace PNG, and `catalog develop` commits through the shared
+service path. Studio observes another client's catalog revision within one
+second. None of these commands claims to expose the running window's current
+selection or unsaved presentation state.
+
+Before adding selection-relative automation, freeze one local control contract:
+
+- Desktop C++ owns the ephemeral session snapshot and existing command routing;
+  services remain the owner of catalog mutation, preview work, and image
+  processing. QML, SQL adapters, logs, and preview-cache activity are not
+  control-plane state.
+- A snapshot identifies protocol/session version, catalog path/revision,
+  primary and selected asset IDs, browse mode, recipe state/revision, and a
+  bounded preview-resource identity. A mutation carries the observed session
+  and selection revisions and rejects stale, closed, changed, busy, cancelled,
+  or unavailable state without applying it to another photo.
+- The transport is local same-user only, has bounded messages and images,
+  supports multiple Studio sessions without a global writable singleton, and
+  removes or invalidates discovery state on owner destruction. It does not
+  expose assistant credentials or start a network listener by default.
+- CLI is the required cross-platform client and contract-test surface. An MCP
+  server may be a thin adapter over the same snapshots, command intents, and
+  immutable image resources; it cannot introduce MCP-only mutations, another
+  renderer/cache, or direct QML/SQLite/engine access.
+- New live-control image results use atomic no-replace artifacts described by
+  MIME type, dimensions, color-profile identity, content hash, and lifecycle
+  rather than large inline JSON. MCP may return the identical immutable bytes
+  as an image resource.
+
+Acceptance requires structured CLI coverage for discovery, read-only state,
+selection/revision races, concurrent catalog writes, cancellation, unavailable
+commands, output conflict, multiple sessions, process-exit cleanup, bounded
+resource use, and proof that no secret settings enter the protocol. Until then,
+agents require explicit catalog and asset identity and must not substitute UI
+automation or process/log inference.
+
 ## Explicit non-candidates
 
 Only the non-algorithm UI/ABI/OpenCL/data leftovers listed in

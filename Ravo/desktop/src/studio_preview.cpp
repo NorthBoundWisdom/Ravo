@@ -132,41 +132,73 @@ void StudioPresenter::refresh_scopes(const QImage &image)
                                                                       raster.width * 3U));
     }
     auto histogram = collect_rgb_histogram(raster);
-    auto parade = collect_rgb_parade(raster);
-    auto waveform = collect_rgb_waveform(raster);
-    auto vectorscope = collect_uv_vectorscope(raster);
-    auto split = collect_split_scope(raster);
-    if (!histogram || !parade || !waveform || !vectorscope || !split)
+    if (!histogram)
     {
         clear_scopes();
         return;
     }
     scope_histogram_ = std::move(histogram).value();
-    const auto &parade_value = parade.value();
-    if (parade_value.bins == 0 || parade_value.tones == 0 ||
-        parade_value.rgb.size() !=
-            static_cast<std::size_t>(parade_value.bins) * 3U * parade_value.tones * 3U)
-    {
-        scope_parade_image_ = QImage();
-    }
-    else
-    {
-        const QImage view(parade_value.rgb.data(), static_cast<int>(parade_value.bins * 3U),
-                          static_cast<int>(parade_value.tones),
-                          static_cast<int>(parade_value.bins * 9U), QImage::Format_RGB888);
-        scope_parade_image_ = view.copy();
-    }
-    scope_waveform_image_ = scope_image(waveform.value());
-    scope_vectorscope_image_ = scope_image(vectorscope.value());
-    scope_split_image_ = scope_image(split.value());
     ++scope_revision_;
-    scope_parade_url_ =
-        QUrl(QStringLiteral("image://studioScope/parade?r=%1").arg(scope_revision_));
-    scope_waveform_url_ =
-        QUrl(QStringLiteral("image://studioScope/waveform?r=%1").arg(scope_revision_));
-    scope_vectorscope_url_ =
-        QUrl(QStringLiteral("image://studioScope/vectorscope?r=%1").arg(scope_revision_));
-    scope_split_url_ = QUrl(QStringLiteral("image://studioScope/split?r=%1").arg(scope_revision_));
+    if (scope_mode_ == QLatin1String("parade"))
+    {
+        auto parade = collect_rgb_parade(raster);
+        if (!parade)
+        {
+            clear_scopes();
+            return;
+        }
+        const auto &value = parade.value();
+        if (value.bins == 0 || value.tones == 0 ||
+            value.rgb.size() != static_cast<std::size_t>(value.bins) * 3U * value.tones * 3U)
+        {
+            scope_parade_image_ = QImage();
+        }
+        else
+        {
+            const QImage view(value.rgb.data(), static_cast<int>(value.bins * 3U),
+                              static_cast<int>(value.tones), static_cast<int>(value.bins * 9U),
+                              QImage::Format_RGB888);
+            scope_parade_image_ = view.copy();
+        }
+        scope_parade_url_ =
+            QUrl(QStringLiteral("image://studioScope/parade?r=%1").arg(scope_revision_));
+    }
+    else if (scope_mode_ == QLatin1String("waveform"))
+    {
+        auto waveform = collect_rgb_waveform(raster);
+        if (!waveform)
+        {
+            clear_scopes();
+            return;
+        }
+        scope_waveform_image_ = scope_image(waveform.value());
+        scope_waveform_url_ =
+            QUrl(QStringLiteral("image://studioScope/waveform?r=%1").arg(scope_revision_));
+    }
+    else if (scope_mode_ == QLatin1String("vectorscope"))
+    {
+        auto vectorscope = collect_uv_vectorscope(raster);
+        if (!vectorscope)
+        {
+            clear_scopes();
+            return;
+        }
+        scope_vectorscope_image_ = scope_image(vectorscope.value());
+        scope_vectorscope_url_ =
+            QUrl(QStringLiteral("image://studioScope/vectorscope?r=%1").arg(scope_revision_));
+    }
+    else if (scope_mode_ == QLatin1String("split"))
+    {
+        auto split = collect_split_scope(raster);
+        if (!split)
+        {
+            clear_scopes();
+            return;
+        }
+        scope_split_image_ = scope_image(split.value());
+        scope_split_url_ =
+            QUrl(QStringLiteral("image://studioScope/split?r=%1").arg(scope_revision_));
+    }
     emit scopesChanged();
 }
 
@@ -222,8 +254,8 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
                 static_cast<std::uint32_t>(owned.height()), preview.mask_alpha, {});
             if (composited)
             {
-                displayed = QImage(static_cast<int>(owned.width()), static_cast<int>(owned.height()),
-                                   QImage::Format_RGB888);
+                displayed = QImage(static_cast<int>(owned.width()),
+                                   static_cast<int>(owned.height()), QImage::Format_RGB888);
                 for (int y = 0; y < displayed.height(); ++y)
                 {
                     std::copy_n(rgb.data() + static_cast<std::ptrdiff_t>(
@@ -279,7 +311,12 @@ void StudioPresenter::setScopeMode(const QString &mode)
         return;
     }
     scope_mode_ = next;
-    emit scopesChanged();
+    if (preview_base_image_.isNull())
+    {
+        emit scopesChanged();
+        return;
+    }
+    refresh_scopes(preview_base_image_);
 }
 
 QVariantList StudioPresenter::scopeHistogramRed() const
@@ -368,10 +405,24 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
     {
         return;
     }
+    if (develop_job_in_flight_ || pending_save_.has_value() || pending_preview_.has_value())
+    {
+        if (std::find(pending_preview_ids_.begin(), pending_preview_ids_.end(), id) ==
+            pending_preview_ids_.end())
+        {
+            pending_preview_ids_.push_back(id);
+        }
+        return;
+    }
+    if (thumbnail_work_.token().is_cancellation_requested())
+    {
+        thumbnail_work_ = CancellationSource{};
+    }
     const auto revision = ++thumbnail_revision_;
+    const auto cancellation = thumbnail_work_.token();
     thumbnail_requests_[id] = revision;
     executor_.post(
-        [this, id, revision]()
+        [this, id, revision, cancellation]()
         {
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
@@ -380,8 +431,9 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                 request.asset_id = id;
                 request.max_edge = kThumbnailMaxEdge;
                 request.request_revision = revision;
+                request.purpose = PreviewPurpose::kBrowse;
                 request.prefer_embedded_preview = true;
-                request.cancellation = shutdown_.token();
+                request.cancellation = cancellation;
                 preview = service_->request_preview(request);
             }
             QMetaObject::invokeMethod(
@@ -430,6 +482,17 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                             emit thumbnailsChanged();
                         }
                         finishPreviewJob(false);
+                        return;
+                    }
+                    if (preview.error().code == ErrorCode::kCancelled)
+                    {
+                        if (std::find(pending_preview_ids_.begin(), pending_preview_ids_.end(),
+                                      id) == pending_preview_ids_.end())
+                        {
+                            pending_preview_ids_.insert(pending_preview_ids_.begin(), id);
+                        }
+                        preview_warmup_in_flight_ = false;
+                        kickPreviewWarmup();
                         return;
                     }
                     assets_.setThumbnail(id, {}, QStringLiteral("failed"));

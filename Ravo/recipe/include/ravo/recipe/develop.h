@@ -446,6 +446,12 @@ void clamp_tone_curve(std::vector<ToneCurvePoint> &points) noexcept;
                                          double x) noexcept;
 [[nodiscard]] double evaluate_tone_curve(const std::vector<ToneCurvePoint> &points, double x,
                                          std::string_view interpolation) noexcept;
+// Samples x = index / sample_count after preparing interpolation coefficients once.
+// This is the shared owner for dense Engine/UI LUT construction; callers must not
+// reimplement curve interpolation or rebuild a spline for every sample.
+[[nodiscard]] Result<std::vector<float>>
+build_tone_curve_lut(const std::vector<ToneCurvePoint> &points, std::string_view interpolation,
+                     std::size_t sample_count);
 [[nodiscard]] bool rgb_curve_parametric_is_identity(const RgbCurveParams &params) noexcept;
 [[nodiscard]] double evaluate_rgb_curve_parametric(const RgbCurveParams &params, double x) noexcept;
 void clamp_rgb_curve(RgbCurveParams &params) noexcept;
@@ -459,8 +465,8 @@ parse_rgb_curve_points(const ParameterValue &value);
 tone_curve_points_to_parameter(const std::vector<ToneCurvePoint> &points);
 [[nodiscard]] Result<void> validate_tone_curve_parameters(
     const std::map<std::string, ParameterValue, std::less<>> &parameters);
-[[nodiscard]] Result<void> validate_rgb_curve_parameters(
-    const std::map<std::string, ParameterValue, std::less<>> &parameters);
+[[nodiscard]] Result<void>
+validate_rgb_curve_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] Result<void>
 validate_sigmoid_parameters(const std::map<std::string, ParameterValue, std::less<>> &parameters);
 [[nodiscard]] Result<void> validate_channel_mixer_parameters(

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <mutex>
 #include <new>
 #include <optional>
 #include <string>
@@ -18,6 +19,7 @@
 #include "mask_evaluator.h"
 #include "output_color.h"
 #include "output_dither.h"
+#include "parallel_rows.h"
 #include "profile_gamma.h"
 #include "primaries.h"
 #include "raw_ca.h"
@@ -165,18 +167,31 @@ try
                           {{"reason", "unsupported_sample_kind"}});
     }
 
-    for (std::uint32_t row = 0; row < input.height; ++row)
+    std::mutex error_mutex;
+    std::uint32_t first_error_row = std::numeric_limits<std::uint32_t>::max();
+    std::optional<TaskError> first_error;
+    auto packed = detail::for_each_row(input.height, cancellation,
+                                       [&](const std::uint32_t row)
+                                       {
+                                           auto row_result =
+                                               pack_profiled_row(input, row, sample_kind, result);
+                                           if (!row_result)
+                                           {
+                                               const std::lock_guard lock(error_mutex);
+                                               if (row < first_error_row)
+                                               {
+                                                   first_error_row = row;
+                                                   first_error = row_result.error();
+                                               }
+                                           }
+                                       });
+    if (!packed)
     {
-        cancelled = cancellation.check();
-        if (!cancelled)
-        {
-            return cancelled.error();
-        }
-        auto packed = pack_profiled_row(input, row, sample_kind, result);
-        if (!packed)
-        {
-            return packed.error();
-        }
+        return packed.error();
+    }
+    if (first_error)
+    {
+        return std::move(*first_error);
     }
     return result;
 }

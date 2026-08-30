@@ -32,6 +32,45 @@ parent-repository workflow and must not be treated as this repository's source.
   architecture, ADRs, code, or tests. When direction changes, remove stale
   references in the same change; do not retain two conflicting plans.
 
+## Machine access to Ravo
+
+- Repository agents must not use Computer Use for Ravo work. This includes
+  accessibility automation, AppleScript/System Events, coordinate clicks or
+  keystrokes, and application window screenshots used to inspect, operate, or
+  validate Ravo Studio. Use Ravo's supported machine interfaces instead.
+- Prefer the current-generation `ravo` CLI with `--json`. Resolve catalogs and
+  assets with explicit identifiers, read recipe/history before a write, and
+  read them back afterwards. Never guess a mutation target from the foreground
+  window, process list, log tail, newest preview, or other incidental state.
+- For visual Develop checks, use the read-only `catalog probe` path with strict
+  `--set` overrides and a unique `--output <file.png>`, then inspect that image
+  artifact directly. A generated preview PNG is acceptable evidence; a
+  screenshot of the application is not a pixel or persistence oracle.
+- If the CLI cannot expose state or intent needed by a task, extend the shared
+  domain/services/command owner and the CLI instead of falling back to UI
+  automation, direct SQLite access, QML introspection, or log scraping. Add a
+  versioned JSON contract, structured failures, cancellation/conflict handling,
+  and real CLI/service tests in the same change.
+- Keep the machine-control contract transport-neutral. The CLI is the required
+  baseline client and acceptance surface. MCP may be added only as a thin
+  adapter over the same versioned C++ state/control contract; it must not own
+  business state, image algorithms, SQL, command policy, or an MCP-only mutation
+  path.
+- Ephemeral live-window state belongs to the desktop C++ presenter/command
+  layer, not QML or the catalog. A future live-session interface must identify
+  the Studio session, catalog and selected asset set, carry state/selection
+  revisions on mutations, reject stale requests, and disappear cleanly when
+  the window closes. Until that interface exists, require an explicit catalog
+  path and asset ID rather than inferring the current selection.
+- New or extended machine-visible image-result contracts should use bounded
+  immutable bytes or no-replace temporary artifacts with MIME type, dimensions,
+  color-profile identity, and content hash. CLI JSON should describe an output
+  artifact; an MCP adapter may project the same result as an image resource
+  without adding another renderer or cache owner.
+
+More-specific implementation and validation rules for this boundary live in
+[`Ravo/AGENTS.md`](Ravo/AGENTS.md).
+
 ## Before starting work
 
 1. Run `git branch --show-current` and `git status --short --branch` to

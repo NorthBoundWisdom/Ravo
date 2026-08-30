@@ -44,6 +44,16 @@ testing::CatalogServiceTestControl::linear_working_max_edges(const CatalogServic
     }
     return result;
 }
+
+std::optional<std::uint32_t>
+testing::CatalogServiceTestControl::browse_linear_working_max_edge(const CatalogService &service)
+{
+    if (!service.browse_linear_working_)
+    {
+        return std::nullopt;
+    }
+    return service.browse_linear_working_->max_edge;
+}
 namespace
 {
 
@@ -187,6 +197,9 @@ Result<void> CatalogService::close()
     {
         working.reset();
     }
+    browse_decoded_preview_source_.reset();
+    browse_decoded_raw_.reset();
+    browse_linear_working_.reset();
     return closed;
 }
 
@@ -1277,13 +1290,14 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         raster.source_height = validated_raster->source_height;
         raster.srgb = std::move(validated_raster->rgb);
         raster.color_profile = std::move(validated_raster->color_profile);
-        decoded_preview_source_ =
+        browse_decoded_preview_source_ =
             DecodedPreviewSource{asset.id, asset.content_fingerprint.value_or("none"),
                                  kThumbnailMaxEdge, std::move(raster)};
     }
 
     PreviewRequest imported_preview;
     imported_preview.max_edge = kThumbnailMaxEdge;
+    imported_preview.purpose = PreviewPurpose::kBrowse;
     imported_preview.prefer_embedded_preview = is_raw_media_type(asset.media_type);
     imported_preview.cancellation = cancellation;
     Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Preview was not generated");

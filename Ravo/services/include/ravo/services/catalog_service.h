@@ -97,6 +97,12 @@ public:
     Result<void> close();
 
 private:
+    enum class PreviewLane
+    {
+        kForegroundDevelop,
+        kBackgroundBrowse,
+    };
+
     struct DecodedPreviewSource
     {
         std::string asset_id;
@@ -128,17 +134,17 @@ private:
     [[nodiscard]] Result<PreviewResult>
     persist_embedded_browse_preview(const AssetRecord &asset, const EmbeddedPreview &embedded,
                                     std::uint32_t max_edge, const CancellationToken &cancellation);
-    [[nodiscard]] Result<RasterBuffer> decode_preview_source(const AssetRecord &asset,
-                                                             std::string_view path,
-                                                             std::uint32_t max_edge,
-                                                             const CancellationToken &cancellation);
-    [[nodiscard]] Result<const DecodedRaw *>
-    cached_raw_frame(const AssetRecord &asset, std::string_view path,
-                     const CancellationToken &cancellation);
+    [[nodiscard]] Result<RasterBuffer>
+    decode_preview_source(const AssetRecord &asset, std::string_view path, std::uint32_t max_edge,
+                          const CancellationToken &cancellation, PreviewLane lane);
+    [[nodiscard]] Result<const DecodedRaw *> cached_raw_frame(const AssetRecord &asset,
+                                                              std::string_view path,
+                                                              const CancellationToken &cancellation,
+                                                              PreviewLane lane);
     [[nodiscard]] Result<const LinearWorkingBuffer *>
     cached_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                           std::uint32_t width, std::uint32_t height, std::uint32_t max_edge,
-                          const CancellationToken &cancellation);
+                          const CancellationToken &cancellation, PreviewLane lane);
     [[nodiscard]] Result<RenderedExportImage>
     render_for_export(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                       std::uint32_t max_edge, const CancellationToken &cancellation,
@@ -148,12 +154,18 @@ private:
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
     std::unique_ptr<PreviewCache> cache_;
+    // Foreground Develop and background Gallery work have independent bounded
+    // decode/working ownership. A thumbnail must never evict the selected
+    // photo's interactive or settled scene-linear buffers.
     std::optional<DecodedPreviewSource> decoded_preview_source_;
     std::optional<CachedRawFrame> decoded_raw_;
-    // Preview interaction alternates between the 640px live frame and the
+    // Preview interaction alternates between the live frame and the
     // 1600px settled frame. Keep one bounded slot for each size class so the
     // live request cannot evict the already-prepared settled working buffer.
     std::array<std::optional<CachedLinearWorking>, 2> linear_working_;
+    std::optional<DecodedPreviewSource> browse_decoded_preview_source_;
+    std::optional<CachedRawFrame> browse_decoded_raw_;
+    std::optional<CachedLinearWorking> browse_linear_working_;
     std::function<void()> testing_before_import_publication_;
     std::function<void()> testing_before_preview_cache_publication_;
 

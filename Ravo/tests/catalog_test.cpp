@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -349,7 +350,8 @@ TEST_F(CatalogServiceTest, SampleWhiteBalanceReturnsManualCoefficientsForBayerRa
     auto png = service->import_one(png_fixture_path(), CancellationToken{});
     ASSERT_TRUE(png) << png.error().message;
     ASSERT_TRUE(png.value().asset);
-    auto raster = service->sample_white_balance(png.value().asset->id, request, CancellationToken{});
+    auto raster =
+        service->sample_white_balance(png.value().asset->id, request, CancellationToken{});
     ASSERT_FALSE(raster);
     EXPECT_EQ(raster.error().code, ErrorCode::kUnsupported);
 }
@@ -367,6 +369,7 @@ TEST_F(CatalogServiceTest, RawImportCachesEmbeddedThumbnailSeparatelyFromProcess
     PreviewRequest browse;
     browse.asset_id = asset_id;
     browse.max_edge = kThumbnailMaxEdge;
+    browse.purpose = PreviewPurpose::kBrowse;
     browse.prefer_embedded_preview = true;
     auto thumb = service->request_preview(browse);
     ASSERT_TRUE(thumb) << thumb.error().message;
@@ -429,6 +432,63 @@ TEST_F(CatalogServiceTest, InteractiveAndSettledRawWorkingBuffersRemainIndepende
     cache_state = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
     EXPECT_FALSE(cache_state[0].has_value());
     EXPECT_FALSE(cache_state[1].has_value());
+}
+
+TEST_F(CatalogServiceTest, BrowseWorkingSetCannotEvictForegroundDevelopBuffers)
+{
+    ASSERT_TRUE(open_service(true));
+    QImage first_image(800, 600, QImage::Format_RGB888);
+    first_image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    first_image.fill(QColor(24, 96, 180));
+    QImage second_image(800, 600, QImage::Format_RGB888);
+    second_image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    second_image.fill(QColor(180, 72, 36));
+    const auto first_path = (root / "foreground.jpg").string();
+    const auto second_path = (root / "background.jpg").string();
+    ASSERT_TRUE(first_image.save(QString::fromStdString(first_path), "JPEG", 95));
+    ASSERT_TRUE(second_image.save(QString::fromStdString(second_path), "JPEG", 95));
+    auto first = service->import_one(first_path, CancellationToken{});
+    auto second = service->import_one(second_path, CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    ASSERT_TRUE(first.value().asset);
+    ASSERT_TRUE(second.value().asset);
+
+    PreviewRequest settled;
+    settled.asset_id = first.value().asset->id;
+    settled.max_edge = kDefaultPreviewMaxEdge;
+    auto settled_result = service->request_preview(settled);
+    ASSERT_TRUE(settled_result) << settled_result.error().message;
+    auto recipe = service->load_recipe(settled.asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto develop = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+    PreviewRequest interactive = settled;
+    interactive.max_edge = kInteractivePreviewMaxEdge;
+    interactive.persist_preview_record = false;
+    auto interactive_result = service->request_preview(interactive, develop.value());
+    ASSERT_TRUE(interactive_result) << interactive_result.error().message;
+
+    auto foreground = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_EQ(foreground[0], kInteractivePreviewMaxEdge);
+    EXPECT_EQ(foreground[1], kDefaultPreviewMaxEdge);
+
+    constexpr std::uint32_t kProbeBrowseEdge = kThumbnailMaxEdge - 7U;
+    PreviewRequest browse;
+    browse.asset_id = second.value().asset->id;
+    browse.max_edge = kProbeBrowseEdge;
+    browse.purpose = PreviewPurpose::kBrowse;
+    browse.prefer_embedded_preview = true;
+    auto browse_result = service->request_preview(browse);
+    ASSERT_TRUE(browse_result) << browse_result.error().message;
+    foreground = testing::CatalogServiceTestControl::linear_working_max_edges(*service);
+    EXPECT_EQ(foreground[0], kInteractivePreviewMaxEdge);
+    EXPECT_EQ(foreground[1], kDefaultPreviewMaxEdge);
+    EXPECT_EQ(testing::CatalogServiceTestControl::browse_linear_working_max_edge(*service),
+              kProbeBrowseEdge);
+
+    ASSERT_TRUE(service->close());
+    EXPECT_FALSE(testing::CatalogServiceTestControl::browse_linear_working_max_edge(*service));
 }
 
 TEST_F(CatalogServiceTest, ImportJpegAndDirectorySkipsSidecars)
@@ -5120,6 +5180,220 @@ TEST(PresetPerformanceProbe, AppliesCrsToWarmRawPreviewWithinRequestedBudget)
     {
         EXPECT_LT(first_preview_ms, std::stoll(budget));
     }
+    ASSERT_TRUE(measured.close());
+    std::error_code ignored;
+    std::filesystem::remove_all(cache_root, ignored);
+}
+
+TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalogMutation)
+{
+    const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (catalog_path == nullptr || asset_id == nullptr)
+    {
+        GTEST_SKIP() << "set RAVO_INTERACTIVE_PERF_CATALOG and RAVO_INTERACTIVE_PERF_ASSET_ID";
+    }
+
+    const std::uint32_t max_edge =
+        std::getenv("RAVO_INTERACTIVE_PERF_MAX_EDGE") != nullptr ?
+            static_cast<std::uint32_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_PERF_MAX_EDGE"))) :
+            kInteractivePreviewMaxEdge;
+    const std::size_t runs =
+        std::getenv("RAVO_INTERACTIVE_PERF_RUNS") != nullptr ?
+            static_cast<std::size_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_PERF_RUNS"))) :
+            9U;
+    ASSERT_GT(max_edge, 0U);
+    ASSERT_GT(runs, 0U);
+
+    auto created_engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(created_engine) << created_engine.error().message;
+    auto repository = SqliteCatalogRepository::open(catalog_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    const auto cache_root = make_temp_root();
+    auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
+    ASSERT_TRUE(cache) << cache.error().message;
+    CatalogService measured(created_engine.value(), std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+
+    auto recipe = measured.load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto baseline = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(baseline) << baseline.error().message;
+    PreviewRequest request;
+    request.asset_id = asset_id;
+    request.max_edge = max_edge;
+    request.persist_preview_record = false;
+    request.prefer_embedded_preview = false;
+
+    auto warm = measured.request_preview(request, baseline.value());
+    ASSERT_TRUE(warm) << warm.error().message;
+    ASSERT_FALSE(warm.value().rgb.empty());
+    ASSERT_LE(std::max(warm.value().width, warm.value().height), max_edge);
+
+    std::vector<std::int64_t> render_elapsed_ms;
+    std::vector<std::int64_t> visible_elapsed_ms;
+    render_elapsed_ms.reserve(runs);
+    visible_elapsed_ms.reserve(runs);
+    for (std::size_t run = 0; run < runs; ++run)
+    {
+        auto adjusted = baseline.value();
+        const double offset = static_cast<double>(static_cast<int>(run % 7U) - 3) * 0.01;
+        adjusted.exposure_ev = std::clamp(adjusted.exposure_ev + offset, -18.0, 18.0);
+        const auto started = std::chrono::steady_clock::now();
+        auto preview = measured.request_preview(request, adjusted);
+        const auto rendered = std::chrono::steady_clock::now();
+        ASSERT_TRUE(preview) << preview.error().message;
+        ASSERT_FALSE(preview.value().rgb.empty());
+        const QImage view(preview.value().rgb.data(), static_cast<int>(preview.value().width),
+                          static_cast<int>(preview.value().height),
+                          static_cast<int>(preview.value().width * 3U), QImage::Format_RGB888);
+        const QImage owned = view.copy();
+        RasterBuffer raster;
+        raster.width = preview.value().width;
+        raster.height = preview.value().height;
+        raster.srgb.resize(static_cast<std::size_t>(raster.width) * raster.height * 3U);
+        for (std::uint32_t row = 0; row < raster.height; ++row)
+        {
+            std::copy_n(
+                owned.constScanLine(static_cast<int>(row)),
+                static_cast<std::size_t>(raster.width) * 3U,
+                raster.srgb.begin() +
+                    static_cast<std::ptrdiff_t>(static_cast<std::size_t>(row) * raster.width * 3U));
+        }
+        auto histogram = collect_rgb_histogram(raster);
+        ASSERT_TRUE(histogram) << histogram.error().message;
+        const auto visible = std::chrono::steady_clock::now();
+        render_elapsed_ms.push_back(
+            std::chrono::duration_cast<std::chrono::milliseconds>(rendered - started).count());
+        visible_elapsed_ms.push_back(
+            std::chrono::duration_cast<std::chrono::milliseconds>(visible - started).count());
+    }
+    std::sort(render_elapsed_ms.begin(), render_elapsed_ms.end());
+    std::sort(visible_elapsed_ms.begin(), visible_elapsed_ms.end());
+    const auto p90_index = (visible_elapsed_ms.size() * 9U - 1U) / 10U;
+    const auto render_median = render_elapsed_ms[render_elapsed_ms.size() / 2U];
+    const auto render_p90 = render_elapsed_ms[p90_index];
+    const auto visible_median = visible_elapsed_ms[visible_elapsed_ms.size() / 2U];
+    const auto visible_p90 = visible_elapsed_ms[p90_index];
+    std::cerr << "interactive_preview_edge=" << max_edge << " runs=" << runs
+              << " render_min_ms=" << render_elapsed_ms.front()
+              << " render_median_ms=" << render_median << " render_p90_ms=" << render_p90
+              << " render_max_ms=" << render_elapsed_ms.back()
+              << " visible_min_ms=" << visible_elapsed_ms.front()
+              << " visible_median_ms=" << visible_median << " visible_p90_ms=" << visible_p90
+              << " visible_max_ms=" << visible_elapsed_ms.back() << '\n';
+    if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
+    {
+        EXPECT_LE(visible_p90, std::stoll(budget));
+    }
+
+    ASSERT_TRUE(measured.close());
+    std::error_code ignored;
+    std::filesystem::remove_all(cache_root, ignored);
+}
+
+TEST(InteractivePreviewQualityProbe, ComparesInteractiveEdgesWithSettledDisplayPixels)
+{
+    const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (catalog_path == nullptr || asset_id == nullptr)
+    {
+        GTEST_SKIP() << "set RAVO_INTERACTIVE_PERF_CATALOG and RAVO_INTERACTIVE_PERF_ASSET_ID";
+    }
+
+    auto created_engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(created_engine) << created_engine.error().message;
+    auto repository = SqliteCatalogRepository::open(catalog_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    const auto cache_root = make_temp_root();
+    auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
+    ASSERT_TRUE(cache) << cache.error().message;
+    CatalogService measured(created_engine.value(), std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+    auto recipe = measured.load_recipe(asset_id);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto develop = develop_from_recipe(recipe.value());
+    ASSERT_TRUE(develop) << develop.error().message;
+
+    const auto render = [&](const std::uint32_t edge) -> Result<PreviewResult>
+    {
+        PreviewRequest request;
+        request.asset_id = asset_id;
+        request.max_edge = edge;
+        request.persist_preview_record = false;
+        request.prefer_embedded_preview = false;
+        return measured.request_preview(request, develop.value());
+    };
+    auto former = render(640U);
+    auto interactive = render(kInteractivePreviewMaxEdge);
+    auto settled = render(kDefaultPreviewMaxEdge);
+    ASSERT_TRUE(former) << former.error().message;
+    ASSERT_TRUE(interactive) << interactive.error().message;
+    ASSERT_TRUE(settled) << settled.error().message;
+
+    struct Quality
+    {
+        double psnr_db = 0.0;
+        double mean_absolute_error = 0.0;
+        int p99_absolute_error = 0;
+    };
+    const auto compare = [](const PreviewResult &candidate,
+                            const PreviewResult &reference) -> Quality
+    {
+        const QImage reference_view(reference.rgb.data(), static_cast<int>(reference.width),
+                                    static_cast<int>(reference.height),
+                                    static_cast<int>(reference.width * 3U), QImage::Format_RGB888);
+        const QImage scaled = reference_view.scaled(
+            static_cast<int>(candidate.width), static_cast<int>(candidate.height),
+            Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        std::vector<int> absolute_errors;
+        absolute_errors.reserve(candidate.rgb.size());
+        double squared_error = 0.0;
+        double absolute_error = 0.0;
+        for (std::uint32_t row = 0; row < candidate.height; ++row)
+        {
+            const auto *reference_row = scaled.constScanLine(static_cast<int>(row));
+            const auto candidate_offset = static_cast<std::size_t>(row) * candidate.width * 3U;
+            for (std::size_t column = 0; column < static_cast<std::size_t>(candidate.width) * 3U;
+                 ++column)
+            {
+                const int difference = static_cast<int>(candidate.rgb[candidate_offset + column]) -
+                                       static_cast<int>(reference_row[column]);
+                const int magnitude = std::abs(difference);
+                squared_error += static_cast<double>(difference * difference);
+                absolute_error += static_cast<double>(magnitude);
+                absolute_errors.push_back(magnitude);
+            }
+        }
+        std::sort(absolute_errors.begin(), absolute_errors.end());
+        const double count = static_cast<double>(absolute_errors.size());
+        const double mse = squared_error / count;
+        const auto p99_index = (absolute_errors.size() * 99U - 1U) / 100U;
+        return Quality{
+            .psnr_db = mse == 0.0 ? std::numeric_limits<double>::infinity() :
+                                    20.0 * std::log10(255.0 / std::sqrt(mse)),
+            .mean_absolute_error = absolute_error / count,
+            .p99_absolute_error = absolute_errors[p99_index],
+        };
+    };
+    const Quality former_quality = compare(former.value(), settled.value());
+    const Quality interactive_quality = compare(interactive.value(), settled.value());
+    std::cerr << "interactive_quality_edge=" << kInteractivePreviewMaxEdge
+              << " settled_edge=" << kDefaultPreviewMaxEdge
+              << " psnr_db=" << interactive_quality.psnr_db
+              << " mean_abs_error=" << interactive_quality.mean_absolute_error
+              << " p99_abs_error=" << interactive_quality.p99_absolute_error
+              << " former_640_psnr_db=" << former_quality.psnr_db
+              << " former_640_mean_abs_error=" << former_quality.mean_absolute_error
+              << " former_640_p99_abs_error=" << former_quality.p99_absolute_error << '\n';
+    EXPECT_GE(interactive_quality.psnr_db, former_quality.psnr_db);
+    EXPECT_LE(interactive_quality.mean_absolute_error, former_quality.mean_absolute_error);
+    EXPECT_LE(interactive_quality.p99_absolute_error, former_quality.p99_absolute_error);
+    if (const char *minimum = std::getenv("RAVO_INTERACTIVE_QUALITY_MIN_PSNR_DB"))
+    {
+        EXPECT_GE(interactive_quality.psnr_db, std::stod(minimum));
+    }
+
     ASSERT_TRUE(measured.close());
     std::error_code ignored;
     std::filesystem::remove_all(cache_root, ignored);

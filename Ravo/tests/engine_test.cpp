@@ -6156,6 +6156,47 @@ TEST(ColorBalanceRgbTest, CancellationAndNonFiniteInputNeverPublishPartialPixels
     EXPECT_EQ(image.rgb, invalid_original);
 }
 
+TEST(ColorBalanceRgbTest, ParallelRowsAreBitExactAndReportTheLowestInvalidSample)
+{
+    ColorBalanceRgbParams params;
+    params.global_y = 0.2;
+    params.chroma_global = 0.12;
+    params.hue_rotation = 18.0;
+    const auto operation = color_balance_rgb_operation(params);
+    WorkingImage source;
+    source.width = 64;
+    source.height = 64;
+    source.rgb.resize(static_cast<std::size_t>(source.width) * source.height * 3U);
+    for (std::size_t index = 0; index < source.rgb.size(); ++index)
+    {
+        source.rgb[index] = static_cast<float>((index * 17U) % 251U) / 250.0F;
+    }
+    WorkingImage first = source;
+    WorkingImage second = source;
+    auto first_result = apply_color_balance_rgb(first, operation, CancellationToken{});
+    auto second_result = apply_color_balance_rgb(second, operation, CancellationToken{});
+    ASSERT_TRUE(first_result) << first_result.error().message;
+    ASSERT_TRUE(second_result) << second_result.error().message;
+    EXPECT_EQ(first.rgb, second.rgb);
+
+    WorkingImage invalid = source;
+    const std::size_t later = (48U * invalid.width + 4U) * 3U + 2U;
+    const std::size_t earlier = (2U * invalid.width + 9U) * 3U + 1U;
+    invalid.rgb[later] = std::numeric_limits<float>::infinity();
+    invalid.rgb[earlier] = std::numeric_limits<float>::quiet_NaN();
+    const auto original = invalid.rgb;
+    auto rejected = apply_color_balance_rgb(invalid, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rejected.error().context.at("sample_index"), std::to_string(earlier - earlier % 3U));
+    ASSERT_EQ(invalid.rgb.size(), original.size());
+    for (std::size_t index = 0; index < invalid.rgb.size(); ++index)
+    {
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(invalid.rgb[index]),
+                  std::bit_cast<std::uint32_t>(original[index]));
+    }
+}
+
 TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
 {
     const auto engine = EngineFacade::create_phase1();
@@ -6619,7 +6660,8 @@ TEST(EngineFacadeTest, VignetteHonorsSignedAmountShapeAndCenter)
     const auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
     const auto source = solid_raster(32, 32, 200, 200, 200);
-    const auto luma_at = [](const RenderedImage &image, const std::uint32_t x, const std::uint32_t y)
+    const auto luma_at =
+        [](const RenderedImage &image, const std::uint32_t x, const std::uint32_t y)
     {
         const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
         return static_cast<int>(image.rgb[index]) + static_cast<int>(image.rgb[index + 1U]) +
@@ -7515,9 +7557,10 @@ TEST(EngineFacadeTest, RgbHistogramMatchesFrozenDisplayBinning)
     EXPECT_EQ(histogram.value().blue[20], 32U);
     EXPECT_EQ(histogram.value().red[0], 0U);
     EXPECT_EQ(histogram.value().max_count, 32U);
-    EXPECT_GT(histogram.value().luma[static_cast<std::size_t>(
-                  std::lround(0.2126 * 220 + 0.7152 * 20 + 0.0722 * 20))],
-              0U);
+    EXPECT_GT(
+        histogram.value()
+            .luma[static_cast<std::size_t>(std::lround(0.2126 * 220 + 0.7152 * 20 + 0.0722 * 20))],
+        0U);
 
     RasterBuffer empty;
     auto rejected = collect_rgb_histogram(empty);

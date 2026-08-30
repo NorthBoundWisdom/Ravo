@@ -154,6 +154,7 @@ StudioPresenter::~StudioPresenter()
         catalog_revision_timer_->stop();
     }
     static_cast<void>(shutdown_.cancel("window_closed"));
+    static_cast<void>(thumbnail_work_.cancel("window_closed"));
     develop_preview_owner_.cancel("window_closed");
     executor_.submit(
         [this]()
@@ -792,6 +793,14 @@ void StudioPresenter::queuePreviewWarmup()
 
 void StudioPresenter::kickPreviewWarmup()
 {
+    if (develop_job_in_flight_ || pending_save_.has_value() || pending_preview_.has_value())
+    {
+        return;
+    }
+    if (thumbnail_work_.token().is_cancellation_requested())
+    {
+        thumbnail_work_ = CancellationSource{};
+    }
     if (preview_warmup_in_flight_)
     {
         return;
@@ -1002,9 +1011,8 @@ void StudioPresenter::pollCatalogRevision()
                         emit editChanged();
                         return;
                     }
-                    const bool same_recipe =
-                        params.value() == develop_ && params.value() == saved_develop_ &&
-                        !crop_tool_active_;
+                    const bool same_recipe = params.value() == develop_ &&
+                                             params.value() == saved_develop_ && !crop_tool_active_;
                     if (!same_recipe)
                     {
                         undo_stack_.clear();
@@ -1024,8 +1032,8 @@ void StudioPresenter::pollCatalogRevision()
                     }
                     sync_active_history();
                     emit editChanged();
-                    setStatus(QCoreApplication::translate(
-                        "StudioPresenter", "Library updated from another client."));
+                    setStatus(QCoreApplication::translate("StudioPresenter",
+                                                          "Library updated from another client."));
                 },
                 Qt::QueuedConnection);
         });
@@ -1644,7 +1652,8 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     const QString previous = browse_mode_;
     browse_mode_ = normalized;
     emit browseModeChanged();
-    if (previous == QLatin1String("grid") && normalized != QLatin1String("grid") &&
+    if (normalized != QLatin1String("grid") &&
+        (previous == QLatin1String("grid") || normalized == QLatin1String("develop")) &&
         !selected_asset_id_.isEmpty())
     {
         requestPreviewForSelection();
@@ -1927,8 +1936,7 @@ void StudioPresenter::refreshSelectedMetadata()
 
 [[nodiscard]] QString next_snapshot_label(const std::vector<RecipeHistoryEntry> &entries)
 {
-    const QString format =
-        QCoreApplication::translate("DevelopHistoryPanel", "Snapshot %1");
+    const QString format = QCoreApplication::translate("DevelopHistoryPanel", "Snapshot %1");
     QString pattern = QRegularExpression::escape(format);
     pattern.replace(QLatin1String("%1"), QStringLiteral("(\\d+)"));
     const QRegularExpression re(QStringLiteral("^") + pattern + QStringLiteral("$"));
@@ -1951,8 +1959,7 @@ void StudioPresenter::refreshSelectedMetadata()
 void StudioPresenter::createSnapshot(const QString &label)
 {
     QString trimmed = label.trimmed();
-    const QString generic =
-        QCoreApplication::translate("DevelopHistoryPanel", "Snapshot");
+    const QString generic = QCoreApplication::translate("DevelopHistoryPanel", "Snapshot");
     if (trimmed.isEmpty() || trimmed.compare(generic, Qt::CaseInsensitive) == 0)
     {
         trimmed = next_snapshot_label(recipe_history_entries_);
@@ -1974,8 +1981,7 @@ void StudioPresenter::renameSnapshot(const int history_id, const QString &label)
     executor_.post(
         [this, asset_id, history_id, text]()
         {
-            Result<AssetRecord> renamed =
-                make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<AssetRecord> renamed = make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
             {
                 renamed = service_->rename_recipe_snapshot(asset_id, history_id, text);

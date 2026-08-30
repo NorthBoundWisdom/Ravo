@@ -688,8 +688,8 @@ TEST(RecipeTest, LeftoverRgbLevelsMapsV1PayloadAndRoundTrips)
     ASSERT_FALSE(bad_mode);
     EXPECT_EQ(bad_mode.error().context.at("reason"), "unsupported_legacy_rgblevels_mode");
 
-    auto inverted = leftover_rgblevels_from_v1(0, 1, {0.8F, 0.5F, 0.2F, 0.0F, 0.5F, 1.0F, 0.0F,
-                                                     0.5F, 1.0F});
+    auto inverted =
+        leftover_rgblevels_from_v1(0, 1, {0.8F, 0.5F, 0.2F, 0.0F, 0.5F, 1.0F, 0.0F, 0.5F, 1.0F});
     ASSERT_FALSE(inverted);
     EXPECT_EQ(inverted.error().context.at("reason"), "unsupported_legacy_rgblevels_levels");
 
@@ -711,13 +711,9 @@ TEST(RecipeTest, LeftoverRgbCurveMapsV1PayloadAndMiddleGrey)
 {
     std::vector<std::uint8_t> identity(516U, 0U);
     auto write_f32 = [&](const std::size_t offset, const float value)
-    {
-        std::memcpy(identity.data() + offset, &value, sizeof(value));
-    };
+    { std::memcpy(identity.data() + offset, &value, sizeof(value)); };
     auto write_i32 = [&](const std::size_t offset, const std::int32_t value)
-    {
-        std::memcpy(identity.data() + offset, &value, sizeof(value));
-    };
+    { std::memcpy(identity.data() + offset, &value, sizeof(value)); };
     for (std::size_t channel = 0; channel < 3; ++channel)
     {
         write_f32(channel * 20U * 8U + 8U, 1.0F);
@@ -2940,6 +2936,31 @@ TEST(RecipeTest, ToneCurveRoundTripAndRejectsUnknownColourPolicy)
     EXPECT_NE(hermite, cubic);
     EXPECT_GE(hermite, 0.0);
     EXPECT_LE(hermite, 1.0);
+    for (const auto interpolation :
+         {kToneCurveInterpolationMonotoneHermite, kToneCurveInterpolationCatmullRom,
+          kToneCurveInterpolationCubicSpline})
+    {
+        auto lut = build_tone_curve_lut(s_curve, interpolation, 257U);
+        ASSERT_TRUE(lut) << lut.error().message;
+        ASSERT_EQ(lut.value().size(), 257U);
+        for (std::size_t index = 0; index < lut.value().size(); ++index)
+        {
+            const double x = static_cast<double>(index) / 257.0;
+            EXPECT_EQ(lut.value()[index],
+                      static_cast<float>(evaluate_tone_curve(s_curve, x, interpolation)));
+        }
+    }
+    auto empty_lut = build_tone_curve_lut(s_curve, kToneCurveInterpolationMonotoneHermite, 0U);
+    ASSERT_FALSE(empty_lut);
+    EXPECT_EQ(empty_lut.error().code, ErrorCode::kInvalidArgument);
+    auto oversized_lut = build_tone_curve_lut(s_curve, kToneCurveInterpolationMonotoneHermite,
+                                              std::vector<float>{}.max_size() + 1U);
+    ASSERT_FALSE(oversized_lut);
+    EXPECT_EQ(oversized_lut.error().code, ErrorCode::kInvalidArgument);
+    EXPECT_EQ(oversized_lut.error().context.at("reason"), "sample_count_too_large");
+    auto unknown_lut = build_tone_curve_lut(s_curve, "future", 16U);
+    ASSERT_FALSE(unknown_lut);
+    EXPECT_EQ(unknown_lut.error().code, ErrorCode::kValidation);
 
     DevelopParams parametric;
     parametric.rgb_curve.parametric_shadows = 0.4;
@@ -3028,8 +3049,7 @@ TEST(RecipeTest, DisplaySrgbRgbCurveRejectsScenePoliciesDuringRecipeValidation)
     auto *curve = operation_by_id(recipe.value(), "ravo.color.rgbcurve");
     ASSERT_NE(curve, nullptr);
 
-    const auto rejects_policy = [&](const std::string_view parameter,
-                                    const ParameterValue &value)
+    const auto rejects_policy = [&](const std::string_view parameter, const ParameterValue &value)
     {
         auto invalid = recipe.value();
         auto *invalid_curve = operation_by_id(invalid, "ravo.color.rgbcurve");
@@ -3038,8 +3058,7 @@ TEST(RecipeTest, DisplaySrgbRgbCurveRejectsScenePoliciesDuringRecipeValidation)
         auto result = validate_recipe(invalid, registry.value());
         ASSERT_FALSE(result);
         EXPECT_EQ(result.error().code, ErrorCode::kValidation);
-        EXPECT_EQ(result.error().context.at("reason"),
-                  "unsupported_display_srgb_curve_policy");
+        EXPECT_EQ(result.error().context.at("reason"), "unsupported_display_srgb_curve_policy");
     };
     rejects_policy("mode", ParameterValue{std::string(kRgbLevelsModeLinked)});
     rejects_policy("preserve_colors",
@@ -3195,8 +3214,8 @@ TEST(RecipeStyleTest, CanonicalTemplateRoundTripsAndAppliesOnlyTargetIdentity)
     develop.retouch.regions.push_back(region);
     auto recipe = recipe_from_develop({"asset-a", "file:///source-a.raw", "hash-a"}, develop);
     ASSERT_TRUE(recipe) << recipe.error().message;
-    auto style = recipe_style_from_recipe("Warm repair", "Complete reproducible look",
-                                          recipe.value());
+    auto style =
+        recipe_style_from_recipe("Warm repair", "Complete reproducible look", recipe.value());
     ASSERT_TRUE(style) << style.error().message;
     EXPECT_EQ(style.value().recipe.asset.id, kRecipeStyleAssetId);
     EXPECT_EQ(style.value().recipe.asset.input_uri, kRecipeStyleInputUri);
@@ -3248,8 +3267,7 @@ TEST(RecipeStyleTest, RejectsLegacyUnknownNewerAndNonPlaceholderState)
     auto newer = serialized.value();
     const auto schema = newer.find("\"schema_version\":1");
     ASSERT_NE(schema, std::string::npos);
-    newer.replace(schema, std::string("\"schema_version\":1").size(),
-                  "\"schema_version\":2");
+    newer.replace(schema, std::string("\"schema_version\":1").size(), "\"schema_version\":2");
     rejected = parse_recipe_style_json(newer);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);

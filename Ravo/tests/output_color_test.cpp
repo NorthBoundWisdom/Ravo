@@ -428,6 +428,30 @@ TEST(OutputColorTest, FinalRgb8PackerChecksCancellationBeforeAllocationAndBetwee
     EXPECT_EQ(large.channels.back(), 0.5F);
 }
 
+TEST(OutputColorTest, FinalPackerParallelRowsAreDeterministicAndReportLowestInvalidSample)
+{
+    auto input = profiled_output(64, 64, {});
+    input.channels.resize(static_cast<std::size_t>(input.width) * input.height * 3U);
+    for (std::size_t index = 0; index < input.channels.size(); ++index)
+    {
+        input.channels[index] = static_cast<float>(index % 257U) / 256.0F;
+    }
+    auto first = encode_profiled_output(input, RenderSampleKind::kRgb8, CancellationToken{});
+    auto second = encode_profiled_output(input, RenderSampleKind::kRgb8, CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_EQ(first.value().samples, second.value().samples);
+
+    const std::size_t later = (50U * input.width + 7U) * 3U + 2U;
+    const std::size_t earlier = (3U * input.width + 11U) * 3U + 1U;
+    input.channels[later] = std::numeric_limits<float>::infinity();
+    input.channels[earlier] = std::numeric_limits<float>::quiet_NaN();
+    auto rejected = encode_profiled_output(input, RenderSampleKind::kRgb8, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rejected.error().context.at("sample_index"), std::to_string(earlier));
+}
+
 TEST(OutputColorTest, FinalRgb16PackerUsesClampRoundAndRejectsEightBitExpansion)
 {
     // 1000/65535, 32768/65535, and 40000/65535 are not n*257 expansions.

@@ -1,5 +1,7 @@
 #include <chrono>
+#include <future>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -101,6 +103,31 @@ TEST(SerialExecutorTest, PostedWorkCompletesBeforeWaitIdle)
     ASSERT_TRUE(executor.post([&value]() { value = 7; }));
     executor.wait_idle();
     EXPECT_EQ(value, 7);
+}
+
+TEST(SerialExecutorTest, ForegroundWorkLeadsQueuedNormalWorkWithoutReorderingItsLane)
+{
+    SerialExecutor executor;
+    std::promise<void> worker_started;
+    auto worker_started_future = worker_started.get_future();
+    std::promise<void> release_worker;
+    auto release_worker_future = release_worker.get_future().share();
+    std::vector<int> order;
+    ASSERT_TRUE(executor.post(
+        [&worker_started, release_worker_future]()
+        {
+            worker_started.set_value();
+            release_worker_future.wait();
+        }));
+    worker_started_future.wait();
+
+    ASSERT_TRUE(executor.post([&order]() { order.push_back(1); }));
+    ASSERT_TRUE(executor.post([&order]() { order.push_back(2); }, TaskPriority::kForeground));
+    ASSERT_TRUE(executor.post([&order]() { order.push_back(3); }, TaskPriority::kForeground));
+    release_worker.set_value();
+    executor.wait_idle();
+
+    EXPECT_EQ(order, (std::vector<int>{2, 3, 1}));
 }
 
 TEST(SerialExecutorTest, WorkerStackIsLargeEnoughForRawImport)

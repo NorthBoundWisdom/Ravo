@@ -684,10 +684,34 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
                    !presenter.busy();
         }))
         << presenter.errorText().toStdString();
+    bool saw_initial_live = false;
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+                     [&]
+                     {
+                         const auto url = presenter.previewUrl();
+                         saw_initial_live =
+                             saw_initial_live || (url.scheme() == QLatin1String("image") &&
+                                                  url.path() == QLatin1String("/live"));
+                     });
     presenter.setBrowseMode(QStringLiteral("develop"));
     ASSERT_TRUE(wait_until(
         [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
         << presenter.errorText().toStdString();
+    EXPECT_TRUE(saw_initial_live);
+
+    bool saw_uncommitted_live = false;
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+                     [&]
+                     {
+                         const auto url = presenter.previewUrl();
+                         saw_uncommitted_live =
+                             saw_uncommitted_live || (url.scheme() == QLatin1String("image") &&
+                                                      url.path() == QLatin1String("/live"));
+                     });
+    presenter.previewDevelopNumber(QStringLiteral("exposure"), 0.25);
+    ASSERT_TRUE(wait_until([&] { return saw_uncommitted_live && !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.editExposure(), 0.25, 1e-9);
 
     bool saw_live = false;
     bool saw_settled = false;
@@ -1312,6 +1336,31 @@ TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
     const auto action_source = QString::fromUtf8(actions.readAll());
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editAddRetouchRegion")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editRemoveRetouchRegion")));
+}
+
+TEST(StudioQmlContract, DevelopSlidersPublishUserEditsBeforeRelease)
+{
+    QFile panel(QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML));
+    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << panel.errorString().toStdString();
+    const auto panel_source = QString::fromUtf8(panel.readAll());
+    EXPECT_TRUE(panel_source.contains(
+        QStringLiteral("onValueEdited: if (root.liveReady && root.commands)")));
+    EXPECT_FALSE(panel_source.contains(
+        QStringLiteral("onValueChanged: if (root.liveReady && root.commands)")));
+    EXPECT_TRUE(panel_source.contains(QStringLiteral("onValueCommitted: function (value)")));
+    EXPECT_TRUE(panel_source.contains(QStringLiteral("previewDevelopNumber")));
+    EXPECT_FALSE(panel_source.contains(QStringLiteral("onValueChanged: retouchEditor.")));
+
+    QFile wheel(QStringLiteral(RAVO_STUDIO_COLOR_GRADE_WHEEL_QML));
+    ASSERT_TRUE(wheel.open(QIODevice::ReadOnly | QIODevice::Text))
+        << wheel.errorString().toStdString();
+    const auto wheel_source = QString::fromUtf8(wheel.readAll());
+    EXPECT_TRUE(wheel_source.contains(
+        QStringLiteral("onValueEdited: if (root.liveReady && root.commands)")));
+    EXPECT_FALSE(wheel_source.contains(
+        QStringLiteral("onValueChanged: if (root.liveReady && root.commands)")));
+    EXPECT_TRUE(wheel_source.contains(QStringLiteral("onValueCommitted: function (value)")));
 }
 
 TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)

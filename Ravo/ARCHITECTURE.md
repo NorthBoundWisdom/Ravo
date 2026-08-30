@@ -147,18 +147,23 @@ Develop preview is bounded and coalesced: at most one render is in flight, plus
 one recipe waiting to save and one preview request waiting. A new revision
 cancels the old token; stale results are dropped by revision and asset, while
 failure retains the prior verified preview. During a drag, the presenter only
-forwards in-memory parameters. Services apply effects to cached scene-linear
-working images at `kInteractivePreviewMaxEdge`, return memory pixels, and do
-not write PNG/cache. For an ordinary commit whose parameters are not already
-displayed, Studio first saves atomically, publishes that exact 640px memory
-preview, then queues the same revision for an exact 1600px persisted preview.
-CatalogService owns one linear-working slot for each size class so the first
-stage cannot evict the settled buffer; a new decoded RAW, incompatible
-preprocess key, close, or destruction invalidates the applicable state. It
-must not fall back to embedded JPEG. CPU pixel rows use deterministic static
-partitions with at most 16 workers and caller participation; cancellation is
-checked per row and worker-start failure is structured rather than falling
-back silently (ADR-0087).
+forwards in-memory parameters. Services apply the complete effect stack to a
+cached 960px scene-linear working image, return memory pixels, and do not write
+PNG/cache. Entering Develop prepares that image before settling at 1600px, so
+the first later slider change does not pay decode/preprocess setup. For an
+ordinary commit whose parameters are not already displayed, Studio first saves
+atomically, publishes that exact 960px memory preview, then queues the same
+revision for an exact 1600px persisted preview. Foreground Develop and
+background Gallery work own separate bounded decode/working lanes; within the
+foreground lane, one linear-working slot is retained for each size class. A
+new decoded source, incompatible preprocess key, close, or destruction
+invalidates only the applicable lane. Active background preview work is
+cancelled for Develop, and queued foreground work leads normal work while
+preserving FIFO order within each priority. It must not fall back to embedded
+JPEG. CPU pixel rows use deterministic static partitions with at most 16
+workers and caller participation; cancellation is checked per row and
+worker-start failure is structured rather than falling back silently
+(ADR-0087).
 
 Develop crop is interactive: crop-tool preview removes crop and straighten,
 while Qt Quick rotates the working image. Photo and overlay share the GPU
@@ -383,9 +388,13 @@ parametric combinations in that mode (ADR-0088).
 `ravo.core.tonecurve` remains the Lab D50 → ProPhoto RGB-linked default with
 `preserve_colors=average` and explicit `lab` / `xyz` / `lab_independent`
 working spaces. Both share recipe-owned `monotone_hermite`, `catmull_rom`,
-and `cubic_spline` evaluators (2–20 nodes). QML draws the plot and histogram;
-C++ owns points and commits. Histogram bins come from the engine-owned
-display RGB8 histogram plus Rec.709 luma.
+and `cubic_spline` evaluators (2–20 nodes). Recipe also owns dense LUT
+construction so an evaluator prepares interpolation coefficients once per
+curve instead of once per sample; Engine consumes that API without changing
+sample positions or per-pixel lookup math. Exact scalar/LUT sample equality is
+covered for every interpolation mode. QML draws the plot and histogram; C++
+owns points and commits. Histogram bins come from the engine-owned display
+RGB8 histogram plus Rec.709 luma.
 
 The lightweight P1 global controls do not stand in for the later full-module
 migration queue. The raster/old-recipe core Contrast path plus Saturation and
@@ -943,7 +952,9 @@ The Ravo Studio first version owns:
 - shared scopes above the right Gallery/Edit panel, remaining visible while
   the Edit list scrolls: frozen 256-bin RGB Histogram, overlaid Waveform, RGB
   Parade, fixed linear D50 CIE u*v* Vectorscope, and Waveform/Vectorscope
-  Split. Engine owns pixels; QML owns only grids and selection;
+  Split. Each preview refreshes the histogram used by Curves and only the
+  currently selected diagnostic; switching modes recomputes that mode from the
+  current owned preview. Engine owns pixels; QML owns only grids and selection;
 - progress, cancellation, and recoverable-error presentation;
 - window, focus, keyboard, HiDPI, and basic accessibility;
 - a floating Assistant popup whose URL, model, and API key are typed desktop
@@ -978,6 +989,23 @@ atomic no-replace byte writer; it must not create a preview record. Recipe owns
 the closed `--set` inventory (`list_develop_set_fields`) so CLI
 `develop-fields` / `catalog fields` cannot drift from
 `apply_develop_field_strict`. Canonical-mask `--set` names remain prefix-based.
+
+CLI is the required machine-automation and acceptance client. Its explicit
+catalog/asset identity, versioned JSON, structured errors, and optional probe
+artifact are authoritative; process discovery, log activity, accessibility
+state, and window screenshots are not. The current product has no live Studio
+control channel, so selection-relative automation is not inferred from the
+running process.
+
+If live Studio state becomes a product requirement, the durable owner is a
+transport-neutral local control contract: desktop C++ publishes an immutable,
+revisioned session snapshot and routes mutating intents through the existing
+command controller, while services retain catalog and processing ownership.
+The CLI remains the mandatory client. MCP may project the same snapshots,
+commands, and immutable image results as tools/resources, but it is never a
+second state, renderer, permission, or business-policy owner. See the deferred
+acceptance boundary in
+[`DevDocs/ProductRoadmap.md`](../DevDocs/ProductRoadmap.md#local-agent-automation-and-live-studio-control).
 
 Original-copy export is separate from pixel encoding. CatalogService passes one
 explicit local source and destination to a bounded 64 KiB streaming owner,

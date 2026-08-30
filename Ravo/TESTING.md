@@ -405,12 +405,14 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
   1600px processed preview; `prefer_embedded_preview` must not affect
   interactive/develop/export.
 - Interactive preview uses a scene-linear working buffer: CatalogService caches
-  RAW unpack/demosaic and keeps independent bounded slots for the 640px live
-  and 1600px settled size classes. A drag applies a recipe only to the cached
-  linear buffer. An ordinary committed style/develop change must publish the
-  exact live memory preview before its persisted settled preview. Embedded JPEG
-  must not become editable data. CLI/Studio share the `request_preview`
-  contract; late results are dropped by request revision.
+  RAW unpack/demosaic and keeps independent bounded slots for the 960px live
+  and 1600px settled size classes. Gallery browse decode/working state is a
+  separate bounded lane and must not evict either Develop slot. A drag applies
+  a recipe only to the cached linear buffer. Entering Develop and an ordinary
+  committed style/develop change must publish the exact live memory preview
+  before its persisted settled preview. Embedded JPEG must not become editable
+  data. CLI/Studio share the `request_preview` contract; late results are
+  dropped by request revision.
 - Scopes collect from the current declared display-referred RGB preview: RGB
   histogram skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone
   bins. The Gallery grid computes scopes from browse thumbnails to avoid full
@@ -931,6 +933,19 @@ milliseconds. Optional `RAVO_PRESET_PERF_FIRST_PREVIEW_BUDGET_MS` and
 `RAVO_PRESET_PERF_BUDGET_MS` turn those measurements into explicit local
 gates; the test skips when its fixture variables are absent, so host-specific
 timings do not make the normal contract suite flaky.
+
+The opt-in `InteractivePreviewPerformanceProbe` measures a warm, non-persistent
+Develop parameter sweep through CatalogService and includes the RGB ownership
+copies plus histogram work required before Studio can publish a frame. Run it
+from a Release build against a private catalog copy with
+`RAVO_INTERACTIVE_PERF_CATALOG` and `RAVO_INTERACTIVE_PERF_ASSET_ID`; optional
+`RAVO_INTERACTIVE_PERF_MAX_EDGE`, `RAVO_INTERACTIVE_PERF_RUNS`, and
+`RAVO_INTERACTIVE_PERF_P90_BUDGET_MS` select the size, sample count, and visible
+P90 gate. `InteractivePreviewQualityProbe` uses the same fixture variables to
+compare the 960px and former 640px complete pipelines with the 1600px settled
+display pixels; `RAVO_INTERACTIVE_QUALITY_MIN_PSNR_DB` adds a local PSNR gate.
+Both probes skip without explicit fixture variables and leave recipe and
+preview-record state unchanged.
 
 ## Local labels and validation cadence
 
