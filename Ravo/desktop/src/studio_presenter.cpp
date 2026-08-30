@@ -24,6 +24,7 @@
 #include <QVariantMap>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
@@ -196,8 +197,20 @@ StudioPresenter::make_catalog_service(const std::string &path, const bool create
         return cache.error();
     }
     auto raster = std::make_unique<QtRasterDecoder>();
-    return std::make_unique<CatalogService>(*engine_, std::move(repository).value(),
-                                            std::move(raster), std::move(cache).value());
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(path);
+    if (!recovery)
+    {
+        return recovery.error();
+    }
+    auto service =
+        std::make_unique<CatalogService>(*engine_, std::move(repository).value(), std::move(raster),
+                                         std::move(cache).value(), std::move(recovery).value());
+    auto resumed = service->sync_recovery(std::nullopt);
+    if (!resumed)
+    {
+        return resumed.error();
+    }
+    return service;
 }
 
 bool StudioPresenter::catalogOpen() const noexcept

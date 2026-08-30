@@ -70,7 +70,7 @@ supersession relationship when direction changes.
 | [0060](0060-studio-navigation-lifecycle.md) | Accepted | Studio owns bounded Fit/Fill/Actual/custom zoom, pan/navigator geometry, and asset/mode/zoom viewport reset timing. |
 | [0061](0061-engine-owned-preview-scopes.md) | Accepted | Engine owns Histogram, Waveform, Parade, fixed D50 u*v* Vectorscope, and Split pixels for the displayed preview. |
 | [0062](0062-asset-mutation-removal-transaction.md) | Accepted | Asset removal deletes row+revision transactionally; disk deletion uses adjacent quarantine and restores the original on database failure. |
-| [0063](0063-explicit-no-automatic-sidecar-policy.md) | Accepted | Catalog edits never automatically read/write sidecars; legacy XMP import is explicit and export XMP is newly embedded. |
+| [0063](0063-explicit-no-automatic-sidecar-policy.md) | Partially superseded by 0097 | Catalog edits never read/write adjacent interchange sidecars; 0097 adds catalog-owned recovery mirrors. |
 | [0064](0064-atomic-metadata-refresh-and-export-privacy.md) | Accepted | Capture metadata refresh publishes atomically; JPEG/PNG/TIFF share full/no-location/none privacy modes while original-copy stays exact. |
 | [0065](0065-versioned-recipe-style-artifact.md) | Accepted; legacy resource cleanup extended by 0072 | `.rstyle.json` is a complete canonical Recipe template; CLI/Studio create, validate, and apply it while legacy dtstyle rejects. |
 | [0066](0066-typed-desktop-language-setting.md) | Accepted; assistant settings added by 0081 | Typed desktop language; 0081 adds assistant endpoint/model/key. Corrupt/write failures stay explicit and no old configuration keys migrate. |
@@ -104,3 +104,4 @@ supersession relationship when direction changes.
 | [0094](0094-adaptive-profile-denoise.md) | Accepted | Profile Denoise calibrates Y0U0V0 wavelet noise from bounded MAD samples, gives Radius defined spatial behavior, separates luminance/chroma mixing, and invalidates fixed-profile pixels with preview v10. |
 | [0095](0095-velvia-weighted-saturation-contract.md) | Accepted | Velvia owns the frozen low-saturation/midtone-weighted linear-RGB boost, typed strength/bias, canonical masks, strict 0063 import, and complete product persistence. |
 | [0096](0096-reference-algorithm-assimilation-boundary.md) | Accepted | External research enters only through bounded Ravo owners with exact provenance and CPU-first gates; Texture is accepted, while Local Laplacian and the over-budget Filmulator model are rejected from production. |
+| [0097](0097-catalog-recovery-sidecars-and-verifiable-backups.md) | Accepted | Schema v6 owns retryable per-asset recovery generations and verified catalog backups that exclude originals and previews. |

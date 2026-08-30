@@ -25,6 +25,7 @@
 
 #include "../adapters/src/tiff_encoder.h"
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/raster_decoder.h"
@@ -813,10 +814,13 @@ TEST(TiffMetadataCatalogTest, SnapshotsPublicMetadataForEveryRenderedFormat)
     ASSERT_TRUE(repository) << repository.error().message;
     auto cache = FilesystemPreviewCache::create((temporary.path() / "preview").string());
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create((temporary.path() / "recovery").string());
+    ASSERT_TRUE(recovery) << recovery.error().message;
     auto raster = std::make_unique<CapturingMetadataDecoder>();
     CapturingMetadataDecoder *const capturing = raster.get();
     CatalogService service(std::move(engine).value(), std::move(repository).value(),
-                           std::move(raster), std::move(cache).value());
+                           std::move(raster), std::move(cache).value(),
+                           std::move(recovery).value());
 
     const auto imported = service.import_one(input_path.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;

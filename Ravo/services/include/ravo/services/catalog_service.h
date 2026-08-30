@@ -11,6 +11,7 @@
 #include "ravo/domain/catalog_repository.h"
 #include "ravo/domain/preview_cache.h"
 #include "ravo/domain/raster_decoder.h"
+#include "ravo/domain/recovery_store.h"
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
@@ -31,6 +32,11 @@ struct RecipeSaveOptions
     RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
     std::optional<std::int64_t> discard_history_after_seq;
     std::optional<std::int64_t> coalesce_history_id;
+    // Studio's serial Develop owner may defer filesystem publication until the
+    // new preview has been queued for the UI. The same worker then drains the
+    // durable generation; close, reopen, explicit sync, and backup remain
+    // recovery paths if that publication fails.
+    bool defer_recovery_publication = false;
 };
 
 struct RecipeSaveResult
@@ -40,11 +46,18 @@ struct RecipeSaveResult
     std::optional<std::int64_t> history_id;
 };
 
+// Verifies a self-contained backup without opening or mutating a live catalog.
+[[nodiscard]] Result<CatalogBackupVerification>
+verify_catalog_backup(const CatalogBackupDatabaseVerifier &database_verifier,
+                      const RecoveryStore &recovery_verifier, std::string_view backup_directory,
+                      const CancellationToken &cancellation = {});
+
 class CatalogService
 {
 public:
     CatalogService(const EngineFacade &engine, std::unique_ptr<CatalogRepository> repository,
-                   std::unique_ptr<RasterDecoder> raster, std::unique_ptr<PreviewCache> cache);
+                   std::unique_ptr<RasterDecoder> raster, std::unique_ptr<PreviewCache> cache,
+                   std::unique_ptr<RecoveryStore> recovery);
 
     CatalogService(const CatalogService &) = delete;
     CatalogService &operator=(const CatalogService &) = delete;
@@ -57,6 +70,19 @@ public:
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query) const;
     [[nodiscard]] Result<std::vector<FolderRecord>> list_folders() const;
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const;
+    [[nodiscard]] Result<AssetRecoveryState> recovery_state(std::string_view asset_id) const;
+    [[nodiscard]] Result<std::vector<AssetRecoveryState>> pending_recovery() const;
+    // With an asset ID, this also verifies an already-synchronized sidecar.
+    // Without one, it drains only the durable pending set so catalog open stays
+    // bounded by unfinished work rather than the full library size.
+    [[nodiscard]] Result<RecoverySyncResult>
+    sync_recovery(std::optional<std::string_view> asset_id,
+                  const CancellationToken &cancellation = {});
+    [[nodiscard]] Result<CatalogBackupArtifact>
+    create_backup(std::string_view destination, const CancellationToken &cancellation = {});
+    [[nodiscard]] Result<CatalogBackupVerification>
+    verify_backup(std::string_view backup_directory,
+                  const CancellationToken &cancellation = {}) const;
     [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
     [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
@@ -108,6 +134,11 @@ public:
     Result<void> close();
 
 private:
+    [[nodiscard]] Result<RecoveryArtifact>
+    synchronize_recovery_asset(std::string_view asset_id, const CancellationToken &cancellation);
+    [[nodiscard]] Result<void>
+    synchronize_committed_change(std::string_view asset_id,
+                                 const CancellationToken &cancellation = {});
     [[nodiscard]] Result<RecipeSaveResult> save_recipe_with_history(std::string_view asset_id,
                                                                     const Recipe &recipe,
                                                                     RecipeSaveOptions options);
@@ -170,6 +201,7 @@ private:
     std::unique_ptr<CatalogRepository> repository_;
     std::unique_ptr<RasterDecoder> raster_;
     std::unique_ptr<PreviewCache> cache_;
+    std::unique_ptr<RecoveryStore> recovery_;
     // Foreground Develop and background Gallery work have independent bounded
     // decode/working ownership. A thumbnail must never evict the selected
     // photo's interactive or settled scene-linear buffers.

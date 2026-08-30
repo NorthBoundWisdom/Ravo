@@ -89,7 +89,7 @@ Current implementation status:
   (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
   key (ADR-0081) for the floating chat panel; assistant HTTP and credentials
   stay desktop-only. The separate Qt local-control socket exposes neither.
-- Basic Develop provides catalog schema v5 with one canonical recipe per image,
+- Basic Develop provides catalog schema v6 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), adaptive Y0U0V0 edge-aware
   wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`, graduated
@@ -101,6 +101,14 @@ Current implementation status:
   snapshots. Clicking a history step previews that recipe without appending;
   newer steps dim until a later parameter edit discards them in the same
   recipe transaction.
+  Schema v6 additionally owns retryable per-asset recovery generations in the
+  catalog support directory. `ravo catalog sidecar-status|sidecar-sync` exposes
+  their state, and `catalog backup|backup-verify` creates and verifies an
+  immutable catalog/sidecar backup that excludes originals and rebuildable
+  previews. These `.ravo.json` mirrors never replace SQLite authority or touch
+  adjacent XMP. `backup` takes the live `--catalog`; the self-contained,
+  read-only `backup-verify` takes only `--backup` and never opens the snapshot
+  as a live catalog (ADR-0097).
   Consecutive commits from one control update a single history row and remain
   one session Undo step; changing controls or navigation/history state starts
   a new step. Section lamps are gray at identity, green when modified, and

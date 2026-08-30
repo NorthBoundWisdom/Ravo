@@ -2,6 +2,7 @@
 
 #include "catalog_repository_test_control.h"
 
+#include <algorithm>
 #include <chrono>
 #include <limits>
 #include <map>
@@ -10,6 +11,8 @@
 #include <vector>
 
 #include <QtCore/QFileInfo>
+#include <QtCore/QCryptographicHash>
+#include <QtCore/QFile>
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QMetaType>
@@ -136,6 +139,60 @@ constexpr const char *kSchemaV4Statements[] = {
     "  created_unix_ms INTEGER NOT NULL,"
     "  UNIQUE(asset_id, seq)"
     ")",
+};
+
+constexpr const char *kSchemaV6Table =
+    "CREATE TABLE asset_recovery_state ("
+    "  asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,"
+    "  generation INTEGER NOT NULL CHECK(generation > 0),"
+    "  synchronized_generation INTEGER NOT NULL DEFAULT 0 "
+    "    CHECK(synchronized_generation >= 0 AND synchronized_generation <= generation)"
+    ")";
+
+// Generation is catalog-owned durable state. Every durable per-asset write marks
+// the derived recovery sidecar pending, while preview/cache writes intentionally
+// do not participate because they are rebuildable.
+constexpr const char *kSchemaV6Triggers[] = {
+    "CREATE TRIGGER asset_recovery_insert AFTER INSERT ON asset BEGIN "
+    "  INSERT INTO asset_recovery_state(asset_id, generation, synchronized_generation) "
+    "  VALUES (NEW.id, 1, 0); "
+    "END",
+    "CREATE TRIGGER asset_recovery_update AFTER UPDATE ON asset BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.id; "
+    "END",
+    "CREATE TRIGGER asset_recipe_recovery_insert AFTER INSERT ON asset_recipe BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_recipe_recovery_update AFTER UPDATE ON asset_recipe BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_recipe_recovery_delete AFTER DELETE ON asset_recipe BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = OLD.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_tag_recovery_insert AFTER INSERT ON asset_tag BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_tag_recovery_delete AFTER DELETE ON asset_tag BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = OLD.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_metadata_recovery_insert AFTER INSERT ON asset_metadata BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_metadata_recovery_update AFTER UPDATE ON asset_metadata BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_metadata_recovery_delete AFTER DELETE ON asset_metadata BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = OLD.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_history_recovery_insert AFTER INSERT ON asset_recipe_history BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_history_recovery_update AFTER UPDATE ON asset_recipe_history BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
+    "END",
+    "CREATE TRIGGER asset_history_recovery_delete AFTER DELETE ON asset_recipe_history BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = OLD.asset_id; "
+    "END",
 };
 
 [[nodiscard]] QString qstring_from_utf8(const std::string_view text)
@@ -572,10 +629,306 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
     return preview;
 }
 
+[[nodiscard]] AssetRecoveryState read_recovery_state(const QSqlQuery &query,
+                                                     const int first_column = 0)
+{
+    AssetRecoveryState state;
+    state.asset_id = utf8_from_qstring(query.value(first_column).toString());
+    state.generation = query.value(first_column + 1).toLongLong();
+    state.synchronized_generation = query.value(first_column + 2).toLongLong();
+    return state;
+}
+
 [[nodiscard]] QString next_connection_name()
 {
     static int counter = 0;
     return QString("ravo_catalog_%1").arg(++counter);
+}
+
+[[nodiscard]] bool valid_sha256(const std::string_view value)
+{
+    return value.size() == 64U && std::all_of(value.begin(), value.end(),
+                                              [](const char character)
+                                              {
+                                                  return (character >= '0' && character <= '9') ||
+                                                         (character >= 'a' && character <= 'f');
+                                              });
+}
+
+[[nodiscard]] Result<std::pair<std::string, std::uint64_t>>
+hash_database_file(const std::string_view path, const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    const auto qt_path = qstring_from_utf8(path);
+    const QFileInfo info(qt_path);
+    if (!info.exists() || !info.isFile() || info.isSymLink())
+    {
+        return make_error(ErrorCode::kValidation, "Catalog backup database is not a regular file",
+                          {{"path", std::string(path)}, {"reason", "backup_database_not_regular"}});
+    }
+    QFile file(qt_path);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        return make_error(ErrorCode::kIo, "Unable to open catalog backup database",
+                          {{"path", std::string(path)},
+                           {"detail", utf8_from_qstring(file.errorString())},
+                           {"reason", "backup_database_open_failed"}});
+    }
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    std::uint64_t total = 0U;
+    constexpr qint64 kChunkBytes = 1024 * 1024;
+    while (!file.atEnd())
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        const auto bytes = file.read(kChunkBytes);
+        if (bytes.isEmpty() && !file.atEnd())
+        {
+            return make_error(ErrorCode::kIo, "Unable to read catalog backup database",
+                              {{"path", std::string(path)},
+                               {"detail", utf8_from_qstring(file.errorString())},
+                               {"reason", "backup_database_read_failed"}});
+        }
+        hash.addData(bytes);
+        total += static_cast<std::uint64_t>(bytes.size());
+    }
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    return std::pair<std::string, std::uint64_t>{hash.result().toHex().toStdString(), total};
+}
+
+[[nodiscard]] Result<CatalogDatabaseArtifact>
+inspect_backup_database(const std::string_view path, const std::string_view expected_sha256,
+                        const CancellationToken &cancellation)
+{
+    if (!expected_sha256.empty() && !valid_sha256(expected_sha256))
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Expected catalog SHA-256 is invalid",
+                          {{"reason", "invalid_backup_catalog_sha256"}});
+    }
+    auto digest = hash_database_file(path, cancellation);
+    if (!digest)
+    {
+        return digest.error();
+    }
+    if (!expected_sha256.empty() && digest.value().first != expected_sha256)
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Catalog backup database checksum does not match its manifest",
+                          {{"path", std::string(path)},
+                           {"expected_sha256", std::string(expected_sha256)},
+                           {"actual_sha256", digest.value().first},
+                           {"reason", "backup_catalog_checksum_mismatch"}});
+    }
+
+    const auto connection = next_connection_name();
+    QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+    database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+    database.setDatabaseName(qstring_from_utf8(path));
+    if (!database.open())
+    {
+        const auto detail = utf8_from_qstring(database.lastError().text());
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+        return make_error(ErrorCode::kValidation, "Unable to open catalog backup database",
+                          {{"path", std::string(path)},
+                           {"detail", detail},
+                           {"reason", "backup_database_invalid"}});
+    }
+
+    CatalogDatabaseArtifact artifact;
+    artifact.path = std::string(path);
+    auto digest_value = std::move(digest).value();
+    artifact.sha256 = std::move(digest_value.first);
+    artifact.bytes = digest_value.second;
+    std::optional<TaskError> database_error;
+    bool extra_schema_row = false;
+    {
+        QSqlQuery integrity(database);
+        if (!integrity.exec(QStringLiteral("PRAGMA integrity_check")) || !integrity.next() ||
+            integrity.value(0).toString() != QStringLiteral("ok") || integrity.next())
+        {
+            database_error = make_error(
+                ErrorCode::kValidation, "Catalog backup database failed its integrity check",
+                {{"path", std::string(path)},
+                 {"detail", utf8_from_qstring(integrity.lastError().text())},
+                 {"reason", "backup_catalog_integrity_failed"}});
+        }
+        if (!database_error)
+        {
+            QSqlQuery schema(database);
+            if (!schema.exec(QStringLiteral(
+                    "SELECT schema_version, catalog_id, revision FROM schema_info WHERE id = 1")) ||
+                !schema.next())
+            {
+                database_error =
+                    make_error(ErrorCode::kValidation,
+                               "Catalog backup database is missing valid catalog identity",
+                               {{"path", std::string(path)},
+                                {"detail", utf8_from_qstring(schema.lastError().text())},
+                                {"reason", "backup_catalog_identity_invalid"}});
+            }
+            else
+            {
+                artifact.schema_version = schema.value(0).toLongLong();
+                artifact.catalog_id = utf8_from_qstring(schema.value(1).toString());
+                artifact.revision = schema.value(2).toLongLong();
+                extra_schema_row = schema.next();
+            }
+        }
+        if (!database_error && !extra_schema_row)
+        {
+            QSqlQuery recovery(database);
+            if (!recovery.exec(
+                    QStringLiteral("SELECT asset_id, generation, synchronized_generation "
+                                   "FROM asset_recovery_state ORDER BY asset_id ASC")))
+            {
+                database_error = make_error(
+                    ErrorCode::kValidation, "Catalog backup database is missing recovery state",
+                    {{"path", std::string(path)},
+                     {"detail", utf8_from_qstring(recovery.lastError().text())},
+                     {"reason", "backup_recovery_state_invalid"}});
+            }
+            else
+            {
+                while (recovery.next())
+                {
+                    artifact.recovery_states.push_back(read_recovery_state(recovery));
+                }
+            }
+        }
+        if (!database_error && !extra_schema_row)
+        {
+            QSqlQuery assets(database);
+            if (!assets.exec(QStringLiteral("SELECT COUNT(*) FROM asset")) || !assets.next() ||
+                assets.value(0).toLongLong() < 0 ||
+                static_cast<std::uint64_t>(assets.value(0).toLongLong()) !=
+                    artifact.recovery_states.size() ||
+                assets.next())
+            {
+                database_error =
+                    make_error(ErrorCode::kValidation,
+                               "Catalog backup recovery state does not cover every asset",
+                               {{"path", std::string(path)},
+                                {"detail", utf8_from_qstring(assets.lastError().text())},
+                                {"reason", "backup_recovery_coverage_invalid"}});
+            }
+        }
+        if (!database_error && !extra_schema_row)
+        {
+            QSqlQuery previews(database);
+            if (!previews.exec(QStringLiteral("SELECT COUNT(*) FROM preview")) ||
+                !previews.next() || previews.value(0).toLongLong() != 0 || previews.next())
+            {
+                database_error =
+                    make_error(ErrorCode::kValidation,
+                               "Catalog backup database contains rebuildable preview state",
+                               {{"path", std::string(path)},
+                                {"detail", utf8_from_qstring(previews.lastError().text())},
+                                {"reason", "backup_contains_preview_state"}});
+            }
+        }
+    }
+    database.close();
+    database = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connection);
+    if (database_error)
+    {
+        return *database_error;
+    }
+    if (extra_schema_row || artifact.catalog_id.empty() ||
+        artifact.schema_version != kCatalogSchemaVersion || artifact.revision < 0 ||
+        std::any_of(
+            artifact.recovery_states.begin(), artifact.recovery_states.end(),
+            [](const AssetRecoveryState &state)
+            {
+                return state.asset_id.empty() || state.generation <= 0 ||
+                       state.synchronized_generation != state.generation;
+            }))
+    {
+        return make_error(
+            ErrorCode::kValidation, "Catalog backup database identity is invalid",
+            {{"path", std::string(path)}, {"reason", "backup_catalog_identity_invalid"}});
+    }
+    return artifact;
+}
+
+[[nodiscard]] Result<void> strip_backup_preview_rows(const std::string_view path,
+                                                     const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    const auto connection = next_connection_name();
+    QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+    database.setDatabaseName(qstring_from_utf8(path));
+    if (!database.open())
+    {
+        const auto detail = utf8_from_qstring(database.lastError().text());
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+        return make_error(ErrorCode::kIo, "Unable to open backup database for cache pruning",
+                          {{"path", std::string(path)},
+                           {"detail", detail},
+                           {"reason", "backup_cache_prune_open_failed"}});
+    }
+    std::optional<TaskError> failure;
+    if (!database.transaction())
+    {
+        failure = make_error(ErrorCode::kIo, "Unable to begin backup cache-pruning transaction",
+                             {{"path", std::string(path)},
+                              {"detail", utf8_from_qstring(database.lastError().text())},
+                              {"reason", "backup_cache_prune_begin_failed"}});
+    }
+    if (!failure)
+    {
+        QSqlQuery remove(database);
+        if (!remove.exec(QStringLiteral("DELETE FROM preview")))
+            failure = make_error(ErrorCode::kIo, "Unable to prune previews from backup database",
+                                 {{"path", std::string(path)},
+                                  {"detail", utf8_from_qstring(remove.lastError().text())},
+                                  {"reason", "backup_cache_prune_failed"}});
+    }
+    if (failure)
+    {
+        static_cast<void>(database.rollback());
+    }
+    else if (!database.commit())
+    {
+        failure = make_error(ErrorCode::kIo, "Unable to commit backup cache-pruning transaction",
+                             {{"path", std::string(path)},
+                              {"detail", utf8_from_qstring(database.lastError().text())},
+                              {"reason", "backup_cache_prune_commit_failed"}});
+        static_cast<void>(database.rollback());
+    }
+    if (!failure)
+    {
+        QSqlQuery compact(database);
+        if (!compact.exec(QStringLiteral("VACUUM")))
+            failure = make_error(ErrorCode::kIo, "Unable to compact backup database",
+                                 {{"path", std::string(path)},
+                                  {"detail", utf8_from_qstring(compact.lastError().text())},
+                                  {"reason", "backup_compact_failed"}});
+    }
+    database.close();
+    database = QSqlDatabase();
+    QSqlDatabase::removeDatabase(connection);
+    if (failure)
+        return *failure;
+    active = cancellation.check();
+    if (!active)
+        return active.error();
+    return {};
 }
 
 constexpr const char *kAssetSelect =
@@ -836,6 +1189,19 @@ SqliteCatalogRepository::create(const std::string_view database_path)
             return impl->abort_transaction(created.error());
         }
     }
+    auto recovery_table = impl->exec(QString::fromUtf8(kSchemaV6Table), "create_recovery_state");
+    if (!recovery_table)
+    {
+        return impl->abort_transaction(recovery_table.error());
+    }
+    for (const char *statement : kSchemaV6Triggers)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_recovery_trigger");
+        if (!created)
+        {
+            return impl->abort_transaction(created.error());
+        }
+    }
 
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
@@ -974,6 +1340,33 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                 }
             }
             version = 5;
+        }
+        if (version == 5)
+        {
+            auto recovery_table =
+                impl->exec(QString::fromUtf8(kSchemaV6Table), "migrate_v6_recovery_state");
+            if (!recovery_table)
+            {
+                return impl->abort_transaction(recovery_table.error());
+            }
+            auto initialized =
+                impl->exec(QStringLiteral("INSERT INTO asset_recovery_state(asset_id, generation, "
+                                          "synchronized_generation) SELECT id, 1, 0 FROM asset"),
+                           "migrate_v6_recovery_assets");
+            if (!initialized)
+            {
+                return impl->abort_transaction(initialized.error());
+            }
+            for (const char *statement : kSchemaV6Triggers)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v6_recovery_trigger");
+                if (!created)
+                {
+                    return impl->abort_transaction(created.error());
+                }
+            }
+            version = 6;
         }
         if (version != kCatalogSchemaVersion)
         {
@@ -1234,9 +1627,8 @@ Result<void> SqliteCatalogRepository::remove_asset(const std::string_view asset_
     }
     if (query.numRowsAffected() == 0)
     {
-        return impl_->abort_transaction(
-            make_error(ErrorCode::kNotFound, "Asset does not exist",
-                       {{"asset_id", std::string(asset_id)}}));
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Asset does not exist",
+                                                   {{"asset_id", std::string(asset_id)}}));
     }
     QSqlQuery revision(impl_->database);
     if (!revision.exec(
@@ -1327,6 +1719,304 @@ Result<void> SqliteCatalogRepository::upsert_preview(const PreviewRecord &previe
         return map_sql_error(query, "upsert_preview");
     }
     return {};
+}
+
+Result<AssetRecoveryState>
+SqliteCatalogRepository::recovery_state(const std::string_view asset_id) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral("SELECT asset_id, generation, synchronized_generation "
+                                 "FROM asset_recovery_state WHERE asset_id = ?"));
+    query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+    {
+        return map_sql_error(query, "read_recovery_state");
+    }
+    if (!query.next())
+    {
+        return make_error(ErrorCode::kNotFound, "Asset recovery state does not exist",
+                          {{"asset_id", std::string(asset_id)}});
+    }
+    return read_recovery_state(query);
+}
+
+Result<std::vector<AssetRecoveryState>> SqliteCatalogRepository::list_pending_recovery() const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    if (!query.exec(
+            QStringLiteral("SELECT asset_id, generation, synchronized_generation "
+                           "FROM asset_recovery_state WHERE generation > synchronized_generation "
+                           "ORDER BY asset_id ASC")))
+    {
+        return map_sql_error(query, "list_pending_recovery");
+    }
+    std::vector<AssetRecoveryState> states;
+    while (query.next())
+    {
+        states.push_back(read_recovery_state(query));
+    }
+    return states;
+}
+
+Result<std::vector<AssetRecoveryState>> SqliteCatalogRepository::list_recovery_states() const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QStringLiteral("SELECT asset_id, generation, synchronized_generation "
+                                   "FROM asset_recovery_state ORDER BY asset_id ASC")))
+    {
+        return map_sql_error(query, "list_recovery_states");
+    }
+    std::vector<AssetRecoveryState> states;
+    while (query.next())
+    {
+        states.push_back(read_recovery_state(query));
+    }
+    return states;
+}
+
+Result<AssetRecoverySnapshot>
+SqliteCatalogRepository::load_recovery_snapshot(const std::string_view asset_id) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (!impl_->database.transaction())
+    {
+        return make_error(ErrorCode::kIo, "Unable to begin recovery snapshot transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    }
+
+    QSqlQuery identity(impl_->database);
+    identity.prepare(
+        QStringLiteral("SELECT recovery.asset_id, recovery.generation, "
+                       "recovery.synchronized_generation, schema.catalog_id, schema.revision "
+                       "FROM asset_recovery_state AS recovery CROSS JOIN schema_info AS schema "
+                       "WHERE recovery.asset_id = ? AND schema.id = 1"));
+    identity.addBindValue(qstring_from_utf8(asset_id));
+    if (!identity.exec())
+    {
+        return impl_->abort_transaction(map_sql_error(identity, "read_recovery_identity"));
+    }
+    if (!identity.next())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound,
+                                                   "Asset recovery state does not exist",
+                                                   {{"asset_id", std::string(asset_id)}}));
+    }
+
+    AssetRecoverySnapshot snapshot;
+    snapshot.state = read_recovery_state(identity);
+    snapshot.catalog_id = utf8_from_qstring(identity.value(3).toString());
+    snapshot.catalog_revision = identity.value(4).toLongLong();
+
+    auto asset = find_asset_by_id(asset_id);
+    if (!asset)
+    {
+        return impl_->abort_transaction(asset.error());
+    }
+    if (!asset.value())
+    {
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Asset does not exist",
+                                                   {{"asset_id", std::string(asset_id)}}));
+    }
+    snapshot.asset = std::move(*asset.value());
+
+    auto recipe = load_recipe_json(asset_id);
+    if (!recipe)
+    {
+        return impl_->abort_transaction(recipe.error());
+    }
+    snapshot.recipe_json = std::move(recipe).value();
+
+    QSqlQuery history(impl_->database);
+    history.prepare(
+        QStringLiteral("SELECT id, asset_id, seq, kind, label, recipe_json, created_unix_ms "
+                       "FROM asset_recipe_history WHERE asset_id = ? ORDER BY seq ASC, id ASC "
+                       "LIMIT ?"));
+    history.addBindValue(qstring_from_utf8(asset_id));
+    history.addBindValue(static_cast<qlonglong>(kRecoveryHistoryMaximumEntries + 1U));
+    if (!history.exec())
+    {
+        return impl_->abort_transaction(map_sql_error(history, "read_recovery_history"));
+    }
+    while (history.next())
+    {
+        snapshot.history.push_back(read_history(history));
+    }
+    if (snapshot.history.size() > kRecoveryHistoryMaximumEntries)
+    {
+        return impl_->abort_transaction(make_error(
+            ErrorCode::kValidation, "Asset history exceeds the recovery sidecar entry limit",
+            {{"asset_id", std::string(asset_id)},
+             {"limit", std::to_string(kRecoveryHistoryMaximumEntries)}}));
+    }
+    if (!impl_->database.commit())
+    {
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit recovery snapshot transaction",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    }
+    return snapshot;
+}
+
+Result<AssetRecoveryState>
+SqliteCatalogRepository::acknowledge_recovery(const std::string_view asset_id,
+                                              const std::int64_t generation)
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (generation <= 0)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Recovery generation must be positive",
+                          {{"generation", std::to_string(generation)}});
+    }
+    QSqlQuery update(impl_->database);
+    update.prepare(
+        QStringLiteral("UPDATE asset_recovery_state SET synchronized_generation = ? "
+                       "WHERE asset_id = ? AND generation = ? AND synchronized_generation < ?"));
+    update.addBindValue(static_cast<qlonglong>(generation));
+    update.addBindValue(qstring_from_utf8(asset_id));
+    update.addBindValue(static_cast<qlonglong>(generation));
+    update.addBindValue(static_cast<qlonglong>(generation));
+    if (!update.exec())
+    {
+        return map_sql_error(update, "acknowledge_recovery");
+    }
+    auto current = recovery_state(asset_id);
+    if (!current)
+    {
+        return current.error();
+    }
+    if (current.value().generation != generation)
+    {
+        return make_error(ErrorCode::kConflict,
+                          "Asset changed while its recovery sidecar was published",
+                          {{"asset_id", std::string(asset_id)},
+                           {"expected_generation", std::to_string(generation)},
+                           {"actual_generation", std::to_string(current.value().generation)},
+                           {"reason", "recovery_generation_changed"}});
+    }
+    if (current.value().synchronized_generation != generation)
+    {
+        return make_error(ErrorCode::kConflict, "Recovery generation could not be acknowledged",
+                          {{"asset_id", std::string(asset_id)},
+                           {"generation", std::to_string(generation)},
+                           {"reason", "recovery_generation_not_acknowledged"}});
+    }
+    return current;
+}
+
+Result<void> SqliteCatalogRepository::integrity_check() const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QStringLiteral("PRAGMA integrity_check")))
+    {
+        return map_sql_error(query, "catalog_integrity_check");
+    }
+    if (!query.next() || query.value(0).toString() != QStringLiteral("ok") || query.next())
+    {
+        return make_error(ErrorCode::kValidation, "Catalog failed its integrity check",
+                          {{"path", impl_->database_path}, {"reason", "catalog_integrity_failed"}});
+    }
+    return {};
+}
+
+Result<CatalogDatabaseArtifact>
+SqliteCatalogRepository::create_backup_database(const std::string_view output_path,
+                                                const CancellationToken &cancellation) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    if (output_path.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Catalog backup database path must not be empty");
+    }
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    if (QFileInfo::exists(qstring_from_utf8(output_path)))
+    {
+        return make_error(
+            ErrorCode::kConflict, "Catalog backup database destination already exists",
+            {{"path", std::string(output_path)}, {"reason", "backup_database_conflict"}});
+    }
+    auto integrity = integrity_check();
+    if (!integrity)
+    {
+        return integrity.error();
+    }
+    QSqlQuery backup(impl_->database);
+    backup.prepare(QStringLiteral("VACUUM INTO ?"));
+    backup.addBindValue(qstring_from_utf8(output_path));
+    if (!backup.exec())
+    {
+        auto error = map_sql_error(backup, "create_backup_database");
+        error.context.insert_or_assign("path", std::string(output_path));
+        error.context.insert_or_assign("reason", "backup_database_snapshot_failed");
+        return error;
+    }
+    auto pruned = strip_backup_preview_rows(output_path, cancellation);
+    if (!pruned)
+    {
+        return pruned.error();
+    }
+    active = cancellation.check();
+    if (!active)
+    {
+        if (!QFile::remove(qstring_from_utf8(output_path)))
+        {
+            auto error = active.error();
+            error.context.insert_or_assign("cleanup_failed", "true");
+            error.context.insert_or_assign("path", std::string(output_path));
+            return error;
+        }
+        return active.error();
+    }
+    return inspect_backup_database(output_path, {}, cancellation);
+}
+
+Result<CatalogDatabaseArtifact>
+SqliteCatalogRepository::verify_backup_database(const std::string_view backup_path,
+                                                const std::string_view expected_sha256,
+                                                const CancellationToken &cancellation) const
+{
+    if (impl_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    }
+    return inspect_backup_database(backup_path, expected_sha256, cancellation);
+}
+
+Result<CatalogDatabaseArtifact>
+SqliteCatalogBackupVerifier::verify_backup_database(const std::string_view backup_path,
+                                                    const std::string_view expected_sha256,
+                                                    const CancellationToken &cancellation) const
+{
+    return inspect_backup_database(backup_path, expected_sha256, cancellation);
 }
 
 Result<std::optional<std::string>>
@@ -1940,8 +2630,8 @@ Result<void> SqliteCatalogRepository::update_recipe_history_label(const std::int
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
     QSqlQuery query(impl_->database);
-    query.prepare(QStringLiteral(
-        "UPDATE asset_recipe_history SET label = ? WHERE id = ? AND kind = ?"));
+    query.prepare(
+        QStringLiteral("UPDATE asset_recipe_history SET label = ? WHERE id = ? AND kind = ?"));
     query.addBindValue(qstring_from_utf8(label));
     query.addBindValue(static_cast<qlonglong>(history_id));
     query.addBindValue(qstring_from_utf8(kRecipeHistoryKindSnapshot));

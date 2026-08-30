@@ -29,6 +29,7 @@
 #include <gtest/gtest.h>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
@@ -120,7 +121,7 @@ protected:
         std::filesystem::remove_all(root, ignored);
     }
 
-    Result<void> open_service(const bool create)
+    Result<void> open_service(const bool create, const bool resume_recovery = true)
     {
         auto repository = create ? SqliteCatalogRepository::create(database_path) :
                                    SqliteCatalogRepository::open(database_path);
@@ -133,11 +134,24 @@ protected:
         {
             return cache.error();
         }
+        auto recovery = FilesystemRecoveryStore::create_for_catalog(database_path);
+        if (!recovery)
+        {
+            return recovery.error();
+        }
         auto owned_repository = std::move(repository).value();
         sqlite_repository = owned_repository.get();
-        service = std::make_unique<CatalogService>(engine, std::move(owned_repository),
-                                                   std::make_unique<QtRasterDecoder>(),
-                                                   std::move(cache).value());
+        service = std::make_unique<CatalogService>(
+            engine, std::move(owned_repository), std::make_unique<QtRasterDecoder>(),
+            std::move(cache).value(), std::move(recovery).value());
+        if (resume_recovery)
+        {
+            auto resumed = service->sync_recovery(std::nullopt);
+            if (!resumed)
+            {
+                return resumed.error();
+            }
+        }
         return {};
     }
 
@@ -189,6 +203,189 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
     auto newer = SqliteCatalogRepository::open(database_path);
     ASSERT_FALSE(newer);
     EXPECT_EQ(newer.error().code, ErrorCode::kUnsupported);
+}
+
+TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "recovery.jpg";
+    QImage image(24, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(20, 80, 140));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    EXPECT_FALSE(imported.value().error);
+    const auto asset_id = imported.value().asset->id;
+    auto initial = service->recovery_state(asset_id);
+    ASSERT_TRUE(initial) << initial.error().message;
+    EXPECT_FALSE(initial.value().pending());
+    EXPECT_GT(initial.value().generation, 0);
+    const auto recovery_root =
+        std::filesystem::path(FilesystemRecoveryStore::default_root_for_catalog(database_path));
+    const auto initial_path =
+        recovery_root /
+        (asset_id + "." + std::to_string(initial.value().generation) + ".ravo.json");
+    ASSERT_TRUE(std::filesystem::is_regular_file(initial_path));
+
+    auto rated = service->set_rating(asset_id, 4);
+    ASSERT_TRUE(rated) << rated.error().message;
+    auto current = service->recovery_state(asset_id);
+    ASSERT_TRUE(current) << current.error().message;
+    EXPECT_GT(current.value().generation, initial.value().generation);
+    EXPECT_EQ(current.value().synchronized_generation, current.value().generation);
+    EXPECT_FALSE(std::filesystem::exists(initial_path));
+    auto current_path = recovery_root / (asset_id + "." +
+                                         std::to_string(current.value().generation) + ".ravo.json");
+    ASSERT_TRUE(std::filesystem::is_regular_file(current_path));
+
+    DevelopParams develop;
+    develop.exposure_ev = 0.25;
+    RecipeSaveOptions deferred_options;
+    deferred_options.defer_recovery_publication = true;
+    auto deferred = service->save_develop(asset_id, develop, deferred_options);
+    ASSERT_TRUE(deferred) << deferred.error().message;
+    auto pending = service->recovery_state(asset_id);
+    ASSERT_TRUE(pending) << pending.error().message;
+    EXPECT_TRUE(pending.value().pending());
+    EXPECT_TRUE(std::filesystem::is_regular_file(current_path));
+
+    // Publication and acknowledgement are separate crash-safe steps. An
+    // unrelated asset may advance the global catalog revision between them;
+    // the pending asset generation must remain byte-stable and retryable.
+    ASSERT_NE(sqlite_repository, nullptr);
+    auto pending_snapshot = sqlite_repository->load_recovery_snapshot(asset_id);
+    ASSERT_TRUE(pending_snapshot) << pending_snapshot.error().message;
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database_path);
+    ASSERT_TRUE(recovery) << recovery.error().message;
+    auto published = recovery.value()->publish(pending_snapshot.value(), CancellationToken{});
+    ASSERT_TRUE(published) << published.error().message;
+    const auto other_photo = root / "unrelated-revision.jpg";
+    image.fill(QColor(140, 80, 20));
+    ASSERT_TRUE(image.save(QString::fromStdString(other_photo.string()), "JPEG", 90));
+    auto unrelated = service->import_one(other_photo.string(), CancellationToken{});
+    ASSERT_TRUE(unrelated) << unrelated.error().message;
+    auto retry_snapshot = sqlite_repository->load_recovery_snapshot(asset_id);
+    ASSERT_TRUE(retry_snapshot) << retry_snapshot.error().message;
+    EXPECT_EQ(retry_snapshot.value().state.generation, pending_snapshot.value().state.generation);
+    EXPECT_GT(retry_snapshot.value().catalog_revision, pending_snapshot.value().catalog_revision);
+    auto drained = service->sync_recovery(std::string_view{asset_id});
+    ASSERT_TRUE(drained) << drained.error().message;
+    ASSERT_EQ(drained.value().artifacts.size(), 1U);
+    current = service->recovery_state(asset_id);
+    ASSERT_TRUE(current) << current.error().message;
+    EXPECT_FALSE(current.value().pending());
+    current_path = recovery_root /
+                   (asset_id + "." + std::to_string(current.value().generation) + ".ravo.json");
+    ASSERT_TRUE(std::filesystem::is_regular_file(current_path));
+    EXPECT_EQ(drained.value().artifacts.front().sha256,
+              file_sha256(current_path.string()).toHex().toStdString());
+
+    QFile sidecar(QString::fromStdString(current_path.string()));
+    ASSERT_TRUE(sidecar.open(QIODevice::Append));
+    ASSERT_EQ(sidecar.write("tamper", 6), 6);
+    sidecar.close();
+    auto verified = service->sync_recovery(std::string_view{asset_id});
+    ASSERT_FALSE(verified);
+    EXPECT_EQ(verified.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, PendingRecoveryRetriesAfterRestartWithoutLosingCommittedEdit)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "pending-recovery.jpg";
+    QImage image(20, 20, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 30, 10));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    const auto recovery_root =
+        std::filesystem::path(FilesystemRecoveryStore::default_root_for_catalog(database_path));
+    const auto parked = root / "parked-sidecars";
+    std::filesystem::rename(recovery_root, parked);
+    {
+        std::ofstream blocker(recovery_root, std::ios::binary);
+        ASSERT_TRUE(blocker);
+        blocker << "blocked";
+    }
+    auto rated = service->set_rating(asset_id, 5);
+    ASSERT_FALSE(rated);
+    EXPECT_EQ(rated.error().context.at("catalog_committed"), "true");
+    EXPECT_EQ(rated.error().context.at("recovery_pending"), "true");
+    auto pending = service->recovery_state(asset_id);
+    ASSERT_TRUE(pending) << pending.error().message;
+    EXPECT_TRUE(pending.value().pending());
+
+    service.reset();
+    sqlite_repository = nullptr;
+    std::filesystem::remove(recovery_root);
+    std::filesystem::rename(parked, recovery_root);
+    ASSERT_TRUE(open_service(false));
+    auto resumed = service->recovery_state(asset_id);
+    ASSERT_TRUE(resumed) << resumed.error().message;
+    EXPECT_FALSE(resumed.value().pending());
+    auto reopened = service->list_assets();
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    ASSERT_EQ(reopened.value().size(), 1U);
+    EXPECT_EQ(reopened.value().front().review.rating, 5);
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, CatalogBackupIsImmutableVerifiedAndExcludesPreviewArtifacts)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "backup-source.jpg";
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(14, 70, 120));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    ASSERT_TRUE(service->set_tags(imported.value().asset->id, {"backup", "verified"}));
+
+    const auto destination = root / "catalog-backup";
+    auto backup = service->create_backup(destination.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    EXPECT_EQ(backup.value().sidecar_count, 1U);
+    EXPECT_GT(backup.value().catalog.bytes, 0U);
+    EXPECT_GT(backup.value().sidecar_bytes, 0U);
+    EXPECT_TRUE(std::filesystem::is_regular_file(destination / "catalog.sqlite"));
+    EXPECT_TRUE(std::filesystem::is_regular_file(destination / "manifest.json"));
+    EXPECT_TRUE(std::filesystem::is_directory(destination / "sidecars"));
+    EXPECT_FALSE(std::filesystem::exists(destination / "preview"));
+    EXPECT_FALSE(std::filesystem::exists(destination / "originals"));
+
+    auto verified = service->verify_backup(destination.string());
+    ASSERT_TRUE(verified) << verified.error().message;
+    EXPECT_FALSE(verified.value().originals_included);
+    EXPECT_FALSE(verified.value().previews_included);
+    EXPECT_EQ(verified.value().artifact.catalog.sha256, backup.value().catalog.sha256);
+    const auto manifest_hash = file_sha256((destination / "manifest.json").string());
+    auto conflict = service->create_backup(destination.string());
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(file_sha256((destination / "manifest.json").string()), manifest_hash);
+
+    const auto sidecar = *std::filesystem::directory_iterator(destination / "sidecars");
+    QFile tampered(QString::fromStdString(sidecar.path().string()));
+    ASSERT_TRUE(tampered.open(QIODevice::Append));
+    ASSERT_EQ(tampered.write("x", 1), 1);
+    tampered.close();
+    auto rejected = service->verify_backup(destination.string());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
 }
 
 TEST_F(CatalogServiceTest, SnapshotRevisionObservesWritesFromAnotherConnection)
@@ -4133,6 +4330,10 @@ TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
                            "  recipe_schema_version INTEGER NOT NULL,"
                            "  recipe_json TEXT NOT NULL,"
                            "  updated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE preview (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "contract_version INTEGER NOT NULL, cache_key TEXT NOT NULL, width INTEGER, "
+            "height INTEGER, state TEXT NOT NULL, cache_relpath TEXT, last_success_unix_ms INTEGER)")));
         ASSERT_TRUE(query.exec(
             QStringLiteral("CREATE TABLE asset_tag ("
                            "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
@@ -4142,6 +4343,11 @@ TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
             "title TEXT, description TEXT, creator TEXT, copyright TEXT, camera_make TEXT, "
             "camera_model TEXT, iso REAL, aperture REAL, focal_length_mm REAL, shutter_s REAL, "
             "captured_unix_s INTEGER)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_recipe_history (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE, seq INTEGER NOT NULL, "
+            "kind TEXT NOT NULL, label TEXT, recipe_json TEXT NOT NULL, created_unix_ms INTEGER NOT NULL, "
+            "UNIQUE(asset_id, seq))")));
         ASSERT_TRUE(query.exec(QStringLiteral(
             "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
             "migrated_unix_ms) VALUES (1, 4, 'cat_v4', 3, 1, 1)")));
@@ -4160,7 +4366,7 @@ TEST_F(CatalogServiceTest, MigratesV4CatalogLeavingNewCaptureColumnsNull)
     ASSERT_TRUE(opened) << opened.error().message;
     auto snapshot = service->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    EXPECT_EQ(snapshot.value().schema_version, 5);
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
     auto listed = service->list_assets();
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
@@ -4195,6 +4401,10 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
                            "  recipe_schema_version INTEGER NOT NULL,"
                            "  recipe_json TEXT NOT NULL,"
                            "  updated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE preview (asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
+            "contract_version INTEGER NOT NULL, cache_key TEXT NOT NULL, width INTEGER, "
+            "height INTEGER, state TEXT NOT NULL, cache_relpath TEXT, last_success_unix_ms INTEGER)")));
         ASSERT_TRUE(query.exec(
             QStringLiteral("CREATE TABLE asset_tag ("
                            "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
@@ -4206,6 +4416,11 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
             "captured_unix_s INTEGER, captured_local_exif TEXT, captured_subsecond_digits TEXT, "
             "captured_utc_offset_minutes INTEGER, gps_latitude_e6 INTEGER, gps_longitude_e6 INTEGER, "
             "gps_altitude_mm INTEGER)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_recipe_history (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE, seq INTEGER NOT NULL, "
+            "kind TEXT NOT NULL, label TEXT, recipe_json TEXT NOT NULL, created_unix_ms INTEGER NOT NULL, "
+            "UNIQUE(asset_id, seq))")));
         ASSERT_TRUE(query.exec(QStringLiteral(
             "INSERT INTO schema_info(id, schema_version, catalog_id, revision, created_unix_ms, "
             "migrated_unix_ms) VALUES (1, 5, 'cat_v5_signed', 8, 1, 1)")));
@@ -4227,7 +4442,7 @@ TEST_F(CatalogServiceTest, RepairsPreAdrV5CatalogsThatUsedSignedAltitudeMm)
     ASSERT_TRUE(opened) << opened.error().message;
     auto snapshot = service->snapshot();
     ASSERT_TRUE(snapshot) << snapshot.error().message;
-    EXPECT_EQ(snapshot.value().schema_version, 5);
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
     auto listed = service->list_assets();
     ASSERT_TRUE(listed)
         << listed.error().message << " action="
@@ -4449,6 +4664,103 @@ TEST_F(CatalogServiceTest, EveryV5MigrationPublicationFailureRestoresTheV4Catalo
     }
 }
 
+TEST_F(CatalogServiceTest, V6RecoveryMigrationFailureRollsBackTheV5Catalog)
+{
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    AssetRecord asset;
+    asset.id = "ast_v5_recovery";
+    asset.normalized_uri = "file:///tmp/v5-recovery.png";
+    asset.media_type = "image/png";
+    asset.size_bytes = 12U;
+    asset.mtime_unix_ms = 1;
+    asset.created_unix_ms = 2;
+    ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    ASSERT_TRUE(repository.value()->close());
+    repository.value().reset();
+
+    const auto seed_connection = QStringLiteral("ravo_v6_failure_seed");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), seed_connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND instr(name, 'recovery') > 0")));
+        std::vector<QString> recovery_triggers;
+        while (query.next())
+        {
+            recovery_triggers.push_back(query.value(0).toString());
+        }
+        ASSERT_FALSE(recovery_triggers.empty());
+        for (const auto &trigger : recovery_triggers)
+        {
+            ASSERT_TRUE(query.exec(QStringLiteral("DROP TRIGGER \"%1\"").arg(trigger)))
+                << query.lastError().text().toStdString();
+        }
+        ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE asset_recovery_state")))
+            << query.lastError().text().toStdString();
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "UPDATE schema_info SET schema_version = 5, migrated_unix_ms = 1 WHERE id = 1")))
+            << query.lastError().text().toStdString();
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("CREATE TRIGGER asset_recovery_insert AFTER INSERT ON asset "
+                                      "BEGIN SELECT 1; END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+    }
+    QSqlDatabase::removeDatabase(seed_connection);
+
+    auto failed = SqliteCatalogRepository::open(database_path);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+    EXPECT_EQ(failed.error().context.at("action"), "migrate_v6_recovery_trigger");
+
+    const auto check_connection = QStringLiteral("ravo_v6_failure_check");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), check_connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "SELECT schema_version, revision, migrated_unix_ms FROM schema_info WHERE id = 1")));
+        ASSERT_TRUE(query.next());
+        EXPECT_EQ(query.value(0).toLongLong(), 5);
+        EXPECT_EQ(query.value(1).toLongLong(), 1);
+        EXPECT_EQ(query.value(2).toLongLong(), 1);
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+                                      "AND name = 'asset_recovery_state'")));
+        ASSERT_TRUE(query.next());
+        EXPECT_EQ(query.value(0).toLongLong(), 0);
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' "
+                                      "AND name = 'asset_recovery_insert'")));
+        ASSERT_TRUE(query.next());
+        EXPECT_EQ(query.value(0).toLongLong(), 1);
+        ASSERT_TRUE(query.exec(QStringLiteral("SELECT COUNT(*) FROM asset")));
+        ASSERT_TRUE(query.next());
+        EXPECT_EQ(query.value(0).toLongLong(), 1);
+        ASSERT_TRUE(query.exec(QStringLiteral("DROP TRIGGER asset_recovery_insert")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+    }
+    QSqlDatabase::removeDatabase(check_connection);
+
+    auto reopened = open_service(false);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
+    EXPECT_EQ(snapshot.value().revision, 1);
+    auto recovery = service->recovery_state(asset.id);
+    ASSERT_TRUE(recovery) << recovery.error().message;
+    EXPECT_EQ(recovery.value().generation, 1);
+    EXPECT_EQ(recovery.value().synchronized_generation, 1);
+}
+
 TEST_F(CatalogServiceTest, CaptureRowFailureRollsBackInvisibleAsset)
 {
     auto created = open_service(true);
@@ -4511,22 +4823,27 @@ TEST_F(CatalogServiceTest, RejectsPartialAndOutOfRangePersistedCaptureCoordinate
         QStringLiteral(
             "UPDATE asset_metadata SET gps_latitude_e6 = 1, gps_longitude_e6 = NULL, "
             "gps_altitude_magnitude_mm = NULL, gps_altitude_ref = NULL WHERE asset_id = ?"));
-    ASSERT_TRUE(open_service(false));
+    ASSERT_TRUE(open_service(false, false));
     auto listed = service->list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_location");
-    ASSERT_TRUE(service->close());
+    auto closed = service->close();
+    ASSERT_FALSE(closed);
+    EXPECT_EQ(closed.error().context.at("reason"), "invalid_persisted_capture_location");
     service.reset();
 
     write_capture_sql(
         QStringLiteral("ravo_oversized_capture_state"),
         QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = 9223372036854775807, "
                        "gps_longitude_e6 = 0 WHERE asset_id = ?"));
-    ASSERT_TRUE(open_service(false));
+    ASSERT_TRUE(open_service(false, false));
     listed = service->list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_integer");
     EXPECT_EQ(listed.error().context.at("field"), "gps_latitude_e6");
+    closed = service->close();
+    ASSERT_FALSE(closed);
+    EXPECT_EQ(closed.error().context.at("reason"), "invalid_persisted_capture_integer");
 }
 
 TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
@@ -4590,34 +4907,40 @@ TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
     for (const auto &test_case : wrong_storage)
     {
         write_sql(QString::fromUtf8(test_case.connection), QString::fromUtf8(test_case.statement));
-        ASSERT_TRUE(open_service(false));
+        ASSERT_TRUE(open_service(false, false));
         auto listed = service->list_assets();
         ASSERT_FALSE(listed) << test_case.field;
         EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_storage_class")
             << test_case.field;
         EXPECT_EQ(listed.error().context.at("field"), test_case.field);
-        ASSERT_TRUE(service->close());
+        auto closed = service->close();
+        ASSERT_FALSE(closed);
+        EXPECT_EQ(closed.error().context.at("reason"), "invalid_persisted_capture_storage_class");
         service.reset();
     }
 
     write_sql(QStringLiteral("ravo_real_in_int"),
               QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = 1.5 WHERE asset_id = ?"));
-    ASSERT_TRUE(open_service(false));
+    ASSERT_TRUE(open_service(false, false));
     auto listed = service->list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_storage_class");
-    ASSERT_TRUE(service->close());
+    auto closed = service->close();
+    ASSERT_FALSE(closed);
+    EXPECT_EQ(closed.error().context.at("reason"), "invalid_persisted_capture_storage_class");
     service.reset();
 
     write_sql(QStringLiteral("ravo_partial_datetime"),
               QStringLiteral("UPDATE asset_metadata SET gps_latitude_e6 = NULL, "
                              "gps_longitude_e6 = NULL, captured_local_exif = NULL, "
                              "captured_subsecond_digits = '18' WHERE asset_id = ?"));
-    ASSERT_TRUE(open_service(false));
+    ASSERT_TRUE(open_service(false, false));
     listed = service->list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_datetime");
-    ASSERT_TRUE(service->close());
+    closed = service->close();
+    ASSERT_FALSE(closed);
+    EXPECT_EQ(closed.error().context.at("reason"), "invalid_persisted_capture_datetime");
     service.reset();
 
     write_sql(QStringLiteral("ravo_partial_altitude"),
@@ -4625,7 +4948,7 @@ TEST_F(CatalogServiceTest, RejectsWrongStorageClassesAndPartialDatetimeAltitude)
                              "gps_latitude_e6 = 1, gps_longitude_e6 = 2, "
                              "gps_altitude_magnitude_mm = 0, gps_altitude_ref = NULL "
                              "WHERE asset_id = ?"));
-    ASSERT_TRUE(open_service(false));
+    ASSERT_TRUE(open_service(false, false));
     listed = service->list_assets();
     ASSERT_FALSE(listed);
     EXPECT_EQ(listed.error().context.at("reason"), "invalid_persisted_capture_altitude");
@@ -5370,8 +5693,11 @@ TEST(PresetPerformanceProbe, AppliesCrsToWarmRawPreviewWithinRequestedBudget)
     const auto cache_root = make_temp_root();
     auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create((cache_root / "recovery").string());
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService measured(created_engine.value(), std::move(repository).value(),
-                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::move(recovery).value());
 
     auto baseline_recipe = measured.load_baseline_recipe(asset_id);
     ASSERT_TRUE(baseline_recipe) << baseline_recipe.error().message;
@@ -5459,8 +5785,11 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
     const auto cache_root = make_temp_root();
     auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create((cache_root / "recovery").string());
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService measured(created_engine.value(), std::move(repository).value(),
-                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::move(recovery).value());
 
     auto recipe = measured.load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
@@ -5574,8 +5903,11 @@ TEST(PerspectiveInteractivePerformanceProbe, MeasuresWarmManualTransformWithoutC
     const auto cache_root = make_temp_root();
     auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create((cache_root / "recovery").string());
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService measured(created_engine.value(), std::move(repository).value(),
-                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::move(recovery).value());
 
     auto recipe = measured.load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
@@ -5668,8 +6000,11 @@ TEST(InteractivePreviewQualityProbe, ComparesInteractiveEdgesWithSettledDisplayP
     const auto cache_root = make_temp_root();
     auto cache = FilesystemPreviewCache::create((cache_root / "preview").string());
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create((cache_root / "recovery").string());
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService measured(created_engine.value(), std::move(repository).value(),
-                            std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::move(recovery).value());
     auto recipe = measured.load_recipe(asset_id);
     ASSERT_TRUE(recipe) << recipe.error().message;
     auto develop = develop_from_recipe(recipe.value());

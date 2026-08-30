@@ -26,6 +26,7 @@
 #endif
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/camera_noise_profile.h"
 #include "ravo/adapters/crs_xmp.h"
 #include "ravo/adapters/legacy_xmp.h"
@@ -253,6 +254,7 @@ struct CatalogCliArguments
     std::string_view creator;
     std::string_view copyright;
     std::string_view label;
+    std::string_view backup;
     std::optional<std::int64_t> history_id;
 };
 
@@ -582,8 +584,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             const auto split = owned.find('=');
             if (split == std::string::npos || split == 0U)
             {
-                return make_error(ErrorCode::kInvalidArgument,
-                                  "--set-text requires name=value", {{"value", owned}});
+                return make_error(ErrorCode::kInvalidArgument, "--set-text requires name=value",
+                                  {{"value", owned}});
             }
             result.develop_text_sets.emplace_back(owned.substr(0U, split),
                                                   owned.substr(split + 1U));
@@ -727,6 +729,14 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return parsed.error();
             }
             result.history_id = parsed.value();
+        }
+        else if (option == "--backup")
+        {
+            if (!result.backup.empty())
+            {
+                return make_error(ErrorCode::kInvalidArgument, "Backup path was specified twice");
+            }
+            result.backup = value;
         }
         else
         {
@@ -1092,9 +1102,20 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     {
         return cache.error();
     }
-    return std::make_unique<CatalogService>(engine, std::move(repository).value(),
-                                            std::make_unique<QtRasterDecoder>(),
-                                            std::move(cache).value());
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(path);
+    if (!recovery)
+    {
+        return recovery.error();
+    }
+    auto service = std::make_unique<CatalogService>(
+        engine, std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
+        std::move(cache).value(), std::move(recovery).value());
+    auto resumed = service->sync_recovery(std::nullopt);
+    if (!resumed)
+    {
+        return resumed.error();
+    }
+    return service;
 }
 
 [[nodiscard]] JsonValue optional_string_json(const std::optional<std::string> &value)
@@ -1175,6 +1196,52 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"rejected", asset.review.rejected},
         {"tags", std::move(tags)},
         {"uri", asset.normalized_uri},
+    };
+}
+
+[[nodiscard]] JsonValue recovery_state_to_json(const AssetRecoveryState &state)
+{
+    return JsonValue::Object{
+        {"asset_id", state.asset_id},
+        {"generation", JsonValue::number(std::to_string(state.generation))},
+        {"pending", state.pending()},
+        {"synchronized_generation",
+         JsonValue::number(std::to_string(state.synchronized_generation))},
+    };
+}
+
+[[nodiscard]] JsonValue recovery_artifact_to_json(const RecoveryArtifact &artifact)
+{
+    return JsonValue::Object{
+        {"asset_id", artifact.asset_id},
+        {"bytes", JsonValue::number(std::to_string(artifact.bytes))},
+        {"generation", JsonValue::number(std::to_string(artifact.generation))},
+        {"path", artifact.path},
+        {"sha256", artifact.sha256},
+    };
+}
+
+[[nodiscard]] JsonValue backup_artifact_to_json(const CatalogBackupArtifact &artifact,
+                                                const bool verified)
+{
+    return JsonValue::Object{
+        {"catalog",
+         JsonValue::Object{
+             {"bytes", JsonValue::number(std::to_string(artifact.catalog.bytes))},
+             {"catalog_id", artifact.catalog.catalog_id},
+             {"path", artifact.catalog.path},
+             {"revision", JsonValue::number(std::to_string(artifact.catalog.revision))},
+             {"schema_version", JsonValue::number(std::to_string(artifact.catalog.schema_version))},
+             {"sha256", artifact.catalog.sha256},
+         }},
+        {"created_unix_ms", JsonValue::number(std::to_string(artifact.created_unix_ms))},
+        {"excludes", JsonValue::Array{JsonValue{"originals"}, JsonValue{"previews"}}},
+        {"format_version", JsonValue::number(std::to_string(kCatalogBackupFormatVersion))},
+        {"manifest", artifact.manifest_path},
+        {"path", artifact.path},
+        {"sidecar_bytes", JsonValue::number(std::to_string(artifact.sidecar_bytes))},
+        {"sidecar_count", JsonValue::number(std::to_string(artifact.sidecar_count))},
+        {"verified", verified},
     };
 }
 
@@ -1305,8 +1372,8 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
     }};
 }
 
-[[nodiscard]] Result<PerspectiveAnalysisMode> perspective_analysis_mode(
-    const std::string_view value)
+[[nodiscard]] Result<PerspectiveAnalysisMode>
+perspective_analysis_mode(const std::string_view value)
 {
     if (value == "vertical")
         return PerspectiveAnalysisMode::kVertical;
@@ -1369,9 +1436,9 @@ run_perspective_analysis(const EngineFacade &engine,
                               "Perspective input dimensions are unavailable",
                               {{"reason", "invalid_dimensions"}});
         const double scale = std::min(
-            1.0, static_cast<double>(kAnalysisRenderMaxEdge) /
-                     static_cast<double>(
-                         std::max(inspection.value().width, inspection.value().height)));
+            1.0,
+            static_cast<double>(kAnalysisRenderMaxEdge) /
+                static_cast<double>(std::max(inspection.value().width, inspection.value().height)));
         const auto width = std::max<std::uint32_t>(
             16U, static_cast<std::uint32_t>(std::lround(inspection.value().width * scale)));
         const auto height = std::max<std::uint32_t>(
@@ -1413,9 +1480,9 @@ run_perspective_analysis(const EngineFacade &engine,
     for (const auto &line : analysis.value().lines)
     {
         lines.emplace_back(JsonValue::Object{
-            {"orientation",
-             line.orientation == PerspectiveGuideOrientation::kVertical ? "vertical" :
-                                                                          "horizontal"},
+            {"orientation", line.orientation == PerspectiveGuideOrientation::kVertical ?
+                                "vertical" :
+                                "horizontal"},
             {"weight", JsonValue::number(std::to_string(line.weight))},
             {"x1", JsonValue::number(std::to_string(line.x1 / normalized_width))},
             {"x2", JsonValue::number(std::to_string(line.x2 / normalized_width))},
@@ -1453,8 +1520,7 @@ run_perspective_analysis(const EngineFacade &engine,
     return JsonValue::Object{
         {"fit_policy", std::string(kCameraNoiseFitPolicy)},
         {"gaussian_variance", JsonValue::number(std::to_string(profile.fit.gaussian_variance))},
-        {"input_sample_count",
-         JsonValue::number(std::to_string(profile.fit.input_sample_count))},
+        {"input_sample_count", JsonValue::number(std::to_string(profile.fit.input_sample_count))},
         {"iso", JsonValue::number(std::to_string(profile.identity.iso))},
         {"make", profile.identity.make},
         {"model", profile.identity.model},
@@ -1467,8 +1533,7 @@ run_perspective_analysis(const EngineFacade &engine,
         {"source_samples_sha256", profile.source_samples_sha256},
         {"units", std::string(kCameraNoiseSignalUnits)},
         {"version", JsonValue::number(std::to_string(kCameraNoiseProfileSchemaVersion))},
-        {"weighted_r_squared",
-         JsonValue::number(std::to_string(profile.fit.weighted_r_squared))},
+        {"weighted_r_squared", JsonValue::number(std::to_string(profile.fit.weighted_r_squared))},
         {"weighted_rmse", JsonValue::number(std::to_string(profile.fit.weighted_rmse))},
     };
 }
@@ -1486,8 +1551,7 @@ run_noise_command(const std::span<const std::string_view> positional)
             return profile.error();
         return camera_noise_profile_json(profile.value(), positional[2]);
     }
-    if (positional.size() != 5U || positional[1] != "calibrate" ||
-        positional[3] != "--output")
+    if (positional.size() != 5U || positional[1] != "calibrate" || positional[3] != "--output")
         return make_error(ErrorCode::kInvalidArgument,
                           "Usage: ravo noise <calibrate <samples.json> --output <profile.json>|"
                           "inspect <profile.json>>");
@@ -1504,8 +1568,8 @@ run_noise_command(const std::span<const std::string_view> positional)
     auto source_sha = camera_noise_calibration_sha256(document.value());
     if (!source_sha)
         return source_sha.error();
-    auto serialized = serialize_camera_noise_profile_json(
-        document.value().identity, fit.value(), source_sha.value());
+    auto serialized = serialize_camera_noise_profile_json(document.value().identity, fit.value(),
+                                                          source_sha.value());
     if (!serialized)
         return serialized.error();
     auto published = publish_text_artifact_no_replace(positional[4], serialized.value());
@@ -2156,8 +2220,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(
             ErrorCode::kInvalidArgument,
             "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|fields|rate|"
-            "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore> "
-            "--catalog <path>");
+            "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
+            "sidecar-status|sidecar-sync|backup|backup-verify> "
+            "--catalog <path>; backup-verify uses only --backup <directory>");
     }
     const auto subcommand = positional[1];
     auto flags = parse_catalog_flags(positional);
@@ -2168,11 +2233,6 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (subcommand == "fields")
     {
         return develop_fields_json();
-    }
-    if (flags.value().catalog.empty())
-    {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Catalog commands require --catalog or --path");
     }
     if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe")
     {
@@ -2185,6 +2245,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "--baseline is only valid for catalog probe");
     }
+    if (!flags.value().backup.empty() && subcommand != "backup" && subcommand != "backup-verify")
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--backup is only valid for catalog backup or backup-verify");
+    }
     if (!flags.value().from_xmp.empty() && subcommand != "develop")
     {
         return make_error(ErrorCode::kInvalidArgument,
@@ -2194,6 +2259,43 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (!scoped)
     {
         return scoped.error();
+    }
+
+    if (subcommand == "backup-verify")
+    {
+        if (!flags.value().catalog.empty())
+        {
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "catalog backup-verify is self-contained and does not accept --catalog or --path");
+        }
+        if (flags.value().backup.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog backup-verify requires --backup <directory>");
+        }
+        const auto sidecar_root = filesystem_path_from_utf8(flags.value().backup) /
+                                  filesystem_path_from_utf8(kCatalogBackupSidecarDirectory);
+        auto recovery =
+            FilesystemRecoveryStore::open_existing(filesystem_path_to_utf8(sidecar_root));
+        if (!recovery)
+        {
+            return recovery.error();
+        }
+        const SqliteCatalogBackupVerifier database_verifier;
+        auto verified = verify_catalog_backup(database_verifier, *recovery.value(),
+                                              flags.value().backup, CancellationToken{});
+        if (!verified)
+        {
+            return verified.error();
+        }
+        return backup_artifact_to_json(verified.value().artifact, true);
+    }
+
+    if (flags.value().catalog.empty())
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Catalog commands require --catalog or --path");
     }
 
     if (subcommand == "create")
@@ -2222,6 +2324,77 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     }
     auto &service = *session.value();
 
+    if (subcommand == "sidecar-status")
+    {
+        JsonValue::Array states;
+        std::size_t pending_count = 0U;
+        if (!flags.value().asset_id.empty())
+        {
+            auto state = service.recovery_state(flags.value().asset_id);
+            if (!state)
+            {
+                return state.error();
+            }
+            pending_count = state.value().pending() ? 1U : 0U;
+            states.push_back(recovery_state_to_json(state.value()));
+        }
+        else
+        {
+            auto pending = service.pending_recovery();
+            if (!pending)
+            {
+                return pending.error();
+            }
+            for (const auto &state : pending.value())
+            {
+                states.push_back(recovery_state_to_json(state));
+            }
+            pending_count = states.size();
+        }
+        return JsonValue{JsonValue::Object{
+            {"pending", JsonValue::number(std::to_string(pending_count))},
+            {"states", std::move(states)},
+        }};
+    }
+    if (subcommand == "sidecar-sync")
+    {
+        const std::optional<std::string_view> asset_id =
+            flags.value().asset_id.empty() ?
+                std::nullopt :
+                std::optional<std::string_view>{flags.value().asset_id};
+        auto synchronized = service.sync_recovery(asset_id, CancellationToken{});
+        if (!synchronized)
+        {
+            return synchronized.error();
+        }
+        JsonValue::Array artifacts;
+        for (const auto &artifact : synchronized.value().artifacts)
+        {
+            artifacts.push_back(recovery_artifact_to_json(artifact));
+        }
+        return JsonValue{JsonValue::Object{
+            {"artifacts", std::move(artifacts)},
+            {"pending_after",
+             JsonValue::number(std::to_string(synchronized.value().pending_after))},
+            {"pending_before",
+             JsonValue::number(std::to_string(synchronized.value().pending_before))},
+            {"root", synchronized.value().root},
+        }};
+    }
+    if (subcommand == "backup")
+    {
+        if (flags.value().backup.empty())
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog backup requires --backup <absent-directory>");
+        }
+        auto backup = service.create_backup(flags.value().backup, CancellationToken{});
+        if (!backup)
+        {
+            return backup.error();
+        }
+        return backup_artifact_to_json(backup.value(), true);
+    }
     if (subcommand == "import")
     {
         if (flags.value().inputs.empty())
@@ -2949,9 +3122,9 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
     if (positional.front() == "lut")
     {
         if (positional.size() != 3U || positional[1] != "inspect")
-            return emit(make_error(ErrorCode::kInvalidArgument,
-                                   "Usage: ravo lut inspect <file.cube>"),
-                        json);
+            return emit(
+                make_error(ErrorCode::kInvalidArgument, "Usage: ravo lut inspect <file.cube>"),
+                json);
         auto inspected = engine_.inspect_lut3d(positional[2], CancellationToken{});
         if (!inspected)
             return emit(inspected.error(), json);
@@ -3179,21 +3352,17 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
                          JsonValue::number(std::to_string(inspected.value().cfa_width)));
             data.emplace("cfa_height",
                          JsonValue::number(std::to_string(inspected.value().cfa_height)));
-            data.emplace("default_demosaic_mode",
-                         inspected.value().default_demosaic_mode);
+            data.emplace("default_demosaic_mode", inspected.value().default_demosaic_mode);
             data.emplace("as_shot_white_balance", coeffs(inspected.value().as_shot_white_balance));
             data.emplace("has_camera_reference_white_balance",
                          inspected.value().has_camera_reference_white_balance);
             data.emplace("camera_reference_white_balance",
                          coeffs(inspected.value().camera_reference_white_balance));
-            data.emplace("dng_opcode_list2_present",
-                         inspected.value().dng_opcode_list2_present);
-            data.emplace("dng_opcode_list3_present",
-                         inspected.value().dng_opcode_list3_present);
+            data.emplace("dng_opcode_list2_present", inspected.value().dng_opcode_list2_present);
+            data.emplace("dng_opcode_list3_present", inspected.value().dng_opcode_list3_present);
             data.emplace("dng_gain_map_count",
                          JsonValue::number(std::to_string(inspected.value().dng_gain_map_count)));
-            data.emplace("dng_has_warp_rectilinear",
-                         inspected.value().dng_has_warp_rectilinear);
+            data.emplace("dng_has_warp_rectilinear", inspected.value().dng_has_warp_rectilinear);
             data.emplace("dng_has_fix_vignette_radial",
                          inspected.value().dng_has_fix_vignette_radial);
             const auto opcode_ids = [](const std::vector<std::uint32_t> &values)

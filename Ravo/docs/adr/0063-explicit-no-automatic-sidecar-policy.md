@@ -1,8 +1,10 @@
 # ADR-0063: Catalog editing never automatically reads or writes sidecars
 
-- Status: Accepted
+- Status: Partially superseded by ADR-0097
 - Date: 2026-08-29
 - Extends: [ADR-0009](0009-p1-develop-recipe.md)
+- Partially superseded by:
+  [ADR-0097](0097-catalog-recovery-sidecars-and-verifiable-backups.md)
 
 ## Context
 

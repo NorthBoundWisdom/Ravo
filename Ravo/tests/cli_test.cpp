@@ -13,11 +13,14 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 #include <QByteArray>
+#include <QColor>
 #include <QCoreApplication>
+#include <QImage>
 #include <QProcess>
 #include <QXmlStreamReader>
 #include <gtest/gtest.h>
@@ -770,6 +773,75 @@ TEST_F(CliTest, RealCliJsonStdoutContainsOnlyTheProtocolEnvelope)
     ASSERT_NE(ok->boolean_if(), nullptr);
     EXPECT_TRUE(*ok->boolean_if());
     EXPECT_TRUE(stderr_bytes.isEmpty()) << stderr_bytes.constData();
+}
+
+TEST_F(CliTest, RealCliImportDoesNotLeakOptionalXmpDiagnosticsToStderr)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-xmp-log-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto source = root / "with-xmp.jpg";
+    QImage image(8, 6, QImage::Format_RGB888);
+    image.fill(QColor(40, 80, 120));
+    ASSERT_TRUE(image.save(QString::fromStdString(source.string()), "JPEG", 90));
+
+    std::ifstream input(source, std::ios::binary);
+    ASSERT_TRUE(input);
+    std::vector<std::uint8_t> jpeg{std::istreambuf_iterator<char>(input),
+                                   std::istreambuf_iterator<char>()};
+    ASSERT_GE(jpeg.size(), 2U);
+    ASSERT_EQ(jpeg[0], 0xffU);
+    ASSERT_EQ(jpeg[1], 0xd8U);
+    std::string xmp = "http://ns.adobe.com/xap/1.0/";
+    xmp.push_back('\0');
+    xmp += R"(<?xpacket begin=""?><x:xmpmeta xmlns:x="adobe:ns:meta/"/><?xpacket end="w"?>)";
+    ASSERT_LT(xmp.size() + 2U, 65536U);
+    const auto segment_size = static_cast<std::uint16_t>(xmp.size() + 2U);
+    std::vector<std::uint8_t> with_xmp;
+    with_xmp.reserve(jpeg.size() + xmp.size() + 4U);
+    with_xmp.insert(with_xmp.end(), jpeg.begin(), jpeg.begin() + 2);
+    with_xmp.push_back(0xffU);
+    with_xmp.push_back(0xe1U);
+    with_xmp.push_back(static_cast<std::uint8_t>(segment_size >> 8U));
+    with_xmp.push_back(static_cast<std::uint8_t>(segment_size));
+    with_xmp.insert(with_xmp.end(), xmp.begin(), xmp.end());
+    with_xmp.insert(with_xmp.end(), jpeg.begin() + 2, jpeg.end());
+    std::ofstream output(source, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(output);
+    output.write(reinterpret_cast<const char *>(with_xmp.data()),
+                 static_cast<std::streamsize>(with_xmp.size()));
+    output.close();
+    ASSERT_TRUE(output);
+
+    const auto run = [](const QStringList &arguments)
+    {
+        QProcess process;
+        process.start(QStringLiteral(RAVO_CLI_EXECUTABLE), arguments);
+        EXPECT_TRUE(process.waitForStarted());
+        EXPECT_TRUE(process.waitForFinished());
+        return std::tuple{process.exitCode(), process.readAllStandardOutput(),
+                          process.readAllStandardError()};
+    };
+    const QString catalog = QString::fromStdString((root / "library.sqlite").string());
+    const auto [create_code, create_stdout, create_stderr] =
+        run({QStringLiteral("catalog"), QStringLiteral("create"), QStringLiteral("--path"), catalog,
+             QStringLiteral("--json")});
+    ASSERT_EQ(create_code, 0) << create_stdout.constData();
+    EXPECT_TRUE(create_stderr.isEmpty()) << create_stderr.constData();
+    const auto [import_code, import_stdout, import_stderr] =
+        run({QStringLiteral("catalog"), QStringLiteral("import"), QStringLiteral("--catalog"),
+             catalog, QStringLiteral("--input"), QString::fromStdString(source.string()),
+             QStringLiteral("--json")});
+    ASSERT_EQ(import_code, 0) << import_stdout.constData();
+    EXPECT_TRUE(import_stderr.isEmpty()) << import_stderr.constData();
+    auto imported = parse_json(import_stdout.toStdString());
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_NE(imported.value().find("ok"), nullptr);
+    ASSERT_NE(imported.value().find("ok")->boolean_if(), nullptr);
+    EXPECT_TRUE(*imported.value().find("ok")->boolean_if());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
 }
 
 TEST_F(CliTest, OperationsJsonContainsTheReservedDescriptors)
@@ -3423,6 +3495,105 @@ TEST_F(CliTest, CatalogCreateImportListPreviewAndDevelop)
     ASSERT_NE(code, nullptr);
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "conflict");
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogSidecarAndBackupCommandsExposeVersionedJsonArtifacts)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-backup-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                         "0000-nop" / "expected.png";
+    const auto source = root / "source.png";
+    std::filesystem::copy_file(fixture, source);
+    const auto source_before = source_file_snapshot(source.string());
+    ASSERT_TRUE(source_before);
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "create", "--catalog",
+                                                            catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", source.string(), "--json"}),
+              0)
+        << stdout_stream.str();
+    auto imported = parse_json(stdout_stream.str());
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto *items = imported.value().find("data")->find("items")->array_if();
+    ASSERT_NE(items, nullptr);
+    ASSERT_EQ(items->size(), 1U);
+    const auto *id_value = items->front().find("asset")->find("id")->string_if();
+    ASSERT_NE(id_value, nullptr);
+    const std::string asset_id = *id_value;
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(
+        application.run(std::vector<std::string_view>{"catalog", "sidecar-status", "--catalog",
+                                                      catalog, "--asset-id", asset_id, "--json"}),
+        0)
+        << stdout_stream.str();
+    auto status = parse_json(stdout_stream.str());
+    ASSERT_TRUE(status) << status.error().message;
+    const auto *pending = status.value().find("data")->find("pending")->number_if();
+    ASSERT_NE(pending, nullptr);
+    EXPECT_EQ(pending->text, "0");
+    const auto *states = status.value().find("data")->find("states")->array_if();
+    ASSERT_NE(states, nullptr);
+    ASSERT_EQ(states->size(), 1U);
+    ASSERT_NE(states->front().find("pending")->boolean_if(), nullptr);
+    EXPECT_FALSE(*states->front().find("pending")->boolean_if());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(
+        application.run(std::vector<std::string_view>{"catalog", "sidecar-sync", "--catalog",
+                                                      catalog, "--asset-id", asset_id, "--json"}),
+        0)
+        << stdout_stream.str();
+    auto synchronized = parse_json(stdout_stream.str());
+    ASSERT_TRUE(synchronized) << synchronized.error().message;
+    const auto *artifacts = synchronized.value().find("data")->find("artifacts")->array_if();
+    ASSERT_NE(artifacts, nullptr);
+    ASSERT_EQ(artifacts->size(), 1U);
+    const auto *sidecar_sha = artifacts->front().find("sha256")->string_if();
+    ASSERT_NE(sidecar_sha, nullptr);
+    EXPECT_EQ(sidecar_sha->size(), 64U);
+
+    const auto backup = (root / "backup").string();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "backup", "--catalog",
+                                                            catalog, "--backup", backup, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto created = parse_json(stdout_stream.str());
+    ASSERT_TRUE(created) << created.error().message;
+    const auto *format = created.value().find("data")->find("format_version")->number_if();
+    ASSERT_NE(format, nullptr);
+    EXPECT_EQ(format->text, std::to_string(kCatalogBackupFormatVersion));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "backup-verify", "--backup",
+                                                            backup, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto verified = parse_json(stdout_stream.str());
+    ASSERT_TRUE(verified) << verified.error().message;
+    ASSERT_NE(verified.value().find("data")->find("verified")->boolean_if(), nullptr);
+    EXPECT_TRUE(*verified.value().find("data")->find("verified")->boolean_if());
+    EXPECT_EQ(source_file_snapshot(source.string()), source_before);
+    EXPECT_TRUE(stderr_stream.str().empty());
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

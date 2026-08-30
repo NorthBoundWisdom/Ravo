@@ -14,13 +14,14 @@ ravo CLI ───────────────┐
                  Application Services ◀────────── Ravo Studio
                  │ create/open                    │ Gallery
                  │ import/list                    │ viewer
-                 │ request/cancel preview         │ visible errors
+                 │ recovery/backup                │ visible errors
+                 │ request/cancel preview
                  ├───────────────┐
                  ▼               ▼
            Catalog Domain     Ravo Engine Facade
                  ▲               ▲
                  │ implements    │ implements
-          SQLite/FS Adapter   RAW/Raster/Cache Adapters
+       SQLite/Recovery/FS     RAW/Raster/Cache Adapters
 
 Frozen 0.9 legacy/src/ ──read-only source and fixture evidence──▶ Ravo tests
 Frozen 0.9 legacy/src/ ╳────────────────────────────────────────▶ Ravo production
@@ -225,8 +226,11 @@ EXIF plus catalog-only writable fields), and `asset_recipe_history`
 (`captured_local_exif`, `captured_subsecond_digits`,
 `captured_utc_offset_minutes`, `gps_latitude_e6`, `gps_longitude_e6`,
 `gps_altitude_magnitude_mm`, `gps_altitude_ref`). The SQLite adapter enables
-WAL, `synchronous=NORMAL`, and `busy_timeout`. New catalogs and migrations use
-transactions, and an unknown higher schema version fails fast.
+WAL, `synchronous=NORMAL`, and `busy_timeout`. Schema v6 adds one
+`asset_recovery_state` row per asset. Database triggers advance its generation
+with every durable asset, recipe, tag, metadata, or history write but not with
+preview/cache state. New catalogs and migrations use transactions, and an
+unknown higher schema version fails fast.
 
 The repository adapter atomically publishes the current recipe row (or baseline
 clearing), optional deletion of history rows newer than a cursor, automatic
@@ -241,6 +245,38 @@ services neither compensate writes nor expose a partially committed recipe.
 The first version does not read or migrate a frozen 0.9 catalog. Future
 compatibility requires an independent product decision, backup/rollback, and
 fixtures.
+
+### Catalog recovery and backup
+
+SQLite is the only live edit authority. After a durable mutation commits,
+CatalogService serializes its exact recovery generation to
+`<catalog>.ravo/sidecars/<asset-id>.<generation>.ravo.json`. The bounded
+canonical document records catalog/source identity, source fingerprint,
+review and capture state, tags, writable metadata, canonical recipe, and
+ordered history under a SHA-256 envelope. Originals and existing adjacent XMP
+are never read or written by this owner. Filesystem success acknowledges only
+the serialized generation; an intervening generation stays pending, while an
+I/O failure reports the committed catalog fact and leaves a restart-safe retry.
+Older generation files are deleted only after exact acknowledgement.
+
+Open, explicit sync, clean close, and backup drain pending generations through
+the serial CatalogService owner. Studio's coalesced Develop save advances the
+database generation, queues the new preview result for the UI, then drains the
+generation on the same serial worker. Sidecar work therefore stays out of the
+adjustment-to-preview path without remaining deferred for the lifetime of the
+window. Other catalog mutations publish before return. The global catalog
+revision in a sidecar is an observation; unrelated asset commits may change it
+between publication and acknowledgement, so the asset ID, generation, and
+payload excluding that observation define immutable generation content.
+
+A v1 backup is an absent directory containing only `catalog.sqlite`,
+`manifest.json`, and `sidecars/`. Creation drains recovery, integrity-checks the
+source, snapshots with SQLite `VACUUM INTO`, removes preview rows from the
+copy, copies the exact generation set, rejects concurrent source changes,
+verifies hashes/layout/SQLite integrity, and publishes the staged directory
+atomically without replacement. The manifest explicitly excludes originals
+and previews. Verification never opens the artifact as the live catalog.
+Restore is not yet an accepted product surface (ADR-0097).
 
 ### Import
 

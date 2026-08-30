@@ -4,6 +4,7 @@ target_sources(ravo_services
   PRIVATE
     src/atomic_publication_internal.cpp
     src/artifact_publication.cpp
+    src/catalog_backup.cpp
     src/catalog_internal.cpp
     src/encoded_publication.cpp
     src/original_copy.cpp

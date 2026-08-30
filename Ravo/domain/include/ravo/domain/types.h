@@ -16,7 +16,15 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 5;
+inline constexpr std::int64_t kCatalogSchemaVersion = 6;
+inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
+inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
+inline constexpr std::uintmax_t kRecoverySidecarMaximumBytes = 16U * 1024U * 1024U;
+inline constexpr std::size_t kRecoveryHistoryMaximumEntries = 10'000U;
+inline constexpr std::uintmax_t kCatalogBackupManifestMaximumBytes = 64U * 1024U * 1024U;
+inline constexpr std::string_view kCatalogBackupCatalogFilename = "catalog.sqlite";
+inline constexpr std::string_view kCatalogBackupManifestFilename = "manifest.json";
+inline constexpr std::string_view kCatalogBackupSidecarDirectory = "sidecars";
 inline constexpr std::string_view kRecipeHistoryKindHistory = "history";
 inline constexpr std::string_view kRecipeHistoryKindSnapshot = "snapshot";
 
@@ -438,6 +446,78 @@ struct AssetRecord
     std::vector<std::string> tags;
     CaptureMetadata capture;
     WritableMetadata metadata;
+};
+
+// The catalog transaction owns generation. Filesystem publication acknowledges
+// only the exact generation it serialized, so a concurrent newer commit remains
+// pending instead of being hidden by a stale sidecar write.
+struct AssetRecoveryState
+{
+    std::string asset_id;
+    std::int64_t generation = 0;
+    std::int64_t synchronized_generation = 0;
+
+    [[nodiscard]] bool pending() const noexcept
+    {
+        return generation > synchronized_generation;
+    }
+
+    [[nodiscard]] bool operator==(const AssetRecoveryState &) const noexcept = default;
+};
+
+struct AssetRecoverySnapshot
+{
+    std::string catalog_id;
+    std::int64_t catalog_revision = 0;
+    AssetRecoveryState state;
+    AssetRecord asset;
+    std::optional<std::string> recipe_json;
+    std::vector<RecipeHistoryEntry> history;
+};
+
+struct RecoveryArtifact
+{
+    std::string asset_id;
+    std::int64_t generation = 0;
+    std::string path;
+    std::string sha256;
+    std::uint64_t bytes = 0;
+};
+
+struct RecoverySyncResult
+{
+    std::string root;
+    std::vector<RecoveryArtifact> artifacts;
+    std::size_t pending_before = 0;
+    std::size_t pending_after = 0;
+};
+
+struct CatalogDatabaseArtifact
+{
+    std::string path;
+    std::string catalog_id;
+    std::int64_t schema_version = 0;
+    std::int64_t revision = 0;
+    std::string sha256;
+    std::uint64_t bytes = 0;
+    std::vector<AssetRecoveryState> recovery_states;
+};
+
+struct CatalogBackupArtifact
+{
+    std::string path;
+    std::string manifest_path;
+    CatalogDatabaseArtifact catalog;
+    std::int64_t created_unix_ms = 0;
+    std::size_t sidecar_count = 0;
+    std::uint64_t sidecar_bytes = 0;
+};
+
+struct CatalogBackupVerification
+{
+    CatalogBackupArtifact artifact;
+    bool originals_included = false;
+    bool previews_included = false;
 };
 
 struct PreviewRecord

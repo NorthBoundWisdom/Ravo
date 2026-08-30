@@ -69,16 +69,20 @@ frozen IOP is retired.
 - Bounded Catalog-owned embedded JPEG/PNG/TIFF metadata is accepted under
   [ADR-0038](../Ravo/docs/adr/0038-embedded-export-metadata.md) and
   [ADR-0040](../Ravo/docs/adr/0040-capture-time-gps-metadata.md).
-  ADR-0063/0064 accept no automatic sidecars, atomic metadata refresh, and
-  full/no-location/none privacy. PNG pHYs, TIFF multipage masks, and shared old
-  format/job retirement remain under their specific owners.
+  ADR-0063/0064 accept no adjacent interchange sidecars, atomic metadata
+  refresh, and full/no-location/none privacy. ADR-0097 adds catalog-owned
+  recovery mirrors and verified catalog backups without changing original/XMP
+  ownership. PNG pHYs, TIFF multipage masks, and shared old format/job
+  retirement remain under their specific owners.
 
 ## Catalog and source-file lifecycle
 
-- Legacy catalog migration, managed copy, move/relink, backup/restore and
-  sidecar writeback.
-- Require a backup/rollback contract and explicit original-file mutation policy
-  before schema or UI work begins.
+- Legacy catalog migration, managed copy, move/relink, catalog restore,
+  scheduled retention, and interoperable adjacent-sidecar writeback.
+- ADR-0097 accepts backup creation/verification and catalog-owned recovery
+  mirrors. Restore still requires an absent-destination publication/rollback
+  contract; managed-media work additionally requires explicit original-file
+  mutation and cross-volume cancellation policy before schema or UI work.
 
 ## Extended library workflows
 

@@ -30,7 +30,7 @@ admit a new dependency.
 
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
 integration, including first-frame Bayer RAW/DNG errors and preview-cache miss
-rebuild. Review contracts include schema v2→v5 migration, review
+rebuild. Review contracts include schema v2→v6 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
 canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
 CPU Develop operations, edited previews, and
@@ -40,7 +40,11 @@ restore, history preview without appending, and atomic discard of newer history
 steps. Schema v5 adds capture local time/offset and GPS magnitude/reference
 columns with strict migration, import-transaction, storage-decoding, and reopen
 contracts. Opening a v5 file that still has signed `gps_altitude_mm` repairs
-the ADR-0040 magnitude/ref columns in place. LibraryQuery tests cover every
+the ADR-0040 magnitude/ref columns in place. Schema v6 adds transactional
+per-asset recovery generations, exact acknowledgement, post-preview Studio
+Develop publication, restart retry, tamper rejection, and catalog backup/
+verification with strict layout, hashes, integrity, destination conflicts, and
+preview/original exclusion. LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
 text/range state, deterministic capture/file-size sorting, Catalog validation
@@ -963,7 +967,8 @@ gated (ADR-0096).
   `2007:09:11 13:53:33.18` without inventing an offset or GPS, and independently
   exercise unsigned-rational bounds and ties, tag precedence/conflicts, hostile
   PNG chunks, and bounded errors. Catalog tests cover schema v5 additive
-  columns, v4-row NULL preservation, every injected v5 migration stage, atomic
+  columns, v4-row NULL preservation, every injected v5 migration stage, v5→v6
+  recovery-state migration, atomic
   import rollback, strict new-column storage classes, zero/reference reopen,
   real RAW plus independently built JPEG/PNG/TIFF Exif import, and
   duplicate-import metadata/revision freeze. Encoder and TIFF tests prove one
@@ -972,8 +977,12 @@ gated (ADR-0096).
   lifecycle failures. Sidecar tests and source snapshots prove directory import
   skips `.xmp`, explicit legacy conversion never mutates inputs, Catalog edits
   generate no adjacent file, rendered XMP stays embedded, original-copy remains
-  exact, and source/sidecar hash/size/mtime are unchanged (ADR-0063). Metadata
-  refresh and privacy stripping remain unclaimed S9 work.
+  exact, and source/adjacent-sidecar hash/size/mtime are unchanged (ADR-0063).
+  Separate schema-v6 recovery tests cover catalog-owned `.ravo.json`
+  publication, exact-generation retry/acknowledgement, Develop publication
+  after UI preview queueing, corruption rejection, restart drain, and verified
+  preview-free backups (ADR-0097). Metadata refresh and privacy stripping
+  remain unclaimed S9 work.
 - Capture refresh tests modify committed Exif source bytes after import, then
   prove Make/Model/numeric/date/GPS re-read, identity refresh, close/reopen, and
   one revision increment. A forced SQLite revision trigger and entry

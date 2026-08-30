@@ -10,6 +10,14 @@
 namespace ravo
 {
 
+class SqliteCatalogBackupVerifier final : public CatalogBackupDatabaseVerifier
+{
+public:
+    [[nodiscard]] Result<CatalogDatabaseArtifact>
+    verify_backup_database(std::string_view backup_path, std::string_view expected_sha256,
+                           const CancellationToken &cancellation) const override;
+};
+
 namespace testing
 {
 class SqliteCatalogTestControl;
@@ -67,6 +75,21 @@ public:
     find_preview(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const override;
     [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;
+    [[nodiscard]] Result<AssetRecoveryState>
+    recovery_state(std::string_view asset_id) const override;
+    [[nodiscard]] Result<std::vector<AssetRecoveryState>> list_pending_recovery() const override;
+    [[nodiscard]] Result<std::vector<AssetRecoveryState>> list_recovery_states() const override;
+    [[nodiscard]] Result<AssetRecoverySnapshot>
+    load_recovery_snapshot(std::string_view asset_id) const override;
+    [[nodiscard]] Result<AssetRecoveryState> acknowledge_recovery(std::string_view asset_id,
+                                                                  std::int64_t generation) override;
+    [[nodiscard]] Result<void> integrity_check() const override;
+    [[nodiscard]] Result<CatalogDatabaseArtifact>
+    create_backup_database(std::string_view output_path,
+                           const CancellationToken &cancellation) const override;
+    [[nodiscard]] Result<CatalogDatabaseArtifact>
+    verify_backup_database(std::string_view backup_path, std::string_view expected_sha256,
+                           const CancellationToken &cancellation) const override;
     [[nodiscard]] Result<std::int64_t> bump_revision() override;
     Result<void> close() override;
 

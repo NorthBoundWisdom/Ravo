@@ -31,6 +31,7 @@
 
 #include "catalog_internal.h"
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
@@ -365,8 +366,11 @@ TEST_F(OriginalCopyServiceTest, CopiesMultipleChunksWithoutChangingSourceOrCopyi
     ASSERT_TRUE(repository) << repository.error().message;
     auto cache = FilesystemPreviewCache::create(database + ".preview");
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService service(engine_, std::move(repository).value(),
-                           std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                           std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                           std::move(recovery).value());
     const auto imported = service.import_one(source.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);
@@ -432,8 +436,11 @@ TEST_F(OriginalCopyServiceTest, CatalogServiceClassifiesOriginalSourceFailuresWi
     ASSERT_TRUE(repository) << repository.error().message;
     auto cache = FilesystemPreviewCache::create(database + ".preview");
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService service(engine_, std::move(repository).value(),
-                           std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                           std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                           std::move(recovery).value());
     const auto imported = service.import_one(source.string(), CancellationToken{});
     ASSERT_TRUE(imported) << imported.error().message;
     ASSERT_TRUE(imported.value().asset);

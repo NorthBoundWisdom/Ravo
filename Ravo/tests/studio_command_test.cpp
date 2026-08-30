@@ -33,6 +33,7 @@
 #include <QTimer>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/engine/engine.h"
@@ -986,9 +987,10 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(80, 100, 120));
     ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
 
     StudioPresenter presenter;
-    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    presenter.createCatalogFromPath(catalog);
     ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
         << presenter.errorText().toStdString();
     presenter.importFilePaths({photo});
@@ -1091,6 +1093,25 @@ TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
                    presenter.recipeHistory().size() == 4;
         }))
         << presenter.errorText().toStdString();
+
+    auto repository = SqliteCatalogRepository::open(catalog.toUtf8().toStdString());
+    ASSERT_TRUE(repository) << repository.error().message;
+    const auto asset_id = presenter.selectedAssetId().toStdString();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            auto state = repository.value()->recovery_state(asset_id);
+            return state && !state.value().pending();
+        }))
+        << presenter.errorText().toStdString();
+    auto state = repository.value()->recovery_state(asset_id);
+    ASSERT_TRUE(state) << state.error().message;
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(catalog.toUtf8().toStdString());
+    ASSERT_TRUE(recovery) << recovery.error().message;
+    auto sidecar =
+        recovery.value()->verify(asset_id, state.value().generation, CancellationToken{});
+    ASSERT_TRUE(sidecar) << sidecar.error().message;
+    ASSERT_TRUE(repository.value()->close());
 }
 
 TEST(StudioPresenterTest, PresetDebugInfoHashesStyleAndRejectsUnknownFiles)
@@ -1552,8 +1573,11 @@ TEST(StudioPresenterTest, PollAppliesDevelopWrittenByAnotherCatalogClient)
     ASSERT_TRUE(repository) << repository.error().message;
     auto cache = FilesystemPreviewCache::create(catalog_utf8 + ".preview");
     ASSERT_TRUE(cache) << cache.error().message;
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(catalog_utf8);
+    ASSERT_TRUE(recovery) << recovery.error().message;
     CatalogService writer(engine.value(), std::move(repository).value(),
-                          std::make_unique<QtRasterDecoder>(), std::move(cache).value());
+                          std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                          std::move(recovery).value());
     DevelopParams params;
     params.exposure_ev = 1.0;
     auto saved = writer.save_develop(asset_id, params);

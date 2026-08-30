@@ -17,6 +17,7 @@
 #include <tiffio.h>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/cli/application.h"
@@ -85,8 +86,7 @@ gain_map_payload_custom(const std::uint32_t top, const std::uint32_t left,
                         const std::uint32_t bottom, const std::uint32_t right,
                         const std::uint32_t plane, const std::uint32_t planes,
                         const std::uint32_t row_pitch, const std::uint32_t column_pitch,
-                        const std::uint32_t points_vertical,
-                        const std::uint32_t points_horizontal,
+                        const std::uint32_t points_vertical, const std::uint32_t points_horizontal,
                         const std::uint32_t map_planes, const std::span<const float> gains)
 {
     std::vector<std::uint8_t> bytes;
@@ -113,16 +113,14 @@ gain_map_payload_custom(const std::uint32_t top, const std::uint32_t left,
 }
 
 [[nodiscard]] std::vector<std::uint8_t>
-gain_map_payload(const std::uint32_t top, const std::uint32_t left,
-                 const std::uint32_t width, const std::uint32_t height,
-                 const std::array<float, 4> gains)
+gain_map_payload(const std::uint32_t top, const std::uint32_t left, const std::uint32_t width,
+                 const std::uint32_t height, const std::array<float, 4> gains)
 {
-    return gain_map_payload_custom(top, left, height, width, 0U, 1U, 2U, 2U, 2U, 2U,
-                                   1U, gains);
+    return gain_map_payload_custom(top, left, height, width, 0U, 1U, 2U, 2U, 2U, 2U, 1U, gains);
 }
 
-[[nodiscard]] std::vector<std::uint8_t>
-warp_payload(const std::array<double, 6> coefficients = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0})
+[[nodiscard]] std::vector<std::uint8_t> warp_payload(const std::array<double, 6> coefficients = {
+                                                         1.0, 0.0, 0.0, 0.0, 0.0, 0.0})
 {
     std::vector<std::uint8_t> bytes;
     append_u32(bytes, 1U);
@@ -200,8 +198,7 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     const std::array<float, 2> default_crop_origin{0.0F, 0.0F};
     const std::array<float, 2> default_crop_size{static_cast<float>(width),
                                                  static_cast<float>(height)};
-    const std::array<float, 9> color_matrix{1.0F, 0.0F, 0.0F, 0.0F, 1.0F,
-                                            0.0F, 0.0F, 0.0F, 1.0F};
+    const std::array<float, 9> color_matrix{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
     const std::array<float, 3> as_shot_neutral{1.0F, 1.0F, 1.0F};
     const std::array<std::uint32_t, 4> active_area{0U, 0U, height, width};
 
@@ -230,12 +227,11 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     set(TIFFSetField(tiff, TIFFTAG_DEFAULTSCALE, default_scale.data()));
     set(TIFFSetField(tiff, TIFFTAG_DEFAULTCROPORIGIN, default_crop_origin.data()));
     set(TIFFSetField(tiff, TIFFTAG_DEFAULTCROPSIZE, default_crop_size.data()));
-    set(TIFFSetField(tiff, TIFFTAG_COLORMATRIX1,
-                     static_cast<std::uint16_t>(color_matrix.size()), color_matrix.data()));
+    set(TIFFSetField(tiff, TIFFTAG_COLORMATRIX1, static_cast<std::uint16_t>(color_matrix.size()),
+                     color_matrix.data()));
     set(TIFFSetField(tiff, TIFFTAG_CALIBRATIONILLUMINANT1, 21U));
     set(TIFFSetField(tiff, TIFFTAG_ASSHOTNEUTRAL,
-                     static_cast<std::uint16_t>(as_shot_neutral.size()),
-                     as_shot_neutral.data()));
+                     static_cast<std::uint16_t>(as_shot_neutral.size()), as_shot_neutral.data()));
     set(TIFFSetField(tiff, TIFFTAG_ACTIVEAREA, active_area.data()));
     if (!list2.empty())
     {
@@ -324,8 +320,7 @@ TEST(DngOpcodeTest, LibRawOwnsAndExecutesSyntheticFileOpcodesWithoutSourceMutati
     {
         gain_maps.push_back(
             {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U,
-                              {1.0F, 1.0F, 1.0F, 1.0F})});
+             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U, {1.0F, 1.0F, 1.0F, 1.0F})});
     }
     const auto list2 = opcode_list(gain_maps);
     const auto list3 = opcode_list({{1U, 0U, warp_payload()}});
@@ -350,9 +345,8 @@ TEST(DngOpcodeTest, LibRawOwnsAndExecutesSyntheticFileOpcodesWithoutSourceMutati
     ASSERT_NE(decoded.value().dng_opcodes, nullptr);
     EXPECT_EQ(dng_gain_map_count(*decoded.value().dng_opcodes), 4U);
     const auto decoded_pixels = decoded.value().pixels;
-    auto working = working_from_raw(decoded.value(), decoded.value().width,
-                                    decoded.value().height, {1.0F, 1.0F, 1.0F, 1.0F},
-                                    CancellationToken{});
+    auto working = working_from_raw(decoded.value(), decoded.value().width, decoded.value().height,
+                                    {1.0F, 1.0F, 1.0F, 1.0F}, CancellationToken{});
     ASSERT_TRUE(working) << working.error().message;
     EXPECT_FALSE(working.value().rgb.empty());
     EXPECT_EQ(decoded.value().pixels, decoded_pixels);
@@ -373,8 +367,7 @@ TEST(DngOpcodeTest, LibRawRejectsSyntheticFileWithUnknownMandatoryOpcode)
     auto inspection = engine.value().inspect(path.string(), CancellationToken{});
     ASSERT_FALSE(inspection);
     EXPECT_EQ(inspection.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(inspection.error().context.at("reason"),
-              "unsupported_mandatory_dng_opcode");
+    EXPECT_EQ(inspection.error().context.at("reason"), "unsupported_mandatory_dng_opcode");
     EXPECT_EQ(file_hash(path), source_hash);
 }
 
@@ -385,8 +378,7 @@ TEST(DngOpcodeTest, CliInspectAndRenderExposeSyntheticFileCorrections)
     {
         gain_maps.push_back(
             {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U,
-                              {1.0F, 1.0F, 1.0F, 1.0F})});
+             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U, {1.0F, 1.0F, 1.0F, 1.0F})});
     }
     SyntheticDngDirectory directory;
     const auto input = directory.path() / "cli.dng";
@@ -402,9 +394,7 @@ TEST(DngOpcodeTest, CliInspectAndRenderExposeSyntheticFileCorrections)
     std::ostringstream stderr_stream;
     const CliApplication application(engine.value(), stdout_stream, stderr_stream);
     const auto input_text = input.string();
-    ASSERT_EQ(application.run(
-                  std::vector<std::string_view>{"inspect", input_text, "--json"}),
-              0)
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"inspect", input_text, "--json"}), 0)
         << stderr_stream.str();
     auto response = parse_json(stdout_stream.str());
     ASSERT_TRUE(response) << response.error().message;
@@ -436,8 +426,8 @@ TEST(DngOpcodeTest, CliInspectAndRenderExposeSyntheticFileCorrections)
     const auto recipe_text = recipe_path.string();
     const auto output_text = output.string();
     ASSERT_EQ(application.run(std::vector<std::string_view>{
-                  "render", input_text, "--recipe", recipe_text, "--output", output_text,
-                  "--width", "32", "--height", "32", "--json"}),
+                  "render", input_text, "--recipe", recipe_text, "--output", output_text, "--width",
+                  "32", "--height", "32", "--json"}),
               0)
         << stderr_stream.str();
     EXPECT_TRUE(std::filesystem::exists(output));
@@ -453,8 +443,7 @@ TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
     {
         gain_maps.push_back(
             {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U,
-                              {1.0F, 1.0F, 1.0F, 1.0F})});
+             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U, {1.0F, 1.0F, 1.0F, 1.0F})});
     }
     SyntheticDngDirectory directory;
     const auto input = directory.path() / "catalog.dng";
@@ -479,9 +468,14 @@ TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
         {
             return cache.error();
         }
+        auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
+        if (!recovery)
+        {
+            return recovery.error();
+        }
         return std::make_unique<CatalogService>(
             engine.value(), std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
-            std::move(cache).value());
+            std::move(cache).value(), std::move(recovery).value());
     };
 
     auto service_result = make_service(true);
@@ -530,9 +524,7 @@ TEST(DngOpcodeTest, ParsesOwnedFourParityGainMapsAndInterpolates)
     {
         const float gain = static_cast<float>(parity + 1U);
         operations.push_back(
-            {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 4U, 4U,
-                              {gain, gain, gain, gain})});
+            {9U, 0U, gain_map_payload(parity / 2U, parity % 2U, 4U, 4U, {gain, gain, gain, gain})});
     }
     auto bytes = opcode_list(operations);
     auto parsed = parse_dng_opcode_metadata({true, bytes}, {}, 4U, 4U);
@@ -541,18 +533,13 @@ TEST(DngOpcodeTest, ParsesOwnedFourParityGainMapsAndInterpolates)
     EXPECT_TRUE(parsed.value()->list2_present);
     EXPECT_FALSE(parsed.value()->list3_present);
     EXPECT_EQ(dng_gain_map_count(*parsed.value()), 4U);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*parsed.value(), 0U, 0U, 4U, 4U, 0.2F), 0.2F);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*parsed.value(), 1U, 0U, 4U, 4U, 0.2F), 0.4F);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*parsed.value(), 0U, 1U, 4U, 4U, 0.2F), 0.6F);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*parsed.value(), 3U, 3U, 4U, 4U, 0.2F), 0.8F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 0U, 0U, 4U, 4U, 0.2F), 0.2F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 1U, 0U, 4U, 4U, 0.2F), 0.4F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 0U, 1U, 4U, 4U, 0.2F), 0.6F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 3U, 3U, 4U, 4U, 0.2F), 0.8F);
 
     std::fill(bytes.begin(), bytes.end(), 0U);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*parsed.value(), 1U, 0U, 4U, 4U, 0.2F), 0.4F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*parsed.value(), 1U, 0U, 4U, 4U, 0.2F), 0.4F);
     EXPECT_GT(estimate_dng_opcode_memory(*parsed.value()), sizeof(DngOpcodeMetadata));
 }
 
@@ -563,9 +550,7 @@ TEST(DngOpcodeTest, GainMapsRunAfterBlackNormalizationBeforeDemosaic)
     {
         const float gain = static_cast<float>(parity + 1U);
         operations.push_back(
-            {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 4U, 4U,
-                              {gain, gain, gain, gain})});
+            {9U, 0U, gain_map_payload(parity / 2U, parity % 2U, 4U, 4U, {gain, gain, gain, gain})});
     }
     const auto list2 = opcode_list(operations);
     auto metadata = parse_dng_opcode_metadata({true, list2}, {}, 4U, 4U);
@@ -590,8 +575,7 @@ TEST(DngOpcodeTest, GainMapsRunAfterBlackNormalizationBeforeDemosaic)
     raw.dng_opcodes = metadata.value();
     const auto source_pixels = raw.pixels;
 
-    auto working = working_from_raw(raw, 4U, 4U, {1.0F, 1.0F, 1.0F, 1.0F},
-                                    CancellationToken{});
+    auto working = working_from_raw(raw, 4U, 4U, {1.0F, 1.0F, 1.0F, 1.0F}, CancellationToken{});
     ASSERT_TRUE(working) << working.error().message;
     ASSERT_EQ(working.value().rgb.size(), 48U);
 
@@ -601,8 +585,7 @@ TEST(DngOpcodeTest, GainMapsRunAfterBlackNormalizationBeforeDemosaic)
         {
             const std::uint8_t channel = raw.cfa_channels[(y % 2U) * 2U + (x % 2U)];
             const float normalized =
-                (static_cast<float>(raw.pixels[static_cast<std::size_t>(y) * 4U + x]) -
-                 100.0F) /
+                (static_cast<float>(raw.pixels[static_cast<std::size_t>(y) * 4U + x]) - 100.0F) /
                 1000.0F;
             const float gain = static_cast<float>((y & 1U) * 2U + (x & 1U) + 1U);
             const std::size_t base = (static_cast<std::size_t>(y) * 4U + x) * 3U;
@@ -616,21 +599,18 @@ TEST(DngOpcodeTest, GainMapsRunAfterBlackNormalizationBeforeDemosaic)
 
 TEST(DngOpcodeTest, AcceptsPartialMapsAndRejectsUnsafeOrOutOfBoundsGeometry)
 {
-    const auto single = opcode_list(
-        {{9U, 0U, gain_map_payload(0U, 0U, 4U, 4U, {2.0F, 2.0F, 2.0F, 2.0F})}});
+    const auto single =
+        opcode_list({{9U, 0U, gain_map_payload(0U, 0U, 4U, 4U, {2.0F, 2.0F, 2.0F, 2.0F})}});
     auto partial = parse_dng_opcode_metadata({true, single}, {}, 4U, 4U);
     ASSERT_TRUE(partial) << partial.error().message;
     EXPECT_EQ(dng_gain_map_count(*partial.value()), 1U);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*partial.value(), 0U, 0U, 4U, 4U, 0.25F), 0.5F);
-    EXPECT_FLOAT_EQ(
-        apply_dng_opcode_list2_sample(*partial.value(), 1U, 0U, 4U, 4U, 0.25F), 0.25F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*partial.value(), 0U, 0U, 4U, 4U, 0.25F), 0.5F);
+    EXPECT_FLOAT_EQ(apply_dng_opcode_list2_sample(*partial.value(), 1U, 0U, 4U, 4U, 0.25F), 0.25F);
 
     std::vector<TestOpcode> operations;
     for (std::uint32_t parity = 0U; parity < 4U; ++parity)
     {
-        auto payload = gain_map_payload(parity / 2U, parity % 2U, 4U, 4U,
-                                        {1.0F, 1.0F, 1.0F, 1.0F});
+        auto payload = gain_map_payload(parity / 2U, parity % 2U, 4U, 4U, {1.0F, 1.0F, 1.0F, 1.0F});
         if (parity == 3U)
         {
             const float invalid = std::numeric_limits<float>::infinity();
@@ -651,15 +631,12 @@ TEST(DngOpcodeTest, AcceptsPartialMapsAndRejectsUnsafeOrOutOfBoundsGeometry)
     for (std::uint32_t parity = 0U; parity < 4U; ++parity)
     {
         operations.push_back(
-            {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 5U, 4U,
-                              {1.0F, 1.0F, 1.0F, 1.0F})});
+            {9U, 0U, gain_map_payload(parity / 2U, parity % 2U, 5U, 4U, {1.0F, 1.0F, 1.0F, 1.0F})});
     }
     const auto wrong_width = opcode_list(operations);
     auto mismatched = parse_dng_opcode_metadata({true, wrong_width}, {}, 4U, 4U);
     ASSERT_FALSE(mismatched);
-    EXPECT_EQ(mismatched.error().context.at("reason"),
-              "unsupported_dng_gain_map_geometry");
+    EXPECT_EQ(mismatched.error().context.at("reason"), "unsupported_dng_gain_map_geometry");
 }
 
 TEST(DngOpcodeTest, FailsUnknownMandatoryAndRecordsUnknownOptional)
@@ -668,8 +645,7 @@ TEST(DngOpcodeTest, FailsUnknownMandatoryAndRecordsUnknownOptional)
     auto rejected = parse_dng_opcode_metadata({true, mandatory}, {}, 4U, 4U);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);
-    EXPECT_EQ(rejected.error().context.at("reason"),
-              "unsupported_mandatory_dng_opcode");
+    EXPECT_EQ(rejected.error().context.at("reason"), "unsupported_mandatory_dng_opcode");
     EXPECT_EQ(rejected.error().context.at("dng_opcode_id"), "42");
 
     const auto optional = opcode_list({{42U, 1U, {1U, 2U, 3U}}});
@@ -684,14 +660,12 @@ TEST(DngOpcodeTest, FailsUnknownMandatoryAndRecordsUnknownOptional)
 
 TEST(DngOpcodeTest, RejectsUnknownRequiredSemanticsAndSkipsThemOnlyWhenOptional)
 {
-    const auto future_required =
-        opcode_list({{1U, 0U, warp_payload(), 0x02000000U}});
+    const auto future_required = opcode_list({{1U, 0U, warp_payload(), 0x02000000U}});
     auto parsed = parse_dng_opcode_metadata({}, {true, future_required}, 4U, 4U);
     ASSERT_FALSE(parsed);
     EXPECT_EQ(parsed.error().context.at("reason"), "unsupported_mandatory_dng_opcode");
 
-    const auto future_optional =
-        opcode_list({{1U, 1U, warp_payload(), 0x02000000U}});
+    const auto future_optional = opcode_list({{1U, 1U, warp_payload(), 0x02000000U}});
     parsed = parse_dng_opcode_metadata({}, {true, future_optional}, 4U, 4U);
     ASSERT_TRUE(parsed) << parsed.error().message;
     ASSERT_EQ(parsed.value()->skipped_optional.size(), 1U);
@@ -721,14 +695,13 @@ TEST(DngOpcodeTest, RejectsTruncatedEnvelopeAndTrailingBytes)
 
 TEST(DngOpcodeTest, AppliesIdentityWarpAndVignetteInDeclaredOrder)
 {
-    const auto list3 = opcode_list({{3U, 0U, vignette_payload()},
-                                    {1U, 0U, warp_payload()}});
+    const auto list3 = opcode_list({{3U, 0U, vignette_payload()}, {1U, 0U, warp_payload()}});
     auto parsed = parse_dng_opcode_metadata({}, {true, list3}, 3U, 3U);
     ASSERT_TRUE(parsed) << parsed.error().message;
     ASSERT_NE(parsed.value(), nullptr);
     ASSERT_EQ(parsed.value()->list3_operations.size(), 2U);
-    EXPECT_TRUE(std::holds_alternative<DngFixVignetteRadial>(
-        parsed.value()->list3_operations.front()));
+    EXPECT_TRUE(
+        std::holds_alternative<DngFixVignetteRadial>(parsed.value()->list3_operations.front()));
     EXPECT_TRUE(
         std::holds_alternative<DngWarpRectilinear>(parsed.value()->list3_operations.back()));
 
@@ -742,13 +715,10 @@ TEST(DngOpcodeTest, AppliesIdentityWarpAndVignetteInDeclaredOrder)
 
 TEST(DngOpcodeTest, PreservesRepeatedOperationsAndAppliesList3RgbGainMapsInOrder)
 {
-    const std::array<float, 8> gains{2.0F, 3.0F, 2.0F, 3.0F,
-                                     2.0F, 3.0F, 2.0F, 3.0F};
-    const auto gain = gain_map_payload_custom(0U, 0U, 3U, 3U, 1U, 2U, 1U, 1U,
-                                              2U, 2U, 2U, gains);
-    const auto list3 = opcode_list({{3U, 0U, vignette_payload()},
-                                    {3U, 0U, vignette_payload()},
-                                    {9U, 0U, gain}});
+    const std::array<float, 8> gains{2.0F, 3.0F, 2.0F, 3.0F, 2.0F, 3.0F, 2.0F, 3.0F};
+    const auto gain = gain_map_payload_custom(0U, 0U, 3U, 3U, 1U, 2U, 1U, 1U, 2U, 2U, 2U, gains);
+    const auto list3 =
+        opcode_list({{3U, 0U, vignette_payload()}, {3U, 0U, vignette_payload()}, {9U, 0U, gain}});
     auto parsed = parse_dng_opcode_metadata({}, {true, list3}, 3U, 3U);
     ASSERT_TRUE(parsed) << parsed.error().message;
     ASSERT_EQ(parsed.value()->list3_operations.size(), 3U);
@@ -768,8 +738,7 @@ TEST(DngOpcodeTest, PreservesRepeatedOperationsAndAppliesList3RgbGainMapsInOrder
 
 TEST(DngOpcodeTest, AppliesList3BeforeWhiteBalanceToPreserveCorrectedHeadroom)
 {
-    const auto list3 = opcode_list(
-        {{3U, 0U, vignette_payload({1.0, 0.0, 0.0, 0.0, 0.0})}});
+    const auto list3 = opcode_list({{3U, 0U, vignette_payload({1.0, 0.0, 0.0, 0.0, 0.0})}});
     auto metadata = parse_dng_opcode_metadata({}, {true, list3}, 3U, 3U);
     ASSERT_TRUE(metadata) << metadata.error().message;
 
@@ -787,8 +756,7 @@ TEST(DngOpcodeTest, AppliesList3BeforeWhiteBalanceToPreserveCorrectedHeadroom)
     raw.color_profile.identifier = "camera";
     raw.dng_opcodes = metadata.value();
 
-    auto working = working_from_raw(raw, 3U, 3U, {2.0F, 1.0F, 1.0F, 1.0F},
-                                    CancellationToken{});
+    auto working = working_from_raw(raw, 3U, 3U, {2.0F, 1.0F, 1.0F, 1.0F}, CancellationToken{});
     ASSERT_TRUE(working) << working.error().message;
     EXPECT_FLOAT_EQ(working.value().rgb[0], 1.6F);
     EXPECT_FLOAT_EQ(working.value().rgb[1], 0.8F);
@@ -800,8 +768,7 @@ TEST(DngOpcodeTest, AppliesList3BeforeWhiteBalanceToPreserveCorrectedHeadroom)
 
 TEST(DngOpcodeTest, RejectsNonMonotonicWarpAtTheParserBoundary)
 {
-    const auto list3 = opcode_list(
-        {{1U, 0U, warp_payload({1.0, -1.0, 0.0, 0.0, 0.0, 0.0})}});
+    const auto list3 = opcode_list({{1U, 0U, warp_payload({1.0, -1.0, 0.0, 0.0, 0.0, 0.0})}});
     auto parsed = parse_dng_opcode_metadata({}, {true, list3}, 8U, 8U);
     ASSERT_FALSE(parsed);
     EXPECT_EQ(parsed.error().context.at("reason"), "non_monotonic_dng_warp");
@@ -809,8 +776,7 @@ TEST(DngOpcodeTest, RejectsNonMonotonicWarpAtTheParserBoundary)
 
 TEST(DngOpcodeTest, VignetteUsesLastPixelRadiusAndClipsTheDngLogicalRange)
 {
-    const auto list3 = opcode_list(
-        {{3U, 0U, vignette_payload({1.0, 0.0, 0.0, 0.0, 0.0})}});
+    const auto list3 = opcode_list({{3U, 0U, vignette_payload({1.0, 0.0, 0.0, 0.0, 0.0})}});
     auto parsed = parse_dng_opcode_metadata({}, {true, list3}, 3U, 3U);
     ASSERT_TRUE(parsed) << parsed.error().message;
     WorkingImage source = test_image();
@@ -830,8 +796,7 @@ TEST(DngOpcodeTest, VignetteUsesLastPixelRadiusAndClipsTheDngLogicalRange)
 
 TEST(DngOpcodeTest, WarpFailureAndCancellationPublishNothing)
 {
-    const auto list3 = opcode_list(
-        {{1U, 0U, warp_payload({2.0, 0.0, 0.0, 0.0, 0.0, 0.0})}});
+    const auto list3 = opcode_list({{1U, 0U, warp_payload({2.0, 0.0, 0.0, 0.0, 0.0, 0.0})}});
     auto parsed = parse_dng_opcode_metadata({}, {true, list3}, 8U, 8U);
     ASSERT_TRUE(parsed) << parsed.error().message;
     const WorkingImage source = test_image(8U, 8U);

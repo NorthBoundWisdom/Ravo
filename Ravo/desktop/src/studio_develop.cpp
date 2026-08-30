@@ -2777,6 +2777,7 @@ void StudioPresenter::kick_develop_work()
                             .history_write = job.history_write,
                             .discard_history_after_seq = job.discard_history_after_seq,
                             .coalesce_history_id = job.coalesce_history_id,
+                            .defer_recovery_publication = true,
                         });
                     save_ok = static_cast<bool>(saved);
                 }
@@ -2804,6 +2805,7 @@ void StudioPresenter::kick_develop_work()
                                      std::optional<DevelopParams>{});
                 }
             }
+            const bool recovery_due = job.save && save_ok;
             QMetaObject::invokeMethod(
                 this,
                 [this, job, revision, saved = std::move(saved),
@@ -2999,6 +3001,24 @@ void StudioPresenter::kick_develop_work()
                     kick_develop_work();
                 },
                 Qt::QueuedConnection);
+            if (recovery_due && service_ != nullptr)
+            {
+                auto synchronized = service_->sync_recovery(std::string_view{job.asset_id});
+                if (!synchronized)
+                {
+                    const auto failure = qstring_from_utf8(synchronized.error().message);
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, failure]
+                        {
+                            setError(QCoreApplication::translate(
+                                         "StudioPresenter",
+                                         "Edit was saved, but recovery synchronization failed: ") +
+                                     failure);
+                        },
+                        Qt::QueuedConnection);
+                }
+            }
         },
         TaskPriority::kForeground);
 }

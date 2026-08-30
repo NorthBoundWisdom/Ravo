@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/types.h"
@@ -65,9 +66,11 @@ protected:
         ASSERT_TRUE(repository) << repository.error().message;
         auto cache = FilesystemPreviewCache::create(database_path + ".preview");
         ASSERT_TRUE(cache) << cache.error().message;
-        service_ = std::make_unique<CatalogService>(engine_, std::move(repository).value(),
-                                                    std::make_unique<QtRasterDecoder>(),
-                                                    std::move(cache).value());
+        auto recovery = FilesystemRecoveryStore::create_for_catalog(database_path);
+        ASSERT_TRUE(recovery) << recovery.error().message;
+        service_ = std::make_unique<CatalogService>(
+            engine_, std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
+            std::move(cache).value(), std::move(recovery).value());
     }
 
     void TearDown() override

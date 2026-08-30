@@ -11,7 +11,17 @@
 namespace ravo
 {
 
-class CatalogRepository
+class CatalogBackupDatabaseVerifier
+{
+public:
+    virtual ~CatalogBackupDatabaseVerifier() = default;
+
+    [[nodiscard]] virtual Result<CatalogDatabaseArtifact>
+    verify_backup_database(std::string_view backup_path, std::string_view expected_sha256,
+                           const CancellationToken &cancellation) const = 0;
+};
+
+class CatalogRepository : public CatalogBackupDatabaseVerifier
 {
 public:
     virtual ~CatalogRepository() = default;
@@ -65,12 +75,29 @@ public:
     [[nodiscard]] virtual Result<RecipeHistoryEntry>
     append_recipe_history(std::string_view asset_id, std::string_view kind,
                           std::optional<std::string_view> label, std::string_view recipe_json) = 0;
-    [[nodiscard]] virtual Result<void>
-    update_recipe_history_label(std::int64_t history_id, std::string_view label) = 0;
+    [[nodiscard]] virtual Result<void> update_recipe_history_label(std::int64_t history_id,
+                                                                   std::string_view label) = 0;
     [[nodiscard]] virtual Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::vector<PreviewRecord>> list_previews() const = 0;
     [[nodiscard]] virtual Result<void> upsert_preview(const PreviewRecord &preview) = 0;
+    [[nodiscard]] virtual Result<AssetRecoveryState>
+    recovery_state(std::string_view asset_id) const = 0;
+    [[nodiscard]] virtual Result<std::vector<AssetRecoveryState>> list_pending_recovery() const = 0;
+    [[nodiscard]] virtual Result<std::vector<AssetRecoveryState>> list_recovery_states() const = 0;
+    [[nodiscard]] virtual Result<AssetRecoverySnapshot>
+    load_recovery_snapshot(std::string_view asset_id) const = 0;
+    // Acknowledges only the exact generation that was serialized. If another
+    // catalog client committed newer state, the newer generation stays pending.
+    [[nodiscard]] virtual Result<AssetRecoveryState>
+    acknowledge_recovery(std::string_view asset_id, std::int64_t generation) = 0;
+    [[nodiscard]] virtual Result<void> integrity_check() const = 0;
+    [[nodiscard]] virtual Result<CatalogDatabaseArtifact>
+    create_backup_database(std::string_view output_path,
+                           const CancellationToken &cancellation) const = 0;
+    [[nodiscard]] virtual Result<CatalogDatabaseArtifact>
+    verify_backup_database(std::string_view backup_path, std::string_view expected_sha256,
+                           const CancellationToken &cancellation) const = 0;
     [[nodiscard]] virtual Result<std::int64_t> bump_revision() = 0;
     virtual Result<void> close() = 0;
 };

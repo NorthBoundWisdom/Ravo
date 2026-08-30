@@ -19,6 +19,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <optional>
 #include <string>
@@ -55,6 +56,18 @@ namespace ravo
 {
 namespace
 {
+
+void configure_exiv2_diagnostics()
+{
+    // The private profile deliberately omits Exiv2's XMP SDK. Its default
+    // handler prints a warning for every source that merely contains XMP,
+    // even though the owned Exif fields remain readable. Ravo maps actual
+    // Exiv2 failures from exceptions and validation into structured errors;
+    // non-fatal third-party diagnostics must not bypass that contract onto a
+    // CLI or Studio stderr stream.
+    static std::once_flag configured;
+    std::call_once(configured, [] { Exiv2::LogMsg::setHandler(nullptr); });
+}
 
 [[nodiscard]] QString local_path(const std::string_view uri)
 {
@@ -181,6 +194,7 @@ namespace
 
 [[nodiscard]] RawExposureMetadata read_legacy_exposure_metadata(const QString &path)
 {
+    configure_exiv2_diagnostics();
     try
     {
         const QByteArray utf8 = path.toUtf8();
@@ -2810,6 +2824,7 @@ extract_png_exif_payload(const QString &path)
 Result<EngineCaptureMetadata> read_embedded_capture_metadata(const std::string_view input_uri,
                                                              const CancellationToken &cancellation)
 {
+    configure_exiv2_diagnostics();
     auto cancelled = cancellation.check();
     if (!cancelled)
     {

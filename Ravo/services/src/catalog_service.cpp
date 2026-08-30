@@ -167,11 +167,13 @@ annotate_batch_export_error(TaskError error, const std::size_t completed_count,
 CatalogService::CatalogService(const EngineFacade &engine,
                                std::unique_ptr<CatalogRepository> repository,
                                std::unique_ptr<RasterDecoder> raster,
-                               std::unique_ptr<PreviewCache> cache)
+                               std::unique_ptr<PreviewCache> cache,
+                               std::unique_ptr<RecoveryStore> recovery)
     : engine_(&engine)
     , repository_(std::move(repository))
     , raster_(std::move(raster))
     , cache_(std::move(cache))
+    , recovery_(std::move(recovery))
 {
 }
 
@@ -186,10 +188,20 @@ Result<void> CatalogService::close()
     {
         return {};
     }
+    std::optional<TaskError> recovery_error;
+    if (recovery_ != nullptr)
+    {
+        auto synchronized = sync_recovery(std::nullopt);
+        if (!synchronized)
+        {
+            recovery_error = synchronized.error();
+        }
+    }
     const auto closed = repository_->close();
     repository_.reset();
     raster_.reset();
     cache_.reset();
+    recovery_.reset();
     engine_ = nullptr;
     decoded_preview_source_.reset();
     decoded_raw_.reset();
@@ -200,6 +212,15 @@ Result<void> CatalogService::close()
     browse_decoded_preview_source_.reset();
     browse_decoded_raw_.reset();
     browse_linear_working_.reset();
+    if (recovery_error)
+    {
+        if (!closed)
+        {
+            recovery_error->context.insert_or_assign("catalog_close_failed", "true");
+            recovery_error->context.insert_or_assign("catalog_close_error", closed.error().message);
+        }
+        return *recovery_error;
+    }
     return closed;
 }
 
@@ -251,6 +272,171 @@ Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
     return repository_->list_previews();
 }
 
+Result<AssetRecoveryState> CatalogService::recovery_state(const std::string_view asset_id) const
+{
+    if (repository_ == nullptr || recovery_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    return repository_->recovery_state(asset_id);
+}
+
+Result<std::vector<AssetRecoveryState>> CatalogService::pending_recovery() const
+{
+    if (repository_ == nullptr || recovery_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    return repository_->list_pending_recovery();
+}
+
+Result<RecoveryArtifact>
+CatalogService::synchronize_recovery_asset(const std::string_view asset_id,
+                                           const CancellationToken &cancellation)
+{
+    if (repository_ == nullptr || recovery_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    auto state = repository_->recovery_state(asset_id);
+    if (!state)
+    {
+        return state.error();
+    }
+    if (!state.value().pending())
+    {
+        return recovery_->verify(asset_id, state.value().generation, cancellation);
+    }
+    auto snapshot = repository_->load_recovery_snapshot(asset_id);
+    if (!snapshot)
+    {
+        return snapshot.error();
+    }
+    auto artifact = recovery_->publish(snapshot.value(), cancellation);
+    if (!artifact)
+    {
+        return artifact.error();
+    }
+    auto acknowledged =
+        repository_->acknowledge_recovery(asset_id, snapshot.value().state.generation);
+    if (!acknowledged)
+    {
+        auto error = acknowledged.error();
+        error.context.insert_or_assign("sidecar_published", "true");
+        error.context.insert_or_assign("sidecar_path", artifact.value().path);
+        return error;
+    }
+    auto cleaned = recovery_->remove_older(asset_id, snapshot.value().state.generation);
+    if (!cleaned)
+    {
+        auto error = cleaned.error();
+        error.context.insert_or_assign("recovery_acknowledged", "true");
+        error.context.insert_or_assign("sidecar_published", "true");
+        error.context.insert_or_assign("sidecar_path", artifact.value().path);
+        return error;
+    }
+    return artifact;
+}
+
+Result<void> CatalogService::synchronize_committed_change(const std::string_view asset_id,
+                                                          const CancellationToken &cancellation)
+{
+    auto synchronized = synchronize_recovery_asset(asset_id, cancellation);
+    if (!synchronized)
+    {
+        auto error = synchronized.error();
+        error.context.insert_or_assign("asset_id", std::string(asset_id));
+        error.context.insert_or_assign("catalog_committed", "true");
+        auto state = repository_->recovery_state(asset_id);
+        if (state)
+        {
+            error.context.insert_or_assign("recovery_generation",
+                                           std::to_string(state.value().generation));
+            error.context.insert_or_assign("recovery_synchronized_generation",
+                                           std::to_string(state.value().synchronized_generation));
+            error.context.insert_or_assign("recovery_pending",
+                                           state.value().pending() ? "true" : "false");
+        }
+        else
+        {
+            error.context.insert_or_assign("recovery_pending", "unknown");
+            error.context.insert_or_assign("recovery_state_error", state.error().message);
+        }
+        return error;
+    }
+    return {};
+}
+
+Result<RecoverySyncResult>
+CatalogService::sync_recovery(const std::optional<std::string_view> asset_id,
+                              const CancellationToken &cancellation)
+{
+    if (repository_ == nullptr || recovery_ == nullptr)
+    {
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    }
+    RecoverySyncResult result;
+    result.root = recovery_->root();
+    if (asset_id)
+    {
+        auto state = repository_->recovery_state(*asset_id);
+        if (!state)
+        {
+            return state.error();
+        }
+        result.pending_before = state.value().pending() ? 1U : 0U;
+        auto artifact = synchronize_recovery_asset(*asset_id, cancellation);
+        if (!artifact)
+        {
+            return artifact.error();
+        }
+        result.artifacts.push_back(std::move(artifact).value());
+    }
+    else
+    {
+        auto pending = repository_->list_pending_recovery();
+        if (!pending)
+        {
+            return pending.error();
+        }
+        result.pending_before = pending.value().size();
+        result.artifacts.reserve(pending.value().size());
+        for (const auto &state : pending.value())
+        {
+            auto active = cancellation.check();
+            if (!active)
+            {
+                auto error = active.error();
+                error.context.insert_or_assign("completed_count",
+                                               std::to_string(result.artifacts.size()));
+                return error;
+            }
+            auto artifact = synchronize_recovery_asset(state.asset_id, cancellation);
+            if (!artifact)
+            {
+                auto error = artifact.error();
+                error.context.insert_or_assign("asset_id", state.asset_id);
+                error.context.insert_or_assign("completed_count",
+                                               std::to_string(result.artifacts.size()));
+                return error;
+            }
+            result.artifacts.push_back(std::move(artifact).value());
+        }
+    }
+    auto remaining = repository_->list_pending_recovery();
+    if (!remaining)
+    {
+        return remaining.error();
+    }
+    result.pending_after = remaining.value().size();
+    return result;
+}
+
 Result<std::vector<FolderRecord>> CatalogService::list_folders() const
 {
     auto listed = list_assets();
@@ -295,6 +481,11 @@ Result<AssetRecord> CatalogService::set_rating(const std::string_view asset_id, 
         return revision.error();
     }
     asset.value()->review = review;
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
+    }
     return *asset.value();
 }
 
@@ -328,6 +519,11 @@ Result<AssetRecord> CatalogService::set_color_label(const std::string_view asset
         return revision.error();
     }
     asset.value()->review = review;
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
+    }
     return *asset.value();
 }
 
@@ -361,6 +557,11 @@ Result<AssetRecord> CatalogService::set_rejected(const std::string_view asset_id
         return revision.error();
     }
     asset.value()->review = review;
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
+    }
     return *asset.value();
 }
 
@@ -388,7 +589,23 @@ Result<void> CatalogService::remove_from_catalog(const std::string_view asset_id
             return removed_cache.error();
         }
     }
-    return repository_->remove_asset(asset_id);
+    auto removed = repository_->remove_asset(asset_id);
+    if (!removed)
+    {
+        return removed.error();
+    }
+    if (recovery_ != nullptr)
+    {
+        auto removed_recovery = recovery_->remove_asset(asset_id);
+        if (!removed_recovery)
+        {
+            auto error = removed_recovery.error();
+            error.context.insert_or_assign("asset_id", std::string(asset_id));
+            error.context.insert_or_assign("catalog_removed", "true");
+            return error;
+        }
+    }
+    return {};
 }
 
 Result<void> CatalogService::remove_original_and_catalog(const std::string_view asset_id)
@@ -476,30 +693,51 @@ Result<void> CatalogService::remove_original_and_catalog(const std::string_view 
                            {"reason", "delete_quarantine_rename_failed"}});
     }
     auto removed = remove_from_catalog(asset_id);
+    std::optional<TaskError> cleanup_error;
     if (!removed)
     {
         TaskError primary = removed.error();
-        std::error_code rollback_error;
-        std::filesystem::rename(quarantine, path, rollback_error);
-        if (rollback_error)
+        const auto committed = primary.context.find("catalog_removed");
+        if (committed != primary.context.end() && committed->second == "true")
         {
-            primary.context.insert_or_assign("rollback_failed", "true");
-            primary.context.insert_or_assign("rollback_error", rollback_error.message());
-            primary.context.insert_or_assign("quarantine_path", quarantine.string());
+            cleanup_error = std::move(primary);
         }
-        return primary;
+        else
+        {
+            std::error_code rollback_error;
+            std::filesystem::rename(quarantine, path, rollback_error);
+            if (rollback_error)
+            {
+                primary.context.insert_or_assign("rollback_failed", "true");
+                primary.context.insert_or_assign("rollback_error", rollback_error.message());
+                primary.context.insert_or_assign("quarantine_path", quarantine.string());
+            }
+            return primary;
+        }
     }
     std::error_code remove_error;
     if (!std::filesystem::remove(quarantine, remove_error) || remove_error)
     {
-        return make_error(ErrorCode::kIo,
-                          "Catalog entry was removed but quarantined original could not be deleted",
-                          {{"path", location.value().path},
-                           {"quarantine_path", quarantine.string()},
-                           {"asset_id", std::string(asset_id)},
-                           {"catalog_removed", "true"},
-                           {"detail", remove_error.message()},
-                           {"reason", "delete_quarantine_finalize_failed"}});
+        auto error =
+            make_error(ErrorCode::kIo,
+                       "Catalog entry was removed but quarantined original could not be deleted",
+                       {{"path", location.value().path},
+                        {"quarantine_path", quarantine.string()},
+                        {"asset_id", std::string(asset_id)},
+                        {"catalog_removed", "true"},
+                        {"detail", remove_error.message()},
+                        {"reason", "delete_quarantine_finalize_failed"}});
+        if (cleanup_error)
+        {
+            error.context.insert_or_assign("recovery_cleanup_failed", "true");
+            error.context.insert_or_assign("recovery_cleanup_error", cleanup_error->message);
+        }
+        return error;
+    }
+    if (cleanup_error)
+    {
+        cleanup_error->context.insert_or_assign("original_removed", "true");
+        return *cleanup_error;
     }
     return {};
 }
@@ -571,6 +809,9 @@ Result<AssetRecord> CatalogService::refresh_capture_metadata(const std::string_v
     auto published = repository_->commit_refreshed_asset(updated);
     if (!published)
         return published.error();
+    auto recovered = synchronize_committed_change(asset_id, cancellation);
+    if (!recovered)
+        return recovered.error();
     return updated;
 }
 
@@ -730,6 +971,14 @@ Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::str
         return committed.error();
     }
     asset.value()->has_edits = recipe_json.has_value();
+    if (!options.defer_recovery_publication)
+    {
+        auto recovered = synchronize_committed_change(asset_id);
+        if (!recovered)
+        {
+            return recovered.error();
+        }
+    }
     return RecipeSaveResult{*asset.value(), committed.value().revision,
                             committed.value().history_id};
 }
@@ -898,6 +1147,11 @@ Result<AssetRecord> CatalogService::set_tags(const std::string_view asset_id,
         return revision.error();
     }
     asset.value()->tags = std::move(normalized);
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
+    }
     return *asset.value();
 }
 
@@ -958,6 +1212,11 @@ Result<AssetRecord> CatalogService::set_writable_metadata(const std::string_view
         return revision.error();
     }
     asset.value()->metadata = metadata;
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
+    }
     return *asset.value();
 }
 
@@ -1020,6 +1279,11 @@ Result<AssetRecord> CatalogService::create_recipe_snapshot(const std::string_vie
     {
         return revision.error();
     }
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
+    }
     return *asset.value();
 }
 
@@ -1070,6 +1334,11 @@ Result<AssetRecord> CatalogService::rename_recipe_snapshot(const std::string_vie
     if (!revision)
     {
         return revision.error();
+    }
+    auto recovered = synchronize_committed_change(asset_id);
+    if (!recovered)
+    {
+        return recovered.error();
     }
     return *asset.value();
 }
@@ -1365,6 +1634,11 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
     if (preview)
     {
         result.preview_cache_path = preview.value().cache_path;
+    }
+    auto recovered = synchronize_committed_change(asset.id, cancellation);
+    if (!recovered)
+    {
+        result.error = recovered.error();
     }
     return result;
 }

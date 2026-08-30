@@ -4,6 +4,7 @@ target_sources(ravo_adapters
   PRIVATE
     src/camera_noise_profile.cpp
     src/export_metadata_encoder.cpp
+    src/filesystem_recovery_store.cpp
     src/filesystem_preview_cache.cpp
     src/jpeg_encoder.cpp
     src/crs_xmp.cpp
