@@ -6884,6 +6884,226 @@ TEST(EngineFacadeTest, HighlightsAndShadowsUseCalibratedSceneEvEnvelopes)
     EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
 }
 
+TEST(EngineFacadeTest, WhitesAndBlacksPreservePositiveOrderedColour)
+{
+    constexpr float middle_grey = 0.1842F;
+    constexpr std::array<float, 3> colour{0.72F, 0.36F, 0.12F};
+    constexpr float colour_luminance =
+        0.2225045F * colour[0] + 0.7168786F * colour[1] + 0.0606169F * colour[2];
+    std::vector<float> stops;
+    WorkingImage source;
+    source.height = 1U;
+    source.color_profile.model = ColorModel::kRgb;
+    for (int quarter_stop = -48; quarter_stop <= 24; ++quarter_stop)
+    {
+        const float stop = static_cast<float>(quarter_stop) / 4.0F;
+        stops.push_back(stop);
+        const float scale = middle_grey * std::exp2(stop) / colour_luminance;
+        source.rgb.insert(source.rgb.end(),
+                          {colour[0] * scale, colour[1] * scale, colour[2] * scale});
+    }
+    source.width = static_cast<std::uint32_t>(stops.size());
+
+    const auto apply = [&](const double whites, const double blacks)
+    {
+        Recipe recipe;
+        recipe.operations.push_back({"ravo.core.whites",
+                                     1,
+                                     "whites-1",
+                                     true,
+                                     {{"amount", ParameterValue{whites}}},
+                                     std::nullopt});
+        recipe.operations.push_back({"ravo.core.blacks",
+                                     1,
+                                     "blacks-1",
+                                     true,
+                                     {{"amount", ParameterValue{blacks}}},
+                                     std::nullopt});
+        return apply_recipe_ops(source, recipe, CancellationToken{});
+    };
+
+    constexpr std::array<std::array<double, 2>, 6> controls{{
+        {{-1.0, 0.0}},
+        {{1.0, 0.0}},
+        {{0.0, -1.0}},
+        {{0.0, 1.0}},
+        {{-0.77, 0.2}},
+        {{1.0, 1.0}},
+    }};
+    for (const auto &control : controls)
+    {
+        auto adjusted = apply(control[0], control[1]);
+        ASSERT_TRUE(adjusted) << adjusted.error().message;
+        float prior_luminance = -1.0F;
+        for (std::size_t pixel = 0; pixel < stops.size(); ++pixel)
+        {
+            const std::size_t index = pixel * 3U;
+            const float red_scale = adjusted.value().rgb[index] / source.rgb[index];
+            for (std::size_t channel = 0; channel < 3U; ++channel)
+            {
+                EXPECT_GT(adjusted.value().rgb[index + channel], 0.0F);
+                EXPECT_NEAR(adjusted.value().rgb[index + channel] / source.rgb[index + channel],
+                            red_scale, std::max(1.0e-6F, std::abs(red_scale) * 2.0e-6F));
+            }
+            const float luminance = 0.2225045F * adjusted.value().rgb[index] +
+                                    0.7168786F * adjusted.value().rgb[index + 1U] +
+                                    0.0606169F * adjusted.value().rgb[index + 2U];
+            EXPECT_GT(luminance, prior_luminance);
+            prior_luminance = luminance;
+        }
+    }
+
+    auto preset_response = apply(-0.77, 0.2);
+    ASSERT_TRUE(preset_response) << preset_response.error().message;
+    const auto smoothstep = [](const float start, const float end, const float value)
+    {
+        const float t = std::clamp((value - start) / (end - start), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
+    };
+    for (std::size_t pixel = 0; pixel < stops.size(); ++pixel)
+    {
+        const float white_weight = smoothstep(0.0F, 4.0F, stops[pixel]);
+        const float black_weight = 1.0F - smoothstep(-8.0F, 0.0F, stops[pixel]);
+        const float expected_scale =
+            std::exp2(-0.77F * 1.8F * white_weight + 0.2F * 2.0F * black_weight);
+        for (std::size_t channel = 0; channel < 3U; ++channel)
+        {
+            const float expected = source.rgb[pixel * 3U + channel] * expected_scale;
+            EXPECT_NEAR(preset_response.value().rgb[pixel * 3U + channel], expected,
+                        std::max(1.0e-7F, std::abs(expected) * 2.0e-6F));
+        }
+    }
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("whites and blacks response"));
+    Recipe cancelled_recipe;
+    cancelled_recipe.operations.push_back({"ravo.core.whites",
+                                           1,
+                                           "whites-cancelled-1",
+                                           true,
+                                           {{"amount", ParameterValue{-0.77}}},
+                                           std::nullopt});
+    cancelled_recipe.operations.push_back({"ravo.core.blacks",
+                                           1,
+                                           "blacks-cancelled-1",
+                                           true,
+                                           {{"amount", ParameterValue{0.2}}},
+                                           std::nullopt});
+    auto stopped = apply_recipe_ops(source, cancelled_recipe, cancelled.token());
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+}
+
+TEST(EngineFacadeTest, CanonicalLightPassMatchesMonotonicOrderedComposition)
+{
+    WorkingImage source;
+    source.height = 1U;
+    source.color_profile.model = ColorModel::kRgb;
+    for (int quarter_stop = -48; quarter_stop <= 24; ++quarter_stop)
+    {
+        const float sample = 0.1842F * std::exp2(static_cast<float>(quarter_stop) / 4.0F);
+        source.rgb.insert(source.rgb.end(), {sample * 1.2F, sample * 0.8F, sample * 0.4F});
+    }
+    source.width = static_cast<std::uint32_t>(source.rgb.size() / 3U);
+
+    constexpr std::array<std::array<double, 4>, 4> endpoints{{
+        {{-1.0, 1.0, -1.0, 1.0}},
+        {{1.0, -1.0, 1.0, -1.0}},
+        {{1.0, 1.0, 1.0, 1.0}},
+        {{-1.0, -1.0, -1.0, -1.0}},
+    }};
+    constexpr std::array<std::string_view, 4> ids{"ravo.core.highlights", "ravo.core.shadows",
+                                                  "ravo.core.whites", "ravo.core.blacks"};
+    for (const auto &amounts : endpoints)
+    {
+        Recipe combined;
+        Recipe separated;
+        for (std::size_t control = 0; control < ids.size(); ++control)
+        {
+            OperationInstance light{std::string(ids[control]),
+                                    1,
+                                    "light-" + std::to_string(control),
+                                    true,
+                                    {{"amount", ParameterValue{amounts[control]}}},
+                                    std::nullopt};
+            combined.operations.push_back(light);
+            separated.operations.push_back(std::move(light));
+            if (control + 1U < ids.size())
+            {
+                separated.operations.push_back({"ravo.core.gamma",
+                                                1,
+                                                "separator-" + std::to_string(control),
+                                                true,
+                                                {{"gamma", ParameterValue{1.0}}},
+                                                std::nullopt});
+            }
+        }
+
+        auto one_pass = apply_recipe_ops(source, combined, CancellationToken{});
+        ASSERT_TRUE(one_pass) << one_pass.error().message;
+        auto ordered = apply_recipe_ops(source, separated, CancellationToken{});
+        ASSERT_TRUE(ordered) << ordered.error().message;
+        ASSERT_EQ(one_pass.value().rgb.size(), ordered.value().rgb.size());
+        float previous_luminance = -1.0F;
+        for (std::size_t index = 0; index < one_pass.value().rgb.size(); index += 3U)
+        {
+            for (std::size_t channel = 0; channel < 3U; ++channel)
+            {
+                const float actual = one_pass.value().rgb[index + channel];
+                EXPECT_GT(actual, 0.0F);
+                EXPECT_NEAR(actual, ordered.value().rgb[index + channel],
+                            std::max(1.0e-7F, std::abs(actual) * 3.0e-6F));
+            }
+            const float luminance = 0.2225045F * one_pass.value().rgb[index] +
+                                    0.7168786F * one_pass.value().rgb[index + 1U] +
+                                    0.0606169F * one_pass.value().rgb[index + 2U];
+            EXPECT_GT(luminance, previous_luminance);
+            previous_luminance = luminance;
+        }
+    }
+}
+
+TEST(EngineFacadeTest, DarkExposureAndRaisedBlacksDoNotCreateAZeroPlateau)
+{
+    WorkingImage source;
+    source.height = 1U;
+    source.color_profile.model = ColorModel::kRgb;
+    for (int quarter_stop = -40; quarter_stop <= 16; ++quarter_stop)
+    {
+        const float sample = 0.1842F * std::exp2(static_cast<float>(quarter_stop) / 4.0F);
+        source.rgb.insert(source.rgb.end(), {sample, sample, sample});
+    }
+    source.width = static_cast<std::uint32_t>(source.rgb.size() / 3U);
+
+    ExposureParams exposure;
+    exposure.exposure_ev = -1.398;
+    exposure.black = -0.0059;
+    Recipe recipe;
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure-1", true, exposure_to_parameters(exposure),
+                                 std::nullopt});
+    recipe.operations.push_back({"ravo.core.whites",
+                                 1,
+                                 "whites-1",
+                                 true,
+                                 {{"amount", ParameterValue{-0.77}}},
+                                 std::nullopt});
+    recipe.operations.push_back(
+        {"ravo.core.blacks", 1, "blacks-1", true, {{"amount", ParameterValue{0.2}}}, std::nullopt});
+
+    auto adjusted = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_TRUE(adjusted) << adjusted.error().message;
+    float previous = -1.0F;
+    for (std::size_t index = 0; index < adjusted.value().rgb.size(); index += 3U)
+    {
+        EXPECT_GT(adjusted.value().rgb[index], 0.0F);
+        EXPECT_GT(adjusted.value().rgb[index], previous);
+        EXPECT_FLOAT_EQ(adjusted.value().rgb[index], adjusted.value().rgb[index + 1U]);
+        EXPECT_FLOAT_EQ(adjusted.value().rgb[index], adjusted.value().rgb[index + 2U]);
+        previous = adjusted.value().rgb[index];
+    }
+}
+
 TEST(EngineFacadeTest, DisplaySrgbCurveEvaluatesEncodedIndependentChannels)
 {
     constexpr float encoded_half_linear = 0.21404114F;

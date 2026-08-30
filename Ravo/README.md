@@ -109,10 +109,12 @@ Current implementation status:
   `Ravo Presets` folder; their filename-owned labels can be renamed without
   rewriting preset contents, and deletion requires explicit confirmation.
   Exposure retains EV semantics, RAW contrast maps to
-  sigmoid, highlights/shadows use calibrated scene-EV envelopes, and composed
-  point curves run on an explicit display-sRGB axis after sigmoid. Unknown or
+  sigmoid, highlights/shadows use calibrated scene-EV envelopes, Whites/Blacks
+  use narrower monotonic hue-preserving envelopes instead of global endpoint
+  subtraction, and composed point curves run on an explicit display-sRGB axis
+  after sigmoid. Unknown or
   active Adobe-only state fails closed; built-in Adobe profile/look omissions
-  remain reported rather than emulated (ADR-0086/0088).
+  remain reported rather than emulated (ADR-0086/0088/0091).
 - RAW Repair provides `ravo.raw.hotpixels` v1 on an owned Bayer CFA copy under
   the frozen same-colour four-neighbor path. `ravo.raw.cacorrect` v1 retains
   RawTherapee two-pass tile/polynomial fitting and avoid-color-shift. Unit
@@ -156,7 +158,7 @@ Current implementation status:
   four rendering intents, soft proof, gamut warning, proof intent, and black-
   point compensation. Matrix/shaper output uses the frozen 65,536-sample LUT
   and unbounded extrapolation; general RGB/XYZ/Lab and proof transforms use
-  render-local LittleCMS. Preview contract v7 and `RenderedImage` carry owned
+  render-local LittleCMS. Preview contract v8 and `RenderedImage` carry owned
   ICC state. CLI PNG emits standard sRGB metadata or `iCCP`, Catalog PNG/JPEG/
   TIFF embeds the same declared profile, and missing/corrupt profiles fail
   before atomic publish. Studio presents the engine-owned result through Output

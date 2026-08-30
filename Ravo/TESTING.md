@@ -60,7 +60,9 @@ rejection of Camera Raw documents, PV2012 mapping onto Develop owners, calibrate
 RAW sigmoid contrast, post-sigmoid display-sRGB curve order, nested Look
 isolation, identity-only Point Colors, overlay that keeps destination crop,
 unknown-key/Kelvin fail-closed, and `recipe import-xmp` dialect=crs. Synthetic
-engine tests pin the scene-EV highlight/shadow endpoints and cancellation;
+engine tests pin the scene-EV highlight/shadow endpoints, Whites/Blacks exact
+envelopes, strict tone order, positive-sample preservation, shared RGB scale,
+single-pass/ordered-composition equivalence, and cancellation for all four;
 recipe validation rejects display-sRGB curves carrying scene-only policies. The
 Edit left-rail QML contract pins Presets above History with Import and apply
 commands. Copy Info tests pin the
@@ -404,7 +406,7 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
   at the pre-commit seam (ADR-0067).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v7 validates complete decode, explicit input/output
+- RAW preview contract v8 validates complete decode, explicit input/output
   profiles, and default Sigmoid; the raster baseline must not receive a second
   display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`

@@ -30,7 +30,7 @@ enum class RecipeHistoryWrite
 };
 inline constexpr std::size_t kTagMaxLength = 128;
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
-inline constexpr std::int64_t kPreviewContractVersion = 7;
+inline constexpr std::int64_t kPreviewContractVersion = 8;
 inline constexpr std::uint32_t kDefaultPreviewMaxEdge = 1600;
 inline constexpr std::uint32_t kInteractivePreviewMaxEdge = 960;
 inline constexpr std::uint32_t kThumbnailMaxEdge = 320;

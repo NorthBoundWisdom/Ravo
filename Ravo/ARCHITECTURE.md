@@ -275,7 +275,7 @@ Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
 Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v7: full CPU
+`prefer_embedded_preview=false` use preview contract v8: full CPU
 decode/render followed by the `ravo.display.sigmoid` baseline at the end of
 the scene-linear buffer and the recipe-owned output profile. The cache types
 must not share a digest. Without
@@ -381,9 +381,11 @@ validated direct child of that folder and follows an explicit UI confirmation.
 `catalog develop --from-xmp` is the same overlay
 without replacing crop, masks, or profiles. CRS exposure is exact EV; RAW
 contrast targets sigmoid, while display-referred raster contrast retains the
-core owner. Highlights/shadows use calibrated scene-EV envelopes. Adobe
+core owner. Highlights/shadows use calibrated scene-EV envelopes;
+Whites/Blacks use narrower monotonic scene-EV envelopes with one positive RGB
+scale instead of subtracting a global endpoint. Adobe
 profiles and looks remain reported omissions rather than hidden colour-engine
-substitutes (ADR-0086/0088).
+substitutes (ADR-0086/0088/0091).
 
 Studio's Curves section authors two operations without folding them.
 `ravo.color.rgbcurve` is the default RGB/R/G/B working-space curve, with
@@ -408,8 +410,10 @@ RGB8 histogram plus Rec.709 luma.
 The lightweight P1 global controls do not stand in for the later full-module
 migration queue. The raster/old-recipe core Contrast path plus Saturation and
 Vibrance retain the darktable basic-adjustments CPU response. RAW Contrast is
-owned by Sigmoid, and Highlights/Shadows use the calibrated scene-EV response
-from ADR-0088.
+owned by Sigmoid, Highlights/Shadows use the calibrated scene-EV response from
+ADR-0088, and Whites/Blacks use the positivity- and tone-order-preserving
+response from ADR-0091. A contiguous canonical Highlights → Shadows → Whites →
+Blacks sequence composes the same ordered EV maps in one cancellable row pass.
 Lab-backed controls share the engine's D50 working conversion; Grain, Bloom,
 and Soften defaults use the corresponding source parameters, while Sharpen and
 post-crop vignette geometry (signed amount, midpoint, falloff, shape, centre)
@@ -470,7 +474,9 @@ Studio and CRS Contrast belong to Sigmoid; CRS maps the signed slider
 logarithmically around the 1.5 default to a +100 endpoint of 3.25.
 `ravo.core.contrast` serves
 display-referred raster input and old recipes. Highlights/shadows/whites/blacks
-are scene controls before the transform (ADR-0088).
+are scene controls before the transform; the narrower Whites/Blacks envelopes
+meet at middle grey and never create a negative sample from a positive one
+(ADR-0088/0091).
 
 RAW may execute `ravo.raw.highlights` before demosaic; default denoise, lens
 correction, dt UCS `colorequal`, graduated filter, and nine-band toneequal

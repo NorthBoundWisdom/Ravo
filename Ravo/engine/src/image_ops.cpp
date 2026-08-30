@@ -771,6 +771,13 @@ Result<void> apply_sigmoid(WorkingImage &image, const OperationInstance &operati
     return 0.2225045F * r + 0.7168786F * g + 0.0606169F * b;
 }
 
+[[nodiscard]] float smooth_tone_weight(const float start, const float end,
+                                       const float value) noexcept
+{
+    const float t = std::clamp((value - start) / (end - start), 0.0F, 1.0F);
+    return t * t * (3.0F - 2.0F * t);
+}
+
 [[nodiscard]] Result<void> validate_exposure_input(const WorkingImage &input,
                                                    const CancellationToken &cancellation)
 {
@@ -1066,13 +1073,44 @@ void lab_to_rgb(const float L, const float a, const float b_ch, float &r, float 
 void rgb_to_hsl(float r, float g, float b, float &h, float &s, float &l);
 void hsl_to_rgb(float h, float s, float l, float &r, float &g, float &b);
 
-Result<void> apply_highlights_shadows(WorkingImage &image, const double highlights,
-                                      const double shadows, const CancellationToken &cancellation)
+struct LightControlAmounts
 {
-    if (highlights == 0.0 && shadows == 0.0)
+    double highlights = 0.0;
+    double shadows = 0.0;
+    double whites = 0.0;
+    double blacks = 0.0;
+};
+
+[[nodiscard]] int light_control_rank(const std::string_view id) noexcept
+{
+    if (id == "ravo.core.highlights")
+    {
+        return 0;
+    }
+    if (id == "ravo.core.shadows")
+    {
+        return 1;
+    }
+    if (id == "ravo.core.whites")
+    {
+        return 2;
+    }
+    if (id == "ravo.core.blacks")
+    {
+        return 3;
+    }
+    return -1;
+}
+
+Result<void> apply_light_controls(WorkingImage &image, const LightControlAmounts &amounts,
+                                  const CancellationToken &cancellation)
+{
+    if (amounts.highlights == 0.0 && amounts.shadows == 0.0 && amounts.whites == 0.0 &&
+        amounts.blacks == 0.0)
     {
         return {};
     }
+
     // Lightroom PV2012 endpoint references are substantially wider than the old Lab-L* masks.
     // Keep this a Ravo-owned scene-linear exposure envelope: the constants calibrate the
     // resulting display response without importing Adobe profiles or a PV2012 colour engine.
@@ -1081,13 +1119,23 @@ Result<void> apply_highlights_shadows(WorkingImage &image, const double highligh
     constexpr float kHighlightEndEv = 2.75F;
     constexpr float kShadowStartEv = -6.0F;
     constexpr float kShadowEndEv = 0.75F;
-    const float highlight_ev = static_cast<float>(highlights) * (highlights >= 0.0 ? 0.9F : 1.8F);
-    const float shadow_ev = static_cast<float>(shadows) * (shadows >= 0.0 ? 2.0F : 2.9F);
-    const auto smoothstep = [](const float start, const float end, const float value) noexcept
-    {
-        const float t = std::clamp((value - start) / (end - start), 0.0F, 1.0F);
-        return t * t * (3.0F - 2.0F * t);
-    };
+    // Whites and Blacks are narrower companions to Highlights and Shadows. Work in scene EV,
+    // anchor both sides at middle grey, and multiply all three channels by one positive factor.
+    // The endpoint strengths and envelope widths keep d(EVout)/d(EVin) positive for every
+    // slider value, so a light control cannot reverse tones or turn positive colour into a
+    // clipped negative block.
+    constexpr float kWhiteStartEv = 0.0F;
+    constexpr float kWhiteEndEv = 4.0F;
+    constexpr float kBlackStartEv = -8.0F;
+    constexpr float kBlackEndEv = 0.0F;
+    const float highlight_ev =
+        static_cast<float>(amounts.highlights) * (amounts.highlights >= 0.0 ? 0.9F : 1.8F);
+    const float shadow_ev =
+        static_cast<float>(amounts.shadows) * (amounts.shadows >= 0.0 ? 2.0F : 2.9F);
+    const float white_ev =
+        static_cast<float>(amounts.whites) * (amounts.whites >= 0.0 ? 0.9F : 1.8F);
+    const float black_ev =
+        static_cast<float>(amounts.blacks) * (amounts.blacks >= 0.0 ? 2.0F : 2.9F);
     return for_each_row(
         image.height, cancellation,
         [&](const std::uint32_t row)
@@ -1102,28 +1150,38 @@ Result<void> apply_highlights_shadows(WorkingImage &image, const double highligh
                 {
                     continue;
                 }
-                const float tone_ev = std::log2(luminance / kMiddleGrey);
-                const float highlight_mask =
-                    smoothstep(kHighlightStartEv, kHighlightEndEv, tone_ev);
-                const float shadow_mask = 1.0F - smoothstep(kShadowStartEv, kShadowEndEv, tone_ev);
-                const float scale =
-                    std::exp2(highlight_ev * highlight_mask + shadow_ev * shadow_mask);
+                float tone_ev = std::log2(luminance / kMiddleGrey);
+                float total_delta_ev = 0.0F;
+                const auto apply_delta = [&](const float delta) noexcept
+                {
+                    tone_ev += delta;
+                    total_delta_ev += delta;
+                };
+                if (highlight_ev != 0.0F)
+                {
+                    apply_delta(highlight_ev *
+                                smooth_tone_weight(kHighlightStartEv, kHighlightEndEv, tone_ev));
+                }
+                if (shadow_ev != 0.0F)
+                {
+                    apply_delta(shadow_ev *
+                                (1.0F - smooth_tone_weight(kShadowStartEv, kShadowEndEv, tone_ev)));
+                }
+                if (white_ev != 0.0F)
+                {
+                    apply_delta(white_ev * smooth_tone_weight(kWhiteStartEv, kWhiteEndEv, tone_ev));
+                }
+                if (black_ev != 0.0F)
+                {
+                    apply_delta(black_ev *
+                                (1.0F - smooth_tone_weight(kBlackStartEv, kBlackEndEv, tone_ev)));
+                }
+                const float scale = std::exp2(total_delta_ev);
                 image.rgb[index] *= scale;
                 image.rgb[index + 1U] *= scale;
                 image.rgb[index + 2U] *= scale;
             }
         });
-}
-
-void apply_whites_blacks(WorkingImage &image, const double whites, const double blacks)
-{
-    const float white = std::max(0.05F, 1.0F + static_cast<float>(whites) * 0.5F);
-    const float black = static_cast<float>(blacks) * 0.25F;
-    const float denom = std::max(1.0e-5F, white - black);
-    for (float &sample : image.rgb)
-    {
-        sample = (sample - black) / denom;
-    }
 }
 
 Result<void> apply_vibrance_saturation(WorkingImage &image, const double vibrance,
@@ -2970,34 +3028,50 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
             apply_contrast(image, parameter(operation, "amount", 0.0));
             continue;
         }
-        if (operation.id == "ravo.core.highlights")
+        if (light_control_rank(operation.id) >= 0)
         {
-            auto adjusted = apply_highlights_shadows(image, parameter(operation, "amount", 0.0),
-                                                     0.0, cancellation);
+            LightControlAmounts amounts;
+            int previous_rank = -1;
+            auto candidate = iterator;
+            auto last = iterator;
+            for (; candidate != recipe.operations.cend(); ++candidate)
+            {
+                const int rank = light_control_rank(candidate->id);
+                if (rank < 0 || rank <= previous_rank ||
+                    (candidate->enabled && candidate->mask_id.has_value()))
+                {
+                    break;
+                }
+                previous_rank = rank;
+                last = candidate;
+                if (!candidate->enabled)
+                {
+                    continue;
+                }
+                const double amount = parameter(*candidate, "amount", 0.0);
+                if (rank == 0)
+                {
+                    amounts.highlights = amount;
+                }
+                else if (rank == 1)
+                {
+                    amounts.shadows = amount;
+                }
+                else if (rank == 2)
+                {
+                    amounts.whites = amount;
+                }
+                else
+                {
+                    amounts.blacks = amount;
+                }
+            }
+            iterator = last;
+            auto adjusted = apply_light_controls(image, amounts, cancellation);
             if (!adjusted)
             {
                 return adjusted.error();
             }
-            continue;
-        }
-        if (operation.id == "ravo.core.shadows")
-        {
-            auto adjusted = apply_highlights_shadows(
-                image, 0.0, parameter(operation, "amount", 0.0), cancellation);
-            if (!adjusted)
-            {
-                return adjusted.error();
-            }
-            continue;
-        }
-        if (operation.id == "ravo.core.whites")
-        {
-            apply_whites_blacks(image, parameter(operation, "amount", 0.0), 0.0);
-            continue;
-        }
-        if (operation.id == "ravo.core.blacks")
-        {
-            apply_whites_blacks(image, 0.0, parameter(operation, "amount", 0.0));
             continue;
         }
         if (operation.id == "ravo.color.vibrance")
