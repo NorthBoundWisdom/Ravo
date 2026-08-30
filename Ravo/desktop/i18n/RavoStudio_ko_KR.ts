@@ -102,20 +102,12 @@
             <translation>스냅샷</translation>
         </message>
         <message>
-            <source>Copy</source>
-            <translation>복사</translation>
+            <source>Copy Parameters</source>
+            <translation>매개변수 복사</translation>
         </message>
         <message>
-            <source>Paste</source>
-            <translation>붙여넣기</translation>
-        </message>
-        <message>
-            <source>Paste Light</source>
-            <translation>밝기 붙여넣기</translation>
-        </message>
-        <message>
-            <source>Paste Color</source>
-            <translation>색상 붙여넣기</translation>
+            <source>Paste Parameters</source>
+            <translation>매개변수 붙여넣기</translation>
         </message>
         <message>
             <source>on</source>
@@ -2449,8 +2441,40 @@
             <translation>Velvia 중간톤 바이어스</translation>
         </message>
         <message>
+            <source>RGB curve</source>
+            <translation>RGB 곡선</translation>
+        </message>
+        <message>
+            <source>Output Dither</source>
+            <translation>출력 디더링</translation>
+        </message>
+        <message>
+            <source>Output Frame</source>
+            <translation>출력 프레임</translation>
+        </message>
+        <message>
+            <source>Watermark</source>
+            <translation>워터마크</translation>
+        </message>
+        <message>
             <source>Denoise</source>
             <translation>노이즈 제거</translation>
+        </message>
+        <message>
+            <source>RAW highlights</source>
+            <translation>RAW 하이라이트</translation>
+        </message>
+        <message>
+            <source>Chromatic aberration</source>
+            <translation>색수차</translation>
+        </message>
+        <message>
+            <source>RAW denoise</source>
+            <translation>RAW 노이즈 제거</translation>
+        </message>
+        <message>
+            <source>Perspective</source>
+            <translation>원근 보정</translation>
         </message>
         <message>
             <source>Angle</source>
@@ -2467,6 +2491,14 @@
         <message>
             <source>Crop</source>
             <translation>자르기</translation>
+        </message>
+        <message>
+            <source>Canvas</source>
+            <translation>캔버스</translation>
+        </message>
+        <message>
+            <source>Lens Correction</source>
+            <translation>렌즈 보정</translation>
         </message>
         <message>
             <source>Tone curve</source>
@@ -2489,12 +2521,40 @@
             <translation>색상 균형</translation>
         </message>
         <message>
+            <source>Color Checker</source>
+            <translation>컬러 체커</translation>
+        </message>
+        <message>
             <source>Color Balance RGB</source>
             <translation>RGB 색상 균형</translation>
         </message>
         <message>
+            <source>Color Correction</source>
+            <translation>색상 보정</translation>
+        </message>
+        <message>
+            <source>Color Contrast</source>
+            <translation>색상 대비</translation>
+        </message>
+        <message>
             <source>Sigmoid</source>
             <translation>시그모이드</translation>
+        </message>
+        <message>
+            <source>Masks</source>
+            <translation>마스크</translation>
+        </message>
+        <message>
+            <source>Section bypass state</source>
+            <translation>섹션 우회 상태</translation>
+        </message>
+        <message>
+            <source>RAW</source>
+            <translation>RAW</translation>
+        </message>
+        <message>
+            <source>Other</source>
+            <translation>기타</translation>
         </message>
         <message>
             <source>Mask edit was rejected</source>
@@ -2520,8 +2580,12 @@
             <translation>가져오기…</translation>
         </message>
         <message>
-            <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
-            <translation>Lightroom .xmp 프리셋 또는 Ravo 스타일을 가져와 선택한 사진에 적용합니다.</translation>
+            <source>Save…</source>
+            <translation>저장…</translation>
+        </message>
+        <message>
+            <source>Import a preset, or save selected changes from the current photo.</source>
+            <translation>프리셋을 가져오거나 현재 사진에서 선택한 변경 사항을 프리셋으로 저장합니다.</translation>
         </message>
         <message>
             <source>Rename…</source>
@@ -3224,6 +3288,61 @@
         </message>
     </context>
     <context>
+        <name>PresetSaveDialog</name>
+        <message>
+            <source>Save Preset</source>
+            <translation>프리셋 저장</translation>
+        </message>
+        <message>
+            <source>Copy Parameters</source>
+            <translation>매개변수 복사</translation>
+        </message>
+        <message>
+            <source>Preset name</source>
+            <translation>프리셋 이름</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters this preset will apply. Nothing is selected by default.</source>
+            <translation>이 프리셋에 적용할 수정된 매개변수를 선택하세요. 기본적으로 아무것도 선택되지 않습니다.</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters to copy. Nothing is selected by default.</source>
+            <translation>복사할 수정된 매개변수를 선택하세요. 기본적으로 아무것도 선택되지 않습니다.</translation>
+        </message>
+        <message>
+            <source>%1 selected</source>
+            <translation>%1개 선택됨</translation>
+        </message>
+        <message>
+            <source>Select all</source>
+            <translation>모두 선택</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>지우기</translation>
+        </message>
+        <message>
+            <source>No modified parameters are available.</source>
+            <translation>사용할 수 있는 수정된 매개변수가 없습니다.</translation>
+        </message>
+        <message>
+            <source>Modified parameters</source>
+            <translation>수정된 매개변수</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>저장</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>복사</translation>
+        </message>
+    </context>
+    <context>
         <name>ScopePanel</name>
         <message>
             <source>Scope type</source>
@@ -3554,10 +3673,6 @@
             <translation>다시 실행할 항목이 없습니다.</translation>
         </message>
         <message>
-            <source>Copy edits first.</source>
-            <translation>먼저 편집 내용을 복사하세요.</translation>
-        </message>
-        <message>
             <source>The selected originals cannot be deleted.</source>
             <translation>선택한 원본은 삭제할 수 없습니다.</translation>
         </message>
@@ -3652,14 +3767,6 @@
         <message>
             <source>Redo</source>
             <translation>다시 실행</translation>
-        </message>
-        <message>
-            <source>Copy Edits</source>
-            <translation>편집 내용 복사</translation>
-        </message>
-        <message>
-            <source>Paste Edits</source>
-            <translation>편집 내용 붙여넣기</translation>
         </message>
         <message>
             <source>Reset All Edits</source>
@@ -3774,6 +3881,18 @@
             <translation>매개변수 복사</translation>
         </message>
         <message>
+            <source>No modified parameters to copy.</source>
+            <translation>복사할 수정된 매개변수가 없습니다.</translation>
+        </message>
+        <message>
+            <source>Copy parameters first.</source>
+            <translation>먼저 매개변수를 복사하세요.</translation>
+        </message>
+        <message>
+            <source>Paste Parameters</source>
+            <translation>매개변수 붙여넣기</translation>
+        </message>
+        <message>
             <source>Remove from Catalog...</source>
             <translation>카탈로그에서 제거...</translation>
         </message>
@@ -3812,6 +3931,18 @@
         <message>
             <source>Unknown command argument field: %1.</source>
             <translation>알 수 없는 명령 인수 필드입니다: %1.</translation>
+        </message>
+        <message>
+            <source>Parameter fields must be a non-empty string list.</source>
+            <translation>매개변수 필드는 비어 있지 않은 문자열 목록이어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Parameter fields contain an unsupported or duplicate value.</source>
+            <translation>매개변수 필드에 지원되지 않거나 중복된 값이 있습니다.</translation>
+        </message>
+        <message>
+            <source>Preset name must be a non-empty string.</source>
+            <translation>프리셋 이름은 비어 있지 않은 문자열이어야 합니다.</translation>
         </message>
         <message>
             <source>Export path must be a string.</source>
@@ -4014,6 +4145,10 @@
             <translation>원근 보정이 완료되었습니다.</translation>
         </message>
         <message>
+            <source>Edit was saved, but recovery synchronization failed: </source>
+            <translation>편집 내용은 저장되었지만 복구 동기화에 실패했습니다:</translation>
+        </message>
+        <message>
             <source>Style path must not be empty.</source>
             <translation>스타일 경로는 비어 있을 수 없습니다.</translation>
         </message>
@@ -4054,12 +4189,40 @@
             <translation>프리셋 이름이 운영 체제 예약어입니다.</translation>
         </message>
         <message>
+            <source>Select at least one modified parameter.</source>
+            <translation>수정된 매개변수를 하나 이상 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Parameter selection is invalid.</source>
+            <translation>매개변수 선택이 유효하지 않습니다.</translation>
+        </message>
+        <message>
+            <source>The selected parameters are no longer modified.</source>
+            <translation>선택한 매개변수는 더 이상 수정된 상태가 아닙니다.</translation>
+        </message>
+        <message>
+            <source>Open a library to save presets.</source>
+            <translation>프리셋을 저장하려면 라이브러리를 여세요.</translation>
+        </message>
+        <message>
+            <source>Preset “%1” saved.</source>
+            <translation>프리셋 “%1”을 저장했습니다.</translation>
+        </message>
+        <message>
             <source>Preset file was not found.</source>
             <translation>프리셋 파일을 찾을 수 없습니다.</translation>
         </message>
         <message>
             <source>Open a library to import presets.</source>
             <translation>프리셋을 가져오려면 라이브러리를 여세요.</translation>
+        </message>
+        <message>
+            <source>Parameters copied.</source>
+            <translation>매개변수를 복사했습니다.</translation>
+        </message>
+        <message>
+            <source>Parameters pasted.</source>
+            <translation>매개변수를 붙여넣었습니다.</translation>
         </message>
         <message>
             <source>Preset folder could not be created.</source>
@@ -4140,14 +4303,6 @@
         <message>
             <source>Preset information copied.</source>
             <translation>프리셋 정보를 복사했습니다.</translation>
-        </message>
-        <message>
-            <source>Edits copied.</source>
-            <translation>편집 내용을 복사했습니다.</translation>
-        </message>
-        <message>
-            <source>Edits pasted.</source>
-            <translation>편집 내용을 붙여넣었습니다.</translation>
         </message>
         <message>
             <source>Engine failed to start.</source>

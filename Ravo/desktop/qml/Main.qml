@@ -496,6 +496,14 @@ ApplicationWindow {
         presetImportDialog.openDialog();
     }
 
+    function openPresetSaveDialog() {
+        parameterSelectionDialog.openForPreset(studio.selectedDisplayName, studio.modifiedParameterChoices);
+    }
+
+    function openParameterCopyDialog() {
+        parameterSelectionDialog.openForCopy(studio.modifiedParameterChoices);
+    }
+
     function startLibrarySession() {
         if (studio.catalogOpen)
             return;
@@ -594,7 +602,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || presetRenameDialog.visible || presetDeleteDialog.visible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -620,12 +628,16 @@ ApplicationWindow {
                 openImportFolderDialog();
             else if (id === ids.libraryExport)
                 openExportDialog();
+            else if (id === ids.editCopyParameters)
+                openParameterCopyDialog();
             else if (id === ids.styleSave)
                 openStyleSaveDialog();
             else if (id === ids.styleApply)
                 openStyleApplyDialog();
             else if (id === ids.presetImport)
                 openPresetImportDialog();
+            else if (id === ids.presetSave)
+                openPresetSaveDialog();
             else if (id === ids.presetRename)
                 presetRenameDialog.openForPreset(String(argument.path || ""), String(argument.name || ""));
             else if (id === ids.presetDelete)
@@ -1315,6 +1327,20 @@ ApplicationWindow {
                 "path": path,
                 "name": name
             });
+        }
+    }
+
+    PresetSaveDialog {
+        id: parameterSelectionDialog
+        parentItem: window.contentItem
+        onSaveAccepted: function (name, fields) {
+            studioActions.run(studioActions.ids.presetSaveSelected, {
+                "name": name,
+                "fields": fields
+            });
+        }
+        onCopyAccepted: function (fields) {
+            studioActions.run(studioActions.ids.editCopyParametersSelected, fields);
         }
     }
 

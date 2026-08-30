@@ -22,8 +22,9 @@ nodes). Folding rgbcurve into tonecurve remains rejected by ADR-0052.
 
 - Studio's default Develop order is White Balance, Light, **Curves**, Color
   Equalizer, Color, then the existing later stack. Curves is its own recipe
-  section (`curves`) with an independent bypass lamp. Paste Light applies
-  White Balance, Light, and Curves.
+  section (`curves`) with an independent bypass lamp. ADR-0098 makes RGB Curve
+  and Tone Curve explicit selectable clipboard fields rather than an implicit
+  Paste Light group.
 - The editor authors two existing operations without merging schemas:
   - **RGB** (default): `ravo.color.rgbcurve`. Channel RGB (linked) or R/G/B
     (independent). Preserve-colors applies only when linked. Compensate

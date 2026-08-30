@@ -1,6 +1,6 @@
 # ADR-0065: Reusable presets are complete versioned recipe-style artifacts
 
-- Status: Accepted
+- Status: Accepted; selective overlays extended by ADR-0098
 - Date: 2026-08-29
 - Extends: [ADR-0003](0003-versioned-machine-contract.md)
 

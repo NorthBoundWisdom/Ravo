@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iterator>
 #include <numbers>
+#include <set>
 #include <string_view>
 #include <utility>
 
@@ -55,9 +56,9 @@ bool StudioPresenter::canRedo() const noexcept
     return !redo_stack_.empty();
 }
 
-bool StudioPresenter::hasCopiedEdits() const noexcept
+bool StudioPresenter::hasCopiedParameters() const noexcept
 {
-    return copied_edits_.has_value();
+    return copied_parameters_.has_value();
 }
 
 QVariantMap StudioPresenter::editWhiteBalance() const
@@ -2096,10 +2097,14 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Velvia strength");
     if (field == "velviaBias")
         return QCoreApplication::translate("DevelopPanel", "Velvia mid-tones bias");
+    if (field == "lut3d")
+        return QCoreApplication::translate("DevelopPanel", "3D LUT");
     if (field == "gamma")
         return QCoreApplication::translate("DevelopPanel", "Gamma");
     if (field == "rgbLevels")
         return QCoreApplication::translate("DevelopPanel", "RGB levels");
+    if (field == "rgbCurve")
+        return QCoreApplication::translate("DevelopPanel", "RGB curve");
     if (field == "sharpen")
         return QCoreApplication::translate("DevelopPanel", "Sharpen");
     if (field == "texture")
@@ -2122,12 +2127,30 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Soften");
     if (field == "dehaze")
         return QCoreApplication::translate("DevelopPanel", "Dehaze");
+    if (field == "outputDither")
+        return QCoreApplication::translate("DevelopPanel", "Output Dither");
+    if (field == "outputFrame")
+        return QCoreApplication::translate("DevelopPanel", "Output Frame");
+    if (field == "watermark")
+        return QCoreApplication::translate("DevelopPanel", "Watermark");
     if (field == "monochrome")
         return QCoreApplication::translate("DevelopPanel", "Monochrome");
     if (field == "denoise")
         return QCoreApplication::translate("DevelopPanel", "Denoise");
+    if (field == "rawHighlights")
+        return QCoreApplication::translate("DevelopPanel", "RAW highlights");
+    if (field == "hotPixels")
+        return QCoreApplication::translate("DevelopPanel", "Hot pixels");
+    if (field == "rawChromaticAberration")
+        return QCoreApplication::translate("DevelopPanel", "Chromatic aberration");
+    if (field == "rawDenoise")
+        return QCoreApplication::translate("DevelopPanel", "RAW denoise");
+    if (field == "demosaic")
+        return QCoreApplication::translate("DevelopPanel", "Demosaicing");
     if (field == "straighten")
         return QCoreApplication::translate("DevelopPanel", "Angle");
+    if (field == "perspective")
+        return QCoreApplication::translate("DevelopPanel", "Perspective");
     if (field == "toneEqBlacks")
         return QCoreApplication::translate("DevelopPanel", "Blacks");
     if (field == "toneEqShadows")
@@ -2148,6 +2171,10 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Flip");
     if (field == "crop")
         return QCoreApplication::translate("DevelopPanel", "Crop");
+    if (field == "canvas")
+        return QCoreApplication::translate("DevelopPanel", "Canvas");
+    if (field == "lens")
+        return QCoreApplication::translate("DevelopPanel", "Lens Correction");
     if (field == "toneCurve")
         return QCoreApplication::translate("DevelopPanel", "Tone curve");
     if (field == "whiteBalance")
@@ -2160,10 +2187,26 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "RGB Primaries");
     if (field == "mixer")
         return QCoreApplication::translate("DevelopPanel", "Channel Mixer");
+    if (field == "calibration")
+        return QCoreApplication::translate("DevelopPanel", "Camera Calibration");
     if (field == "colorBalance")
         return QCoreApplication::translate("DevelopPanel", "Color Balance");
+    if (field == "colorChecker")
+        return QCoreApplication::translate("DevelopPanel", "Color Checker");
     if (field == "colorBalanceRgb")
         return QCoreApplication::translate("DevelopPanel", "Color Balance RGB");
+    if (field == "colorCorrection")
+        return QCoreApplication::translate("DevelopPanel", "Color Correction");
+    if (field == "colorContrast")
+        return QCoreApplication::translate("DevelopPanel", "Color Contrast");
+    if (field == "colorReconstruction")
+        return QCoreApplication::translate("DevelopPanel", "Color Reconstruction");
+    if (field == "colorZones")
+        return QCoreApplication::translate("DevelopPanel", "Color Zones");
+    if (field == "colorHarmonizer")
+        return QCoreApplication::translate("DevelopPanel", "Color Harmonizer");
+    if (field == "splitToning")
+        return QCoreApplication::translate("DevelopPanel", "Split Toning");
     if (field == "profileGamma")
         return QCoreApplication::translate("DevelopPanel", "Unbreak input profile");
     if (field == "sigmoid")
@@ -2178,9 +2221,54 @@ QString history_field_label(const std::string_view field)
         return QCoreApplication::translate("DevelopPanel", "Effects");
     if (field == "geometry")
         return QCoreApplication::translate("DevelopPanel", "Geometry");
+    if (field == "masks")
+        return QCoreApplication::translate("DevelopPanel", "Masks");
+    if (field.ends_with("SectionState"))
+        return QCoreApplication::translate("DevelopPanel", "Section bypass state");
     if (field == "reset")
         return QCoreApplication::translate("StudioCommands", "Reset All Edits");
     return qstring_from_utf8(field);
+}
+
+QString preset_field_group(const std::string_view field)
+{
+    if (field == "whiteBalance" || field == "whiteBalanceSectionState")
+        return QCoreApplication::translate("DevelopPanel", "White Balance");
+    if (field == "profileGamma" || field == "inputProfile" || field == "inputProfileSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Input Profile");
+    if (field == "outputProfile" || field == "outputProfileSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Output Profile");
+    if (field == "primaries" || field == "calibration" || field == "primariesSectionState" ||
+        field == "calibrationSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Camera Calibration");
+    if (field == "exposure" || field == "contrast" || field == "highlights" || field == "shadows" ||
+        field == "whites" || field == "blacks" || field == "gamma" || field == "rgbLevels" ||
+        field == "sigmoid" || field == "toneEqual" || field == "lightSectionState" ||
+        field == "toneEqualSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Light");
+    if (field == "rgbCurve" || field == "toneCurve" || field == "curvesSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Curves");
+    if (field == "vibrance" || field == "saturation" || field == "velvia" || field == "lut3d" ||
+        field == "colorBalance" || field == "colorChecker" || field == "colorBalanceRgb" ||
+        field == "colorCorrection" || field == "colorContrast" || field == "colorReconstruction" ||
+        field == "colorZones" || field == "colorHarmonizer" || field == "monochrome" ||
+        field == "splitToning" || field == "colorEqualizer" || field == "colorSectionState" ||
+        field == "colorEqualizerSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Color");
+    if (field == "sharpen" || field == "texture" || field == "retouch" || field == "clarity" ||
+        field == "denoise" || field == "grain" || field == "detailSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Detail");
+    if (field == "demosaic" || field == "rawHighlights" || field == "hotPixels" ||
+        field == "rawChromaticAberration" || field == "rawDenoise" || field == "rawSectionState")
+        return QCoreApplication::translate("DevelopPanel", "RAW");
+    if (field == "rotate" || field == "flip" || field == "straighten" || field == "perspective" ||
+        field == "crop" || field == "canvas" || field == "lens" || field == "geometrySectionState")
+        return QCoreApplication::translate("DevelopPanel", "Geometry");
+    if (field == "vignette" || field == "bloom" || field == "soften" || field == "dehaze" ||
+        field == "outputDither" || field == "graduated" || field == "outputFrame" ||
+        field == "watermark" || field == "effectsSectionState" || field == "graduatedSectionState")
+        return QCoreApplication::translate("DevelopPanel", "Effects");
+    return QCoreApplication::translate("DevelopPanel", "Other");
 }
 
 QString format_history_summary(const std::vector<DevelopChange> &changes)
@@ -2246,6 +2334,22 @@ DevelopParams StudioPresenter::baseline_develop() const
         params.sigmoid_enabled = is_raw_media_type(asset->media_type);
     }
     return params;
+}
+
+QVariantList StudioPresenter::modifiedParameterChoices() const
+{
+    QVariantList result;
+    if (selected_asset_id_.isEmpty() || !develop_loaded_)
+        return result;
+    const auto changes = develop_modified_fields(baseline_develop(), develop_);
+    result.reserve(static_cast<qsizetype>(changes.size()));
+    for (const auto &change : changes)
+    {
+        result.push_back(QVariantMap{{QStringLiteral("field"), qstring_from_utf8(change.field)},
+                                     {QStringLiteral("label"), history_field_label(change.field)},
+                                     {QStringLiteral("group"), preset_field_group(change.field)}});
+    }
+    return result;
 }
 
 DevelopParams StudioPresenter::develop_from_history_entry(const RecipeHistoryEntry &entry) const
@@ -3165,8 +3269,14 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
         setError(qstring_from_utf8(valid_template.error().message));
         return;
     }
-    auto recipe = apply_recipe_style(
-        style.value(), {asset->id, asset->normalized_uri, asset->content_fingerprint});
+    auto target_recipe = recipe_from_develop(
+        {asset->id, asset->normalized_uri, asset->content_fingerprint}, develop_);
+    if (!target_recipe)
+    {
+        setError(qstring_from_utf8(target_recipe.error().message));
+        return;
+    }
+    auto recipe = apply_recipe_style(style.value(), std::move(target_recipe).value());
     if (!recipe)
     {
         setError(qstring_from_utf8(recipe.error().message));
@@ -3275,6 +3385,44 @@ QString preset_name_validation_error(const QString &name)
     return {};
 }
 
+QString collect_modified_parameter_selection(const QVariantList &fields,
+                                             const DevelopParams &baseline,
+                                             const DevelopParams &current,
+                                             std::vector<std::string> &selected_fields)
+{
+    if (fields.isEmpty())
+        return QCoreApplication::translate("StudioPresenter",
+                                           "Select at least one modified parameter.");
+    if (fields.size() > static_cast<qsizetype>(develop_selectable_field_names().size()))
+        return QCoreApplication::translate("StudioPresenter", "Parameter selection is invalid.");
+
+    selected_fields.clear();
+    selected_fields.reserve(static_cast<std::size_t>(fields.size()));
+    std::set<std::string, std::less<>> selected_set;
+    for (const auto &field : fields)
+    {
+        if (field.metaType().id() != QMetaType::QString || field.toString().isEmpty())
+            return QCoreApplication::translate("StudioPresenter",
+                                               "Parameter selection is invalid.");
+        auto selected = utf8_from_qstring(field.toString());
+        if (!is_develop_selectable_field(selected) || !selected_set.insert(selected).second)
+            return QCoreApplication::translate("StudioPresenter",
+                                               "Parameter selection is invalid.");
+        selected_fields.push_back(std::move(selected));
+    }
+
+    std::set<std::string, std::less<>> current_fields;
+    for (const auto &change : develop_modified_fields(baseline, current))
+        current_fields.insert(change.field);
+    if (!std::all_of(selected_fields.cbegin(), selected_fields.cend(),
+                     [&current_fields](const std::string &field)
+                     { return current_fields.contains(field); }))
+        return QCoreApplication::translate("StudioPresenter",
+                                           "The selected parameters are no longer modified.");
+    std::sort(selected_fields.begin(), selected_fields.end());
+    return {};
+}
+
 } // namespace
 
 QString StudioPresenter::presets_directory() const
@@ -3282,6 +3430,98 @@ QString StudioPresenter::presets_directory() const
     if (catalog_path_.isEmpty())
         return {};
     return QDir(QFileInfo(catalog_path_).absolutePath()).filePath(QStringLiteral("Ravo Presets"));
+}
+
+void StudioPresenter::savePreset(const QString &name, const QVariantList &fields)
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || !engine_)
+        return;
+    const QString checked_name = name;
+    const QString name_error = preset_name_validation_error(checked_name);
+    if (!name_error.isEmpty())
+    {
+        setError(name_error);
+        return;
+    }
+    if (static_cast<std::size_t>(checked_name.toUtf8().size()) > kRecipeStyleNameMaxBytes)
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset name is too long."));
+        return;
+    }
+    std::vector<std::string> selected_fields;
+    const QString selection_error =
+        collect_modified_parameter_selection(fields, baseline_develop(), develop_, selected_fields);
+    if (!selection_error.isEmpty())
+    {
+        setError(selection_error);
+        return;
+    }
+
+    const QString directory = presets_directory();
+    if (directory.isEmpty())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Open a library to save presets."));
+        return;
+    }
+    if (!QDir().mkpath(directory))
+    {
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Preset folder could not be created."));
+        return;
+    }
+    const bool duplicate_name =
+        std::any_of(develop_presets_.cbegin(), develop_presets_.cend(),
+                    [&checked_name](const QVariant &entry)
+                    {
+                        return entry.toMap()
+                                   .value(QStringLiteral("name"))
+                                   .toString()
+                                   .compare(checked_name, Qt::CaseInsensitive) == 0;
+                    });
+    if (duplicate_name)
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "A preset with that name already exists."));
+        return;
+    }
+
+    auto recipe = recipe_from_develop(
+        {asset->id, asset->normalized_uri, asset->content_fingerprint}, develop_);
+    if (!recipe)
+    {
+        setError(qstring_from_utf8(recipe.error().message));
+        return;
+    }
+    auto valid = engine_->validate(recipe.value());
+    if (!valid)
+    {
+        setError(qstring_from_utf8(valid.error().message));
+        return;
+    }
+    auto style = recipe_style_from_selected_fields(
+        utf8_from_qstring(checked_name), {}, std::move(recipe).value(), std::move(selected_fields));
+    if (!style)
+    {
+        setError(qstring_from_utf8(style.error().message));
+        return;
+    }
+    auto serialized = serialize_recipe_style(style.value());
+    if (!serialized)
+    {
+        setError(qstring_from_utf8(serialized.error().message));
+        return;
+    }
+    const QString output = QDir(directory).filePath(checked_name + QStringLiteral(".rstyle.json"));
+    auto written = write_utf8_text_file_atomically(utf8_from_qstring(output), serialized.value());
+    if (!written)
+    {
+        setError(qstring_from_utf8(written.error().message));
+        return;
+    }
+    reload_presets();
+    setStatus(
+        QCoreApplication::translate("StudioPresenter", "Preset “%1” saved.").arg(checked_name));
 }
 
 void StudioPresenter::reload_presets()
@@ -4130,39 +4370,37 @@ void StudioPresenter::resetAllEdits()
     mutate_develop(std::move(reset), DevelopEdit::Commit);
 }
 
-void StudioPresenter::copyEdits()
+void StudioPresenter::copyParametersSelected(const QVariantList &fields)
 {
     if (selected_asset_id_.isEmpty())
+        return;
+    std::vector<std::string> selected_fields;
+    const QString selection_error =
+        collect_modified_parameter_selection(fields, baseline_develop(), develop_, selected_fields);
+    if (!selection_error.isEmpty())
     {
+        setError(selection_error);
         return;
     }
-    copied_edits_ = before_after_ ? saved_develop_ : develop_;
-    emit copiedEditsChanged();
-    setStatus(QCoreApplication::translate("StudioPresenter", "Edits copied."));
+    copied_parameters_ = CopiedDevelopParameters{develop_, std::move(selected_fields)};
+    emit copiedParametersChanged();
+    setStatus(QCoreApplication::translate("StudioPresenter", "Parameters copied."));
 }
 
-void StudioPresenter::pasteEdits()
+void StudioPresenter::pasteParameters()
 {
-    pasteEditsSection(QStringLiteral("all"));
-}
-
-void StudioPresenter::pasteEditsSection(const QString &section)
-{
-    if (selected_asset_id_.isEmpty() || !copied_edits_)
-    {
+    if (selected_asset_id_.isEmpty() || !copied_parameters_)
         return;
-    }
-    const auto grade =
-        utf8_from_qstring(section.trimmed().isEmpty() ? QStringLiteral("all") : section.trimmed());
     DevelopParams next = develop_;
-    if (!apply_develop_grade(next, *copied_edits_, grade))
+    auto applied =
+        apply_develop_selected_fields(next, copied_parameters_->source, copied_parameters_->fields);
+    if (!applied)
     {
+        setError(qstring_from_utf8(applied.error().message));
         return;
     }
     if (mutate_develop(std::move(next), DevelopEdit::Commit))
-    {
-        setStatus(QCoreApplication::translate("StudioPresenter", "Edits pasted."));
-    }
+        setStatus(QCoreApplication::translate("StudioPresenter", "Parameters pasted."));
 }
 
 void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const DevelopEdit edit)

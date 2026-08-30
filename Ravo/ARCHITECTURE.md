@@ -142,11 +142,27 @@ the command registry. It intentionally records no recent-query history. QML
 never sees catalog columns or legacy rule strings.
 
 Reusable style/preset state reuses Recipe rather than introducing another
-parameter model. A RecipeStyle replaces the asset with a fixed template
-identity; application restores only the target identity and then enters the
-same Engine validation, Develop, Catalog history, undo, preview, and export
-lifecycle. Filesystem adapters own bounded reads and complete writes; QML only
-opens save/open dialogs and forwards paths.
+parameter model. Schema-v1 `RecipeStyle` replaces the asset with a fixed
+template identity; complete application restores only the target identity.
+Schema v2 additionally owns a sorted unique list of stable logical Develop
+fields. Selective application decodes the template and current target through
+the same `DevelopParams` owner, copies only those fields, merges required mask
+nodes, rebuilds canonical operation order, and then enters the same Engine
+validation, Develop, Catalog history, undo, preview, and export lifecycle.
+Studio C++ derives candidates from the current product baseline, revalidates a
+submitted subset, and atomically writes it into the library-adjacent
+`Ravo Presets` folder; QML starts every checkbox clear and forwards only the
+name and selected field IDs. Filesystem adapters own bounded reads and
+atomic complete writes with explicit pre-existing-path conflict
+(ADR-0065/0098).
+
+The Studio session clipboard reuses that same Recipe-owned selection and merge
+contract without serializing a file. Desktop C++ snapshots `DevelopParams` plus
+the explicit selected field IDs; paste merges them into the current target and
+then uses the normal Develop commit lifecycle. QML uses the same selection
+component as preset saving, starts every checkbox clear, and owns neither the
+clipboard nor merge policy. The former complete clipboard and fixed Light/Color
+paste paths have no product consumer (ADR-0078/0098).
 
 Develop preview is bounded and coalesced: at most one render is in flight, plus
 one recipe waiting to save and one preview request waiting. A new revision
@@ -1168,6 +1184,13 @@ The Ravo Studio first version owns:
   color tools stay under Color · Advanced (ADR-0082/0084/0085). Color Equalizer
   exposes eight named bands; Bayer white-balance pick writes manual temperature
   coefficients (ADR-0083);
+- Presets place **Save…** immediately to the right of **Import…**. Save shows
+  only baseline-relative modifications, selects none initially, and publishes
+  a managed selective `.rstyle.json`; imported complete styles and Lightroom
+  CRS presets remain supported alongside it;
+- Edit history presents exactly **Copy Parameters** and **Paste Parameters**.
+  Copy requires explicit baseline-relative field selection; paste changes only
+  that immutable session selection and preserves other target edits;
 - shared scopes above the right Gallery/Edit panel, remaining visible while
   the Edit list scrolls: frozen 256-bin RGB Histogram, overlaid Waveform, RGB
   Parade, fixed linear D50 CIE u*v* Vectorscope, and Waveform/Vectorscope
@@ -1203,6 +1226,10 @@ dynamic IOP lifecycle.
 CLI owns arguments, stdin/stdout, versioned JSON, stable exit codes, and
 headless composition. Existing catalog create/import/list/preview/develop/export
 commands validate the same services; human logs must not pollute JSON stdout.
+Recipe-style CLI keeps the schema-v1 asset/input application form and accepts
+an explicit target Recipe for schema-v1 or schema-v2 application; selective
+styles without a target Recipe fail structurally rather than resetting omitted
+values.
 The read-only catalog Develop probe applies strict numeric field overrides to a
 current or synthesized baseline recipe, calls the non-persistent interactive
 preview contract, reports display-referred pixel statistics, and verifies that

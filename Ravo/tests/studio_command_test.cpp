@@ -838,17 +838,15 @@ TEST(StudioPresenterTest, ZoomModesAndFactorBoundsHaveOneDeterministicOwner)
     EXPECT_EQ(presenter.zoomMode(), QStringLiteral("fit"));
 }
 
-TEST(StudioPresenterTest, CopiedEditsClipboardStartsEmptyAndIgnoresEmptySelection)
+TEST(StudioPresenterTest, CopiedParameterClipboardStartsEmptyAndIgnoresEmptySelection)
 {
     ensure_qt_core();
     StudioPresenter presenter;
-    EXPECT_FALSE(presenter.hasCopiedEdits());
-    presenter.copyEdits();
-    EXPECT_FALSE(presenter.hasCopiedEdits());
-    presenter.pasteEdits();
-    presenter.pasteEditsSection(QStringLiteral("light"));
-    presenter.pasteEditsSection(QStringLiteral("color"));
-    EXPECT_FALSE(presenter.hasCopiedEdits());
+    EXPECT_FALSE(presenter.hasCopiedParameters());
+    presenter.copyParametersSelected(QVariantList{QStringLiteral("exposure")});
+    EXPECT_FALSE(presenter.hasCopiedParameters());
+    presenter.pasteParameters();
+    EXPECT_FALSE(presenter.hasCopiedParameters());
 }
 
 TEST(StudioDebugInfo, FormattersEmitStableSingleLineFields)
@@ -1236,6 +1234,139 @@ TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveConten
     EXPECT_TRUE(presenter.editPresets().isEmpty());
     EXPECT_EQ(presenter.statusText(),
               QCoreApplication::translate("StudioPresenter", "Preset deleted."));
+}
+
+TEST(StudioPresenterTest, SavesSelectedModifiedParametersAndAppliesThemAsOverlay)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("selective-preset.png"));
+    QImage image(96, 64, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 120, 170));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.modifiedParameterChoices().isEmpty());
+
+    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.75);
+    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.4);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.editExposure() - 0.75) < 1e-9 &&
+                   std::abs(presenter.editSaturation() - 0.4) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    const auto candidates = presenter.modifiedParameterChoices();
+    const auto has_field = [&candidates](const QString &field)
+    {
+        return std::any_of(
+            candidates.cbegin(), candidates.cend(), [&field](const QVariant &entry)
+            { return entry.toMap().value(QStringLiteral("field")).toString() == field; });
+    };
+    EXPECT_TRUE(has_field(QStringLiteral("exposure")));
+    EXPECT_TRUE(has_field(QStringLiteral("saturation")));
+
+    presenter.copyParametersSelected(QVariantList{QStringLiteral("exposure")});
+    ASSERT_TRUE(presenter.hasCopiedParameters());
+    EXPECT_EQ(presenter.statusText(),
+              QCoreApplication::translate("StudioPresenter", "Parameters copied."));
+
+    presenter.savePreset(QStringLiteral("Exposure only"), QVariantList{QStringLiteral("exposure")});
+    ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+    ASSERT_EQ(presenter.editPresets().size(), 1);
+    const QString preset_path =
+        presenter.editPresets().front().toMap().value(QStringLiteral("path")).toString();
+    QFile preset_file(preset_path);
+    ASSERT_TRUE(preset_file.open(QIODevice::ReadOnly)) << preset_file.errorString().toStdString();
+    auto style = parse_recipe_style_json(preset_file.readAll().toStdString());
+    ASSERT_TRUE(style) << style.error().message;
+    EXPECT_EQ(style.value().schema_version, kRecipeStyleSelectedSchemaVersion);
+    EXPECT_EQ(style.value().selected_fields, (std::vector<std::string>{"exposure"}));
+
+    presenter.setDevelopNumber(QStringLiteral("exposure"), -0.25);
+    presenter.setDevelopNumber(QStringLiteral("saturation"), -0.3);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.editExposure() + 0.25) < 1e-9 &&
+                   std::abs(presenter.editSaturation() + 0.3) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.pasteParameters();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+    EXPECT_EQ(presenter.statusText(),
+              QCoreApplication::translate("StudioPresenter", "Parameters pasted."));
+
+    presenter.setDevelopNumber(QStringLiteral("exposure"), -0.25);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(presenter.editExposure() + 0.25) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.applyStyleFromPath(preset_path);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
+
+    presenter.savePreset(QStringLiteral("Exposure only"), QVariantList{QStringLiteral("exposure")});
+    EXPECT_EQ(
+        presenter.errorText(),
+        QCoreApplication::translate("StudioPresenter", "A preset with that name already exists."));
+    presenter.savePreset(QStringLiteral("Stale selection"),
+                         QVariantList{QStringLiteral("colorContrast")});
+    EXPECT_EQ(presenter.errorText(),
+              QCoreApplication::translate("StudioPresenter",
+                                          "The selected parameters are no longer modified."));
+
+    presenter.copyParametersSelected(QVariantList{QStringLiteral("colorContrast")});
+    EXPECT_TRUE(presenter.hasCopiedParameters());
+    EXPECT_EQ(presenter.errorText(),
+              QCoreApplication::translate("StudioPresenter",
+                                          "The selected parameters are no longer modified."));
+    presenter.setDevelopNumber(QStringLiteral("exposure"), -0.1);
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return !presenter.previewLoading() && std::abs(presenter.editExposure() + 0.1) < 1e-9; }))
+        << presenter.errorText().toStdString();
+    presenter.pasteParameters();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(presenter.editExposure() - 0.75) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_NEAR(presenter.editSaturation(), -0.3, 1e-9);
 }
 
 TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
@@ -2505,33 +2636,35 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Redo\")")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Reset all\")")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("beforeAfter")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Copy\")")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste\")")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste Light\")")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste Color\")")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteEditsSection(\"light\")")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteEditsSection(\"color\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Copy Parameters\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("qsTr(\"Paste Parameters\")")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("objectName: \"copyParametersButton\"")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("objectName: \"pasteParametersButton\"")));
+    EXPECT_FALSE(history_source.contains(QStringLiteral("qsTr(\"Paste Light\")")));
+    EXPECT_FALSE(history_source.contains(QStringLiteral("qsTr(\"Paste Color\")")));
+    EXPECT_FALSE(history_source.contains(QStringLiteral("pasteEditsSection")));
     EXPECT_LT(history_source.indexOf(QStringLiteral("qsTr(\"Snapshot\")")),
-              history_source.indexOf(QStringLiteral("qsTr(\"Copy\")")));
+              history_source.indexOf(QStringLiteral("qsTr(\"Copy Parameters\")")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("Layout.preferredWidth: 1")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("copyEdits")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteEdits")));
-    EXPECT_TRUE(history_source.contains(QStringLiteral("hasCopiedEdits")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("copyParameters")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("pasteParameters")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("hasCopiedParameters")));
+    EXPECT_TRUE(history_source.contains(QStringLiteral("modifiedParameterChoices")));
 
     QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
     ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
         << actions.errorString().toStdString();
     const auto action_source = QString::fromUtf8(actions.readAll());
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoRenameSnapshot")));
-    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyEdits")));
-    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteEdits")));
-    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteEditsSection")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyParameters")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editCopyParametersSelected")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPasteParameters")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetNumbers")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPickWhiteBalance")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editSetWhiteBalancePick")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("previewDevelopNumbers(fields)")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("setDevelopNumbers(fields)")));
-    EXPECT_TRUE(action_source.contains(QStringLiteral("pasteEditsSection(section)")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("copySelectedParameters(fields)")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.editPickWhiteBalance")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("pickWhiteBalance(x, y)")));
     EXPECT_TRUE(history_source.contains(QStringLiteral("maximumLineCount: 1")));
@@ -2705,6 +2838,10 @@ TEST(StudioLocalization, CompiledChineseCatalogTranslatesDesktopContexts)
               QStringLiteral("色彩校正 · D50 Lab"));
     EXPECT_EQ(QCoreApplication::translate("DevelopPanel", "Allow extended chroma"),
               QStringLiteral("允许扩展色度"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopHistoryPanel", "Copy Parameters"),
+              QStringLiteral("复制参数"));
+    EXPECT_EQ(QCoreApplication::translate("DevelopHistoryPanel", "Paste Parameters"),
+              QStringLiteral("粘贴参数"));
     EXPECT_EQ(QCoreApplication::translate("ExportOptionsDialog", "Format"), QStringLiteral("格式"));
     EXPECT_EQ(QCoreApplication::translate("ExportOptionsDialog", "Continue"),
               QStringLiteral("继续"));
@@ -3153,6 +3290,11 @@ TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)
     EXPECT_TRUE(source.contains(QStringLiteral("id: presetImportDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImport")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImportPath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: parameterSelectionDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetSave")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetSaveSelected")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id === ids.editCopyParameters")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.editCopyParametersSelected")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: presetRenameDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetRenamePath")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: presetDeleteDialog")));
@@ -3169,9 +3311,14 @@ TEST(StudioQmlContract, DevelopPresetPanelSitsAboveHistoryAndImportsThroughComma
     const auto source = QString::fromUtf8(panel.readAll());
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Presets\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"presetImportButton\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"presetSaveButton\"")));
+    EXPECT_LT(source.indexOf(QStringLiteral("objectName: \"presetImportButton\"")),
+              source.indexOf(QStringLiteral("objectName: \"presetSaveButton\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"presetList\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("editPresets")));
+    EXPECT_TRUE(source.contains(QStringLiteral("modifiedParameterChoices")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImport")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetSave")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetApplyPath")));
     EXPECT_TRUE(source.contains(QStringLiteral("acceptedButtons: Qt.LeftButton | Qt.RightButton")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetCopyInfo")));
@@ -3191,6 +3338,19 @@ TEST(StudioQmlContract, DevelopPresetPanelSitsAboveHistoryAndImportsThroughComma
     EXPECT_TRUE(rename_source.contains(QStringLiteral("DialogShell")));
     EXPECT_TRUE(rename_source.contains(QStringLiteral("objectName: \"presetRenameField\"")));
     EXPECT_TRUE(rename_source.contains(QStringLiteral("signal renameAccepted")));
+
+    QFile save_dialog(QStringLiteral(RAVO_STUDIO_PRESET_SAVE_DIALOG_QML));
+    ASSERT_TRUE(save_dialog.open(QIODevice::ReadOnly | QIODevice::Text))
+        << save_dialog.errorString().toStdString();
+    const auto save_source = QString::fromUtf8(save_dialog.readAll());
+    EXPECT_TRUE(save_source.contains(QStringLiteral("objectName: \"ParameterSelectionDialog\"")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("objectName: \"presetParameterList\"")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("signal saveAccepted")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("signal copyAccepted")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("openForCopy")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("qsTr(\"Copy Parameters\")")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("\"included\": false")));
+    EXPECT_TRUE(save_source.contains(QStringLiteral("selectedCount > 0")));
 }
 
 TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
@@ -3199,8 +3359,8 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     ASSERT_TRUE(menu.open(QIODevice::ReadOnly | QIODevice::Text))
         << menu.errorString().toStdString();
     const auto source = QString::fromUtf8(menu.readAll());
-    EXPECT_TRUE(source.contains(QStringLiteral("copyEdits")));
-    EXPECT_TRUE(source.contains(QStringLiteral("pasteEdits")));
+    EXPECT_TRUE(source.contains(QStringLiteral("copyParameters")));
+    EXPECT_TRUE(source.contains(QStringLiteral("pasteParameters")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoInfo")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoParameters")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"viewPhotoMenuItem\"")));
@@ -3209,7 +3369,7 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     EXPECT_TRUE(source.contains(QStringLiteral("action: root.commands.develop")));
     EXPECT_TRUE(source.contains(QStringLiteral("StudioContextMenu")));
     EXPECT_TRUE(source.contains(QStringLiteral("StudioContextMenuItem")));
-    EXPECT_LT(source.indexOf(QStringLiteral("copyEdits")),
+    EXPECT_LT(source.indexOf(QStringLiteral("copyParameters")),
               source.indexOf(QStringLiteral("copyPhotoInfo")));
     EXPECT_LT(source.indexOf(QStringLiteral("copyPhotoInfo")),
               source.indexOf(QStringLiteral("copyPhotoParameters")));

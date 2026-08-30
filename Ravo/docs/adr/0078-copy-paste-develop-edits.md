@@ -1,35 +1,44 @@
-# ADR-0078: Copy and paste apply a session clipboard of complete develop edits
+# ADR-0078: Copy and paste use a selected-parameter session clipboard
 
 - Status: Accepted
 - Date: 2026-08-29
 - Extends: [ADR-0065](0065-versioned-recipe-style-artifact.md)
+- Extended by: [ADR-0098](0098-selective-develop-presets.md)
 
 ## Context
 
 Studio could save and apply a complete recipe as a `.rstyle.json` file, and
 each photo already owns a history/snapshot stack. Photographers also need to
-copy the current edit from one photo and paste it onto another without creating
-a file or merging history stacks.
+copy chosen current parameters from one photo and paste them onto another
+without creating a file, merging history stacks, or resetting unrelated edits.
 
 ## Decision
 
-- **Copy Edits** stores the active photo's current `DevelopParams` in a
-  presenter-owned session clipboard. Before/After copies the committed recipe,
-  not the transient before view.
-- **Paste Edits** applies that clipboard to the active photo through the
-  ordinary `commit_develop` path, so undo, catalog recipe, and history append
-  stay the same as a normal edit. An empty clipboard or missing selection is
-  unavailable; equal source and destination is a no-op.
-- The clipboard is complete, not a partial module list. It is not written to
-  the catalog or the system pasteboard. Style files remain the portable
-  artifact. Per-photo history and snapshots are not copied as a stack.
+- The Edit left rail has exactly **Copy Parameters** and **Paste Parameters**.
+  The former opens the same parameter-selection component used by selective
+  preset saving. It lists only product-baseline-relative modifications and
+  starts with nothing selected.
+- An accepted copy stores one immutable `DevelopParams` snapshot plus the
+  explicit sorted logical-field selection in a presenter-owned session
+  clipboard. Empty, unknown, duplicate, stale, or unmodified selections reject
+  without replacing an existing clipboard.
+- **Paste Parameters** overlays only those fields through Recipe's shared
+  `apply_develop_selected_fields` owner. Compound operations remain atomic and
+  required canonical masks merge by stable ID while target-only graph state is
+  preserved. The result uses the ordinary `commit_develop` path, so validation,
+  undo, catalog recipe, history, progressive preview, and failure behavior stay
+  the same as a normal edit.
+- A missing selection or empty clipboard is unavailable. The clipboard is not
+  written to the catalog or system pasteboard. Style files remain the portable
+  artifact, and per-photo history/snapshots are not copied as a stack.
+- The former complete clipboard plus **Paste Light** / **Paste Color** fixed
+  groups are removed; user choice at copy time is the only partial-paste policy.
 
 ## Consequences
 
-Copy/paste is a Studio session gesture over the existing recipe contract. CLI
-style-create/apply is unchanged. Multi-photo paste and OS clipboard exchange
-are later work. ADR-0082 keeps the clipboard complete and adds Paste Light /
-Paste Color as named grade-group apply, not a second clipboard.
+Copy/paste is a Studio session gesture over the same stable field inventory as
+schema-v2 presets. CLI style-create/apply is unchanged. Multi-photo paste and
+OS clipboard exchange remain later work.
 
 ## Rejected alternatives
 
@@ -37,4 +46,7 @@ Paste Color as named grade-group apply, not a second clipboard.
   overwrite another photo's chronology rather than apply a current look.
 - Routing through a temporary `.rstyle.json` on disk. The session clipboard is
   enough and avoids leftover files.
-- Partial IOP/module pickers. A style/recipe is all-or-nothing.
+- A complete clipboard with fixed Light/Color paste buttons. It makes copy
+  implicit and forces users into coarse groups that can reset unrelated edits.
+- A QML-owned field map. It would duplicate Recipe merge, mask, and validation
+  policy in presentation code.

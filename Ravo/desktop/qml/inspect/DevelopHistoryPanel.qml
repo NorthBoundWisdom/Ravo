@@ -301,40 +301,23 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             Layout.minimumWidth: 0
-            text: qsTr("Copy")
-            enabled: root.hasSelection && root.commands
+            objectName: "copyParametersButton"
+            text: qsTr("Copy Parameters")
+            enabled: root.hasPresenter && root.presenter.modifiedParameterChoices.length > 0 &&
+                     root.hasSelection && root.commands
             onClicked: if (root.commands)
-                root.commands.copyEdits.trigger()
+                root.commands.copyParameters.trigger()
         }
         CustomButton {
             Layout.fillWidth: true
             Layout.preferredWidth: 1
             Layout.minimumWidth: 0
-            text: qsTr("Paste")
-            enabled: root.hasPresenter && root.presenter.hasCopiedEdits && root.hasSelection &&
+            objectName: "pasteParametersButton"
+            text: qsTr("Paste Parameters")
+            enabled: root.hasPresenter && root.presenter.hasCopiedParameters && root.hasSelection &&
                      root.commands
             onClicked: if (root.commands)
-                root.commands.pasteEdits.trigger()
-        }
-        CustomButton {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            Layout.minimumWidth: 0
-            text: qsTr("Paste Light")
-            enabled: root.hasPresenter && root.presenter.hasCopiedEdits && root.hasSelection &&
-                     root.commands
-            onClicked: if (root.commands)
-                root.commands.pasteEditsSection("light")
-        }
-        CustomButton {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            Layout.minimumWidth: 0
-            text: qsTr("Paste Color")
-            enabled: root.hasPresenter && root.presenter.hasCopiedEdits && root.hasSelection &&
-                     root.commands
-            onClicked: if (root.commands)
-                root.commands.pasteEditsSection("color")
+                root.commands.pasteParameters.trigger()
         }
     }
 }

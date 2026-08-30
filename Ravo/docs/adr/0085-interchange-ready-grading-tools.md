@@ -27,7 +27,8 @@ Kelvin/tint as canonical schema, and does not ship Adobe camera profiles.
   a later CRS HSL mapper has a 1:1 band list. Math stays dt UCS 8-node RBF.
 - Camera Calibration is the existing `ravo.color.primaries` section, placed on
   the default grading path after Color and before Geometry. Studio labels
-  achromatic tint as shadow tint. Paste Color also applies primaries.
+  achromatic tint as shadow tint. ADR-0098 makes Primaries an explicit
+  selectable clipboard field rather than part of a fixed Paste Color group.
 - Vignette authors the parameters the engine already evaluates: signed amount
   (−1..1, positive darkens), midpoint, falloff, shape, and centre. Recipe no
   longer hard-codes midpoint 0.8 / falloff 0.5. Highlight-priority / colour-

@@ -41,6 +41,7 @@
 #include "ravo/recipe/profile_gamma.h"
 #include "ravo/recipe/primaries.h"
 #include "ravo/recipe/recipe.h"
+#include "ravo/recipe/style.h"
 
 #include "capture_metadata_test_support.h"
 #include "test_support.h"
@@ -3252,6 +3253,85 @@ TEST_F(CliTest, RecipeStyleCreateValidateApplyAndLegacyRejectAreAtomic)
     ASSERT_NE(code->string_if(), nullptr);
     EXPECT_EQ(*code->string_if(), "unsupported");
     EXPECT_TRUE(stderr_stream.str().empty());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, SelectiveRecipeStyleRequiresAndOverlaysTargetRecipe)
+{
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("ravo-cli-selective-style-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto style_path = (root / "selective.rstyle.json").string();
+    const auto target_path = (root / "target.recipe.json").string();
+    const auto output_path = (root / "applied.recipe.json").string();
+
+    DevelopParams source;
+    source.exposure_ev = 0.8;
+    source.saturation = 0.5;
+    auto source_recipe =
+        recipe_from_develop({"source", "file:///source.raw", std::nullopt}, source);
+    ASSERT_TRUE(source_recipe) << source_recipe.error().message;
+    auto style =
+        recipe_style_from_selected_fields("Exposure", {}, source_recipe.value(), {"exposure"});
+    ASSERT_TRUE(style) << style.error().message;
+    auto style_text = serialize_recipe_style(style.value());
+    ASSERT_TRUE(style_text) << style_text.error().message;
+    {
+        std::ofstream output(style_path, std::ios::binary);
+        output << style_text.value();
+    }
+
+    DevelopParams target;
+    target.exposure_ev = -0.2;
+    target.saturation = -0.4;
+    target.whites = 0.3;
+    auto target_recipe =
+        recipe_from_develop({"target", "file:///target.raw", std::nullopt}, target);
+    ASSERT_TRUE(target_recipe) << target_recipe.error().message;
+    auto target_text = serialize_recipe(target_recipe.value());
+    ASSERT_TRUE(target_text) << target_text.error().message;
+    {
+        std::ofstream output(target_path, std::ios::binary);
+        output << target_text.value();
+    }
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"recipe", "style-apply", style_path,
+                                                            "--target-recipe", target_path,
+                                                            "--output", output_path, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto applied_text = read_utf8_text_file(output_path);
+    ASSERT_TRUE(applied_text) << applied_text.error().message;
+    auto applied = parse_recipe_json(applied_text.value());
+    ASSERT_TRUE(applied) << applied.error().message;
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, source.exposure_ev);
+    EXPECT_DOUBLE_EQ(restored.value().saturation, target.saturation);
+    EXPECT_DOUBLE_EQ(restored.value().whites, target.whites);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    const auto missing_target = (root / "missing-target.json").string();
+    EXPECT_NE(application.run(std::vector<std::string_view>{
+                  "recipe", "style-apply", style_path, "--asset-id", "other", "--input",
+                  "file:///other.raw", "--output", missing_target, "--json"}),
+              0);
+    auto rejected = parse_json(stdout_stream.str());
+    ASSERT_TRUE(rejected) << rejected.error().message;
+    const auto *error = rejected.value().find("error");
+    ASSERT_NE(error, nullptr);
+    const auto *context = error->find("context");
+    ASSERT_NE(context, nullptr);
+    const auto *reason = context->find("reason");
+    ASSERT_NE(reason, nullptr);
+    ASSERT_NE(reason->string_if(), nullptr);
+    EXPECT_EQ(*reason->string_if(), "selective_recipe_style_requires_target_recipe");
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

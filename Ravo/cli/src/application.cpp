@@ -3307,6 +3307,47 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
                         {"output", std::string(positional[8])}}},
                     json);
     }
+    if (positional.size() == 7 && positional[0] == "recipe" && positional[1] == "style-apply" &&
+        positional[3] == "--target-recipe" && positional[5] == "--output")
+    {
+        auto text = read_utf8_text_file(positional[2]);
+        if (!text)
+            return emit(text.error(), json);
+        auto style = parse_recipe_style_json(text.value());
+        if (!style)
+            return emit(style.error(), json);
+        auto style_valid = engine_.validate(style.value().recipe);
+        if (!style_valid)
+            return emit(style_valid.error(), json);
+        auto target_text = read_utf8_text_file(positional[4]);
+        if (!target_text)
+            return emit(target_text.error(), json);
+        auto target = parse_recipe_json(target_text.value());
+        if (!target)
+            return emit(target.error(), json);
+        auto target_valid = engine_.validate(target.value());
+        if (!target_valid)
+            return emit(target_valid.error(), json);
+        auto recipe = apply_recipe_style(style.value(), std::move(target).value());
+        if (!recipe)
+            return emit(recipe.error(), json);
+        auto valid = engine_.validate(recipe.value());
+        if (!valid)
+            return emit(valid.error(), json);
+        auto serialized = serialize_recipe(recipe.value());
+        if (!serialized)
+            return emit(serialized.error(), json);
+        auto written = write_utf8_text_file_atomically(positional[6], serialized.value());
+        if (!written)
+            return emit(written.error(), json);
+        return emit(JsonValue{JsonValue::Object{
+                        {"asset_id", recipe.value().asset.id},
+                        {"name", style.value().name},
+                        {"operation_count",
+                         JsonValue::number(std::to_string(recipe.value().operations.size()))},
+                        {"output", std::string(positional[6])}}},
+                    json);
+    }
     if (positional.front() == "catalog")
     {
         return emit(run_catalog_command(engine_, positional), json);

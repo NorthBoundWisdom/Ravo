@@ -54,12 +54,15 @@ silently map legacy-only bookkeeping fields, and the ADR-0077 compact filter
 bar (default rating stars, opt-in extra chips, command-owned query).
 Assistant tests pin default xAI endpoint/model, reject non-http(s) URLs and
 blank models, persist valid URL/model/key, repair malformed stored URL, and
-toggle the floating panel command. Copy/paste edit tests pin an empty session
-clipboard, copy/paste no-ops
-without a selection, History/context-menu/command wiring, and ADR-0078's
-complete-recipe clipboard (not a history-stack merge or style file).
-Paste Light / Paste Color apply White Balance+Light+Curves or Color+Color
-Equalizer+Camera Calibration from that clipboard. CRS XMP tests pin leftover
+toggle the floating panel command. Copy/paste parameter tests pin an empty
+session clipboard, no-op without a photo, the two-button History/context-menu/
+command wiring, and the shared initially-empty modified-parameter chooser.
+Accepted copy stores only explicit stable field IDs; paste overlays those fields,
+including required mask nodes, while preserving every unselected destination
+value and entering ordinary history/undo. Empty, duplicate, unknown, and stale
+selections reject without replacing the clipboard. The old complete clipboard
+and Paste Light / Paste Color paths must be absent (ADR-0078/0098). CRS XMP
+tests pin leftover
 rejection of Camera Raw documents, PV2012 mapping onto Develop owners, calibrated
 RAW sigmoid contrast, post-sigmoid display-sRGB curve order, nested Look
 isolation, identity-only Point Colors, overlay that keeps destination crop,
@@ -992,17 +995,23 @@ gated (ADR-0096).
   parsing: no-location retains time but no GPS; none contains no public
   Exif/XMP/IPTC/DocumentName/ExifIFD/GPSIFD while ICC remains. Original-copy
   rejects stripping and publishes nothing.
-- RecipeStyle tests cover deterministic schema-v1 serialization, bounded name/
-  description/file size, exact placeholder identity, complete operation/mask/
-  Retouch/bypass round-trip, target-only identity replacement, unknown/missing/
-  wrong-type/newer/malformed state, and explicit legacy-dtstyle rejection. CLI
-  create/validate/apply uses real files, conflict behavior, and target recipe
-  validation; Studio command/QML tests pin explicit save/apply dialogs and
-  `.rstyle.json` filters, translations, and offscreen smoke. Applied Studio
-  styles enter the existing recipe/history/undo transaction rather than a
-  parallel preset store. ADR-0072 removes all bundled `.dtstyle` examples and
-  their exclusive translation generator; the parser's whole-format rejection
-  remains the test truth rather than per-example conversion tests.
+- RecipeStyle tests cover deterministic complete schema-v1 serialization and
+  selective schema-v2 serialization, bounded name/description/file size, exact
+  placeholder identity, complete operation/mask/Retouch/bypass round-trip,
+  target-only identity replacement, and selected-field overlay that preserves
+  every omitted target value. Empty, duplicate, unsorted, unknown, wrong-type,
+  newer, malformed, and legacy-dtstyle state reject structurally. CLI
+  create/validate/apply uses real files, conflict behavior, and explicit target
+  Recipe validation for schema v2. Studio tests pin baseline-relative candidate
+  inventory, an initially empty checkbox selection, **Save…** to the right of
+  **Import…**, managed-folder pre-existing conflict plus atomic complete output,
+  stale-field rejection, and apply through the existing recipe/history/undo
+  transaction rather than a parallel preset store. The same selection dialog
+  and Recipe merge owner cover session Copy/Paste Parameters. Translation
+  catalogs and offscreen smoke cover the dialog. ADR-0072 removes all bundled
+  `.dtstyle` examples and their exclusive translation generator; the parser's
+  whole-format rejection remains the test truth rather than per-example
+  conversion tests (ADR-0065/0098).
 - Studio settings tests isolate QSettings storage and prove corrupt persisted
   language removal, English fallback, alias normalization, synchronous
   persistence, unsupported-language rejection, and preservation of the prior

@@ -102,20 +102,12 @@
             <translation>Instantané</translation>
         </message>
         <message>
-            <source>Copy</source>
-            <translation>Copier</translation>
+            <source>Copy Parameters</source>
+            <translation>Copier Parameters</translation>
         </message>
         <message>
-            <source>Paste</source>
-            <translation>Coller</translation>
-        </message>
-        <message>
-            <source>Paste Light</source>
-            <translation>Coller Lumière</translation>
-        </message>
-        <message>
-            <source>Paste Color</source>
-            <translation>Coller Couleur</translation>
+            <source>Paste Parameters</source>
+            <translation>Coller les paramètres</translation>
         </message>
         <message>
             <source>on</source>
@@ -2449,8 +2441,40 @@
             <translation>Biais des tons moyens de Velvia</translation>
         </message>
         <message>
+            <source>RGB curve</source>
+            <translation>Courbe RVB</translation>
+        </message>
+        <message>
+            <source>Output Dither</source>
+            <translation>Tramage de sortie</translation>
+        </message>
+        <message>
+            <source>Output Frame</source>
+            <translation>Cadre de sortie</translation>
+        </message>
+        <message>
+            <source>Watermark</source>
+            <translation>Filigrane</translation>
+        </message>
+        <message>
             <source>Denoise</source>
             <translation>Réduction du bruit</translation>
+        </message>
+        <message>
+            <source>RAW highlights</source>
+            <translation>Hautes lumières RAW</translation>
+        </message>
+        <message>
+            <source>Chromatic aberration</source>
+            <translation>Aberration chromatique</translation>
+        </message>
+        <message>
+            <source>RAW denoise</source>
+            <translation>Réduction du bruit RAW</translation>
+        </message>
+        <message>
+            <source>Perspective</source>
+            <translation>Perspective</translation>
         </message>
         <message>
             <source>Angle</source>
@@ -2467,6 +2491,14 @@
         <message>
             <source>Crop</source>
             <translation>Recadrer</translation>
+        </message>
+        <message>
+            <source>Canvas</source>
+            <translation>Canevas</translation>
+        </message>
+        <message>
+            <source>Lens Correction</source>
+            <translation>Correction de l’objectif</translation>
         </message>
         <message>
             <source>Tone curve</source>
@@ -2489,12 +2521,40 @@
             <translation>Couleur Balance</translation>
         </message>
         <message>
+            <source>Color Checker</source>
+            <translation>Charte de couleurs</translation>
+        </message>
+        <message>
             <source>Color Balance RGB</source>
             <translation>Couleur Balance RGB</translation>
         </message>
         <message>
+            <source>Color Correction</source>
+            <translation>Correction des couleurs</translation>
+        </message>
+        <message>
+            <source>Color Contrast</source>
+            <translation>Contraste des couleurs</translation>
+        </message>
+        <message>
             <source>Sigmoid</source>
             <translation>Sigmoïde</translation>
+        </message>
+        <message>
+            <source>Masks</source>
+            <translation>Masques</translation>
+        </message>
+        <message>
+            <source>Section bypass state</source>
+            <translation>État de contournement des sections</translation>
+        </message>
+        <message>
+            <source>RAW</source>
+            <translation>RAW</translation>
+        </message>
+        <message>
+            <source>Other</source>
+            <translation>Autre</translation>
         </message>
         <message>
             <source>Mask edit was rejected</source>
@@ -2520,8 +2580,12 @@
             <translation>Importer…</translation>
         </message>
         <message>
-            <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
-            <translation>Importez un préréglage Lightroom .xmp ou un style Ravo pour l’appliquer à la photo sélectionnée.</translation>
+            <source>Save…</source>
+            <translation>Enregistrer…</translation>
+        </message>
+        <message>
+            <source>Import a preset, or save selected changes from the current photo.</source>
+            <translation>Importez un préréglage ou enregistrez les modifications sélectionnées de la photo actuelle.</translation>
         </message>
         <message>
             <source>Rename…</source>
@@ -3224,6 +3288,61 @@
         </message>
     </context>
     <context>
+        <name>PresetSaveDialog</name>
+        <message>
+            <source>Save Preset</source>
+            <translation>Enregistrer le préréglage</translation>
+        </message>
+        <message>
+            <source>Copy Parameters</source>
+            <translation>Copier Parameters</translation>
+        </message>
+        <message>
+            <source>Preset name</source>
+            <translation>Nom du préréglage</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters this preset will apply. Nothing is selected by default.</source>
+            <translation>Choisissez les paramètres modifiés que ce préréglage appliquera. Aucun n’est sélectionné par défaut.</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters to copy. Nothing is selected by default.</source>
+            <translation>Choisissez les paramètres modifiés à copier. Aucun n’est sélectionné par défaut.</translation>
+        </message>
+        <message>
+            <source>%1 selected</source>
+            <translation>%1 sélectionné(s)</translation>
+        </message>
+        <message>
+            <source>Select all</source>
+            <translation>Tout sélectionner</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Effacer</translation>
+        </message>
+        <message>
+            <source>No modified parameters are available.</source>
+            <translation>Aucun paramètre modifié n’est disponible.</translation>
+        </message>
+        <message>
+            <source>Modified parameters</source>
+            <translation>Paramètres modifiés</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Annuler</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>Enregistrer</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>Copier</translation>
+        </message>
+    </context>
+    <context>
         <name>ScopePanel</name>
         <message>
             <source>Scope type</source>
@@ -3554,10 +3673,6 @@
             <translation>Rien à rétablir.</translation>
         </message>
         <message>
-            <source>Copy edits first.</source>
-            <translation>Copiez d’abord les retouches.</translation>
-        </message>
-        <message>
             <source>The selected originals cannot be deleted.</source>
             <translation>Les originaux sélectionnés ne peuvent pas être supprimés.</translation>
         </message>
@@ -3652,14 +3767,6 @@
         <message>
             <source>Redo</source>
             <translation>Rétablir</translation>
-        </message>
-        <message>
-            <source>Copy Edits</source>
-            <translation>Copier Modifiers</translation>
-        </message>
-        <message>
-            <source>Paste Edits</source>
-            <translation>Coller Modifiers</translation>
         </message>
         <message>
             <source>Reset All Edits</source>
@@ -3774,6 +3881,18 @@
             <translation>Copier Parameters</translation>
         </message>
         <message>
+            <source>No modified parameters to copy.</source>
+            <translation>Aucun paramètre modifié à copier.</translation>
+        </message>
+        <message>
+            <source>Copy parameters first.</source>
+            <translation>Copiez d’abord les paramètres.</translation>
+        </message>
+        <message>
+            <source>Paste Parameters</source>
+            <translation>Coller les paramètres</translation>
+        </message>
+        <message>
             <source>Remove from Catalog...</source>
             <translation>Supprimer from Catalog...</translation>
         </message>
@@ -3812,6 +3931,18 @@
         <message>
             <source>Unknown command argument field: %1.</source>
             <translation>Inconnu command argument field: %1.</translation>
+        </message>
+        <message>
+            <source>Parameter fields must be a non-empty string list.</source>
+            <translation>Les champs de paramètres doivent former une liste non vide de chaînes.</translation>
+        </message>
+        <message>
+            <source>Parameter fields contain an unsupported or duplicate value.</source>
+            <translation>Les champs de paramètres contiennent une valeur non prise en charge ou dupliquée.</translation>
+        </message>
+        <message>
+            <source>Preset name must be a non-empty string.</source>
+            <translation>Le nom du préréglage doit être une chaîne non vide.</translation>
         </message>
         <message>
             <source>Export path must be a string.</source>
@@ -4014,6 +4145,10 @@
             <translation>Perspective corrigée.</translation>
         </message>
         <message>
+            <source>Edit was saved, but recovery synchronization failed: </source>
+            <translation>La modification a été enregistrée, mais la synchronisation de récupération a échoué :</translation>
+        </message>
+        <message>
             <source>Style path must not be empty.</source>
             <translation>Le chemin du style ne doit pas être vide.</translation>
         </message>
@@ -4054,12 +4189,40 @@
             <translation>Le nom du préréglage est réservé par le système d’exploitation.</translation>
         </message>
         <message>
+            <source>Select at least one modified parameter.</source>
+            <translation>Sélectionnez au moins un paramètre modifié.</translation>
+        </message>
+        <message>
+            <source>Parameter selection is invalid.</source>
+            <translation>La sélection de paramètres n’est pas valide.</translation>
+        </message>
+        <message>
+            <source>The selected parameters are no longer modified.</source>
+            <translation>Les paramètres sélectionnés ne sont plus modifiés.</translation>
+        </message>
+        <message>
+            <source>Open a library to save presets.</source>
+            <translation>Ouvrez une bibliothèque pour enregistrer des préréglages.</translation>
+        </message>
+        <message>
+            <source>Preset “%1” saved.</source>
+            <translation>Préréglage « %1 » enregistré.</translation>
+        </message>
+        <message>
             <source>Preset file was not found.</source>
             <translation>Le fichier de préréglage est introuvable.</translation>
         </message>
         <message>
             <source>Open a library to import presets.</source>
             <translation>Ouvrir a library to import presets.</translation>
+        </message>
+        <message>
+            <source>Parameters copied.</source>
+            <translation>Paramètres copiés.</translation>
+        </message>
+        <message>
+            <source>Parameters pasted.</source>
+            <translation>Paramètres collés.</translation>
         </message>
         <message>
             <source>Preset folder could not be created.</source>
@@ -4140,14 +4303,6 @@
         <message>
             <source>Preset information copied.</source>
             <translation>Informations du préréglage copiées.</translation>
-        </message>
-        <message>
-            <source>Edits copied.</source>
-            <translation>Modifiers copied.</translation>
-        </message>
-        <message>
-            <source>Edits pasted.</source>
-            <translation>Modifiers pasted.</translation>
         </message>
         <message>
             <source>Engine failed to start.</source>

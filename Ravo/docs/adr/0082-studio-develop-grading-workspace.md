@@ -31,12 +31,9 @@ another leftover IOP.
   three presentation wheels plus luminance; values remain the existing
   `colorBalance*` fields. QML does not own recipe math. A wheel drag commits
   hue and chroma together through `studio.edit.set_numbers`.
-- Copy Edits remains a complete `DevelopParams` clipboard (ADR-0078). Paste
-  All still replaces the whole recipe, including masks. **Paste Light** applies
-  White Balance plus Light plus Curves. **Paste Color** applies Color plus Color
-  Equalizer plus Camera Calibration (primaries) and leaves destination mask
-  attachments unchanged. Unknown
-  sections fail closed.
+- The former complete clipboard and fixed **Paste Light** / **Paste Color**
+  groups are superseded by ADR-0098. Copy now requires an explicit logical
+  parameter selection and paste overlays only that selection through Recipe.
 
 ## Consequences
 
@@ -49,7 +46,7 @@ ADR-0083 adds a Bayer CFA neutral pick that writes manual coefficients.
 
 - Continuing P4 leftover consumption before the workspace existed. That would
   add optional looks without making the existing tools usable.
-- Partial IOP pickers at copy time. The clipboard stays complete; only paste
-  can apply a named grade group.
+- A presentation-owned parameter picker. ADR-0098 keeps selection and merge
+  semantics in Recipe while Studio only presents and forwards stable fields.
 - A new recipe schema version for panel order. Order is presentation; section
   reset/bypass remain recipe-owned field groups.

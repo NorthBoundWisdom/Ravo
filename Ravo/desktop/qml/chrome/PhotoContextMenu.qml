@@ -82,10 +82,10 @@ StudioContextMenu {
         action: root.commands.resetEdits
     }
     StudioContextMenuItem {
-        action: root.commands.copyEdits
+        action: root.commands.copyParameters
     }
     StudioContextMenuItem {
-        action: root.commands.pasteEdits
+        action: root.commands.pasteParameters
     }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {

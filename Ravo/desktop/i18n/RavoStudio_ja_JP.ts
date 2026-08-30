@@ -102,20 +102,12 @@
             <translation>スナップショット</translation>
         </message>
         <message>
-            <source>Copy</source>
-            <translation>コピー</translation>
+            <source>Copy Parameters</source>
+            <translation>パラメータのコピー</translation>
         </message>
         <message>
-            <source>Paste</source>
-            <translation>ペースト</translation>
-        </message>
-        <message>
-            <source>Paste Light</source>
-            <translation>ペースト ライト</translation>
-        </message>
-        <message>
-            <source>Paste Color</source>
-            <translation>ペースト カラー</translation>
+            <source>Paste Parameters</source>
+            <translation>パラメーターを貼り付け</translation>
         </message>
         <message>
             <source>on</source>
@@ -2449,8 +2441,40 @@
             <translation>Velviaの中間調バイアス</translation>
         </message>
         <message>
+            <source>RGB curve</source>
+            <translation>RGB カーブ</translation>
+        </message>
+        <message>
+            <source>Output Dither</source>
+            <translation>出力ディザ</translation>
+        </message>
+        <message>
+            <source>Output Frame</source>
+            <translation>出力フレーム</translation>
+        </message>
+        <message>
+            <source>Watermark</source>
+            <translation>透かし</translation>
+        </message>
+        <message>
             <source>Denoise</source>
             <translation>デノイズでは使用できません</translation>
+        </message>
+        <message>
+            <source>RAW highlights</source>
+            <translation>RAW ハイライト</translation>
+        </message>
+        <message>
+            <source>Chromatic aberration</source>
+            <translation>色収差</translation>
+        </message>
+        <message>
+            <source>RAW denoise</source>
+            <translation>RAW ノイズ除去</translation>
+        </message>
+        <message>
+            <source>Perspective</source>
+            <translation>遠近補正</translation>
         </message>
         <message>
             <source>Angle</source>
@@ -2467,6 +2491,14 @@
         <message>
             <source>Crop</source>
             <translation>クロップ</translation>
+        </message>
+        <message>
+            <source>Canvas</source>
+            <translation>キャンバス</translation>
+        </message>
+        <message>
+            <source>Lens Correction</source>
+            <translation>レンズ補正</translation>
         </message>
         <message>
             <source>Tone curve</source>
@@ -2489,12 +2521,40 @@
             <translation>カラー バランス</translation>
         </message>
         <message>
+            <source>Color Checker</source>
+            <translation>カラーチェッカー</translation>
+        </message>
+        <message>
             <source>Color Balance RGB</source>
             <translation>カラー バランス RGB</translation>
         </message>
         <message>
+            <source>Color Correction</source>
+            <translation>カラー補正</translation>
+        </message>
+        <message>
+            <source>Color Contrast</source>
+            <translation>カラーコントラスト</translation>
+        </message>
+        <message>
             <source>Sigmoid</source>
             <translation>シグモイド</translation>
+        </message>
+        <message>
+            <source>Masks</source>
+            <translation>マスク</translation>
+        </message>
+        <message>
+            <source>Section bypass state</source>
+            <translation>セクションのバイパス状態</translation>
+        </message>
+        <message>
+            <source>RAW</source>
+            <translation>RAW</translation>
+        </message>
+        <message>
+            <source>Other</source>
+            <translation>その他</translation>
         </message>
         <message>
             <source>Mask edit was rejected</source>
@@ -2520,8 +2580,12 @@
             <translation>DevelopPresetPanel::Import…</translation>
         </message>
         <message>
-            <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
-            <translation>Lightroom の .xmp プリセットまたは Ravo スタイルをインポートして、選択した写真に適用します。</translation>
+            <source>Save…</source>
+            <translation>保存…</translation>
+        </message>
+        <message>
+            <source>Import a preset, or save selected changes from the current photo.</source>
+            <translation>プリセットを読み込むか、現在の写真から選択した変更をプリセットとして保存します。</translation>
         </message>
         <message>
             <source>Rename…</source>
@@ -3224,6 +3288,61 @@
         </message>
     </context>
     <context>
+        <name>PresetSaveDialog</name>
+        <message>
+            <source>Save Preset</source>
+            <translation>プリセットを保存</translation>
+        </message>
+        <message>
+            <source>Copy Parameters</source>
+            <translation>パラメータのコピー</translation>
+        </message>
+        <message>
+            <source>Preset name</source>
+            <translation>プリセット名</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters this preset will apply. Nothing is selected by default.</source>
+            <translation>このプリセットで適用する変更済みパラメーターを選択します。デフォルトでは何も選択されていません。</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters to copy. Nothing is selected by default.</source>
+            <translation>コピーする変更済みパラメーターを選択します。デフォルトでは何も選択されていません。</translation>
+        </message>
+        <message>
+            <source>%1 selected</source>
+            <translation>%1 件選択</translation>
+        </message>
+        <message>
+            <source>Select all</source>
+            <translation>すべて選択</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>クリア</translation>
+        </message>
+        <message>
+            <source>No modified parameters are available.</source>
+            <translation>利用可能な変更済みパラメーターはありません。</translation>
+        </message>
+        <message>
+            <source>Modified parameters</source>
+            <translation>変更済みパラメーター</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>保存</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>コピー</translation>
+        </message>
+    </context>
+    <context>
         <name>ScopePanel</name>
         <message>
             <source>Scope type</source>
@@ -3554,10 +3673,6 @@
             <translation>やり直すことはありません。</translation>
         </message>
         <message>
-            <source>Copy edits first.</source>
-            <translation>最初に編集をコピーします。</translation>
-        </message>
-        <message>
             <source>The selected originals cannot be deleted.</source>
             <translation>選択した原稿は削除できません。</translation>
         </message>
@@ -3652,14 +3767,6 @@
         <message>
             <source>Redo</source>
             <translation>StudioCommands::Redo</translation>
-        </message>
-        <message>
-            <source>Copy Edits</source>
-            <translation>編集のコピー</translation>
-        </message>
-        <message>
-            <source>Paste Edits</source>
-            <translation>編集の貼り付け</translation>
         </message>
         <message>
             <source>Reset All Edits</source>
@@ -3774,6 +3881,18 @@
             <translation>パラメータのコピー</translation>
         </message>
         <message>
+            <source>No modified parameters to copy.</source>
+            <translation>コピーできる変更済みパラメーターはありません。</translation>
+        </message>
+        <message>
+            <source>Copy parameters first.</source>
+            <translation>先にパラメーターをコピーしてください。</translation>
+        </message>
+        <message>
+            <source>Paste Parameters</source>
+            <translation>パラメーターを貼り付け</translation>
+        </message>
+        <message>
             <source>Remove from Catalog...</source>
             <translation>カタログから削除...</translation>
         </message>
@@ -3812,6 +3931,18 @@
         <message>
             <source>Unknown command argument field: %1.</source>
             <translation>不明なコマンド引数フィールド: %1。</translation>
+        </message>
+        <message>
+            <source>Parameter fields must be a non-empty string list.</source>
+            <translation>パラメーターフィールドは空でない文字列リストにする必要があります。</translation>
+        </message>
+        <message>
+            <source>Parameter fields contain an unsupported or duplicate value.</source>
+            <translation>パラメーターフィールドに未対応または重複した値が含まれています。</translation>
+        </message>
+        <message>
+            <source>Preset name must be a non-empty string.</source>
+            <translation>プリセット名は空でない文字列にする必要があります。</translation>
         </message>
         <message>
             <source>Export path must be a string.</source>
@@ -4014,6 +4145,10 @@
             <translation>遠近補正しました。</translation>
         </message>
         <message>
+            <source>Edit was saved, but recovery synchronization failed: </source>
+            <translation>編集は保存されましたが、復旧の同期に失敗しました：</translation>
+        </message>
+        <message>
             <source>Style path must not be empty.</source>
             <translation>スタイル パスは空であってはなりません。</translation>
         </message>
@@ -4054,12 +4189,40 @@
             <translation>プリセット名はオペレーティング システムによって予約されています。</translation>
         </message>
         <message>
+            <source>Select at least one modified parameter.</source>
+            <translation>変更済みパラメーターを少なくとも 1 つ選択してください。</translation>
+        </message>
+        <message>
+            <source>Parameter selection is invalid.</source>
+            <translation>パラメーターの選択が無効です。</translation>
+        </message>
+        <message>
+            <source>The selected parameters are no longer modified.</source>
+            <translation>選択したパラメーターは変更済みではなくなりました。</translation>
+        </message>
+        <message>
+            <source>Open a library to save presets.</source>
+            <translation>プリセットを保存するにはライブラリを開いてください。</translation>
+        </message>
+        <message>
+            <source>Preset “%1” saved.</source>
+            <translation>プリセット「%1」を保存しました。</translation>
+        </message>
+        <message>
             <source>Preset file was not found.</source>
             <translation>プリセット ファイルが見つかりませんでした。</translation>
         </message>
         <message>
             <source>Open a library to import presets.</source>
             <translation>ライブラリを開いてプリセットをインポートします。</translation>
+        </message>
+        <message>
+            <source>Parameters copied.</source>
+            <translation>パラメーターをコピーしました。</translation>
+        </message>
+        <message>
+            <source>Parameters pasted.</source>
+            <translation>パラメーターを貼り付けました。</translation>
         </message>
         <message>
             <source>Preset folder could not be created.</source>
@@ -4140,14 +4303,6 @@
         <message>
             <source>Preset information copied.</source>
             <translation>プリセット情報がコピーされました。</translation>
-        </message>
-        <message>
-            <source>Edits copied.</source>
-            <translation>編集内容がコピーされました。</translation>
-        </message>
-        <message>
-            <source>Edits pasted.</source>
-            <translation>編集内容が貼り付けられました。</translation>
         </message>
         <message>
             <source>Engine failed to start.</source>

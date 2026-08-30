@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -600,10 +601,6 @@ struct DevelopSetField
                                                            std::string_view value);
 [[nodiscard]] bool reset_develop_field(DevelopParams &params, std::string_view name);
 [[nodiscard]] bool reset_develop_section(DevelopParams &params, std::string_view section);
-[[nodiscard]] bool apply_develop_section(DevelopParams &dest, const DevelopParams &source,
-                                         std::string_view section);
-[[nodiscard]] bool apply_develop_grade(DevelopParams &dest, const DevelopParams &source,
-                                       std::string_view grade);
 [[nodiscard]] bool develop_section_modified(const DevelopParams &params, std::string_view section);
 [[nodiscard]] bool develop_section_effect_enabled(const DevelopParams &params,
                                                   std::string_view section);
@@ -618,6 +615,17 @@ struct DevelopChange
 
 [[nodiscard]] std::vector<DevelopChange> develop_change_summary(const DevelopParams &before,
                                                                 const DevelopParams &after);
+// Stable logical fields shared by selective recipe styles and Studio's session
+// clipboard. These are intentionally coarser than UI widget state: compound
+// operations (curves, masks, Retouch, output layout, and profile state) remain
+// atomic so an overlay cannot manufacture an invalid partial operation payload.
+[[nodiscard]] std::span<const std::string_view> develop_selectable_field_names() noexcept;
+[[nodiscard]] bool is_develop_selectable_field(std::string_view field) noexcept;
+[[nodiscard]] std::vector<DevelopChange> develop_modified_fields(const DevelopParams &before,
+                                                                 const DevelopParams &after);
+[[nodiscard]] Result<void> apply_develop_selected_fields(DevelopParams &destination,
+                                                         const DevelopParams &source,
+                                                         const std::vector<std::string> &fields);
 [[nodiscard]] bool apply_crop_aspect(DevelopParams &params, std::string_view aspect);
 [[nodiscard]] double develop_crop_min_short_edge_pixels(double source_width,
                                                         double source_height) noexcept;

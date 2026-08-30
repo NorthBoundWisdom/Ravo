@@ -54,7 +54,7 @@ Item {
     function setDevelopNumber(name, value) { root.run(root.ids.editSetNumber, {"name": name, "value": value}); }
     function previewDevelopNumbers(fields) { root.run(root.ids.editSetNumbers, {"fields": fields, "live": true}); }
     function setDevelopNumbers(fields) { root.run(root.ids.editSetNumbers, {"fields": fields}); }
-    function pasteEditsSection(section) { root.run(root.ids.editPasteEditsSection, section); }
+    function copySelectedParameters(fields) { root.run(root.ids.editCopyParametersSelected, fields); }
     function pickWhiteBalance(x, y) { root.run(root.ids.editPickWhiteBalance, {"x": x, "y": y}); }
     function setWhiteBalancePickActive(active) { root.run(root.ids.editSetWhiteBalancePick, active); }
     function setDevelopText(name, value) { root.run(root.ids.editSetText, {"name": name, "value": value}); }
@@ -115,8 +115,8 @@ Item {
     property alias nextPhoto: nextAction
     property alias reject: rejectAction
     property alias resetEdits: resetEditsAction
-    property alias copyEdits: copyEditsAction
-    property alias pasteEdits: pasteEditsAction
+    property alias copyParameters: copyParametersAction
+    property alias pasteParameters: pasteParametersAction
     property alias copyPhotoInfo: copyPhotoInfoAction
     property alias copyPhotoParameters: copyPhotoParametersAction
     property alias cropTool: cropToolAction
@@ -163,8 +163,8 @@ Item {
     RegisteredAction { id: nextAction; actionId: root.ids.photoNext || "" }
     RegisteredAction { id: rejectAction; actionId: root.ids.photoReject || "" }
     RegisteredAction { id: resetEditsAction; actionId: root.ids.editResetAll || "" }
-    RegisteredAction { id: copyEditsAction; actionId: root.ids.editCopyEdits || "" }
-    RegisteredAction { id: pasteEditsAction; actionId: root.ids.editPasteEdits || "" }
+    RegisteredAction { id: copyParametersAction; actionId: root.ids.editCopyParameters || "" }
+    RegisteredAction { id: pasteParametersAction; actionId: root.ids.editPasteParameters || "" }
     RegisteredAction { id: copyPhotoInfoAction; actionId: root.ids.photoCopyInfo || "" }
     RegisteredAction { id: copyPhotoParametersAction; actionId: root.ids.photoCopyParameters || "" }
     RegisteredAction { id: cropToolAction; actionId: root.ids.editCropTool || "" }

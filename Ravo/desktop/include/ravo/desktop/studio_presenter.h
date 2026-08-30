@@ -88,7 +88,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool comparisonActive READ comparisonActive NOTIFY editChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY editChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
-    Q_PROPERTY(bool hasCopiedEdits READ hasCopiedEdits NOTIFY copiedEditsChanged)
+    Q_PROPERTY(bool hasCopiedParameters READ hasCopiedParameters NOTIFY copiedParametersChanged)
     Q_PROPERTY(QVariantMap editWhiteBalance READ editWhiteBalance NOTIFY editChanged)
     Q_PROPERTY(bool whiteBalancePickActive READ whiteBalancePickActive NOTIFY editChanged)
     Q_PROPERTY(QVariantList editColorEqBands READ editColorEqBands NOTIFY editChanged)
@@ -221,6 +221,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedCaptureSummary READ selectedCaptureSummary NOTIFY selectionChanged)
     Q_PROPERTY(QVariantList recipeHistory READ recipeHistory NOTIFY editChanged)
     Q_PROPERTY(QVariantList editPresets READ editPresets NOTIFY presetsChanged)
+    Q_PROPERTY(
+        QVariantList modifiedParameterChoices READ modifiedParameterChoices NOTIFY editChanged)
     Q_PROPERTY(qlonglong activeHistoryId READ activeHistoryId NOTIFY editChanged)
     Q_PROPERTY(qlonglong activeHistorySeq READ activeHistorySeq NOTIFY editChanged)
     Q_PROPERTY(QString tagFilter READ tagFilter NOTIFY filterChanged)
@@ -314,7 +316,7 @@ public:
     [[nodiscard]] bool comparisonActive() const noexcept;
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
-    [[nodiscard]] bool hasCopiedEdits() const noexcept;
+    [[nodiscard]] bool hasCopiedParameters() const noexcept;
     [[nodiscard]] QVariantMap editWhiteBalance() const;
     [[nodiscard]] QVariantMap editInputColor() const;
     [[nodiscard]] QVariantMap editProfileGamma() const;
@@ -522,9 +524,8 @@ public:
     Q_INVOKABLE bool sectionEffectEnabled(const QString &section) const;
     Q_INVOKABLE void setSectionEffectEnabled(const QString &section, bool enabled);
     Q_INVOKABLE void resetAllEdits();
-    Q_INVOKABLE void copyEdits();
-    Q_INVOKABLE void pasteEdits();
-    Q_INVOKABLE void pasteEditsSection(const QString &section);
+    Q_INVOKABLE void copyParametersSelected(const QVariantList &fields);
+    Q_INVOKABLE void pasteParameters();
     Q_INVOKABLE void previewDevelopNumbers(const QVariantMap &fields);
     Q_INVOKABLE void setDevelopNumbers(const QVariantMap &fields);
     Q_INVOKABLE void undoEdit();
@@ -542,6 +543,8 @@ public:
     Q_INVOKABLE void saveStyleToPath(const QString &path);
     Q_INVOKABLE void applyStyleFromPath(const QString &path);
     [[nodiscard]] QVariantList editPresets() const;
+    [[nodiscard]] QVariantList modifiedParameterChoices() const;
+    Q_INVOKABLE void savePreset(const QString &name, const QVariantList &fields);
     Q_INVOKABLE void importPresetFromPath(const QString &path);
     Q_INVOKABLE void renamePreset(const QString &path, const QString &name);
     Q_INVOKABLE void deletePreset(const QString &path);
@@ -583,7 +586,7 @@ signals:
     void filterChanged();
     void folderChanged();
     void editChanged();
-    void copiedEditsChanged();
+    void copiedParametersChanged();
     void presetsChanged();
     void libraryWorkChanged();
     void thumbnailsChanged();
@@ -761,7 +764,12 @@ private:
     std::optional<DevelopParams> displayed_develop_;
     std::vector<DevelopParams> undo_stack_;
     std::vector<DevelopParams> redo_stack_;
-    std::optional<DevelopParams> copied_edits_;
+    struct CopiedDevelopParameters
+    {
+        DevelopParams source;
+        std::vector<std::string> fields;
+    };
+    std::optional<CopiedDevelopParameters> copied_parameters_;
     bool before_after_ = false;
     bool comparison_active_ = false;
     bool comparison_before_requested_ = false;

@@ -1322,33 +1322,6 @@ TEST(RecipeTest, ExtraDevelopOpsRoundTripAndCropAspect)
     EXPECT_TRUE(reset_develop_section(bands, "color"));
     EXPECT_TRUE(bands.color_balance_rgb.is_identity());
 
-    DevelopParams grade_source;
-    grade_source.exposure_ev = 0.4;
-    grade_source.vibrance = 0.2;
-    grade_source.color_eq_sat[1] = 0.3;
-    grade_source.vignette = 0.5;
-    grade_source.rgb_curve.parametric_shadows = 0.3;
-    grade_source.primaries.red_purity = 1.25;
-    DevelopParams grade_dest;
-    grade_dest.exposure_ev = -0.2;
-    grade_dest.vibrance = -0.1;
-    grade_dest.color_eq_sat[1] = -0.4;
-    grade_dest.vignette = 0.9;
-    EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "light"));
-    EXPECT_NEAR(grade_dest.exposure_ev, 0.4, 1e-6);
-    EXPECT_NEAR(grade_dest.rgb_curve.parametric_shadows, 0.3, 1e-6);
-    EXPECT_NEAR(grade_dest.vibrance, -0.1, 1e-6);
-    EXPECT_NEAR(grade_dest.color_eq_sat[1], -0.4, 1e-6);
-    EXPECT_NEAR(grade_dest.vignette, 0.9, 1e-6);
-    EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "color"));
-    EXPECT_NEAR(grade_dest.exposure_ev, 0.4, 1e-6);
-    EXPECT_NEAR(grade_dest.vibrance, 0.2, 1e-6);
-    EXPECT_NEAR(grade_dest.color_eq_sat[1], 0.3, 1e-6);
-    EXPECT_NEAR(grade_dest.primaries.red_purity, 1.25, 1e-6);
-    EXPECT_NEAR(grade_dest.vignette, 0.9, 1e-6);
-    EXPECT_TRUE(apply_develop_grade(grade_dest, grade_source, "all"));
-    EXPECT_NEAR(grade_dest.vignette, 0.5, 1e-6);
-    EXPECT_FALSE(apply_develop_grade(grade_dest, grade_source, "geometry"));
     DevelopParams keep_eq;
     keep_eq.color_eq_band = 2;
     keep_eq.vibrance = 0.3;
@@ -3284,6 +3257,170 @@ TEST(RecipeStyleTest, CanonicalTemplateRoundTripsAndAppliesOnlyTargetIdentity)
     EXPECT_DOUBLE_EQ(restored.value().exposure_ev, 0.75);
 }
 
+TEST(RecipeStyleTest, SelectivePresetAppliesOnlyChosenModifiedFields)
+{
+    DevelopParams source;
+    source.exposure_ev = 1.25;
+    source.contrast = 0.35;
+    source.saturation = 0.4;
+    auto source_recipe =
+        recipe_from_develop({"source", "file:///source.raw", "source-hash"}, source);
+    ASSERT_TRUE(source_recipe) << source_recipe.error().message;
+
+    auto style =
+        recipe_style_from_selected_fields("Contrast and color", "Selected field overlay",
+                                          source_recipe.value(), {"saturation", "contrast"});
+    ASSERT_TRUE(style) << style.error().message;
+    EXPECT_EQ(style.value().schema_version, kRecipeStyleSelectedSchemaVersion);
+    EXPECT_EQ(style.value().selected_fields, (std::vector<std::string>{"contrast", "saturation"}));
+
+    auto serialized = serialize_recipe_style(style.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    auto parsed = parse_recipe_style_json(serialized.value());
+    ASSERT_TRUE(parsed) << parsed.error().message;
+    EXPECT_EQ(parsed.value().selected_fields, style.value().selected_fields);
+    auto noncanonical = serialized.value();
+    const auto selection = noncanonical.find("\"selected_fields\":[\"contrast\",\"saturation\"]");
+    ASSERT_NE(selection, std::string::npos);
+    noncanonical.replace(selection,
+                         std::string("\"selected_fields\":[\"contrast\",\"saturation\"]").size(),
+                         "\"selected_fields\":[\"saturation\",\"contrast\"]");
+    auto rejected_selection = parse_recipe_style_json(noncanonical);
+    ASSERT_FALSE(rejected_selection);
+    EXPECT_EQ(rejected_selection.error().context.at("reason"),
+              "noncanonical_recipe_style_selection");
+
+    DevelopParams target;
+    target.exposure_ev = -0.75;
+    target.contrast = -0.2;
+    target.saturation = -0.1;
+    target.whites = 0.3;
+    auto target_recipe =
+        recipe_from_develop({"target", "file:///target.raw", "target-hash"}, target);
+    ASSERT_TRUE(target_recipe) << target_recipe.error().message;
+    auto applied = apply_recipe_style(parsed.value(), target_recipe.value());
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(applied.value().asset.id, "target");
+    EXPECT_EQ(applied.value().asset.input_uri, "file:///target.raw");
+    EXPECT_EQ(applied.value().asset.content_hash, "target-hash");
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_DOUBLE_EQ(restored.value().contrast, source.contrast);
+    EXPECT_DOUBLE_EQ(restored.value().saturation, source.saturation);
+    EXPECT_DOUBLE_EQ(restored.value().exposure_ev, target.exposure_ev);
+    EXPECT_DOUBLE_EQ(restored.value().whites, target.whites);
+
+    auto missing_target = apply_recipe_style(
+        parsed.value(), AssetDescriptor{"other", "file:///other.raw", std::nullopt});
+    ASSERT_FALSE(missing_target);
+    EXPECT_EQ(missing_target.error().context.at("reason"),
+              "selective_recipe_style_requires_target_recipe");
+}
+
+TEST(RecipeStyleTest, SelectivePresetInventoryRejectsEmptyUnknownAndDuplicateFields)
+{
+    DevelopParams baseline;
+    DevelopParams edited;
+    edited.exposure_ev = 0.5;
+    edited.color_correction_enabled = true;
+    edited.color_correction.highlight_a = 4.0;
+    edited.demosaic_mode = std::string(kDemosaicModePpg);
+    edited.perspective_vertical = 0.2;
+    edited.texture.strength = 0.3;
+    edited.velvia_present = true;
+    edited.velvia_enabled = true;
+    edited.velvia.strength = 35.0;
+    edited.lut3d_present = true;
+    edited.lut3d_enabled = true;
+    edited.lut3d.file_path = "look.cube";
+    const auto changes = develop_modified_fields(baseline, edited);
+    const std::set<std::string> names = [&changes]
+    {
+        std::set<std::string> result;
+        for (const auto &change : changes)
+            result.insert(change.field);
+        return result;
+    }();
+    EXPECT_TRUE(names.contains("exposure"));
+    EXPECT_TRUE(names.contains("colorCorrection"));
+    EXPECT_TRUE(names.contains("demosaic"));
+    EXPECT_TRUE(names.contains("perspective"));
+    EXPECT_TRUE(names.contains("texture"));
+    EXPECT_TRUE(names.contains("velvia"));
+    EXPECT_TRUE(names.contains("lut3d"));
+    EXPECT_FALSE(names.contains("saturation"));
+
+    DevelopParams overlaid;
+    auto applied = apply_develop_selected_fields(
+        overlaid, edited, {"demosaic", "perspective", "texture", "velvia", "lut3d"});
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(overlaid.demosaic_mode, edited.demosaic_mode);
+    EXPECT_DOUBLE_EQ(overlaid.perspective_vertical, edited.perspective_vertical);
+    EXPECT_EQ(overlaid.texture, edited.texture);
+    EXPECT_TRUE(overlaid.velvia_present);
+    EXPECT_EQ(overlaid.velvia, edited.velvia);
+    EXPECT_TRUE(overlaid.lut3d_present);
+    EXPECT_EQ(overlaid.lut3d, edited.lut3d);
+
+    auto recipe = recipe_from_develop({"source", "file:///source.raw", std::nullopt}, edited);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto empty = recipe_style_from_selected_fields("Empty", {}, recipe.value(), {});
+    ASSERT_FALSE(empty);
+    EXPECT_EQ(empty.error().context.at("reason"), "empty_recipe_style_selection");
+    auto unknown =
+        recipe_style_from_selected_fields("Unknown", {}, recipe.value(), {"futureField"});
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().context.at("reason"), "unsupported_recipe_style_selected_field");
+    auto duplicate = recipe_style_from_selected_fields("Duplicate", {}, recipe.value(),
+                                                       {"exposure", "exposure"});
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().context.at("reason"), "noncanonical_recipe_style_selection");
+}
+
+TEST(RecipeStyleTest, SelectivePresetMergesRequiredMasksAndKeepsTargetOnlyGraph)
+{
+    DevelopParams source;
+    Mask source_mask{"source-mask", kCanonicalMaskSchemaVersion, MaskKind::kCircle};
+    source_mask.payload = CircleMask{0.4, 0.5, 0.2, 0.1};
+    source.masks.push_back(source_mask);
+    source.color_harmonizer_present = true;
+    source.color_harmonizer_enabled = true;
+    source.color_harmonizer.pull_strength = 0.25;
+    source.color_harmonizer_mask_id = source_mask.id;
+    auto source_recipe =
+        recipe_from_develop({"source", "file:///source.raw", std::nullopt}, source);
+    ASSERT_TRUE(source_recipe) << source_recipe.error().message;
+    auto style = recipe_style_from_selected_fields("Masked harmony", {}, source_recipe.value(),
+                                                   {"colorHarmonizer"});
+    ASSERT_TRUE(style) << style.error().message;
+
+    DevelopParams target;
+    Mask target_mask{"target-mask", kCanonicalMaskSchemaVersion, MaskKind::kLinearGradient};
+    target_mask.payload = LinearGradientMask{0.5, 0.4, 10.0, 0.2};
+    target.masks.push_back(target_mask);
+    target.graduated_present = true;
+    target.graduated_enabled = true;
+    target.graduated_density = 0.5;
+    target.graduated_mask_id = target_mask.id;
+    auto target_recipe =
+        recipe_from_develop({"target", "file:///target.raw", std::nullopt}, target);
+    ASSERT_TRUE(target_recipe) << target_recipe.error().message;
+
+    auto applied = apply_recipe_style(style.value(), target_recipe.value());
+    ASSERT_TRUE(applied) << applied.error().message;
+    auto restored = develop_from_recipe(applied.value());
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_EQ(restored.value().color_harmonizer_mask_id, source.color_harmonizer_mask_id);
+    EXPECT_EQ(restored.value().graduated_mask_id, target.graduated_mask_id);
+    EXPECT_EQ(restored.value().masks.size(), 2U);
+    EXPECT_NE(
+        std::find(restored.value().masks.cbegin(), restored.value().masks.cend(), source_mask),
+        restored.value().masks.cend());
+    EXPECT_NE(
+        std::find(restored.value().masks.cbegin(), restored.value().masks.cend(), target_mask),
+        restored.value().masks.cend());
+}
+
 TEST(RecipeStyleTest, RejectsLegacyUnknownNewerAndNonPlaceholderState)
 {
     auto legacy = parse_recipe_style_json("<darktable_style version=\"1.0\"></darktable_style>");
@@ -3305,7 +3442,7 @@ TEST(RecipeStyleTest, RejectsLegacyUnknownNewerAndNonPlaceholderState)
     auto newer = serialized.value();
     const auto schema = newer.find("\"schema_version\":1");
     ASSERT_NE(schema, std::string::npos);
-    newer.replace(schema, std::string("\"schema_version\":1").size(), "\"schema_version\":2");
+    newer.replace(schema, std::string("\"schema_version\":1").size(), "\"schema_version\":3");
     rejected = parse_recipe_style_json(newer);
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kUnsupported);

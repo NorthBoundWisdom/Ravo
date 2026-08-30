@@ -94,20 +94,12 @@
             <translation>Named snapshots appear here.</translation>
         </message>
         <message>
-            <source>Copy</source>
-            <translation>Copy</translation>
+            <source>Copy Parameters</source>
+            <translation>Copy Parameters</translation>
         </message>
         <message>
-            <source>Paste</source>
-            <translation>Paste</translation>
-        </message>
-        <message>
-            <source>Paste Light</source>
-            <translation>Paste Light</translation>
-        </message>
-        <message>
-            <source>Paste Color</source>
-            <translation>Paste Color</translation>
+            <source>Paste Parameters</source>
+            <translation>Paste Parameters</translation>
         </message>
         <message>
             <source>Snapshot</source>
@@ -2441,6 +2433,38 @@
             <translation>Velvia mid-tones bias</translation>
         </message>
         <message>
+            <source>RGB curve</source>
+            <translation>RGB curve</translation>
+        </message>
+        <message>
+            <source>Output Dither</source>
+            <translation>Output Dither</translation>
+        </message>
+        <message>
+            <source>Output Frame</source>
+            <translation>Output Frame</translation>
+        </message>
+        <message>
+            <source>Watermark</source>
+            <translation>Watermark</translation>
+        </message>
+        <message>
+            <source>RAW highlights</source>
+            <translation>RAW highlights</translation>
+        </message>
+        <message>
+            <source>Chromatic aberration</source>
+            <translation>Chromatic aberration</translation>
+        </message>
+        <message>
+            <source>RAW denoise</source>
+            <translation>RAW denoise</translation>
+        </message>
+        <message>
+            <source>Perspective</source>
+            <translation>Perspective</translation>
+        </message>
+        <message>
             <source>Luminance</source>
             <translation>Luminance</translation>
         </message>
@@ -2473,6 +2497,14 @@
             <translation>Crop</translation>
         </message>
         <message>
+            <source>Canvas</source>
+            <translation>Canvas</translation>
+        </message>
+        <message>
+            <source>Lens Correction</source>
+            <translation>Lens Correction</translation>
+        </message>
+        <message>
             <source>Tone curve</source>
             <translation>Tone curve</translation>
         </message>
@@ -2489,12 +2521,40 @@
             <translation>Color Balance</translation>
         </message>
         <message>
+            <source>Color Checker</source>
+            <translation>Color Checker</translation>
+        </message>
+        <message>
             <source>Color Balance RGB</source>
             <translation>Color Balance RGB</translation>
         </message>
         <message>
+            <source>Color Correction</source>
+            <translation>Color Correction</translation>
+        </message>
+        <message>
+            <source>Color Contrast</source>
+            <translation>Color Contrast</translation>
+        </message>
+        <message>
             <source>Sigmoid</source>
             <translation>Sigmoid</translation>
+        </message>
+        <message>
+            <source>Masks</source>
+            <translation>Masks</translation>
+        </message>
+        <message>
+            <source>Section bypass state</source>
+            <translation>Section bypass state</translation>
+        </message>
+        <message>
+            <source>RAW</source>
+            <translation>RAW</translation>
+        </message>
+        <message>
+            <source>Other</source>
+            <translation>Other</translation>
         </message>
         <message>
             <source>Mask edit was rejected</source>
@@ -2520,8 +2580,12 @@
             <translation>Import…</translation>
         </message>
         <message>
-            <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
-            <translation>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</translation>
+            <source>Save…</source>
+            <translation>Save…</translation>
+        </message>
+        <message>
+            <source>Import a preset, or save selected changes from the current photo.</source>
+            <translation>Import a preset, or save selected changes from the current photo.</translation>
         </message>
         <message>
             <source>Rename…</source>
@@ -3224,6 +3288,61 @@
         </message>
     </context>
     <context>
+        <name>PresetSaveDialog</name>
+        <message>
+            <source>Save Preset</source>
+            <translation>Save Preset</translation>
+        </message>
+        <message>
+            <source>Copy Parameters</source>
+            <translation>Copy Parameters</translation>
+        </message>
+        <message>
+            <source>Preset name</source>
+            <translation>Preset name</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters this preset will apply. Nothing is selected by default.</source>
+            <translation>Choose which modified parameters this preset will apply. Nothing is selected by default.</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters to copy. Nothing is selected by default.</source>
+            <translation>Choose which modified parameters to copy. Nothing is selected by default.</translation>
+        </message>
+        <message>
+            <source>%1 selected</source>
+            <translation>%1 selected</translation>
+        </message>
+        <message>
+            <source>Select all</source>
+            <translation>Select all</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>Clear</translation>
+        </message>
+        <message>
+            <source>No modified parameters are available.</source>
+            <translation>No modified parameters are available.</translation>
+        </message>
+        <message>
+            <source>Modified parameters</source>
+            <translation>Modified parameters</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>Save</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>Copy</translation>
+        </message>
+    </context>
+    <context>
         <name>ScopePanel</name>
         <message>
             <source>Histogram</source>
@@ -3554,10 +3673,6 @@
             <translation>Nothing to redo.</translation>
         </message>
         <message>
-            <source>Copy edits first.</source>
-            <translation>Copy edits first.</translation>
-        </message>
-        <message>
             <source>The selected originals cannot be deleted.</source>
             <translation>The selected originals cannot be deleted.</translation>
         </message>
@@ -3626,14 +3741,6 @@
             <translation>Import Preset...</translation>
         </message>
         <message>
-            <source>Copy Edits</source>
-            <translation>Copy Edits</translation>
-        </message>
-        <message>
-            <source>Paste Edits</source>
-            <translation>Paste Edits</translation>
-        </message>
-        <message>
             <source>Assistant</source>
             <translation>Assistant</translation>
         </message>
@@ -3666,6 +3773,14 @@
             <translation>Save Edits as Style...</translation>
         </message>
         <message>
+            <source>No modified parameters to copy.</source>
+            <translation>No modified parameters to copy.</translation>
+        </message>
+        <message>
+            <source>Copy parameters first.</source>
+            <translation>Copy parameters first.</translation>
+        </message>
+        <message>
             <source>Apply Recipe Style...</source>
             <translation>Apply Recipe Style...</translation>
         </message>
@@ -3688,6 +3803,10 @@
         <message>
             <source>Redo</source>
             <translation>Redo</translation>
+        </message>
+        <message>
+            <source>Paste Parameters</source>
+            <translation>Paste Parameters</translation>
         </message>
         <message>
             <source>Reset All Edits</source>
@@ -3828,6 +3947,18 @@
         <message>
             <source>Unknown command argument field: %1.</source>
             <translation>Unknown command argument field: %1.</translation>
+        </message>
+        <message>
+            <source>Parameter fields must be a non-empty string list.</source>
+            <translation>Parameter fields must be a non-empty string list.</translation>
+        </message>
+        <message>
+            <source>Parameter fields contain an unsupported or duplicate value.</source>
+            <translation>Parameter fields contain an unsupported or duplicate value.</translation>
+        </message>
+        <message>
+            <source>Preset name must be a non-empty string.</source>
+            <translation>Preset name must be a non-empty string.</translation>
         </message>
         <message>
             <source>Export path must be a string.</source>
@@ -4126,6 +4257,10 @@
             <translation>Perspective corrected.</translation>
         </message>
         <message>
+            <source>Edit was saved, but recovery synchronization failed: </source>
+            <translation>Edit was saved, but recovery synchronization failed: </translation>
+        </message>
+        <message>
             <source>Style path must not be empty.</source>
             <translation>Style path must not be empty.</translation>
         </message>
@@ -4166,12 +4301,40 @@
             <translation>Preset name is reserved by the operating system.</translation>
         </message>
         <message>
+            <source>Select at least one modified parameter.</source>
+            <translation>Select at least one modified parameter.</translation>
+        </message>
+        <message>
+            <source>Parameter selection is invalid.</source>
+            <translation>Parameter selection is invalid.</translation>
+        </message>
+        <message>
+            <source>The selected parameters are no longer modified.</source>
+            <translation>The selected parameters are no longer modified.</translation>
+        </message>
+        <message>
+            <source>Open a library to save presets.</source>
+            <translation>Open a library to save presets.</translation>
+        </message>
+        <message>
+            <source>Preset “%1” saved.</source>
+            <translation>Preset “%1” saved.</translation>
+        </message>
+        <message>
             <source>Preset file was not found.</source>
             <translation>Preset file was not found.</translation>
         </message>
         <message>
             <source>Open a library to import presets.</source>
             <translation>Open a library to import presets.</translation>
+        </message>
+        <message>
+            <source>Parameters copied.</source>
+            <translation>Parameters copied.</translation>
+        </message>
+        <message>
+            <source>Parameters pasted.</source>
+            <translation>Parameters pasted.</translation>
         </message>
         <message>
             <source>Preset folder could not be created.</source>
@@ -4252,14 +4415,6 @@
         <message>
             <source>Preset information copied.</source>
             <translation>Preset information copied.</translation>
-        </message>
-        <message>
-            <source>Edits copied.</source>
-            <translation>Edits copied.</translation>
-        </message>
-        <message>
-            <source>Edits pasted.</source>
-            <translation>Edits pasted.</translation>
         </message>
     </context>
     <context>

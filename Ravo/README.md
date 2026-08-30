@@ -121,7 +121,10 @@ Current implementation status:
   Gamma, and RGB Levels follow. Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
   plus single-photo Before/After, a toolbar Left/Right comparison whose two
-  panes share zoom and pan, session undo/redo, and Paste Light / Paste Color.
+  panes share zoom and pan, session undo/redo, and selective Copy Parameters /
+  Paste Parameters. Copy opens the same initially-empty modified-parameter
+  chooser as preset saving; paste preserves every unselected destination edit
+  (ADR-0078/0098).
   RAW preview retains bounded 960px interactive and 1600px settled
   scene-linear working images. An ordinary committed edit publishes the exact
   960px in-memory result first, then replaces it with the exact persisted
@@ -134,11 +137,17 @@ Current implementation status:
   because it is rebuildable, while export encoding is unchanged
   (ADR-0087/0089). Catalog unit tests cover L2–L9 parameters and pixel reopen
   contracts.
-- Reusable presets use `.rstyle.json` schema v1: a complete canonical Recipe
-  template including masks, profiles, and enabled/bypass state. CLI can create,
-  validate, and apply styles; Studio saves/applies them through explicit file
-  dialogs and ordinary recipe history. Legacy `.dtstyle` is structurally
-  unsupported rather than partially dropping unknown IOPs (ADR-0065). Lightroom
+- Reusable complete styles use `.rstyle.json` schema v1: a complete canonical
+  Recipe template including masks, profiles, and enabled/bypass state. Schema
+  v2 adds a sorted explicit field selection and overlays only those chosen
+  current modifications onto the target Recipe. Studio places **Save…** to the
+  right of **Import…**, starts with no modified parameter selected, and writes
+  the chosen subset into the library's `Ravo Presets` folder with atomic
+  complete-file publication that rejects a pre-existing path. CLI can validate
+  both schemas and apply them to an explicit target Recipe; Studio applies
+  through ordinary recipe history/undo.
+  Legacy `.dtstyle` is structurally unsupported rather than partially dropping
+  unknown IOPs (ADR-0065/0098). Lightroom
   Classic CRS XMP presets import and apply through the same explicit path onto
   accepted Develop owners. Studio keeps its imported copies in the library's
   `Ravo Presets` folder; their filename-owned labels can be renamed without
@@ -665,6 +674,7 @@ ravo recipe validate <recipe> --json
 ravo recipe style-create <recipe> --name <name> --output <style.rstyle.json> --json
 ravo recipe style-validate <style.rstyle.json> --json
 ravo recipe style-apply <style.rstyle.json> --asset-id <id> --input <input-uri> --output <recipe> --json
+ravo recipe style-apply <style.rstyle.json> --target-recipe <current-recipe> --output <recipe> --json
 ravo render <input> --recipe <recipe> --output <png> --backend cpu [--width N] [--height N] --json
 ravo catalog create --path <library.sqlite> --json
 ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json

@@ -19,6 +19,8 @@
 
 #include "ravo/desktop/asset_list_model.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/recipe/develop.h"
+#include "studio_qt.h"
 
 namespace ravo
 {
@@ -79,9 +81,9 @@ inline constexpr auto kViewSetThumbnailSize = "studio.view.set_thumbnail_size";
 inline constexpr auto kViewSetScopeMode = "studio.view.set_scope_mode";
 inline constexpr auto kEditUndo = "studio.edit.undo";
 inline constexpr auto kEditRedo = "studio.edit.redo";
-inline constexpr auto kEditCopyEdits = "studio.edit.copy_edits";
-inline constexpr auto kEditPasteEdits = "studio.edit.paste_edits";
-inline constexpr auto kEditPasteEditsSection = "studio.edit.paste_edits_section";
+inline constexpr auto kEditCopyParameters = "studio.edit.copy_parameters";
+inline constexpr auto kEditCopyParametersSelected = "studio.edit.copy_parameters_selected";
+inline constexpr auto kEditPasteParameters = "studio.edit.paste_parameters";
 inline constexpr auto kEditSetNumbers = "studio.edit.set_numbers";
 inline constexpr auto kEditPickWhiteBalance = "studio.edit.pick_white_balance";
 inline constexpr auto kEditSetWhiteBalancePick = "studio.edit.set_white_balance_pick";
@@ -111,6 +113,8 @@ inline constexpr auto kStyleApplyPath = "studio.style.apply_path";
 inline constexpr auto kPresetImport = "studio.preset.import";
 inline constexpr auto kPresetImportPath = "studio.preset.import_path";
 inline constexpr auto kPresetApplyPath = "studio.preset.apply_path";
+inline constexpr auto kPresetSave = "studio.preset.save";
+inline constexpr auto kPresetSaveSelected = "studio.preset.save_selected";
 inline constexpr auto kPresetCopyInfo = "studio.preset.copy_info";
 inline constexpr auto kPresetRename = "studio.preset.rename";
 inline constexpr auto kPresetRenamePath = "studio.preset.rename_path";
@@ -153,9 +157,10 @@ enum class Condition
     kNonGrid,
     kDevelop,
     kDevelopSelection,
+    kModifiedParameters,
     kCanUndo,
     kCanRedo,
-    kCanPasteEdits,
+    kCanPasteParameters,
     kCanDelete
 };
 
@@ -249,7 +254,8 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "Open Edit first."),
     QT_TRANSLATE_NOOP("StudioCommands", "Nothing to undo."),
     QT_TRANSLATE_NOOP("StudioCommands", "Nothing to redo."),
-    QT_TRANSLATE_NOOP("StudioCommands", "Copy edits first."),
+    QT_TRANSLATE_NOOP("StudioCommands", "No modified parameters to copy."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Copy parameters first."),
     QT_TRANSLATE_NOOP("StudioCommands", "The selected originals cannot be deleted."),
     QT_TRANSLATE_NOOP("StudioCommands", "Command unavailable in the current context."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unreject"),
@@ -380,9 +386,9 @@ QStringList command_ids()
             QLatin1String(command::kViewSetScopeMode),
             QLatin1String(command::kEditUndo),
             QLatin1String(command::kEditRedo),
-            QLatin1String(command::kEditCopyEdits),
-            QLatin1String(command::kEditPasteEdits),
-            QLatin1String(command::kEditPasteEditsSection),
+            QLatin1String(command::kEditCopyParameters),
+            QLatin1String(command::kEditCopyParametersSelected),
+            QLatin1String(command::kEditPasteParameters),
             QLatin1String(command::kEditResetAll),
             QLatin1String(command::kEditResetSection),
             QLatin1String(command::kEditSetSectionEnabled),
@@ -412,6 +418,8 @@ QStringList command_ids()
             QLatin1String(command::kPresetImport),
             QLatin1String(command::kPresetImportPath),
             QLatin1String(command::kPresetApplyPath),
+            QLatin1String(command::kPresetSave),
+            QLatin1String(command::kPresetSaveSelected),
             QLatin1String(command::kPresetCopyInfo),
             QLatin1String(command::kPresetRename),
             QLatin1String(command::kPresetRenamePath),
@@ -499,13 +507,13 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Redo")), edit,
         {QStringLiteral("history")}, QStringLiteral("edit.history"), 20, true,
         {key(primary_key(QStringLiteral("Z"), true)), key(QStringLiteral("Shift+Z"), true)});
-    add(command::kEditCopyEdits, command::kEditCopyEdits,
-        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Edits")), edit,
+    add(command::kEditCopyParameters, command::kEditCopyParameters,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Parameters")), edit,
         {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("paste")},
         QStringLiteral("edit.history"), 30, true,
         {key(primary_key(QStringLiteral("C"), true), true)});
-    add(command::kEditPasteEdits, command::kEditPasteEdits,
-        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Paste Edits")), edit,
+    add(command::kEditPasteParameters, command::kEditPasteParameters,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Paste Parameters")), edit,
         {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("copy")},
         QStringLiteral("edit.history"), 40, true,
         {key(primary_key(QStringLiteral("V"), false, true), true)});
@@ -784,6 +792,58 @@ QStringList strings_from(const QVariant &argument)
     for (const auto &value : argument.toList())
         result.push_back(value.toString());
     return result;
+}
+
+QString develop_parameter_fields_argument(const QVariant &argument)
+{
+    const bool variant_list = argument.metaType().id() == QMetaType::QVariantList;
+    const bool string_list = argument.metaType().id() == QMetaType::QStringList;
+    if (!variant_list && !string_list)
+        return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+            "StudioCommands", "Parameter fields must be a non-empty string list.")));
+    const QVariantList fields = variant_list ? argument.toList() : QVariantList{};
+    const QStringList strings = string_list ? argument.toStringList() : strings_from(argument);
+    if (strings.isEmpty() ||
+        strings.size() > static_cast<qsizetype>(develop_selectable_field_names().size()))
+        return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+            "StudioCommands", "Parameter fields must be a non-empty string list.")));
+    if (variant_list && std::any_of(fields.cbegin(), fields.cend(), [](const QVariant &field)
+                                    { return field.metaType().id() != QMetaType::QString; }))
+        return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+            "StudioCommands", "Parameter fields must be a non-empty string list.")));
+    QSet<QString> unique;
+    for (const auto &field : strings)
+    {
+        if (field.isEmpty() || !is_develop_selectable_field(utf8_from_qstring(field)) ||
+            unique.contains(field))
+            return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                "StudioCommands", "Parameter fields contain an unsupported or duplicate value.")));
+        unique.insert(field);
+    }
+    return {};
+}
+
+QString preset_save_argument(const QVariant &argument)
+{
+    const auto error =
+        required_fields(argument, {QStringLiteral("name"), QStringLiteral("fields")});
+    if (!error.isEmpty())
+        return error;
+    const auto values = argument.toMap();
+    static const QSet<QString> allowed{QStringLiteral("name"), QStringLiteral("fields")};
+    for (auto it = values.constBegin(); it != values.constEnd(); ++it)
+    {
+        if (!allowed.contains(it.key()))
+            return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                  "StudioCommands", "Unknown command argument field: %1.")))
+                .arg(it.key());
+    }
+    const auto name = values.value(QStringLiteral("name"));
+    if (name.metaType().id() != QMetaType::QString || name.toString().trimmed().isEmpty())
+        return tr_command(QString::fromUtf8(
+            QT_TRANSLATE_NOOP("StudioCommands", "Preset name must be a non-empty string.")));
+
+    return develop_parameter_fields_argument(values.value(QStringLiteral("fields")));
 }
 
 QVariantMap accepted()
@@ -1080,6 +1140,21 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kPresetApplyPath, Condition::kReadySelection, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.applyStyleFromPath(argument.toString()); });
+    add(command::kPresetSave, Condition::kDevelopSelection, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kPresetSave, argument); });
+    add(command::kPresetSaveSelected, Condition::kDevelopSelection, preset_save_argument,
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto values = argument.toMap();
+            QVariantList fields = values.value(QStringLiteral("fields")).toList();
+            if (fields.isEmpty())
+            {
+                for (const auto &field : values.value(QStringLiteral("fields")).toStringList())
+                    fields.push_back(field);
+            }
+            presenter_.savePreset(values.value(QStringLiteral("name")).toString(), fields);
+        });
     add(command::kPresetCopyInfo, Condition::kCatalogOpen, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.copyPresetDebugInfo(argument.toString()); });
@@ -1482,20 +1557,23 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.undoEdit(); });
     add(command::kEditRedo, Condition::kCanRedo, no_argument,
         [this](const QVariant &, const QString &) { presenter_.redoEdit(); });
-    add(command::kEditCopyEdits, Condition::kSelection, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.copyEdits(); });
-    add(command::kEditPasteEdits, Condition::kCanPasteEdits, no_argument,
-        [this](const QVariant &, const QString &) { presenter_.pasteEdits(); });
-    add(
-        command::kEditPasteEditsSection, Condition::kCanPasteEdits,
-        [](const QVariant &argument)
-        {
-            static const QSet<QString> values{QStringLiteral("all"), QStringLiteral("light"),
-                                              QStringLiteral("color")};
-            return one_of(argument, values, QStringLiteral("edit section"));
-        },
+    add(command::kEditCopyParameters, Condition::kModifiedParameters, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kEditCopyParameters, argument); });
+    add(command::kEditCopyParametersSelected, Condition::kModifiedParameters,
+        develop_parameter_fields_argument,
         [this](const QVariant &argument, const QString &)
-        { presenter_.pasteEditsSection(argument.toString()); });
+        {
+            QVariantList fields = argument.toList();
+            if (fields.isEmpty())
+            {
+                for (const auto &field : argument.toStringList())
+                    fields.push_back(field);
+            }
+            presenter_.copyParametersSelected(fields);
+        });
+    add(command::kEditPasteParameters, Condition::kCanPasteParameters, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.pasteParameters(); });
     add(command::kEditResetAll, Condition::kDevelopSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.resetAllEdits(); });
     add(command::kEditResetSection, Condition::kDevelopSelection, non_empty_string,
@@ -1802,7 +1880,7 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(&presenter_, &StudioPresenter::zoomChanged, this, changed);
     connect(&presenter_, &StudioPresenter::editChanged, this, changed);
-    connect(&presenter_, &StudioPresenter::copiedEditsChanged, this, changed);
+    connect(&presenter_, &StudioPresenter::copiedParametersChanged, this, changed);
 }
 
 StudioCommandController::~StudioCommandController() = default;
@@ -1865,9 +1943,10 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("viewSetScopeMode"), QLatin1String(command::kViewSetScopeMode)},
         {QStringLiteral("editUndo"), QLatin1String(command::kEditUndo)},
         {QStringLiteral("editRedo"), QLatin1String(command::kEditRedo)},
-        {QStringLiteral("editCopyEdits"), QLatin1String(command::kEditCopyEdits)},
-        {QStringLiteral("editPasteEdits"), QLatin1String(command::kEditPasteEdits)},
-        {QStringLiteral("editPasteEditsSection"), QLatin1String(command::kEditPasteEditsSection)},
+        {QStringLiteral("editCopyParameters"), QLatin1String(command::kEditCopyParameters)},
+        {QStringLiteral("editCopyParametersSelected"),
+         QLatin1String(command::kEditCopyParametersSelected)},
+        {QStringLiteral("editPasteParameters"), QLatin1String(command::kEditPasteParameters)},
         {QStringLiteral("editResetAll"), QLatin1String(command::kEditResetAll)},
         {QStringLiteral("editResetSection"), QLatin1String(command::kEditResetSection)},
         {QStringLiteral("editSetSectionEnabled"), QLatin1String(command::kEditSetSectionEnabled)},
@@ -1899,6 +1978,8 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("presetImport"), QLatin1String(command::kPresetImport)},
         {QStringLiteral("presetImportPath"), QLatin1String(command::kPresetImportPath)},
         {QStringLiteral("presetApplyPath"), QLatin1String(command::kPresetApplyPath)},
+        {QStringLiteral("presetSave"), QLatin1String(command::kPresetSave)},
+        {QStringLiteral("presetSaveSelected"), QLatin1String(command::kPresetSaveSelected)},
         {QStringLiteral("presetCopyInfo"), QLatin1String(command::kPresetCopyInfo)},
         {QStringLiteral("presetRename"), QLatin1String(command::kPresetRename)},
         {QStringLiteral("presetRenamePath"), QLatin1String(command::kPresetRenamePath)},
@@ -1975,6 +2056,12 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
         return presenter.browseMode() == QLatin1String("develop") ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Open Edit first."))};
+    case Condition::kModifiedParameters:
+        if (!selection)
+            return {false, tr_command(QStringLiteral("Select a photo first."))};
+        return presenter.modifiedParameterChoices().isEmpty() ?
+                   State{false, tr_command(QStringLiteral("No modified parameters to copy."))} :
+                   State{};
     case Condition::kCanUndo:
         return presenter.browseMode() == QLatin1String("develop") && presenter.canUndo() ?
                    State{} :
@@ -1983,14 +2070,14 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
         return presenter.browseMode() == QLatin1String("develop") && presenter.canRedo() ?
                    State{} :
                    State{false, tr_command(QStringLiteral("Nothing to redo."))};
-    case Condition::kCanPasteEdits:
+    case Condition::kCanPasteParameters:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
         if (!selection)
             return {false, tr_command(QStringLiteral("Select a photo first."))};
-        return presenter.hasCopiedEdits() ?
+        return presenter.hasCopiedParameters() ?
                    State{} :
-                   State{false, tr_command(QStringLiteral("Copy edits first."))};
+                   State{false, tr_command(QStringLiteral("Copy parameters first."))};
     case Condition::kCanDelete:
         return presenter.canDeleteFromDisk() ?
                    State{} :

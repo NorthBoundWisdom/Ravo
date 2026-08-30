@@ -11,6 +11,7 @@ Item {
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property var presets: hasPresenter ? presenter.editPresets : []
+    readonly property var saveParameters: hasPresenter ? presenter.modifiedParameterChoices : []
 
     ColumnLayout {
         anchors.fill: parent
@@ -25,16 +26,30 @@ Item {
             font.bold: true
         }
 
-        CustomButton {
+        RowLayout {
             Layout.fillWidth: true
             Layout.leftMargin: Fonts.size8
             Layout.rightMargin: Fonts.size8
             Layout.bottomMargin: Fonts.size8
-            objectName: "presetImportButton"
-            text: qsTr("Import…")
-            enabled: root.hasSelection && root.commands
-            onClicked: if (root.commands)
-                root.commands.run(root.commands.ids.presetImport)
+            spacing: Fonts.size8
+
+            CustomButton {
+                Layout.fillWidth: true
+                objectName: "presetImportButton"
+                text: qsTr("Import…")
+                enabled: root.hasSelection && root.commands
+                onClicked: if (root.commands)
+                    root.commands.run(root.commands.ids.presetImport)
+            }
+
+            CustomButton {
+                Layout.fillWidth: true
+                objectName: "presetSaveButton"
+                text: qsTr("Save…")
+                enabled: root.hasSelection && root.saveParameters.length > 0 && root.commands
+                onClicked: if (root.commands)
+                    root.commands.run(root.commands.ids.presetSave)
+            }
         }
 
         CustomLabel {
@@ -45,7 +60,7 @@ Item {
             visible: root.presets.length === 0
             wrapMode: Text.WordWrap
             color: Theme.placeholderTextColor
-            text: qsTr("Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.")
+            text: qsTr("Import a preset, or save selected changes from the current photo.")
         }
 
         ListView {

@@ -102,20 +102,12 @@
             <translation>快照</translation>
         </message>
         <message>
-            <source>Copy</source>
-            <translation>複製</translation>
+            <source>Copy Parameters</source>
+            <translation>複製參數文本</translation>
         </message>
         <message>
-            <source>Paste</source>
-            <translation>貼上</translation>
-        </message>
-        <message>
-            <source>Paste Light</source>
-            <translation>貼上明度</translation>
-        </message>
-        <message>
-            <source>Paste Color</source>
-            <translation>貼上色彩</translation>
+            <source>Paste Parameters</source>
+            <translation>貼上參數</translation>
         </message>
         <message>
             <source>on</source>
@@ -2449,8 +2441,40 @@
             <translation>Velvia 中間調偏置</translation>
         </message>
         <message>
+            <source>RGB curve</source>
+            <translation>RGB 曲線</translation>
+        </message>
+        <message>
+            <source>Output Dither</source>
+            <translation>輸出抖動</translation>
+        </message>
+        <message>
+            <source>Output Frame</source>
+            <translation>輸出邊框</translation>
+        </message>
+        <message>
+            <source>Watermark</source>
+            <translation>浮水印</translation>
+        </message>
+        <message>
             <source>Denoise</source>
             <translation>降噪</translation>
+        </message>
+        <message>
+            <source>RAW highlights</source>
+            <translation>RAW 高光</translation>
+        </message>
+        <message>
+            <source>Chromatic aberration</source>
+            <translation>色差</translation>
+        </message>
+        <message>
+            <source>RAW denoise</source>
+            <translation>RAW 降噪</translation>
+        </message>
+        <message>
+            <source>Perspective</source>
+            <translation>透視</translation>
         </message>
         <message>
             <source>Angle</source>
@@ -2467,6 +2491,14 @@
         <message>
             <source>Crop</source>
             <translation>裁剪</translation>
+        </message>
+        <message>
+            <source>Canvas</source>
+            <translation>畫布</translation>
+        </message>
+        <message>
+            <source>Lens Correction</source>
+            <translation>鏡頭校正</translation>
         </message>
         <message>
             <source>Tone curve</source>
@@ -2489,12 +2521,40 @@
             <translation>色彩平衡</translation>
         </message>
         <message>
+            <source>Color Checker</source>
+            <translation>色卡校準</translation>
+        </message>
+        <message>
             <source>Color Balance RGB</source>
             <translation>色彩平衡 RGB</translation>
         </message>
         <message>
+            <source>Color Correction</source>
+            <translation>色彩校正</translation>
+        </message>
+        <message>
+            <source>Color Contrast</source>
+            <translation>色彩對比度</translation>
+        </message>
+        <message>
             <source>Sigmoid</source>
             <translation>Sigmoid</translation>
+        </message>
+        <message>
+            <source>Masks</source>
+            <translation>遮罩</translation>
+        </message>
+        <message>
+            <source>Section bypass state</source>
+            <translation>區段旁路狀態</translation>
+        </message>
+        <message>
+            <source>RAW</source>
+            <translation>RAW</translation>
+        </message>
+        <message>
+            <source>Other</source>
+            <translation>其他</translation>
         </message>
         <message>
             <source>Mask edit was rejected</source>
@@ -2520,8 +2580,12 @@
             <translation>匯入…</translation>
         </message>
         <message>
-            <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
-            <translation>匯入 Lightroom .xmp 預設或 Ravo 樣式，並將其套用到所選相片。</translation>
+            <source>Save…</source>
+            <translation>儲存…</translation>
+        </message>
+        <message>
+            <source>Import a preset, or save selected changes from the current photo.</source>
+            <translation>匯入預設，或將目前相片中選取的修改儲存為預設。</translation>
         </message>
         <message>
             <source>Rename…</source>
@@ -3224,6 +3288,61 @@
         </message>
     </context>
     <context>
+        <name>PresetSaveDialog</name>
+        <message>
+            <source>Save Preset</source>
+            <translation>儲存預設</translation>
+        </message>
+        <message>
+            <source>Copy Parameters</source>
+            <translation>複製參數文本</translation>
+        </message>
+        <message>
+            <source>Preset name</source>
+            <translation>預設名称</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters this preset will apply. Nothing is selected by default.</source>
+            <translation>選擇此預設要套用的已修改參數。預設不選取任何參數。</translation>
+        </message>
+        <message>
+            <source>Choose which modified parameters to copy. Nothing is selected by default.</source>
+            <translation>選擇要複製的已修改參數。預設不選取任何參數。</translation>
+        </message>
+        <message>
+            <source>%1 selected</source>
+            <translation>已選取 %1 項</translation>
+        </message>
+        <message>
+            <source>Select all</source>
+            <translation>全選</translation>
+        </message>
+        <message>
+            <source>Clear</source>
+            <translation>清除</translation>
+        </message>
+        <message>
+            <source>No modified parameters are available.</source>
+            <translation>沒有可用的已修改參數。</translation>
+        </message>
+        <message>
+            <source>Modified parameters</source>
+            <translation>已修改參數</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Save</source>
+            <translation>儲存</translation>
+        </message>
+        <message>
+            <source>Copy</source>
+            <translation>複製</translation>
+        </message>
+    </context>
+    <context>
         <name>ScopePanel</name>
         <message>
             <source>Scope type</source>
@@ -3554,10 +3673,6 @@
             <translation>沒有可重做的操作。</translation>
         </message>
         <message>
-            <source>Copy edits first.</source>
-            <translation>請先複製編輯。</translation>
-        </message>
-        <message>
             <source>The selected originals cannot be deleted.</source>
             <translation>所選原始檔案不可刪除。</translation>
         </message>
@@ -3652,14 +3767,6 @@
         <message>
             <source>Redo</source>
             <translation>重做</translation>
-        </message>
-        <message>
-            <source>Copy Edits</source>
-            <translation>複製編輯</translation>
-        </message>
-        <message>
-            <source>Paste Edits</source>
-            <translation>貼上編輯</translation>
         </message>
         <message>
             <source>Reset All Edits</source>
@@ -3774,6 +3881,18 @@
             <translation>複製參數文本</translation>
         </message>
         <message>
+            <source>No modified parameters to copy.</source>
+            <translation>沒有可複製的已修改參數。</translation>
+        </message>
+        <message>
+            <source>Copy parameters first.</source>
+            <translation>請先複製參數。</translation>
+        </message>
+        <message>
+            <source>Paste Parameters</source>
+            <translation>貼上參數</translation>
+        </message>
+        <message>
             <source>Remove from Catalog...</source>
             <translation>從相片庫中移除…</translation>
         </message>
@@ -3812,6 +3931,18 @@
         <message>
             <source>Unknown command argument field: %1.</source>
             <translation>未知的指令參數欄位：%1。</translation>
+        </message>
+        <message>
+            <source>Parameter fields must be a non-empty string list.</source>
+            <translation>參數欄位必須是非空字串清單。</translation>
+        </message>
+        <message>
+            <source>Parameter fields contain an unsupported or duplicate value.</source>
+            <translation>參數欄位包含不支援或重複的值。</translation>
+        </message>
+        <message>
+            <source>Preset name must be a non-empty string.</source>
+            <translation>預設名稱必須是非空字串。</translation>
         </message>
         <message>
             <source>Export path must be a string.</source>
@@ -4014,6 +4145,10 @@
             <translation>透視已校正。</translation>
         </message>
         <message>
+            <source>Edit was saved, but recovery synchronization failed: </source>
+            <translation>編輯已儲存，但復原同步失敗：</translation>
+        </message>
+        <message>
             <source>Style path must not be empty.</source>
             <translation>樣式路徑不可為空白。</translation>
         </message>
@@ -4054,12 +4189,40 @@
             <translation>預設名称是作業系統保留名称。</translation>
         </message>
         <message>
+            <source>Select at least one modified parameter.</source>
+            <translation>請至少選取一個已修改參數。</translation>
+        </message>
+        <message>
+            <source>Parameter selection is invalid.</source>
+            <translation>參數選擇無效。</translation>
+        </message>
+        <message>
+            <source>The selected parameters are no longer modified.</source>
+            <translation>所選參數已不再處於修改狀態。</translation>
+        </message>
+        <message>
+            <source>Open a library to save presets.</source>
+            <translation>請先開啟圖庫再儲存預設。</translation>
+        </message>
+        <message>
+            <source>Preset “%1” saved.</source>
+            <translation>預設「%1」已儲存。</translation>
+        </message>
+        <message>
             <source>Preset file was not found.</source>
             <translation>未找到預設檔案。</translation>
         </message>
         <message>
             <source>Open a library to import presets.</source>
             <translation>請先開啟目錄再匯入預設。</translation>
+        </message>
+        <message>
+            <source>Parameters copied.</source>
+            <translation>參數已複製。</translation>
+        </message>
+        <message>
+            <source>Parameters pasted.</source>
+            <translation>參數已貼上。</translation>
         </message>
         <message>
             <source>Preset folder could not be created.</source>
@@ -4140,14 +4303,6 @@
         <message>
             <source>Preset information copied.</source>
             <translation>已複製預設資訊。</translation>
-        </message>
-        <message>
-            <source>Edits copied.</source>
-            <translation>已複製編輯。</translation>
-        </message>
-        <message>
-            <source>Edits pasted.</source>
-            <translation>已貼上編輯。</translation>
         </message>
         <message>
             <source>Engine failed to start.</source>
