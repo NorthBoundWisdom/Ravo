@@ -13,8 +13,10 @@
 #include <QColorSpace>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QKeySequence>
 #include <QThread>
@@ -564,6 +566,84 @@ TEST(StudioPresenterTest, PresetDebugInfoHashesStyleAndRejectsUnknownFiles)
     EXPECT_TRUE(presenter.presetDebugInfo(junk).isEmpty());
 }
 
+TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveContent)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString source_directory = directory.filePath(QStringLiteral("source"));
+    ASSERT_TRUE(QDir().mkpath(source_directory));
+
+    DevelopParams develop;
+    auto recipe = recipe_from_develop({"asset-a", "file:///source-a.jpg", "hash-a"}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto style = recipe_style_from_recipe("Warm", "", recipe.value());
+    ASSERT_TRUE(style) << style.error().message;
+    auto serialized = serialize_recipe_style(style.value());
+    ASSERT_TRUE(serialized) << serialized.error().message;
+    const QByteArray original = QByteArray::fromStdString(serialized.value());
+    const QString external_path =
+        QDir(source_directory).filePath(QStringLiteral("Warm.rstyle.json"));
+    {
+        QFile file(external_path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            << file.errorString().toStdString();
+        ASSERT_EQ(file.write(original), original.size());
+    }
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importPresetFromPath(external_path);
+    ASSERT_EQ(presenter.editPresets().size(), 1) << presenter.errorText().toStdString();
+    auto preset = presenter.editPresets().front().toMap();
+    ASSERT_EQ(preset.value(QStringLiteral("name")).toString(), QStringLiteral("Warm"));
+    const QString imported_path = preset.value(QStringLiteral("path")).toString();
+    ASSERT_TRUE(QFileInfo::exists(imported_path));
+
+    presenter.renamePreset(imported_path, QStringLiteral("Evening Warm"));
+    ASSERT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+    ASSERT_EQ(presenter.editPresets().size(), 1);
+    preset = presenter.editPresets().front().toMap();
+    EXPECT_EQ(preset.value(QStringLiteral("name")).toString(), QStringLiteral("Evening Warm"));
+    const QString renamed_path = preset.value(QStringLiteral("path")).toString();
+    EXPECT_TRUE(renamed_path.endsWith(QStringLiteral("Evening Warm.rstyle.json")));
+    EXPECT_FALSE(QFileInfo::exists(imported_path));
+    QFile renamed(renamed_path);
+    ASSERT_TRUE(renamed.open(QIODevice::ReadOnly));
+    EXPECT_EQ(renamed.readAll(), original);
+
+    const QString conflict_path =
+        QFileInfo(renamed_path).dir().filePath(QStringLiteral("Existing.rstyle.json"));
+    ASSERT_TRUE(QFile::copy(renamed_path, conflict_path));
+    presenter.renamePreset(renamed_path, QStringLiteral("Existing"));
+    EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("already exists")));
+    EXPECT_TRUE(QFileInfo::exists(renamed_path));
+    ASSERT_TRUE(QFile::remove(conflict_path));
+
+    presenter.renamePreset(renamed_path, QStringLiteral("../escape"));
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    EXPECT_TRUE(QFileInfo::exists(renamed_path));
+    EXPECT_FALSE(QFileInfo::exists(directory.filePath(QStringLiteral("escape.rstyle.json"))));
+    presenter.renamePreset(QStringLiteral("/missing/preset.xmp"), QStringLiteral("Missing"));
+    EXPECT_EQ(presenter.errorText(),
+              QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+    presenter.renamePreset(external_path, QStringLiteral("External"));
+    EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("imported into this library")));
+    EXPECT_TRUE(QFileInfo::exists(external_path));
+
+    presenter.deletePreset(external_path);
+    EXPECT_TRUE(presenter.errorText().contains(QStringLiteral("imported into this library")));
+    EXPECT_TRUE(QFileInfo::exists(external_path));
+    presenter.deletePreset(renamed_path);
+    EXPECT_TRUE(presenter.errorText().isEmpty()) << presenter.errorText().toStdString();
+    EXPECT_FALSE(QFileInfo::exists(renamed_path));
+    EXPECT_TRUE(presenter.editPresets().isEmpty());
+    EXPECT_EQ(presenter.statusText(),
+              QCoreApplication::translate("StudioPresenter", "Preset deleted."));
+}
+
 TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
 {
     ensure_qt_core();
@@ -851,7 +931,8 @@ TEST(StudioQmlContract, ColorContrastExposesFullV2SurfaceThroughGenericDevelopIn
     }
 
     const auto section_begin = source.indexOf(QStringLiteral("colorContrastEnabled"));
-    const auto section_end = source.indexOf(QStringLiteral("colorHarmonizerEnabled"), section_begin);
+    const auto section_end =
+        source.indexOf(QStringLiteral("colorHarmonizerEnabled"), section_begin);
     ASSERT_GE(section_begin, 0);
     ASSERT_GT(section_end, section_begin);
     const auto section = source.mid(section_begin, section_end - section_begin);
@@ -1147,6 +1228,16 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveEditor\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Curves\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Monotonic\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveFamilyRgb\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveFamilyTone\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curvePointMode\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"curveParametricMode\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"resetActiveCurve\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Channel\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Parametric regions\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Curve settings\")")));
+    EXPECT_TRUE(
+        source.contains(QStringLiteral("curveControls.rgbFamily ? \"rgbCurve\" : \"toneCurve\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("histogramMode")));
     EXPECT_TRUE(source.contains(QStringLiteral("previewCurve")));
     EXPECT_TRUE(source.contains(QStringLiteral("rgbCurveShadows")));
@@ -1182,6 +1273,20 @@ TEST(StudioQmlContract, DevelopPanelUsesDefaultGradingStackWithoutBuryingColorEq
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("previewDevelopNumbers")));
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("setDevelopNumbers")));
     EXPECT_FALSE(wheel_source.contains(QStringLiteral("OpenCL")));
+
+    auto curve_editor_path = QStringLiteral(RAVO_STUDIO_DEVELOP_PANEL_QML);
+    curve_editor_path.replace(QStringLiteral("DevelopPanel.qml"),
+                              QStringLiteral("ToneCurveEditor.qml"));
+    QFile curve_editor(curve_editor_path);
+    ASSERT_TRUE(curve_editor.open(QIODevice::ReadOnly | QIODevice::Text))
+        << curve_editor.errorString().toStdString();
+    const auto curve_source = QString::fromUtf8(curve_editor.readAll());
+    EXPECT_TRUE(curve_source.contains(QStringLiteral("qsTr(\"Input\")")));
+    EXPECT_TRUE(curve_source.contains(QStringLiteral("qsTr(\"Output\")")));
+    EXPECT_TRUE(curve_source.contains(QStringLiteral("property color curveColor")));
+    EXPECT_TRUE(curve_source.contains(QStringLiteral("property bool showRegionSplits")));
+    EXPECT_TRUE(curve_source.contains(QStringLiteral("Qt.CrossCursor")));
+    EXPECT_TRUE(curve_source.contains(QStringLiteral("root.displayPoints")));
 }
 
 TEST(StudioQmlContract, RetouchAuthorsOrderedRegionsThroughCommandBoundary)
@@ -1224,9 +1329,8 @@ TEST(StudioQmlContract, DevelopSectionsFollowLightroomEditOrder)
         QStringLiteral("geometry"),     QStringLiteral("toneEqual"),
         QStringLiteral("graduated"),    QStringLiteral("effects"),
         QStringLiteral("detail"),       QStringLiteral("raw"),
-        QStringLiteral("calibration"),
-        QStringLiteral("inputProfile"), QStringLiteral("profileGamma"),
-        QStringLiteral("outputProfile"),
+        QStringLiteral("calibration"),  QStringLiteral("inputProfile"),
+        QStringLiteral("profileGamma"), QStringLiteral("outputProfile"),
     };
     qsizetype cursor = source.indexOf(QStringLiteral("component DevelopSection"));
     ASSERT_GE(cursor, 0);
@@ -1289,7 +1393,8 @@ TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fit\")")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"Fill\")")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("qsTr(\"1:1\")")));
-    EXPECT_TRUE(library_source.contains(QStringLiteral("Layout.preferredWidth: ControlState.borderThin")));
+    EXPECT_TRUE(
+        library_source.contains(QStringLiteral("Layout.preferredWidth: ControlState.borderThin")));
 
     QFile history(QStringLiteral(RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML));
     ASSERT_TRUE(history.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -1394,6 +1499,68 @@ TEST(StudioCommands, CopyInfoRequiresSelectionOrPresetPath)
     EXPECT_FALSE(preset_rejected.value(QStringLiteral("accepted")).toBool());
     EXPECT_EQ(preset_rejected.value(QStringLiteral("code")).toString(),
               QStringLiteral("unavailable"));
+}
+
+TEST(StudioCommands, PresetDeleteRequiresCurrentPathBoundConfirmation)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    StudioCommandController controller(presenter);
+    const auto ids = controller.ids();
+    const QString request_id = ids.value(QStringLiteral("presetDelete")).toString();
+    const QString confirmed_id = ids.value(QStringLiteral("presetDeleteConfirmed")).toString();
+    ASSERT_EQ(request_id, QStringLiteral("studio.preset.request_delete"));
+    ASSERT_EQ(confirmed_id, QStringLiteral("studio.preset.delete"));
+
+    QString presentation_id;
+    QVariant presentation_argument;
+    QObject::connect(&controller, &StudioCommandController::presentationCommandRequested,
+                     &controller,
+                     [&](const QString &id, const QVariant &argument)
+                     {
+                         presentation_id = id;
+                         presentation_argument = argument;
+                     });
+    const QVariantMap preset{{QStringLiteral("path"), QStringLiteral("/tmp/Warm.xmp")},
+                             {QStringLiteral("name"), QStringLiteral("Warm")}};
+    const auto requested = controller.executeCommand(request_id, preset, QStringLiteral("control"));
+    ASSERT_TRUE(requested.value(QStringLiteral("accepted")).toBool());
+    ASSERT_EQ(presentation_id, request_id);
+    const auto presented = presentation_argument.toMap();
+    const QString token = presented.value(QStringLiteral("token")).toString();
+    ASSERT_FALSE(token.isEmpty());
+    EXPECT_EQ(presented.value(QStringLiteral("path")).toString(),
+              preset.value(QStringLiteral("path")).toString());
+
+    const QVariantMap wrong_path{{QStringLiteral("token"), token},
+                                 {QStringLiteral("path"), QStringLiteral("/tmp/Other.xmp")}};
+    const auto changed =
+        controller.executeCommand(confirmed_id, wrong_path, QStringLiteral("control"));
+    EXPECT_FALSE(changed.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(changed.value(QStringLiteral("code")).toString(), QStringLiteral("invalid_argument"));
+
+    controller.cancelPendingConfirmation(token);
+    const QVariantMap canceled{
+        {QStringLiteral("token"), token},
+        {QStringLiteral("path"), preset.value(QStringLiteral("path")).toString()}};
+    const auto after_cancel =
+        controller.executeCommand(confirmed_id, canceled, QStringLiteral("control"));
+    EXPECT_FALSE(after_cancel.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(after_cancel.value(QStringLiteral("code")).toString(),
+              QStringLiteral("invalid_argument"));
+
+    const auto invalid_rename = controller.executeCommand(
+        ids.value(QStringLiteral("presetRename")).toString(),
+        QVariantMap{{QStringLiteral("path"), QStringLiteral("/tmp/Warm.xmp")}},
+        QStringLiteral("control"));
+    EXPECT_FALSE(invalid_rename.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(invalid_rename.value(QStringLiteral("code")).toString(),
+              QStringLiteral("invalid_argument"));
 }
 
 TEST(StudioCommands, CropToolShortcutIsRAndDoesNotRequireEditMode)
@@ -1790,7 +1957,8 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("inspectStageLockW")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectAnimScale")));
     EXPECT_TRUE(source.contains(QStringLiteral("transform: Scale")));
-    EXPECT_TRUE(source.contains(QStringLiteral("cursorShape: studio.whiteBalancePickActive ? Qt.CrossCursor : Qt.BlankCursor")));
+    EXPECT_TRUE(source.contains(QStringLiteral(
+        "cursorShape: studio.whiteBalancePickActive ? Qt.CrossCursor : Qt.BlankCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: magnifierCursor")));
     EXPECT_TRUE(source.contains(QStringLiteral("onDoubleTapped")));
     EXPECT_TRUE(source.contains(QStringLiteral("openGallery(\"grid\")")));
@@ -1874,6 +2042,11 @@ TEST(StudioQmlContract, RecipeStyleUsesExplicitSaveAndApplyFileCommands)
     EXPECT_TRUE(source.contains(QStringLiteral("id: presetImportDialog")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImport")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetImportPath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: presetRenameDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetRenamePath")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: presetDeleteDialog")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetDeleteConfirmed")));
+    EXPECT_TRUE(source.contains(QStringLiteral("cancelPendingConfirmation(token)")));
     EXPECT_FALSE(source.contains(QStringLiteral("darktable_style")));
 }
 
@@ -1891,9 +2064,22 @@ TEST(StudioQmlContract, DevelopPresetPanelSitsAboveHistoryAndImportsThroughComma
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetApplyPath")));
     EXPECT_TRUE(source.contains(QStringLiteral("acceptedButtons: Qt.LeftButton | Qt.RightButton")));
     EXPECT_TRUE(source.contains(QStringLiteral("ids.presetCopyInfo")));
-    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy Info\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetRename")));
+    EXPECT_TRUE(source.contains(QStringLiteral("ids.presetDelete")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Chrome.StudioContextMenu")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy Preset Info\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Rename…\")")));
+    EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Delete…\")")));
     EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.preset")));
     EXPECT_FALSE(source.contains(QStringLiteral("OpenCL")));
+
+    QFile rename_dialog(QStringLiteral(RAVO_STUDIO_PRESET_RENAME_DIALOG_QML));
+    ASSERT_TRUE(rename_dialog.open(QIODevice::ReadOnly | QIODevice::Text))
+        << rename_dialog.errorString().toStdString();
+    const auto rename_source = QString::fromUtf8(rename_dialog.readAll());
+    EXPECT_TRUE(rename_source.contains(QStringLiteral("DialogShell")));
+    EXPECT_TRUE(rename_source.contains(QStringLiteral("objectName: \"presetRenameField\"")));
+    EXPECT_TRUE(rename_source.contains(QStringLiteral("signal renameAccepted")));
 }
 
 TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
@@ -1905,9 +2091,23 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
     EXPECT_TRUE(source.contains(QStringLiteral("copyEdits")));
     EXPECT_TRUE(source.contains(QStringLiteral("pasteEdits")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoInfo")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"viewPhotoMenuItem\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"editPhotoMenuItem\"")));
+    EXPECT_TRUE(source.contains(QStringLiteral("action: root.commands.loupe")));
+    EXPECT_TRUE(source.contains(QStringLiteral("action: root.commands.develop")));
+    EXPECT_TRUE(source.contains(QStringLiteral("StudioContextMenu")));
+    EXPECT_TRUE(source.contains(QStringLiteral("StudioContextMenuItem")));
     EXPECT_LT(source.indexOf(QStringLiteral("copyEdits")),
               source.indexOf(QStringLiteral("copyPhotoInfo")));
     EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.photo")));
+
+    QFile shared_item(QStringLiteral(RAVO_STUDIO_CONTEXT_MENU_ITEM_QML));
+    ASSERT_TRUE(shared_item.open(QIODevice::ReadOnly | QIODevice::Text))
+        << shared_item.errorString().toStdString();
+    const auto shared_source = QString::fromUtf8(shared_item.readAll());
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("id: checkmark")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("root.checkable && root.checked")));
+    EXPECT_TRUE(shared_source.contains(QStringLiteral("indicator: Item")));
 
     QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
     ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))

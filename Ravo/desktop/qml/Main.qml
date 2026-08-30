@@ -10,8 +10,7 @@ ApplicationWindow {
     height: 900
     visible: true
     color: Theme.windowColor
-    title: studio.catalogOpen ? qsTr("Ravo Studio — %1").arg(studio.catalogPath) :
-                                qsTr("Ravo Studio")
+    title: studio.catalogOpen ? qsTr("Ravo Studio — %1").arg(studio.catalogPath) : qsTr("Ravo Studio")
     palette.window: Theme.windowColor
     palette.windowText: Theme.windowTextColor
     palette.base: Theme.baseColor
@@ -32,10 +31,11 @@ ApplicationWindow {
     property bool settingsOpen: false
     property string removeConfirmationToken: ""
     property string deleteConfirmationToken: ""
+    property string presetDeleteConfirmationToken: ""
+    property string presetDeletePath: ""
+    property string presetDeleteName: ""
     readonly property bool studioInteractive: !settingsOpen && !studioCommands.paletteOpen
-    readonly property bool textInputActive: activeFocusItem &&
-                                                   (activeFocusItem instanceof TextInput ||
-                                                    activeFocusItem instanceof TextEdit)
+    readonly property bool textInputActive: activeFocusItem && (activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit)
     property string lastGalleryMode: "grid"
     property string pendingExportFormat: ""
     property var pendingExportOptions: ({})
@@ -58,8 +58,7 @@ ApplicationWindow {
     property real inspectAnimOriginY: 0
     readonly property int inspectZoomDurationMs: 240
     readonly property bool photoInspectEnabled: {
-        if (studio.browseMode === "grid" ||
-                (studio.browseMode === "develop" && studio.cropToolActive))
+        if (studio.browseMode === "grid" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
         if (typeof previewImage === "undefined")
             return false;
@@ -81,10 +80,7 @@ ApplicationWindow {
         const visB = Math.min(stageB, photoPlane.y + photoPlane.height);
         const w = Math.max(1, photoPlane.width);
         const h = Math.max(1, photoPlane.height);
-        return Qt.rect(Math.max(0, Math.min(1, (visL - photoPlane.x) / w)),
-                       Math.max(0, Math.min(1, (visT - photoPlane.y) / h)),
-                       Math.max(0.02, Math.min(1, (visR - visL) / w)),
-                       Math.max(0.02, Math.min(1, (visB - visT) / h)));
+        return Qt.rect(Math.max(0, Math.min(1, (visL - photoPlane.x) / w)), Math.max(0, Math.min(1, (visT - photoPlane.y) / h)), Math.max(0.02, Math.min(1, (visR - visL) / w)), Math.max(0.02, Math.min(1, (visB - visT) / h)));
     }
 
     function seekNavigatorViewport(nx, ny) {
@@ -141,15 +137,24 @@ ApplicationWindow {
         const srcW = Math.max(previewImage.implicitWidth, 1);
         const srcH = Math.max(previewImage.implicitHeight, 1);
         if (mode === "fit")
-            return { "w": scroller.width, "h": scroller.height };
+            return {
+                "w": scroller.width,
+                "h": scroller.height
+            };
         if (mode === "fill")
             return {
                 "w": Math.max(scroller.width, srcW * (scroller.height / srcH)),
                 "h": Math.max(scroller.height, srcH * (scroller.width / srcW))
             };
         if (mode === "actual")
-            return { "w": srcW, "h": srcH };
-        return { "w": Math.max(1, srcW * factor), "h": Math.max(1, srcH * factor) };
+            return {
+                "w": srcW,
+                "h": srcH
+            };
+        return {
+            "w": Math.max(1, srcW * factor),
+            "h": Math.max(1, srcH * factor)
+        };
     }
 
     function photoPlaneRectForStage(stageW, stageH) {
@@ -244,7 +249,10 @@ ApplicationWindow {
             applyPhotoViewportAfterZoom();
             return;
         }
-        inspectZoomCommit = { "x": targetX, "y": targetY };
+        inspectZoomCommit = {
+            "x": targetX,
+            "y": targetY
+        };
 
         const scaleDelta = Math.abs(sEnd - 1);
         const panDelta = Math.abs(cEndX - scroller.contentX) + Math.abs(cEndY - scroller.contentY);
@@ -274,8 +282,7 @@ ApplicationWindow {
     function inspectPointInPhoto(pos) {
         if (typeof photoPlane === "undefined" || photoPlane.width < 1 || photoPlane.height < 1)
             return false;
-        return pos.x >= photoPlane.x && pos.x <= photoPlane.x + photoPlane.width &&
-               pos.y >= photoPlane.y && pos.y <= photoPlane.y + photoPlane.height;
+        return pos.x >= photoPlane.x && pos.x <= photoPlane.x + photoPlane.width && pos.y >= photoPlane.y && pos.y <= photoPlane.y + photoPlane.height;
     }
 
     function togglePhotoInspectZoom(stagePos) {
@@ -509,6 +516,27 @@ ApplicationWindow {
         deleteDiskDialog.openWithButtons();
     }
 
+    function askDeletePreset(argument) {
+        window.presetDeleteConfirmationToken = String(argument.token || "");
+        window.presetDeletePath = String(argument.path || "");
+        window.presetDeleteName = String(argument.name || "");
+        presetDeleteDialog.openWithButtons();
+    }
+
+    function finishDeletePreset(buttonText) {
+        const token = window.presetDeleteConfirmationToken;
+        if (buttonText === qsTr("Delete") && token.length > 0) {
+            studioActions.run(studioActions.ids.presetDeleteConfirmed, {
+                "token": token,
+                "path": window.presetDeletePath
+            });
+        }
+        studioCommands.cancelPendingConfirmation(token);
+        window.presetDeleteConfirmationToken = "";
+        window.presetDeletePath = "";
+        window.presetDeleteName = "";
+    }
+
     function applyAppearance() {
         studioPalette.appFont = Qt.application.font;
         studioPalette.monoFont = Qt.application.font;
@@ -547,8 +575,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible ||
-               exportOptionsDialog.visible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || presetRenameDialog.visible || presetDeleteDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -580,6 +607,10 @@ ApplicationWindow {
                 openStyleApplyDialog();
             else if (id === ids.presetImport)
                 openPresetImportDialog();
+            else if (id === ids.presetRename)
+                presetRenameDialog.openForPreset(String(argument.path || ""), String(argument.name || ""));
+            else if (id === ids.presetDelete)
+                askDeletePreset(argument);
             else if (id === ids.windowSettings)
                 window.settingsOpen = true;
             else if (id === ids.windowClose)
@@ -941,8 +972,7 @@ ApplicationWindow {
                                         if (studio.browseMode === "develop" && studio.whiteBalancePickActive) {
                                             const w = Math.max(1, photoPlane.width);
                                             const h = Math.max(1, photoPlane.height);
-                                            studioActions.pickWhiteBalance((eventPoint.position.x - photoPlane.x) / w,
-                                                                           (eventPoint.position.y - photoPlane.y) / h);
+                                            studioActions.pickWhiteBalance((eventPoint.position.x - photoPlane.x) / w, (eventPoint.position.y - photoPlane.y) / h);
                                             return;
                                         }
                                         if (studio.browseMode === "loupe") {
@@ -1135,9 +1165,7 @@ ApplicationWindow {
         MainStatusBar {
             Layout.fillWidth: true
             statusText: studio.statusText
-            viewerText: studio.previewLoading ? qsTr("Loading preview…") :
-                                                (studio.selectedAssetId.length > 0 ?
-                                                     qsTr("%1 photos").arg(studio.visibleCount) : "")
+            viewerText: studio.previewLoading ? qsTr("Loading preview…") : (studio.selectedAssetId.length > 0 ? qsTr("%1 photos").arg(studio.visibleCount) : "")
         }
     }
 
@@ -1182,8 +1210,7 @@ ApplicationWindow {
         defaultButtonText: qsTr("Remove")
         onFinished: function (buttonText) {
             if (buttonText === qsTr("Remove"))
-                studioActions.run(studioActions.ids.photoRemoveConfirmed,
-                                  window.removeConfirmationToken);
+                studioActions.run(studioActions.ids.photoRemoveConfirmed, window.removeConfirmationToken);
             studioCommands.cancelPendingConfirmation(window.removeConfirmationToken);
             window.removeConfirmationToken = "";
         }
@@ -1198,11 +1225,36 @@ ApplicationWindow {
         defaultButtonText: qsTr("Delete")
         onFinished: function (buttonText) {
             if (buttonText === qsTr("Delete"))
-                studioActions.run(studioActions.ids.photoRemoveFromDiskConfirmed,
-                                  window.deleteConfirmationToken);
+                studioActions.run(studioActions.ids.photoRemoveFromDiskConfirmed, window.deleteConfirmationToken);
             studioCommands.cancelPendingConfirmation(window.deleteConfirmationToken);
             window.deleteConfirmationToken = "";
         }
+    }
+
+    PresetRenameDialog {
+        id: presetRenameDialog
+        parentItem: window.contentItem
+        onRenameAccepted: function (path, name) {
+            studioActions.run(studioActions.ids.presetRenamePath, {
+                "path": path,
+                "name": name
+            });
+        }
+    }
+
+    MessageDialog {
+        id: presetDeleteDialog
+        parentItem: window.contentItem
+        titleText: qsTr("Delete Preset")
+        messageText: qsTr("Permanently delete preset “%1”? This cannot be undone.").arg(window.presetDeleteName)
+        buttons: [qsTr("Cancel"), qsTr("Delete")]
+        defaultButtonText: qsTr("Cancel")
+        onFinished: function (buttonText) {
+            window.finishDeletePreset(buttonText);
+        }
+        // MessageDialog's window-level Return signal has no button result.
+        // The safe default for this destructive dialog is cancellation.
+        onAccepted: window.finishDeletePreset(qsTr("Cancel"))
     }
 
     MessageDialog {
@@ -1283,10 +1335,10 @@ ApplicationWindow {
             const options = window.pendingExportOptions;
             window.clearPendingExport();
             studioActions.run(studioActions.ids.libraryExportWrite, {
-                    "path": filePath,
-                    "format": format,
-                    "options": options
-                });
+                "path": filePath,
+                "format": format,
+                "options": options
+            });
         }
         onFileRejected: window.clearPendingExport()
     }
@@ -1300,11 +1352,11 @@ ApplicationWindow {
             const filenameTemplate = window.pendingExportFilenameTemplate;
             window.clearPendingExport();
             studioActions.run(studioActions.ids.libraryExportBatchWrite, {
-                    "directory": folderPath,
-                    "filenameTemplate": filenameTemplate,
-                    "format": format,
-                    "options": options
-                });
+                "directory": folderPath,
+                "filenameTemplate": filenameTemplate,
+                "format": format,
+                "options": options
+            });
         }
         onFolderRejected: window.clearPendingExport()
     }

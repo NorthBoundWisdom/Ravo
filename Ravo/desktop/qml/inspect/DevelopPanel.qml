@@ -26,14 +26,17 @@ ColumnLayout {
         resetTooltip: qsTr("Reset this section")
         property string sectionId
         function syncEffectLamp() {
-            modified = root.hasPresenter && sectionId.length && root.presenter.sectionModified(sectionId)
-            effectEnabled = !root.hasPresenter || !sectionId.length ||
-                            root.presenter.sectionEffectEnabled(sectionId)
+            modified = root.hasPresenter && sectionId.length && root.presenter.sectionModified(sectionId);
+            effectEnabled = !root.hasPresenter || !sectionId.length || root.presenter.sectionEffectEnabled(sectionId);
         }
         Connections {
             target: root.presenter
-            function onEditChanged() { sectionPanel.syncEffectLamp() }
-            function onSelectionChanged() { sectionPanel.syncEffectLamp() }
+            function onEditChanged() {
+                sectionPanel.syncEffectLamp();
+            }
+            function onSelectionChanged() {
+                sectionPanel.syncEffectLamp();
+            }
         }
         Component.onCompleted: syncEffectLamp()
         onSectionIdChanged: syncEffectLamp()
@@ -44,6 +47,25 @@ ColumnLayout {
         onEffectEnabledToggled: function (enabled) {
             if (root.commands && sectionId.length)
                 root.commands.setSectionEnabled(sectionId, enabled);
+        }
+    }
+
+    component CurveOptionButton: CustomButton {
+        id: optionButton
+        property bool selected: false
+        property color selectionColor: Theme.highlightColor
+
+        defaultHeight: Fonts.inputFieldHeight
+        defaultPadding: Fonts.size6
+        buttonTextColor: selected ? selectionColor : Theme.buttonTextColor
+        highlightedTextColor: selectionColor
+        font: selected ? Fonts.makeBoldFont(Fonts.standardFont) : Fonts.standardFont
+
+        background: Rectangle {
+            color: !optionButton.enabled ? Theme.buttonDisabledColor : optionButton.pressed ? Qt.alpha(optionButton.selectionColor, 0.32) : optionButton.hovered ? Qt.alpha(optionButton.selectionColor, 0.24) : optionButton.selected ? Qt.alpha(optionButton.selectionColor, 0.16) : Theme.baseColor
+            border.color: optionButton.selected ? optionButton.selectionColor : Theme.midColor
+            border.width: optionButton.selected ? Fonts.size2 : Fonts.size1
+            radius: Fonts.size2
         }
     }
 
@@ -245,8 +267,7 @@ ColumnLayout {
             visible: maskEditor.mask.attached === true
             text: qsTr("Show mask overlay")
             enabled: root.hasSelection
-            checked: root.hasPresenter && root.presenter.maskOverlayVisible &&
-                     root.presenter.maskOverlayTarget === maskEditor.mask.target
+            checked: root.hasPresenter && root.presenter.maskOverlayVisible && root.presenter.maskOverlayTarget === maskEditor.mask.target
             onToggled: if (root.hasPresenter)
                 root.presenter.setMaskOverlay(maskEditor.mask.target, checked)
         }
@@ -261,11 +282,11 @@ ColumnLayout {
             CustomComboBox {
                 Layout.fillWidth: true
                 model: {
-                    const count = maskEditor.mask.childCount !== undefined ? maskEditor.mask.childCount : 0
-                    const items = []
+                    const count = maskEditor.mask.childCount !== undefined ? maskEditor.mask.childCount : 0;
+                    const items = [];
                     for (let i = 0; i < count; ++i)
-                        items.push(qsTr("Child %1").arg(i + 1))
-                    return items
+                        items.push(qsTr("Child %1").arg(i + 1));
+                    return items;
                 }
                 currentIndex: maskEditor.mask.childIndex !== undefined ? maskEditor.mask.childIndex : 0
                 enabled: root.hasSelection && maskEditor.mask.editable === true
@@ -282,8 +303,7 @@ ColumnLayout {
                 currentIndex: maskEditor.mask.childKindIndex !== undefined ? maskEditor.mask.childKindIndex : 0
                 enabled: root.hasSelection && maskEditor.mask.editable === true
                 onActivated: if (root.commands && maskEditor.mask.childKindValues)
-                    root.commands.setDevelopNumber(maskEditor.mask.childKindField,
-                                                   maskEditor.mask.childKindValues[currentIndex])
+                    root.commands.setDevelopNumber(maskEditor.mask.childKindField, maskEditor.mask.childKindValues[currentIndex])
             }
             CustomLabel {
                 Layout.fillWidth: true
@@ -332,11 +352,11 @@ ColumnLayout {
             CustomComboBox {
                 Layout.fillWidth: true
                 model: {
-                    const count = maskEditor.mask.pointCount !== undefined ? maskEditor.mask.pointCount : 0
-                    const items = []
+                    const count = maskEditor.mask.pointCount !== undefined ? maskEditor.mask.pointCount : 0;
+                    const items = [];
                     for (let i = 0; i < count; ++i)
-                        items.push(qsTr("Point %1").arg(i + 1))
-                    return items
+                        items.push(qsTr("Point %1").arg(i + 1));
+                    return items;
                 }
                 currentIndex: maskEditor.mask.pointIndex !== undefined ? maskEditor.mask.pointIndex : 0
                 enabled: root.hasSelection && maskEditor.mask.editable === true
@@ -873,15 +893,7 @@ ColumnLayout {
                 CustomComboBox {
                     Layout.fillWidth: true
                     visible: !root.hasPresenter || root.presenter.editRgbLevels.modeIndex === 0
-                    model: [
-                        qsTr("None"),
-                        qsTr("Luminance"),
-                        qsTr("Max RGB"),
-                        qsTr("Average RGB"),
-                        qsTr("Sum RGB"),
-                        qsTr("Norm RGB"),
-                        qsTr("Basic power")
-                    ]
+                    model: [qsTr("None"), qsTr("Luminance"), qsTr("Max RGB"), qsTr("Average RGB"), qsTr("Sum RGB"), qsTr("Norm RGB"), qsTr("Basic power")]
                     enabled: root.hasSelection
                     currentIndex: root.hasPresenter ? root.presenter.editRgbLevels.preserveIndex : 1
                     onActivated: if (root.commands)
@@ -1006,73 +1018,177 @@ ColumnLayout {
             title: qsTr("Curves")
             sectionId: "curves"
             ColumnLayout {
+                id: curveControls
                 Layout.fillWidth: true
                 width: parent.width
-                CustomComboBox {
+                spacing: Fonts.smallSpacing
+                property bool editRegions: false
+                readonly property bool rgbFamily: !root.hasPresenter || root.presenter.editCurve.familyIndex === 0
+                readonly property bool masterChannel: !root.hasPresenter || root.presenter.editCurve.channel === 0
+                readonly property bool regionsAvailable: rgbFamily && masterChannel && (!root.hasPresenter || root.presenter.editCurve.linked)
+                readonly property color activeCurveColor: {
+                    if (!root.hasPresenter || root.presenter.editCurve.channel === 0)
+                        return Theme.textColor;
+                    if (root.presenter.editCurve.familyIndex === 1)
+                        return root.presenter.editCurve.channel === 1 ? "#d97bdc" : "#64c7c9";
+                    if (root.presenter.editCurve.channel === 1)
+                        return "#ed6a70";
+                    if (root.presenter.editCurve.channel === 2)
+                        return "#65c982";
+                    return "#6f9df4";
+                }
+                readonly property string activeChannelLabel: {
+                    if (!root.hasPresenter)
+                        return qsTr("RGB");
+                    if (root.presenter.editCurve.familyIndex === 1)
+                        return [qsTr("Master"), qsTr("a"), qsTr("b")][root.presenter.editCurve.channel];
+                    return [qsTr("RGB"), qsTr("Red"), qsTr("Green"), qsTr("Blue")][root.presenter.editCurve.channel];
+                }
+
+                onRegionsAvailableChanged: if (!regionsAvailable)
+                    editRegions = false
+
+                RowLayout {
                     objectName: "curveFamily"
                     Layout.fillWidth: true
-                    model: [qsTr("RGB"), qsTr("Tone")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editCurve.familyIndex : 0
-                    onActivated: if (root.hasPresenter)
-                        root.presenter.setCurveFamily(currentIndex)
+                    spacing: Fonts.size6
+
+                    CustomLabel {
+                        text: qsTr("Curve")
+                        opacity: 0.72
+                        Layout.preferredWidth: Fonts.size60
+                    }
+                    CurveOptionButton {
+                        objectName: "curveFamilyRgb"
+                        Layout.fillWidth: true
+                        text: qsTr("RGB")
+                        selected: curveControls.rgbFamily
+                        enabled: root.hasSelection
+                        onClicked: {
+                            curveControls.editRegions = false;
+                            if (root.hasPresenter)
+                                root.presenter.setCurveFamily(0);
+                        }
+                    }
+                    CurveOptionButton {
+                        objectName: "curveFamilyTone"
+                        Layout.fillWidth: true
+                        text: qsTr("Tone")
+                        selected: !curveControls.rgbFamily
+                        enabled: root.hasSelection
+                        onClicked: {
+                            curveControls.editRegions = false;
+                            if (root.hasPresenter)
+                                root.presenter.setCurveFamily(1);
+                        }
+                    }
                 }
-                CustomComboBox {
+
+                RowLayout {
                     objectName: "curveChannel"
                     Layout.fillWidth: true
-                    model: root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ?
-                        [qsTr("Master"), qsTr("a"), qsTr("b")] :
-                        [qsTr("RGB"), qsTr("Red"), qsTr("Green"), qsTr("Blue")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editCurve.channel : 0
-                    onActivated: if (root.hasPresenter)
-                        root.presenter.setCurveChannel(currentIndex)
+                    spacing: Fonts.size6
+
+                    CustomLabel {
+                        text: qsTr("Channel")
+                        opacity: 0.72
+                        Layout.preferredWidth: Fonts.size60
+                    }
+                    Repeater {
+                        model: curveControls.rgbFamily ? [
+                            {
+                                "title": qsTr("RGB"),
+                                "color": Theme.textColor
+                            },
+                            {
+                                "title": qsTr("R"),
+                                "color": "#ed6a70"
+                            },
+                            {
+                                "title": qsTr("G"),
+                                "color": "#65c982"
+                            },
+                            {
+                                "title": qsTr("B"),
+                                "color": "#6f9df4"
+                            }
+                        ] : [
+                            {
+                                "title": qsTr("Master"),
+                                "color": Theme.textColor
+                            },
+                            {
+                                "title": qsTr("a"),
+                                "color": "#d97bdc"
+                            },
+                            {
+                                "title": qsTr("b"),
+                                "color": "#64c7c9"
+                            }
+                        ]
+                        delegate: CurveOptionButton {
+                            required property int index
+                            required property var modelData
+                            Layout.fillWidth: true
+                            text: modelData.title
+                            selectionColor: modelData.color
+                            selected: (root.hasPresenter ? root.presenter.editCurve.channel : 0) === index
+                            enabled: root.hasSelection
+                            onClicked: {
+                                curveControls.editRegions = false;
+                                if (root.hasPresenter)
+                                    root.presenter.setCurveChannel(index);
+                            }
+                        }
+                    }
                 }
-                CustomComboBox {
-                    objectName: "curveInterpolation"
+
+                RowLayout {
                     Layout.fillWidth: true
-                    model: [qsTr("Monotonic"), qsTr("Centripetal"), qsTr("Cubic")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editCurve.interpolationIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber(
-                            root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ?
-                                "toneCurveInterpolation" : "rgbCurveInterpolation", currentIndex)
+                    spacing: Fonts.size6
+
+                    CustomLabel {
+                        text: qsTr("Edit")
+                        opacity: 0.72
+                        Layout.preferredWidth: Fonts.size60
+                    }
+                    CurveOptionButton {
+                        objectName: "curvePointMode"
+                        Layout.fillWidth: true
+                        text: qsTr("Point")
+                        selected: !curveControls.editRegions
+                        enabled: root.hasSelection
+                        onClicked: curveControls.editRegions = false
+                    }
+                    CurveOptionButton {
+                        objectName: "curveParametricMode"
+                        Layout.fillWidth: true
+                        visible: curveControls.regionsAvailable
+                        text: qsTr("Parametric")
+                        selected: curveControls.editRegions
+                        enabled: root.hasSelection
+                        onClicked: curveControls.editRegions = true
+                    }
+                    CustomButton {
+                        objectName: "resetActiveCurve"
+                        text: qsTr("Reset curve")
+                        defaultHeight: Fonts.inputFieldHeight
+                        enabled: root.hasSelection
+                        onClicked: if (root.commands)
+                            root.commands.resetControl(curveControls.rgbFamily ? "rgbCurve" : "toneCurve")
+                    }
                 }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    visible: !root.hasPresenter || root.presenter.editCurve.linked
-                    model: [
-                        qsTr("None"),
-                        qsTr("Luminance"),
-                        qsTr("Max RGB"),
-                        qsTr("Average RGB"),
-                        qsTr("Sum RGB"),
-                        qsTr("Norm RGB"),
-                        qsTr("Basic power")
-                    ]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editCurve.preserveIndex : 1
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber(
-                            root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ?
-                                "toneCurvePreserve" : "rgbCurvePreserve", currentIndex)
-                }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    visible: root.hasPresenter && root.presenter.editCurve.familyIndex === 1
-                    model: [qsTr("RGB, linked"), qsTr("Lab"), qsTr("XYZ"), qsTr("Lab independent"), qsTr("sRGB"), qsTr("Linear RGB")]
-                    enabled: root.hasSelection
-                    currentIndex: root.hasPresenter ? root.presenter.editCurve.workingSpaceIndex : 0
-                    onActivated: if (root.commands)
-                        root.commands.setDevelopNumber("toneCurveWorkingSpace", currentIndex)
-                }
+
                 ToneCurveEditor {
                     id: curveEditor
                     objectName: "curveEditor"
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 220
+                    Layout.preferredHeight: Math.max(Fonts.size200, Math.min(Fonts.size300, width * 0.72))
                     editorEnabled: root.hasSelection
+                    curveColor: curveControls.activeCurveColor
+                    channelLabel: curveControls.activeChannelLabel
+                    showRegionSplits: curveControls.editRegions && curveControls.regionsAvailable
+                    regionSplits: root.hasPresenter ? [root.presenter.editCurve.split0, root.presenter.editCurve.split1, root.presenter.editCurve.split2] : [0.25, 0.5, 0.75]
                     histogramMode: root.hasPresenter ? root.presenter.editCurve.histogramMode : "rgb"
                     histogramRed: root.hasPresenter ? root.presenter.scopeHistogramRed : []
                     histogramGreen: root.hasPresenter ? root.presenter.scopeHistogramGreen : []
@@ -1092,117 +1208,67 @@ ColumnLayout {
                     samples: root.hasPresenter ? root.presenter.editCurveSamples : []
                     onCurveEdited: function (points) {
                         if (root.commands)
-                            root.commands.previewCurve(
-                                root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb",
-                                root.hasPresenter ? root.presenter.editCurve.channel : 0, points);
+                            root.commands.previewCurve(root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb", root.hasPresenter ? root.presenter.editCurve.channel : 0, points);
                     }
                     onCurveCommitted: function (points) {
                         if (root.commands)
-                            root.commands.setCurve(
-                                root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb",
-                                root.hasPresenter ? root.presenter.editCurve.channel : 0, points);
+                            root.commands.setCurve(root.hasPresenter && root.presenter.editCurve.familyIndex === 1 ? "tone" : "rgb", root.hasPresenter ? root.presenter.editCurve.channel : 0, points);
                     }
                 }
                 CustomLabel {
                     text: qsTr("Drag points to reshape. Click to add. Double-click or Delete removes an interior point. Arrow keys nudge the selected point.")
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
+                    visible: !curveControls.editRegions
                     opacity: 0.75
                 }
-                Repeater {
-                    model: [
-                        {
-                            "title": qsTr("Shadows"),
-                            "key": "parametricShadows",
-                            "field": "rgbCurveShadows"
-                        },
-                        {
-                            "title": qsTr("Darks"),
-                            "key": "parametricDarks",
-                            "field": "rgbCurveDarks"
-                        },
-                        {
-                            "title": qsTr("Lights"),
-                            "key": "parametricLights",
-                            "field": "rgbCurveLights"
-                        },
-                        {
-                            "title": qsTr("Highlights"),
-                            "key": "parametricHighlights",
-                            "field": "rgbCurveHighlights"
-                        }
-                    ]
-                    delegate: CustomSlider {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        visible: !root.hasPresenter || (root.presenter.editCurve.familyIndex === 0 && root.presenter.editCurve.linked)
-                        title: modelData.title
-                        from: -1
-                        to: 1
-                        stepSize: 0.01
-                        validatorDecimals: 2
-                        showReset: true
-                        resetValue: 0
-                        delayedCommit: true
-                        enabled: root.hasSelection
-                        value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : 0
-                        onValueChanged: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
-                        onValueCommitted: function (value) {
-                            if (root.commands)
-                                root.commands.setDevelopNumber(modelData.field, value);
-                        }
-                        onResetRequested: if (root.commands)
-                            root.commands.resetControl(modelData.field)
-                    }
-                }
-                Expander {
+
+                ColumnLayout {
                     Layout.fillWidth: true
-                    title: qsTr("Curves · more")
-                    expanded: false
-                    CustomCheckBox {
-                        text: qsTr("Compensate middle grey")
-                        visible: !root.hasPresenter || root.presenter.editCurve.familyIndex === 0
-                        enabled: root.hasSelection
-                        checked: root.hasPresenter && root.presenter.editCurve.compensate
-                        onToggled: if (root.commands)
-                            root.commands.setDevelopNumber("rgbCurveCompensate", checked ? 1 : 0)
+                    visible: curveControls.editRegions && curveControls.regionsAvailable
+                    spacing: Fonts.smallSpacing
+
+                    CustomLabel {
+                        text: qsTr("Parametric regions")
+                        font: Fonts.makeBoldFont(Fonts.standardFont)
+                        Layout.fillWidth: true
                     }
                     Repeater {
                         model: [
                             {
-                                "title": qsTr("Split · shadows/darks"),
-                                "key": "split0",
-                                "field": "rgbCurveSplit0",
-                                "reset": 0.25
+                                "title": qsTr("Shadows"),
+                                "key": "parametricShadows",
+                                "field": "rgbCurveShadows"
                             },
                             {
-                                "title": qsTr("Split · darks/lights"),
-                                "key": "split1",
-                                "field": "rgbCurveSplit1",
-                                "reset": 0.5
+                                "title": qsTr("Darks"),
+                                "key": "parametricDarks",
+                                "field": "rgbCurveDarks"
                             },
                             {
-                                "title": qsTr("Split · lights/highlights"),
-                                "key": "split2",
-                                "field": "rgbCurveSplit2",
-                                "reset": 0.75
+                                "title": qsTr("Lights"),
+                                "key": "parametricLights",
+                                "field": "rgbCurveLights"
+                            },
+                            {
+                                "title": qsTr("Highlights"),
+                                "key": "parametricHighlights",
+                                "field": "rgbCurveHighlights"
                             }
                         ]
                         delegate: CustomSlider {
                             required property var modelData
                             Layout.fillWidth: true
-                            visible: !root.hasPresenter || (root.presenter.editCurve.familyIndex === 0 && root.presenter.editCurve.linked)
                             title: modelData.title
-                            from: 0.05
-                            to: 0.95
+                            from: -1
+                            to: 1
                             stepSize: 0.01
                             validatorDecimals: 2
                             showReset: true
-                            resetValue: modelData.reset
+                            resetValue: 0
                             delayedCommit: true
                             enabled: root.hasSelection
-                            value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : modelData.reset
+                            value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : 0
                             onValueChanged: if (root.liveReady && root.commands)
                                 root.commands.previewDevelopNumber(modelData.field, value)
                             onValueCommitted: function (value) {
@@ -1213,17 +1279,129 @@ ColumnLayout {
                                 root.commands.resetControl(modelData.field)
                         }
                     }
-                    CustomButton {
-                        text: qsTr("Reset RGB curve")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.resetControl("rgbCurve")
-                    }
-                    CustomButton {
-                        text: qsTr("Reset tone curve")
-                        enabled: root.hasSelection
-                        onClicked: if (root.commands)
-                            root.commands.resetControl("toneCurve")
+                }
+
+                Expander {
+                    Layout.fillWidth: true
+                    title: qsTr("Curve settings")
+                    expanded: false
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: Fonts.size8
+                        rowSpacing: Fonts.size8
+
+                        CustomLabel {
+                            text: qsTr("Interpolation")
+                            opacity: 0.72
+                        }
+                        CustomComboBox {
+                            objectName: "curveInterpolation"
+                            Layout.fillWidth: true
+                            model: [qsTr("Monotonic"), qsTr("Centripetal"), qsTr("Cubic")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editCurve.interpolationIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber(curveControls.rgbFamily ? "rgbCurveInterpolation" : "toneCurveInterpolation", currentIndex)
+                        }
+
+                        CustomLabel {
+                            visible: !curveControls.rgbFamily
+                            text: qsTr("Working space")
+                            opacity: 0.72
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            visible: !curveControls.rgbFamily
+                            model: [qsTr("RGB, linked"), qsTr("Lab"), qsTr("XYZ"), qsTr("Lab independent"), qsTr("sRGB"), qsTr("Linear RGB")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editCurve.workingSpaceIndex : 0
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber("toneCurveWorkingSpace", currentIndex)
+                        }
+
+                        CustomLabel {
+                            visible: curveControls.masterChannel && (!root.hasPresenter || root.presenter.editCurve.linked)
+                            text: qsTr("Preserve colors")
+                            opacity: 0.72
+                        }
+                        CustomComboBox {
+                            Layout.fillWidth: true
+                            visible: curveControls.masterChannel && (!root.hasPresenter || root.presenter.editCurve.linked)
+                            model: [qsTr("None"), qsTr("Luminance"), qsTr("Max RGB"), qsTr("Average RGB"), qsTr("Sum RGB"), qsTr("Norm RGB"), qsTr("Basic power")]
+                            enabled: root.hasSelection
+                            currentIndex: root.hasPresenter ? root.presenter.editCurve.preserveIndex : 1
+                            onActivated: if (root.commands)
+                                root.commands.setDevelopNumber(curveControls.rgbFamily ? "rgbCurvePreserve" : "toneCurvePreserve", currentIndex)
+                        }
+
+                        CustomCheckBox {
+                            Layout.columnSpan: 2
+                            text: qsTr("Compensate middle grey")
+                            visible: curveControls.rgbFamily
+                            enabled: root.hasSelection
+                            checked: root.hasPresenter && root.presenter.editCurve.compensate
+                            onToggled: if (root.commands)
+                                root.commands.setDevelopNumber("rgbCurveCompensate", checked ? 1 : 0)
+                        }
+
+                        ColumnLayout {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            visible: curveControls.regionsAvailable
+                            spacing: Fonts.smallSpacing
+
+                            CustomLabel {
+                                text: qsTr("Region boundaries")
+                                font: Fonts.makeBoldFont(Fonts.standardFont)
+                                Layout.fillWidth: true
+                            }
+                            Repeater {
+                                model: [
+                                    {
+                                        "title": qsTr("Shadows / Darks"),
+                                        "key": "split0",
+                                        "field": "rgbCurveSplit0",
+                                        "reset": 0.25
+                                    },
+                                    {
+                                        "title": qsTr("Darks / Lights"),
+                                        "key": "split1",
+                                        "field": "rgbCurveSplit1",
+                                        "reset": 0.5
+                                    },
+                                    {
+                                        "title": qsTr("Lights / Highlights"),
+                                        "key": "split2",
+                                        "field": "rgbCurveSplit2",
+                                        "reset": 0.75
+                                    }
+                                ]
+                                delegate: CustomSlider {
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    title: modelData.title
+                                    from: 0.05
+                                    to: 0.95
+                                    stepSize: 0.01
+                                    validatorDecimals: 2
+                                    showReset: true
+                                    resetValue: modelData.reset
+                                    delayedCommit: true
+                                    enabled: root.hasSelection
+                                    value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : modelData.reset
+                                    onValueChanged: if (root.liveReady && root.commands)
+                                        root.commands.previewDevelopNumber(modelData.field, value)
+                                    onValueCommitted: function (value) {
+                                        if (root.commands)
+                                            root.commands.setDevelopNumber(modelData.field, value);
+                                    }
+                                    onResetRequested: if (root.commands)
+                                        root.commands.resetControl(modelData.field)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1258,11 +1436,8 @@ ColumnLayout {
                         resetValue: 0
                         delayedCommit: true
                         enabled: root.hasSelection
-                        value: colorEqChannel.currentIndex === 0 ? modelData.sat :
-                               colorEqChannel.currentIndex === 1 ? modelData.hue : modelData.light
-                        readonly property string fieldName: colorEqChannel.currentIndex === 0 ? modelData.satField :
-                                                            colorEqChannel.currentIndex === 1 ? modelData.hueField :
-                                                                                                modelData.lightField
+                        value: colorEqChannel.currentIndex === 0 ? modelData.sat : colorEqChannel.currentIndex === 1 ? modelData.hue : modelData.light
+                        readonly property string fieldName: colorEqChannel.currentIndex === 0 ? modelData.satField : colorEqChannel.currentIndex === 1 ? modelData.hueField : modelData.lightField
                         onValueChanged: if (root.liveReady && root.commands)
                             root.commands.previewDevelopNumber(fieldName, value)
                         onValueCommitted: function (value) {
@@ -1941,11 +2116,56 @@ ColumnLayout {
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Filter a*"), "key": "filterA", "field": "monochromeFilterA", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
-                        {"title": qsTr("Filter b*"), "key": "filterB", "field": "monochromeFilterB", "from": -128, "to": 128, "reset": 0, "step": 1, "decimals": 1},
-                        {"title": qsTr("Filter size"), "key": "size", "field": "monochromeSize", "from": 0.5, "to": 3, "reset": 2, "step": 0.1, "decimals": 1},
-                        {"title": qsTr("Keep highlights"), "key": "highlights", "field": "monochromeHighlights", "from": 0, "to": 1, "reset": 0, "step": 0.01, "decimals": 2},
-                        {"title": qsTr("Monochrome mix"), "key": "mix", "field": "monochromeMix", "from": 0, "to": 1, "reset": 1, "step": 0.01, "decimals": 2}
+                        {
+                            "title": qsTr("Filter a*"),
+                            "key": "filterA",
+                            "field": "monochromeFilterA",
+                            "from": -128,
+                            "to": 128,
+                            "reset": 0,
+                            "step": 1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Filter b*"),
+                            "key": "filterB",
+                            "field": "monochromeFilterB",
+                            "from": -128,
+                            "to": 128,
+                            "reset": 0,
+                            "step": 1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Filter size"),
+                            "key": "size",
+                            "field": "monochromeSize",
+                            "from": 0.5,
+                            "to": 3,
+                            "reset": 2,
+                            "step": 0.1,
+                            "decimals": 1
+                        },
+                        {
+                            "title": qsTr("Keep highlights"),
+                            "key": "highlights",
+                            "field": "monochromeHighlights",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 0,
+                            "step": 0.01,
+                            "decimals": 2
+                        },
+                        {
+                            "title": qsTr("Monochrome mix"),
+                            "key": "mix",
+                            "field": "monochromeMix",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 1,
+                            "step": 0.01,
+                            "decimals": 2
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
@@ -2768,9 +2988,21 @@ ColumnLayout {
                     }
                     Repeater {
                         model: [
-                            {"title": qsTr("Lightness curve"), "key": "lightness", "field": "colorZonesLightness"},
-                            {"title": qsTr("Chroma curve"), "key": "chroma", "field": "colorZonesChroma"},
-                            {"title": qsTr("Hue curve"), "key": "hue", "field": "colorZonesHue"}
+                            {
+                                "title": qsTr("Lightness curve"),
+                                "key": "lightness",
+                                "field": "colorZonesLightness"
+                            },
+                            {
+                                "title": qsTr("Chroma curve"),
+                                "key": "chroma",
+                                "field": "colorZonesChroma"
+                            },
+                            {
+                                "title": qsTr("Hue curve"),
+                                "key": "hue",
+                                "field": "colorZonesHue"
+                            }
                         ]
                         delegate: CustomSlider {
                             required property var modelData
@@ -2794,9 +3026,21 @@ ColumnLayout {
                     }
                     Repeater {
                         model: [
-                            {"title": qsTr("Lightness interpolation"), "key": "lightnessInterpolationIndex", "field": "colorZonesLightnessInterpolationIndex"},
-                            {"title": qsTr("Chroma interpolation"), "key": "chromaInterpolationIndex", "field": "colorZonesChromaInterpolationIndex"},
-                            {"title": qsTr("Hue interpolation"), "key": "hueInterpolationIndex", "field": "colorZonesHueInterpolationIndex"}
+                            {
+                                "title": qsTr("Lightness interpolation"),
+                                "key": "lightnessInterpolationIndex",
+                                "field": "colorZonesLightnessInterpolationIndex"
+                            },
+                            {
+                                "title": qsTr("Chroma interpolation"),
+                                "key": "chromaInterpolationIndex",
+                                "field": "colorZonesChromaInterpolationIndex"
+                            },
+                            {
+                                "title": qsTr("Hue interpolation"),
+                                "key": "hueInterpolationIndex",
+                                "field": "colorZonesHueInterpolationIndex"
+                            }
                         ]
                         delegate: RowLayout {
                             required property var modelData
@@ -2823,9 +3067,7 @@ ColumnLayout {
                         wrapMode: Text.WordWrap
                         opacity: 0.72
                         visible: root.hasPresenter && (!root.presenter.editColorZones.editable || root.presenter.editColorZones.masked)
-                        text: root.hasPresenter && root.presenter.editColorZones.masked
-                              ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.")
-                              : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
+                        text: root.hasPresenter && root.presenter.editColorZones.masked ? qsTr("Loaded Color Zones mask is preserved but edited outside this panel.") : qsTr("Loaded custom-node curves are preserved; reset Color Zones to use the eight-band editor.")
                     }
                     CustomButton {
                         text: qsTr("Disable and reset Color Zones")
@@ -3063,10 +3305,26 @@ ColumnLayout {
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Canvas left (%)"), "key": "left", "field": "canvasLeft"},
-                        {"title": qsTr("Canvas right (%)"), "key": "right", "field": "canvasRight"},
-                        {"title": qsTr("Canvas top (%)"), "key": "top", "field": "canvasTop"},
-                        {"title": qsTr("Canvas bottom (%)"), "key": "bottom", "field": "canvasBottom"}
+                        {
+                            "title": qsTr("Canvas left (%)"),
+                            "key": "left",
+                            "field": "canvasLeft"
+                        },
+                        {
+                            "title": qsTr("Canvas right (%)"),
+                            "key": "right",
+                            "field": "canvasRight"
+                        },
+                        {
+                            "title": qsTr("Canvas top (%)"),
+                            "key": "top",
+                            "field": "canvasTop"
+                        },
+                        {
+                            "title": qsTr("Canvas bottom (%)"),
+                            "key": "bottom",
+                            "field": "canvasBottom"
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
@@ -3605,12 +3863,54 @@ ColumnLayout {
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Outer aspect (-1 constant, 0 image)"), "key": "aspect", "field": "outputFrameAspect", "from": -1, "to": 3, "reset": -1},
-                        {"title": qsTr("Border size"), "key": "size", "field": "outputFrameSize", "from": 0, "to": 0.5, "reset": 0.1},
-                        {"title": qsTr("Horizontal position"), "key": "positionH", "field": "outputFramePositionH", "from": 0, "to": 1, "reset": 0.5},
-                        {"title": qsTr("Vertical position"), "key": "positionV", "field": "outputFramePositionV", "from": 0, "to": 1, "reset": 0.5},
-                        {"title": qsTr("Frame line size"), "key": "lineSize", "field": "outputFrameLineSize", "from": 0, "to": 1, "reset": 0},
-                        {"title": qsTr("Frame line offset"), "key": "lineOffset", "field": "outputFrameLineOffset", "from": 0, "to": 1, "reset": 0.5}
+                        {
+                            "title": qsTr("Outer aspect (-1 constant, 0 image)"),
+                            "key": "aspect",
+                            "field": "outputFrameAspect",
+                            "from": -1,
+                            "to": 3,
+                            "reset": -1
+                        },
+                        {
+                            "title": qsTr("Border size"),
+                            "key": "size",
+                            "field": "outputFrameSize",
+                            "from": 0,
+                            "to": 0.5,
+                            "reset": 0.1
+                        },
+                        {
+                            "title": qsTr("Horizontal position"),
+                            "key": "positionH",
+                            "field": "outputFramePositionH",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 0.5
+                        },
+                        {
+                            "title": qsTr("Vertical position"),
+                            "key": "positionV",
+                            "field": "outputFramePositionV",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 0.5
+                        },
+                        {
+                            "title": qsTr("Frame line size"),
+                            "key": "lineSize",
+                            "field": "outputFrameLineSize",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 0
+                        },
+                        {
+                            "title": qsTr("Frame line offset"),
+                            "key": "lineOffset",
+                            "field": "outputFrameLineOffset",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 0.5
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
@@ -3634,12 +3934,42 @@ ColumnLayout {
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Border red"), "key": "borderRed", "field": "outputFrameBorderRed", "reset": 1},
-                        {"title": qsTr("Border green"), "key": "borderGreen", "field": "outputFrameBorderGreen", "reset": 1},
-                        {"title": qsTr("Border blue"), "key": "borderBlue", "field": "outputFrameBorderBlue", "reset": 1},
-                        {"title": qsTr("Frame red"), "key": "lineRed", "field": "outputFrameLineRed", "reset": 0},
-                        {"title": qsTr("Frame green"), "key": "lineGreen", "field": "outputFrameLineGreen", "reset": 0},
-                        {"title": qsTr("Frame blue"), "key": "lineBlue", "field": "outputFrameLineBlue", "reset": 0}
+                        {
+                            "title": qsTr("Border red"),
+                            "key": "borderRed",
+                            "field": "outputFrameBorderRed",
+                            "reset": 1
+                        },
+                        {
+                            "title": qsTr("Border green"),
+                            "key": "borderGreen",
+                            "field": "outputFrameBorderGreen",
+                            "reset": 1
+                        },
+                        {
+                            "title": qsTr("Border blue"),
+                            "key": "borderBlue",
+                            "field": "outputFrameBorderBlue",
+                            "reset": 1
+                        },
+                        {
+                            "title": qsTr("Frame red"),
+                            "key": "lineRed",
+                            "field": "outputFrameLineRed",
+                            "reset": 0
+                        },
+                        {
+                            "title": qsTr("Frame green"),
+                            "key": "lineGreen",
+                            "field": "outputFrameLineGreen",
+                            "reset": 0
+                        },
+                        {
+                            "title": qsTr("Frame blue"),
+                            "key": "lineBlue",
+                            "field": "outputFrameLineBlue",
+                            "reset": 0
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
@@ -3713,11 +4043,51 @@ ColumnLayout {
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Watermark opacity"), "key": "opacity", "field": "watermarkOpacity", "from": 0, "to": 1, "reset": 0.5, "step": 0.01},
-                        {"title": qsTr("Text height (% short side)"), "key": "scale", "field": "watermarkScale", "from": 0.5, "to": 50, "reset": 8, "step": 0.5},
-                        {"title": qsTr("Horizontal offset"), "key": "offsetX", "field": "watermarkOffsetX", "from": -1, "to": 1, "reset": 0, "step": 0.01},
-                        {"title": qsTr("Vertical offset"), "key": "offsetY", "field": "watermarkOffsetY", "from": -1, "to": 1, "reset": 0, "step": 0.01},
-                        {"title": qsTr("Watermark rotation"), "key": "rotation", "field": "watermarkRotation", "from": -180, "to": 180, "reset": 0, "step": 1}
+                        {
+                            "title": qsTr("Watermark opacity"),
+                            "key": "opacity",
+                            "field": "watermarkOpacity",
+                            "from": 0,
+                            "to": 1,
+                            "reset": 0.5,
+                            "step": 0.01
+                        },
+                        {
+                            "title": qsTr("Text height (% short side)"),
+                            "key": "scale",
+                            "field": "watermarkScale",
+                            "from": 0.5,
+                            "to": 50,
+                            "reset": 8,
+                            "step": 0.5
+                        },
+                        {
+                            "title": qsTr("Horizontal offset"),
+                            "key": "offsetX",
+                            "field": "watermarkOffsetX",
+                            "from": -1,
+                            "to": 1,
+                            "reset": 0,
+                            "step": 0.01
+                        },
+                        {
+                            "title": qsTr("Vertical offset"),
+                            "key": "offsetY",
+                            "field": "watermarkOffsetY",
+                            "from": -1,
+                            "to": 1,
+                            "reset": 0,
+                            "step": 0.01
+                        },
+                        {
+                            "title": qsTr("Watermark rotation"),
+                            "key": "rotation",
+                            "field": "watermarkRotation",
+                            "from": -180,
+                            "to": 180,
+                            "reset": 0,
+                            "step": 1
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
@@ -3741,9 +4111,24 @@ ColumnLayout {
                 }
                 Repeater {
                     model: [
-                        {"title": qsTr("Watermark red"), "key": "red", "field": "watermarkRed", "reset": 1},
-                        {"title": qsTr("Watermark green"), "key": "green", "field": "watermarkGreen", "reset": 1},
-                        {"title": qsTr("Watermark blue"), "key": "blue", "field": "watermarkBlue", "reset": 1}
+                        {
+                            "title": qsTr("Watermark red"),
+                            "key": "red",
+                            "field": "watermarkRed",
+                            "reset": 1
+                        },
+                        {
+                            "title": qsTr("Watermark green"),
+                            "key": "green",
+                            "field": "watermarkGreen",
+                            "reset": 1
+                        },
+                        {
+                            "title": qsTr("Watermark blue"),
+                            "key": "blue",
+                            "field": "watermarkBlue",
+                            "reset": 1
+                        }
                     ]
                     delegate: CustomSlider {
                         required property var modelData
@@ -4122,8 +4507,7 @@ ColumnLayout {
                         })
                     }
                     Label {
-                        text: qsTr("Regions: %1").arg(root.hasPresenter
-                                                      ? root.presenter.editRetouch.regionCount : 0)
+                        text: qsTr("Regions: %1").arg(root.hasPresenter ? root.presenter.editRetouch.regionCount : 0)
                         opacity: 0.72
                     }
                     Repeater {

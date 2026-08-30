@@ -12,19 +12,45 @@ Item {
     property double histogramMax: 0
     property string histogramMode: "rgb"
     property bool editorEnabled: true
+    property color curveColor: Theme.textColor
+    property string channelLabel: "RGB"
+    property var regionSplits: [0.25, 0.5, 0.75]
+    property bool showRegionSplits: false
     property int selectedIndex: 0
     property int maxPoints: 20
     property var pendingPoints: []
+    property bool pointerInside: false
+    property int hoverIndex: -1
+    property var hoverPoint: ({
+            "x": 0,
+            "y": 0
+        })
     signal curveEdited(var points)
     signal curveCommitted(var points)
 
-    implicitHeight: Math.max(220, width)
+    implicitHeight: Math.max(Fonts.size200, Math.min(Fonts.size300, width * 0.72))
     clip: true
     focus: true
+    activeFocusOnTab: true
 
-    readonly property int padding: 10
+    readonly property int padding: Fonts.size14
     readonly property real plotWidth: Math.max(1, width - padding * 2)
     readonly property real plotHeight: Math.max(1, height - padding * 2)
+    readonly property var displayPoints: pendingPoints.length ? pendingPoints : points
+    readonly property var readoutPoint: {
+        if (pointerInside)
+            return hoverPoint;
+        if (!displayPoints || displayPoints.length === 0)
+            return {
+                "x": 0,
+                "y": 0
+            };
+        return displayPoints[Math.min(displayPoints.length - 1, Math.max(0, selectedIndex))];
+    }
+
+    function percent(value) {
+        return Math.round(Math.min(1, Math.max(0, Number(value))) * 100) + "%";
+    }
 
     function clonePoints() {
         const copied = [];
@@ -35,13 +61,16 @@ Item {
             });
         }
         if (copied.length < 2)
-            return [{
+            return [
+                {
                     "x": 0,
                     "y": 0
-                }, {
+                },
+                {
                     "x": 1,
                     "y": 1
-                }];
+                }
+            ];
         return copied;
     }
 
@@ -134,11 +163,54 @@ Item {
         ctx.fill();
     }
 
+    function drawRegionGuides(ctx) {
+        if (!root.showRegionSplits || !root.regionSplits || root.regionSplits.length !== 3)
+            return;
+        const bounds = [0, Math.min(1, Math.max(0, Number(root.regionSplits[0]))), Math.min(1, Math.max(0, Number(root.regionSplits[1]))), Math.min(1, Math.max(0, Number(root.regionSplits[2]))), 1];
+        for (let region = 0; region < 4; ++region) {
+            if (region % 2 === 0) {
+                ctx.fillStyle = Qt.rgba(1, 1, 1, 0.025);
+                ctx.fillRect(root.toCanvasX(bounds[region]), root.padding, root.plotWidth * (bounds[region + 1] - bounds[region]), root.plotHeight);
+            }
+        }
+        for (let index = 1; index < 4; ++index) {
+            const x = root.toCanvasX(bounds[index]);
+            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.22);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, root.padding);
+            ctx.lineTo(x, root.padding + root.plotHeight);
+            ctx.stroke();
+            ctx.fillStyle = Qt.rgba(1, 1, 1, 0.72);
+            ctx.beginPath();
+            ctx.moveTo(x - 4, root.padding + root.plotHeight);
+            ctx.lineTo(x + 4, root.padding + root.plotHeight);
+            ctx.lineTo(x, root.padding + root.plotHeight - 6);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+
+    function drawAxisRamps(ctx) {
+        const horizontal = ctx.createLinearGradient(root.padding, 0, root.padding + root.plotWidth, 0);
+        horizontal.addColorStop(0, "#111111");
+        horizontal.addColorStop(1, "#eeeeee");
+        ctx.fillStyle = horizontal;
+        ctx.fillRect(root.padding, root.padding + root.plotHeight - 3, root.plotWidth, 3);
+
+        const vertical = ctx.createLinearGradient(0, root.padding + root.plotHeight, 0, root.padding);
+        vertical.addColorStop(0, "#111111");
+        vertical.addColorStop(1, "#eeeeee");
+        ctx.fillStyle = vertical;
+        ctx.fillRect(root.padding, root.padding, 3, root.plotHeight);
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.baseColor
-        border.color: Theme.dividerColor
-        radius: 2
+        border.color: root.activeFocus ? root.curveColor : Theme.midColor
+        border.width: root.activeFocus ? Fonts.size2 : Fonts.size1
+        radius: Fonts.size2
     }
 
     Canvas {
@@ -150,7 +222,8 @@ Item {
             ctx.reset();
             ctx.fillStyle = Theme.baseColor;
             ctx.fillRect(0, 0, width, height);
-            ctx.strokeStyle = Theme.dividerColor;
+            root.drawRegionGuides(ctx);
+            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.1);
             ctx.lineWidth = 1;
             for (let step = 0; step <= 4; ++step) {
                 const t = step / 4;
@@ -178,14 +251,16 @@ Item {
                 root.drawHistogram(ctx, root.histogramBlue, Qt.rgba(0.2, 0.4, 1, 0.28));
             }
             ctx.globalCompositeOperation = "source-over";
-            ctx.strokeStyle = Theme.midColor;
+            root.drawAxisRamps(ctx);
+            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.28);
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(root.toCanvasX(0), root.toCanvasY(0));
             ctx.lineTo(root.toCanvasX(1), root.toCanvasY(1));
             ctx.stroke();
             if (root.samples && root.samples.length > 1) {
-                ctx.strokeStyle = Theme.accentColor;
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = root.curveColor;
+                ctx.lineWidth = 2.25;
                 ctx.beginPath();
                 for (let sample = 0; sample < root.samples.length; ++sample) {
                     const x = sample / (root.samples.length - 1);
@@ -199,28 +274,120 @@ Item {
                 }
                 ctx.stroke();
             }
-            const list = root.points;
+            if (root.pointerInside) {
+                const hoverX = root.toCanvasX(Number(root.hoverPoint.x));
+                const hoverY = root.toCanvasY(Number(root.hoverPoint.y));
+                ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.16);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(hoverX, root.padding);
+                ctx.lineTo(hoverX, root.padding + root.plotHeight);
+                ctx.moveTo(root.padding, hoverY);
+                ctx.lineTo(root.padding + root.plotWidth, hoverY);
+                ctx.stroke();
+            }
+            const list = root.displayPoints;
             for (let index = 0; index < list.length; ++index) {
                 const px = root.toCanvasX(Number(list[index].x));
                 const py = root.toCanvasY(Number(list[index].y));
+                const selected = index === root.selectedIndex;
+                const hovered = index === root.hoverIndex;
                 ctx.beginPath();
-                ctx.arc(px, py, index === root.selectedIndex ? 6 : 5, 0, Math.PI * 2);
-                ctx.fillStyle = index === root.selectedIndex ? Theme.accentColor : Theme.textColor;
+                ctx.arc(px, py, selected ? 5.5 : hovered ? 4.5 : 3.25, 0, Math.PI * 2);
+                ctx.fillStyle = selected ? Theme.baseColor : root.curveColor;
                 ctx.fill();
+                ctx.strokeStyle = root.curveColor;
+                ctx.lineWidth = selected ? 2 : 1.25;
+                ctx.stroke();
+            }
+        }
+    }
+
+    Rectangle {
+        z: 2
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.leftMargin: root.padding + Fonts.size6
+        anchors.topMargin: root.padding + Fonts.size6
+        implicitWidth: readoutRow.implicitWidth + Fonts.size12
+        implicitHeight: readoutRow.implicitHeight + Fonts.size8
+        color: Qt.alpha(Theme.windowColor, 0.82)
+        radius: Fonts.size2
+
+        Row {
+            id: readoutRow
+            anchors.centerIn: parent
+            spacing: Fonts.size10
+
+            Text {
+                text: qsTr("Input") + "  " + root.percent(root.readoutPoint.x)
+                color: Theme.textColor
+                font: Fonts.annotationFont
+            }
+            Text {
+                text: qsTr("Output") + "  " + root.percent(root.readoutPoint.y)
+                color: Theme.textColor
+                font: Fonts.annotationFont
+            }
+        }
+    }
+
+    Rectangle {
+        z: 2
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: root.padding + Fonts.size6
+        anchors.topMargin: root.padding + Fonts.size6
+        implicitWidth: channelRow.implicitWidth + Fonts.size12
+        implicitHeight: channelRow.implicitHeight + Fonts.size8
+        color: Qt.alpha(Theme.windowColor, 0.82)
+        radius: Fonts.size2
+
+        Row {
+            id: channelRow
+            anchors.centerIn: parent
+            spacing: Fonts.size6
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Fonts.size6
+                height: width
+                radius: width / 2
+                color: root.curveColor
+            }
+            Text {
+                text: root.channelLabel
+                color: root.curveColor
+                font: Fonts.makeBoldFont(Fonts.annotationFont)
             }
         }
     }
 
     MouseArea {
+        z: 3
         anchors.fill: parent
         enabled: root.editorEnabled
         acceptedButtons: Qt.LeftButton
         hoverEnabled: true
         property int activeIndex: -1
         property bool dragging: false
+        cursorShape: dragging ? Qt.ClosedHandCursor : root.hoverIndex >= 0 ? Qt.OpenHandCursor : Qt.CrossCursor
+
+        onEntered: {
+            root.pointerInside = true;
+            canvas.requestPaint();
+        }
+        onExited: {
+            if (!dragging)
+                root.pointerInside = false;
+            root.hoverIndex = -1;
+            canvas.requestPaint();
+        }
 
         onPressed: function (mouse) {
             root.forceActiveFocus();
+            root.pointerInside = true;
+            root.hoverPoint = root.fromCanvas(mouse.x, mouse.y);
             let next = root.clonePoints();
             let index = root.hitIndex(mouse.x, mouse.y);
             if (index < 0 && next.length < root.maxPoints) {
@@ -239,12 +406,24 @@ Item {
             }
             activeIndex = index;
             dragging = index >= 0;
-            if (index >= 0)
+            root.hoverIndex = index;
+            if (index >= 0) {
                 root.selectedIndex = index;
+                root.hoverPoint = {
+                    "x": Number(next[index].x),
+                    "y": Number(next[index].y)
+                };
+            }
+            canvas.requestPaint();
         }
         onPositionChanged: function (mouse) {
-            if (!dragging || activeIndex < 0)
+            root.pointerInside = containsMouse || dragging;
+            root.hoverPoint = root.fromCanvas(mouse.x, mouse.y);
+            root.hoverIndex = root.hitIndex(mouse.x, mouse.y);
+            if (!dragging || activeIndex < 0) {
+                canvas.requestPaint();
                 return;
+            }
             const next = (root.pendingPoints.length ? root.pendingPoints : root.clonePoints()).map(function (point) {
                 return {
                     "x": point.x,
@@ -258,12 +437,29 @@ Item {
             next[activeIndex].y = mapped.y;
             root.constrainPoint(next, activeIndex);
             root.emitEdited(next);
+            root.hoverIndex = activeIndex;
+            root.hoverPoint = {
+                "x": Number(next[activeIndex].x),
+                "y": Number(next[activeIndex].y)
+            };
+            canvas.requestPaint();
         }
         onReleased: function () {
             if (dragging)
                 root.emitCommitted();
             dragging = false;
             activeIndex = -1;
+            root.pointerInside = containsMouse;
+            root.hoverIndex = containsMouse ? root.hitIndex(mouseX, mouseY) : -1;
+            canvas.requestPaint();
+        }
+        onCanceled: {
+            dragging = false;
+            activeIndex = -1;
+            root.pointerInside = false;
+            root.hoverIndex = -1;
+            root.pendingPoints = [];
+            canvas.requestPaint();
         }
         onDoubleClicked: function (mouse) {
             const index = root.hitIndex(mouse.x, mouse.y);
@@ -307,6 +503,10 @@ Item {
     Connections {
         target: root
         function onPointsChanged() {
+            root.selectedIndex = Math.min(Math.max(0, root.selectedIndex), Math.max(0, root.points.length - 1));
+            canvas.requestPaint();
+        }
+        function onPendingPointsChanged() {
             canvas.requestPaint();
         }
         function onSamplesChanged() {
@@ -328,6 +528,15 @@ Item {
             canvas.requestPaint();
         }
         function onHistogramModeChanged() {
+            canvas.requestPaint();
+        }
+        function onCurveColorChanged() {
+            canvas.requestPaint();
+        }
+        function onRegionSplitsChanged() {
+            canvas.requestPaint();
+        }
+        function onShowRegionSplitsChanged() {
             canvas.requestPaint();
         }
         function onSelectedIndexChanged() {

@@ -92,7 +92,10 @@ Current implementation status:
   dialogs and ordinary recipe history. Legacy `.dtstyle` is structurally
   unsupported rather than partially dropping unknown IOPs (ADR-0065). Lightroom
   Classic CRS XMP presets import and apply through the same explicit path onto
-  accepted Develop owners. Exposure retains EV semantics, RAW contrast maps to
+  accepted Develop owners. Studio keeps its imported copies in the library's
+  `Ravo Presets` folder; their filename-owned labels can be renamed without
+  rewriting preset contents, and deletion requires explicit confirmation.
+  Exposure retains EV semantics, RAW contrast maps to
   sigmoid, highlights/shadows use calibrated scene-EV envelopes, and composed
   point curves run on an explicit display-sRGB axis after sigmoid. Unknown or
   active Adobe-only state fails closed; built-in Adobe profile/look omissions

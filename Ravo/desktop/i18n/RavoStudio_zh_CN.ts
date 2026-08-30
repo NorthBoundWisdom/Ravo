@@ -2,6 +2,52 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>AssistantPanel</name>
+    <message>
+        <source>Assistant</source>
+        <translation>助手</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>You</source>
+        <translation>你</translation>
+    </message>
+    <message>
+        <source>Ask about the selected photo or a Develop edit.</source>
+        <translation>询问所选照片或“编辑”调整。</translation>
+    </message>
+    <message>
+        <source>Set the assistant URL, model, and API key in Settings.</source>
+        <translation>请在“设置”中配置助手 URL、模型和 API 密钥。</translation>
+    </message>
+    <message>
+        <source>Message</source>
+        <translation>消息</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Send</source>
+        <translation>发送</translation>
+    </message>
+</context>
+<context>
+    <name>ColorGradeWheel</name>
+    <message>
+        <source>Luminance</source>
+        <translation>亮度</translation>
+    </message>
+    <message>
+        <source>Reset wheel</source>
+        <translation>重置色轮</translation>
+    </message>
+</context>
+<context>
     <name>DevelopHistoryPanel</name>
     <message>
         <source>Snapshot #%1</source>
@@ -14,45 +60,6 @@
     <message>
         <source>History</source>
         <translation>历史</translation>
-    </message>
-    <message>
-        <source>Select a photo to see its edit history.</source>
-        <translation>选择照片以查看其编辑历史。</translation>
-    </message>
-    <message>
-        <source>No saved edits yet. Changes appear here after they are stored.</source>
-        <translation>尚无已保存的编辑。更改保存后会显示在这里。</translation>
-    </message>
-    <message>
-        <source>Snapshot</source>
-        <translation>快照</translation>
-    </message>
-    <message>
-        <source>Original</source>
-        <translation>原始版本</translation>
-    </message>
-    <message>
-        <source>on</source>
-        <translation>开启</translation>
-    </message>
-    <message>
-        <source>off</source>
-        <translation>关闭</translation>
-    </message>
-    <message>
-        <source>Recipe history entry does not exist.</source>
-        <translation>配方历史条目不存在。</translation>
-    </message>
-</context>
-<context>
-    <name>DevelopPanel</name>
-    <message>
-        <source>Reset this section</source>
-        <translation>重置此部分</translation>
-    </message>
-    <message>
-        <source>Develop</source>
-        <translation>编辑</translation>
     </message>
     <message>
         <source>Undo</source>
@@ -73,6 +80,69 @@
     <message>
         <source>Reset all</source>
         <translation>全部重置</translation>
+    </message>
+    <message>
+        <source>Select a photo to see its edit history.</source>
+        <translation>选择照片以查看其编辑历史。</translation>
+    </message>
+    <message>
+        <source>Snapshots</source>
+        <translation>快照</translation>
+    </message>
+    <message>
+        <source>Named snapshots appear here.</source>
+        <translation>命名快照会显示在这里。</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>复制</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>粘贴</translation>
+    </message>
+    <message>
+        <source>Paste Light</source>
+        <translation>粘贴明度</translation>
+    </message>
+    <message>
+        <source>Paste Color</source>
+        <translation>粘贴颜色</translation>
+    </message>
+    <message>
+        <source>Snapshot</source>
+        <translation>快照</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>原始版本</translation>
+    </message>
+    <message>
+        <source>on</source>
+        <translation>开启</translation>
+    </message>
+    <message>
+        <source>off</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>快照 %1</translation>
+    </message>
+    <message>
+        <source>Recipe history entry does not exist.</source>
+        <translation>配方历史条目不存在。</translation>
+    </message>
+</context>
+<context>
+    <name>DevelopPanel</name>
+    <message>
+        <source>Reset this section</source>
+        <translation>重置此部分</translation>
+    </message>
+    <message>
+        <source>Develop</source>
+        <translation>编辑</translation>
     </message>
     <message>
         <source>Geometry</source>
@@ -255,14 +325,6 @@
         <translation>伽马</translation>
     </message>
     <message>
-        <source>Tone Curve</source>
-        <translation>色调曲线</translation>
-    </message>
-    <message>
-        <source>Drag points to reshape. Click to add. Double-click an interior point to remove it.</source>
-        <translation>拖动点以调整曲线。单击以添加点。双击内部点以删除。</translation>
-    </message>
-    <message>
         <source>Reset curve</source>
         <translation>重置曲线</translation>
     </message>
@@ -435,6 +497,154 @@
         <translation>分离色调</translation>
     </message>
     <message>
+        <source>Pick white on photo</source>
+        <translation>在照片中选取白点</translation>
+    </message>
+    <message>
+        <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
+        <translation>单击照片中的中性色块。仅适用于 RAW，且必须关闭拉直和画布。</translation>
+    </message>
+    <message>
+        <source>Curves</source>
+        <translation>曲线</translation>
+    </message>
+    <message>
+        <source>RGB</source>
+        <translation>RGB</translation>
+    </message>
+    <message>
+        <source>Master</source>
+        <translation>主通道</translation>
+    </message>
+    <message>
+        <source>a</source>
+        <translation>a</translation>
+    </message>
+    <message>
+        <source>b</source>
+        <translation>b</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>曲线</translation>
+    </message>
+    <message>
+        <source>Tone</source>
+        <translation>色调</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>编辑</translation>
+    </message>
+    <message>
+        <source>Drag points to reshape. Click to add. Double-click or Delete removes an interior point. Arrow keys nudge the selected point.</source>
+        <translation>拖动控制点以调整曲线。单击可添加控制点；双击或按 Delete 可移除内部控制点。方向键可微调所选控制点。</translation>
+    </message>
+    <message>
+        <source>Parametric regions</source>
+        <translation>参数化区域</translation>
+    </message>
+    <message>
+        <source>Darks</source>
+        <translation>暗部</translation>
+    </message>
+    <message>
+        <source>Lights</source>
+        <translation>亮部</translation>
+    </message>
+    <message>
+        <source>Curve settings</source>
+        <translation>曲线设置</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>插值</translation>
+    </message>
+    <message>
+        <source>Monotonic</source>
+        <translation>单调</translation>
+    </message>
+    <message>
+        <source>Centripetal</source>
+        <translation>向心</translation>
+    </message>
+    <message>
+        <source>Cubic</source>
+        <translation>三次样条</translation>
+    </message>
+    <message>
+        <source>Working space</source>
+        <translation>工作空间</translation>
+    </message>
+    <message>
+        <source>Lab</source>
+        <translation>Lab</translation>
+    </message>
+    <message>
+        <source>XYZ</source>
+        <translation>XYZ</translation>
+    </message>
+    <message>
+        <source>Lab independent</source>
+        <translation>Lab 独立通道</translation>
+    </message>
+    <message>
+        <source>Linear RGB</source>
+        <translation>线性 RGB</translation>
+    </message>
+    <message>
+        <source>Preserve colors</source>
+        <translation>保留色彩</translation>
+    </message>
+    <message>
+        <source>Compensate middle grey</source>
+        <translation>补偿中灰</translation>
+    </message>
+    <message>
+        <source>Region boundaries</source>
+        <translation>区域边界</translation>
+    </message>
+    <message>
+        <source>Shadows / Darks</source>
+        <translation>阴影 / 暗部</translation>
+    </message>
+    <message>
+        <source>Darks / Lights</source>
+        <translation>暗部 / 亮部</translation>
+    </message>
+    <message>
+        <source>Lights / Highlights</source>
+        <translation>亮部 / 高光</translation>
+    </message>
+    <message>
+        <source>Color Equalizer</source>
+        <translation>色彩均衡器</translation>
+    </message>
+    <message>
+        <source>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</source>
+        <translation>八个色相区段对应 Lightroom HSL 混色器：红色、橙色、黄色、绿色、浅绿色、蓝色、紫色、洋红。</translation>
+    </message>
+    <message>
+        <source>Reset Color Balance RGB</source>
+        <translation>重置 RGB 色彩平衡</translation>
+    </message>
+    <message>
+        <source>Color Balance RGB · more</source>
+        <translation>RGB 色彩平衡 · 更多</translation>
+    </message>
+    <message>
         <source>Enable Split Toning</source>
         <translation>启用分离色调</translation>
     </message>
@@ -461,6 +671,54 @@
     <message>
         <source>Disable and reset Split Toning</source>
         <translation>禁用并重置分离色调</translation>
+    </message>
+    <message>
+        <source>Color · Advanced</source>
+        <translation>颜色 · 高级</translation>
+    </message>
+    <message>
+        <source>Camera Calibration</source>
+        <translation>相机校准</translation>
+    </message>
+    <message>
+        <source>Shadow tint hue</source>
+        <translation>阴影着色色相</translation>
+    </message>
+    <message>
+        <source>Shadow tint purity</source>
+        <translation>阴影着色纯度</translation>
+    </message>
+    <message>
+        <source>Red saturation</source>
+        <translation>红色饱和度</translation>
+    </message>
+    <message>
+        <source>Green saturation</source>
+        <translation>绿色饱和度</translation>
+    </message>
+    <message>
+        <source>Blue saturation</source>
+        <translation>蓝色饱和度</translation>
+    </message>
+    <message>
+        <source>Vignette midpoint</source>
+        <translation>暗角中点</translation>
+    </message>
+    <message>
+        <source>Vignette feather</source>
+        <translation>暗角羽化</translation>
+    </message>
+    <message>
+        <source>Vignette roundness</source>
+        <translation>暗角圆度</translation>
+    </message>
+    <message>
+        <source>Vignette center X</source>
+        <translation>暗角中心 X</translation>
+    </message>
+    <message>
+        <source>Vignette center Y</source>
+        <translation>暗角中心 Y</translation>
     </message>
     <message>
         <source>Distance</source>
@@ -617,6 +875,22 @@
     <message>
         <source>Reset watermark</source>
         <translation>重置水印</translation>
+    </message>
+    <message>
+        <source>Masking</source>
+        <translation>蒙版</translation>
+    </message>
+    <message>
+        <source>Luminance denoise</source>
+        <translation>亮度降噪</translation>
+    </message>
+    <message>
+        <source>Color denoise</source>
+        <translation>色彩降噪</translation>
+    </message>
+    <message>
+        <source>Denoise radius</source>
+        <translation>降噪半径</translation>
     </message>
     <message>
         <source>Retouch</source>
@@ -875,36 +1149,16 @@
         <translation>RGB 原色</translation>
     </message>
     <message>
-        <source>Achromatic tint hue</source>
-        <translation>中性轴着色色相</translation>
-    </message>
-    <message>
-        <source>Achromatic tint purity</source>
-        <translation>中性轴着色纯度</translation>
-    </message>
-    <message>
         <source>Red hue</source>
         <translation>红色色相</translation>
-    </message>
-    <message>
-        <source>Red purity</source>
-        <translation>红色纯度</translation>
     </message>
     <message>
         <source>Green hue</source>
         <translation>绿色色相</translation>
     </message>
     <message>
-        <source>Green purity</source>
-        <translation>绿色纯度</translation>
-    </message>
-    <message>
         <source>Blue hue</source>
         <translation>蓝色色相</translation>
-    </message>
-    <message>
-        <source>Blue purity</source>
-        <translation>蓝色纯度</translation>
     </message>
     <message>
         <source>Velvia</source>
@@ -993,10 +1247,6 @@
     <message>
         <source>Enlarge Canvas</source>
         <translation>扩展画布</translation>
-    </message>
-    <message>
-        <source>Enable enlarged canvas</source>
-        <translation>启用扩展画布</translation>
     </message>
     <message>
         <source>Canvas left (%)</source>
@@ -1599,24 +1849,12 @@
         <translation>中间调</translation>
     </message>
     <message>
-        <source>Graduated ND / Color EQ</source>
-        <translation>渐变 ND / 色彩均衡</translation>
-    </message>
-    <message>
         <source>Graduated density</source>
         <translation>渐变密度</translation>
     </message>
     <message>
         <source>Graduated rotation</source>
         <translation>渐变旋转</translation>
-    </message>
-    <message>
-        <source>Band saturation</source>
-        <translation>色带饱和度</translation>
-    </message>
-    <message>
-        <source>Band hue</source>
-        <translation>色带色相</translation>
     </message>
     <message>
         <source>Monochromatic</source>
@@ -1995,6 +2233,34 @@
         <translation>操作输出</translation>
     </message>
     <message>
+        <source>Orange</source>
+        <translation>橙色</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>黄色</translation>
+    </message>
+    <message>
+        <source>Aqua</source>
+        <translation>浅绿色</translation>
+    </message>
+    <message>
+        <source>Purple</source>
+        <translation>紫色</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>洋红</translation>
+    </message>
+    <message>
+        <source>White-balance pick requires a Bayer RAW original</source>
+        <translation>白平衡取样需要 Bayer RAW 原片</translation>
+    </message>
+    <message>
+        <source>White-balance pick is unavailable with straighten or Canvas</source>
+        <translation>启用拉直或画布时无法使用白平衡取样</translation>
+    </message>
+    <message>
         <source>Luminance</source>
         <translation>亮度</translation>
     </message>
@@ -2061,6 +2327,33 @@
     <message>
         <source>Mask reset was rejected</source>
         <translation>蒙版重置被拒绝</translation>
+    </message>
+</context>
+<context>
+    <name>DevelopPresetPanel</name>
+    <message>
+        <source>Presets</source>
+        <translation>预设</translation>
+    </message>
+    <message>
+        <source>Import…</source>
+        <translation>导入…</translation>
+    </message>
+    <message>
+        <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
+        <translation>导入 Lightroom .xmp 预设或 Ravo 样式，并将其应用到所选照片。</translation>
+    </message>
+    <message>
+        <source>Rename…</source>
+        <translation>重命名…</translation>
+    </message>
+    <message>
+        <source>Delete…</source>
+        <translation>删除…</translation>
+    </message>
+    <message>
+        <source>Copy Preset Info</source>
+        <translation>复制预设信息</translation>
     </message>
 </context>
 <context>
@@ -2289,6 +2582,125 @@
     </message>
 </context>
 <context>
+    <name>LibraryFilterBar</name>
+    <message>
+        <source>Remove filter</source>
+        <translation>移除筛选器</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>筛选</translation>
+    </message>
+    <message>
+        <source>Unrated</source>
+        <translation>未评级</translation>
+    </message>
+    <message>
+        <source>%1 star</source>
+        <translation>%1 星</translation>
+    </message>
+    <message>
+        <source>Search photos</source>
+        <translation>搜索照片</translation>
+    </message>
+    <message>
+        <source>Any type</source>
+        <translation>任意类型</translation>
+    </message>
+    <message>
+        <source>RAW</source>
+        <translation>RAW</translation>
+    </message>
+    <message>
+        <source>JPEG</source>
+        <translation>JPEG</translation>
+    </message>
+    <message>
+        <source>PNG</source>
+        <translation>PNG</translation>
+    </message>
+    <message>
+        <source>TIFF</source>
+        <translation>TIFF</translation>
+    </message>
+    <message>
+        <source>Any edits</source>
+        <translation>任意编辑状态</translation>
+    </message>
+    <message>
+        <source>Edited</source>
+        <translation>已编辑</translation>
+    </message>
+    <message>
+        <source>Unedited</source>
+        <translation>未编辑</translation>
+    </message>
+    <message>
+        <source>Include</source>
+        <translation>包含</translation>
+    </message>
+    <message>
+        <source>Exclude</source>
+        <translation>排除</translation>
+    </message>
+    <message>
+        <source>Only</source>
+        <translation>仅</translation>
+    </message>
+    <message>
+        <source>Add filter</source>
+        <translation>添加筛选器</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>搜索</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation>类型</translation>
+    </message>
+    <message>
+        <source>Edits</source>
+        <translation>编辑</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>颜色</translation>
+    </message>
+    <message>
+        <source>Rejected</source>
+        <translation>已拒绝</translation>
+    </message>
+    <message>
+        <source>Import time</source>
+        <translation>导入时间</translation>
+    </message>
+    <message>
+        <source>Capture time</source>
+        <translation>拍摄时间</translation>
+    </message>
+    <message>
+        <source>Filename</source>
+        <translation>文件名</translation>
+    </message>
+    <message>
+        <source>Rating</source>
+        <translation>评分</translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation>文件大小</translation>
+    </message>
+    <message>
+        <source>Asc</source>
+        <translation>升序</translation>
+    </message>
+    <message>
+        <source>Desc</source>
+        <translation>降序</translation>
+    </message>
+</context>
+<context>
     <name>LibrarySidePanel</name>
     <message>
         <source>Library</source>
@@ -2319,8 +2731,8 @@
         <translation>填充</translation>
     </message>
     <message>
-        <source>100%</source>
-        <translation>100%</translation>
+        <source>1:1</source>
+        <translation>1:1</translation>
     </message>
     <message>
         <source>Loading…</source>
@@ -2386,152 +2798,20 @@
         <translation>永久从磁盘删除原始文件并将其从图库移除？此操作无法撤销。</translation>
     </message>
     <message>
-        <source>Filter</source>
-        <translation>筛选</translation>
-    </message>
-    <message>
-        <source>Search photos</source>
-        <translation>搜索照片</translation>
-    </message>
-    <message>
-        <source>Any type</source>
-        <translation>任意类型</translation>
-    </message>
-    <message>
-        <source>RAW</source>
-        <translation>RAW</translation>
-    </message>
-    <message>
-        <source>JPEG</source>
-        <translation>JPEG</translation>
-    </message>
-    <message>
-        <source>PNG</source>
-        <translation>PNG</translation>
-    </message>
-    <message>
-        <source>TIFF</source>
-        <translation>TIFF</translation>
-    </message>
-    <message>
-        <source>Any edits</source>
-        <translation>任意编辑状态</translation>
-    </message>
-    <message>
-        <source>Edited</source>
-        <translation>已编辑</translation>
-    </message>
-    <message>
-        <source>Unedited</source>
-        <translation>未编辑</translation>
-    </message>
-    <message>
-        <source>Rating</source>
-        <translation>评分</translation>
-    </message>
-    <message>
-        <source>Any</source>
-        <translation>任意</translation>
-    </message>
-    <message>
-        <source>≥ 1</source>
-        <translation>≥ 1</translation>
-    </message>
-    <message>
-        <source>≥ 2</source>
-        <translation>≥ 2</translation>
-    </message>
-    <message>
-        <source>≥ 3</source>
-        <translation>≥ 3</translation>
-    </message>
-    <message>
-        <source>≥ 4</source>
-        <translation>≥ 4</translation>
-    </message>
-    <message>
-        <source>≥ 5</source>
-        <translation>≥ 5</translation>
-    </message>
-    <message>
-        <source>Exact 0</source>
-        <translation>精确 0</translation>
-    </message>
-    <message>
-        <source>Exact 1</source>
-        <translation>精确 1</translation>
-    </message>
-    <message>
-        <source>Exact 2</source>
-        <translation>精确 2</translation>
-    </message>
-    <message>
-        <source>Exact 3</source>
-        <translation>精确 3</translation>
-    </message>
-    <message>
-        <source>Exact 4</source>
-        <translation>精确 4</translation>
-    </message>
-    <message>
-        <source>Exact 5</source>
-        <translation>精确 5</translation>
-    </message>
-    <message>
-        <source>Color</source>
-        <translation>颜色</translation>
-    </message>
-    <message>
-        <source>Rejected</source>
-        <translation>已拒绝</translation>
-    </message>
-    <message>
-        <source>Include</source>
-        <translation>包含</translation>
-    </message>
-    <message>
-        <source>Exclude</source>
-        <translation>排除</translation>
-    </message>
-    <message>
-        <source>Only</source>
-        <translation>仅</translation>
-    </message>
-    <message>
-        <source>Clear filters</source>
-        <translation>清除筛选</translation>
-    </message>
-    <message>
-        <source>Import time</source>
-        <translation>导入时间</translation>
-    </message>
-    <message>
-        <source>Filename</source>
-        <translation>文件名</translation>
-    </message>
-    <message>
-        <source>Capture time</source>
-        <translation>拍摄时间</translation>
-    </message>
-    <message>
-        <source>File size</source>
-        <translation>文件大小</translation>
-    </message>
-    <message>
-        <source>Asc</source>
-        <translation>升序</translation>
-    </message>
-    <message>
-        <source>Desc</source>
-        <translation>降序</translation>
-    </message>
-    <message>
         <source>Gallery</source>
         <translation>图库</translation>
     </message>
     <message>
         <source>Edit</source>
         <translation>编辑</translation>
+    </message>
+    <message>
+        <source>Assistant</source>
+        <translation>助手</translation>
+    </message>
+    <message>
+        <source>Show or hide the Assistant panel</source>
+        <translation>显示或隐藏助手面板</translation>
     </message>
     <message>
         <source>Error</source>
@@ -2590,6 +2870,14 @@
         <translation>删除</translation>
     </message>
     <message>
+        <source>Delete Preset</source>
+        <translation>删除预设</translation>
+    </message>
+    <message>
+        <source>Permanently delete preset “%1”? This cannot be undone.</source>
+        <translation>永久删除预设“%1”？此操作无法撤销。</translation>
+    </message>
+    <message>
         <source>About Ravo Studio</source>
         <translation>关于 Ravo Studio</translation>
     </message>
@@ -2637,9 +2925,25 @@
         <source>Apply Recipe Style</source>
         <translation>应用配方样式</translation>
     </message>
+    <message>
+        <source>Lightroom preset (*.xmp)</source>
+        <translation>Lightroom 预设 (*.xmp)</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>导入预设</translation>
+    </message>
 </context>
 <context>
     <name>PhotoContextMenu</name>
+    <message>
+        <source>View Photo</source>
+        <translation>查看照片</translation>
+    </message>
+    <message>
+        <source>Edit Photo</source>
+        <translation>编辑照片</translation>
+    </message>
     <message>
         <source>Rating</source>
         <translation>评分</translation>
@@ -2709,6 +3013,25 @@
     </message>
 </context>
 <context>
+    <name>PresetRenameDialog</name>
+    <message>
+        <source>Rename Preset</source>
+        <translation>重命名预设</translation>
+    </message>
+    <message>
+        <source>Preset name</source>
+        <translation>预设名称</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>重命名</translation>
+    </message>
+</context>
+<context>
     <name>ScopePanel</name>
     <message>
         <source>Histogram</source>
@@ -2721,6 +3044,10 @@
     <message>
         <source>Waveform</source>
         <translation>波形图</translation>
+    </message>
+    <message>
+        <source>Scope type</source>
+        <translation>示波器类型</translation>
     </message>
     <message>
         <source>Vectorscope</source>
@@ -2756,6 +3083,97 @@
     <message>
         <source>Simplified Chinese</source>
         <translation>简体中文</translation>
+    </message>
+    <message>
+        <source>Assistant</source>
+        <translation>助手</translation>
+    </message>
+    <message>
+        <source>OpenAI-compatible endpoint used by the floating Assistant panel. The default is the xAI API.</source>
+        <translation>浮动助手面板使用的 OpenAI 兼容端点。默认为 xAI API。</translation>
+    </message>
+    <message>
+        <source>URL</source>
+        <translation>URL</translation>
+    </message>
+    <message>
+        <source>Model</source>
+        <translation>模型</translation>
+    </message>
+    <message>
+        <source>API key</source>
+        <translation>API 密钥</translation>
+    </message>
+    <message>
+        <source>Show</source>
+        <translation>显示</translation>
+    </message>
+</context>
+<context>
+    <name>StudioAssistant</name>
+    <message>
+        <source>Unable to repair the stored assistant endpoint.</source>
+        <translation>无法修复已存储的助手端点。</translation>
+    </message>
+    <message>
+        <source>Unable to repair the stored assistant model.</source>
+        <translation>无法修复已存储的助手模型。</translation>
+    </message>
+    <message>
+        <source>Unable to save the assistant setting.</source>
+        <translation>无法保存助手设置。</translation>
+    </message>
+    <message>
+        <source>Assistant URL must be an http or https endpoint.</source>
+        <translation>助手 URL 必须是 http 或 https 端点。</translation>
+    </message>
+    <message>
+        <source>Assistant model must be a non-empty identifier.</source>
+        <translation>助手模型必须是非空标识符。</translation>
+    </message>
+    <message>
+        <source>Assistant prompt is empty or too long.</source>
+        <translation>助手提示为空或过长。</translation>
+    </message>
+    <message>
+        <source>An assistant request is already in progress.</source>
+        <translation>已有助手请求正在进行。</translation>
+    </message>
+    <message>
+        <source>Set the assistant URL, model, and API key in Settings before sending.</source>
+        <translation>发送前，请在“设置”中配置助手 URL、模型和 API 密钥。</translation>
+    </message>
+    <message>
+        <source>You are the Ravo Studio photo-editing assistant. Answer about the current catalog, Develop edits, and export. Do not invent file changes.</source>
+        <translation>你是 Ravo Studio 照片编辑助手。请回答与当前目录、编辑调整和导出有关的问题。不要虚构文件更改。</translation>
+    </message>
+    <message>
+        <source>Selected photo: %1</source>
+        <translation>所选照片：%1</translation>
+    </message>
+    <message>
+        <source>Assistant request cancelled.</source>
+        <translation>助手请求已取消。</translation>
+    </message>
+    <message>
+        <source>Assistant request failed to reach the endpoint.</source>
+        <translation>助手请求无法连接到端点。</translation>
+    </message>
+    <message>
+        <source>Assistant response was not valid JSON.</source>
+        <translation>助手响应不是有效的 JSON。</translation>
+    </message>
+    <message>
+        <source>Assistant endpoint returned HTTP %1.</source>
+        <translation>助手端点返回 HTTP %1。</translation>
+    </message>
+    <message>
+        <source>Assistant response contained no choices.</source>
+        <translation>助手响应不包含候选结果。</translation>
+    </message>
+    <message>
+        <source>Assistant response contained no text.</source>
+        <translation>助手响应不包含文本。</translation>
     </message>
 </context>
 <context>
@@ -2816,6 +3234,14 @@
         <translation>请求确认后，照片选择已发生变化。</translation>
     </message>
     <message>
+        <source>Preset path and name must be non-empty strings.</source>
+        <translation>预设路径和名称必须是非空字符串。</translation>
+    </message>
+    <message>
+        <source>The preset changed after confirmation was requested.</source>
+        <translation>请求确认后预设已发生变化。</translation>
+    </message>
+    <message>
         <source>Export path must not be empty.</source>
         <translation>导出路径不能为空。</translation>
     </message>
@@ -2864,6 +3290,10 @@
         <translation>需要非负整数历史记录 ID。</translation>
     </message>
     <message>
+        <source>Snapshot label must be a string.</source>
+        <translation>快照标签必须是字符串。</translation>
+    </message>
+    <message>
         <source>Navigation argument must be &apos;range&apos;.</source>
         <translation>导航参数必须为“range”。</translation>
     </message>
@@ -2874,6 +3304,14 @@
     <message>
         <source>Develop control name must not be empty.</source>
         <translation>编辑控制项名称不能为空。</translation>
+    </message>
+    <message>
+        <source>Develop fields must not be empty.</source>
+        <translation>编辑字段不能为空。</translation>
+    </message>
+    <message>
+        <source>White-balance pick state must be boolean.</source>
+        <translation>白平衡取样状态必须是布尔值。</translation>
     </message>
     <message>
         <source>Develop section name must not be empty.</source>
@@ -2930,6 +3368,10 @@
     <message>
         <source>Nothing to redo.</source>
         <translation>没有可重做的操作。</translation>
+    </message>
+    <message>
+        <source>Copy edits first.</source>
+        <translation>请先复制编辑。</translation>
     </message>
     <message>
         <source>The selected originals cannot be deleted.</source>
@@ -2994,6 +3436,26 @@
     <message>
         <source>Export Selected...</source>
         <translation>导出所选项…</translation>
+    </message>
+    <message>
+        <source>Import Preset...</source>
+        <translation>导入预设...</translation>
+    </message>
+    <message>
+        <source>Copy Edits</source>
+        <translation>复制编辑</translation>
+    </message>
+    <message>
+        <source>Paste Edits</source>
+        <translation>粘贴编辑</translation>
+    </message>
+    <message>
+        <source>Assistant</source>
+        <translation>助手</translation>
+    </message>
+    <message>
+        <source>Copy Info</source>
+        <translation>复制信息</translation>
     </message>
     <message>
         <source>Develop text control name must not be empty.</source>
@@ -3336,6 +3798,10 @@
         <translation>引擎启动失败。</translation>
     </message>
     <message>
+        <source>Library updated from another client.</source>
+        <translation>目录已由其他客户端更新。</translation>
+    </message>
+    <message>
         <source>Catalog path is not a local file.</source>
         <translation>图库路径不是本地文件。</translation>
     </message>
@@ -3440,12 +3906,132 @@
         <translation>已导入 %1，重复 %2，不支持 %3，失败 %4</translation>
     </message>
     <message>
+        <source>White balance sampled.</source>
+        <translation>已取样白平衡。</translation>
+    </message>
+    <message>
         <source>Style path must not be empty.</source>
         <translation>样式路径不能为空。</translation>
     </message>
     <message>
         <source>Recipe style saved.</source>
         <translation>配方样式已保存。</translation>
+    </message>
+    <message>
+        <source>Lightroom preset applied.</source>
+        <translation>已应用 Lightroom 预设。</translation>
+    </message>
+    <message>
+        <source>Lightroom preset “%1” applied.</source>
+        <translation>已应用 Lightroom 预设“%1”。</translation>
+    </message>
+    <message>
+        <source>Preset name must not be empty.</source>
+        <translation>预设名称不能为空。</translation>
+    </message>
+    <message>
+        <source>Preset name must not start or end with whitespace.</source>
+        <translation>预设名称首尾不能有空白字符。</translation>
+    </message>
+    <message>
+        <source>Preset name must not start or end with a period.</source>
+        <translation>预设名称首尾不能是句点。</translation>
+    </message>
+    <message>
+        <source>Preset name is too long.</source>
+        <translation>预设名称过长。</translation>
+    </message>
+    <message>
+        <source>Preset name contains characters that cannot be used in a file name.</source>
+        <translation>预设名称包含不能用于文件名的字符。</translation>
+    </message>
+    <message>
+        <source>Preset name is reserved by the operating system.</source>
+        <translation>预设名称是操作系统保留名称。</translation>
+    </message>
+    <message>
+        <source>Preset file was not found.</source>
+        <translation>未找到预设文件。</translation>
+    </message>
+    <message>
+        <source>Open a library to import presets.</source>
+        <translation>请先打开目录再导入预设。</translation>
+    </message>
+    <message>
+        <source>Preset folder could not be created.</source>
+        <translation>无法创建预设文件夹。</translation>
+    </message>
+    <message>
+        <source>Preset could not be copied.</source>
+        <translation>无法复制预设。</translation>
+    </message>
+    <message>
+        <source>Only presets imported into this library can be renamed.</source>
+        <translation>只能重命名已导入此图库的预设。</translation>
+    </message>
+    <message>
+        <source>Preset file type is not supported.</source>
+        <translation>不支持此预设文件类型。</translation>
+    </message>
+    <message>
+        <source>Preset name is unchanged.</source>
+        <translation>预设名称未更改。</translation>
+    </message>
+    <message>
+        <source>This filesystem cannot rename a preset by letter case only.</source>
+        <translation>此文件系统不支持仅更改预设名称的字母大小写。</translation>
+    </message>
+    <message>
+        <source>A preset with that name already exists.</source>
+        <translation>已存在同名预设。</translation>
+    </message>
+    <message>
+        <source>Preset could not be renamed: %1</source>
+        <translation>无法重命名预设：%1</translation>
+    </message>
+    <message>
+        <source>Preset renamed to “%1”.</source>
+        <translation>预设已重命名为“%1”。</translation>
+    </message>
+    <message>
+        <source>Only presets imported into this library can be deleted.</source>
+        <translation>只能删除已导入此图库的预设。</translation>
+    </message>
+    <message>
+        <source>Preset could not be deleted: %1</source>
+        <translation>无法删除预设：%1</translation>
+    </message>
+    <message>
+        <source>Preset deleted.</source>
+        <translation>预设已删除。</translation>
+    </message>
+    <message>
+        <source>Photo information could not be copied to the clipboard.</source>
+        <translation>无法将照片信息复制到剪贴板。</translation>
+    </message>
+    <message>
+        <source>Photo information copied.</source>
+        <translation>已复制照片信息。</translation>
+    </message>
+    <message>
+        <source>Preset information could not be read.</source>
+        <translation>无法读取预设信息。</translation>
+    </message>
+    <message>
+        <source>Preset information could not be copied to the clipboard.</source>
+        <translation>无法将预设信息复制到剪贴板。</translation>
+    </message>
+    <message>
+        <source>Preset information copied.</source>
+        <translation>已复制预设信息。</translation>
+    </message>
+    <message>
+        <source>Edits copied.</source>
+        <translation>已复制编辑。</translation>
+    </message>
+    <message>
+        <source>Edits pasted.</source>
+        <translation>已粘贴编辑。</translation>
     </message>
 </context>
 <context>
@@ -3469,6 +4055,17 @@
     <message>
         <source>Edit</source>
         <translation>编辑</translation>
+    </message>
+</context>
+<context>
+    <name>ToneCurveEditor</name>
+    <message>
+        <source>Input</source>
+        <translation>输入</translation>
+    </message>
+    <message>
+        <source>Output</source>
+        <translation>输出</translation>
     </message>
 </context>
 </TS>

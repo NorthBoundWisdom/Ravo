@@ -139,6 +139,11 @@ qt_add_qml_module(ravo_studio
     qml/chrome/StudioCommandPalette.qml
     qml/chrome/StudioCommandShortcuts.qml
     qml/chrome/StudioMenuBar.qml
+    qml/chrome/StudioContextMenu.qml
+    qml/chrome/StudioContextMenuItem.qml
+    qml/chrome/StudioContextMenuSeparator.qml
+    qml/chrome/StudioContextSubMenu.qml
+    qml/chrome/PresetRenameDialog.qml
     qml/chrome/PhotoContextMenu.qml)
 
 qt_add_resources(ravo_studio "studio_app_icon"

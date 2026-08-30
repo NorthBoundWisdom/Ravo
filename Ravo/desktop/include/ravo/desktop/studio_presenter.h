@@ -523,6 +523,8 @@ public:
     Q_INVOKABLE void applyStyleFromPath(const QString &path);
     [[nodiscard]] QVariantList editPresets() const;
     Q_INVOKABLE void importPresetFromPath(const QString &path);
+    Q_INVOKABLE void renamePreset(const QString &path, const QString &name);
+    Q_INVOKABLE void deletePreset(const QString &path);
     [[nodiscard]] QString selectedPhotoDebugInfo() const;
     [[nodiscard]] QString presetDebugInfo(const QString &path) const;
     Q_INVOKABLE void copySelectedPhotoDebugInfo();

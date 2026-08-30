@@ -108,6 +108,10 @@ inline constexpr auto kPresetImport = "studio.preset.import";
 inline constexpr auto kPresetImportPath = "studio.preset.import_path";
 inline constexpr auto kPresetApplyPath = "studio.preset.apply_path";
 inline constexpr auto kPresetCopyInfo = "studio.preset.copy_info";
+inline constexpr auto kPresetRename = "studio.preset.rename";
+inline constexpr auto kPresetRenamePath = "studio.preset.rename_path";
+inline constexpr auto kPresetRequestDelete = "studio.preset.request_delete";
+inline constexpr auto kPresetDelete = "studio.preset.delete";
 inline constexpr auto kWindowSettings = "studio.window.show_settings";
 inline constexpr auto kWindowAssistant = "studio.window.toggle_assistant";
 inline constexpr auto kWindowClose = "studio.window.close";
@@ -207,6 +211,8 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "A current confirmation token is required."),
     QT_TRANSLATE_NOOP("StudioCommands",
                       "The photo selection changed after confirmation was requested."),
+    QT_TRANSLATE_NOOP("StudioCommands", "Preset path and name must be non-empty strings."),
+    QT_TRANSLATE_NOOP("StudioCommands", "The preset changed after confirmation was requested."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export path must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export directory must not be empty."),
     QT_TRANSLATE_NOOP("StudioCommands", "Export filename template must not be empty."),
@@ -400,6 +406,10 @@ QStringList command_ids()
             QLatin1String(command::kPresetImportPath),
             QLatin1String(command::kPresetApplyPath),
             QLatin1String(command::kPresetCopyInfo),
+            QLatin1String(command::kPresetRename),
+            QLatin1String(command::kPresetRenamePath),
+            QLatin1String(command::kPresetRequestDelete),
+            QLatin1String(command::kPresetDelete),
             QLatin1String(command::kWindowSettings),
             QLatin1String(command::kWindowAssistant),
             QLatin1String(command::kWindowClose),
@@ -534,8 +544,7 @@ QVector<ActionSpec> builtin_actions()
     add(command::kWindowAssistant, command::kWindowAssistant,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Assistant")), view,
         {QStringLiteral("chat"), QStringLiteral("ai"), QStringLiteral("model")},
-        QStringLiteral("view.commands"), 20, true,
-        {key(primary_key(QStringLiteral("A"), true))});
+        QStringLiteral("view.commands"), 20, true, {key(primary_key(QStringLiteral("A"), true))});
 
     add(command::kPhotoPrevious, command::kPhotoPrevious,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Previous Photo")), photo,
@@ -719,6 +728,29 @@ QString required_fields(const QVariant &argument, const QStringList &fields)
     return {};
 }
 
+QString preset_identity_argument(const QVariant &argument)
+{
+    const auto error = required_fields(argument, {QStringLiteral("path"), QStringLiteral("name")});
+    if (!error.isEmpty())
+        return error;
+    const auto values = argument.toMap();
+    static const QSet<QString> allowed{QStringLiteral("path"), QStringLiteral("name")};
+    for (auto it = values.constBegin(); it != values.constEnd(); ++it)
+    {
+        if (!allowed.contains(it.key()))
+            return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                  "StudioCommands", "Unknown command argument field: %1.")))
+                .arg(it.key());
+    }
+    const auto path = values.value(QStringLiteral("path"));
+    const auto name = values.value(QStringLiteral("name"));
+    return path.metaType().id() == QMetaType::QString && !path.toString().trimmed().isEmpty() &&
+                   name.metaType().id() == QMetaType::QString &&
+                   !name.toString().trimmed().isEmpty() ?
+               QString{} :
+               QStringLiteral("Preset path and name must be non-empty strings.");
+}
+
 QString one_of(const QVariant &argument, const QSet<QString> &values, const QString &name)
 {
     return argument.metaType().id() == QMetaType::QString && values.contains(argument.toString()) ?
@@ -771,6 +803,7 @@ struct StudioCommandController::Impl
     QString pending_confirmation_command;
     QString pending_confirmation_token;
     std::vector<std::string> pending_confirmation_assets;
+    QVariant pending_confirmation_argument;
 };
 
 StudioCommandController::StudioCommandController(StudioPresenter &presenter, QObject *parent)
@@ -796,6 +829,7 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                                                 .arg(QLatin1String(confirmed_id))
                                                 .arg(impl_->confirmation_revision);
         impl_->pending_confirmation_assets = presenter_.selected_asset_ids();
+        impl_->pending_confirmation_argument.clear();
         emit presentationCommandRequested(QLatin1String(request_id),
                                           impl_->pending_confirmation_token);
     };
@@ -809,11 +843,54 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
             return QStringLiteral("The photo selection changed after confirmation was requested.");
         return QString{};
     };
+    const auto request_preset_confirmation =
+        [this](const char *request_id, const char *confirmed_id, const QVariant &argument)
+    {
+        ++impl_->confirmation_revision;
+        impl_->pending_confirmation_command = QLatin1String(confirmed_id);
+        impl_->pending_confirmation_token = QStringLiteral("%1:%2")
+                                                .arg(QLatin1String(confirmed_id))
+                                                .arg(impl_->confirmation_revision);
+        impl_->pending_confirmation_assets.clear();
+        impl_->pending_confirmation_argument = argument;
+        auto presentation = argument.toMap();
+        presentation.insert(QStringLiteral("token"), impl_->pending_confirmation_token);
+        emit presentationCommandRequested(QLatin1String(request_id), presentation);
+    };
+    const auto preset_confirmation_validator =
+        [this](const char *confirmed_id, const QVariant &argument)
+    {
+        const auto field_error =
+            required_fields(argument, {QStringLiteral("token"), QStringLiteral("path")});
+        if (!field_error.isEmpty())
+            return field_error;
+        const auto fields = argument.toMap();
+        static const QSet<QString> allowed{QStringLiteral("token"), QStringLiteral("path")};
+        for (auto it = fields.constBegin(); it != fields.constEnd(); ++it)
+        {
+            if (!allowed.contains(it.key()))
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                      "StudioCommands", "Unknown command argument field: %1.")))
+                    .arg(it.key());
+        }
+        const auto token = fields.value(QStringLiteral("token"));
+        const auto path = fields.value(QStringLiteral("path"));
+        if (token.metaType().id() != QMetaType::QString ||
+            path.metaType().id() != QMetaType::QString ||
+            impl_->pending_confirmation_command != QLatin1String(confirmed_id) ||
+            impl_->pending_confirmation_token != token.toString())
+            return QStringLiteral("A current confirmation token is required.");
+        const auto pending = impl_->pending_confirmation_argument.toMap();
+        if (pending.value(QStringLiteral("path")).toString() != path.toString())
+            return QStringLiteral("The preset changed after confirmation was requested.");
+        return QString{};
+    };
     const auto clear_confirmation = [this]()
     {
         impl_->pending_confirmation_command.clear();
         impl_->pending_confirmation_token.clear();
         impl_->pending_confirmation_assets.clear();
+        impl_->pending_confirmation_argument.clear();
     };
 
     add(command::kLibraryCreate, Condition::kAlways, no_argument,
@@ -990,6 +1067,32 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     add(command::kPresetCopyInfo, Condition::kCatalogOpen, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.copyPresetDebugInfo(argument.toString()); });
+    add(command::kPresetRename, Condition::kCatalogOpen, preset_identity_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kPresetRename, argument); });
+    add(command::kPresetRenamePath, Condition::kCatalogOpen, preset_identity_argument,
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto fields = argument.toMap();
+            presenter_.renamePreset(fields.value(QStringLiteral("path")).toString(),
+                                    fields.value(QStringLiteral("name")).toString());
+        });
+    add(command::kPresetRequestDelete, Condition::kCatalogOpen, preset_identity_argument,
+        [request_preset_confirmation](const QVariant &argument, const QString &)
+        {
+            request_preset_confirmation(command::kPresetRequestDelete, command::kPresetDelete,
+                                        argument);
+        });
+    add(
+        command::kPresetDelete, Condition::kCatalogOpen,
+        [preset_confirmation_validator](const QVariant &argument)
+        { return preset_confirmation_validator(command::kPresetDelete, argument); },
+        [this, clear_confirmation](const QVariant &argument, const QString &)
+        {
+            const QString path = argument.toMap().value(QStringLiteral("path")).toString();
+            clear_confirmation();
+            presenter_.deletePreset(path);
+        });
     add(
         command::kLibrarySetTagFilter, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)
@@ -1201,7 +1304,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(command::kPhotoRefreshMetadata, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.refreshSelectedMetadata(); });
-    add(command::kPhotoCreateSnapshot, Condition::kDevelopSelection,
+    add(
+        command::kPhotoCreateSnapshot, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
             if (!argument.isValid() || argument.metaType().id() == QMetaType::QString)
@@ -1467,21 +1571,23 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         command::kEditPickWhiteBalance, Condition::kDevelopSelection,
         [](const QVariant &argument)
         {
-            const auto error = required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
+            const auto error =
+                required_fields(argument, {QStringLiteral("x"), QStringLiteral("y")});
             if (!error.isEmpty())
                 return error;
             const auto fields = argument.toMap();
-            const auto x_error = finite_number(fields.value(QStringLiteral("x")),
-                                               QStringLiteral("White-balance X"));
+            const auto x_error =
+                finite_number(fields.value(QStringLiteral("x")), QStringLiteral("White-balance X"));
             if (!x_error.isEmpty())
                 return x_error;
-            return finite_number(fields.value(QStringLiteral("y")), QStringLiteral("White-balance Y"));
+            return finite_number(fields.value(QStringLiteral("y")),
+                                 QStringLiteral("White-balance Y"));
         },
         [this](const QVariant &argument, const QString &)
         {
             const auto fields = argument.toMap();
             presenter_.pickWhiteBalance(fields.value(QStringLiteral("x")).toDouble(),
-                                       fields.value(QStringLiteral("y")).toDouble());
+                                        fields.value(QStringLiteral("y")).toDouble());
         });
     add(
         command::kEditSetWhiteBalancePick, Condition::kDevelopSelection,
@@ -1758,6 +1864,10 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("presetImportPath"), QLatin1String(command::kPresetImportPath)},
         {QStringLiteral("presetApplyPath"), QLatin1String(command::kPresetApplyPath)},
         {QStringLiteral("presetCopyInfo"), QLatin1String(command::kPresetCopyInfo)},
+        {QStringLiteral("presetRename"), QLatin1String(command::kPresetRename)},
+        {QStringLiteral("presetRenamePath"), QLatin1String(command::kPresetRenamePath)},
+        {QStringLiteral("presetDelete"), QLatin1String(command::kPresetRequestDelete)},
+        {QStringLiteral("presetDeleteConfirmed"), QLatin1String(command::kPresetDelete)},
         {QStringLiteral("windowSettings"), QLatin1String(command::kWindowSettings)},
         {QStringLiteral("windowAssistant"), QLatin1String(command::kWindowAssistant)},
         {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},
@@ -2065,6 +2175,7 @@ void StudioCommandController::cancelPendingConfirmation(const QString &token)
     impl_->pending_confirmation_command.clear();
     impl_->pending_confirmation_token.clear();
     impl_->pending_confirmation_assets.clear();
+    impl_->pending_confirmation_argument.clear();
 }
 
 QVariantMap StudioCommandController::executeCommandInternal(const QString &command_id,

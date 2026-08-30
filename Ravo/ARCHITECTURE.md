@@ -361,7 +361,10 @@ darktable history importer. The leftover path rejects `crs:` rather than treatin
 it as empty history. Mapping writes `DevelopParams` and `recipe_from_develop`;
 Studio lists imported presets above History on the Edit left rail. Import copies
 a CRS XMP or `.rstyle.json` into `Ravo Presets` next to the library and applies
-it to the selected photo. `catalog develop --from-xmp` is the same overlay
+it to the selected photo. The owned copy's filename is the Studio display name:
+rename preserves its dialect suffix and content, while delete is limited to a
+validated direct child of that folder and follows an explicit UI confirmation.
+`catalog develop --from-xmp` is the same overlay
 without replacing crop, masks, or profiles. CRS exposure is exact EV; RAW
 contrast targets sigmoid, while display-referred raster contrast retains the
 core owner. Highlights/shadows use calibrated scene-EV envelopes. Adobe

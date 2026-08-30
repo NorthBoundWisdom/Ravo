@@ -69,9 +69,9 @@ QVariantMap StudioPresenter::editWhiteBalance() const
             {QStringLiteral("green"), coefficients[1]},
             {QStringLiteral("blue"), coefficients[2]},
             {QStringLiteral("fourth"), coefficients[3]},
-            {QStringLiteral("canPick"),
-             selectedMediaType() == QLatin1String("image/x-raw") &&
-                 std::abs(develop_.straighten_degrees) <= 1.0e-4 && !develop_.canvas_enabled}};
+            {QStringLiteral("canPick"), selectedMediaType() == QLatin1String("image/x-raw") &&
+                                            std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
+                                            !develop_.canvas_enabled}};
 }
 
 QVariantMap StudioPresenter::editInputColor() const
@@ -1509,10 +1509,10 @@ curve_points_for(const DevelopParams &params, const int family, const int channe
 QVariantMap StudioPresenter::editCurve() const
 {
     const bool rgb_family = curve_family_ == 0;
-    const bool linked = rgb_family ? develop_.rgb_curve.mode != kRgbLevelsModeIndependent :
-                                     develop_.tone_curve_channel_mode != kToneCurveChannelModeIndependent &&
-                                         develop_.tone_curve_working_space !=
-                                             kToneCurveWorkingSpaceLabIndependent;
+    const bool linked =
+        rgb_family ? develop_.rgb_curve.mode != kRgbLevelsModeIndependent :
+                     develop_.tone_curve_channel_mode != kToneCurveChannelModeIndependent &&
+                         develop_.tone_curve_working_space != kToneCurveWorkingSpaceLabIndependent;
     QString histogram_mode = QStringLiteral("luma");
     if (rgb_family)
     {
@@ -1556,8 +1556,8 @@ QVariantList StudioPresenter::editCurvePoints() const
 
 QVariantList StudioPresenter::editCurveSamples() const
 {
-    const auto interpolation = curve_family_ == 0 ? develop_.rgb_curve.interpolation :
-                                                    develop_.tone_curve_interpolation;
+    const auto interpolation =
+        curve_family_ == 0 ? develop_.rgb_curve.interpolation : develop_.tone_curve_interpolation;
     if (curve_family_ == 0 && curve_channel_ <= 0 &&
         !rgb_curve_parametric_is_identity(develop_.rgb_curve))
     {
@@ -1682,22 +1682,18 @@ double StudioPresenter::editColorEqLight() const noexcept
 
 QVariantList StudioPresenter::editColorEqBands() const
 {
-    static const char *titles[] = {QT_TRANSLATE_NOOP("DevelopPanel", "Red"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Orange"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Yellow"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Green"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Aqua"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Blue"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Purple"),
-                                   QT_TRANSLATE_NOOP("DevelopPanel", "Magenta")};
+    static const char *titles[] = {
+        QT_TRANSLATE_NOOP("DevelopPanel", "Red"),    QT_TRANSLATE_NOOP("DevelopPanel", "Orange"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Yellow"), QT_TRANSLATE_NOOP("DevelopPanel", "Green"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Aqua"),   QT_TRANSLATE_NOOP("DevelopPanel", "Blue"),
+        QT_TRANSLATE_NOOP("DevelopPanel", "Purple"), QT_TRANSLATE_NOOP("DevelopPanel", "Magenta")};
     QVariantList bands;
     for (int index = 0; index < static_cast<int>(kColorEqualizerBandCount); ++index)
     {
         const auto i = static_cast<std::size_t>(index);
         bands.push_back(QVariantMap{
             {QStringLiteral("index"), index},
-            {QStringLiteral("title"),
-             QCoreApplication::translate("DevelopPanel", titles[index])},
+            {QStringLiteral("title"), QCoreApplication::translate("DevelopPanel", titles[index])},
             {QStringLiteral("hueField"), QStringLiteral("colorEqHue%1").arg(index)},
             {QStringLiteral("satField"), QStringLiteral("colorEqSat%1").arg(index)},
             {QStringLiteral("lightField"), QStringLiteral("colorEqLight%1").arg(index)},
@@ -1716,7 +1712,8 @@ bool StudioPresenter::whiteBalancePickActive() const noexcept
 void StudioPresenter::setWhiteBalancePickActive(const bool active)
 {
     const bool enabled = active && selectedMediaType() == QLatin1String("image/x-raw") &&
-                         std::abs(develop_.straighten_degrees) <= 1.0e-4 && !develop_.canvas_enabled;
+                         std::abs(develop_.straighten_degrees) <= 1.0e-4 &&
+                         !develop_.canvas_enabled;
     if (white_balance_pick_active_ == enabled)
     {
         return;
@@ -2760,11 +2757,11 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
         const auto name = imported.value().name.empty() ?
                               QString() :
                               QString::fromStdString(imported.value().name);
-        setStatus(name.isEmpty() ?
-                      QCoreApplication::translate("StudioPresenter", "Lightroom preset applied.") :
-                      QCoreApplication::translate("StudioPresenter",
-                                                  "Lightroom preset “%1” applied.")
-                          .arg(name));
+        setStatus(
+            name.isEmpty() ?
+                QCoreApplication::translate("StudioPresenter", "Lightroom preset applied.") :
+                QCoreApplication::translate("StudioPresenter", "Lightroom preset “%1” applied.")
+                    .arg(name));
         return;
     }
     auto style = parse_recipe_style_json(text.value());
@@ -2801,6 +2798,96 @@ void StudioPresenter::applyStyleFromPath(const QString &path)
     mutate_develop(std::move(params).value(), DevelopEdit::Commit);
 }
 
+namespace
+{
+
+QString local_file_path(QString path)
+{
+    path = path.trimmed();
+    if (path.startsWith(QStringLiteral("file:")))
+        path = QUrl(path).toLocalFile();
+    return path;
+}
+
+QString preset_name_from_filename(const QFileInfo &info)
+{
+    QString name = info.fileName();
+    const QString style_suffix = QStringLiteral(".rstyle.json");
+    const QString xmp_suffix = QStringLiteral(".xmp");
+    if (name.endsWith(style_suffix, Qt::CaseInsensitive))
+        name.chop(style_suffix.size());
+    else if (name.endsWith(xmp_suffix, Qt::CaseInsensitive))
+        name.chop(xmp_suffix.size());
+    return name;
+}
+
+QString preset_suffix_from_filename(const QFileInfo &info)
+{
+    const QString file_name = info.fileName();
+    const QString style_suffix = QStringLiteral(".rstyle.json");
+    const QString xmp_suffix = QStringLiteral(".xmp");
+    if (file_name.endsWith(style_suffix, Qt::CaseInsensitive))
+        return file_name.right(style_suffix.size());
+    if (file_name.endsWith(xmp_suffix, Qt::CaseInsensitive))
+        return file_name.right(xmp_suffix.size());
+    return {};
+}
+
+QString canonical_or_absolute(const QFileInfo &info)
+{
+    const QString canonical = info.canonicalFilePath();
+    return canonical.isEmpty() ? info.absoluteFilePath() : canonical;
+}
+
+bool is_managed_preset(const QVariantList &presets, const QString &directory,
+                       const QFileInfo &candidate)
+{
+    if (directory.isEmpty() || !candidate.exists() || !candidate.isFile() || candidate.isSymLink())
+        return false;
+    const QString directory_path = QFileInfo(directory).canonicalFilePath();
+    const QString parent_path = QFileInfo(candidate.absolutePath()).canonicalFilePath();
+    if (directory_path.isEmpty() || parent_path != directory_path)
+        return false;
+    const QString candidate_path = canonical_or_absolute(candidate);
+    return std::any_of(
+        presets.cbegin(), presets.cend(),
+        [&](const QVariant &entry)
+        {
+            const QFileInfo listed(entry.toMap().value(QStringLiteral("path")).toString());
+            return !listed.isSymLink() && canonical_or_absolute(listed) == candidate_path;
+        });
+}
+
+QString preset_name_validation_error(const QString &name)
+{
+    if (name.isEmpty())
+        return QCoreApplication::translate("StudioPresenter", "Preset name must not be empty.");
+    if (name != name.trimmed())
+        return QCoreApplication::translate("StudioPresenter",
+                                           "Preset name must not start or end with whitespace.");
+    if (name.startsWith(QLatin1Char('.')) || name.endsWith(QLatin1Char('.')) ||
+        name == QLatin1String(".."))
+        return QCoreApplication::translate("StudioPresenter",
+                                           "Preset name must not start or end with a period.");
+    if (name.toUtf8().size() > 200)
+        return QCoreApplication::translate("StudioPresenter", "Preset name is too long.");
+    static const QRegularExpression invalid_characters(QStringLiteral(R"([\x00-\x1f\\/:*?"<>|])"));
+    if (name.contains(invalid_characters))
+        return QCoreApplication::translate(
+            "StudioPresenter",
+            "Preset name contains characters that cannot be used in a file name.");
+    const QString base_name = name.section(QLatin1Char('.'), 0, 0);
+    static const QRegularExpression reserved_name(
+        QStringLiteral(R"(^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$)"),
+        QRegularExpression::CaseInsensitiveOption);
+    if (reserved_name.match(base_name).hasMatch())
+        return QCoreApplication::translate("StudioPresenter",
+                                           "Preset name is reserved by the operating system.");
+    return {};
+}
+
+} // namespace
+
 QString StudioPresenter::presets_directory() const
 {
     if (catalog_path_.isEmpty())
@@ -2815,28 +2902,26 @@ void StudioPresenter::reload_presets()
     if (!directory.isEmpty())
     {
         const QDir dir(directory);
-        const auto entries = dir.entryInfoList({QStringLiteral("*.xmp"), QStringLiteral("*.XMP"),
-                                                QStringLiteral("*.rstyle.json")},
-                                               QDir::Files, QDir::Name | QDir::IgnoreCase);
+        const auto entries = dir.entryInfoList(
+            {QStringLiteral("*.xmp"), QStringLiteral("*.XMP"), QStringLiteral("*.rstyle.json")},
+            QDir::Files, QDir::Name | QDir::IgnoreCase);
         for (const auto &entry : entries)
         {
-            QString name = entry.completeBaseName();
+            if (entry.isSymLink())
+                continue;
+            const QString name = preset_name_from_filename(entry);
             QString kind = QStringLiteral("style");
             const auto text = read_utf8_text_file(utf8_from_qstring(entry.absoluteFilePath()),
                                                   kRecipeStyleFileMaxBytes);
             if (text && is_crs_xmp_document(text.value()))
             {
                 kind = QStringLiteral("crs");
-                auto parsed_name = crs_xmp_preset_name(text.value());
-                if (parsed_name && !parsed_name.value().empty())
-                    name = QString::fromStdString(parsed_name.value());
             }
             else if (text)
             {
                 auto style = parse_recipe_style_json(text.value());
                 if (!style)
                     continue;
-                name = QString::fromStdString(style.value().name);
             }
             else
             {
@@ -2865,12 +2950,14 @@ void StudioPresenter::importPresetFromPath(const QString &path)
     const QString directory = presets_directory();
     if (directory.isEmpty())
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Open a library to import presets."));
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Open a library to import presets."));
         return;
     }
     if (!QDir().mkpath(directory))
     {
-        setError(QCoreApplication::translate("StudioPresenter", "Preset folder could not be created."));
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Preset folder could not be created."));
         return;
     }
     auto text = read_utf8_text_file(utf8_from_qstring(input_path), kRecipeStyleFileMaxBytes);
@@ -2883,7 +2970,8 @@ void StudioPresenter::importPresetFromPath(const QString &path)
     QString suffix = QStringLiteral(".rstyle.json");
     if (is_crs_xmp_document(text.value()))
     {
-        auto imported = import_crs_xmp({text.value(), {"preset", "ravo-preset://library", std::nullopt}});
+        auto imported =
+            import_crs_xmp({text.value(), {"preset", "ravo-preset://library", std::nullopt}});
         if (!imported)
         {
             setError(qstring_from_utf8(imported.error().message));
@@ -2928,6 +3016,95 @@ void StudioPresenter::importPresetFromPath(const QString &path)
     }
     reload_presets();
     applyStyleFromPath(destination);
+}
+
+void StudioPresenter::renamePreset(const QString &path, const QString &name)
+{
+    const QString input_path = local_file_path(path);
+    const QFileInfo source(input_path);
+    if (!source.exists() || !source.isFile())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        return;
+    }
+    if (!is_managed_preset(develop_presets_, presets_directory(), source))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Only presets imported into this library can be renamed."));
+        return;
+    }
+    const QString name_error = preset_name_validation_error(name);
+    if (!name_error.isEmpty())
+    {
+        setError(name_error);
+        return;
+    }
+    const QString suffix = preset_suffix_from_filename(source);
+    if (suffix.isEmpty())
+    {
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Preset file type is not supported."));
+        return;
+    }
+    const QString destination = QDir(source.absolutePath()).filePath(name + suffix);
+    if (QDir::cleanPath(destination) == QDir::cleanPath(source.absoluteFilePath()))
+    {
+        setError({});
+        setStatus(QCoreApplication::translate("StudioPresenter", "Preset name is unchanged."));
+        return;
+    }
+    const QFileInfo target(destination);
+    if (target.exists() || target.isSymLink())
+    {
+        if (canonical_or_absolute(target) == canonical_or_absolute(source))
+        {
+            setError(QCoreApplication::translate(
+                "StudioPresenter", "This filesystem cannot rename a preset by letter case only."));
+        }
+        else
+        {
+            setError(QCoreApplication::translate("StudioPresenter",
+                                                 "A preset with that name already exists."));
+        }
+        return;
+    }
+    QFile file(source.absoluteFilePath());
+    if (!file.rename(destination))
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset could not be renamed: %1")
+                     .arg(file.errorString()));
+        return;
+    }
+    setError({});
+    reload_presets();
+    setStatus(QCoreApplication::translate("StudioPresenter", "Preset renamed to “%1”.").arg(name));
+}
+
+void StudioPresenter::deletePreset(const QString &path)
+{
+    const QString input_path = local_file_path(path);
+    const QFileInfo source(input_path);
+    if (!source.exists() || !source.isFile())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset file was not found."));
+        return;
+    }
+    if (!is_managed_preset(develop_presets_, presets_directory(), source))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Only presets imported into this library can be deleted."));
+        return;
+    }
+    QFile file(source.absoluteFilePath());
+    if (!file.remove())
+    {
+        setError(QCoreApplication::translate("StudioPresenter", "Preset could not be deleted: %1")
+                     .arg(file.errorString()));
+        return;
+    }
+    setError({});
+    reload_presets();
+    setStatus(QCoreApplication::translate("StudioPresenter", "Preset deleted."));
 }
 
 QString StudioPresenter::selectedPhotoDebugInfo() const
@@ -3542,8 +3719,8 @@ void StudioPresenter::pasteEditsSection(const QString &section)
     {
         return;
     }
-    const auto grade = utf8_from_qstring(section.trimmed().isEmpty() ? QStringLiteral("all")
-                                                                     : section.trimmed());
+    const auto grade =
+        utf8_from_qstring(section.trimmed().isEmpty() ? QStringLiteral("all") : section.trimmed());
     DevelopParams next = develop_;
     if (!apply_develop_grade(next, *copied_edits_, grade))
     {

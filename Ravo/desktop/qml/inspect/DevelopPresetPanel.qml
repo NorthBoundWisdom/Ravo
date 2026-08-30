@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
+import "../chrome" as Chrome
 
 Item {
     id: root
@@ -96,6 +97,7 @@ Item {
                             return;
                         if (mouse.button === Qt.RightButton) {
                             presetMenu.presetPath = presetRow.modelData.path;
+                            presetMenu.presetName = presetRow.modelData.name;
                             presetMenu.popup();
                             return;
                         }
@@ -107,51 +109,36 @@ Item {
         }
     }
 
-    Menu {
+    Chrome.StudioContextMenu {
         id: presetMenu
         objectName: "presetContextMenu"
         property string presetPath: ""
-        modal: true
-        dim: false
-        overlap: 0
-        padding: Fonts.size4
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        parent: Overlay.overlay
-        palette.window: Theme.popupSurfaceColor
-        palette.windowText: Theme.textColor
-        palette.base: Theme.popupSurfaceColor
-        palette.text: Theme.textColor
-        palette.button: Theme.popupSurfaceColor
-        palette.buttonText: Theme.textColor
-        palette.highlight: Theme.buttonHoveredColor
-        palette.highlightedText: Theme.textColor
-        palette.mid: Theme.dividerColor
-        background: Rectangle {
-            implicitWidth: 200
-            color: Theme.popupSurfaceColor
-            border.color: Theme.dividerColor
-            border.width: 1
-            radius: 4
+        property string presetName: ""
+
+        Chrome.StudioContextMenuItem {
+            objectName: "presetRenameItem"
+            text: qsTr("Rename…")
+            enabled: presetMenu.presetPath.length > 0 && presetMenu.presetName.length > 0 && root.commands
+            onTriggered: if (root.commands)
+                root.commands.run(root.commands.ids.presetRename, {
+                    "path": presetMenu.presetPath,
+                    "name": presetMenu.presetName
+                })
         }
-        delegate: MenuItem {
-            id: presetMenuItem
-            implicitHeight: Math.max(Fonts.listItemHeight, Fonts.size24)
-            leftPadding: Fonts.size12
-            rightPadding: Fonts.size12
-            contentItem: Text {
-                text: presetMenuItem.text
-                font: Fonts.standardFont
-                color: presetMenuItem.enabled ? Theme.textColor : Theme.disabledTextColor
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-            }
-            background: Rectangle {
-                color: presetMenuItem.highlighted ? Theme.buttonHoveredColor : Theme.popupSurfaceColor
-            }
+        Chrome.StudioContextMenuItem {
+            objectName: "presetDeleteItem"
+            text: qsTr("Delete…")
+            enabled: presetMenu.presetPath.length > 0 && presetMenu.presetName.length > 0 && root.commands
+            onTriggered: if (root.commands)
+                root.commands.run(root.commands.ids.presetDelete, {
+                    "path": presetMenu.presetPath,
+                    "name": presetMenu.presetName
+                })
         }
-        MenuItem {
+        Chrome.StudioContextMenuSeparator {}
+        Chrome.StudioContextMenuItem {
             objectName: "presetCopyInfoItem"
-            text: qsTr("Copy Info")
+            text: qsTr("Copy Preset Info")
             enabled: presetMenu.presetPath.length > 0 && root.commands
             onTriggered: if (root.commands)
                 root.commands.run(root.commands.ids.presetCopyInfo, presetMenu.presetPath)

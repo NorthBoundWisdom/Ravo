@@ -2,6 +2,52 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
+    <name>AssistantPanel</name>
+    <message>
+        <source>Assistant</source>
+        <translation>Assistant</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message>
+        <source>You</source>
+        <translation>You</translation>
+    </message>
+    <message>
+        <source>Ask about the selected photo or a Develop edit.</source>
+        <translation>Ask about the selected photo or a Develop edit.</translation>
+    </message>
+    <message>
+        <source>Set the assistant URL, model, and API key in Settings.</source>
+        <translation>Set the assistant URL, model, and API key in Settings.</translation>
+    </message>
+    <message>
+        <source>Message</source>
+        <translation>Message</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Send</source>
+        <translation>Send</translation>
+    </message>
+</context>
+<context>
+    <name>ColorGradeWheel</name>
+    <message>
+        <source>Luminance</source>
+        <translation>Luminance</translation>
+    </message>
+    <message>
+        <source>Reset wheel</source>
+        <translation>Reset wheel</translation>
+    </message>
+</context>
+<context>
     <name>DevelopHistoryPanel</name>
     <message>
         <source>Snapshot #%1</source>
@@ -14,45 +60,6 @@
     <message>
         <source>History</source>
         <translation>History</translation>
-    </message>
-    <message>
-        <source>Select a photo to see its edit history.</source>
-        <translation>Select a photo to see its edit history.</translation>
-    </message>
-    <message>
-        <source>No saved edits yet. Changes appear here after they are stored.</source>
-        <translation>No saved edits yet. Changes appear here after they are stored.</translation>
-    </message>
-    <message>
-        <source>Snapshot</source>
-        <translation>Snapshot</translation>
-    </message>
-    <message>
-        <source>Original</source>
-        <translation>Original</translation>
-    </message>
-    <message>
-        <source>on</source>
-        <translation>on</translation>
-    </message>
-    <message>
-        <source>off</source>
-        <translation>off</translation>
-    </message>
-    <message>
-        <source>Recipe history entry does not exist.</source>
-        <translation>Recipe history entry does not exist.</translation>
-    </message>
-</context>
-<context>
-    <name>DevelopPanel</name>
-    <message>
-        <source>Reset this section</source>
-        <translation>Reset this section</translation>
-    </message>
-    <message>
-        <source>Develop</source>
-        <translation>Develop</translation>
     </message>
     <message>
         <source>Undo</source>
@@ -73,6 +80,69 @@
     <message>
         <source>Reset all</source>
         <translation>Reset all</translation>
+    </message>
+    <message>
+        <source>Select a photo to see its edit history.</source>
+        <translation>Select a photo to see its edit history.</translation>
+    </message>
+    <message>
+        <source>Snapshots</source>
+        <translation>Snapshots</translation>
+    </message>
+    <message>
+        <source>Named snapshots appear here.</source>
+        <translation>Named snapshots appear here.</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Copy</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Paste</translation>
+    </message>
+    <message>
+        <source>Paste Light</source>
+        <translation>Paste Light</translation>
+    </message>
+    <message>
+        <source>Paste Color</source>
+        <translation>Paste Color</translation>
+    </message>
+    <message>
+        <source>Snapshot</source>
+        <translation>Snapshot</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>Original</translation>
+    </message>
+    <message>
+        <source>on</source>
+        <translation>on</translation>
+    </message>
+    <message>
+        <source>off</source>
+        <translation>off</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>Snapshot %1</translation>
+    </message>
+    <message>
+        <source>Recipe history entry does not exist.</source>
+        <translation>Recipe history entry does not exist.</translation>
+    </message>
+</context>
+<context>
+    <name>DevelopPanel</name>
+    <message>
+        <source>Reset this section</source>
+        <translation>Reset this section</translation>
+    </message>
+    <message>
+        <source>Develop</source>
+        <translation>Develop</translation>
     </message>
     <message>
         <source>Geometry</source>
@@ -255,14 +325,6 @@
         <translation>Gamma</translation>
     </message>
     <message>
-        <source>Tone Curve</source>
-        <translation>Tone Curve</translation>
-    </message>
-    <message>
-        <source>Drag points to reshape. Click to add. Double-click an interior point to remove it.</source>
-        <translation>Drag points to reshape. Click to add. Double-click an interior point to remove it.</translation>
-    </message>
-    <message>
         <source>Reset curve</source>
         <translation>Reset curve</translation>
     </message>
@@ -435,6 +497,154 @@
         <translation>Split Toning</translation>
     </message>
     <message>
+        <source>Pick white on photo</source>
+        <translation>Pick white on photo</translation>
+    </message>
+    <message>
+        <source>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</source>
+        <translation>Click a neutral patch in the photo. RAW only; straighten and Canvas must be off.</translation>
+    </message>
+    <message>
+        <source>Curves</source>
+        <translation>Curves</translation>
+    </message>
+    <message>
+        <source>RGB</source>
+        <translation>RGB</translation>
+    </message>
+    <message>
+        <source>Master</source>
+        <translation>Master</translation>
+    </message>
+    <message>
+        <source>a</source>
+        <translation>a</translation>
+    </message>
+    <message>
+        <source>b</source>
+        <translation>b</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>Curve</translation>
+    </message>
+    <message>
+        <source>Tone</source>
+        <translation>Tone</translation>
+    </message>
+    <message>
+        <source>R</source>
+        <translation>R</translation>
+    </message>
+    <message>
+        <source>G</source>
+        <translation>G</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <translation>B</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>Edit</translation>
+    </message>
+    <message>
+        <source>Drag points to reshape. Click to add. Double-click or Delete removes an interior point. Arrow keys nudge the selected point.</source>
+        <translation>Drag points to reshape. Click to add. Double-click or Delete removes an interior point. Arrow keys nudge the selected point.</translation>
+    </message>
+    <message>
+        <source>Parametric regions</source>
+        <translation>Parametric regions</translation>
+    </message>
+    <message>
+        <source>Darks</source>
+        <translation>Darks</translation>
+    </message>
+    <message>
+        <source>Lights</source>
+        <translation>Lights</translation>
+    </message>
+    <message>
+        <source>Curve settings</source>
+        <translation>Curve settings</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>Interpolation</translation>
+    </message>
+    <message>
+        <source>Monotonic</source>
+        <translation>Monotonic</translation>
+    </message>
+    <message>
+        <source>Centripetal</source>
+        <translation>Centripetal</translation>
+    </message>
+    <message>
+        <source>Cubic</source>
+        <translation>Cubic</translation>
+    </message>
+    <message>
+        <source>Working space</source>
+        <translation>Working space</translation>
+    </message>
+    <message>
+        <source>Lab</source>
+        <translation>Lab</translation>
+    </message>
+    <message>
+        <source>XYZ</source>
+        <translation>XYZ</translation>
+    </message>
+    <message>
+        <source>Lab independent</source>
+        <translation>Lab independent</translation>
+    </message>
+    <message>
+        <source>Linear RGB</source>
+        <translation>Linear RGB</translation>
+    </message>
+    <message>
+        <source>Preserve colors</source>
+        <translation>Preserve colors</translation>
+    </message>
+    <message>
+        <source>Compensate middle grey</source>
+        <translation>Compensate middle grey</translation>
+    </message>
+    <message>
+        <source>Region boundaries</source>
+        <translation>Region boundaries</translation>
+    </message>
+    <message>
+        <source>Shadows / Darks</source>
+        <translation>Shadows / Darks</translation>
+    </message>
+    <message>
+        <source>Darks / Lights</source>
+        <translation>Darks / Lights</translation>
+    </message>
+    <message>
+        <source>Lights / Highlights</source>
+        <translation>Lights / Highlights</translation>
+    </message>
+    <message>
+        <source>Color Equalizer</source>
+        <translation>Color Equalizer</translation>
+    </message>
+    <message>
+        <source>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</source>
+        <translation>Eight hue bands match a Lightroom HSL mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta.</translation>
+    </message>
+    <message>
+        <source>Reset Color Balance RGB</source>
+        <translation>Reset Color Balance RGB</translation>
+    </message>
+    <message>
+        <source>Color Balance RGB · more</source>
+        <translation>Color Balance RGB · more</translation>
+    </message>
+    <message>
         <source>Enable Split Toning</source>
         <translation>Enable Split Toning</translation>
     </message>
@@ -461,6 +671,54 @@
     <message>
         <source>Disable and reset Split Toning</source>
         <translation>Disable and reset Split Toning</translation>
+    </message>
+    <message>
+        <source>Color · Advanced</source>
+        <translation>Color · Advanced</translation>
+    </message>
+    <message>
+        <source>Camera Calibration</source>
+        <translation>Camera Calibration</translation>
+    </message>
+    <message>
+        <source>Shadow tint hue</source>
+        <translation>Shadow tint hue</translation>
+    </message>
+    <message>
+        <source>Shadow tint purity</source>
+        <translation>Shadow tint purity</translation>
+    </message>
+    <message>
+        <source>Red saturation</source>
+        <translation>Red saturation</translation>
+    </message>
+    <message>
+        <source>Green saturation</source>
+        <translation>Green saturation</translation>
+    </message>
+    <message>
+        <source>Blue saturation</source>
+        <translation>Blue saturation</translation>
+    </message>
+    <message>
+        <source>Vignette midpoint</source>
+        <translation>Vignette midpoint</translation>
+    </message>
+    <message>
+        <source>Vignette feather</source>
+        <translation>Vignette feather</translation>
+    </message>
+    <message>
+        <source>Vignette roundness</source>
+        <translation>Vignette roundness</translation>
+    </message>
+    <message>
+        <source>Vignette center X</source>
+        <translation>Vignette center X</translation>
+    </message>
+    <message>
+        <source>Vignette center Y</source>
+        <translation>Vignette center Y</translation>
     </message>
     <message>
         <source>Distance</source>
@@ -617,6 +875,22 @@
     <message>
         <source>Reset watermark</source>
         <translation>Reset watermark</translation>
+    </message>
+    <message>
+        <source>Masking</source>
+        <translation>Masking</translation>
+    </message>
+    <message>
+        <source>Luminance denoise</source>
+        <translation>Luminance denoise</translation>
+    </message>
+    <message>
+        <source>Color denoise</source>
+        <translation>Color denoise</translation>
+    </message>
+    <message>
+        <source>Denoise radius</source>
+        <translation>Denoise radius</translation>
     </message>
     <message>
         <source>Retouch</source>
@@ -875,36 +1149,16 @@
         <translation>RGB Primaries</translation>
     </message>
     <message>
-        <source>Achromatic tint hue</source>
-        <translation>Achromatic tint hue</translation>
-    </message>
-    <message>
-        <source>Achromatic tint purity</source>
-        <translation>Achromatic tint purity</translation>
-    </message>
-    <message>
         <source>Red hue</source>
         <translation>Red hue</translation>
-    </message>
-    <message>
-        <source>Red purity</source>
-        <translation>Red purity</translation>
     </message>
     <message>
         <source>Green hue</source>
         <translation>Green hue</translation>
     </message>
     <message>
-        <source>Green purity</source>
-        <translation>Green purity</translation>
-    </message>
-    <message>
         <source>Blue hue</source>
         <translation>Blue hue</translation>
-    </message>
-    <message>
-        <source>Blue purity</source>
-        <translation>Blue purity</translation>
     </message>
     <message>
         <source>Velvia</source>
@@ -993,10 +1247,6 @@
     <message>
         <source>Enlarge Canvas</source>
         <translation>Enlarge Canvas</translation>
-    </message>
-    <message>
-        <source>Enable enlarged canvas</source>
-        <translation>Enable enlarged canvas</translation>
     </message>
     <message>
         <source>Canvas left (%)</source>
@@ -1599,24 +1849,12 @@
         <translation>Midtones</translation>
     </message>
     <message>
-        <source>Graduated ND / Color EQ</source>
-        <translation>Graduated ND / Color EQ</translation>
-    </message>
-    <message>
         <source>Graduated density</source>
         <translation>Graduated density</translation>
     </message>
     <message>
         <source>Graduated rotation</source>
         <translation>Graduated rotation</translation>
-    </message>
-    <message>
-        <source>Band saturation</source>
-        <translation>Band saturation</translation>
-    </message>
-    <message>
-        <source>Band hue</source>
-        <translation>Band hue</translation>
     </message>
     <message>
         <source>Monochromatic</source>
@@ -1995,6 +2233,34 @@
         <translation>Operation output</translation>
     </message>
     <message>
+        <source>Orange</source>
+        <translation>Orange</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Yellow</translation>
+    </message>
+    <message>
+        <source>Aqua</source>
+        <translation>Aqua</translation>
+    </message>
+    <message>
+        <source>Purple</source>
+        <translation>Purple</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>White-balance pick requires a Bayer RAW original</source>
+        <translation>White-balance pick requires a Bayer RAW original</translation>
+    </message>
+    <message>
+        <source>White-balance pick is unavailable with straighten or Canvas</source>
+        <translation>White-balance pick is unavailable with straighten or Canvas</translation>
+    </message>
+    <message>
         <source>Luminance</source>
         <translation>Luminance</translation>
     </message>
@@ -2061,6 +2327,33 @@
     <message>
         <source>Mask reset was rejected</source>
         <translation>Mask reset was rejected</translation>
+    </message>
+</context>
+<context>
+    <name>DevelopPresetPanel</name>
+    <message>
+        <source>Presets</source>
+        <translation>Presets</translation>
+    </message>
+    <message>
+        <source>Import…</source>
+        <translation>Import…</translation>
+    </message>
+    <message>
+        <source>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</source>
+        <translation>Import a Lightroom .xmp preset or a Ravo style to apply it to the selected photo.</translation>
+    </message>
+    <message>
+        <source>Rename…</source>
+        <translation>Rename…</translation>
+    </message>
+    <message>
+        <source>Delete…</source>
+        <translation>Delete…</translation>
+    </message>
+    <message>
+        <source>Copy Preset Info</source>
+        <translation>Copy Preset Info</translation>
     </message>
 </context>
 <context>
@@ -2289,6 +2582,125 @@
     </message>
 </context>
 <context>
+    <name>LibraryFilterBar</name>
+    <message>
+        <source>Remove filter</source>
+        <translation>Remove filter</translation>
+    </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <source>Unrated</source>
+        <translation>Unrated</translation>
+    </message>
+    <message>
+        <source>%1 star</source>
+        <translation>%1 star</translation>
+    </message>
+    <message>
+        <source>Search photos</source>
+        <translation>Search photos</translation>
+    </message>
+    <message>
+        <source>Any type</source>
+        <translation>Any type</translation>
+    </message>
+    <message>
+        <source>RAW</source>
+        <translation>RAW</translation>
+    </message>
+    <message>
+        <source>JPEG</source>
+        <translation>JPEG</translation>
+    </message>
+    <message>
+        <source>PNG</source>
+        <translation>PNG</translation>
+    </message>
+    <message>
+        <source>TIFF</source>
+        <translation>TIFF</translation>
+    </message>
+    <message>
+        <source>Any edits</source>
+        <translation>Any edits</translation>
+    </message>
+    <message>
+        <source>Edited</source>
+        <translation>Edited</translation>
+    </message>
+    <message>
+        <source>Unedited</source>
+        <translation>Unedited</translation>
+    </message>
+    <message>
+        <source>Include</source>
+        <translation>Include</translation>
+    </message>
+    <message>
+        <source>Exclude</source>
+        <translation>Exclude</translation>
+    </message>
+    <message>
+        <source>Only</source>
+        <translation>Only</translation>
+    </message>
+    <message>
+        <source>Add filter</source>
+        <translation>Add filter</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Search</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation>Type</translation>
+    </message>
+    <message>
+        <source>Edits</source>
+        <translation>Edits</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>Color</translation>
+    </message>
+    <message>
+        <source>Rejected</source>
+        <translation>Rejected</translation>
+    </message>
+    <message>
+        <source>Import time</source>
+        <translation>Import time</translation>
+    </message>
+    <message>
+        <source>Capture time</source>
+        <translation>Capture time</translation>
+    </message>
+    <message>
+        <source>Filename</source>
+        <translation>Filename</translation>
+    </message>
+    <message>
+        <source>Rating</source>
+        <translation>Rating</translation>
+    </message>
+    <message>
+        <source>File size</source>
+        <translation>File size</translation>
+    </message>
+    <message>
+        <source>Asc</source>
+        <translation>Asc</translation>
+    </message>
+    <message>
+        <source>Desc</source>
+        <translation>Desc</translation>
+    </message>
+</context>
+<context>
     <name>LibrarySidePanel</name>
     <message>
         <source>Library</source>
@@ -2319,8 +2731,8 @@
         <translation>Fill</translation>
     </message>
     <message>
-        <source>100%</source>
-        <translation>100%</translation>
+        <source>1:1</source>
+        <translation>1:1</translation>
     </message>
     <message>
         <source>Loading…</source>
@@ -2386,152 +2798,20 @@
         <translation>Permanently delete the original file from disk and remove it from the library? This cannot be undone.</translation>
     </message>
     <message>
-        <source>Filter</source>
-        <translation>Filter</translation>
-    </message>
-    <message>
-        <source>Search photos</source>
-        <translation>Search photos</translation>
-    </message>
-    <message>
-        <source>Any type</source>
-        <translation>Any type</translation>
-    </message>
-    <message>
-        <source>RAW</source>
-        <translation>RAW</translation>
-    </message>
-    <message>
-        <source>JPEG</source>
-        <translation>JPEG</translation>
-    </message>
-    <message>
-        <source>PNG</source>
-        <translation>PNG</translation>
-    </message>
-    <message>
-        <source>TIFF</source>
-        <translation>TIFF</translation>
-    </message>
-    <message>
-        <source>Any edits</source>
-        <translation>Any edits</translation>
-    </message>
-    <message>
-        <source>Edited</source>
-        <translation>Edited</translation>
-    </message>
-    <message>
-        <source>Unedited</source>
-        <translation>Unedited</translation>
-    </message>
-    <message>
-        <source>Rating</source>
-        <translation>Rating</translation>
-    </message>
-    <message>
-        <source>Any</source>
-        <translation>Any</translation>
-    </message>
-    <message>
-        <source>≥ 1</source>
-        <translation>≥ 1</translation>
-    </message>
-    <message>
-        <source>≥ 2</source>
-        <translation>≥ 2</translation>
-    </message>
-    <message>
-        <source>≥ 3</source>
-        <translation>≥ 3</translation>
-    </message>
-    <message>
-        <source>≥ 4</source>
-        <translation>≥ 4</translation>
-    </message>
-    <message>
-        <source>≥ 5</source>
-        <translation>≥ 5</translation>
-    </message>
-    <message>
-        <source>Exact 0</source>
-        <translation>Exact 0</translation>
-    </message>
-    <message>
-        <source>Exact 1</source>
-        <translation>Exact 1</translation>
-    </message>
-    <message>
-        <source>Exact 2</source>
-        <translation>Exact 2</translation>
-    </message>
-    <message>
-        <source>Exact 3</source>
-        <translation>Exact 3</translation>
-    </message>
-    <message>
-        <source>Exact 4</source>
-        <translation>Exact 4</translation>
-    </message>
-    <message>
-        <source>Exact 5</source>
-        <translation>Exact 5</translation>
-    </message>
-    <message>
-        <source>Color</source>
-        <translation>Color</translation>
-    </message>
-    <message>
-        <source>Rejected</source>
-        <translation>Rejected</translation>
-    </message>
-    <message>
-        <source>Include</source>
-        <translation>Include</translation>
-    </message>
-    <message>
-        <source>Exclude</source>
-        <translation>Exclude</translation>
-    </message>
-    <message>
-        <source>Only</source>
-        <translation>Only</translation>
-    </message>
-    <message>
-        <source>Clear filters</source>
-        <translation>Clear filters</translation>
-    </message>
-    <message>
-        <source>Import time</source>
-        <translation>Import time</translation>
-    </message>
-    <message>
-        <source>Filename</source>
-        <translation>Filename</translation>
-    </message>
-    <message>
-        <source>Capture time</source>
-        <translation>Capture time</translation>
-    </message>
-    <message>
-        <source>File size</source>
-        <translation>File size</translation>
-    </message>
-    <message>
-        <source>Asc</source>
-        <translation>Asc</translation>
-    </message>
-    <message>
-        <source>Desc</source>
-        <translation>Desc</translation>
-    </message>
-    <message>
         <source>Gallery</source>
         <translation>Gallery</translation>
     </message>
     <message>
         <source>Edit</source>
         <translation>Edit</translation>
+    </message>
+    <message>
+        <source>Assistant</source>
+        <translation>Assistant</translation>
+    </message>
+    <message>
+        <source>Show or hide the Assistant panel</source>
+        <translation>Show or hide the Assistant panel</translation>
     </message>
     <message>
         <source>Error</source>
@@ -2590,6 +2870,14 @@
         <translation>Delete</translation>
     </message>
     <message>
+        <source>Delete Preset</source>
+        <translation>Delete Preset</translation>
+    </message>
+    <message>
+        <source>Permanently delete preset “%1”? This cannot be undone.</source>
+        <translation>Permanently delete preset “%1”? This cannot be undone.</translation>
+    </message>
+    <message>
         <source>About Ravo Studio</source>
         <translation>About Ravo Studio</translation>
     </message>
@@ -2637,9 +2925,25 @@
         <source>Apply Recipe Style</source>
         <translation>Apply Recipe Style</translation>
     </message>
+    <message>
+        <source>Lightroom preset (*.xmp)</source>
+        <translation>Lightroom preset (*.xmp)</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>Import Preset</translation>
+    </message>
 </context>
 <context>
     <name>PhotoContextMenu</name>
+    <message>
+        <source>View Photo</source>
+        <translation>View Photo</translation>
+    </message>
+    <message>
+        <source>Edit Photo</source>
+        <translation>Edit Photo</translation>
+    </message>
     <message>
         <source>Rating</source>
         <translation>Rating</translation>
@@ -2709,6 +3013,25 @@
     </message>
 </context>
 <context>
+    <name>PresetRenameDialog</name>
+    <message>
+        <source>Rename Preset</source>
+        <translation>Rename Preset</translation>
+    </message>
+    <message>
+        <source>Preset name</source>
+        <translation>Preset name</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>Rename</translation>
+    </message>
+</context>
+<context>
     <name>ScopePanel</name>
     <message>
         <source>Histogram</source>
@@ -2721,6 +3044,10 @@
     <message>
         <source>Waveform</source>
         <translation>Waveform</translation>
+    </message>
+    <message>
+        <source>Scope type</source>
+        <translation>Scope type</translation>
     </message>
     <message>
         <source>Vectorscope</source>
@@ -2756,6 +3083,97 @@
     <message>
         <source>Simplified Chinese</source>
         <translation>Simplified Chinese</translation>
+    </message>
+    <message>
+        <source>Assistant</source>
+        <translation>Assistant</translation>
+    </message>
+    <message>
+        <source>OpenAI-compatible endpoint used by the floating Assistant panel. The default is the xAI API.</source>
+        <translation>OpenAI-compatible endpoint used by the floating Assistant panel. The default is the xAI API.</translation>
+    </message>
+    <message>
+        <source>URL</source>
+        <translation>URL</translation>
+    </message>
+    <message>
+        <source>Model</source>
+        <translation>Model</translation>
+    </message>
+    <message>
+        <source>API key</source>
+        <translation>API key</translation>
+    </message>
+    <message>
+        <source>Show</source>
+        <translation>Show</translation>
+    </message>
+</context>
+<context>
+    <name>StudioAssistant</name>
+    <message>
+        <source>Unable to repair the stored assistant endpoint.</source>
+        <translation>Unable to repair the stored assistant endpoint.</translation>
+    </message>
+    <message>
+        <source>Unable to repair the stored assistant model.</source>
+        <translation>Unable to repair the stored assistant model.</translation>
+    </message>
+    <message>
+        <source>Unable to save the assistant setting.</source>
+        <translation>Unable to save the assistant setting.</translation>
+    </message>
+    <message>
+        <source>Assistant URL must be an http or https endpoint.</source>
+        <translation>Assistant URL must be an http or https endpoint.</translation>
+    </message>
+    <message>
+        <source>Assistant model must be a non-empty identifier.</source>
+        <translation>Assistant model must be a non-empty identifier.</translation>
+    </message>
+    <message>
+        <source>Assistant prompt is empty or too long.</source>
+        <translation>Assistant prompt is empty or too long.</translation>
+    </message>
+    <message>
+        <source>An assistant request is already in progress.</source>
+        <translation>An assistant request is already in progress.</translation>
+    </message>
+    <message>
+        <source>Set the assistant URL, model, and API key in Settings before sending.</source>
+        <translation>Set the assistant URL, model, and API key in Settings before sending.</translation>
+    </message>
+    <message>
+        <source>You are the Ravo Studio photo-editing assistant. Answer about the current catalog, Develop edits, and export. Do not invent file changes.</source>
+        <translation>You are the Ravo Studio photo-editing assistant. Answer about the current catalog, Develop edits, and export. Do not invent file changes.</translation>
+    </message>
+    <message>
+        <source>Selected photo: %1</source>
+        <translation>Selected photo: %1</translation>
+    </message>
+    <message>
+        <source>Assistant request cancelled.</source>
+        <translation>Assistant request cancelled.</translation>
+    </message>
+    <message>
+        <source>Assistant request failed to reach the endpoint.</source>
+        <translation>Assistant request failed to reach the endpoint.</translation>
+    </message>
+    <message>
+        <source>Assistant response was not valid JSON.</source>
+        <translation>Assistant response was not valid JSON.</translation>
+    </message>
+    <message>
+        <source>Assistant endpoint returned HTTP %1.</source>
+        <translation>Assistant endpoint returned HTTP %1.</translation>
+    </message>
+    <message>
+        <source>Assistant response contained no choices.</source>
+        <translation>Assistant response contained no choices.</translation>
+    </message>
+    <message>
+        <source>Assistant response contained no text.</source>
+        <translation>Assistant response contained no text.</translation>
     </message>
 </context>
 <context>
@@ -2816,6 +3234,14 @@
         <translation>The photo selection changed after confirmation was requested.</translation>
     </message>
     <message>
+        <source>Preset path and name must be non-empty strings.</source>
+        <translation>Preset path and name must be non-empty strings.</translation>
+    </message>
+    <message>
+        <source>The preset changed after confirmation was requested.</source>
+        <translation>The preset changed after confirmation was requested.</translation>
+    </message>
+    <message>
         <source>Export path must not be empty.</source>
         <translation>Export path must not be empty.</translation>
     </message>
@@ -2864,6 +3290,10 @@
         <translation>A non-negative integer history ID is required.</translation>
     </message>
     <message>
+        <source>Snapshot label must be a string.</source>
+        <translation>Snapshot label must be a string.</translation>
+    </message>
+    <message>
         <source>Navigation argument must be &apos;range&apos;.</source>
         <translation>Navigation argument must be &apos;range&apos;.</translation>
     </message>
@@ -2874,6 +3304,14 @@
     <message>
         <source>Develop control name must not be empty.</source>
         <translation>Develop control name must not be empty.</translation>
+    </message>
+    <message>
+        <source>Develop fields must not be empty.</source>
+        <translation>Develop fields must not be empty.</translation>
+    </message>
+    <message>
+        <source>White-balance pick state must be boolean.</source>
+        <translation>White-balance pick state must be boolean.</translation>
     </message>
     <message>
         <source>Develop section name must not be empty.</source>
@@ -2930,6 +3368,10 @@
     <message>
         <source>Nothing to redo.</source>
         <translation>Nothing to redo.</translation>
+    </message>
+    <message>
+        <source>Copy edits first.</source>
+        <translation>Copy edits first.</translation>
     </message>
     <message>
         <source>The selected originals cannot be deleted.</source>
@@ -2994,6 +3436,26 @@
     <message>
         <source>Export Selected...</source>
         <translation>Export Selected...</translation>
+    </message>
+    <message>
+        <source>Import Preset...</source>
+        <translation>Import Preset...</translation>
+    </message>
+    <message>
+        <source>Copy Edits</source>
+        <translation>Copy Edits</translation>
+    </message>
+    <message>
+        <source>Paste Edits</source>
+        <translation>Paste Edits</translation>
+    </message>
+    <message>
+        <source>Assistant</source>
+        <translation>Assistant</translation>
+    </message>
+    <message>
+        <source>Copy Info</source>
+        <translation>Copy Info</translation>
     </message>
     <message>
         <source>Develop text control name must not be empty.</source>
@@ -3336,6 +3798,10 @@
         <translation>Engine failed to start.</translation>
     </message>
     <message>
+        <source>Library updated from another client.</source>
+        <translation>Library updated from another client.</translation>
+    </message>
+    <message>
         <source>Catalog path is not a local file.</source>
         <translation>Catalog path is not a local file.</translation>
     </message>
@@ -3440,12 +3906,132 @@
         <translation>Imported %1, duplicate %2, unsupported %3, failed %4</translation>
     </message>
     <message>
+        <source>White balance sampled.</source>
+        <translation>White balance sampled.</translation>
+    </message>
+    <message>
         <source>Style path must not be empty.</source>
         <translation>Style path must not be empty.</translation>
     </message>
     <message>
         <source>Recipe style saved.</source>
         <translation>Recipe style saved.</translation>
+    </message>
+    <message>
+        <source>Lightroom preset applied.</source>
+        <translation>Lightroom preset applied.</translation>
+    </message>
+    <message>
+        <source>Lightroom preset “%1” applied.</source>
+        <translation>Lightroom preset “%1” applied.</translation>
+    </message>
+    <message>
+        <source>Preset name must not be empty.</source>
+        <translation>Preset name must not be empty.</translation>
+    </message>
+    <message>
+        <source>Preset name must not start or end with whitespace.</source>
+        <translation>Preset name must not start or end with whitespace.</translation>
+    </message>
+    <message>
+        <source>Preset name must not start or end with a period.</source>
+        <translation>Preset name must not start or end with a period.</translation>
+    </message>
+    <message>
+        <source>Preset name is too long.</source>
+        <translation>Preset name is too long.</translation>
+    </message>
+    <message>
+        <source>Preset name contains characters that cannot be used in a file name.</source>
+        <translation>Preset name contains characters that cannot be used in a file name.</translation>
+    </message>
+    <message>
+        <source>Preset name is reserved by the operating system.</source>
+        <translation>Preset name is reserved by the operating system.</translation>
+    </message>
+    <message>
+        <source>Preset file was not found.</source>
+        <translation>Preset file was not found.</translation>
+    </message>
+    <message>
+        <source>Open a library to import presets.</source>
+        <translation>Open a library to import presets.</translation>
+    </message>
+    <message>
+        <source>Preset folder could not be created.</source>
+        <translation>Preset folder could not be created.</translation>
+    </message>
+    <message>
+        <source>Preset could not be copied.</source>
+        <translation>Preset could not be copied.</translation>
+    </message>
+    <message>
+        <source>Only presets imported into this library can be renamed.</source>
+        <translation>Only presets imported into this library can be renamed.</translation>
+    </message>
+    <message>
+        <source>Preset file type is not supported.</source>
+        <translation>Preset file type is not supported.</translation>
+    </message>
+    <message>
+        <source>Preset name is unchanged.</source>
+        <translation>Preset name is unchanged.</translation>
+    </message>
+    <message>
+        <source>This filesystem cannot rename a preset by letter case only.</source>
+        <translation>This filesystem cannot rename a preset by letter case only.</translation>
+    </message>
+    <message>
+        <source>A preset with that name already exists.</source>
+        <translation>A preset with that name already exists.</translation>
+    </message>
+    <message>
+        <source>Preset could not be renamed: %1</source>
+        <translation>Preset could not be renamed: %1</translation>
+    </message>
+    <message>
+        <source>Preset renamed to “%1”.</source>
+        <translation>Preset renamed to “%1”.</translation>
+    </message>
+    <message>
+        <source>Only presets imported into this library can be deleted.</source>
+        <translation>Only presets imported into this library can be deleted.</translation>
+    </message>
+    <message>
+        <source>Preset could not be deleted: %1</source>
+        <translation>Preset could not be deleted: %1</translation>
+    </message>
+    <message>
+        <source>Preset deleted.</source>
+        <translation>Preset deleted.</translation>
+    </message>
+    <message>
+        <source>Photo information could not be copied to the clipboard.</source>
+        <translation>Photo information could not be copied to the clipboard.</translation>
+    </message>
+    <message>
+        <source>Photo information copied.</source>
+        <translation>Photo information copied.</translation>
+    </message>
+    <message>
+        <source>Preset information could not be read.</source>
+        <translation>Preset information could not be read.</translation>
+    </message>
+    <message>
+        <source>Preset information could not be copied to the clipboard.</source>
+        <translation>Preset information could not be copied to the clipboard.</translation>
+    </message>
+    <message>
+        <source>Preset information copied.</source>
+        <translation>Preset information copied.</translation>
+    </message>
+    <message>
+        <source>Edits copied.</source>
+        <translation>Edits copied.</translation>
+    </message>
+    <message>
+        <source>Edits pasted.</source>
+        <translation>Edits pasted.</translation>
     </message>
 </context>
 <context>
@@ -3469,6 +4055,17 @@
     <message>
         <source>Edit</source>
         <translation>Edit</translation>
+    </message>
+</context>
+<context>
+    <name>ToneCurveEditor</name>
+    <message>
+        <source>Input</source>
+        <translation>Input</translation>
+    </message>
+    <message>
+        <source>Output</source>
+        <translation>Output</translation>
     </message>
 </context>
 </TS>
