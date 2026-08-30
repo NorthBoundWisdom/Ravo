@@ -216,6 +216,29 @@ struct LinearWorkingBuffer
     std::optional<AttachedPixelFrame> mask_attached_frame;
 };
 
+// Caller-owned, bounded cache for one exact interactive-preview source generation.
+// The owner must discard this value whenever the associated LinearWorkingBuffer changes and
+// must serialize access to it. Engine publishes a new prefix only after successful completion.
+class InteractivePreviewRenderCache
+{
+public:
+    InteractivePreviewRenderCache() noexcept;
+    ~InteractivePreviewRenderCache();
+    InteractivePreviewRenderCache(InteractivePreviewRenderCache &&) noexcept;
+    InteractivePreviewRenderCache &operator=(InteractivePreviewRenderCache &&) noexcept;
+    InteractivePreviewRenderCache(const InteractivePreviewRenderCache &) = delete;
+    InteractivePreviewRenderCache &operator=(const InteractivePreviewRenderCache &) = delete;
+
+    [[nodiscard]] bool populated() const noexcept;
+    [[nodiscard]] std::uint64_t generation() const noexcept;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+
+    friend class EngineFacade;
+};
+
 inline constexpr std::uint32_t kRgbHistogramBins = 256;
 inline constexpr std::uint32_t kWaveformTones = 160;
 inline constexpr std::uint32_t kWaveformMaxBins = 360;
@@ -443,6 +466,14 @@ public:
     render_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
                           const CancellationToken &cancellation,
                           std::optional<std::string> overlay_mask_id = {}) const;
+    // Reuses the exact source/geometry/detail prefix preceding live light controls. `cache`
+    // belongs to this `working` generation only; no operation, resolution, or pixel arithmetic
+    // is approximated. The caller serializes access and drops the cache with the working buffer.
+    [[nodiscard]] Result<RenderedImage>
+    render_interactive_linear_working(const LinearWorkingBuffer &working, const Recipe &recipe,
+                                      InteractivePreviewRenderCache &cache,
+                                      const CancellationToken &cancellation,
+                                      std::optional<std::string> overlay_mask_id = {}) const;
     // Same recipe/output-colour stage as render_linear_working; packs the owned
     // ProfiledOutputBuffer to the requested sample kind. Preview callers stay on
     // the RGB8 APIs above.

@@ -7882,5 +7882,69 @@ TEST(EngineFacadeTest, UnknownCpuOperationFailsFast)
     EXPECT_EQ(rendered.error().code, ErrorCode::kUnsupported);
 }
 
+TEST(EngineFacadeTest, InteractivePrefixCacheIsExactAndPublishesOnlyCompletedGenerations)
+{
+    auto created = EngineFacade::create_phase1();
+    ASSERT_TRUE(created) << created.error().message;
+    const auto raster = solid_raster(96U, 64U, 92U, 126U, 171U);
+
+    DevelopParams develop;
+    develop.denoise = 0.31;
+    develop.denoise_chroma = 0.17;
+    develop.denoise_radius = 1.2;
+    develop.exposure_ev = 0.4;
+    develop.sigmoid_enabled = true;
+    auto recipe =
+        recipe_from_develop({"interactive", "memory:interactive", "generation-a"}, develop);
+    ASSERT_TRUE(recipe) << recipe.error().message;
+    auto working =
+        created.value().linear_working_from_raster(raster, recipe.value(), CancellationToken{});
+    ASSERT_TRUE(working) << working.error().message;
+
+    InteractivePreviewRenderCache cache;
+    auto first = created.value().render_interactive_linear_working(working.value(), recipe.value(),
+                                                                   cache, CancellationToken{});
+    auto first_reference =
+        created.value().render_linear_working(working.value(), recipe.value(), CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(first_reference) << first_reference.error().message;
+    EXPECT_EQ(first.value().rgb, first_reference.value().rgb);
+    ASSERT_TRUE(cache.populated());
+    const auto first_generation = cache.generation();
+    ASSERT_GT(first_generation, 0U);
+
+    develop.exposure_ev = -0.7;
+    auto exposed = recipe_from_develop(recipe.value().asset, develop);
+    ASSERT_TRUE(exposed) << exposed.error().message;
+    auto second = created.value().render_interactive_linear_working(
+        working.value(), exposed.value(), cache, CancellationToken{});
+    auto second_reference = created.value().render_linear_working(working.value(), exposed.value(),
+                                                                  CancellationToken{});
+    ASSERT_TRUE(second) << second.error().message;
+    ASSERT_TRUE(second_reference) << second_reference.error().message;
+    EXPECT_EQ(second.value().rgb, second_reference.value().rgb);
+    EXPECT_EQ(cache.generation(), first_generation);
+
+    develop.denoise = 0.48;
+    auto changed_prefix = recipe_from_develop(recipe.value().asset, develop);
+    ASSERT_TRUE(changed_prefix) << changed_prefix.error().message;
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("cancel-prefix-rebuild"));
+    auto rejected = created.value().render_interactive_linear_working(
+        working.value(), changed_prefix.value(), cache, cancelled.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(cache.generation(), first_generation);
+
+    auto rebuilt = created.value().render_interactive_linear_working(
+        working.value(), changed_prefix.value(), cache, CancellationToken{});
+    auto rebuilt_reference = created.value().render_linear_working(
+        working.value(), changed_prefix.value(), CancellationToken{});
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    ASSERT_TRUE(rebuilt_reference) << rebuilt_reference.error().message;
+    EXPECT_EQ(rebuilt.value().rgb, rebuilt_reference.value().rgb);
+    EXPECT_GT(cache.generation(), first_generation);
+}
+
 } // namespace
 } // namespace ravo

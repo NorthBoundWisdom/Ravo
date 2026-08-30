@@ -407,12 +407,15 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
 - Interactive preview uses a scene-linear working buffer: CatalogService caches
   RAW unpack/demosaic and keeps independent bounded slots for the 960px live
   and 1600px settled size classes. Gallery browse decode/working state is a
-  separate bounded lane and must not evict either Develop slot. A drag applies
-  a recipe only to the cached linear buffer. Entering Develop and an ordinary
-  committed style/develop change must publish the exact live memory preview
-  before its persisted settled preview. Embedded JPEG must not become editable
-  data. CLI/Studio share the `request_preview` contract; late results are
-  dropped by request revision.
+  separate bounded lane and must not evict either Develop slot. The live slot
+  owns one exact pre-light operation prefix and reusable row team; a prefix hit
+  must equal an uncached full render byte-for-byte, while cancellation or a
+  prefix parameter change must retain or replace the generation atomically.
+  A drag applies the remaining complete recipe to that cached prefix. Entering
+  Develop and an ordinary committed style/develop change must publish the exact
+  live memory preview before its persisted settled preview. Embedded JPEG must
+  not become editable data. CLI/Studio share the `request_preview` contract;
+  late results are dropped by request revision.
 - Scopes collect from the current declared display-referred RGB preview: RGB
   histogram skips bin 0 for its peak, and parade uses 8/9 mapping with 160 tone
   bins. The Gallery grid computes scopes from browse thumbnails to avoid full
@@ -934,10 +937,13 @@ milliseconds. Optional `RAVO_PRESET_PERF_FIRST_PREVIEW_BUDGET_MS` and
 gates; the test skips when its fixture variables are absent, so host-specific
 timings do not make the normal contract suite flaky.
 
-The opt-in `InteractivePreviewPerformanceProbe` measures a warm, non-persistent
-Develop parameter sweep through CatalogService and includes the RGB ownership
-copies plus histogram work required before Studio can publish a frame. Run it
-from a Release build against a private catalog copy with
+The opt-in `InteractivePreviewPerformanceProbe` warms both live and settled
+working slots, then measures a non-persistent Develop parameter sweep through
+CatalogService and includes the RGB ownership copies plus histogram work
+required before Studio can publish a frame. The corresponding
+`StudioInteractivePreviewPerformanceProbe` measures from the Presenter numeric
+intent through publication of the owned live `QImage`. Run them from a Release
+build against a private catalog copy with
 `RAVO_INTERACTIVE_PERF_CATALOG` and `RAVO_INTERACTIVE_PERF_ASSET_ID`; optional
 `RAVO_INTERACTIVE_PERF_MAX_EDGE`, `RAVO_INTERACTIVE_PERF_RUNS`, and
 `RAVO_INTERACTIVE_PERF_P90_BUDGET_MS` select the size, sample count, and visible

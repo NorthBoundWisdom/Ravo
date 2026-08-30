@@ -157,13 +157,21 @@ revision for an exact 1600px persisted preview. Foreground Develop and
 background Gallery work own separate bounded decode/working lanes; within the
 foreground lane, one linear-working slot is retained for each size class. A
 new decoded source, incompatible preprocess key, close, or destruction
-invalidates only the applicable lane. Active background preview work is
+invalidates only the applicable lane. The 960px foreground slot additionally
+owns one exact serialized pre-light operation-prefix buffer and one reusable
+row team. Prefix identity includes operation order, parameters, enabled state,
+masks, and asset recipe identity; the containing working slot binds source,
+dimensions, profile/preprocess state, and lifetime. A changed prefix replaces
+the prior value only after successful completion. The 1600px and Gallery lanes
+do not retain this state. Active background preview work is
 cancelled for Develop, and queued foreground work leads normal work while
 preserving FIFO order within each priority. It must not fall back to embedded
 JPEG. CPU pixel rows use deterministic static partitions with at most 16
 workers and caller participation; cancellation is checked per row and
 worker-start failure is structured rather than falling back silently
-(ADR-0087).
+(ADR-0087/0089). Studio posts the pixel job before broadcasting live edit
+property changes, so QML binding reevaluation can overlap the foreground work;
+revision acceptance still exclusively controls publication.
 
 Develop crop is interactive: crop-tool preview removes crop and straighten,
 while Qt Quick rotates the working image. Photo and overlay share the GPU

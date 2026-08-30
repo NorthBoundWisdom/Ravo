@@ -439,8 +439,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         }
         Recipe rgb_recipe = edit_recipe;
         disable_raw_preprocess(rgb_recipe);
-        auto applied = engine_->render_linear_working(
-            *linear.value(), rgb_recipe, request.cancellation, request.overlay_mask_id);
+        auto applied =
+            interactive && lane == PreviewLane::kForegroundDevelop &&
+                    request.max_edge <= kInteractivePreviewMaxEdge ?
+                engine_->render_interactive_linear_working(
+                    linear.value()->buffer, rgb_recipe, linear.value()->interactive_render_cache,
+                    request.cancellation, request.overlay_mask_id) :
+                engine_->render_linear_working(linear.value()->buffer, rgb_recipe,
+                                               request.cancellation, request.overlay_mask_id);
         if (!applied)
         {
             return applied.error();
@@ -455,8 +461,14 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             return linear.error();
         }
-        auto applied = engine_->render_linear_working(
-            *linear.value(), edit_recipe, request.cancellation, request.overlay_mask_id);
+        auto applied =
+            interactive && lane == PreviewLane::kForegroundDevelop &&
+                    request.max_edge <= kInteractivePreviewMaxEdge ?
+                engine_->render_interactive_linear_working(
+                    linear.value()->buffer, edit_recipe, linear.value()->interactive_render_cache,
+                    request.cancellation, request.overlay_mask_id) :
+                engine_->render_linear_working(linear.value()->buffer, edit_recipe,
+                                               request.cancellation, request.overlay_mask_id);
         if (!applied)
         {
             return applied.error();
@@ -590,7 +602,7 @@ Result<const DecodedRaw *> CatalogService::cached_raw_frame(const AssetRecord &a
     return &cache_entry->raw;
 }
 
-Result<const LinearWorkingBuffer *>
+Result<CatalogService::CachedLinearWorking *>
 CatalogService::cached_linear_working(const AssetRecord &asset, const std::string_view path,
                                       const Recipe &recipe, const std::uint32_t width,
                                       const std::uint32_t height, const std::uint32_t max_edge,
@@ -620,7 +632,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
     {
         if (browse_linear_working_.has_value() && matches(*browse_linear_working_))
         {
-            return &browse_linear_working_->buffer;
+            return &*browse_linear_working_;
         }
     }
     else
@@ -629,7 +641,7 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         {
             if (working.has_value() && matches(*working))
             {
-                return &working->buffer;
+                return &*working;
             }
         }
     }
@@ -665,16 +677,22 @@ CatalogService::cached_linear_working(const AssetRecord &asset, const std::strin
         buffer = std::move(working).value();
     }
 
-    CachedLinearWorking cached{std::string(asset.id), fingerprint, max_edge, preprocess_key,
-                               std::move(buffer)};
+    CachedLinearWorking cached{
+        .asset_id = std::string(asset.id),
+        .fingerprint = fingerprint,
+        .max_edge = max_edge,
+        .preprocess_key = preprocess_key,
+        .buffer = std::move(buffer),
+        .interactive_render_cache = {},
+    };
     if (lane == PreviewLane::kBackgroundBrowse)
     {
         browse_linear_working_ = std::move(cached);
-        return &browse_linear_working_->buffer;
+        return &*browse_linear_working_;
     }
     const std::size_t slot = max_edge <= kInteractivePreviewMaxEdge ? 0U : 1U;
     linear_working_[slot] = std::move(cached);
-    return &linear_working_[slot]->buffer;
+    return &*linear_working_[slot];
 }
 
 Result<RasterBuffer> CatalogService::decode_preview_source(const AssetRecord &asset,

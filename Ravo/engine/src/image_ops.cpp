@@ -1126,30 +1126,40 @@ void apply_whites_blacks(WorkingImage &image, const double whites, const double 
     }
 }
 
-void apply_vibrance_saturation(WorkingImage &image, const double vibrance, const double saturation)
+Result<void> apply_vibrance_saturation(WorkingImage &image, const double vibrance,
+                                       const double saturation,
+                                       const CancellationToken &cancellation)
 {
     if (vibrance == 0.0 && saturation == 0.0)
     {
-        return;
+        return {};
     }
-    for (std::size_t index = 0; index + 2 < image.rgb.size(); index += 3)
-    {
-        float &r = image.rgb[index];
-        float &g = image.rgb[index + 1U];
-        float &b = image.rgb[index + 2U];
-        const float average = (r + g + b) / 3.0F;
-        const float dr = average - r;
-        const float dg = average - g;
-        const float db = average - b;
-        const float delta = std::sqrt(dr * dr + dg * dg + db * db);
-        const float vibrance_amount = static_cast<float>(vibrance) / 1.4F;
-        const float vibrance_gain =
-            vibrance_amount * (1.0F - std::pow(delta, std::abs(vibrance_amount)));
-        const float gain = 1.0F + static_cast<float>(saturation) + vibrance_gain;
-        r = average + gain * (r - average);
-        g = average + gain * (g - average);
-        b = average + gain * (b - average);
-    }
+    const float vibrance_amount = static_cast<float>(vibrance) / 1.4F;
+    const float saturation_amount = static_cast<float>(saturation);
+    return for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
+        {
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width * 3U;
+            const std::size_t end = begin + static_cast<std::size_t>(image.width) * 3U;
+            for (std::size_t index = begin; index < end; index += 3U)
+            {
+                float &r = image.rgb[index];
+                float &g = image.rgb[index + 1U];
+                float &b = image.rgb[index + 2U];
+                const float average = (r + g + b) / 3.0F;
+                const float dr = average - r;
+                const float dg = average - g;
+                const float db = average - b;
+                const float delta = std::sqrt(dr * dr + dg * dg + db * db);
+                const float vibrance_gain =
+                    vibrance_amount * (1.0F - std::pow(delta, std::abs(vibrance_amount)));
+                const float gain = 1.0F + saturation_amount + vibrance_gain;
+                r = average + gain * (r - average);
+                g = average + gain * (g - average);
+                b = average + gain * (b - average);
+            }
+        });
 }
 
 [[nodiscard]] Result<WorkingImage> rotate_working(WorkingImage image, const int quarters)
@@ -1973,13 +1983,13 @@ void apply_bloom(WorkingImage &image, const double amount)
     }
 }
 
-void apply_vignette(WorkingImage &image, const double amount, const double midpoint,
-                    const double falloff, const double shape, const double center_x,
-                    const double center_y)
+Result<void> apply_vignette(WorkingImage &image, const double amount, const double midpoint,
+                            const double falloff, const double shape, const double center_x,
+                            const double center_y, const CancellationToken &cancellation)
 {
     if (std::abs(amount) <= 1.0e-8 || image.width == 0 || image.height == 0)
     {
-        return;
+        return {};
     }
     const float brightness = -0.5F * static_cast<float>(amount);
     const float saturation = -static_cast<float>(amount) * 0.5F;
@@ -1992,49 +2002,52 @@ void apply_vignette(WorkingImage &image, const double amount, const double midpo
     const float yscale = 2.0F / static_cast<float>(image.height);
     const float cx = 1.0F + static_cast<float>(std::clamp(center_x, -1.0, 1.0));
     const float cy = 1.0F + static_cast<float>(std::clamp(center_y, -1.0, 1.0));
-    for (std::uint32_t y = 0; y < image.height; ++y)
-    {
-        for (std::uint32_t x = 0; x < image.width; ++x)
-        {
-            const float pv_x = std::abs(static_cast<float>(x) * xscale - cx);
-            const float pv_y = std::abs(static_cast<float>(y) * yscale - cy);
-            const float cplen = std::pow(std::pow(pv_x, exp1) + std::pow(pv_y, exp1), exp2);
-            float weight = 0.0F;
-            if (cplen >= dscale)
-            {
-                weight = std::clamp((cplen - dscale) / fscale, 0.0F, 1.0F);
-            }
-            if (weight <= 0.0F)
-            {
-                continue;
-            }
-            const std::size_t index = (static_cast<std::size_t>(y) * image.width + x) * 3U;
-            float r = image.rgb[index];
-            float g = image.rgb[index + 1U];
-            float b = image.rgb[index + 2U];
-            if (brightness < 0.0F)
-            {
-                const float fall = 1.0F + weight * brightness;
-                r *= fall;
-                g *= fall;
-                b *= fall;
-            }
-            else
-            {
-                r += weight * brightness;
-                g += weight * brightness;
-                b += weight * brightness;
-            }
-            const float mean = (r + g + b) / 3.0F;
-            const float wss = weight * saturation;
-            r -= (mean - r) * wss;
-            g -= (mean - g) * wss;
-            b -= (mean - b) * wss;
-            image.rgb[index] = r;
-            image.rgb[index + 1U] = g;
-            image.rgb[index + 2U] = b;
-        }
-    }
+    return for_each_row(image.height, cancellation,
+                        [&](const std::uint32_t y)
+                        {
+                            for (std::uint32_t x = 0; x < image.width; ++x)
+                            {
+                                const float pv_x = std::abs(static_cast<float>(x) * xscale - cx);
+                                const float pv_y = std::abs(static_cast<float>(y) * yscale - cy);
+                                const float cplen =
+                                    std::pow(std::pow(pv_x, exp1) + std::pow(pv_y, exp1), exp2);
+                                float weight = 0.0F;
+                                if (cplen >= dscale)
+                                {
+                                    weight = std::clamp((cplen - dscale) / fscale, 0.0F, 1.0F);
+                                }
+                                if (weight <= 0.0F)
+                                {
+                                    continue;
+                                }
+                                const std::size_t index =
+                                    (static_cast<std::size_t>(y) * image.width + x) * 3U;
+                                float r = image.rgb[index];
+                                float g = image.rgb[index + 1U];
+                                float b = image.rgb[index + 2U];
+                                if (brightness < 0.0F)
+                                {
+                                    const float fall = 1.0F + weight * brightness;
+                                    r *= fall;
+                                    g *= fall;
+                                    b *= fall;
+                                }
+                                else
+                                {
+                                    r += weight * brightness;
+                                    g += weight * brightness;
+                                    b += weight * brightness;
+                                }
+                                const float mean = (r + g + b) / 3.0F;
+                                const float wss = weight * saturation;
+                                r -= (mean - r) * wss;
+                                g -= (mean - g) * wss;
+                                b -= (mean - b) * wss;
+                                image.rgb[index] = r;
+                                image.rgb[index + 1U] = g;
+                                image.rgb[index + 2U] = b;
+                            }
+                        });
 }
 
 constexpr std::array<int, 256> kSimplexPermutation = {
@@ -2997,7 +3010,12 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 saturation = parameter(*next, "amount", 0.0);
                 iterator = next;
             }
-            apply_vibrance_saturation(image, parameter(operation, "amount", 0.0), saturation);
+            auto adjusted = apply_vibrance_saturation(image, parameter(operation, "amount", 0.0),
+                                                      saturation, cancellation);
+            if (!adjusted)
+            {
+                return adjusted.error();
+            }
             continue;
         }
         if (operation.id == "ravo.color.saturation")
@@ -3010,7 +3028,12 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
                 vibrance = parameter(*next, "amount", 0.0);
                 iterator = next;
             }
-            apply_vibrance_saturation(image, vibrance, parameter(operation, "amount", 0.0));
+            auto adjusted = apply_vibrance_saturation(
+                image, vibrance, parameter(operation, "amount", 0.0), cancellation);
+            if (!adjusted)
+            {
+                return adjusted.error();
+            }
             continue;
         }
         if (operation.id == "ravo.geometry.rotate")
@@ -3249,10 +3272,15 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.effect.vignette")
         {
-            apply_vignette(
+            auto vignette = apply_vignette(
                 image, parameter(operation, "amount", 0.0), parameter(operation, "midpoint", 0.8),
                 parameter(operation, "falloff", 0.5), parameter(operation, "shape", 1.0),
-                parameter(operation, "center_x", 0.0), parameter(operation, "center_y", 0.0));
+                parameter(operation, "center_x", 0.0), parameter(operation, "center_y", 0.0),
+                cancellation);
+            if (!vignette)
+            {
+                return vignette.error();
+            }
             continue;
         }
         if (operation.id == "ravo.effect.grain")

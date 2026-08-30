@@ -2347,7 +2347,6 @@ void StudioPresenter::preview_develop(DevelopParams params)
         return;
     }
     develop_ = params;
-    emit editChanged();
     const bool crop_guides = crop_tool_active_ && !before_after_;
     static_cast<void>(develop_preview_owner_.supersede("interactive_preview_superseded"));
     pending_preview_ = PendingDevelopWork{
@@ -2362,6 +2361,9 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .overlay_mask_id = current_overlay_mask_id(params),
     };
     kick_develop_work();
+    // Start the pixel job before notifying the broad inspector property set. QML may reevaluate
+    // many edit bindings synchronously, while the owner-managed worker can render in parallel.
+    emit editChanged();
 }
 
 bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,

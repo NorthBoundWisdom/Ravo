@@ -359,27 +359,68 @@ try
         return valid.error();
     }
     std::vector<SharpenLabPixel> lab(static_cast<std::size_t>(input.width) * input.height);
-    for (std::uint32_t row = 0U; row < input.height; ++row)
+    if (control.checkpoint_callback != nullptr)
     {
-        checkpoint(control, SharpenCheckpoint::kConvertInputRow, row);
-        active = cancellation.check();
-        if (!active)
+        for (std::uint32_t row = 0U; row < input.height; ++row)
         {
-            return active.error();
-        }
-        for (std::uint32_t column = 0U; column < input.width; ++column)
-        {
-            const std::size_t index = static_cast<std::size_t>(row) * input.width + column;
-            const std::size_t rgb = index * 3U;
-            if (!std::isfinite(input.rgb[rgb]) || !std::isfinite(input.rgb[rgb + 1U]) ||
-                !std::isfinite(input.rgb[rgb + 2U]))
+            checkpoint(control, SharpenCheckpoint::kConvertInputRow, row);
+            active = cancellation.check();
+            if (!active)
             {
-                return make_error(
-                    ErrorCode::kValidation, "Sharpen input contains a non-finite RGB sample",
-                    {{"sample_index", std::to_string(rgb)}, {"reason", "nonfinite_sharpen_input"}});
+                return active.error();
             }
-            lab[index] = d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(
-                {input.rgb[rgb], input.rgb[rgb + 1U], input.rgb[rgb + 2U]}));
+            for (std::uint32_t column = 0U; column < input.width; ++column)
+            {
+                const std::size_t index = static_cast<std::size_t>(row) * input.width + column;
+                const std::size_t rgb = index * 3U;
+                if (!std::isfinite(input.rgb[rgb]) || !std::isfinite(input.rgb[rgb + 1U]) ||
+                    !std::isfinite(input.rgb[rgb + 2U]))
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "Sharpen input contains a non-finite RGB sample",
+                                      {{"sample_index", std::to_string(rgb)},
+                                       {"reason", "nonfinite_sharpen_input"}});
+                }
+                lab[index] = d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(
+                    {input.rgb[rgb], input.rgb[rgb + 1U], input.rgb[rgb + 2U]}));
+            }
+        }
+    }
+    else
+    {
+        std::atomic<std::size_t> nonfinite{std::numeric_limits<std::size_t>::max()};
+        auto converted = detail::for_each_row(
+            input.height, cancellation,
+            [&](const std::uint32_t row)
+            {
+                for (std::uint32_t column = 0U; column < input.width; ++column)
+                {
+                    const std::size_t index = static_cast<std::size_t>(row) * input.width + column;
+                    const std::size_t rgb = index * 3U;
+                    if (!std::isfinite(input.rgb[rgb]) || !std::isfinite(input.rgb[rgb + 1U]) ||
+                        !std::isfinite(input.rgb[rgb + 2U]))
+                    {
+                        std::size_t previous = nonfinite.load(std::memory_order_relaxed);
+                        while (rgb < previous && !nonfinite.compare_exchange_weak(
+                                                     previous, rgb, std::memory_order_relaxed))
+                        {
+                        }
+                        continue;
+                    }
+                    lab[index] = d50_lab::xyz_to_lab(d50_lab::linear_rec709_to_xyz(
+                        {input.rgb[rgb], input.rgb[rgb + 1U], input.rgb[rgb + 2U]}));
+                }
+            });
+        if (!converted)
+        {
+            return converted.error();
+        }
+        const std::size_t bad = nonfinite.load(std::memory_order_relaxed);
+        if (bad != std::numeric_limits<std::size_t>::max())
+        {
+            return make_error(
+                ErrorCode::kValidation, "Sharpen input contains a non-finite RGB sample",
+                {{"sample_index", std::to_string(bad)}, {"reason", "nonfinite_sharpen_input"}});
         }
     }
     auto sharpened =
@@ -398,30 +439,74 @@ try
     output.canonical_roi_scale = input.canonical_roi_scale;
     output.mask_attached_frame = input.mask_attached_frame;
     output.rgb.resize(input.rgb.size());
-    for (std::uint32_t row = 0U; row < input.height; ++row)
+    if (control.checkpoint_callback != nullptr)
     {
-        checkpoint(control, SharpenCheckpoint::kConvertOutputRow, row);
-        active = cancellation.check();
-        if (!active)
+        for (std::uint32_t row = 0U; row < input.height; ++row)
         {
-            return active.error();
-        }
-        for (std::uint32_t column = 0U; column < input.width; ++column)
-        {
-            const std::size_t index = static_cast<std::size_t>(row) * input.width + column;
-            const auto rgb =
-                d50_lab::xyz_to_linear_rec709(d50_lab::lab_to_xyz(sharpened.value()[index]));
-            for (std::size_t channel = 0U; channel < rgb.size(); ++channel)
+            checkpoint(control, SharpenCheckpoint::kConvertOutputRow, row);
+            active = cancellation.check();
+            if (!active)
             {
-                if (!std::isfinite(rgb[channel]))
-                {
-                    return make_error(ErrorCode::kValidation,
-                                      "Sharpen produced a non-finite RGB sample",
-                                      {{"sample_index", std::to_string(index * 3U + channel)},
-                                       {"reason", "nonfinite_sharpen_output"}});
-                }
-                output.rgb[index * 3U + channel] = rgb[channel];
+                return active.error();
             }
+            for (std::uint32_t column = 0U; column < input.width; ++column)
+            {
+                const std::size_t index = static_cast<std::size_t>(row) * input.width + column;
+                const auto rgb =
+                    d50_lab::xyz_to_linear_rec709(d50_lab::lab_to_xyz(sharpened.value()[index]));
+                for (std::size_t channel = 0U; channel < rgb.size(); ++channel)
+                {
+                    if (!std::isfinite(rgb[channel]))
+                    {
+                        return make_error(ErrorCode::kValidation,
+                                          "Sharpen produced a non-finite RGB sample",
+                                          {{"sample_index", std::to_string(index * 3U + channel)},
+                                           {"reason", "nonfinite_sharpen_output"}});
+                    }
+                    output.rgb[index * 3U + channel] = rgb[channel];
+                }
+            }
+        }
+    }
+    else
+    {
+        std::atomic<std::size_t> nonfinite{std::numeric_limits<std::size_t>::max()};
+        auto converted = detail::for_each_row(
+            input.height, cancellation,
+            [&](const std::uint32_t row)
+            {
+                for (std::uint32_t column = 0U; column < input.width; ++column)
+                {
+                    const std::size_t index = static_cast<std::size_t>(row) * input.width + column;
+                    const auto rgb = d50_lab::xyz_to_linear_rec709(
+                        d50_lab::lab_to_xyz(sharpened.value()[index]));
+                    for (std::size_t channel = 0U; channel < rgb.size(); ++channel)
+                    {
+                        if (!std::isfinite(rgb[channel]))
+                        {
+                            const std::size_t sample = index * 3U + channel;
+                            std::size_t previous = nonfinite.load(std::memory_order_relaxed);
+                            while (sample < previous &&
+                                   !nonfinite.compare_exchange_weak(previous, sample,
+                                                                    std::memory_order_relaxed))
+                            {
+                            }
+                            continue;
+                        }
+                        output.rgb[index * 3U + channel] = rgb[channel];
+                    }
+                }
+            });
+        if (!converted)
+        {
+            return converted.error();
+        }
+        const std::size_t bad = nonfinite.load(std::memory_order_relaxed);
+        if (bad != std::numeric_limits<std::size_t>::max())
+        {
+            return make_error(
+                ErrorCode::kValidation, "Sharpen produced a non-finite RGB sample",
+                {{"sample_index", std::to_string(bad)}, {"reason", "nonfinite_sharpen_output"}});
         }
     }
     checkpoint(control, SharpenCheckpoint::kBeforePublication, 1U);

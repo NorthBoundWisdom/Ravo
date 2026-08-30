@@ -126,6 +126,7 @@ private:
         std::uint32_t max_edge = 0;
         std::string preprocess_key;
         LinearWorkingBuffer buffer;
+        InteractivePreviewRenderCache interactive_render_cache;
     };
 
     [[nodiscard]] Result<PreviewResult>
@@ -141,7 +142,7 @@ private:
                                                               std::string_view path,
                                                               const CancellationToken &cancellation,
                                                               PreviewLane lane);
-    [[nodiscard]] Result<const LinearWorkingBuffer *>
+    [[nodiscard]] Result<CachedLinearWorking *>
     cached_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                           std::uint32_t width, std::uint32_t height, std::uint32_t max_edge,
                           const CancellationToken &cancellation, PreviewLane lane);

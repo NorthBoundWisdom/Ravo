@@ -32,6 +32,37 @@
 namespace ravo
 {
 
+struct InteractivePreviewRenderCache::Impl
+{
+    struct PrefixState
+    {
+        std::string fingerprint;
+        std::size_t operation_count = 0U;
+        LinearWorkingBuffer buffer;
+    };
+
+    std::optional<PrefixState> prefix;
+    std::unique_ptr<detail::ParallelRowSession> parallel_rows;
+    std::uint64_t generation = 0U;
+};
+
+InteractivePreviewRenderCache::InteractivePreviewRenderCache() noexcept = default;
+InteractivePreviewRenderCache::~InteractivePreviewRenderCache() = default;
+InteractivePreviewRenderCache::InteractivePreviewRenderCache(
+    InteractivePreviewRenderCache &&) noexcept = default;
+InteractivePreviewRenderCache &
+InteractivePreviewRenderCache::operator=(InteractivePreviewRenderCache &&) noexcept = default;
+
+bool InteractivePreviewRenderCache::populated() const noexcept
+{
+    return impl_ != nullptr && impl_->prefix.has_value();
+}
+
+std::uint64_t InteractivePreviewRenderCache::generation() const noexcept
+{
+    return impl_ != nullptr ? impl_->generation : 0U;
+}
+
 Result<std::size_t> validate_profiled_output_for_pack(const ProfiledOutputBuffer &input,
                                                       const std::size_t bytes_per_pixel)
 {
@@ -780,6 +811,125 @@ apply_recipe_watermark(ProfiledOutputBuffer output, const Recipe &recipe,
     return apply_watermark(std::move(output), *selected, recipe.asset, cancellation);
 }
 
+[[nodiscard]] bool is_interactive_prefix_operation(const std::string_view id) noexcept
+{
+    return id == "ravo.color.temperature" || id == kProfileGammaOperationId ||
+           id == "ravo.color.input" || id == kPrimariesOperationId ||
+           id == "ravo.color.channelmixerrgb" || id == "ravo.raw.hotpixels" ||
+           id == "ravo.raw.highlights" || id == "ravo.raw.cacorrect" || id == "ravo.raw.denoise" ||
+           id == "ravo.detail.denoiseprofile" || id == "ravo.geometry.lens" ||
+           id == kCanvasOperationId;
+}
+
+[[nodiscard]] std::size_t interactive_prefix_operation_count(const Recipe &recipe) noexcept
+{
+    std::size_t count = 0U;
+    while (count < recipe.operations.size() &&
+           is_interactive_prefix_operation(recipe.operations[count].id))
+    {
+        ++count;
+    }
+    // The ordinary render contract extracts every enabled Primaries instance before bridging.
+    // A non-canonical late Primaries operation therefore cannot be split without changing order.
+    for (std::size_t index = count; index < recipe.operations.size(); ++index)
+    {
+        if (recipe.operations[index].enabled &&
+            recipe.operations[index].id == kPrimariesOperationId)
+        {
+            return 0U;
+        }
+    }
+    return count;
+}
+
+[[nodiscard]] Result<std::string> interactive_prefix_fingerprint(const Recipe &recipe,
+                                                                 const std::size_t count)
+{
+    Recipe prefix_recipe = recipe;
+    prefix_recipe.operations.resize(count);
+    return serialize_recipe(prefix_recipe);
+}
+
+[[nodiscard]] Result<LinearWorkingBuffer>
+render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &recipe,
+                          const std::size_t count, const CancellationToken &cancellation)
+{
+    WorkingImage image = working;
+    Recipe prefix_recipe = recipe;
+    prefix_recipe.operations.resize(count);
+    for (auto &operation : prefix_recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kPrimariesOperationId)
+        {
+            continue;
+        }
+        auto transformed = apply_primaries(image, operation, cancellation);
+        if (!transformed)
+        {
+            return transformed.error();
+        }
+        image = std::move(transformed).value();
+        operation.enabled = false;
+    }
+    if (image.color_profile.identifier != kInputProfileLinearRec709)
+    {
+        auto operation_working =
+            convert_working_profile(image, kInputProfileLinearRec709, cancellation);
+        if (!operation_working)
+        {
+            return operation_working.error();
+        }
+        image = std::move(operation_working).value();
+    }
+    return apply_recipe_ops(std::move(image), prefix_recipe, cancellation);
+}
+
+[[nodiscard]] Result<RenderedImage>
+render_validated_preview(const LinearWorkingBuffer &working, const Recipe &recipe,
+                         const CancellationToken &cancellation,
+                         const std::optional<std::string> &overlay_mask_id)
+{
+    AlphaPlane overlay;
+    auto output = render_recipe_to_profiled_output(working, recipe, cancellation, overlay_mask_id,
+                                                   overlay_mask_id ? &overlay : nullptr);
+    if (!output)
+    {
+        return output.error();
+    }
+    auto dithered = apply_recipe_output_dither(std::move(output).value(), recipe,
+                                               OutputDitherTarget::kPreviewRgb8, cancellation);
+    if (!dithered)
+    {
+        return dithered.error();
+    }
+    auto framed = apply_recipe_frame(std::move(dithered).value(), recipe, cancellation, &overlay);
+    if (!framed)
+    {
+        return framed.error();
+    }
+    auto watermarked = apply_recipe_watermark(std::move(framed).value(), recipe, cancellation);
+    if (!watermarked)
+    {
+        return watermarked.error();
+    }
+    auto packed =
+        encode_profiled_output(watermarked.value(), RenderSampleKind::kRgb8, cancellation);
+    if (!packed)
+    {
+        return packed.error();
+    }
+    RenderedImage result;
+    result.width = packed.value().width;
+    result.height = packed.value().height;
+    result.color_profile = std::move(packed.value().color_profile);
+    result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
+    if (overlay_mask_id && overlay.width == result.width && overlay.height == result.height)
+    {
+        result.mask_alpha = std::move(overlay.alpha);
+    }
+    return result;
+}
+
 } // namespace
 
 Result<void> EngineFacade::composite_preview_mask_overlay(
@@ -803,46 +953,92 @@ EngineFacade::render_linear_working(const LinearWorkingBuffer &working, const Re
     {
         return cancelled.error();
     }
+    auto parallel_rows = detail::ScopedParallelRowSession::create();
+    if (!parallel_rows)
+    {
+        return parallel_rows.error();
+    }
     auto valid = validate(recipe);
     if (!valid)
     {
         return valid.error();
     }
-    AlphaPlane overlay;
-    auto output = render_recipe_to_profiled_output(working, recipe, cancellation, overlay_mask_id,
-                                                   overlay_mask_id ? &overlay : nullptr);
-    if (!output)
+    return render_validated_preview(working, recipe, cancellation, overlay_mask_id);
+}
+
+Result<RenderedImage> EngineFacade::render_interactive_linear_working(
+    const LinearWorkingBuffer &working, const Recipe &recipe, InteractivePreviewRenderCache &cache,
+    const CancellationToken &cancellation, std::optional<std::string> overlay_mask_id) const
+try
+{
+    auto active = cancellation.check();
+    if (!active)
     {
-        return output.error();
+        return active.error();
     }
-    auto dithered = apply_recipe_output_dither(std::move(output).value(), recipe,
-                                               OutputDitherTarget::kPreviewRgb8, cancellation);
-    if (!dithered)
+    auto valid = validate(recipe);
+    if (!valid)
     {
-        return dithered.error();
+        return valid.error();
     }
-    auto framed = apply_recipe_frame(std::move(dithered).value(), recipe, cancellation, &overlay);
-    if (!framed)
-        return framed.error();
-    auto watermarked = apply_recipe_watermark(std::move(framed).value(), recipe, cancellation);
-    if (!watermarked)
-        return watermarked.error();
-    auto packed =
-        encode_profiled_output(watermarked.value(), RenderSampleKind::kRgb8, cancellation);
-    if (!packed)
+    if (cache.impl_ == nullptr)
     {
-        return packed.error();
+        cache.impl_ = std::make_unique<InteractivePreviewRenderCache::Impl>();
     }
-    RenderedImage result;
-    result.width = packed.value().width;
-    result.height = packed.value().height;
-    result.color_profile = std::move(packed.value().color_profile);
-    result.rgb = std::get<std::vector<std::uint8_t>>(std::move(packed.value().samples));
-    if (overlay_mask_id && overlay.width == result.width && overlay.height == result.height)
+    if (cache.impl_->parallel_rows == nullptr)
     {
-        result.mask_alpha = std::move(overlay.alpha);
+        auto created = detail::ParallelRowSession::create();
+        if (!created)
+        {
+            return created.error();
+        }
+        cache.impl_->parallel_rows = std::move(created).value();
     }
-    return result;
+    auto parallel_rows = detail::ScopedParallelRowSession::borrow(*cache.impl_->parallel_rows);
+    const std::size_t prefix_count = interactive_prefix_operation_count(recipe);
+    if (prefix_count == 0U)
+    {
+        return render_validated_preview(working, recipe, cancellation, overlay_mask_id);
+    }
+    auto fingerprint = interactive_prefix_fingerprint(recipe, prefix_count);
+    if (!fingerprint)
+    {
+        return fingerprint.error();
+    }
+    const bool prefix_hit = cache.impl_->prefix.has_value() &&
+                            cache.impl_->prefix->operation_count == prefix_count &&
+                            cache.impl_->prefix->fingerprint == fingerprint.value();
+    if (!prefix_hit)
+    {
+        auto prefix = render_interactive_prefix(working, recipe, prefix_count, cancellation);
+        if (!prefix)
+        {
+            return prefix.error();
+        }
+        active = cancellation.check();
+        if (!active)
+        {
+            return active.error();
+        }
+        InteractivePreviewRenderCache::Impl::PrefixState published;
+        published.fingerprint = std::move(fingerprint).value();
+        published.operation_count = prefix_count;
+        published.buffer = std::move(prefix).value();
+        cache.impl_->prefix = std::move(published);
+        ++cache.impl_->generation;
+    }
+    Recipe remaining = recipe;
+    for (std::size_t index = 0U; index < prefix_count; ++index)
+    {
+        remaining.operations[index].enabled = false;
+    }
+    return render_validated_preview(cache.impl_->prefix->buffer, remaining, cancellation,
+                                    overlay_mask_id);
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Interactive working render allocation failed",
+                      {{"reason", "allocation_failed"}});
 }
 
 Result<RenderedExportImage>

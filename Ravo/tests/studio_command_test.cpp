@@ -2,10 +2,15 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <functional>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <QVariantMap>
 
@@ -15,6 +20,7 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
@@ -23,6 +29,7 @@
 #include <QTranslator>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QTimer>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
@@ -729,6 +736,90 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
         << " url=" << presenter.previewUrl().toString().toStdString();
     EXPECT_FALSE(presenter.previewLoading());
     EXPECT_NEAR(presenter.editExposure(), 1.0, 1e-9);
+}
+
+TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImagePublication)
+{
+    const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (catalog_path == nullptr || asset_id == nullptr)
+    {
+        GTEST_SKIP() << "set RAVO_INTERACTIVE_PERF_CATALOG and RAVO_INTERACTIVE_PERF_ASSET_ID";
+    }
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    const std::size_t runs =
+        std::getenv("RAVO_INTERACTIVE_PERF_RUNS") != nullptr ?
+            static_cast<std::size_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_PERF_RUNS"))) :
+            9U;
+    ASSERT_GT(runs, 0U);
+
+    StudioPresenter presenter;
+    presenter.openCatalogFromPath(QString::fromUtf8(catalog_path));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    presenter.selectAsset(QString::fromUtf8(asset_id));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.selectedAssetId() == QString::fromUtf8(asset_id) && !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }, 30000))
+        << presenter.errorText().toStdString();
+
+    const double baseline = presenter.editExposure();
+    std::vector<std::int64_t> elapsed_us;
+    elapsed_us.reserve(runs);
+    for (std::size_t run = 0U; run < runs; ++run)
+    {
+        const double offset = static_cast<double>(static_cast<int>(run % 7U) - 3) * 0.01;
+        const QUrl previous = presenter.previewUrl();
+        QElapsedTimer timer;
+        QEventLoop event_loop;
+        QTimer timeout;
+        timeout.setSingleShot(true);
+        std::optional<std::int64_t> published_us;
+        QObject::connect(&timeout, &QTimer::timeout, &event_loop, &QEventLoop::quit);
+        const auto connection = QObject::connect(
+            &presenter, &StudioPresenter::previewChanged, &presenter,
+            [&]
+            {
+                const QUrl current = presenter.previewUrl();
+                if (!published_us.has_value() && current != previous &&
+                    current.scheme() == QLatin1String("image") &&
+                    current.path() == QLatin1String("/live") && !presenter.previewImage().isNull())
+                {
+                    published_us = timer.nsecsElapsed() / 1000;
+                    event_loop.quit();
+                }
+            });
+        timer.start();
+        presenter.previewDevelopNumber(QStringLiteral("exposure"), baseline + offset);
+        timeout.start(5000);
+        if (!published_us.has_value())
+        {
+            event_loop.exec();
+        }
+        QObject::disconnect(connection);
+        ASSERT_TRUE(published_us.has_value()) << presenter.errorText().toStdString();
+        elapsed_us.push_back(*published_us);
+    }
+    std::sort(elapsed_us.begin(), elapsed_us.end());
+    const std::size_t p90_index = (elapsed_us.size() * 9U - 1U) / 10U;
+    const auto median_us = elapsed_us[elapsed_us.size() / 2U];
+    const auto p90_us = elapsed_us[p90_index];
+    std::cerr << "studio_interactive_runs=" << runs
+              << " intent_to_publish_min_us=" << elapsed_us.front()
+              << " intent_to_publish_median_us=" << median_us
+              << " intent_to_publish_p90_us=" << p90_us
+              << " intent_to_publish_max_us=" << elapsed_us.back() << '\n';
+    if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
+    {
+        EXPECT_LE(p90_us, std::stoll(budget) * 1000);
+    }
 }
 
 TEST(StudioPresenterTest, SessionUndoStartsEmptyAndHistoryRestoreWithoutSelectionIsIgnored)

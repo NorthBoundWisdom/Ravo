@@ -96,3 +96,4 @@ supersession relationship when direction changes.
 | [0086](0086-lightroom-crs-interchange.md) | Accepted; response mapping partially superseded by 0088 | Fail-closed Camera Raw XMP import/apply onto accepted Develop owners; leftover empty-history swallow is rejected. |
 | [0087](0087-progressive-develop-preview.md) | Accepted | Develop publishes an exact 960px memory preview before an exact persisted 1600px result, with foreground/background cache lanes, foreground scheduling, latency-first cache PNG, and deterministic CPU row partitions. |
 | [0088](0088-lightroom-response-calibration.md) | Accepted | Lightroom-relative exposure, RAW sigmoid contrast, scene-EV highlights/shadows, and post-sigmoid display-sRGB point-curve calibration. |
+| [0089](0089-exact-interactive-prefix-cache.md) | Accepted | Foreground 960px previews retain an exact pre-light RGB prefix and owner-scoped row team, with successful-only publication and a 30ms Release P90 intent-to-image gate. |

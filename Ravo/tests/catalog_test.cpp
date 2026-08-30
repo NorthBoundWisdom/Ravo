@@ -5229,6 +5229,14 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
     ASSERT_TRUE(warm) << warm.error().message;
     ASSERT_FALSE(warm.value().rgb.empty());
     ASSERT_LE(std::max(warm.value().width, warm.value().height), max_edge);
+    if (max_edge <= kInteractivePreviewMaxEdge)
+    {
+        PreviewRequest settled = request;
+        settled.max_edge = kDefaultPreviewMaxEdge;
+        auto settled_warm = measured.request_preview(settled);
+        ASSERT_TRUE(settled_warm) << settled_warm.error().message;
+        ASSERT_FALSE(settled_warm.value().rgb.empty());
+    }
 
     std::vector<std::int64_t> render_elapsed_ms;
     std::vector<std::int64_t> visible_elapsed_ms;
