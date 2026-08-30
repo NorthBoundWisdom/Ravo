@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include <QByteArray>
@@ -51,6 +52,48 @@ namespace
     return QString::fromLatin1(hash.result().toHex());
 }
 
+[[nodiscard]] Result<QImage> preview_result_image(const PreviewResult &preview)
+{
+    if (!preview.rgb.empty())
+    {
+        const auto expected = static_cast<std::size_t>(preview.width) * preview.height * 3U;
+        if (preview.width == 0 || preview.height == 0 || preview.rgb.size() != expected)
+        {
+            return make_error(ErrorCode::kValidation, "Interactive preview pixels are invalid");
+        }
+        const QImage view(preview.rgb.data(), static_cast<int>(preview.width),
+                          static_cast<int>(preview.height), static_cast<int>(preview.width * 3U),
+                          QImage::Format_RGB888);
+        QImage owned = view.copy();
+        if (preview.color_profile.icc_bytes.empty())
+        {
+            return make_error(ErrorCode::kValidation,
+                              "Interactive preview has no declared ICC profile");
+        }
+        const QByteArray bytes(
+            reinterpret_cast<const char *>(preview.color_profile.icc_bytes.data()),
+            static_cast<qsizetype>(preview.color_profile.icc_bytes.size()));
+        const QColorSpace color_space = QColorSpace::fromIccProfile(bytes);
+        if (!color_space.isValid())
+        {
+            return make_error(ErrorCode::kValidation, "Interactive preview ICC profile is invalid");
+        }
+        owned.setColorSpace(color_space);
+        return owned;
+    }
+    if (preview.cache_path.empty())
+    {
+        return make_error(ErrorCode::kValidation, "Preview returned neither pixels nor a resource");
+    }
+    QImage cached(qstring_from_utf8(preview.cache_path));
+    if (cached.isNull())
+    {
+        return make_error(ErrorCode::kIo, "Preview resource could not be loaded",
+                          {{"path", preview.cache_path}});
+    }
+    return cached;
+}
+
 } // namespace
 
 QUrl StudioPresenter::previewUrl() const
@@ -64,8 +107,38 @@ QImage StudioPresenter::previewImage() const
     return preview_image_;
 }
 
+QUrl StudioPresenter::comparisonBeforeUrl() const
+{
+    return comparison_before_url_;
+}
+
+QImage StudioPresenter::comparisonBeforeImage() const
+{
+    const QMutexLocker lock(&preview_image_mutex_);
+    return comparison_before_image_;
+}
+
+bool StudioPresenter::clear_comparison()
+{
+    const bool changed =
+        comparison_active_ || comparison_before_requested_ || !comparison_before_url_.isEmpty();
+    comparison_active_ = false;
+    comparison_before_requested_ = false;
+    if (pending_preview_.has_value() && pending_preview_->comparison_before)
+    {
+        pending_preview_.reset();
+    }
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        comparison_before_image_ = QImage();
+    }
+    comparison_before_url_.clear();
+    return changed;
+}
+
 void StudioPresenter::clear_displayed_preview()
 {
+    static_cast<void>(clear_comparison());
     {
         const QMutexLocker lock(&preview_image_mutex_);
         preview_image_ = QImage();
@@ -228,105 +301,84 @@ void StudioPresenter::refresh_scopes(const QImage &image)
 void StudioPresenter::show_preview_result(const PreviewResult &preview,
                                           const std::uint64_t revision)
 {
-    if (!preview.rgb.empty())
+    auto prepared = preview_result_image(preview);
+    if (!prepared)
     {
-        const auto expected = static_cast<std::size_t>(preview.width) * preview.height * 3U;
-        if (preview.width == 0 || preview.height == 0 || preview.rgb.size() != expected)
-        {
-            setError(QStringLiteral("Interactive preview pixels are invalid"));
-            return;
-        }
-        const QImage view(preview.rgb.data(), static_cast<int>(preview.width),
-                          static_cast<int>(preview.height), static_cast<int>(preview.width * 3U),
-                          QImage::Format_RGB888);
-        QImage owned = view.copy();
-        if (!preview.color_profile.icc_bytes.empty())
-        {
-            const QByteArray bytes(
-                reinterpret_cast<const char *>(preview.color_profile.icc_bytes.data()),
-                static_cast<qsizetype>(preview.color_profile.icc_bytes.size()));
-            const QColorSpace color_space = QColorSpace::fromIccProfile(bytes);
-            if (!color_space.isValid())
-            {
-                setError(QStringLiteral("Interactive preview ICC profile is invalid"));
-                return;
-            }
-            owned.setColorSpace(color_space);
-        }
-        else
-        {
-            setError(QStringLiteral("Interactive preview has no declared ICC profile"));
-            return;
-        }
-        preview_base_image_ = owned;
-        preview_mask_alpha_ = preview.mask_alpha;
-        QImage displayed = owned;
-        if (mask_overlay_visible_ && !preview.mask_alpha.empty() && engine_.has_value())
-        {
-            std::vector<std::uint8_t> rgb(static_cast<std::size_t>(owned.width()) *
-                                          static_cast<std::size_t>(owned.height()) * 3U);
-            for (int y = 0; y < owned.height(); ++y)
-            {
-                std::copy_n(owned.constScanLine(y), static_cast<std::size_t>(owned.width()) * 3U,
-                            rgb.begin() + static_cast<std::ptrdiff_t>(
-                                              static_cast<std::size_t>(y) *
-                                              static_cast<std::size_t>(owned.width()) * 3U));
-            }
-            auto composited = engine_->composite_preview_mask_overlay(
-                rgb, static_cast<std::uint32_t>(owned.width()),
-                static_cast<std::uint32_t>(owned.height()), preview.mask_alpha, {});
-            if (composited)
-            {
-                displayed = QImage(static_cast<int>(owned.width()),
-                                   static_cast<int>(owned.height()), QImage::Format_RGB888);
-                for (int y = 0; y < displayed.height(); ++y)
-                {
-                    std::copy_n(rgb.data() + static_cast<std::ptrdiff_t>(
-                                                 static_cast<std::size_t>(y) *
-                                                 static_cast<std::size_t>(displayed.width()) * 3U),
-                                static_cast<std::size_t>(displayed.width()) * 3U,
-                                displayed.scanLine(y));
-                }
-                if (owned.colorSpace().isValid())
-                {
-                    displayed.setColorSpace(owned.colorSpace());
-                }
-            }
-        }
-        {
-            const QMutexLocker lock(&preview_image_mutex_);
-            preview_image_ = displayed;
-        }
-        live_preview_revision_ = revision;
-        live_preview_width_ = static_cast<std::uint32_t>(displayed.width());
-        live_preview_height_ = static_cast<std::uint32_t>(displayed.height());
-        live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
-        live_preview_pixel_sha256_ =
-            preview_pixel_sha256(displayed, live_preview_color_profile_id_);
-        preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
-        refresh_scopes(owned);
+        setError(qstring_from_utf8(prepared.error().message));
         return;
     }
-    const QImage cached = QImage(qstring_from_utf8(preview.cache_path));
-    preview_base_image_ = cached;
-    preview_mask_alpha_.clear();
+    QImage owned = std::move(prepared).value();
+    preview_base_image_ = owned;
+    preview_mask_alpha_ = preview.mask_alpha;
+    QImage displayed = owned;
+    if (mask_overlay_visible_ && !preview.mask_alpha.empty() && engine_.has_value())
+    {
+        std::vector<std::uint8_t> rgb(static_cast<std::size_t>(owned.width()) *
+                                      static_cast<std::size_t>(owned.height()) * 3U);
+        for (int y = 0; y < owned.height(); ++y)
+        {
+            std::copy_n(owned.constScanLine(y), static_cast<std::size_t>(owned.width()) * 3U,
+                        rgb.begin() + static_cast<std::ptrdiff_t>(
+                                          static_cast<std::size_t>(y) *
+                                          static_cast<std::size_t>(owned.width()) * 3U));
+        }
+        auto composited = engine_->composite_preview_mask_overlay(
+            rgb, static_cast<std::uint32_t>(owned.width()),
+            static_cast<std::uint32_t>(owned.height()), preview.mask_alpha, {});
+        if (composited)
+        {
+            displayed = QImage(static_cast<int>(owned.width()), static_cast<int>(owned.height()),
+                               QImage::Format_RGB888);
+            for (int y = 0; y < displayed.height(); ++y)
+            {
+                std::copy_n(rgb.data() + static_cast<std::ptrdiff_t>(
+                                             static_cast<std::size_t>(y) *
+                                             static_cast<std::size_t>(displayed.width()) * 3U),
+                            static_cast<std::size_t>(displayed.width()) * 3U,
+                            displayed.scanLine(y));
+            }
+            if (owned.colorSpace().isValid())
+            {
+                displayed.setColorSpace(owned.colorSpace());
+            }
+        }
+    }
     {
         const QMutexLocker lock(&preview_image_mutex_);
-        preview_image_ = cached;
+        preview_image_ = displayed;
     }
     live_preview_revision_ = revision;
-    live_preview_width_ = static_cast<std::uint32_t>(std::max(0, cached.width()));
-    live_preview_height_ = static_cast<std::uint32_t>(std::max(0, cached.height()));
+    live_preview_width_ = static_cast<std::uint32_t>(std::max(0, displayed.width()));
+    live_preview_height_ = static_cast<std::uint32_t>(std::max(0, displayed.height()));
     live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
-    if (live_preview_color_profile_id_.isEmpty() && cached.colorSpace().isValid())
+    if (live_preview_color_profile_id_.isEmpty() && displayed.colorSpace().isValid())
     {
-        live_preview_color_profile_id_ = cached.colorSpace().description();
+        live_preview_color_profile_id_ = displayed.colorSpace().description();
         if (live_preview_color_profile_id_.isEmpty())
             live_preview_color_profile_id_ = QStringLiteral("embedded-icc");
     }
-    live_preview_pixel_sha256_ = preview_pixel_sha256(cached, live_preview_color_profile_id_);
-    preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
-    refresh_scopes(cached);
+    live_preview_pixel_sha256_ = preview_pixel_sha256(displayed, live_preview_color_profile_id_);
+    preview_url_ = !preview.rgb.empty() ?
+                       QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision)) :
+                       QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
+    refresh_scopes(owned);
+}
+
+void StudioPresenter::show_comparison_before_result(const PreviewResult &preview,
+                                                    const std::uint64_t revision)
+{
+    auto prepared = preview_result_image(preview);
+    if (!prepared)
+    {
+        setError(qstring_from_utf8(prepared.error().message));
+        return;
+    }
+    {
+        const QMutexLocker lock(&preview_image_mutex_);
+        comparison_before_image_ = std::move(prepared).value();
+    }
+    comparison_before_url_ =
+        QUrl(QStringLiteral("image://studioPreview/before?r=%1").arg(revision));
 }
 
 bool StudioPresenter::previewLoading() const noexcept

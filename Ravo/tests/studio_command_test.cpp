@@ -281,12 +281,17 @@ TEST(StudioLiveControlTest, DiscoveryIsMultiSessionAwareAndDescriptorsDisappearW
     ASSERT_NE(sessions, nullptr);
     ASSERT_NE(sessions->array_if(), nullptr);
     EXPECT_EQ(sessions->array_if()->size(), 2U);
-    const auto ambiguous = run_cli_process(
-        {QStringLiteral("studio"), QStringLiteral("state"), QStringLiteral("--workspace-root"),
-         QStringLiteral(RAVO_REPOSITORY_ROOT), QStringLiteral("--timeout-ms"),
-         QStringLiteral("5000"), QStringLiteral("--json")});
-    EXPECT_EQ(ambiguous.exit_code, cli_exit_code(ErrorCode::kConflict));
-    EXPECT_NE(ambiguous.standard_output.indexOf("session_ids"), -1);
+    for (int attempt = 0; attempt < 3; ++attempt)
+    {
+        const auto ambiguous = run_cli_process(
+            {QStringLiteral("studio"), QStringLiteral("state"), QStringLiteral("--workspace-root"),
+             QStringLiteral(RAVO_REPOSITORY_ROOT), QStringLiteral("--timeout-ms"),
+             QStringLiteral("5000"), QStringLiteral("--json")});
+        EXPECT_EQ(ambiguous.exit_code, cli_exit_code(ErrorCode::kConflict))
+            << ambiguous.standard_output.constData() << ambiguous.standard_error.constData();
+        EXPECT_NE(ambiguous.standard_output.indexOf("session_ids"), -1)
+            << ambiguous.standard_output.constData() << ambiguous.standard_error.constData();
+    }
 
     const auto first_path = first.value()->descriptor_path();
     const auto second_path = second.value()->descriptor_path();
@@ -321,8 +326,10 @@ TEST(StudioLiveControlTest, CliTimeoutCancelsAnUnresponsiveSessionRequest)
                                          QStringLiteral("--session-id"), QStringLiteral("slow"),
                                          QStringLiteral("--timeout-ms"), QStringLiteral("100"),
                                          QStringLiteral("--json")});
-    EXPECT_EQ(result.exit_code, cli_exit_code(ErrorCode::kCancelled));
-    EXPECT_NE(result.standard_output.indexOf("timeout_ms"), -1);
+    EXPECT_EQ(result.exit_code, cli_exit_code(ErrorCode::kCancelled))
+        << result.standard_output.constData() << result.standard_error.constData();
+    EXPECT_NE(result.standard_output.indexOf("timeout_ms"), -1)
+        << result.standard_output.constData() << result.standard_error.constData();
 }
 
 TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLatestPreview)
@@ -505,7 +512,8 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
          session_id, QStringLiteral("--set"), QStringLiteral("exposure=1.5"),
          QStringLiteral("--output"), output, QStringLiteral("--timeout-ms"), QStringLiteral("5000"),
          QStringLiteral("--json")});
-    EXPECT_EQ(conflict.exit_code, cli_exit_code(ErrorCode::kConflict));
+    EXPECT_EQ(conflict.exit_code, cli_exit_code(ErrorCode::kConflict))
+        << conflict.standard_output.constData() << conflict.standard_error.constData();
     EXPECT_NEAR(presenter.editExposure(), 0.75, 1e-9);
 
     live.value().reset();
@@ -1105,6 +1113,112 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
         << " url=" << presenter.previewUrl().toString().toStdString();
     EXPECT_FALSE(presenter.previewLoading());
     EXPECT_NEAR(presenter.editExposure(), 1.0, 1e-9);
+}
+
+TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("comparison.png"));
+    QImage image(96, 64, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(70, 105, 150));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && !presenter.previewImage().isNull() &&
+                   !presenter.previewUrl().isEmpty();
+        }))
+        << presenter.errorText().toStdString();
+
+    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.5);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && presenter.previewUrl().isLocalFile() &&
+                   std::abs(presenter.editExposure() - 0.5) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    const QImage first_after = presenter.previewImage();
+    ASSERT_FALSE(first_after.isNull());
+
+    const auto comparison_action =
+        commands.ids().value(QStringLiteral("editComparison")).toString();
+    ASSERT_EQ(comparison_action, QStringLiteral("studio.edit.toggle_comparison"));
+    bool found_y_shortcut = false;
+    for (const auto &entry : commands.shortcutEntries())
+    {
+        const auto fields = entry.toMap();
+        found_y_shortcut =
+            found_y_shortcut ||
+            (fields.value(QStringLiteral("actionId")).toString() == comparison_action &&
+             fields.value(QStringLiteral("sequence")).toString() == QLatin1String("Y"));
+    }
+    EXPECT_TRUE(found_y_shortcut);
+    const auto activated = commands.executeAction(comparison_action, QStringLiteral("control"));
+    ASSERT_TRUE(activated.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.comparisonActive() && !presenter.previewLoading() &&
+                   !presenter.comparisonBeforeUrl().isEmpty() &&
+                   !presenter.comparisonBeforeImage().isNull();
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(commands.action(comparison_action).value(QStringLiteral("checked")).toBool());
+    const QImage before = presenter.comparisonBeforeImage();
+    const QImage after = presenter.previewImage();
+    ASSERT_EQ(before.size(), after.size());
+    const QPoint center(before.width() / 2, before.height() / 2);
+    EXPECT_NE(before.pixelColor(center), after.pixelColor(center));
+    EXPECT_EQ(first_after.pixelColor(center), after.pixelColor(center));
+
+    presenter.setDevelopNumber(QStringLiteral("exposure"), 1.0);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && presenter.previewUrl().isLocalFile() &&
+                   std::abs(presenter.editExposure() - 1.0) < 1e-9;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.comparisonActive());
+    EXPECT_EQ(before.pixelColor(center), presenter.comparisonBeforeImage().pixelColor(center));
+    EXPECT_NE(after.pixelColor(center), presenter.previewImage().pixelColor(center));
+
+    const auto deactivated = commands.executeAction(comparison_action, QStringLiteral("control"));
+    ASSERT_TRUE(deactivated.value(QStringLiteral("accepted")).toBool());
+    EXPECT_FALSE(presenter.comparisonActive());
+    EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
+    EXPECT_TRUE(presenter.comparisonBeforeImage().isNull());
+    EXPECT_FALSE(commands.action(comparison_action).value(QStringLiteral("checked")).toBool());
+
+    ASSERT_TRUE(commands.executeAction(comparison_action, QStringLiteral("control"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    ASSERT_TRUE(commands.executeAction(comparison_action, QStringLiteral("control"))
+                    .value(QStringLiteral("accepted"))
+                    .toBool());
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }));
+    EXPECT_FALSE(presenter.comparisonActive());
+    EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
 }
 
 TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImagePublication)
@@ -1880,6 +1994,46 @@ TEST(StudioQmlContract, GeometryCropToolbarUsesIconsAndAspectLock)
     EXPECT_FALSE(geometry.contains(QStringLiteral("qsTr(\"Angle\")")));
     EXPECT_FALSE(geometry.contains(QStringLiteral("previewDevelopNumber(\"straighten\"")));
     EXPECT_FALSE(geometry.contains(QStringLiteral("resetControl(\"straighten\")")));
+}
+
+TEST(StudioQmlContract, DevelopReviewToolbarOffersSynchronizedBeforeAfterComparison)
+{
+    QFile review(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"));
+    ASSERT_TRUE(review.open(QIODevice::ReadOnly | QIODevice::Text))
+        << review.errorString().toStdString();
+    const auto review_source = QString::fromUtf8(review.readAll());
+    const auto comparison_button = review_source.indexOf(QStringLiteral("id: comparisonButton"));
+    const auto rating_control = review_source.indexOf(QStringLiteral("RatingControl"));
+    ASSERT_GE(comparison_button, 0);
+    ASSERT_GT(rating_control, comparison_button);
+    EXPECT_TRUE(
+        review_source.contains(QStringLiteral("objectName: \"beforeAfterComparisonButton\"")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("visible: root.developOpen")));
+    EXPECT_TRUE(review_source.contains(
+        QStringLiteral("action: root.commands ? root.commands.comparison : null")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("text: qsTr(\"Y|Y\")")));
+    EXPECT_TRUE(review_source.contains(QStringLiteral("tooltipText: action ? action.text : \"\"")));
+
+    QFile main_qml(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main_qml.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main_qml.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main_qml.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("comparisonReady")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("studio.comparisonBeforeUrl")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: comparisonBeforeImage")));
+    EXPECT_TRUE(
+        main_source.contains(QStringLiteral("return window.comparisonReady ? width * 2 : width")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("text: qsTr(\"Before\")")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("text: qsTr(\"After\")")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("!studio.comparisonActive")));
+
+    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
+    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
+        << actions.errorString().toStdString();
+    const auto action_source = QString::fromUtf8(actions.readAll());
+    EXPECT_TRUE(action_source.contains(QStringLiteral("property alias comparison")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("root.ids.editComparison")));
 }
 
 TEST(StudioQmlContract, EditLeftRailShowsHistoryInsteadOfLibraryFolders)

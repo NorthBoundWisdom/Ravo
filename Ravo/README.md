@@ -86,7 +86,8 @@ Current implementation status:
   Color Balance RGB wheels, and Camera Calibration (ADR-0082/0084/0085). Color
   Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
-  plus before/after, session undo/redo, and Paste Light / Paste Color.
+  plus single-photo Before/After, a toolbar Left/Right comparison whose two
+  panes share zoom and pan, session undo/redo, and Paste Light / Paste Color.
   RAW preview retains bounded 960px interactive and 1600px settled
   scene-linear working images. An ordinary committed edit publishes the exact
   960px in-memory result first, then replaces it with the exact persisted

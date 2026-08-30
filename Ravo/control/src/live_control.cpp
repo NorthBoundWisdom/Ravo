@@ -365,6 +365,40 @@ struct ParsedTaskError
     return {};
 }
 
+class LocalSocketCloseGuard final
+{
+public:
+    LocalSocketCloseGuard(QLocalSocket &socket, const int timeout_ms) noexcept
+        : socket_(&socket)
+        , timeout_ms_(std::clamp(timeout_ms, 1, 1000))
+    {
+    }
+
+    ~LocalSocketCloseGuard()
+    {
+        if (socket_->state() == QLocalSocket::UnconnectedState)
+        {
+            return;
+        }
+        socket_->disconnectFromServer();
+        if (socket_->state() != QLocalSocket::UnconnectedState)
+        {
+            static_cast<void>(socket_->waitForDisconnected(timeout_ms_));
+        }
+        if (socket_->state() != QLocalSocket::UnconnectedState)
+        {
+            socket_->abort();
+        }
+    }
+
+    LocalSocketCloseGuard(const LocalSocketCloseGuard &) = delete;
+    LocalSocketCloseGuard &operator=(const LocalSocketCloseGuard &) = delete;
+
+private:
+    QLocalSocket *socket_ = nullptr;
+    int timeout_ms_ = 0;
+};
+
 } // namespace
 
 Result<JsonValue> live_session_descriptor_to_json(const LiveSessionDescriptor &descriptor)
@@ -852,6 +886,11 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
             ErrorCode::kNotFound, "Studio live session is unavailable",
             {{"session_id", descriptor.session_id}, {"reason", utf8(socket.errorString())}});
     }
+    // A Windows named-pipe server cannot reliably accept the next request until
+    // the prior client handle has completed disconnect. Bound that cleanup on
+    // every post-connect return so discovery's ping can be followed immediately
+    // by a state or mutation request without a transient not-found result.
+    const LocalSocketCloseGuard close_guard(socket, timeout_ms);
     if (socket.write(outgoing) != outgoing.size() || !socket.waitForBytesWritten(timeout_ms))
     {
         return make_error(

@@ -84,8 +84,11 @@ the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier
 click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
 and QML smoke; same-asset review notifications are required not to reset pan.
 Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
-than a C++ timing contract. Scope
-tests pin histogram bins/max plus Rec.709 luma, Waveform/Parade 8/9 white placement and RGB
+than a C++ timing contract. Develop toolbar comparison tests require that its
+baseline is non-persistent and immutable while the edited pane refreshes,
+rapid exit rejects a late baseline, and QML presents two whole images through
+one shared zoom/pan plane.
+Scope tests pin histogram bins/max plus Rec.709 luma, Waveform/Parade 8/9 white placement and RGB
 composition, neutral-center versus saturated-red D50 u*v*, exact image sizes,
 Split left equality and max-preserved right signal, exact-buffer rejection,
 five presenter/command/QML modes, provider URLs, translations, and offscreen
@@ -150,7 +153,9 @@ observations are not pixel or persistence oracles.
 Catalog snapshot tests prove `revision` is re-read from SQLite so a second
 connection's bump is visible. Desktop presenter tests open a library, apply a
 second CatalogService `save_develop`, call `pollCatalogRevision`, and require
-the selected Develop values to match the committed recipe.
+the selected Develop values to match the committed recipe. Live-control
+coverage also keeps an in-memory edit across the first post-import poll, proving
+that Studio's own import revision is not replayed as an external write.
 
 Live Studio control tests isolate an owner-only registry, prove multiple live
 sessions and stale descriptor rejection, enforce the 4 MiB message bound, and
@@ -161,7 +166,10 @@ ordered strict parameter batch, waits for saved/preview settlement, and
 publishes a no-replace PNG whose dimensions and SHA-256 are independently
 checked. Existing catalog polling covers the concurrent second-client write;
 selection and recipe rechecks prevent an in-flight artifact from publishing
-for changed state (ADR-0090).
+for changed state. Repeated subprocess discovery and state requests require
+each successful `ping` connection to be released before the next request;
+the unresponsive-session test distinguishes a connected response timeout from
+a transient Windows named-pipe `not_found` result (ADR-0090).
 
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,

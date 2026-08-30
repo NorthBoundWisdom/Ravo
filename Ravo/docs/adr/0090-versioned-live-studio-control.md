@@ -25,7 +25,10 @@ user changes photos while an agent is deciding what to edit.
   transport. It contains no catalog, recipe, renderer, command policy, or
   assistant state. Each Studio process publishes a unique session and removes
   its descriptor and endpoint during normal destruction; unreachable stale
-  descriptors are ignored.
+  descriptors are ignored. After a client connects, every success and failure
+  path performs a bounded graceful disconnect and aborts any handle that does
+  not settle, so a Windows named-pipe endpoint is reusable immediately after
+  discovery's `ping`.
 - `StudioLiveSessionController` is a desktop C++ owner on the UI thread. Its
   immutable snapshot identifies the executable/workspace, process/session and
   state revisions, catalog path/revision, primary and selected assets, browse

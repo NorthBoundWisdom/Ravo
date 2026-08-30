@@ -39,6 +39,11 @@ bool StudioPresenter::beforeAfter() const noexcept
     return before_after_;
 }
 
+bool StudioPresenter::comparisonActive() const noexcept
+{
+    return comparison_active_;
+}
+
 bool StudioPresenter::canUndo() const noexcept
 {
     return !undo_stack_.empty();
@@ -1333,12 +1338,17 @@ void StudioPresenter::setMaskOverlay(const QString &target, const bool visible)
     const QString normalized = target == QLatin1String("graduatednd") ?
                                    QStringLiteral("graduatednd") :
                                    QStringLiteral("color_harmonizer");
+    const bool comparison_changed = visible && clear_comparison();
     const bool changed = mask_overlay_visible_ != visible || mask_overlay_target_ != normalized;
     mask_overlay_visible_ = visible;
     mask_overlay_target_ = normalized;
-    if (!changed)
+    if (!changed && !comparison_changed)
     {
         return;
+    }
+    if (comparison_changed)
+    {
+        emit editChanged();
     }
     emit previewChanged();
     if (!visible)
@@ -1718,12 +1728,17 @@ void StudioPresenter::setWhiteBalancePickActive(const bool active)
     {
         return;
     }
+    const bool comparison_changed = enabled && clear_comparison();
     white_balance_pick_active_ = enabled;
     if (enabled)
     {
         setCropToolActive(false);
     }
     emit editChanged();
+    if (comparison_changed)
+    {
+        emit previewChanged();
+    }
 }
 
 void StudioPresenter::pickWhiteBalance(const double preview_x, const double preview_y)
@@ -2449,6 +2464,18 @@ void StudioPresenter::enqueue_preview()
     kick_develop_work();
 }
 
+void StudioPresenter::request_comparison_before()
+{
+    if (!comparison_active_ || selected_asset_id_.isEmpty())
+    {
+        return;
+    }
+    comparison_before_requested_ = true;
+    preview_loading_ = true;
+    emit previewChanged();
+    kick_develop_work();
+}
+
 void StudioPresenter::kick_develop_work()
 {
     if (develop_job_in_flight_)
@@ -2456,6 +2483,7 @@ void StudioPresenter::kick_develop_work()
         return;
     }
     PendingDevelopWork job;
+    bool starting_comparison_before = false;
     if (pending_save_.has_value())
     {
         job = *pending_save_;
@@ -2466,10 +2494,32 @@ void StudioPresenter::kick_develop_work()
         job = *pending_preview_;
         pending_preview_.reset();
     }
+    else if (comparison_active_ && comparison_before_requested_)
+    {
+        comparison_before_requested_ = false;
+        starting_comparison_before = true;
+        job = PendingDevelopWork{
+            .interactive = false,
+            .params = develop_,
+            .history_write = RecipeHistoryWrite::kUnchanged,
+            .discard_history_after_seq = {},
+            .asset_id = utf8_from_qstring(selected_asset_id_),
+            .ignore_edits = true,
+            .refresh_preview = true,
+            .comparison_before = true,
+            .overlay_mask_id = {},
+        };
+    }
     else
     {
         kickPreviewWarmup();
         return;
+    }
+    if (starting_comparison_before)
+    {
+        static_cast<void>(develop_preview_owner_.supersede("comparison_before_requested"));
+        preview_loading_ = true;
+        emit previewChanged();
     }
     static_cast<void>(thumbnail_work_.cancel("foreground_preview_requested"));
     develop_job_in_flight_ = true;
@@ -2503,7 +2553,8 @@ void StudioPresenter::kick_develop_work()
                     request.ignore_edits = job.ignore_edits;
                     request.ignore_crop = job.ignore_crop;
                     request.ignore_straighten = job.ignore_straighten;
-                    request.persist_preview_record = !job.interactive;
+                    request.persist_preview_record =
+                        job.comparison_before ? false : !job.interactive;
                     request.cancellation = cancellation;
                     if (job.overlay_mask_id)
                     {
@@ -2511,8 +2562,9 @@ void StudioPresenter::kick_develop_work()
                         request.persist_preview_record = false;
                     }
                     preview = service_->request_preview(
-                        request, job.interactive ? std::optional<DevelopParams>{job.params} :
-                                                   std::optional<DevelopParams>{});
+                        request, job.interactive && !job.comparison_before ?
+                                     std::optional<DevelopParams>{job.params} :
+                                     std::optional<DevelopParams>{});
                 }
             }
             QMetaObject::invokeMethod(
@@ -2574,6 +2626,11 @@ void StudioPresenter::kick_develop_work()
                     if (!develop_preview_owner_.accepts(revision, job.asset_id,
                                                         utf8_from_qstring(selected_asset_id_)))
                     {
+                        if (job.comparison_before && comparison_active_ &&
+                            comparison_before_url_.isEmpty())
+                        {
+                            comparison_before_requested_ = true;
+                        }
                         kick_develop_work();
                         return;
                     }
@@ -2589,6 +2646,11 @@ void StudioPresenter::kick_develop_work()
                     {
                         if (preview.error().code == ErrorCode::kCancelled)
                         {
+                            if (job.comparison_before && comparison_active_ &&
+                                comparison_before_url_.isEmpty())
+                            {
+                                comparison_before_requested_ = true;
+                            }
                             kick_develop_work();
                             return;
                         }
@@ -2600,6 +2662,10 @@ void StudioPresenter::kick_develop_work()
                         else
                         {
                             setError(qstring_from_utf8(preview.error().message));
+                        }
+                        if (job.comparison_before && clear_comparison())
+                        {
+                            emit editChanged();
                         }
                         emit previewChanged();
                         kick_develop_work();
@@ -2613,6 +2679,20 @@ void StudioPresenter::kick_develop_work()
                     if (job.ignore_crop && job.ignore_straighten && crop_tool_active_)
                     {
                         crop_guide_ready_ = true;
+                    }
+                    if (job.comparison_before)
+                    {
+                        if (comparison_active_)
+                        {
+                            show_comparison_before_result(preview.value(), revision);
+                            if (comparison_before_url_.isEmpty() && clear_comparison())
+                            {
+                                emit editChanged();
+                            }
+                        }
+                        emit previewChanged();
+                        kick_develop_work();
+                        return;
                     }
                     show_preview_result(preview.value(), revision);
                     displayed_develop_ = job.ignore_edits ?
@@ -2637,6 +2717,10 @@ void StudioPresenter::kick_develop_work()
                             .settle_preview = false,
                             .overlay_mask_id = {},
                         };
+                    }
+                    if (comparison_active_ && comparison_before_url_.isEmpty())
+                    {
+                        comparison_before_requested_ = true;
                     }
                     kick_develop_work();
                 },
@@ -3609,6 +3693,10 @@ void StudioPresenter::setCropToolActive(const bool active)
     {
         return;
     }
+    if (active)
+    {
+        static_cast<void>(clear_comparison());
+    }
     crop_tool_active_ = active;
     if (active)
     {
@@ -3809,9 +3897,63 @@ void StudioPresenter::redoEdit()
 
 void StudioPresenter::toggleBeforeAfter()
 {
+    static_cast<void>(clear_comparison());
     before_after_ = !before_after_;
     emit editChanged();
     enqueue_preview();
+}
+
+void StudioPresenter::toggleComparison()
+{
+    if (comparison_active_)
+    {
+        if (clear_comparison())
+        {
+            emit editChanged();
+            emit previewChanged();
+        }
+        return;
+    }
+    if (selected_asset_id_.isEmpty() || browse_mode_ != QLatin1String("develop"))
+    {
+        return;
+    }
+    if (crop_tool_active_)
+    {
+        setCropToolActive(false);
+    }
+    if (white_balance_pick_active_)
+    {
+        setWhiteBalancePickActive(false);
+    }
+    if (mask_overlay_visible_)
+    {
+        setMaskOverlay(mask_overlay_target_, false);
+    }
+
+    comparison_active_ = true;
+    comparison_before_requested_ = true;
+    if (before_after_)
+    {
+        QImage before;
+        {
+            const QMutexLocker lock(&preview_image_mutex_);
+            before = preview_image_;
+            comparison_before_image_ = before;
+        }
+        if (!before.isNull())
+        {
+            comparison_before_url_ = QUrl(
+                QStringLiteral("image://studioPreview/before?r=%1").arg(live_preview_revision_));
+            comparison_before_requested_ = false;
+        }
+        before_after_ = false;
+        emit editChanged();
+        enqueue_preview();
+        return;
+    }
+    emit editChanged();
+    request_comparison_before();
 }
 
 bool StudioPresenter::working_source_size(double &width, double &height) const

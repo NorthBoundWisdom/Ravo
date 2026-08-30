@@ -2561,6 +2561,10 @@
 <context>
     <name>GalleryReviewBar</name>
     <message>
+        <source>Y|Y</source>
+        <translation>Y|Y</translation>
+    </message>
+    <message>
         <source>Size</source>
         <translation>大小</translation>
     </message>
@@ -2824,6 +2828,14 @@
     <message>
         <source>No photos imported yet.</source>
         <translation>尚未导入照片。</translation>
+    </message>
+    <message>
+        <source>Before</source>
+        <translation>之前</translation>
+    </message>
+    <message>
+        <source>After</source>
+        <translation>之后</translation>
     </message>
     <message>
         <source>Original file is missing.</source>

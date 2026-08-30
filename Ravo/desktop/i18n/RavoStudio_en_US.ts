@@ -2561,6 +2561,10 @@
 <context>
     <name>GalleryReviewBar</name>
     <message>
+        <source>Y|Y</source>
+        <translation>Y|Y</translation>
+    </message>
+    <message>
         <source>Size</source>
         <translation>Size</translation>
     </message>
@@ -2824,6 +2828,14 @@
     <message>
         <source>No photos imported yet.</source>
         <translation>No photos imported yet.</translation>
+    </message>
+    <message>
+        <source>Before</source>
+        <translation>Before</translation>
+    </message>
+    <message>
+        <source>After</source>
+        <translation>After</translation>
     </message>
     <message>
         <source>Original file is missing.</source>

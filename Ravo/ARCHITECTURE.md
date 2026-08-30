@@ -174,6 +174,17 @@ worker-start failure is structured rather than falling back silently
 property changes, so QML binding reevaluation can overlap the foreground work;
 revision acceptance still exclusively controls publication.
 
+Develop comparison is desktop-owned transient presentation state. The toolbar
+Left/Right view retains one immutable, non-persistent baseline image for the
+current asset while the ordinary preview resource remains the live edited
+image. Both panes share the existing Flickable transform, so Fit/Fill/Actual,
+zoom, and pan stay synchronized without another renderer. Baseline work uses
+the same cancellable CatalogService preview path with `ignore_edits=true`, does
+not publish a preview record, loses stale results by request/asset revision,
+and is released on selection change, Develop exit, crop/pick/mask entry, or
+window destruction. The existing single-photo Before/After command remains a
+separate view toggle.
+
 Develop crop is interactive: crop-tool preview removes crop and straighten,
 while Qt Quick rotates the working image. Photo and overlay share the GPU
 transform; the crop frame remains screen-axis aligned and inscribed in the
@@ -911,7 +922,10 @@ First-version services provide:
 - `ListAssets` / `ObserveCatalog`: return stable order and live
   `CatalogSnapshot.revision` without SQL cursors. Studio's presenter polls
   that revision on a 1 s timer and reloads listing/recipe/history when another
-  client commits; QML does not poll or read the database;
+  client commits. A completed Studio import advances the presenter's observed
+  revision from the same returned listing before publishing it, so the timer
+  cannot misclassify that local write and discard a later in-memory edit; QML
+  does not poll or read the database;
 - `RequestPreview` / `CancelPreview`: request bounded previews by viewport
   and discard stale results;
 - `CloseCatalog`: stop associated tasks and release connection/cache handles
@@ -1025,6 +1039,10 @@ residue is ignored. MCP may later project the same snapshots, commands, and
 immutable image results, but cannot become a second state, renderer,
 permission, or business-policy owner (ADR-0090). Process lists, logs,
 accessibility state, and screenshots remain non-authoritative.
+Each connected CLI request completes a bounded local-socket disconnect before
+returning; an unsettled handle is aborted. This is transport lifecycle, not a
+retry or discovery fallback, and keeps the next Windows named-pipe connection
+from observing a transient unavailable endpoint.
 
 Original-copy export is separate from pixel encoding. CatalogService passes one
 explicit local source and destination to a bounded 64 KiB streaming owner,

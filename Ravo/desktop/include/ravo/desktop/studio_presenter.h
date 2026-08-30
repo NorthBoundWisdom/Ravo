@@ -55,6 +55,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedImportState READ selectedImportState NOTIFY selectionChanged)
     Q_PROPERTY(bool canDeleteFromDisk READ canDeleteFromDisk NOTIFY selectionChanged)
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
+    Q_PROPERTY(QUrl comparisonBeforeUrl READ comparisonBeforeUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
     Q_PROPERTY(QString scopeMode READ scopeMode WRITE setScopeMode NOTIFY scopesChanged)
     Q_PROPERTY(QVariantList scopeHistogramRed READ scopeHistogramRed NOTIFY scopesChanged)
@@ -84,6 +85,7 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool filtersActive READ filtersActive NOTIFY filterChanged)
     Q_PROPERTY(bool selectedHasEdits READ selectedHasEdits NOTIFY selectionChanged)
     Q_PROPERTY(bool beforeAfter READ beforeAfter NOTIFY editChanged)
+    Q_PROPERTY(bool comparisonActive READ comparisonActive NOTIFY editChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY editChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY editChanged)
     Q_PROPERTY(bool hasCopiedEdits READ hasCopiedEdits NOTIFY copiedEditsChanged)
@@ -268,6 +270,8 @@ public:
     [[nodiscard]] bool canDeleteFromDisk() const;
     [[nodiscard]] QUrl previewUrl() const;
     [[nodiscard]] QImage previewImage() const;
+    [[nodiscard]] QUrl comparisonBeforeUrl() const;
+    [[nodiscard]] QImage comparisonBeforeImage() const;
     [[nodiscard]] bool previewLoading() const noexcept;
     [[nodiscard]] QString scopeMode() const;
     void setScopeMode(const QString &mode);
@@ -301,6 +305,7 @@ public:
     [[nodiscard]] bool filtersActive() const noexcept;
     [[nodiscard]] bool selectedHasEdits() const noexcept;
     [[nodiscard]] bool beforeAfter() const noexcept;
+    [[nodiscard]] bool comparisonActive() const noexcept;
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] bool hasCopiedEdits() const noexcept;
@@ -512,6 +517,7 @@ public:
     Q_INVOKABLE void undoEdit();
     Q_INVOKABLE void redoEdit();
     Q_INVOKABLE void toggleBeforeAfter();
+    Q_INVOKABLE void toggleComparison();
     Q_INVOKABLE void setZoomMode(const QString &mode);
     Q_INVOKABLE void setZoomFactor(double factor);
     Q_INVOKABLE void adjustZoom(int wheel_delta);
@@ -608,6 +614,7 @@ private:
                         RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew);
     void preview_develop(DevelopParams params);
     void enqueue_preview();
+    void request_comparison_before();
     [[nodiscard]] double selected_source_aspect() const;
     [[nodiscard]] double selected_working_aspect() const;
     [[nodiscard]] bool working_source_size(double &width, double &height) const;
@@ -619,7 +626,9 @@ private:
     current_overlay_mask_id(const DevelopParams &params) const;
     void kick_develop_work();
     void clear_displayed_preview();
+    [[nodiscard]] bool clear_comparison();
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision);
+    void show_comparison_before_result(const PreviewResult &preview, std::uint64_t revision);
     void refresh_scopes(const QImage &image);
     void refresh_scopes_from_thumbnail(const QString &asset_id);
     void clear_scopes();
@@ -640,6 +649,7 @@ private:
         bool ignore_straighten = false;
         bool refresh_preview = true;
         bool settle_preview = false;
+        bool comparison_before = false;
         std::optional<std::string> overlay_mask_id;
     };
     [[nodiscard]] LibraryQuery current_query() const;
@@ -681,7 +691,9 @@ private:
     QString selection_anchor_id_;
     std::unordered_set<std::string> selected_ids_;
     QUrl preview_url_;
+    QUrl comparison_before_url_;
     QImage preview_image_;
+    QImage comparison_before_image_;
     QImage preview_base_image_;
     std::uint64_t live_preview_revision_ = 0;
     std::uint32_t live_preview_width_ = 0;
@@ -729,6 +741,8 @@ private:
     std::vector<DevelopParams> redo_stack_;
     std::optional<DevelopParams> copied_edits_;
     bool before_after_ = false;
+    bool comparison_active_ = false;
+    bool comparison_before_requested_ = false;
     bool crop_tool_active_ = false;
     bool white_balance_pick_active_ = false;
     bool crop_guide_ready_ = false;

@@ -1493,6 +1493,10 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
                     }
                     setError(first_error);
                     setStatus(describe_import(results));
+                    if (listing.revision >= 0)
+                    {
+                        observed_catalog_revision_ = listing.revision;
+                    }
                     applyFolders(std::move(listing.folders).value());
                     applyAssets(std::move(listing.assets).value(), true,
                                 std::move(listing.thumbnail_urls),
@@ -1653,9 +1657,15 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     {
         return;
     }
+    const bool comparison_changed = normalized != QLatin1String("develop") && clear_comparison();
     const QString previous = browse_mode_;
     browse_mode_ = normalized;
     emit browseModeChanged();
+    if (comparison_changed)
+    {
+        emit editChanged();
+        emit previewChanged();
+    }
     if (normalized != QLatin1String("grid") &&
         (previous == QLatin1String("grid") || normalized == QLatin1String("develop")) &&
         !selected_asset_id_.isEmpty())

@@ -14,6 +14,7 @@ Rectangle {
     readonly property bool hasPresenter: presenter !== null && presenter !== undefined
     readonly property bool hasSelection: hasPresenter && presenter.selectedAssetId.length > 0
     readonly property bool gridOpen: hasPresenter && presenter.browseMode === "grid"
+    readonly property bool developOpen: hasPresenter && presenter.browseMode === "develop"
 
     color: Theme.toolbarSurfaceColor
     implicitHeight: Math.max(Fonts.toolbarHeight, Fonts.inputFieldHeight + Fonts.size12)
@@ -31,6 +32,17 @@ Rectangle {
         anchors.leftMargin: Fonts.standardMargin
         anchors.rightMargin: Fonts.standardMargin
         spacing: Fonts.smallSpacing
+
+        CustomButton {
+            id: comparisonButton
+            objectName: "beforeAfterComparisonButton"
+            Layout.alignment: Qt.AlignVCenter
+            visible: root.developOpen
+            action: root.commands ? root.commands.comparison : null
+            text: qsTr("Y|Y")
+            tooltipText: action ? action.text : ""
+            Accessible.name: tooltipText
+        }
 
         RowLayout {
             visible: root.gridOpen

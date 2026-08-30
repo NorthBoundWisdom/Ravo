@@ -109,6 +109,7 @@ Item {
     property alias fill: fillAction
     property alias actualSize: actualSizeAction
     property alias beforeAfter: beforeAfterAction
+    property alias comparison: comparisonAction
     property alias previousPhoto: previousAction
     property alias nextPhoto: nextAction
     property alias reject: rejectAction
@@ -155,6 +156,7 @@ Item {
     RegisteredAction { id: fillAction; actionId: root.ids.viewFill || "" }
     RegisteredAction { id: actualSizeAction; actionId: root.ids.viewActual || "" }
     RegisteredAction { id: beforeAfterAction; actionId: root.ids.editBeforeAfter || "" }
+    RegisteredAction { id: comparisonAction; actionId: root.ids.editComparison || "" }
     RegisteredAction { id: previousAction; actionId: root.ids.photoPrevious || "" }
     RegisteredAction { id: nextAction; actionId: root.ids.photoNext || "" }
     RegisteredAction { id: rejectAction; actionId: root.ids.photoReject || "" }

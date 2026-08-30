@@ -57,6 +57,9 @@ ApplicationWindow {
     property real inspectAnimOriginX: 0
     property real inspectAnimOriginY: 0
     readonly property int inspectZoomDurationMs: 240
+    readonly property bool comparisonReady: studio.comparisonActive &&
+                                             studio.comparisonBeforeUrl.toString().length > 0 &&
+                                             studio.previewUrl.toString().length > 0
     readonly property bool photoInspectEnabled: {
         if (studio.browseMode === "grid" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
@@ -134,8 +137,8 @@ ApplicationWindow {
     }
 
     function unlockedPhotoStageSize(mode, factor) {
-        const srcW = Math.max(previewImage.implicitWidth, 1);
-        const srcH = Math.max(previewImage.implicitHeight, 1);
+        const srcW = window.inspectSourceWidth();
+        const srcH = window.inspectSourceHeight();
         if (mode === "fit")
             return {
                 "w": scroller.width,
@@ -158,8 +161,8 @@ ApplicationWindow {
     }
 
     function photoPlaneRectForStage(stageW, stageH) {
-        const srcW = Math.max(previewImage.implicitWidth, 1);
-        const srcH = Math.max(previewImage.implicitHeight, 1);
+        const srcW = window.inspectSourceWidth();
+        const srcH = window.inspectSourceHeight();
         const contain = Math.min(stageW / srcW, stageH / srcH);
         const planeW = srcW * contain;
         const planeH = srcH * contain;
@@ -169,6 +172,22 @@ ApplicationWindow {
             "w": planeW,
             "h": planeH
         };
+    }
+
+    function inspectSourceWidth() {
+        const width = Math.max(previewImage.implicitWidth, 1);
+        return window.comparisonReady ? width * 2 : width;
+    }
+
+    function inspectSourceHeight() {
+        return Math.max(previewImage.implicitHeight, 1);
+    }
+
+    onComparisonReadyChanged: {
+        window.abortInspectZoomAnimation();
+        window.inspectViewportFocus = null;
+        window.inspectViewportRestore = null;
+        window.centerPhotoViewport();
     }
 
     function clearInspectZoomVisual() {
@@ -884,10 +903,10 @@ ApplicationWindow {
                                     if (studio.zoomMode === "fit")
                                         return scroller.width;
                                     if (studio.zoomMode === "fill")
-                                        return Math.max(scroller.width, previewImage.implicitWidth * (scroller.height / Math.max(previewImage.implicitHeight, 1)));
+                                        return Math.max(scroller.width, previewStage.sourceW * (scroller.height / previewStage.sourceH));
                                     if (studio.zoomMode === "actual")
-                                        return Math.max(1, previewImage.implicitWidth);
-                                    return Math.max(1, previewImage.implicitWidth * studio.zoomFactor);
+                                        return previewStage.sourceW;
+                                    return Math.max(1, previewStage.sourceW * studio.zoomFactor);
                                 }
                                 height: {
                                     if (window.inspectStageLockH >= 0)
@@ -895,10 +914,10 @@ ApplicationWindow {
                                     if (studio.zoomMode === "fit")
                                         return scroller.height;
                                     if (studio.zoomMode === "fill")
-                                        return Math.max(scroller.height, previewImage.implicitHeight * (scroller.width / Math.max(previewImage.implicitWidth, 1)));
+                                        return Math.max(scroller.height, previewStage.sourceH * (scroller.width / previewStage.sourceW));
                                     if (studio.zoomMode === "actual")
-                                        return Math.max(1, previewImage.implicitHeight);
-                                    return Math.max(1, previewImage.implicitHeight * studio.zoomFactor);
+                                        return previewStage.sourceH;
+                                    return Math.max(1, previewStage.sourceH * studio.zoomFactor);
                                 }
                                 transform: Scale {
                                     origin.x: window.inspectAnimOriginX
@@ -907,8 +926,8 @@ ApplicationWindow {
                                     yScale: window.inspectAnimScale
                                 }
 
-                                readonly property real sourceW: Math.max(previewImage.implicitWidth, 1)
-                                readonly property real sourceH: Math.max(previewImage.implicitHeight, 1)
+                                readonly property real sourceW: window.inspectSourceWidth()
+                                readonly property real sourceH: window.inspectSourceHeight()
                                 readonly property real containScale: Math.min(width / sourceW, height / sourceH)
                                 readonly property real baseW: sourceW * containScale
                                 readonly property real baseH: sourceH * containScale
@@ -935,13 +954,76 @@ ApplicationWindow {
 
                                     Image {
                                         id: previewImage
-                                        anchors.fill: parent
+                                        x: window.comparisonReady ? parent.width / 2 : 0
+                                        width: window.comparisonReady ? parent.width / 2 : parent.width
+                                        height: parent.height
                                         asynchronous: false
                                         cache: false
                                         source: studio.previewUrl
                                         fillMode: Image.Stretch
                                         smooth: true
                                         antialiasing: true
+                                    }
+
+                                    Image {
+                                        id: comparisonBeforeImage
+                                        x: 0
+                                        width: parent.width / 2
+                                        height: parent.height
+                                        visible: window.comparisonReady
+                                        asynchronous: false
+                                        cache: false
+                                        source: studio.comparisonBeforeUrl
+                                        fillMode: Image.Stretch
+                                        smooth: true
+                                        antialiasing: true
+                                    }
+
+                                    Rectangle {
+                                        x: parent.width / 2
+                                        width: 1
+                                        height: parent.height
+                                        visible: window.comparisonReady
+                                        color: Theme.dividerColor
+                                        z: 2
+                                    }
+
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.bottom: parent.bottom
+                                        anchors.margins: Fonts.size8
+                                        width: beforeLabel.implicitWidth + Fonts.size12
+                                        height: beforeLabel.implicitHeight + Fonts.size8
+                                        visible: window.comparisonReady
+                                        color: Qt.rgba(0, 0, 0, 0.62)
+                                        radius: 3
+                                        z: 3
+
+                                        CustomLabel {
+                                            id: beforeLabel
+                                            anchors.centerIn: parent
+                                            text: qsTr("Before")
+                                            color: "#ffffff"
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        x: parent.width / 2 + Fonts.size8
+                                        anchors.bottom: parent.bottom
+                                        anchors.bottomMargin: Fonts.size8
+                                        width: afterLabel.implicitWidth + Fonts.size12
+                                        height: afterLabel.implicitHeight + Fonts.size8
+                                        visible: window.comparisonReady
+                                        color: Qt.rgba(0, 0, 0, 0.62)
+                                        radius: 3
+                                        z: 3
+
+                                        CustomLabel {
+                                            id: afterLabel
+                                            anchors.centerIn: parent
+                                            text: qsTr("After")
+                                            color: "#ffffff"
+                                        }
                                     }
 
                                     HoverHandler {
@@ -992,7 +1074,7 @@ ApplicationWindow {
 
                                 CropOverlay {
                                     anchors.fill: parent
-                                    visible: studio.browseMode === "develop" && studio.cropToolActive && photoPlane.width > 1
+                                    visible: studio.browseMode === "develop" && studio.cropToolActive && !studio.comparisonActive && photoPlane.width > 1
                                     imageX: photoPlane.x
                                     imageY: photoPlane.y
                                     imageWidth: photoPlane.width

@@ -101,6 +101,7 @@ inline constexpr auto kEditFlipHorizontal = "studio.edit.flip_horizontal";
 inline constexpr auto kEditFlipVertical = "studio.edit.flip_vertical";
 inline constexpr auto kEditCropTool = "studio.edit.toggle_crop_tool";
 inline constexpr auto kEditBeforeAfter = "studio.edit.toggle_before_after";
+inline constexpr auto kEditComparison = "studio.edit.toggle_comparison";
 inline constexpr auto kStyleSave = "studio.style.save";
 inline constexpr auto kStyleSavePath = "studio.style.save_path";
 inline constexpr auto kStyleApply = "studio.style.apply";
@@ -399,6 +400,7 @@ QStringList command_ids()
             QLatin1String(command::kEditFlipVertical),
             QLatin1String(command::kEditCropTool),
             QLatin1String(command::kEditBeforeAfter),
+            QLatin1String(command::kEditComparison),
             QLatin1String(command::kStyleSave),
             QLatin1String(command::kStyleSavePath),
             QLatin1String(command::kStyleApply),
@@ -538,6 +540,10 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Before / After")), view,
         {QStringLiteral("compare")}, QStringLiteral("view.compare"), 10, true,
         {key(QStringLiteral("\\"), true)});
+    add(command::kEditComparison, command::kEditComparison,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Before / After")), view,
+        {QStringLiteral("compare"), QStringLiteral("side by side")}, QStringLiteral("view.compare"),
+        20, false, {key(QStringLiteral("Y"), true)});
     add(command::kWindowPalette, command::kWindowPalette,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Show Command Palette")), view,
         {QStringLiteral("commands"), QStringLiteral("search")}, QStringLiteral("view.commands"), 10,
@@ -1727,6 +1733,8 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         });
     add(command::kEditBeforeAfter, Condition::kDevelop, no_argument,
         [this](const QVariant &, const QString &) { presenter_.toggleBeforeAfter(); });
+    add(command::kEditComparison, Condition::kDevelopSelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.toggleComparison(); });
 
     add(command::kWindowSettings, Condition::kAlways, no_argument,
         [present](const QVariant &argument, const QString &)
@@ -1857,6 +1865,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("editFlipVertical"), QLatin1String(command::kEditFlipVertical)},
         {QStringLiteral("editCropTool"), QLatin1String(command::kEditCropTool)},
         {QStringLiteral("editBeforeAfter"), QLatin1String(command::kEditBeforeAfter)},
+        {QStringLiteral("editComparison"), QLatin1String(command::kEditComparison)},
         {QStringLiteral("styleSave"), QLatin1String(command::kStyleSave)},
         {QStringLiteral("styleSavePath"), QLatin1String(command::kStyleSavePath)},
         {QStringLiteral("styleApply"), QLatin1String(command::kStyleApply)},
@@ -2033,6 +2042,11 @@ QVariantMap StudioCommandController::action(const QString &action_id) const
     {
         checkable = true;
         checked = presenter_.beforeAfter();
+    }
+    else if (found->id == QLatin1String(command::kEditComparison))
+    {
+        checkable = true;
+        checked = presenter_.comparisonActive();
     }
     else if (found->id == QLatin1String(command::kWindowAssistant))
     {

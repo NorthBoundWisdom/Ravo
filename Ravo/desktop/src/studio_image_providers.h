@@ -19,9 +19,11 @@ public:
     {
     }
 
-    QImage requestImage(const QString &, QSize *size, const QSize &) override
+    QImage requestImage(const QString &id, QSize *size, const QSize &) override
     {
-        const QImage image = studio_->previewImage();
+        const QImage image = id.startsWith(QLatin1String("before")) ?
+                                 studio_->comparisonBeforeImage() :
+                                 studio_->previewImage();
         if (size != nullptr)
         {
             *size = image.size();
