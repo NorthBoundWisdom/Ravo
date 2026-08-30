@@ -169,7 +169,10 @@ selection and recipe rechecks prevent an in-flight artifact from publishing
 for changed state. Repeated subprocess discovery and state requests require
 each successful `ping` connection to be released before the next request;
 the unresponsive-session test distinguishes a connected response timeout from
-a transient Windows named-pipe `not_found` result (ADR-0090).
+a transient Windows named-pipe `not_found` result and bounds same-endpoint
+reconnection by the requested timeout. Explicit-session subprocesses resolve a
+validated descriptor once and use the requested method as their liveness proof
+(ADR-0090).
 
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,

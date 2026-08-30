@@ -1462,19 +1462,14 @@ struct ObservedStudioState
 
 [[nodiscard]] Result<LiveSessionDescriptor> resolve_live_session(const StudioCliArguments &flags)
 {
+    if (!flags.session_id.empty())
+    {
+        return LocalControlClient::find_descriptor(flags.session_id);
+    }
+
     auto discovered = LocalControlClient::discover();
     if (!discovered)
         return discovered.error();
-    if (!flags.session_id.empty())
-    {
-        const auto found =
-            std::find_if(discovered.value().begin(), discovered.value().end(),
-                         [&](const auto &item) { return item.session_id == flags.session_id; });
-        if (found == discovered.value().end())
-            return make_error(ErrorCode::kNotFound, "Studio live session was not found",
-                              {{"session_id", std::string(flags.session_id)}});
-        return *found;
-    }
 
     std::optional<std::filesystem::path> workspace;
     if (!flags.workspace_root.empty())

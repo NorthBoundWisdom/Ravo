@@ -86,6 +86,9 @@ private:
 class LocalControlClient final
 {
 public:
+    // Reads one validated descriptor without a separate liveness ping. The
+    // caller's actual request is the liveness proof for an explicit session.
+    [[nodiscard]] static Result<LiveSessionDescriptor> find_descriptor(std::string_view session_id);
     [[nodiscard]] static Result<std::vector<LiveSessionDescriptor>> discover(int timeout_ms = 500);
     [[nodiscard]] static Result<JsonValue> request(const LiveSessionDescriptor &descriptor,
                                                    std::string method,

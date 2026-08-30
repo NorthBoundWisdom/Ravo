@@ -28,7 +28,9 @@ user changes photos while an agent is deciding what to edit.
   descriptors are ignored. After a client connects, every success and failure
   path performs a bounded graceful disconnect and aborts any handle that does
   not settle, so a Windows named-pipe endpoint is reusable immediately after
-  discovery's `ping`.
+  discovery's `ping`. A transient Windows `server-not-found` or
+  `connection-refused` retries only the same server name inside the caller's
+  timeout; every other connect error fails immediately.
 - `StudioLiveSessionController` is a desktop C++ owner on the UI thread. Its
   immutable snapshot identifies the executable/workspace, process/session and
   state revisions, catalog path/revision, primary and selected assets, browse
@@ -44,6 +46,8 @@ user changes photos while an agent is deciding what to edit.
 - The mandatory client is `ravo studio sessions|state|develop|preview --json`.
   Session resolution prefers the checkout containing the CLI's current working
   directory; multiple matching sessions require `--session-id`. Explicit
+  session IDs read one validated descriptor without a redundant liveness
+  `ping`; the requested state or mutation is itself the liveness proof. Explicit
   expected revisions remain available to bind a later command to an earlier
   snapshot.
 - Image bytes do not cross the control socket. `studio preview`, and

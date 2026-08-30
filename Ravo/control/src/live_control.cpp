@@ -20,6 +20,7 @@
 #include <QPointer>
 #include <QStandardPaths>
 #include <QString>
+#include <QThread>
 #include <QTimer>
 #include <QUuid>
 
@@ -853,6 +854,76 @@ const std::filesystem::path &LocalControlServer::descriptor_path() const noexcep
     return impl_->descriptor_path;
 }
 
+namespace
+{
+
+[[nodiscard]] Result<std::vector<LiveSessionDescriptor>> read_live_session_descriptors()
+{
+    auto registry = live_control_registry_directory();
+    if (!registry)
+    {
+        return registry.error();
+    }
+    QDir directory(qstring(filesystem_path_to_utf8(registry.value())));
+    const auto files = directory.entryInfoList({QStringLiteral("*.json")}, QDir::Files,
+                                               QDir::Name | QDir::IgnoreCase);
+    std::vector<LiveSessionDescriptor> descriptors;
+    descriptors.reserve(static_cast<std::size_t>(files.size()));
+    for (const QFileInfo &info : files)
+    {
+        if (info.isSymLink() || info.size() <= 0 ||
+            static_cast<std::size_t>(info.size()) > kLiveControlMaxDescriptorBytes)
+        {
+            continue;
+        }
+        QFile file(info.absoluteFilePath());
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            continue;
+        }
+        const QByteArray bytes = file.readAll().trimmed();
+        auto json =
+            parse_json(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+        if (!json)
+        {
+            continue;
+        }
+        auto descriptor = live_session_descriptor_from_json(json.value());
+        if (descriptor)
+        {
+            descriptors.push_back(std::move(descriptor).value());
+        }
+    }
+    std::sort(descriptors.begin(), descriptors.end(),
+              [](const LiveSessionDescriptor &left, const LiveSessionDescriptor &right)
+              { return left.session_id < right.session_id; });
+    return descriptors;
+}
+
+} // namespace
+
+Result<LiveSessionDescriptor> LocalControlClient::find_descriptor(const std::string_view session_id)
+{
+    if (session_id.empty() || session_id.size() > 128U)
+    {
+        return make_error(ErrorCode::kInvalidArgument, "Studio session ID is invalid");
+    }
+    auto descriptors = read_live_session_descriptors();
+    if (!descriptors)
+    {
+        return descriptors.error();
+    }
+    const auto found = std::find_if(descriptors.value().begin(), descriptors.value().end(),
+                                    [&](const LiveSessionDescriptor &item)
+                                    { return item.session_id == session_id; });
+    if (found == descriptors.value().end())
+    {
+        return make_error(ErrorCode::kNotFound, "Studio live session was not found",
+                          {{"session_id", std::string(session_id)}});
+    }
+    return *found;
+}
+
 Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descriptor,
                                               std::string method, JsonValue params,
                                               const int timeout_ms)
@@ -879,12 +950,40 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
 
     QLocalSocket socket;
     socket.setReadBufferSize(static_cast<qint64>(kLiveControlMaxMessageBytes + 1U));
-    socket.connectToServer(qstring(descriptor.server_name), QIODevice::ReadWrite);
-    if (!socket.waitForConnected(timeout_ms))
+    QElapsedTimer connect_timer;
+    connect_timer.start();
+    QString connect_error;
+    bool connected = false;
+    while (!connected)
     {
-        return make_error(
-            ErrorCode::kNotFound, "Studio live session is unavailable",
-            {{"session_id", descriptor.session_id}, {"reason", utf8(socket.errorString())}});
+        const int remaining = timeout_ms - static_cast<int>(connect_timer.elapsed());
+        if (remaining <= 0)
+        {
+            break;
+        }
+        socket.connectToServer(qstring(descriptor.server_name), QIODevice::ReadWrite);
+        if (socket.waitForConnected(remaining))
+        {
+            connected = true;
+            break;
+        }
+        connect_error = socket.errorString();
+        const auto error = socket.error();
+        if ((error != QLocalSocket::ServerNotFoundError &&
+             error != QLocalSocket::ConnectionRefusedError) ||
+            connect_timer.elapsed() >= timeout_ms)
+        {
+            break;
+        }
+        socket.abort();
+        QThread::msleep(5);
+    }
+    if (!connected)
+    {
+        return make_error(ErrorCode::kNotFound, "Studio live session is unavailable",
+                          {{"session_id", descriptor.session_id},
+                           {"reason", utf8(connect_error)},
+                           {"timeout_ms", std::to_string(timeout_ms)}});
     }
     // A Windows named-pipe server cannot reliably accept the next request until
     // the prior client handle has completed disconnect. Bound that cleanup on
@@ -950,55 +1049,27 @@ Result<std::vector<LiveSessionDescriptor>> LocalControlClient::discover(const in
     {
         return make_error(ErrorCode::kInvalidArgument, "Discovery timeout is invalid");
     }
-    auto registry = live_control_registry_directory();
-    if (!registry)
+    auto descriptors = read_live_session_descriptors();
+    if (!descriptors)
     {
-        return registry.error();
+        return descriptors.error();
     }
-    QDir directory(qstring(filesystem_path_to_utf8(registry.value())));
-    const auto files = directory.entryInfoList({QStringLiteral("*.json")}, QDir::Files,
-                                               QDir::Name | QDir::IgnoreCase);
     std::vector<LiveSessionDescriptor> sessions;
-    sessions.reserve(static_cast<std::size_t>(files.size()));
-    for (const QFileInfo &info : files)
+    sessions.reserve(descriptors.value().size());
+    for (auto &descriptor : descriptors.value())
     {
-        if (info.isSymLink() || info.size() <= 0 ||
-            static_cast<std::size_t>(info.size()) > kLiveControlMaxDescriptorBytes)
-        {
-            continue;
-        }
-        QFile file(info.absoluteFilePath());
-        if (!file.open(QIODevice::ReadOnly))
-        {
-            continue;
-        }
-        const QByteArray bytes = file.readAll().trimmed();
-        auto json =
-            parse_json(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
-        if (!json)
-        {
-            continue;
-        }
-        auto descriptor = live_session_descriptor_from_json(json.value());
-        if (!descriptor)
-        {
-            continue;
-        }
-        auto ping = request(descriptor.value(), "ping", JsonValue::Object{}, timeout_ms);
+        auto ping = request(descriptor, "ping", JsonValue::Object{}, timeout_ms);
         if (!ping)
         {
             continue;
         }
         auto live = live_session_descriptor_from_json(ping.value());
-        if (!live || live.value() != descriptor.value())
+        if (!live || live.value() != descriptor)
         {
             continue;
         }
-        sessions.push_back(std::move(descriptor).value());
+        sessions.push_back(std::move(descriptor));
     }
-    std::sort(sessions.begin(), sessions.end(),
-              [](const LiveSessionDescriptor &left, const LiveSessionDescriptor &right)
-              { return left.session_id < right.session_id; });
     return sessions;
 }
 

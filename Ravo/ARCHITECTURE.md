@@ -1040,9 +1040,13 @@ immutable image results, but cannot become a second state, renderer,
 permission, or business-policy owner (ADR-0090). Process lists, logs,
 accessibility state, and screenshots remain non-authoritative.
 Each connected CLI request completes a bounded local-socket disconnect before
-returning; an unsettled handle is aborted. This is transport lifecycle, not a
-retry or discovery fallback, and keeps the next Windows named-pipe connection
-from observing a transient unavailable endpoint.
+returning; an unsettled handle is aborted. Windows may report a still-live named
+pipe as server-not-found or connection-refused while the prior instance is
+being recycled, so only those two connect errors retry the same server name
+within the caller's existing timeout. Other errors fail immediately, and no
+alternate descriptor or process is guessed. An explicit session ID reads its
+validated descriptor directly and lets the requested method prove liveness,
+avoiding a redundant ping/request pipe pair.
 
 Original-copy export is separate from pixel encoding. CatalogService passes one
 explicit local source and destination to a bounded 64 KiB streaming owner,

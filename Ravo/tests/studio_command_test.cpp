@@ -245,6 +245,12 @@ TEST(StudioLiveControlTest, DiscoveryIsMultiSessionAwareAndDescriptorsDisappearW
                                   { return JsonValue{JsonValue::Object{{"state", "unused"}}}; });
     ASSERT_TRUE(first) << first.error().message;
     ASSERT_TRUE(second) << second.error().message;
+    auto found_first = LocalControlClient::find_descriptor("first");
+    ASSERT_TRUE(found_first) << found_first.error().message;
+    EXPECT_EQ(found_first.value(), first.value()->descriptor());
+    auto missing = LocalControlClient::find_descriptor("missing");
+    ASSERT_FALSE(missing);
+    EXPECT_EQ(missing.error().code, ErrorCode::kNotFound);
     EXPECT_TRUE(QFileInfo::exists(
         QString::fromStdString(filesystem_path_to_utf8(first.value()->descriptor_path()))));
     EXPECT_TRUE(QFileInfo::exists(
@@ -299,6 +305,9 @@ TEST(StudioLiveControlTest, DiscoveryIsMultiSessionAwareAndDescriptorsDisappearW
     second.value().reset();
     EXPECT_FALSE(QFileInfo::exists(QString::fromStdString(filesystem_path_to_utf8(first_path))));
     EXPECT_FALSE(QFileInfo::exists(QString::fromStdString(filesystem_path_to_utf8(second_path))));
+    auto removed = LocalControlClient::find_descriptor("first");
+    ASSERT_FALSE(removed);
+    EXPECT_EQ(removed.error().code, ErrorCode::kNotFound);
 }
 
 TEST(StudioLiveControlTest, CliTimeoutCancelsAnUnresponsiveSessionRequest)
