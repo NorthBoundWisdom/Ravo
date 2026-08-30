@@ -17,6 +17,7 @@
 
 #include "ravo/desktop/studio_assistant_controller.h"
 #include "ravo/desktop/studio_command_controller.h"
+#include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/foundation/log.h"
 #include "studio_image_providers.h"
@@ -269,6 +270,14 @@ int main(int argc, char *argv[])
     if (!assistant_controller.initialize())
     {
         LOG_ERROR(ravo::logger(), "assistant settings failed to initialize");
+        ravo::shutdown_logging();
+        return 1;
+    }
+    auto live_session = ravo::StudioLiveSessionController::create(presenter, command_controller);
+    if (!live_session)
+    {
+        LOG_ERROR(ravo::logger(), "live Studio control failed to initialize: {}",
+                  live_session.error().message);
         ravo::shutdown_logging();
         return 1;
     }

@@ -10,7 +10,9 @@ target_include_directories(ravo_cli
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 target_compile_definitions(ravo_cli PRIVATE RAVO_VERSION="${PROJECT_VERSION}")
-target_link_libraries(ravo_cli PUBLIC ravo_adapters ravo_engine ravo_services Qt6::Core)
+target_link_libraries(ravo_cli
+  PUBLIC ravo_adapters ravo_engine ravo_services ravo_control Qt6::Core
+  PRIVATE Qt6::Network)
 
 ravo_configure_target(ravo_cli)
 

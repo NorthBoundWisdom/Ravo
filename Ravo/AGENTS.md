@@ -41,8 +41,10 @@ constraint.
   accessibility trees, synthetic UI input, or window screenshots as a fallback
   when a CLI, service, or state contract is missing.
 - Use the executable from the active Ravo build and its machine JSON surface.
-  The supported inspection sequence is `catalog list` for explicit asset
-  identity, `catalog recipe` / `catalog history` for stored state, and
+  For a running window, start with `studio sessions` and `studio state`; bind a
+  mutation to that snapshot's session, selection, asset, and recipe revisions,
+  then use `studio develop` and re-read `studio state`. For explicit stored
+  state, use `catalog list`, `catalog recipe` / `catalog history`, and
   `catalog probe --set <field>=<value> --output <unique.png> --json` for a
   non-persistent parameter response. Inspect the emitted PNG directly with a
   local image reader. Use `catalog develop` only for an explicitly identified
@@ -52,13 +54,12 @@ constraint.
   atomic no-replace artifact, report display-RGB statistics, and prove that
   recipe serialization and preview records did not change. Do not add a second
   screenshot renderer or external decoder as an oracle.
-- The CLI currently does not expose a running Studio window's current
-  selection. Process arguments, open-file lists, preview cache activity, and
-  log messages may help diagnose a process but are not authoritative targets
-  for a write. Require a catalog path and asset ID, or implement the live
-  session contract below before performing a selection-relative command.
-- A live Studio automation contract, when implemented, is owned by desktop C++
-  for ephemeral session state and routes mutations through the existing
+- The CLI exposes a running Studio window only through
+  `ravo-studio-control/v1`. Process arguments, open-file lists, preview cache
+  activity, and log messages may help diagnose a process but are not
+  authoritative state or mutation targets.
+- The live Studio automation contract is owned by desktop C++ for ephemeral
+  session state and routes mutations through the existing
   `StudioCommandController`; persistent work continues through services. Its
   immutable snapshot must at least identify protocol version, session ID,
   catalog path/revision, primary and selected asset IDs, browse mode, saved or
@@ -84,6 +85,11 @@ constraint.
   cover invalid/stale sessions, wrong asset/revision, concurrent Studio and CLI
   writes, cancellation, output conflict, process exit cleanup, bounded
   messages/images, and absence of sensitive settings.
+- `ravo_control` owns only protocol framing, owner-only discovery, and Qt local
+  sockets. Qt Network in CLI/control is restricted to that local transport;
+  assistant HTTP and credentials remain desktop-only. Image results are
+  rendered by the existing CatalogService/Engine preview path after a recipe
+  snapshot, never by the control transport.
 
 ## Dependency rules
 
@@ -109,10 +115,13 @@ constraint.
 - `services` depends on domain and the engine facade and owns
   create/open/import/list/preview use cases and task orchestration. It must not
   issue SQL or hold QML objects/presentation models.
+- `control` depends only on foundation plus Qt Core/Network and owns bounded
+  local protocol/discovery/transport. It knows no recipe, catalog, services,
+  engine, command policy, QML, or settings state.
 - `adapters` implement SQLite, filesystem, RAW/raster codec, and preview-cache
   ports. `QSqlDatabase`, `QImageReader`, and other third-party handles remain
   private.
-- `cli` depends on services/engine facade and adapter composition; it must not
+- `cli` depends on services/engine facade, adapter composition, and control; it must not
   include algorithm source, SQL, or UI.
 - `desktop` consists of a C++ composition root, desktop-owned QObject
   presenter/models, and QML views. It depends only on services and the

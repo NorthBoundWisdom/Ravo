@@ -5,7 +5,7 @@
 Use `ravo` for inspection, catalog automation, recipe validation, preview
 diagnostics, and local export with machine-readable results.
 
-**Last verified:** 2026-08-29 against the current `ravo-cli/v1` implementation
+**Last verified:** 2026-08-30 against the current `ravo-cli/v1` implementation
 and macOS Debug binary.
 
 ## Applies to
@@ -84,8 +84,9 @@ Directory import is recursive and returns item-level statuses. Keep the asset
 ID returned by `catalog list` or an imported item for later commands.
 
 If Ravo Studio already has that library open, committed CLI writes appear in
-the window within about one second. Studio does not expose a remote-control
-socket; `ravo --json` remains the machine client.
+the window within about one second. For selection-relative work, the same CLI
+can use Studio's owner-only local `ravo-studio-control/v1` endpoint; it is not a
+network listener and does not expose Assistant credentials.
 
 ## Top-level commands
 
@@ -99,6 +100,56 @@ socket; `ravo --json` remains the machine client.
 | `recipe import-xmp <xmp> ...` | Convert a strictly supported leftover darktable XMP subset, or a Lightroom CRS preset, into a versioned recipe file. |
 | `render <input> ...` | Render a validated recipe to an atomic PNG output using CPU. |
 | `catalog ...` | Create, query, edit, preview, history-manage, and export a Ravo catalog. |
+| `studio ...` | Discover a live Studio session, inspect its selected recipe, commit strict Develop fields, and publish its latest effect. |
+
+## Control the selected photo in a running Studio
+
+List live sessions and inspect the one associated with the current checkout:
+
+```text
+ravo studio sessions --json
+ravo studio state --json
+```
+
+`state` reports the process/session and state revisions, catalog path/revision,
+primary and selected asset IDs, browse mode, current and saved recipes,
+baseline-relative `modified_operations`, pending changes, and the displayed
+preview identity. If more than one Studio session matches the checkout, pass
+the `session_id` explicitly:
+
+```text
+ravo studio state --session-id <session-id> --json
+```
+
+Commit one ordered parameter batch and optionally obtain its exact rendered
+effect:
+
+```text
+ravo studio develop --session-id <session-id> \
+  --set exposure=0.6 --set saturation=-0.1 \
+  --output "/work/studio-result.png" --json
+```
+
+Without explicit `--expect-session-revision` and
+`--expect-selection-revision`, the CLI observes a fresh state and carries those
+revisions in the mutation. It retries only when incidental session state moved
+while the asset, selection revision, and recipe remained identical. Supplying
+either expectation makes the binding strict and any mismatch returns
+`conflict`; a request is never redirected to a newly selected photo.
+
+To render the current recipe without saving or changing it, including a
+pending in-memory slider value:
+
+```text
+ravo studio preview --session-id <session-id> \
+  --output "/work/current-effect.png" --max-edge 1600 --json
+```
+
+Image bytes do not cross the control socket. The CLI renders the snapshot's
+canonical recipe through CatalogService and the existing CPU preview path,
+rechecks selection and recipe revisions, then atomically publishes a new PNG.
+The JSON result identifies its MIME type, dimensions, color profile, byte size,
+SHA-256, and caller-owned lifecycle. Existing output paths return `conflict`.
 
 ## Inspect an input
 

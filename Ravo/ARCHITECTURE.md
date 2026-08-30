@@ -40,8 +40,9 @@ restoring the old GTK, dynamic IOP ABI, or global state.
 | `ravo_domain` | Asset/Catalog, Import/Preview state, repository ports | foundation | SQLite, codec, engine-private types, UI |
 | `ravo_services` | create/open/import/list/preview use cases and task orchestration | domain, engine facade | SQL, QML/presentation types, third-party codec types |
 | `ravo_adapters` | SQLite, filesystem, RAW/raster codecs, preview cache | matching ports, Qt Core/Gui/Sql, pinned third-party dependencies | QML/UI state, old core |
-| `ravo_cli` | arguments, JSON, exit codes, CLI composition | services, engine facade, adapters | algorithms, SQL, UI |
-| `ravo_desktop` | C++ composition/presenters, Qt Quick/QML window, Gallery, viewer, file selection; presenters split by catalog/preview/develop and QML by `theme/`, `gallery/`, `inspect/`, and `chrome/` | services, read-only preview resources, Qt Core/Gui/Qml/Quick, GeoControls | Qt Widgets, SQL, codecs, algorithm-private state |
+| `ravo_control` | transport-neutral live-session protocol plus bounded same-user local discovery/transport | foundation, Qt Core/Network | catalog, recipe, engine, services, UI state |
+| `ravo_cli` | arguments, versioned JSON, exit codes, catalog composition, local-control client | services, engine facade, adapters, control | algorithms, SQL, QML/UI state |
+| `ravo_desktop` | C++ composition/presenters, live-session snapshot/dispatch, Qt Quick/QML window, Gallery, viewer, file selection; presenters split by catalog/preview/develop and QML by `theme/`, `gallery/`, `inspect/`, and `chrome/` | services, control, read-only preview resources, Qt Core/Gui/Network/Qml/Quick, GeoControls | Qt Widgets, SQL, codecs, algorithm-private state |
 
 Private Qt Sql/QSQLITE and `QImageReader` adapters contain SQLite and the
 first raster path. LibRaw, LittleCMS, Exiv2, and platform APIs likewise do not
@@ -88,7 +89,7 @@ policy remain separate later contracts. Domain `ExportMetadataSnapshot`
 carries only owned destination and metadata values, never third-party handles.
 
 Ravo Studio has one presentation architecture. Its C++ composition root owns
-services, tasks, and `QQmlApplicationEngine`; desktop-owned QObject
+services, tasks, the live-session endpoint, and `QQmlApplicationEngine`; desktop-owned QObject
 presenters/models map immutable service snapshots and commands to QML.
 QML/JavaScript owns transient view state, layout, bindings, and input only; it
 does not implement catalog/import/preview business rules. A desktop-owned C++
@@ -966,7 +967,8 @@ The Ravo Studio first version owns:
 - progress, cancellation, and recoverable-error presentation;
 - window, focus, keyboard, HiDPI, and basic accessibility;
 - a floating Assistant popup whose URL, model, and API key are typed desktop
-  settings. Qt Network and chat JSON stay in C++; QML only presents.
+  settings. Assistant HTTP and chat JSON stay in desktop C++; the separate
+  same-user local control transport contains no assistant state; QML only presents.
 
 QML sends only intents to desktop-owned C++ presenters and observes immutable,
 revisioned view state. Visible controls use GeoControls (buttons, labels, list
@@ -998,22 +1000,25 @@ the closed `--set` inventory (`list_develop_set_fields`) so CLI
 `develop-fields` / `catalog fields` cannot drift from
 `apply_develop_field_strict`. Canonical-mask `--set` names remain prefix-based.
 
-CLI is the required machine-automation and acceptance client. Its explicit
-catalog/asset identity, versioned JSON, structured errors, and optional probe
-artifact are authoritative; process discovery, log activity, accessibility
-state, and window screenshots are not. The current product has no live Studio
-control channel, so selection-relative automation is not inferred from the
-running process.
+CLI is the required machine-automation and acceptance client. Explicit
+catalog/asset commands remain authoritative for stored state. Selection-relative
+automation uses `ravo-studio-control/v1`: `ravo_control` discovers live
+same-user sessions, desktop C++ publishes an immutable revisioned snapshot, and
+mutations carry the observed session/selection revisions plus asset ID before
+they enter `StudioCommandController`. The snapshot contains current/saved
+canonical recipes and baseline-relative modified operations, never QObjects,
+SQL handles, engine buffers, or assistant settings.
 
-If live Studio state becomes a product requirement, the durable owner is a
-transport-neutral local control contract: desktop C++ publishes an immutable,
-revisioned session snapshot and routes mutating intents through the existing
-command controller, while services retain catalog and processing ownership.
-The CLI remains the mandatory client. MCP may project the same snapshots,
-commands, and immutable image results as tools/resources, but it is never a
-second state, renderer, permission, or business-policy owner. See the deferred
-acceptance boundary in
-[`DevDocs/ProductRoadmap.md`](../DevDocs/ProductRoadmap.md#local-agent-automation-and-live-studio-control).
+`ravo studio preview` and `studio develop --output` keep large bytes outside
+the socket. CLI opens the named catalog through the ordinary composition,
+renders the snapshot's exact recipe through the non-persistent preview path,
+rechecks selection and recipe revision, then atomically publishes a no-replace
+PNG with MIME, dimensions, profile, SHA-256, and caller-owned lifecycle. Local
+descriptors and sockets disappear with their Studio owner; unreachable crash
+residue is ignored. MCP may later project the same snapshots, commands, and
+immutable image results, but cannot become a second state, renderer,
+permission, or business-policy owner (ADR-0090). Process lists, logs,
+accessibility state, and screenshots remain non-authoritative.
 
 Original-copy export is separate from pixel encoding. CatalogService passes one
 explicit local source and destination to a bounded 64 KiB streaming owner,

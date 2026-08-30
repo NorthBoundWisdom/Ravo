@@ -2180,6 +2180,8 @@ void StudioPresenter::load_develop_for_selection()
 {
     develop_ = {};
     saved_develop_ = {};
+    develop_loaded_ = false;
+    develop_load_error_.clear();
     white_balance_pick_active_ = false;
     undo_stack_.clear();
     redo_stack_.clear();
@@ -2225,6 +2227,7 @@ void StudioPresenter::load_develop_for_selection()
                     {
                         develop_ = {};
                         saved_develop_ = {};
+                        develop_load_error_ = qstring_from_utf8(loaded.error().message);
                         sync_active_history();
                         emit editChanged();
                         setError(qstring_from_utf8(loaded.error().message));
@@ -2235,6 +2238,7 @@ void StudioPresenter::load_develop_for_selection()
                     {
                         develop_ = {};
                         saved_develop_ = {};
+                        develop_load_error_ = qstring_from_utf8(params.error().message);
                         sync_active_history();
                         emit editChanged();
                         setError(qstring_from_utf8(params.error().message));
@@ -2242,6 +2246,8 @@ void StudioPresenter::load_develop_for_selection()
                     }
                     develop_ = params.value();
                     saved_develop_ = develop_;
+                    develop_loaded_ = true;
+                    develop_load_error_.clear();
                     sync_curve_ui_from_develop();
                     sync_active_history();
                     emit editChanged();

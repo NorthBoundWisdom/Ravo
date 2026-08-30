@@ -38,6 +38,14 @@ parent-repository workflow and must not be treated as this repository's source.
   accessibility automation, AppleScript/System Events, coordinate clicks or
   keystrokes, and application window screenshots used to inspect, operate, or
   validate Ravo Studio. Use Ravo's supported machine interfaces instead.
+- When discovering a running Ravo process, resolve candidate executable paths
+  and by default keep only processes whose executable is under the current
+  repository root (for example, this checkout's `build/` or `install/`). Exclude
+  same-named processes launched from sibling checkouts. If zero or multiple
+  matching processes remain, report that state rather than choosing by launch
+  time, foreground status, or other incidental activity. This identifies a
+  process only; catalog and asset identity still follow the explicit rules
+  below.
 - Prefer the current-generation `ravo` CLI with `--json`. Resolve catalogs and
   assets with explicit identifiers, read recipe/history before a write, and
   read them back afterwards. Never guess a mutation target from the foreground
@@ -57,11 +65,12 @@ parent-repository workflow and must not be treated as this repository's source.
   business state, image algorithms, SQL, command policy, or an MCP-only mutation
   path.
 - Ephemeral live-window state belongs to the desktop C++ presenter/command
-  layer, not QML or the catalog. A future live-session interface must identify
-  the Studio session, catalog and selected asset set, carry state/selection
-  revisions on mutations, reject stale requests, and disappear cleanly when
-  the window closes. Until that interface exists, require an explicit catalog
-  path and asset ID rather than inferring the current selection.
+  layer, not QML or the catalog. Use `ravo studio sessions`, `state`, `develop`,
+  or `preview` with `--json`; the live-session snapshot identifies Studio,
+  catalog, selected asset set and state/selection revisions. Mutations must
+  carry the observed asset and revisions, reject stale requests, and disappear
+  cleanly when the window closes. Never infer the current selection from
+  incidental process state.
 - New or extended machine-visible image-result contracts should use bounded
   immutable bytes or no-replace temporary artifacts with MIME type, dimensions,
   color-profile identity, and content hash. CLI JSON should describe an output

@@ -36,6 +36,7 @@ namespace ravo
 {
 
 class StudioCommandController;
+class StudioLiveSessionController;
 
 class StudioPresenter final : public QObject
 {
@@ -568,6 +569,7 @@ signals:
 
 private:
     friend class StudioCommandController;
+    friend class StudioLiveSessionController;
 
     void setBusy(bool busy);
     void setStatus(QString text);
@@ -681,6 +683,11 @@ private:
     QUrl preview_url_;
     QImage preview_image_;
     QImage preview_base_image_;
+    std::uint64_t live_preview_revision_ = 0;
+    std::uint32_t live_preview_width_ = 0;
+    std::uint32_t live_preview_height_ = 0;
+    QString live_preview_color_profile_id_;
+    QString live_preview_pixel_sha256_;
     std::vector<float> preview_mask_alpha_;
     bool mask_overlay_visible_ = false;
     QString mask_overlay_target_{QStringLiteral("color_harmonizer")};
@@ -712,6 +719,8 @@ private:
     void sync_curve_ui_from_develop();
 
     DevelopParams develop_{};
+    bool develop_loaded_ = false;
+    QString develop_load_error_;
     int curve_family_ = 0;
     int curve_channel_ = 0;
     DevelopParams saved_develop_{};

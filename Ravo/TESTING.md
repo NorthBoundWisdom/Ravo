@@ -22,7 +22,7 @@ python3 Ravo/tools/check_ravo_dependency_boundary.py
 
 The dependency-boundary checker covers the product target graph:
 `Qt6::Sql` is adapters-only, `Qt6::Gui` is raster adapters/desktop-only,
-`Qt6::Network` is desktop-only for the Assistant endpoint, `Qt6::Qml`/`Qt6::Quick`,
+`Qt6::Network` is control/CLI-local-socket or desktop-only, `Qt6::Qml`/`Qt6::Quick`,
 `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts`,
 `GeoControls`/`GeoControls.AppShell` imports, and production `.qml` are
 desktop-only; every Ravo target rejects Qt Widgets. Do not remove a check to
@@ -149,6 +149,17 @@ Catalog snapshot tests prove `revision` is re-read from SQLite so a second
 connection's bump is visible. Desktop presenter tests open a library, apply a
 second CatalogService `save_develop`, call `pollCatalogRevision`, and require
 the selected Develop values to match the committed recipe.
+
+Live Studio control tests isolate an owner-only registry, prove multiple live
+sessions and stale descriptor rejection, enforce the 4 MiB message bound, and
+remove discovery state with its owner. A real CLI subprocess reads the selected
+asset/current and saved recipes, proves assistant credentials are absent,
+rejects a stale revision and an unknown field without mutation, commits one
+ordered strict parameter batch, waits for saved/preview settlement, and
+publishes a no-replace PNG whose dimensions and SHA-256 are independently
+checked. Existing catalog polling covers the concurrent second-client write;
+selection and recipe rechecks prevent an in-flight artifact from publishing
+for changed state (ADR-0090).
 
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,

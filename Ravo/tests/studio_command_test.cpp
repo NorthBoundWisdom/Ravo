@@ -25,6 +25,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QKeySequence>
+#include <QProcess>
 #include <QThread>
 #include <QTranslator>
 #include <QSettings>
@@ -35,12 +36,15 @@
 #include "ravo/adapters/qt_raster_decoder.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/engine/engine.h"
+#include "ravo/control/live_control.h"
 #include "ravo/foundation/log.h"
+#include "ravo/foundation/json.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
 #include "ravo/desktop/preview_request_owner.h"
 #include "ravo/desktop/studio_command_controller.h"
+#include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/recipe/color_harmonizer.h"
 #include "ravo/recipe/develop_mask.h"
@@ -144,6 +148,368 @@ void ensure_qt_core()
         QThread::msleep(10);
     }
     return ready();
+}
+
+class ScopedEnvironmentVariable
+{
+public:
+    ScopedEnvironmentVariable(const char *name, const QByteArray &value)
+        : name_(name)
+        , old_value_(qgetenv(name))
+        , was_set_(qEnvironmentVariableIsSet(name))
+    {
+        qputenv(name, value);
+    }
+
+    ~ScopedEnvironmentVariable()
+    {
+        if (was_set_)
+            qputenv(name_.constData(), old_value_);
+        else
+            qunsetenv(name_.constData());
+    }
+
+private:
+    QByteArray name_;
+    QByteArray old_value_;
+    bool was_set_ = false;
+};
+
+struct CliProcessResult
+{
+    int exit_code = -1;
+    QByteArray standard_output;
+    QByteArray standard_error;
+};
+
+[[nodiscard]] CliProcessResult run_cli_process(const QStringList &arguments,
+                                               const int timeout_ms = 30000)
+{
+    QProcess process;
+    process.setProgram(QStringLiteral(RAVO_CLI_EXECUTABLE));
+    process.setArguments(arguments);
+    process.start();
+    const bool finished =
+        wait_until([&] { return process.state() == QProcess::NotRunning; }, timeout_ms);
+    if (!finished)
+    {
+        process.kill();
+        process.waitForFinished(5000);
+    }
+    return {finished ? process.exitCode() : -1, process.readAllStandardOutput(),
+            process.readAllStandardError()};
+}
+
+[[nodiscard]] Result<JsonValue> cli_data(const QByteArray &output)
+{
+    const QByteArray trimmed = output.trimmed();
+    auto envelope =
+        parse_json(std::string_view(trimmed.constData(), static_cast<std::size_t>(trimmed.size())));
+    if (!envelope)
+        return envelope.error();
+    const auto *data = envelope.value().find("data");
+    if (data == nullptr)
+        return make_error(ErrorCode::kValidation, "CLI response has no data object");
+    return *data;
+}
+
+TEST(StudioLiveControlTest, DiscoveryIsMultiSessionAwareAndDescriptorsDisappearWithOwners)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ScopedEnvironmentVariable registry("RAVO_LIVE_CONTROL_DIR", directory.path().toUtf8());
+
+    const auto make_descriptor = [](const QString &id)
+    {
+        LiveSessionDescriptor descriptor;
+        descriptor.session_id = id.toStdString();
+        descriptor.server_name = QStringLiteral("ravo-live-test-%1").arg(id).toStdString();
+        descriptor.process_id = static_cast<std::uint64_t>(QCoreApplication::applicationPid());
+        descriptor.executable_path = RAVO_CLI_EXECUTABLE;
+        descriptor.workspace_root = RAVO_REPOSITORY_ROOT;
+        return descriptor;
+    };
+    auto traversal = LocalControlServer::start(make_descriptor(QStringLiteral("../escape")),
+                                               [](const LiveControlRequest &) -> Result<JsonValue>
+                                               { return JsonValue{JsonValue::Object{}}; });
+    ASSERT_FALSE(traversal);
+    EXPECT_EQ(traversal.error().code, ErrorCode::kValidation);
+    auto first =
+        LocalControlServer::start(make_descriptor(QStringLiteral("first")),
+                                  [](const LiveControlRequest &) -> Result<JsonValue>
+                                  { return JsonValue{JsonValue::Object{{"state", "unused"}}}; });
+    auto second =
+        LocalControlServer::start(make_descriptor(QStringLiteral("second")),
+                                  [](const LiveControlRequest &) -> Result<JsonValue>
+                                  { return JsonValue{JsonValue::Object{{"state", "unused"}}}; });
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_TRUE(QFileInfo::exists(
+        QString::fromStdString(filesystem_path_to_utf8(first.value()->descriptor_path()))));
+    EXPECT_TRUE(QFileInfo::exists(
+        QString::fromStdString(filesystem_path_to_utf8(second.value()->descriptor_path()))));
+#if !defined(Q_OS_WIN)
+    const auto descriptor_permissions =
+        QFileInfo(QString::fromStdString(filesystem_path_to_utf8(first.value()->descriptor_path())))
+            .permissions();
+    EXPECT_EQ(descriptor_permissions &
+                  (QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ExeGroup |
+                   QFileDevice::ReadOther | QFileDevice::WriteOther | QFileDevice::ExeOther),
+              QFileDevice::Permissions{});
+#endif
+    JsonValue::Object oversized;
+    oversized.emplace("payload", std::string(kLiveControlMaxMessageBytes, 'x'));
+    auto rejected = LocalControlClient::request(first.value()->descriptor(), "state",
+                                                JsonValue{std::move(oversized)}, 1000);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
+
+    QFile stale(directory.filePath(QStringLiteral("stale.json")));
+    ASSERT_TRUE(stale.open(QIODevice::WriteOnly | QIODevice::NewOnly));
+    ASSERT_GT(stale.write("{broken"), 0);
+    stale.close();
+
+    const auto listed = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("sessions"), QStringLiteral("--workspace-root"),
+         QStringLiteral(RAVO_REPOSITORY_ROOT), QStringLiteral("--timeout-ms"),
+         QStringLiteral("5000"), QStringLiteral("--json")});
+    ASSERT_EQ(listed.exit_code, 0) << listed.standard_error.constData();
+    auto data = cli_data(listed.standard_output);
+    ASSERT_TRUE(data) << data.error().message;
+    const auto *sessions = data.value().find("sessions");
+    ASSERT_NE(sessions, nullptr);
+    ASSERT_NE(sessions->array_if(), nullptr);
+    EXPECT_EQ(sessions->array_if()->size(), 2U);
+    const auto ambiguous = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("state"), QStringLiteral("--workspace-root"),
+         QStringLiteral(RAVO_REPOSITORY_ROOT), QStringLiteral("--timeout-ms"),
+         QStringLiteral("5000"), QStringLiteral("--json")});
+    EXPECT_EQ(ambiguous.exit_code, cli_exit_code(ErrorCode::kConflict));
+    EXPECT_NE(ambiguous.standard_output.indexOf("session_ids"), -1);
+
+    const auto first_path = first.value()->descriptor_path();
+    const auto second_path = second.value()->descriptor_path();
+    first.value().reset();
+    second.value().reset();
+    EXPECT_FALSE(QFileInfo::exists(QString::fromStdString(filesystem_path_to_utf8(first_path))));
+    EXPECT_FALSE(QFileInfo::exists(QString::fromStdString(filesystem_path_to_utf8(second_path))));
+}
+
+TEST(StudioLiveControlTest, CliTimeoutCancelsAnUnresponsiveSessionRequest)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ScopedEnvironmentVariable registry("RAVO_LIVE_CONTROL_DIR", directory.path().toUtf8());
+    LiveSessionDescriptor descriptor;
+    descriptor.session_id = "slow";
+    descriptor.server_name = "ravo-live-test-slow";
+    descriptor.process_id = static_cast<std::uint64_t>(QCoreApplication::applicationPid());
+    descriptor.executable_path = RAVO_CLI_EXECUTABLE;
+    descriptor.workspace_root = RAVO_REPOSITORY_ROOT;
+    auto server =
+        LocalControlServer::start(descriptor,
+                                  [](const LiveControlRequest &) -> Result<JsonValue>
+                                  {
+                                      QThread::msleep(250);
+                                      return JsonValue{JsonValue::Object{{"state", "too-late"}}};
+                                  });
+    ASSERT_TRUE(server) << server.error().message;
+
+    const auto result = run_cli_process({QStringLiteral("studio"), QStringLiteral("state"),
+                                         QStringLiteral("--session-id"), QStringLiteral("slow"),
+                                         QStringLiteral("--timeout-ms"), QStringLiteral("100"),
+                                         QStringLiteral("--json")});
+    EXPECT_EQ(result.exit_code, cli_exit_code(ErrorCode::kCancelled));
+    EXPECT_NE(result.standard_output.indexOf("timeout_ms"), -1);
+}
+
+TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLatestPreview)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString registry_path = directory.filePath(QStringLiteral("live-control"));
+    ScopedEnvironmentVariable registry("RAVO_LIVE_CONTROL_DIR", registry_path.toUtf8());
+
+    const QString photo = directory.filePath(QStringLiteral("photo.png"));
+    QImage image(96, 64, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(90, 120, 170));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    auto live = StudioLiveSessionController::create(presenter, commands);
+    ASSERT_TRUE(live) << live.error().message;
+    const QString session_id = QString::fromStdString(live.value()->descriptor().session_id);
+    const QString descriptor_path =
+        QString::fromStdString(filesystem_path_to_utf8(live.value()->descriptorPath()));
+
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy() && !presenter.previewLoading();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+
+    const auto state_result = run_cli_process({QStringLiteral("studio"), QStringLiteral("state"),
+                                               QStringLiteral("--timeout-ms"),
+                                               QStringLiteral("5000"), QStringLiteral("--json")});
+    ASSERT_EQ(state_result.exit_code, 0) << state_result.standard_error.constData();
+    auto state = cli_data(state_result.standard_output);
+    ASSERT_TRUE(state) << state.error().message;
+    const auto *selection = state.value().find("selection");
+    ASSERT_NE(selection, nullptr);
+    ASSERT_NE(selection->object_if(), nullptr);
+    const auto *selected = selection->find("primary_asset_id");
+    ASSERT_NE(selected, nullptr);
+    ASSERT_NE(selected->string_if(), nullptr);
+    EXPECT_EQ(QString::fromStdString(*selected->string_if()), presenter.selectedAssetId());
+    EXPECT_EQ(serialize_json(state.value()).find("api_key"), std::string::npos);
+
+    const QString baseline_output = directory.filePath(QStringLiteral("live-baseline.png"));
+    const auto previewed = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("preview"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--output"), baseline_output, QStringLiteral("--max-edge"),
+         QStringLiteral("64"), QStringLiteral("--timeout-ms"), QStringLiteral("10000"),
+         QStringLiteral("--json")});
+    ASSERT_EQ(previewed.exit_code, 0)
+        << previewed.standard_output.constData() << previewed.standard_error.constData();
+    EXPECT_TRUE(QFileInfo::exists(baseline_output));
+    EXPECT_FALSE(presenter.selectedHasEdits());
+
+    presenter.previewDevelopNumber(QStringLiteral("exposure"), 0.25);
+    ASSERT_TRUE(wait_until([&] { return !presenter.previewLoading(); }))
+        << presenter.errorText().toStdString();
+    const auto pending_state_result =
+        run_cli_process({QStringLiteral("studio"), QStringLiteral("state"),
+                         QStringLiteral("--session-id"), session_id, QStringLiteral("--timeout-ms"),
+                         QStringLiteral("5000"), QStringLiteral("--json")});
+    ASSERT_EQ(pending_state_result.exit_code, 0);
+    auto pending_state = cli_data(pending_state_result.standard_output);
+    ASSERT_TRUE(pending_state) << pending_state.error().message;
+    const auto *pending_recipe = pending_state.value().find("recipe");
+    ASSERT_NE(pending_recipe, nullptr);
+    ASSERT_NE(pending_recipe->find("state"), nullptr);
+    ASSERT_NE(pending_recipe->find("state")->string_if(), nullptr);
+    EXPECT_EQ(*pending_recipe->find("state")->string_if(), "pending");
+    EXPECT_NE(
+        serialize_json(*pending_recipe->find("modified_operations")).find("ravo.core.exposure"),
+        std::string::npos);
+    const QString pending_output = directory.filePath(QStringLiteral("live-pending.png"));
+    const auto pending_preview = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("preview"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--output"), pending_output, QStringLiteral("--max-edge"),
+         QStringLiteral("64"), QStringLiteral("--timeout-ms"), QStringLiteral("10000"),
+         QStringLiteral("--json")});
+    ASSERT_EQ(pending_preview.exit_code, 0) << pending_preview.standard_output.constData()
+                                            << pending_preview.standard_error.constData();
+    EXPECT_TRUE(QFileInfo::exists(pending_output));
+    EXPECT_FALSE(presenter.selectedHasEdits());
+
+    const double exposure_before_stale = presenter.editExposure();
+    const auto stale = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--asset-id"), presenter.selectedAssetId(),
+         QStringLiteral("--expect-session-revision"), QStringLiteral("0"), QStringLiteral("--set"),
+         QStringLiteral("exposure=0.5"), QStringLiteral("--timeout-ms"), QStringLiteral("5000"),
+         QStringLiteral("--json")});
+    EXPECT_EQ(stale.exit_code, cli_exit_code(ErrorCode::kConflict));
+    EXPECT_NE(stale.standard_output.indexOf("stale_session"), -1);
+    EXPECT_NEAR(presenter.editExposure(), exposure_before_stale, 1e-9);
+
+    const double exposure_before_wrong_asset = presenter.editExposure();
+    const auto wrong_asset = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--asset-id"), QStringLiteral("ast_wrong"),
+         QStringLiteral("--set"), QStringLiteral("exposure=0.5"), QStringLiteral("--timeout-ms"),
+         QStringLiteral("5000"), QStringLiteral("--json")});
+    EXPECT_EQ(wrong_asset.exit_code, cli_exit_code(ErrorCode::kConflict));
+    EXPECT_NE(wrong_asset.standard_output.indexOf("wrong_asset"), -1);
+    EXPECT_NEAR(presenter.editExposure(), exposure_before_wrong_asset, 1e-9);
+
+    const double exposure_before_invalid = presenter.editExposure();
+    const auto invalid = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--set"), QStringLiteral("notADevelopField=1"),
+         QStringLiteral("--timeout-ms"), QStringLiteral("5000"), QStringLiteral("--json")});
+    EXPECT_EQ(invalid.exit_code, cli_exit_code(ErrorCode::kInvalidArgument));
+    EXPECT_NE(invalid.standard_output.indexOf("invalid_develop_field"), -1);
+    EXPECT_NEAR(presenter.editExposure(), exposure_before_invalid, 1e-9);
+
+    const QString output = directory.filePath(QStringLiteral("live-result.png"));
+    const auto developed = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--set"), QStringLiteral("exposure=0.75"),
+         QStringLiteral("--set"), QStringLiteral("saturation=0.1"), QStringLiteral("--output"),
+         output, QStringLiteral("--max-edge"), QStringLiteral("64"), QStringLiteral("--timeout-ms"),
+         QStringLiteral("30000"), QStringLiteral("--json")},
+        35000);
+    ASSERT_EQ(developed.exit_code, 0)
+        << developed.standard_output.constData() << developed.standard_error.constData();
+    ASSERT_TRUE(QFileInfo::exists(output));
+    EXPECT_NEAR(presenter.editExposure(), 0.75, 1e-9);
+    EXPECT_NEAR(presenter.editSaturation(), 0.1, 1e-9);
+    EXPECT_TRUE(presenter.selectedHasEdits());
+    QImage result(output);
+    ASSERT_FALSE(result.isNull());
+    EXPECT_LE(std::max(result.width(), result.height()), 64);
+
+    auto developed_data = cli_data(developed.standard_output);
+    ASSERT_TRUE(developed_data) << developed_data.error().message;
+    const auto *artifact = developed_data.value().find("artifact");
+    ASSERT_NE(artifact, nullptr);
+    ASSERT_NE(artifact->object_if(), nullptr);
+    const auto *hash = artifact->find("content_hash");
+    ASSERT_NE(hash, nullptr);
+    ASSERT_NE(hash->string_if(), nullptr);
+    QFile output_file(output);
+    ASSERT_TRUE(output_file.open(QIODevice::ReadOnly));
+    EXPECT_EQ(*hash->string_if(),
+              QCryptographicHash::hash(output_file.readAll(), QCryptographicHash::Sha256)
+                  .toHex()
+                  .toStdString());
+
+    const auto current_result =
+        run_cli_process({QStringLiteral("studio"), QStringLiteral("state"),
+                         QStringLiteral("--session-id"), session_id, QStringLiteral("--timeout-ms"),
+                         QStringLiteral("5000"), QStringLiteral("--json")});
+    ASSERT_EQ(current_result.exit_code, 0);
+    auto current = cli_data(current_result.standard_output);
+    ASSERT_TRUE(current) << current.error().message;
+    const auto *recipe = current.value().find("recipe");
+    ASSERT_NE(recipe, nullptr);
+    const auto *modified = recipe->find("modified_operations");
+    ASSERT_NE(modified, nullptr);
+    const auto modified_text = serialize_json(*modified);
+    EXPECT_NE(modified_text.find("ravo.core.exposure"), std::string::npos);
+    EXPECT_NE(modified_text.find("ravo.color.saturation"), std::string::npos);
+    EXPECT_EQ(recipe->find("state")->string_if() != nullptr ? *recipe->find("state")->string_if() :
+                                                              std::string{},
+              "saved");
+
+    const auto conflict = run_cli_process(
+        {QStringLiteral("studio"), QStringLiteral("develop"), QStringLiteral("--session-id"),
+         session_id, QStringLiteral("--set"), QStringLiteral("exposure=1.5"),
+         QStringLiteral("--output"), output, QStringLiteral("--timeout-ms"), QStringLiteral("5000"),
+         QStringLiteral("--json")});
+    EXPECT_EQ(conflict.exit_code, cli_exit_code(ErrorCode::kConflict));
+    EXPECT_NEAR(presenter.editExposure(), 0.75, 1e-9);
+
+    live.value().reset();
+    EXPECT_FALSE(QFileInfo::exists(descriptor_path));
 }
 
 [[nodiscard]] QString qml_model_entry(const QString &source, const char *field)

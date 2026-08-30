@@ -4,6 +4,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -2166,6 +2167,68 @@ QVariantMap StudioCommandController::executeCommand(const QString &command_id,
                                                     const QVariant &argument, const QString &source)
 {
     return executeCommandInternal(command_id, argument, source);
+}
+
+Result<bool>
+StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField> &fields)
+{
+    if (fields.empty() || fields.size() > 256U)
+    {
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Live Develop mutation requires 1 through 256 fields");
+    }
+    if (modal_open_)
+    {
+        return make_error(ErrorCode::kConflict,
+                          "Studio command is unavailable while a modal surface is open",
+                          {{"reason", "command_unavailable"}});
+    }
+    const bool enter_develop = presenter_.browseMode() != QLatin1String("develop");
+    const auto state = resolve_state(
+        presenter_, enter_develop ? Condition::kReadySelection : Condition::kDevelopSelection,
+        settings_open_);
+    if (!state.enabled)
+    {
+        return make_error(ErrorCode::kConflict, state.reason.toUtf8().toStdString(),
+                          {{"reason", "command_unavailable"}});
+    }
+    if (!presenter_.develop_loaded_ || presenter_.busy_ || presenter_.import_work_active_ ||
+        presenter_.develop_job_in_flight_ || presenter_.pending_save_ ||
+        presenter_.pending_preview_)
+    {
+        return make_error(ErrorCode::kConflict, "Studio Develop state is busy",
+                          {{"reason", "busy"}});
+    }
+
+    DevelopParams next = presenter_.develop_;
+    std::set<std::string, std::less<>> names;
+    for (const auto &field : fields)
+    {
+        if (field.name.empty() || field.name.size() > 256U || !std::isfinite(field.value))
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Live Develop field name or value is invalid",
+                              {{"name", field.name}});
+        }
+        if (!names.insert(field.name).second)
+        {
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Live Develop field was specified more than once",
+                              {{"name", field.name}});
+        }
+        auto applied = apply_develop_field_strict(next, field.name, field.value);
+        if (!applied)
+        {
+            auto error = applied.error();
+            error.context.insert_or_assign("reason", "invalid_develop_field");
+            return error;
+        }
+    }
+    if (enter_develop)
+    {
+        presenter_.openDevelop();
+    }
+    return presenter_.mutate_develop(std::move(next), StudioPresenter::DevelopEdit::Commit);
 }
 
 void StudioCommandController::cancelPendingConfirmation(const QString &token)

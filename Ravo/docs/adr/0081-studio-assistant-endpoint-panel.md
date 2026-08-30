@@ -1,6 +1,7 @@
 # ADR-0081: Typed assistant endpoint settings and a floating Studio panel
 
-- Status: Accepted
+- Status: Partially superseded by
+  [ADR-0090](0090-versioned-live-studio-control.md)
 - Date: 2026-08-29
 - Extends: [ADR-0066](0066-typed-desktop-language-setting.md)
 - Relates to: [ADR-0003](0003-versioned-machine-contract.md)
@@ -26,7 +27,9 @@ owner, validation, and failure policy.
 - An empty stored API key may be filled at send time from `XAI_API_KEY`. The
   key is never written to logs or error context.
 - QML presents Settings fields and a non-modal Overlay popup. Chat send,
-  cancel, JSON, and HTTP stay in C++ via Qt Network, which is desktop-only.
+  cancel, JSON, and HTTP stay in desktop C++. ADR-0090 separately permits Qt
+  Network in `ravo_control` and CLI only for the same-user local socket; it does
+  not expose this assistant's network client or credentials.
 - The session transcript is not persisted. The catalog CLI remains the machine
   contract; this panel does not drive Studio commands.
 
@@ -41,4 +44,6 @@ free of Network and of assistant state.
 - Hard-coding a single vendor SDK with no URL/model settings. That cannot
   match the Audio2Text configuration surface.
 - QML `XMLHttpRequest` / fetch. Network, secrets, and JSON belong in C++.
-- MCP or a socket into the live Qt process. CLI already owns automation.
+- An MCP-only or unversioned socket into the live Qt process. ADR-0090 later
+  accepts a versioned, CLI-first, revision-checked local control contract that
+  contains no assistant state.

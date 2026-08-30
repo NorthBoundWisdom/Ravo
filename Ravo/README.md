@@ -58,6 +58,12 @@ Current implementation status:
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
   a visible reason.
+- Live Studio control uses `ravo-studio-control/v1` over an owner-only local
+  socket. CLI can discover sessions, read the revisioned current selection and
+  current/saved recipe, commit an ordered strict Develop batch through the
+  command controller, wait for the saved preview, and publish an exact
+  no-replace probe PNG. Selection and state revisions reject stale requests;
+  no assistant credential or image byte enters the socket (ADR-0090).
 - Studio UI supports English and Simplified Chinese. The desktop-owned language
   manager synchronously persists the normalized selected language, repairs a
   malformed stored value to English, loads only the build-produced Qt catalog,
@@ -65,7 +71,8 @@ Current implementation status:
   Service/engine machine errors remain outside the translation contract. Other
   current view controls are session state rather than hidden settings
   (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
-  key (ADR-0081) for the floating chat panel; Qt Network stays desktop-only.
+  key (ADR-0081) for the floating chat panel; assistant HTTP and credentials
+  stay desktop-only. The separate Qt local-control socket exposes neither.
 - Basic Develop provides catalog schema v5 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
@@ -586,6 +593,14 @@ ravo catalog export --catalog <library.sqlite> --asset-id <id> --output <file> -
 ravo catalog export-batch --catalog <library.sqlite> --asset-id <id> [--asset-id <id>]... \
   --output-dir <directory> [--filename-template '{stem}-{sequence}{ext}'] \
   --format png|jpeg|tiff|tif|original [the same typed format/privacy options] --json
+ravo studio sessions [--workspace-root <checkout>] --json
+ravo studio state [--session-id <id>] [--workspace-root <checkout>] --json
+ravo studio develop [--session-id <id>] [--asset-id <id>] \
+  [--expect-session-revision N] [--expect-selection-revision N] \
+  --set <field>=<number> [--set ...] [--output <file.png>] [--max-edge N] --json
+ravo studio preview [--session-id <id>] [--asset-id <id>] \
+  [--expect-session-revision N] [--expect-selection-revision N] \
+  --output <file.png> [--max-edge N] --json
 ```
 
 An existing output path returns structured `conflict`; it is never overwritten
@@ -605,14 +620,20 @@ sums/means/extrema/clipping counts, and display-luma mean. Optional
 with atomic no-replace publication; it is not a catalog preview record. The
 command reloads the stored recipe and preview-record set after rendering and
 fails if either changed. CLI logging remains file-only so machine JSON is the
-only stdout content. An open Ravo Studio window observes the same catalog
-revision: another client's committed write is applied within one second
-without an MCP or process-control channel. The current CLI requires an explicit
-catalog path and asset ID; it does not expose a running Studio window's current
-selection or unsaved presentation state. Callers must not infer a write target
-from process logs or recent preview activity. `catalog probe --output` is the
-supported way to obtain a directly inspectable image artifact without taking a
-window screenshot or mutating the catalog.
+only stdout content. An open Ravo Studio window also observes another client's
+committed catalog revision within one second.
+
+`ravo studio` is the selection-relative control surface. `sessions` discovers
+live owner-only endpoints and marks this checkout; `state` returns the selected
+asset, current and saved recipes, baseline-relative modified operations, and
+preview identity. `develop` observes or accepts explicit session/selection
+revisions, commits one strict ordered `--set` batch through Studio, waits for
+save and preview settlement, and can emit the resulting PNG. `preview` renders
+the exact current recipe without mutation. Both image commands use the existing
+CatalogService/Engine path and return a no-replace caller-owned artifact with
+MIME type, dimensions, profile, and SHA-256. Multiple matching windows require
+an explicit session ID. Process logs, open files, cache activity, and window
+screenshots remain non-authoritative (ADR-0090).
 
 ## Names and directories
 
@@ -625,6 +646,7 @@ window screenshot or mutating the catalog.
 | `adapters/` | filesystem, codec, SQLite catalog, raster JPEG/PNG, preview cache |
 | `domain/` | Asset/Catalog/Import/Preview state and ports |
 | `services/` | create/open/import/list/preview use cases |
+| `control/` | versioned live-session protocol and same-user local transport |
 | Ravo Studio / `desktop/` | C++ presenters with Qt Quick/QML Gallery and viewer |
 | `tests/` | unit, contract, catalog integration, fixtures, and later desktop smoke |
 

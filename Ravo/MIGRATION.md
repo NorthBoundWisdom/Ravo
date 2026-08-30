@@ -206,7 +206,7 @@ respectively.
 | Tone curve | `iop/tonecurve.c` | `ravo.core.tonecurve` + Curves section | Old implementation removed | frozen C default `RGB, linked`: Lab D50 → ProPhoto, `preserve_colors=average`. Studio authors RGB-linked, Lab, XYZ, and Lab-independent L/a/b with monotone Hermite, centripetal Catmull-Rom, or cubic spline. Histogram overlay uses engine-owned display RGB8 + luma bins (ADR-0084) |
 | RGB curve | `iop/rgbcurve.c` | `ravo.color.rgbcurve` + Curves section | Ravo accepted | Linked/independent working-RGB, preserve-colors, middle-grey uncompensate, 2–20 nodes, leftover interpolators, and Studio parametric regions. Dedicated editor is accepted (ADR-0052/0053/0084). Leftover IOP stays until freeze census is zero |
 | Default display transform | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | Old implementation removed | default per-channel generalized log-logistic + hue preservation; `rgb_ratio` is the C second mode. Linear sRGB, Standard SDR target. `filmicrgb`/`agx` remain leftovers |
-| CLI | `src/cli` | cli | In progress | engine/recipe/catalog/develop/export JSON all use supported services/engine |
+| CLI | `src/cli` | cli + control | In progress | engine/recipe/catalog/develop/export JSON use supported services/engine; `ravo-studio-control/v1` adds owner-only discovery, revisioned selection/current+saved recipe inspection, strict command-controller Develop mutation, and exact no-replace preview artifacts without UI automation (ADR-0090) |
 | GPU | OpenCL/pixelpipe | engine adapter | Deferred | Start only after active TODO / GPU baseline CPU goldens and end-to-end benefit proof |
 
 Use only these statuses: “Not started / Baseline frozen / In progress / Ravo

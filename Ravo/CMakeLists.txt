@@ -517,6 +517,7 @@ add_subdirectory(engine)
 add_subdirectory(domain)
 add_subdirectory(adapters)
 add_subdirectory(services)
+add_subdirectory(control)
 add_subdirectory(cli)
 add_subdirectory(desktop)
 

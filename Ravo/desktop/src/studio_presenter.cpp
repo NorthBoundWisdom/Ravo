@@ -1022,6 +1022,8 @@ void StudioPresenter::pollCatalogRevision()
                         crop_guide_ready_ = false;
                         develop_ = params.value();
                         saved_develop_ = develop_;
+                        develop_loaded_ = true;
+                        develop_load_error_.clear();
                         static_cast<void>(develop_preview_owner_.supersede("catalog_revision"));
                         pending_preview_.reset();
                         requestPreviewForSelection();
@@ -1029,6 +1031,8 @@ void StudioPresenter::pollCatalogRevision()
                     else
                     {
                         saved_develop_ = params.value();
+                        develop_loaded_ = true;
+                        develop_load_error_.clear();
                     }
                     sync_active_history();
                     emit editChanged();

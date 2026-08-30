@@ -88,7 +88,7 @@ supersession relationship when direction changes.
 | [0078](0078-copy-paste-develop-edits.md) | Accepted | Copy/Paste Edits use a session clipboard of complete DevelopParams and commit through ordinary history/undo. |
 | [0079](0079-develop-set-inventory-and-probe-png.md) | Accepted; Studio observation added by 0080 | Recipe owns the CLI `--set` field inventory; `catalog probe --output` writes a throwaway PNG without mutating recipe or preview records. |
 | [0080](0080-studio-observes-catalog-revision.md) | Accepted | Studio polls live catalog revision on the existing snapshot contract; MCP around `ravo` is not the control plane. |
-| [0081](0081-studio-assistant-endpoint-panel.md) | Accepted | Typed assistant URL/model/key settings and a floating non-modal Studio panel; Qt Network is desktop-only. |
+| [0081](0081-studio-assistant-endpoint-panel.md) | Partially superseded by 0090 | Typed assistant URL/model/key settings and a floating non-modal Studio panel; assistant HTTP and credentials remain desktop-only. |
 | [0082](0082-studio-develop-grading-workspace.md) | Accepted | Studio default Develop order is a grading stack; Color EQ is separate from Graduated ND; Color Balance RGB uses wheels; paste can apply Light or Color from a complete clipboard. |
 | [0083](0083-color-eq-bands-and-white-balance-pick.md) | Accepted | Eight-band Color Equalizer editor; RAW inspect reports WB coefficients; Bayer CFA pick writes manual temperature coefficients. |
 | [0084](0084-studio-grading-curves.md) | Accepted | First-class Curves section authors RGB and Tone operations; interpolators, histogram, and parametric regions. |
@@ -97,3 +97,4 @@ supersession relationship when direction changes.
 | [0087](0087-progressive-develop-preview.md) | Accepted | Develop publishes an exact 960px memory preview before an exact persisted 1600px result, with foreground/background cache lanes, foreground scheduling, latency-first cache PNG, and deterministic CPU row partitions. |
 | [0088](0088-lightroom-response-calibration.md) | Accepted | Lightroom-relative exposure, RAW sigmoid contrast, scene-EV highlights/shadows, and post-sigmoid display-sRGB point-curve calibration. |
 | [0089](0089-exact-interactive-prefix-cache.md) | Accepted | Foreground 960px previews retain an exact pre-light RGB prefix and owner-scoped row team, with successful-only publication and a 30ms Release P90 intent-to-image gate. |
+| [0090](0090-versioned-live-studio-control.md) | Accepted | Same-user, revision-checked live Studio selection/recipe control through CLI, with exact no-replace preview artifacts. |

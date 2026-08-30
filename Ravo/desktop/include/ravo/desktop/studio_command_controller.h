@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <QObject>
 #include <QString>
@@ -9,10 +11,18 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include "ravo/foundation/error.h"
+
 namespace ravo
 {
 
 class StudioPresenter;
+
+struct StudioDevelopField
+{
+    std::string name;
+    double value = 0.0;
+};
 
 class StudioCommandController final : public QObject
 {
@@ -59,6 +69,10 @@ public:
         const QString &command_id, const QVariant &argument = QVariant(),
         const QString &source = QStringLiteral("control"));
     Q_INVOKABLE void cancelPendingConfirmation(const QString &token);
+
+    // Machine-control entry point. It shares the command controller's runtime
+    // availability policy and commits one ordered, strictly validated batch.
+    [[nodiscard]] Result<bool> applyDevelopFields(const std::vector<StudioDevelopField> &fields);
 
     [[nodiscard]] static QStringList validateBuiltinDefinitions();
     [[nodiscard]] static int fuzzyScore(const QString &title, const QString &category,

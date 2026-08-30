@@ -75,7 +75,9 @@ validation status, and next work item.
   output-conflict and cancellation results. Existing files are never silently
   overwritten.
 - **Scriptable:** every catalog, recipe, render, and export capability is
-  reachable from the `ravo` CLI with machine-readable JSON output.
+  reachable from the `ravo` CLI with machine-readable JSON output. The same
+  CLI can discover a running Studio session, read its revisioned selection and
+  recipe, commit strict Develop fields, and obtain the latest no-replace PNG.
 - **Localized:** Ravo Studio ships English and Simplified Chinese, driven by one
   C++ command registry with menus, shortcuts, and a command palette
   (`Cmd/Ctrl+Shift+P`).

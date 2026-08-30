@@ -7,6 +7,7 @@
 
 #include <QByteArray>
 #include <QColorSpace>
+#include <QCryptographicHash>
 #include <QImage>
 #include <QMetaObject>
 #include <QMutexLocker>
@@ -33,6 +34,23 @@ namespace
     return view.copy();
 }
 
+[[nodiscard]] QString preview_pixel_sha256(const QImage &image, const QString &profile_id)
+{
+    if (image.isNull())
+        return {};
+    const QImage rgb = image.format() == QImage::Format_RGB888 ?
+                           image :
+                           image.convertToFormat(QImage::Format_RGB888);
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    for (int row = 0; row < rgb.height(); ++row)
+    {
+        hash.addData(QByteArrayView(reinterpret_cast<const char *>(rgb.constScanLine(row)),
+                                    static_cast<qsizetype>(rgb.width() * 3)));
+    }
+    hash.addData(profile_id.toUtf8());
+    return QString::fromLatin1(hash.result().toHex());
+}
+
 } // namespace
 
 QUrl StudioPresenter::previewUrl() const
@@ -55,6 +73,11 @@ void StudioPresenter::clear_displayed_preview()
     }
     preview_base_image_ = QImage();
     preview_mask_alpha_.clear();
+    live_preview_revision_ = 0;
+    live_preview_width_ = 0;
+    live_preview_height_ = 0;
+    live_preview_color_profile_id_.clear();
+    live_preview_pixel_sha256_.clear();
     displayed_develop_.reset();
     clear_scopes();
 }
@@ -274,6 +297,12 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
             const QMutexLocker lock(&preview_image_mutex_);
             preview_image_ = displayed;
         }
+        live_preview_revision_ = revision;
+        live_preview_width_ = static_cast<std::uint32_t>(displayed.width());
+        live_preview_height_ = static_cast<std::uint32_t>(displayed.height());
+        live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
+        live_preview_pixel_sha256_ =
+            preview_pixel_sha256(displayed, live_preview_color_profile_id_);
         preview_url_ = QUrl(QStringLiteral("image://studioPreview/live?r=%1").arg(revision));
         refresh_scopes(owned);
         return;
@@ -285,6 +314,17 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         const QMutexLocker lock(&preview_image_mutex_);
         preview_image_ = cached;
     }
+    live_preview_revision_ = revision;
+    live_preview_width_ = static_cast<std::uint32_t>(std::max(0, cached.width()));
+    live_preview_height_ = static_cast<std::uint32_t>(std::max(0, cached.height()));
+    live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
+    if (live_preview_color_profile_id_.isEmpty() && cached.colorSpace().isValid())
+    {
+        live_preview_color_profile_id_ = cached.colorSpace().description();
+        if (live_preview_color_profile_id_.isEmpty())
+            live_preview_color_profile_id_ = QStringLiteral("embedded-icc");
+    }
+    live_preview_pixel_sha256_ = preview_pixel_sha256(cached, live_preview_color_profile_id_);
     preview_url_ = QUrl::fromLocalFile(qstring_from_utf8(preview.cache_path));
     refresh_scopes(cached);
 }

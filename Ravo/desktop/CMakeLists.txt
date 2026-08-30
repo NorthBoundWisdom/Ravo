@@ -11,6 +11,7 @@ target_sources(ravo_desktop
     src/studio_command_controller.cpp
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
+    src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
@@ -21,6 +22,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/preview_request_owner.h
     include/ravo/desktop/studio_assistant_controller.h
     include/ravo/desktop/studio_command_controller.h
+    include/ravo/desktop/studio_live_session_controller.h
     include/ravo/desktop/studio_presenter.h
     src/studio_language_manager.h)
 
@@ -30,7 +32,7 @@ target_include_directories(ravo_desktop
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 target_link_libraries(ravo_desktop
-  PUBLIC ravo_services ravo_adapters Qt6::Network
+  PUBLIC ravo_services ravo_adapters ravo_control Qt6::Network
   PRIVATE Qt6::Gui Qt6::Qml)
 
 set_target_properties(ravo_desktop PROPERTIES AUTOMOC ON)

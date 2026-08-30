@@ -15,6 +15,7 @@ PRODUCTION_DIRECTORIES = (
     "domain",
     "adapters",
     "services",
+    "control",
     "cli",
     "desktop",
 )
@@ -38,7 +39,7 @@ TARGET_LINK_PATTERN = re.compile(
     r"target_link_libraries\(\s*([A-Za-z0-9_]+)\s+(.*?)\)", re.DOTALL
 )
 FIRST_PARTY_TARGET_PATTERN = re.compile(
-    r"\b(ravo(?:_foundation|_recipe|_engine|_domain|_adapters|_services|_desktop|_cli|_studio)?)\b"
+    r"\b(ravo(?:_foundation|_recipe|_engine|_domain|_adapters|_services|_control|_desktop|_cli|_studio)?)\b"
 )
 PUBLIC_RAVO_INCLUDE_PATTERN = re.compile(r'^\s*#\s*include\s*"ravo/([a-z_]+)/', re.MULTILINE)
 
@@ -49,9 +50,12 @@ ALLOWED_FIRST_PARTY_LINKS = {
     "ravo_domain": frozenset({"ravo_foundation"}),
     "ravo_adapters": frozenset({"ravo_foundation", "ravo_recipe", "ravo_domain"}),
     "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
-    "ravo_cli": frozenset({"ravo_adapters", "ravo_engine", "ravo_services"}),
+    "ravo_control": frozenset({"ravo_foundation"}),
+    "ravo_cli": frozenset(
+        {"ravo_adapters", "ravo_engine", "ravo_services", "ravo_control"}
+    ),
     "ravo": frozenset({"ravo_cli"}),
-    "ravo_desktop": frozenset({"ravo_services", "ravo_adapters"}),
+    "ravo_desktop": frozenset({"ravo_services", "ravo_adapters", "ravo_control"}),
     "ravo_studio": frozenset({"ravo_desktop"}),
 }
 REQUIRED_FIRST_PARTY_LINKS = {
@@ -61,9 +65,12 @@ REQUIRED_FIRST_PARTY_LINKS = {
     "ravo_domain": frozenset({"ravo_foundation"}),
     "ravo_adapters": frozenset({"ravo_foundation", "ravo_domain"}),
     "ravo_services": frozenset({"ravo_domain", "ravo_engine"}),
-    "ravo_cli": frozenset({"ravo_adapters", "ravo_engine", "ravo_services"}),
+    "ravo_control": frozenset({"ravo_foundation"}),
+    "ravo_cli": frozenset(
+        {"ravo_adapters", "ravo_engine", "ravo_services", "ravo_control"}
+    ),
     "ravo": frozenset({"ravo_cli"}),
-    "ravo_desktop": frozenset({"ravo_services", "ravo_adapters"}),
+    "ravo_desktop": frozenset({"ravo_services", "ravo_adapters", "ravo_control"}),
     "ravo_studio": frozenset({"ravo_desktop"}),
 }
 ALLOWED_PUBLIC_HEADER_LAYERS = {
@@ -73,9 +80,12 @@ ALLOWED_PUBLIC_HEADER_LAYERS = {
     "domain": frozenset({"foundation", "domain"}),
     "adapters": frozenset({"foundation", "recipe", "domain", "adapters"}),
     "services": frozenset({"foundation", "recipe", "engine", "domain", "services"}),
-    "cli": frozenset({"foundation", "recipe", "engine", "domain", "adapters", "services", "cli"}),
+    "control": frozenset({"foundation", "control"}),
+    "cli": frozenset(
+        {"foundation", "recipe", "engine", "domain", "adapters", "services", "control", "cli"}
+    ),
     "desktop": frozenset(
-        {"foundation", "recipe", "engine", "domain", "adapters", "services", "desktop"}
+        {"foundation", "recipe", "engine", "domain", "adapters", "services", "control", "desktop"}
     ),
 }
 ALLOWED_QT_COMPONENTS = {
@@ -85,7 +95,8 @@ ALLOWED_QT_COMPONENTS = {
     "domain": frozenset(),
     "adapters": frozenset({"Core", "Gui", "Sql"}),
     "services": frozenset(),
-    "cli": frozenset({"Core"}),
+    "control": frozenset({"Core", "Network"}),
+    "cli": frozenset({"Core", "Network"}),
     "desktop": frozenset(
         {
             "Core",
