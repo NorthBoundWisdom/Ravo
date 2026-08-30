@@ -617,9 +617,12 @@ TEST(StudioPresenterTest, ManagedPresetRenameAndDeleteAreScopedAndPreserveConten
     const QString renamed_path = preset.value(QStringLiteral("path")).toString();
     EXPECT_TRUE(renamed_path.endsWith(QStringLiteral("Evening Warm.rstyle.json")));
     EXPECT_FALSE(QFileInfo::exists(imported_path));
-    QFile renamed(renamed_path);
-    ASSERT_TRUE(renamed.open(QIODevice::ReadOnly));
-    EXPECT_EQ(renamed.readAll(), original);
+    // Windows rejects deletion while this process still owns a read handle.
+    {
+        QFile renamed(renamed_path);
+        ASSERT_TRUE(renamed.open(QIODevice::ReadOnly));
+        EXPECT_EQ(renamed.readAll(), original);
+    }
 
     const QString conflict_path =
         QFileInfo(renamed_path).dir().filePath(QStringLiteral("Existing.rstyle.json"));
