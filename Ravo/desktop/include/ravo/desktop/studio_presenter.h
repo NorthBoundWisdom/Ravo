@@ -533,8 +533,10 @@ public:
     Q_INVOKABLE void renamePreset(const QString &path, const QString &name);
     Q_INVOKABLE void deletePreset(const QString &path);
     [[nodiscard]] QString selectedPhotoDebugInfo() const;
+    [[nodiscard]] QString selectedPhotoParametersDebugInfo() const;
     [[nodiscard]] QString presetDebugInfo(const QString &path) const;
     Q_INVOKABLE void copySelectedPhotoDebugInfo();
+    Q_INVOKABLE void copySelectedPhotoParametersDebugInfo();
     Q_INVOKABLE void copyPresetDebugInfo(const QString &path);
     Q_INVOKABLE void createSnapshot(const QString &label);
     Q_INVOKABLE void renameSnapshot(int history_id, const QString &label);
@@ -608,11 +610,14 @@ private:
         Restore,
         Revert
     };
-    bool mutate_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true);
+    bool mutate_develop(DevelopParams next, DevelopEdit edit, bool refresh_preview = true,
+                        std::optional<std::string> history_coalesce_key = {});
     void applyDevelopNumbers(const QVariantMap &fields, DevelopEdit edit);
     void commit_develop(DevelopParams params, bool push_history, bool refresh_preview = true,
-                        RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew);
+                        RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew,
+                        std::optional<std::string> history_coalesce_key = {});
     void preview_develop(DevelopParams params);
+    void break_history_coalescing();
     void enqueue_preview();
     void request_comparison_before();
     [[nodiscard]] double selected_source_aspect() const;
@@ -641,8 +646,11 @@ private:
         DevelopParams params{};
         DevelopParams previous{};
         bool push_history = false;
+        bool pushed_undo = false;
         RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
         std::optional<std::int64_t> discard_history_after_seq;
+        std::optional<std::string> history_coalesce_key;
+        std::optional<std::int64_t> coalesce_history_id;
         std::string asset_id;
         bool ignore_edits = false;
         bool ignore_crop = false;
@@ -755,6 +763,8 @@ private:
     std::vector<RecipeHistoryEntry> recipe_history_entries_;
     std::int64_t active_history_id_ = 0;
     std::int64_t active_history_seq_ = 0;
+    std::optional<std::string> history_coalesce_key_;
+    std::optional<std::int64_t> history_coalesce_id_;
 };
 
 } // namespace ravo

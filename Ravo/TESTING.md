@@ -65,10 +65,11 @@ envelopes, strict tone order, positive-sample preservation, shared RGB scale,
 single-pass/ordered-composition equivalence, and cancellation for all four;
 recipe validation rejects display-sRGB curves carrying scene-only policies. The
 Edit left-rail QML contract pins Presets above History with Import and apply
-commands. Copy Info tests pin the
-`ravo.debug.photo` / `ravo.debug.preset` clipboard payload, empty
-selection/unknown-file failure, and photo/preset context-menu command wiring
-(QML does not assemble the identity text). QML contract tests pin the
+commands. Copy Info and Copy Parameters tests pin the
+`ravo.debug.photo` / `ravo.debug.parameters` / `ravo.debug.preset` clipboard
+payloads, current saved/pending canonical recipe text, empty selection/unknown-file
+failure, and photo/preset context-menu command wiring (QML does not assemble
+the identity or parameter text). QML contract tests pin the
 default grading stack, first-class Curves, Camera Calibration after Color,
 vignette geometry including centre, HSL band names, Detail profile denoise,
 Color Equalizer versus Graduated ND, Color
@@ -77,7 +78,11 @@ Engine tests pin CFA sampling of a warm Bayer patch to manual coefficients;
 catalog tests reject raster pick.
 Session undo is the single stack for right-panel Develop commits and
 left-rail history/Original/snapshot restore; live preview/overlay drags do
-not push that stack.
+not push that stack. Consecutive commits for one control retain one history row
+and one pre-adjustment Undo anchor. A different control, snapshot, history
+restore, selection/view change, undo/redo, or a newer client row breaks the
+group; expected-latest replacement and injected SQLite update failure preserve
+recipe/history/revision atomicity.
 Navigation tests cover the single
 presenter zoom owner, 0.1–8 clamps, wheel step, Actual-size toggle restoring
 the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier

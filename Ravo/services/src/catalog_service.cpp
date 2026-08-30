@@ -655,6 +655,18 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
                                                 const Recipe &recipe,
                                                 const RecipeSaveOptions options)
 {
+    auto saved = save_recipe_with_history(asset_id, recipe, options);
+    if (!saved)
+    {
+        return saved.error();
+    }
+    return std::move(saved).value().asset;
+}
+
+Result<RecipeSaveResult> CatalogService::save_recipe_with_history(const std::string_view asset_id,
+                                                                  const Recipe &recipe,
+                                                                  const RecipeSaveOptions options)
+{
     if (repository_ == nullptr || engine_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -705,20 +717,33 @@ Result<AssetRecord> CatalogService::save_recipe(const std::string_view asset_id,
     // Keep an owned, non-null empty string for the explicit baseline history entry. A default
     // string_view has a null data pointer, which Qt Sql correctly binds as SQL NULL.
     const std::string history_json = recipe_json.value_or(std::string{});
-    const auto committed =
-        repository_->commit_recipe(asset_id, stored.schema_version, recipe_json_view, history_json,
-                                   options.history_write, options.discard_history_after_seq);
+    const auto committed = repository_->commit_recipe(
+        asset_id, stored.schema_version, recipe_json_view, history_json, options.history_write,
+        options.discard_history_after_seq, options.coalesce_history_id);
     if (!committed)
     {
         return committed.error();
     }
     asset.value()->has_edits = recipe_json.has_value();
-    return *asset.value();
+    return RecipeSaveResult{*asset.value(), committed.value().revision,
+                            committed.value().history_id};
 }
 
 Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id,
                                                  const DevelopParams &params,
                                                  const RecipeSaveOptions options)
+{
+    auto saved = save_develop_with_history(asset_id, params, options);
+    if (!saved)
+    {
+        return saved.error();
+    }
+    return std::move(saved).value().asset;
+}
+
+Result<RecipeSaveResult> CatalogService::save_develop_with_history(const std::string_view asset_id,
+                                                                   const DevelopParams &params,
+                                                                   const RecipeSaveOptions options)
 {
     if (repository_ == nullptr)
     {
@@ -761,7 +786,7 @@ Result<AssetRecord> CatalogService::save_develop(const std::string_view asset_id
     {
         return recipe.error();
     }
-    return save_recipe(asset_id, recipe.value(), options);
+    return save_recipe_with_history(asset_id, recipe.value(), options);
 }
 
 Result<std::array<double, 4>>

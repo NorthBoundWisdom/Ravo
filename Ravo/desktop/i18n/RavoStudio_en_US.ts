@@ -3470,6 +3470,10 @@
         <translation>Copy Info</translation>
     </message>
     <message>
+        <source>Copy Parameters</source>
+        <translation>Copy Parameters</translation>
+    </message>
+    <message>
         <source>Develop text control name must not be empty.</source>
         <translation>Develop text control name must not be empty.</translation>
     </message>
@@ -4024,6 +4028,18 @@
     <message>
         <source>Photo information copied.</source>
         <translation>Photo information copied.</translation>
+    </message>
+    <message>
+        <source>Photo parameters could not be read.</source>
+        <translation>Photo parameters could not be read.</translation>
+    </message>
+    <message>
+        <source>Photo parameters could not be copied to the clipboard.</source>
+        <translation>Photo parameters could not be copied to the clipboard.</translation>
+    </message>
+    <message>
+        <source>Photo parameters copied.</source>
+        <translation>Photo parameters copied.</translation>
     </message>
     <message>
         <source>Preset information could not be read.</source>

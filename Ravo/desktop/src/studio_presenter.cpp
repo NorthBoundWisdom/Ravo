@@ -987,6 +987,7 @@ void StudioPresenter::pollCatalogRevision()
                             "StudioPresenter", "Library updated from another client."));
                         return;
                     }
+                    break_history_coalescing();
                     if (history)
                     {
                         apply_recipe_history(history.value());
@@ -1659,6 +1660,10 @@ void StudioPresenter::setBrowseMode(const QString &mode)
     }
     const bool comparison_changed = normalized != QLatin1String("develop") && clear_comparison();
     const QString previous = browse_mode_;
+    if (previous == QLatin1String("develop") && normalized != QLatin1String("develop"))
+    {
+        break_history_coalescing();
+    }
     browse_mode_ = normalized;
     emit browseModeChanged();
     if (comparison_changed)

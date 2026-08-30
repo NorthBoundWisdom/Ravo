@@ -44,13 +44,16 @@ public:
     // entry, and the catalog revision as one transaction. A missing recipe_json clears the
     // current recipe while history_json keeps the explicit baseline state. discard_history_after_seq
     // deletes this asset's history rows with seq greater than that value before the optional
-    // append. The repository must leave the previous recipe and history visible when any part
-    // of the transaction fails.
-    [[nodiscard]] virtual Result<std::int64_t>
+    // append. coalesce_history_id replaces that ordinary row only while it remains the latest
+    // row for this asset; otherwise the new state appends without overwriting intervening work.
+    // The repository must leave the previous recipe and history visible when any part of the
+    // transaction fails.
+    [[nodiscard]] virtual Result<RecipeCommitResult>
     commit_recipe(std::string_view asset_id, std::int64_t recipe_schema_version,
                   std::optional<std::string_view> recipe_json, std::string_view history_json,
                   RecipeHistoryWrite history_write,
-                  std::optional<std::int64_t> discard_history_after_seq) = 0;
+                  std::optional<std::int64_t> discard_history_after_seq,
+                  std::optional<std::int64_t> coalesce_history_id) = 0;
     [[nodiscard]] virtual Result<void> replace_asset_tags(std::string_view asset_id,
                                                           const std::vector<std::string> &tags) = 0;
     [[nodiscard]] virtual Result<void>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ravo Live Grading"
+  short_description: "Inspect and refine the photo open in Ravo Studio"
+  default_prompt: "Use $ravo-live-grading to read the current Ravo Studio photo and Develop parameters, inspect its exact preview, and assess the grade."

@@ -13,6 +13,7 @@ namespace ravo
 {
 
 inline constexpr auto kPhotoDebugInfoKind = "ravo.debug.photo";
+inline constexpr auto kPhotoParametersDebugInfoKind = "ravo.debug.parameters";
 inline constexpr auto kPresetDebugInfoKind = "ravo.debug.preset";
 inline constexpr int kDebugInfoVersion = 1;
 
@@ -40,6 +41,15 @@ struct PresetDebugIdentity
     QString sha256;
     QString size_bytes;
     QString mtime_unix_ms;
+};
+
+struct PhotoParametersDebugInfo
+{
+    QString catalog;
+    QString asset_id;
+    QString display_name;
+    QString recipe_state;
+    QString recipe_json;
 };
 
 // Pasteable Studio identity. First line is "<kind> <version>". Following lines
@@ -93,6 +103,17 @@ format_debug_info_block(const QString &kind, const int version,
                                     {QStringLiteral("sha256"), identity.sha256},
                                     {QStringLiteral("size_bytes"), identity.size_bytes},
                                     {QStringLiteral("mtime_unix_ms"), identity.mtime_unix_ms}});
+}
+
+[[nodiscard]] inline QString
+format_photo_parameters_debug_info(const PhotoParametersDebugInfo &parameters)
+{
+    return format_debug_info_block(QLatin1String(kPhotoParametersDebugInfoKind), kDebugInfoVersion,
+                                   {{QStringLiteral("catalog"), parameters.catalog},
+                                    {QStringLiteral("asset_id"), parameters.asset_id},
+                                    {QStringLiteral("display_name"), parameters.display_name},
+                                    {QStringLiteral("recipe_state"), parameters.recipe_state},
+                                    {QStringLiteral("recipe_json"), parameters.recipe_json}});
 }
 
 [[nodiscard]] inline bool write_clipboard_text(const QString &text)

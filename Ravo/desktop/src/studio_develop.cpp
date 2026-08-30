@@ -2193,6 +2193,7 @@ bool StudioPresenter::cropGuideReady() const noexcept
 
 void StudioPresenter::load_develop_for_selection()
 {
+    break_history_coalescing();
     develop_ = {};
     saved_develop_ = {};
     develop_loaded_ = false;
@@ -2271,9 +2272,16 @@ void StudioPresenter::load_develop_for_selection()
         });
 }
 
+void StudioPresenter::break_history_coalescing()
+{
+    history_coalesce_key_.reset();
+    history_coalesce_id_.reset();
+}
+
 void StudioPresenter::commit_develop(DevelopParams params, const bool push_history,
                                      const bool refresh_preview,
-                                     const RecipeHistoryWrite history_write)
+                                     const RecipeHistoryWrite history_write,
+                                     std::optional<std::string> history_coalesce_key)
 {
     if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
@@ -2281,17 +2289,33 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     }
     clamp_develop(params);
     const auto previous = saved_develop_;
-    if (push_history && params != saved_develop_)
+    const bool same_control = push_history && params != saved_develop_ &&
+                              history_write == RecipeHistoryWrite::kAppendIfNew &&
+                              history_coalesce_key && history_coalesce_key_ &&
+                              *history_coalesce_key == *history_coalesce_key_;
+    bool pushed_undo = false;
+    if (push_history && params != saved_develop_ && !same_control)
     {
         undo_stack_.push_back(saved_develop_);
+        pushed_undo = true;
         if (undo_stack_.size() > 40U)
         {
             undo_stack_.erase(undo_stack_.begin());
         }
         redo_stack_.clear();
     }
+    if (history_write != RecipeHistoryWrite::kAppendIfNew || !history_coalesce_key)
+    {
+        break_history_coalescing();
+    }
+    else if (!same_control)
+    {
+        history_coalesce_key_ = history_coalesce_key;
+        history_coalesce_id_.reset();
+    }
+    const auto coalesce_history_id = same_control ? history_coalesce_id_ : std::nullopt;
     std::optional<std::int64_t> discard_after;
-    if (push_history && history_write == RecipeHistoryWrite::kAppendIfNew &&
+    if (push_history && history_write == RecipeHistoryWrite::kAppendIfNew && !same_control &&
         !recipe_history_entries_.empty() &&
         active_history_seq_ < recipe_history_entries_.front().seq)
     {
@@ -2329,8 +2353,11 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .params = params,
         .previous = previous,
         .push_history = push_history,
+        .pushed_undo = pushed_undo,
         .history_write = history_write,
         .discard_history_after_seq = discard_after,
+        .history_coalesce_key = std::move(history_coalesce_key),
+        .coalesce_history_id = coalesce_history_id,
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
@@ -2373,8 +2400,11 @@ void StudioPresenter::preview_develop(DevelopParams params)
     pending_preview_ = PendingDevelopWork{
         .interactive = true,
         .params = params,
+        .pushed_undo = false,
         .history_write = RecipeHistoryWrite::kUnchanged,
         .discard_history_after_seq = {},
+        .history_coalesce_key = {},
+        .coalesce_history_id = {},
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
@@ -2388,7 +2418,8 @@ void StudioPresenter::preview_develop(DevelopParams params)
 }
 
 bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
-                                     const bool refresh_preview)
+                                     const bool refresh_preview,
+                                     std::optional<std::string> history_coalesce_key)
 {
     clamp_develop(next);
     switch (edit)
@@ -2419,7 +2450,8 @@ bool StudioPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
             }
             return true;
         }
-        commit_develop(std::move(next), true, refresh_preview, RecipeHistoryWrite::kAppendIfNew);
+        commit_develop(std::move(next), true, refresh_preview, RecipeHistoryWrite::kAppendIfNew,
+                       std::move(history_coalesce_key));
         return true;
     case DevelopEdit::Restore:
         if (next == develop_ && next == saved_develop_)
@@ -2452,8 +2484,11 @@ void StudioPresenter::enqueue_preview()
     pending_preview_ = PendingDevelopWork{
         .interactive = mask_overlay_visible_ || crop_guides || progressive_develop,
         .params = develop_,
+        .pushed_undo = false,
         .history_write = RecipeHistoryWrite::kUnchanged,
         .discard_history_after_seq = {},
+        .history_coalesce_key = {},
+        .coalesce_history_id = {},
         .asset_id = utf8_from_qstring(selected_asset_id_),
         .ignore_edits = before_after_,
         .ignore_crop = crop_guides,
@@ -2501,8 +2536,11 @@ void StudioPresenter::kick_develop_work()
         job = PendingDevelopWork{
             .interactive = false,
             .params = develop_,
+            .pushed_undo = false,
             .history_write = RecipeHistoryWrite::kUnchanged,
             .discard_history_after_seq = {},
+            .history_coalesce_key = {},
+            .coalesce_history_id = {},
             .asset_id = utf8_from_qstring(selected_asset_id_),
             .ignore_edits = true,
             .refresh_preview = true,
@@ -2528,18 +2566,20 @@ void StudioPresenter::kick_develop_work()
     executor_.post(
         [this, job, revision, cancellation]()
         {
-            Result<AssetRecord> saved = make_error(ErrorCode::kIo, "Catalog session is closed");
+            Result<RecipeSaveResult> saved =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
             bool save_ok = !job.save;
             if (service_ != nullptr)
             {
                 if (job.save)
                 {
-                    saved = service_->save_develop(
+                    saved = service_->save_develop_with_history(
                         job.asset_id, job.params,
                         RecipeSaveOptions{
                             .history_write = job.history_write,
                             .discard_history_after_seq = job.discard_history_after_seq,
+                            .coalesce_history_id = job.coalesce_history_id,
                         });
                     save_ok = static_cast<bool>(saved);
                 }
@@ -2584,9 +2624,15 @@ void StudioPresenter::kick_develop_work()
                             {
                                 develop_ = job.previous;
                                 saved_develop_ = job.previous;
-                                if (job.push_history && !undo_stack_.empty())
+                                if (job.pushed_undo && !undo_stack_.empty())
                                 {
                                     undo_stack_.pop_back();
+                                }
+                                if (job.history_coalesce_key &&
+                                    history_coalesce_key_ == job.history_coalesce_key &&
+                                    !job.coalesce_history_id)
+                                {
+                                    break_history_coalescing();
                                 }
                                 active_history_id_ = 0;
                                 if (job.discard_history_after_seq)
@@ -2607,8 +2653,36 @@ void StudioPresenter::kick_develop_work()
                         }
                         if (selected_matches)
                         {
+                            if (job.coalesce_history_id && saved.value().history_id &&
+                                *saved.value().history_id != *job.coalesce_history_id)
+                            {
+                                undo_stack_.push_back(job.previous);
+                                if (undo_stack_.size() > 40U)
+                                {
+                                    undo_stack_.erase(undo_stack_.begin());
+                                }
+                                redo_stack_.clear();
+                            }
                             saved_develop_ = job.params;
-                            assets_.updateAsset(saved.value());
+                            observed_catalog_revision_ =
+                                std::max(observed_catalog_revision_, saved.value().revision);
+                            assets_.updateAsset(saved.value().asset);
+                            if (job.history_coalesce_key &&
+                                history_coalesce_key_ == job.history_coalesce_key)
+                            {
+                                history_coalesce_id_ = saved.value().history_id;
+                            }
+                            if (pending_save_)
+                            {
+                                pending_save_->previous = job.params;
+                                if (job.history_coalesce_key &&
+                                    pending_save_->history_coalesce_key ==
+                                        job.history_coalesce_key &&
+                                    saved.value().history_id)
+                                {
+                                    pending_save_->coalesce_history_id = saved.value().history_id;
+                                }
+                            }
                             emit selectionChanged();
                             emit editChanged();
                             if (job.history_write == RecipeHistoryWrite::kAppendIfNew)
@@ -2707,8 +2781,11 @@ void StudioPresenter::kick_develop_work()
                             .params = job.params,
                             .previous = {},
                             .push_history = false,
+                            .pushed_undo = false,
                             .history_write = RecipeHistoryWrite::kUnchanged,
                             .discard_history_after_seq = {},
+                            .history_coalesce_key = {},
+                            .coalesce_history_id = {},
                             .asset_id = job.asset_id,
                             .ignore_edits = job.ignore_edits,
                             .ignore_crop = job.ignore_crop,
@@ -2757,7 +2834,7 @@ void StudioPresenter::setDevelopNumber(const QString &name, const double value)
     }
     const bool keep_crop_guide =
         crop_tool_active_ && crop_guide_ready_ && name == QLatin1String("straighten");
-    mutate_develop(std::move(next), DevelopEdit::Commit, !keep_crop_guide);
+    mutate_develop(std::move(next), DevelopEdit::Commit, !keep_crop_guide, field);
 }
 
 void StudioPresenter::setDevelopText(const QString &name, const QString &value)
@@ -2770,7 +2847,7 @@ void StudioPresenter::setDevelopText(const QString &name, const QString &value)
         setError(qstring_from_utf8(applied.error().message));
         return;
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit);
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, utf8_from_qstring(name));
 }
 
 void StudioPresenter::saveStyleToPath(const QString &path)
@@ -3229,6 +3306,29 @@ QString StudioPresenter::selectedPhotoDebugInfo() const
     return format_photo_debug_info(identity);
 }
 
+QString StudioPresenter::selectedPhotoParametersDebugInfo() const
+{
+    const auto asset = assets_.assetById(selected_asset_id_);
+    if (!asset || !develop_loaded_)
+        return {};
+    const AssetDescriptor descriptor{asset->id, asset->normalized_uri, asset->content_fingerprint};
+    auto recipe = recipe_from_develop(descriptor, develop_);
+    if (!recipe)
+        return {};
+    auto serialized = serialize_recipe(recipe.value());
+    if (!serialized)
+        return {};
+
+    PhotoParametersDebugInfo parameters;
+    parameters.catalog = catalog_path_;
+    parameters.asset_id = selected_asset_id_;
+    parameters.display_name = qstring_from_utf8(asset_display_name(*asset));
+    parameters.recipe_state =
+        develop_ == saved_develop_ ? QStringLiteral("saved") : QStringLiteral("pending");
+    parameters.recipe_json = qstring_from_utf8(serialized.value());
+    return format_photo_parameters_debug_info(parameters);
+}
+
 QString StudioPresenter::presetDebugInfo(const QString &path) const
 {
     QString input_path = path.trimmed();
@@ -3307,6 +3407,25 @@ void StudioPresenter::copySelectedPhotoDebugInfo()
         return;
     }
     setStatus(QCoreApplication::translate("StudioPresenter", "Photo information copied."));
+}
+
+void StudioPresenter::copySelectedPhotoParametersDebugInfo()
+{
+    const QString text = selectedPhotoParametersDebugInfo();
+    if (text.isEmpty())
+    {
+        setError(
+            QCoreApplication::translate("StudioPresenter", "Photo parameters could not be read."));
+        return;
+    }
+    if (!write_clipboard_text(text))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "Photo parameters could not be copied to the clipboard."));
+        return;
+    }
+    setError({});
+    setStatus(QCoreApplication::translate("StudioPresenter", "Photo parameters copied."));
 }
 
 void StudioPresenter::copyPresetDebugInfo(const QString &path)
@@ -3537,7 +3656,11 @@ void StudioPresenter::apply_curve_points(const QString &family, const int channe
             next.tone_curve = tone_curve_from_variant(points);
         }
     }
-    mutate_develop(std::move(next), edit);
+    mutate_develop(std::move(next), edit, true,
+                   edit == DevelopEdit::Commit ?
+                       std::optional<std::string>{"curve:" + utf8_from_qstring(family) + ":" +
+                                                  std::to_string(channel)} :
+                       std::nullopt);
 }
 
 void StudioPresenter::setCurvePoints(const QString &family, const int channel,
@@ -3610,7 +3733,7 @@ void StudioPresenter::setCropRect(const double x, const double y, const double w
     clamp_develop(next);
     constrain_geometry_crop(next);
     clamp_selected_crop(next);
-    mutate_develop(std::move(next), DevelopEdit::Commit);
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, std::string{"cropRect"});
 }
 
 void StudioPresenter::previewCropRect(const double x, const double y, const double width,
@@ -3752,7 +3875,7 @@ void StudioPresenter::resetControl(const QString &name)
     {
         fit_geometry_crop(next);
     }
-    mutate_develop(std::move(next), DevelopEdit::Commit);
+    mutate_develop(std::move(next), DevelopEdit::Commit, true, field);
 }
 
 void StudioPresenter::resetSection(const QString &section)
@@ -3858,7 +3981,12 @@ void StudioPresenter::applyDevelopNumbers(const QVariantMap &fields, const Devel
             return;
         }
     }
-    mutate_develop(std::move(next), edit);
+    std::optional<std::string> history_coalesce_key;
+    if (edit == DevelopEdit::Commit && fields.size() == 1)
+    {
+        history_coalesce_key = utf8_from_qstring(fields.cbegin().key());
+    }
+    mutate_develop(std::move(next), edit, true, std::move(history_coalesce_key));
 }
 
 void StudioPresenter::previewDevelopNumbers(const QVariantMap &fields)

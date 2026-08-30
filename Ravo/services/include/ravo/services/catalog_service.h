@@ -30,6 +30,14 @@ struct RecipeSaveOptions
 {
     RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew;
     std::optional<std::int64_t> discard_history_after_seq;
+    std::optional<std::int64_t> coalesce_history_id;
+};
+
+struct RecipeSaveResult
+{
+    AssetRecord asset;
+    std::int64_t revision = 0;
+    std::optional<std::int64_t> history_id;
 };
 
 class CatalogService
@@ -64,6 +72,9 @@ public:
     [[nodiscard]] Result<AssetRecord> save_develop(std::string_view asset_id,
                                                    const DevelopParams &params,
                                                    RecipeSaveOptions options = {});
+    [[nodiscard]] Result<RecipeSaveResult>
+    save_develop_with_history(std::string_view asset_id, const DevelopParams &params,
+                              RecipeSaveOptions options = {});
     [[nodiscard]] Result<std::array<double, 4>>
     sample_white_balance(std::string_view asset_id, const WhiteBalancePickRequest &request,
                          const CancellationToken &cancellation);
@@ -97,6 +108,10 @@ public:
     Result<void> close();
 
 private:
+    [[nodiscard]] Result<RecipeSaveResult> save_recipe_with_history(std::string_view asset_id,
+                                                                    const Recipe &recipe,
+                                                                    RecipeSaveOptions options);
+
     enum class PreviewLane
     {
         kForegroundDevelop,

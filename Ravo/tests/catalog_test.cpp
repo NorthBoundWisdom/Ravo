@@ -1401,6 +1401,145 @@ TEST_F(CatalogServiceTest, RecipeTransactionFailurePreservesCurrentRecipeAndRevi
     EXPECT_NEAR(restored_params.value().exposure_ev, accepted.exposure_ev, 1e-9);
 }
 
+TEST_F(CatalogServiceTest, RecipeHistoryCoalescesOnlyTheExpectedLatestOrdinaryRow)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "recipe-history-coalesce.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 80, 120));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams first;
+    first.exposure_black = 0.01;
+    auto first_saved = service->save_develop_with_history(asset_id, first);
+    ASSERT_TRUE(first_saved) << first_saved.error().message;
+    ASSERT_TRUE(first_saved.value().history_id);
+    const auto coalesce_id = *first_saved.value().history_id;
+
+    DevelopParams second = first;
+    second.exposure_black = 0.02;
+    auto second_saved = service->save_develop_with_history(
+        asset_id, second,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = coalesce_id});
+    ASSERT_TRUE(second_saved) << second_saved.error().message;
+    ASSERT_TRUE(second_saved.value().history_id);
+    EXPECT_EQ(*second_saved.value().history_id, coalesce_id);
+    auto coalesced = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(coalesced) << coalesced.error().message;
+    ASSERT_EQ(coalesced.value().size(), 1U);
+    EXPECT_EQ(coalesced.value().front().id, coalesce_id);
+    auto coalesced_recipe = parse_recipe_json(coalesced.value().front().recipe_json);
+    ASSERT_TRUE(coalesced_recipe) << coalesced_recipe.error().message;
+    auto coalesced_params = develop_from_recipe(coalesced_recipe.value());
+    ASSERT_TRUE(coalesced_params) << coalesced_params.error().message;
+    EXPECT_NEAR(coalesced_params.value().exposure_black, second.exposure_black, 1e-9);
+
+    auto before_invalid = service->snapshot();
+    ASSERT_TRUE(before_invalid) << before_invalid.error().message;
+    auto invalid = service->save_develop_with_history(
+        asset_id, second,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = coalesce_id});
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kValidation);
+    auto after_invalid = service->snapshot();
+    ASSERT_TRUE(after_invalid) << after_invalid.error().message;
+    EXPECT_EQ(after_invalid.value().revision, before_invalid.value().revision);
+
+    auto snapshot = service->create_recipe_snapshot(asset_id, "boundary");
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    DevelopParams third = second;
+    third.exposure_black = 0.03;
+    auto after_snapshot = service->save_develop_with_history(
+        asset_id, third,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = coalesce_id});
+    ASSERT_TRUE(after_snapshot) << after_snapshot.error().message;
+    ASSERT_TRUE(after_snapshot.value().history_id);
+    EXPECT_NE(*after_snapshot.value().history_id, coalesce_id);
+    auto separated = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(separated) << separated.error().message;
+    ASSERT_EQ(separated.value().size(), 3U);
+    EXPECT_EQ(separated.value()[1].kind, kRecipeHistoryKindSnapshot);
+    EXPECT_EQ(separated.value()[2].id, coalesce_id);
+}
+
+TEST_F(CatalogServiceTest, RecipeHistoryCoalesceFailureRollsBackRecipeHistoryAndRevision)
+{
+    auto created = open_service(true);
+    ASSERT_TRUE(created) << created.error().message;
+    const auto jpeg_path = (root / "recipe-history-coalesce-failure.jpg").string();
+    QImage image(16, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(120, 80, 40));
+    ASSERT_TRUE(image.save(QString::fromStdString(jpeg_path), "JPEG", 90));
+    auto imported = service->import_one(jpeg_path, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams first;
+    first.exposure_black = 0.01;
+    auto first_saved = service->save_develop_with_history(asset_id, first);
+    ASSERT_TRUE(first_saved) << first_saved.error().message;
+    ASSERT_TRUE(first_saved.value().history_id);
+    auto snapshot_before = service->snapshot();
+    ASSERT_TRUE(snapshot_before) << snapshot_before.error().message;
+    auto history_before = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history_before) << history_before.error().message;
+
+    {
+        const auto connection = QStringLiteral("ravo_recipe_coalesce_failure_injection");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER fail_recipe_history_coalesce "
+            "BEFORE UPDATE OF recipe_json ON asset_recipe_history "
+            "BEGIN SELECT RAISE(ABORT, 'forced recipe history coalesce failure'); END")))
+            << query.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    DevelopParams rejected = first;
+    rejected.exposure_black = 0.03;
+    auto failed = service->save_develop_with_history(
+        asset_id, rejected,
+        RecipeSaveOptions{.history_write = RecipeHistoryWrite::kAppendIfNew,
+                          .discard_history_after_seq = {},
+                          .coalesce_history_id = *first_saved.value().history_id});
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+
+    auto current = service->load_recipe(asset_id);
+    ASSERT_TRUE(current) << current.error().message;
+    auto current_params = develop_from_recipe(current.value());
+    ASSERT_TRUE(current_params) << current_params.error().message;
+    EXPECT_NEAR(current_params.value().exposure_black, first.exposure_black, 1e-9);
+    auto snapshot_after = service->snapshot();
+    ASSERT_TRUE(snapshot_after) << snapshot_after.error().message;
+    EXPECT_EQ(snapshot_after.value().revision, snapshot_before.value().revision);
+    auto history_after = service->list_recipe_history(asset_id);
+    ASSERT_TRUE(history_after) << history_after.error().message;
+    ASSERT_EQ(history_after.value().size(), history_before.value().size());
+    EXPECT_EQ(history_after.value().front().id, history_before.value().front().id);
+    EXPECT_EQ(history_after.value().front().recipe_json,
+              history_before.value().front().recipe_json);
+}
+
 TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
 {
     auto created = open_service(true);
@@ -1438,7 +1577,8 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
     auto previewed =
         service->save_develop(asset_id, second,
                               RecipeSaveOptions{.history_write = RecipeHistoryWrite::kUnchanged,
-                                                .discard_history_after_seq = {}});
+                                                .discard_history_after_seq = {},
+                                                .coalesce_history_id = {}});
     ASSERT_TRUE(previewed) << previewed.error().message;
     auto preview_history = service->list_recipe_history(asset_id);
     ASSERT_TRUE(preview_history) << preview_history.error().message;
@@ -1458,6 +1598,7 @@ TEST_F(CatalogServiceTest, HistoryPreviewLeavesStackAndEditDiscardsNewerSteps)
                                         RecipeSaveOptions{
                                             .history_write = RecipeHistoryWrite::kAppendIfNew,
                                             .discard_history_after_seq = middle.seq,
+                                            .coalesce_history_id = {},
                                         });
     ASSERT_TRUE(edited) << edited.error().message;
     auto truncated = service->list_recipe_history(asset_id);
@@ -1561,6 +1702,7 @@ TEST_F(CatalogServiceTest, HistoryDiscardAndAppendShareRecipeTransaction)
                                         RecipeSaveOptions{
                                             .history_write = RecipeHistoryWrite::kAppendIfNew,
                                             .discard_history_after_seq = cursor_seq,
+                                            .coalesce_history_id = {},
                                         });
     ASSERT_FALSE(failed);
     EXPECT_EQ(failed.error().code, ErrorCode::kIo);

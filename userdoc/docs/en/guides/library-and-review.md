@@ -125,6 +125,11 @@ Use the bottom review bar, the **Photo** menu, or the photo context menu:
   to the system clipboard. The block names the open library, asset ID, file
   URI/path, fingerprint, and basic file metadata so a later debug session can
   target that exact photo.
+- Choose **Copy Parameters** to copy a versioned English block containing the
+  selected photo identity, whether the current recipe is saved or pending, and
+  the complete canonical recipe JSON. It includes in-memory adjustments that
+  have not yet been saved; QML does not translate or reformat the parameter
+  names and values.
 
 These states are catalog values. They do not modify the original image. Rating,
 label, and reject state are also visible in the thumbnail and filmstrip when

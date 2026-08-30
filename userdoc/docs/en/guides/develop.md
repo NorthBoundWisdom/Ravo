@@ -355,6 +355,11 @@ rewrite the preview cache as a new edit.
   and reset. Live slider or crop drags stay in memory until they are committed.
   Undo and Redo then save the resulting recipe through the same catalog
   transaction.
+- Consecutive commits from the same control replace that control's latest
+  ordinary History row, so repeated adjustments keep only the final value and
+  one Undo returns to the value before the sequence. Changing controls, leaving
+  Edit, selecting another photo, using Undo/Redo or History, creating a
+  snapshot, or an intervening external edit starts a new row.
 - **Copy Edits** (`Cmd/Ctrl+Shift+C`) stores the current complete develop
   recipe in a session clipboard. **Paste** (`Cmd/Ctrl+Alt+V`) applies that
   whole recipe to the active photo as a normal history step, including masks.

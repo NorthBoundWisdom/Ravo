@@ -846,6 +846,24 @@ TEST(StudioDebugInfo, FormattersEmitStableSingleLineFields)
     EXPECT_TRUE(photo_text.contains(QStringLiteral("has_edits=true")));
     EXPECT_FALSE(photo_text.contains(QStringLiteral("ravo.debug.preset")));
 
+    PhotoParametersDebugInfo parameters;
+    parameters.catalog = photo.catalog;
+    parameters.asset_id = photo.asset_id;
+    parameters.display_name = photo.display_name;
+    parameters.recipe_state = QStringLiteral("pending");
+    parameters.recipe_json = QStringLiteral(
+        "{\"operations\":[{\"id\":\"ravo.core.exposure\",\"parameters\":{\"black\":0.0553}}]}");
+    const auto parameters_text = format_photo_parameters_debug_info(parameters);
+    EXPECT_EQ(
+        parameters_text,
+        QStringLiteral(
+            "ravo.debug.parameters 1\n"
+            "catalog=/tmp/Ravo Library.sqlite\n"
+            "asset_id=ast_642f1d7e545bf6872ee9e3cd8357c877\n"
+            "display_name=_DSC5950.jpg\n"
+            "recipe_state=pending\n"
+            "recipe_json={\"operations\":[{\"id\":\"ravo.core.exposure\",\"parameters\":{\"black\":0.0553}}]}"));
+
     PhotoDebugIdentity messy;
     messy.display_name = QStringLiteral("line\nbreak");
     const auto sanitized = format_photo_debug_info(messy);
@@ -871,6 +889,7 @@ TEST(StudioPresenterTest, PhotoDebugInfoIsEmptyWithoutSelection)
     ensure_qt_core();
     StudioPresenter presenter;
     EXPECT_TRUE(presenter.selectedPhotoDebugInfo().isEmpty());
+    EXPECT_TRUE(presenter.selectedPhotoParametersDebugInfo().isEmpty());
     presenter.copySelectedPhotoDebugInfo();
 }
 
@@ -882,6 +901,7 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
     ASSERT_TRUE(directory.isValid());
     const QString photo = directory.filePath(QStringLiteral("photo.png"));
     QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(120, 130, 140));
     ASSERT_TRUE(image.save(photo, "PNG"));
     const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
@@ -911,6 +931,140 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
     EXPECT_TRUE(text.contains(QStringLiteral("has_edits=false")));
     EXPECT_TRUE(text.contains(QStringLiteral("path=")));
     EXPECT_FALSE(text.contains(QStringLiteral("ravo.debug.preset")));
+
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }))
+        << presenter.errorText().toStdString();
+    const auto baseline_parameters = presenter.selectedPhotoParametersDebugInfo();
+    EXPECT_TRUE(baseline_parameters.startsWith(QStringLiteral("ravo.debug.parameters 1\n")));
+    EXPECT_TRUE(baseline_parameters.contains(QStringLiteral("recipe_state=saved\n")));
+    EXPECT_TRUE(baseline_parameters.contains(QStringLiteral("recipe_json={")));
+    EXPECT_TRUE(baseline_parameters.contains(QStringLiteral("\"operations\":")));
+
+    presenter.previewDevelopNumber(QStringLiteral("exposureBlack"), 0.0553);
+    const auto pending_parameters = presenter.selectedPhotoParametersDebugInfo();
+    EXPECT_TRUE(pending_parameters.contains(QStringLiteral("recipe_state=pending\n")));
+    EXPECT_TRUE(pending_parameters.contains(QStringLiteral("\"id\":\"ravo.core.exposure\"")));
+    EXPECT_TRUE(pending_parameters.contains(QStringLiteral("\"black\":0.0553")));
+}
+
+TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("coalesced-history.png"));
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(80, 100, 120));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && !presenter.previewUrl().isEmpty() &&
+                   presenter.selectedPhotoParametersDebugInfo().contains(
+                       QStringLiteral("recipe_state=saved\n"));
+        }))
+        << presenter.errorText().toStdString();
+
+    const auto black_value = [&]
+    { return presenter.editExposureParams().value(QStringLiteral("black")).toDouble(); };
+    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.01);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(black_value() - 0.01) < 1e-9 &&
+                   presenter.recipeHistory().size() == 1;
+        }))
+        << presenter.errorText().toStdString();
+    const auto history_id = presenter.recipeHistory().front().toMap().value(QStringLiteral("id"));
+    const auto first_summary =
+        presenter.recipeHistory().front().toMap().value(QStringLiteral("summary")).toString();
+
+    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.02);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(black_value() - 0.02) < 1e-9 &&
+                   presenter.recipeHistory().size() == 1 &&
+                   presenter.recipeHistory().front().toMap().value(QStringLiteral("id")) ==
+                       history_id;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.03);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(black_value() - 0.03) < 1e-9 &&
+                   presenter.recipeHistory().size() == 1 &&
+                   presenter.recipeHistory().front().toMap().value(QStringLiteral("id")) ==
+                       history_id &&
+                   presenter.recipeHistory()
+                           .front()
+                           .toMap()
+                           .value(QStringLiteral("summary"))
+                           .toString() != first_summary;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.canUndo());
+
+    presenter.undoEdit();
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.previewLoading() && std::abs(black_value()) < 1e-9; }))
+        << presenter.errorText().toStdString() << " black=" << black_value()
+        << " canUndo=" << presenter.canUndo() << " canRedo=" << presenter.canRedo();
+    EXPECT_FALSE(presenter.canUndo());
+    EXPECT_TRUE(presenter.canRedo());
+
+    presenter.redoEdit();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && std::abs(black_value() - 0.03) < 1e-9; }))
+        << presenter.errorText().toStdString();
+    presenter.setDevelopNumber(QStringLiteral("exposure"), 0.25);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.editExposure() - 0.25) < 1e-9 &&
+                   presenter.recipeHistory().size() == 2;
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setDevelopNumber(QStringLiteral("exposureBlack"), 0.04);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() && std::abs(black_value() - 0.04) < 1e-9 &&
+                   presenter.recipeHistory().size() == 3;
+        }))
+        << presenter.errorText().toStdString();
+
+    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.1);
+    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.2);
+    presenter.setDevelopNumber(QStringLiteral("saturation"), 0.3);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.previewLoading() &&
+                   std::abs(presenter.editSaturation() - 0.3) < 1e-9 &&
+                   presenter.recipeHistory().size() == 4;
+        }))
+        << presenter.errorText().toStdString();
 }
 
 TEST(StudioPresenterTest, PresetDebugInfoHashesStyleAndRejectsUnknownFiles)
@@ -2147,15 +2301,17 @@ TEST(StudioCommands, BuiltinRegistryIsCompleteAndConflictFree)
     EXPECT_TRUE(StudioCommandController::validateBuiltinDefinitions().isEmpty());
 }
 
-TEST(StudioCommands, CopyInfoRequiresSelectionOrPresetPath)
+TEST(StudioCommands, CopyDebugTextRequiresSelectionOrPresetPath)
 {
     ensure_qt_core();
     StudioPresenter presenter;
     StudioCommandController controller(presenter);
     const auto ids = controller.ids();
     const auto photo_copy = ids.value(QStringLiteral("photoCopyInfo")).toString();
+    const auto parameters_copy = ids.value(QStringLiteral("photoCopyParameters")).toString();
     const auto preset_copy = ids.value(QStringLiteral("presetCopyInfo")).toString();
     ASSERT_EQ(photo_copy, QStringLiteral("studio.photo.copy_info"));
+    ASSERT_EQ(parameters_copy, QStringLiteral("studio.photo.copy_parameters"));
     ASSERT_EQ(preset_copy, QStringLiteral("studio.preset.copy_info"));
 
     const auto photo_action = controller.action(photo_copy);
@@ -2164,6 +2320,15 @@ TEST(StudioCommands, CopyInfoRequiresSelectionOrPresetPath)
     const auto photo_rejected = controller.executeAction(photo_copy, QStringLiteral("control"));
     EXPECT_FALSE(photo_rejected.value(QStringLiteral("accepted")).toBool());
     EXPECT_EQ(photo_rejected.value(QStringLiteral("code")).toString(),
+              QStringLiteral("unavailable"));
+
+    const auto parameters_action = controller.action(parameters_copy);
+    EXPECT_FALSE(parameters_action.value(QStringLiteral("enabled")).toBool());
+    EXPECT_FALSE(parameters_action.value(QStringLiteral("disabledReason")).toString().isEmpty());
+    const auto parameters_rejected =
+        controller.executeAction(parameters_copy, QStringLiteral("control"));
+    EXPECT_FALSE(parameters_rejected.value(QStringLiteral("accepted")).toBool());
+    EXPECT_EQ(parameters_rejected.value(QStringLiteral("code")).toString(),
               QStringLiteral("unavailable"));
 
     const auto preset_rejected =
@@ -2754,7 +2919,7 @@ TEST(StudioQmlContract, DevelopPresetPanelSitsAboveHistoryAndImportsThroughComma
     EXPECT_TRUE(rename_source.contains(QStringLiteral("signal renameAccepted")));
 }
 
-TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
+TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
 {
     QFile menu(QStringLiteral(RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML));
     ASSERT_TRUE(menu.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -2763,6 +2928,7 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
     EXPECT_TRUE(source.contains(QStringLiteral("copyEdits")));
     EXPECT_TRUE(source.contains(QStringLiteral("pasteEdits")));
     EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoInfo")));
+    EXPECT_TRUE(source.contains(QStringLiteral("copyPhotoParameters")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"viewPhotoMenuItem\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"editPhotoMenuItem\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("action: root.commands.loupe")));
@@ -2771,7 +2937,10 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
     EXPECT_TRUE(source.contains(QStringLiteral("StudioContextMenuItem")));
     EXPECT_LT(source.indexOf(QStringLiteral("copyEdits")),
               source.indexOf(QStringLiteral("copyPhotoInfo")));
+    EXPECT_LT(source.indexOf(QStringLiteral("copyPhotoInfo")),
+              source.indexOf(QStringLiteral("copyPhotoParameters")));
     EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.photo")));
+    EXPECT_FALSE(source.contains(QStringLiteral("ravo.debug.parameters")));
 
     QFile shared_item(QStringLiteral(RAVO_STUDIO_CONTEXT_MENU_ITEM_QML));
     ASSERT_TRUE(shared_item.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -2787,6 +2956,8 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedInfo)
     const auto action_source = QString::fromUtf8(actions.readAll());
     EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoCopyInfo")));
     EXPECT_TRUE(action_source.contains(QStringLiteral("copyPhotoInfo")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("ids.photoCopyParameters")));
+    EXPECT_TRUE(action_source.contains(QStringLiteral("copyPhotoParameters")));
 }
 
 TEST(StudioQmlContract, ScopePanelExposesFiveEngineOwnedModesWithoutPixelMath)

@@ -18,6 +18,7 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
 | [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions, supersession relationships, and accepted interchange calibration contracts |
 | [../.codex/skills/i18n-translation-workflow/SKILL.md](../.codex/skills/i18n-translation-workflow/SKILL.md) | Ravo Studio source extraction, Chinese translation memory, and catalog workflow |
+| [../.codex/skills/ravo-live-grading/SKILL.md](../.codex/skills/ravo-live-grading/SKILL.md) | Current-checkout live Studio photo, recipe, exact-preview, and revision-bound grading workflow |
 | [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Unfinished legacy migration execution |
 | [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |
 

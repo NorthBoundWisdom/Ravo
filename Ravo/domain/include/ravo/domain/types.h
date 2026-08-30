@@ -28,6 +28,13 @@ enum class RecipeHistoryWrite
     kAppendIfNew,
     kUnchanged,
 };
+
+struct RecipeCommitResult
+{
+    std::int64_t revision = 0;
+    std::optional<std::int64_t> history_id;
+};
+
 inline constexpr std::size_t kTagMaxLength = 128;
 inline constexpr std::size_t kMetadataFieldMaxLength = 4096;
 inline constexpr std::int64_t kPreviewContractVersion = 8;

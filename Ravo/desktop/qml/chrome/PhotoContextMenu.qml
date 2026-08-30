@@ -91,6 +91,9 @@ StudioContextMenu {
     StudioContextMenuItem {
         action: root.commands.copyPhotoInfo
     }
+    StudioContextMenuItem {
+        action: root.commands.copyPhotoParameters
+    }
     StudioContextMenuSeparator {}
     StudioContextMenuItem {
         action: root.commands.exportPhoto

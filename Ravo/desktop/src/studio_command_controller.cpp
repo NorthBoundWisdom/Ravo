@@ -65,6 +65,7 @@ inline constexpr auto kPhotoDelete = "studio.photo.delete_from_disk";
 inline constexpr auto kPhotoPrevious = "studio.photo.previous";
 inline constexpr auto kPhotoNext = "studio.photo.next";
 inline constexpr auto kPhotoCopyInfo = "studio.photo.copy_info";
+inline constexpr auto kPhotoCopyParameters = "studio.photo.copy_parameters";
 inline constexpr auto kViewGrid = "studio.view.show_grid";
 inline constexpr auto kViewLoupe = "studio.view.show_loupe";
 inline constexpr auto kViewDevelop = "studio.view.show_develop";
@@ -364,6 +365,7 @@ QStringList command_ids()
             QLatin1String(command::kPhotoPrevious),
             QLatin1String(command::kPhotoNext),
             QLatin1String(command::kPhotoCopyInfo),
+            QLatin1String(command::kPhotoCopyParameters),
             QLatin1String(command::kViewGrid),
             QLatin1String(command::kViewLoupe),
             QLatin1String(command::kViewDevelop),
@@ -627,6 +629,11 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Info")), photo,
         {QStringLiteral("identity"), QStringLiteral("debug"), QStringLiteral("clipboard")},
         QStringLiteral("photo.review"), 20, true);
+    add(command::kPhotoCopyParameters, command::kPhotoCopyParameters,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Parameters")), photo,
+        {QStringLiteral("parameters"), QStringLiteral("recipe"), QStringLiteral("debug"),
+         QStringLiteral("clipboard")},
+        QStringLiteral("photo.review"), 30, true);
     add(command::kPhotoRequestRemove, command::kPhotoRequestRemove,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove from Catalog...")), photo,
         {QStringLiteral("library"), QStringLiteral("delete")}, QStringLiteral("photo.delete"), 10,
@@ -1361,6 +1368,9 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         [this](const QVariant &, const QString &) { presenter_.toggleRejected(); });
     add(command::kPhotoCopyInfo, Condition::kSelection, no_argument,
         [this](const QVariant &, const QString &) { presenter_.copySelectedPhotoDebugInfo(); });
+    add(command::kPhotoCopyParameters, Condition::kSelection, no_argument,
+        [this](const QVariant &, const QString &)
+        { presenter_.copySelectedPhotoParametersDebugInfo(); });
     add(command::kPhotoRequestRemove, Condition::kSelection, no_argument,
         [request_confirmation](const QVariant &, const QString &)
         { request_confirmation(command::kPhotoRequestRemove, command::kPhotoRemove); });
@@ -1827,6 +1837,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("photoPrevious"), QLatin1String(command::kPhotoPrevious)},
         {QStringLiteral("photoNext"), QLatin1String(command::kPhotoNext)},
         {QStringLiteral("photoCopyInfo"), QLatin1String(command::kPhotoCopyInfo)},
+        {QStringLiteral("photoCopyParameters"), QLatin1String(command::kPhotoCopyParameters)},
         {QStringLiteral("viewGrid"), QLatin1String(command::kViewGrid)},
         {QStringLiteral("viewLoupe"), QLatin1String(command::kViewLoupe)},
         {QStringLiteral("viewDevelop"), QLatin1String(command::kViewDevelop)},

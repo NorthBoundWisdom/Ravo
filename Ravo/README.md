@@ -57,7 +57,8 @@ Current implementation status:
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
-  a visible reason.
+  a visible reason. The photo context menu copies versioned English identity
+  and current canonical-parameter blocks without assembling recipe text in QML.
 - Live Studio control uses `ravo-studio-control/v1` over an owner-only local
   socket. CLI can discover sessions, read the revisioned current selection and
   current/saved recipe, commit an ordered strict Develop batch through the
@@ -80,10 +81,13 @@ Current implementation status:
   toneequal. Studio provides an Edit panel whose left rail lists the selected
   photo's recipe history and snapshots. Clicking a history step previews that
   recipe without appending; newer steps dim until a later parameter edit
-  discards them in the same recipe transaction. Section lamps are gray at
-  identity, green when modified, and black when those parameters are kept but
-  bypassed. The default grading stack is White Balance, Light, Curves, Color Equalizer,
-  Color Balance RGB wheels, and Camera Calibration (ADR-0082/0084/0085). Color
+  discards them in the same recipe transaction. Consecutive commits from one
+  control update a single history row and remain one session Undo step;
+  changing controls or navigation/history state starts a new step. Section
+  lamps are gray at identity, green when modified, and black when those
+  parameters are kept but bypassed. The default grading stack is White Balance,
+  Light, Curves, Color Equalizer, Color Balance RGB wheels, and Camera
+  Calibration (ADR-0082/0084/0085). Color
   Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
   plus single-photo Before/After, a toolbar Left/Right comparison whose two

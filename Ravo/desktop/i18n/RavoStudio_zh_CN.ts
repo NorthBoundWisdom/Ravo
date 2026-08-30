@@ -3470,6 +3470,10 @@
         <translation>复制信息</translation>
     </message>
     <message>
+        <source>Copy Parameters</source>
+        <translation>复制参数文本</translation>
+    </message>
+    <message>
         <source>Develop text control name must not be empty.</source>
         <translation>Develop 文本控件名称不能为空。</translation>
     </message>
@@ -4024,6 +4028,18 @@
     <message>
         <source>Photo information copied.</source>
         <translation>已复制照片信息。</translation>
+    </message>
+    <message>
+        <source>Photo parameters could not be read.</source>
+        <translation>无法读取照片参数。</translation>
+    </message>
+    <message>
+        <source>Photo parameters could not be copied to the clipboard.</source>
+        <translation>无法将照片参数复制到剪贴板。</translation>
+    </message>
+    <message>
+        <source>Photo parameters copied.</source>
+        <translation>已复制照片参数。</translation>
     </message>
     <message>
         <source>Preset information could not be read.</source>

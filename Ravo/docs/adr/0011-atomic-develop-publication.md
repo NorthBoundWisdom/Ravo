@@ -20,6 +20,13 @@ running under the window-lifetime token.
   adapter-owned transaction. `RecipeHistoryWrite::kUnchanged` updates the
   current recipe without touching the stack so a later edit can still discard
   newer steps.
+- Studio assigns a session-only coalescing key to a committed control. Adjacent
+  commits for the same control keep one undo anchor and pass the exact history
+  row returned by the preceding transaction. The repository replaces that row
+  only while it remains the asset's newest ordinary history entry; a snapshot,
+  another control, selection/view change, undo/redo, or intervening client row
+  ends the group. A stale expected row appends instead of overwriting the
+  intervening work.
 - Any statement or commit failure rolls back the whole transaction; callers
   continue to see the previous recipe, history, and revision.
 - A desktop-owned `PreviewRequestOwner` gives each in-flight Develop request a
@@ -36,6 +43,8 @@ running under the window-lifetime token.
 
 - Save failure can revert Studio memory state without compensating database
   writes.
+- Repeated pauses and drags on one slider retain only its final history state;
+  Undo returns to the value before that control-adjustment group.
 - Rapid selection stops obsolete decode/render work and still rejects a result
   that races with cancellation.
 - Tests can inject a SQLite history failure and prove recipe/history/revision

@@ -1394,11 +1394,12 @@ Result<void> SqliteCatalogRepository::clear_recipe(const std::string_view asset_
     return {};
 }
 
-Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
+Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
     const std::string_view asset_id, const std::int64_t recipe_schema_version,
     const std::optional<std::string_view> recipe_json, const std::string_view history_json,
     const RecipeHistoryWrite history_write,
-    const std::optional<std::int64_t> discard_history_after_seq)
+    const std::optional<std::int64_t> discard_history_after_seq,
+    const std::optional<std::int64_t> coalesce_history_id)
 {
     if (impl_ == nullptr)
     {
@@ -1408,6 +1409,12 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
     {
         return make_error(ErrorCode::kValidation, "Recipe history cursor is invalid",
                           {{"seq", std::to_string(*discard_history_after_seq)}});
+    }
+    if (coalesce_history_id &&
+        (*coalesce_history_id <= 0 || history_write != RecipeHistoryWrite::kAppendIfNew))
+    {
+        return make_error(ErrorCode::kValidation, "Recipe history coalesce request is invalid",
+                          {{"history_id", std::to_string(*coalesce_history_id)}});
     }
     if (!impl_->database.transaction())
     {
@@ -1436,29 +1443,69 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
         return impl_->abort_transaction(written.error());
     }
 
+    std::optional<std::int64_t> committed_history_id;
     if (history_write == RecipeHistoryWrite::kAppendIfNew)
     {
         QSqlQuery latest(impl_->database);
-        latest.prepare(
-            QStringLiteral("SELECT kind, recipe_json FROM asset_recipe_history WHERE asset_id = ? "
-                           "ORDER BY seq DESC, id DESC LIMIT 1"));
+        latest.prepare(QStringLiteral(
+            "SELECT id, kind, recipe_json FROM asset_recipe_history WHERE asset_id = ? "
+            "ORDER BY seq DESC, id DESC LIMIT 1"));
         latest.addBindValue(qstring_from_utf8(asset_id));
         if (!latest.exec())
         {
             return impl_->abort_transaction(map_sql_error(latest, "latest_recipe_history"));
         }
+        const bool has_latest = latest.next();
+        const auto latest_id = has_latest ? latest.value(0).toLongLong() : 0;
+        const bool latest_is_history =
+            has_latest &&
+            utf8_from_qstring(latest.value(1).toString()) == kRecipeHistoryKindHistory;
         const bool duplicate =
-            latest.next() &&
-            utf8_from_qstring(latest.value(0).toString()) == kRecipeHistoryKindHistory &&
-            utf8_from_qstring(latest.value(1).toString()) == history_json;
+            latest_is_history && utf8_from_qstring(latest.value(2).toString()) == history_json;
         if (!duplicate)
         {
-            auto recorded = append_recipe_history(asset_id, kRecipeHistoryKindHistory, std::nullopt,
-                                                  history_json);
-            if (!recorded)
+            if (coalesce_history_id && latest_is_history &&
+                latest_id == static_cast<qlonglong>(*coalesce_history_id))
             {
-                return impl_->abort_transaction(recorded.error());
+                const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::system_clock::now().time_since_epoch())
+                                     .count();
+                QSqlQuery replace(impl_->database);
+                replace.prepare(QStringLiteral(
+                    "UPDATE asset_recipe_history SET recipe_json = ?, created_unix_ms = ? "
+                    "WHERE id = ? AND asset_id = ? AND kind = ?"));
+                replace.addBindValue(qstring_from_utf8(history_json));
+                replace.addBindValue(static_cast<qlonglong>(now));
+                replace.addBindValue(latest_id);
+                replace.addBindValue(qstring_from_utf8(asset_id));
+                replace.addBindValue(qstring_from_utf8(kRecipeHistoryKindHistory));
+                if (!replace.exec())
+                {
+                    return impl_->abort_transaction(
+                        map_sql_error(replace, "coalesce_recipe_history"));
+                }
+                if (replace.numRowsAffected() != 1)
+                {
+                    return impl_->abort_transaction(make_error(
+                        ErrorCode::kConflict, "Recipe history changed before it could coalesce",
+                        {{"history_id", std::to_string(*coalesce_history_id)}}));
+                }
+                committed_history_id = *coalesce_history_id;
             }
+            else
+            {
+                auto recorded = append_recipe_history(asset_id, kRecipeHistoryKindHistory,
+                                                      std::nullopt, history_json);
+                if (!recorded)
+                {
+                    return impl_->abort_transaction(recorded.error());
+                }
+                committed_history_id = recorded.value().id;
+            }
+        }
+        else
+        {
+            committed_history_id = static_cast<std::int64_t>(latest_id);
         }
     }
 
@@ -1481,7 +1528,7 @@ Result<std::int64_t> SqliteCatalogRepository::commit_recipe(
                        {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
     impl_->snapshot.revision = revision;
-    return revision;
+    return RecipeCommitResult{revision, committed_history_id};
 }
 
 Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view asset_id,

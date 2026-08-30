@@ -230,10 +230,14 @@ clearing), optional deletion of history rows newer than a cursor, automatic
 history, and catalog revision. A history preview writes the current recipe with
 `RecipeHistoryWrite::kUnchanged` so the stack stays intact; a later parameter
 edit discards `seq` greater than the cursor in the same transaction before
-appending. Any failed step rolls back everything; services neither compensate
-writes nor expose a partially committed recipe. The first version does not
-read or migrate a frozen 0.9 catalog. Future compatibility requires an
-independent product decision, backup/rollback, and fixtures.
+appending. Adjacent Studio commits from one control carry the exact preceding
+ordinary-history ID and update that row in place only while it remains newest;
+snapshots, another control, selection/view changes, undo/redo, and intervening
+client rows end the session-only group. Any failed step rolls back everything;
+services neither compensate writes nor expose a partially committed recipe.
+The first version does not read or migrate a frozen 0.9 catalog. Future
+compatibility requires an independent product decision, backup/rollback, and
+fixtures.
 
 ### Import
 
@@ -985,6 +989,9 @@ The Ravo Studio first version owns:
   currently selected diagnostic; switching modes recomputes that mode from the
   current owned preview. Engine owns pixels; QML owns only grids and selection;
 - progress, cancellation, and recoverable-error presentation;
+- versioned English `ravo.debug.photo` and `ravo.debug.parameters` clipboard
+  blocks for the selected asset. Desktop C++ serializes the current canonical
+  recipe and saved/pending state; QML only invokes the registered commands;
 - window, focus, keyboard, HiDPI, and basic accessibility;
 - a floating Assistant popup whose URL, model, and API key are typed desktop
   settings. Assistant HTTP and chat JSON stay in desktop C++; the separate

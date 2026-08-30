@@ -359,7 +359,7 @@ local checks first and accurately report what was not run and why; never call
 ## Repository skills
 
 - Grok: `.grok/skills/` (automatically discovered and invoked by description).
-- Codex: `.codex/skills/` (`$build-repo`, `$review-and-commit`, and
-  `$context-handoff`).
+- Codex: `.codex/skills/` (`$build-repo`, `$ravo-live-grading`,
+  `$review-and-commit`, and `$context-handoff`).
 - Keep both skill bodies aligned. When invoked, this file and more-specific
   `AGENTS.md` files remain the highest repository constraints.
