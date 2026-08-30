@@ -35,6 +35,7 @@
 #include "ravo/recipe/operation.h"
 
 #include "color_balance_fixture.h"
+#include "capability_ops.h"
 #include "capture_metadata_test_support.h"
 #include "color_balance_rgb.h"
 #include "color_checker.h"
@@ -6653,6 +6654,454 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                                     std::nullopt});
     ASSERT_FALSE(raw_on_raster);
     EXPECT_EQ(raw_on_raster.error().code, ErrorCode::kUnsupported);
+}
+
+TEST(ProfileDenoiseTest, AdaptiveWaveletsReduceFlatNoiseAndPreserveStepEdges)
+{
+    WorkingImage source;
+    source.width = 256U;
+    source.height = 128U;
+    source.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(256U, 128U, 256U, 128U);
+    std::uint32_t state = 0x4d595df4U;
+    for (std::uint32_t y = 0U; y < source.height; ++y)
+    {
+        for (std::uint32_t x = 0U; x < source.width; ++x)
+        {
+            float noise = 0.0F;
+            for (int sample = 0; sample < 6; ++sample)
+            {
+                state = state * 1664525U + 1013904223U;
+                noise += static_cast<float>((state >> 16U) & 0xffffU) / 65535.0F - 0.5F;
+            }
+            noise *= 0.012F;
+            const float base = x < source.width / 2U ? 0.06F : 0.32F;
+            const float value = base + noise;
+            source.rgb.insert(source.rgb.end(), {value, value, value});
+        }
+    }
+    const auto original = source;
+    WorkingImage denoised = source;
+    const OperationInstance operation{"ravo.detail.denoiseprofile",
+                                      1,
+                                      "adaptive-denoise",
+                                      true,
+                                      {{"strength", ParameterValue{1.0}},
+                                       {"chroma", ParameterValue{1.0}},
+                                       {"radius", ParameterValue{1.0}}},
+                                      std::nullopt};
+    const auto applied = apply_denoise_profile(denoised, operation, CancellationToken{});
+    ASSERT_TRUE(applied) << applied.error().message;
+
+    const auto region_stats =
+        [](const WorkingImage &image, const std::uint32_t first_x, const std::uint32_t last_x)
+    {
+        double sum = 0.0;
+        double squared = 0.0;
+        std::size_t count = 0U;
+        for (std::uint32_t y = 8U; y + 8U < image.height; ++y)
+        {
+            for (std::uint32_t x = first_x; x < last_x; ++x)
+            {
+                const float value = image.rgb[(static_cast<std::size_t>(y) * image.width + x) * 3U];
+                sum += value;
+                squared += static_cast<double>(value) * value;
+                ++count;
+            }
+        }
+        const double mean = sum / static_cast<double>(count);
+        return std::array<double, 2>{mean, squared / static_cast<double>(count) - mean * mean};
+    };
+    const auto source_dark = region_stats(source, 16U, 96U);
+    const auto source_bright = region_stats(source, 160U, 240U);
+    const auto output_dark = region_stats(denoised, 16U, 96U);
+    const auto output_bright = region_stats(denoised, 160U, 240U);
+    EXPECT_LT(output_dark[1], source_dark[1] * 0.35);
+    EXPECT_LT(output_bright[1], source_bright[1] * 0.35);
+    EXPECT_GT(output_bright[0] - output_dark[0], 0.95 * (source_bright[0] - source_dark[0]));
+    EXPECT_EQ(source.rgb, original.rgb);
+    EXPECT_EQ(denoised.canonical_roi_scale.value(), source.canonical_roi_scale.value());
+}
+
+TEST(ProfileDenoiseTest, ChromaMixAndRadiusHaveIndependentObservableResponses)
+{
+    WorkingImage source;
+    source.width = 256U;
+    source.height = 128U;
+    source.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(256U, 128U, 256U, 128U);
+    for (std::uint32_t y = 0U; y < source.height; ++y)
+    {
+        for (std::uint32_t x = 0U; x < source.width; ++x)
+        {
+            const float fine = ((x * 37U + y * 19U) % 101U) / 2500.0F - 0.02F;
+            const float broad = 0.012F * std::sin(static_cast<float>(x) * 0.12F);
+            const float red = 0.16F + fine + broad;
+            const float green = 0.16F - fine * (0.2126F / 0.7152F) + broad;
+            const float blue = 0.16F + broad;
+            source.rgb.insert(source.rgb.end(), {red, green, blue});
+        }
+    }
+    const auto apply = [&](const double chroma, const double radius)
+    {
+        WorkingImage output = source;
+        const OperationInstance operation{"ravo.detail.denoiseprofile",
+                                          1,
+                                          "adaptive-denoise",
+                                          true,
+                                          {{"strength", ParameterValue{1.0}},
+                                           {"chroma", ParameterValue{chroma}},
+                                           {"radius", ParameterValue{radius}}},
+                                          std::nullopt};
+        const auto result = apply_denoise_profile(output, operation, CancellationToken{});
+        EXPECT_TRUE(result) << (result ? "" : result.error().message);
+        return output;
+    };
+    const auto luma_only = apply(0.0, 1.0);
+    const auto full_chroma = apply(1.0, 1.0);
+    const auto wide = apply(1.0, 8.0);
+    const auto chroma_variance = [](const WorkingImage &image)
+    {
+        double sum = 0.0;
+        double squared = 0.0;
+        const std::size_t count = static_cast<std::size_t>(image.width) * image.height;
+        for (std::size_t pixel = 0U; pixel < count; ++pixel)
+        {
+            const double chroma = image.rgb[pixel * 3U] - image.rgb[pixel * 3U + 1U];
+            sum += chroma;
+            squared += chroma * chroma;
+        }
+        const double mean = sum / static_cast<double>(count);
+        return squared / static_cast<double>(count) - mean * mean;
+    };
+    EXPECT_GT(chroma_variance(luma_only), chroma_variance(source) * 0.95);
+    EXPECT_LT(chroma_variance(full_chroma), chroma_variance(source) * 0.45);
+    double radius_difference = 0.0;
+    for (std::size_t index = 0U; index < wide.rgb.size(); ++index)
+    {
+        radius_difference += std::abs(wide.rgb[index] - full_chroma.rgb[index]);
+    }
+    EXPECT_GT(radius_difference / static_cast<double>(wide.rgb.size()), 1.0e-4);
+}
+
+TEST(ProfileDenoiseTest, CanonicalScaleTracksARepresentedTwoByTwoReduction)
+{
+    WorkingImage full;
+    full.width = 256U;
+    full.height = 128U;
+    full.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(256U, 128U, 256U, 128U);
+    for (std::uint32_t y = 0U; y < full.height; ++y)
+    {
+        for (std::uint32_t x = 0U; x < full.width; ++x)
+        {
+            const std::uint32_t bx = x / 2U;
+            const std::uint32_t by = y / 2U;
+            const float noise = ((bx * 29U + by * 43U) % 97U) / 5000.0F - 0.0096F;
+            const float base = 0.08F + 0.22F * static_cast<float>(bx) / 127.0F;
+            const float value = base + noise;
+            full.rgb.insert(full.rgb.end(), {value, value, value});
+        }
+    }
+    WorkingImage half;
+    half.width = 128U;
+    half.height = 64U;
+    half.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(128U, 64U, 256U, 128U);
+    for (std::uint32_t y = 0U; y < half.height; ++y)
+    {
+        for (std::uint32_t x = 0U; x < half.width; ++x)
+        {
+            const std::size_t source_pixel =
+                (static_cast<std::size_t>(y * 2U) * full.width + x * 2U) * 3U;
+            half.rgb.insert(half.rgb.end(), {full.rgb[source_pixel], full.rgb[source_pixel + 1U],
+                                             full.rgb[source_pixel + 2U]});
+        }
+    }
+    const OperationInstance operation{"ravo.detail.denoiseprofile",
+                                      1,
+                                      "adaptive-denoise",
+                                      true,
+                                      {{"strength", ParameterValue{0.7}},
+                                       {"chroma", ParameterValue{0.7}},
+                                       {"radius", ParameterValue{2.0}}},
+                                      std::nullopt};
+    ASSERT_TRUE(apply_denoise_profile(full, operation, CancellationToken{}));
+    ASSERT_TRUE(apply_denoise_profile(half, operation, CancellationToken{}));
+    double error = 0.0;
+    std::size_t samples = 0U;
+    for (std::uint32_t y = 8U; y + 8U < half.height; ++y)
+    {
+        for (std::uint32_t x = 8U; x + 8U < half.width; ++x)
+        {
+            const std::size_t half_offset = (static_cast<std::size_t>(y) * half.width + x) * 3U;
+            const std::size_t full_offset =
+                (static_cast<std::size_t>(y * 2U) * full.width + x * 2U) * 3U;
+            error += std::abs(half.rgb[half_offset] - full.rgb[full_offset]);
+            ++samples;
+        }
+    }
+    EXPECT_LT(error / static_cast<double>(samples), 0.012);
+}
+
+TEST(ProfileDenoiseTest, InvalidInputCancellationAndMemoryBudgetFailAtomically)
+{
+    WorkingImage source;
+    source.width = 64U;
+    source.height = 32U;
+    source.rgb.assign(64U * 32U * 3U, 0.1F);
+    const auto original = source;
+    OperationInstance operation{"ravo.detail.denoiseprofile",
+                                1,
+                                "adaptive-denoise",
+                                true,
+                                {{"strength", ParameterValue{0.8}},
+                                 {"chroma", ParameterValue{0.6}},
+                                 {"radius", ParameterValue{2.0}}},
+                                std::nullopt};
+    operation.parameters["strength"] = ParameterValue{0.0};
+    auto identity = apply_denoise_profile(source, operation, CancellationToken{});
+    ASSERT_TRUE(identity) << identity.error().message;
+    EXPECT_EQ(source.rgb, original.rgb);
+    operation.parameters["strength"] = ParameterValue{0.8};
+    auto rejected = apply_denoise_profile(source, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_profile_denoise_roi_scale");
+    EXPECT_EQ(source.rgb, original.rgb);
+
+    source.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(64U, 32U, 64U, 32U);
+    source.rgb[17U] = std::numeric_limits<float>::quiet_NaN();
+    const auto non_finite = source.rgb;
+    rejected = apply_denoise_profile(source, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "non_finite_profile_denoise_input");
+    for (std::size_t index = 0U; index < source.rgb.size(); ++index)
+    {
+        EXPECT_EQ(std::bit_cast<std::uint32_t>(source.rgb[index]),
+                  std::bit_cast<std::uint32_t>(non_finite[index]));
+    }
+
+    source.rgb.assign(source.rgb.size(), 0.1F);
+    operation.parameters["strength"] = ParameterValue{2.0};
+    rejected = apply_denoise_profile(source, operation, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_profile_denoise_parameters");
+    operation.parameters["strength"] = ParameterValue{0.8};
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("profile-denoise-pre"));
+    rejected = apply_denoise_profile(source, operation, cancellation.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(source.rgb, std::vector<float>(source.rgb.size(), 0.1F));
+
+    WorkingImage row_cancelled = source;
+    row_cancelled.width = 512U;
+    row_cancelled.height = 1024U;
+    row_cancelled.rgb.assign(
+        static_cast<std::size_t>(row_cancelled.width) * row_cancelled.height * 3U, 0.1F);
+    row_cancelled.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
+        row_cancelled.width, row_cancelled.height, row_cancelled.width, row_cancelled.height);
+    const auto deadline = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
+                                                            std::chrono::milliseconds{1});
+    rejected = apply_denoise_profile(row_cancelled, operation, deadline.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(row_cancelled.rgb.front(), 0.1F);
+    EXPECT_EQ(row_cancelled.rgb.back(), 0.1F);
+
+    DecodedRaw raw;
+    raw.width = 64U;
+    raw.height = 32U;
+    raw.pixels.assign(64U * 32U, 0U);
+    Recipe baseline_recipe;
+    Recipe denoise_recipe;
+    denoise_recipe.operations.push_back(operation);
+    const std::uint64_t baseline = estimate_raw_render_memory(raw, baseline_recipe, 64U, 32U);
+    const std::uint64_t estimated = estimate_raw_render_memory(raw, denoise_recipe, 64U, 32U);
+    const std::uint64_t rgb_plane = 64U * 32U * 3U * sizeof(float);
+    const std::uint64_t sample_bytes = 64U * 32U * sizeof(float);
+    const std::uint64_t coordinate_bytes = (64U + 32U) * 5U * sizeof(int);
+    EXPECT_EQ(estimated - baseline, 4U * rgb_plane + std::max(sample_bytes, coordinate_bytes));
+}
+
+TEST(ToneEqualizerTest, FiveControlsDriveNormalizedNineBandEvAnchors)
+{
+    constexpr std::array<float, 9> anchors{-8.0F, -7.0F, -6.0F, -5.0F, -4.0F,
+                                           -3.0F, -2.0F, -1.0F, 0.0F};
+    constexpr std::array<float, 5> centers{-8.0F, -6.0F, -4.0F, -2.0F, 0.0F};
+    constexpr std::array<std::string_view, 5> names{"blacks", "shadows", "midtones", "highlights",
+                                                    "whites"};
+    constexpr std::array<float, 3> colour{0.78F, 0.43F, 0.19F};
+    const float colour_norm = std::hypot(colour[0], colour[1], colour[2]);
+
+    for (std::size_t selected = 0U; selected < names.size(); ++selected)
+    {
+        WorkingImage source;
+        source.width = 32U;
+        source.height = 8U;
+        source.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(32U, 8U, 32U, 8U);
+        const float scale = std::exp2(centers[selected]) / colour_norm;
+        for (std::size_t pixel = 0U; pixel < source.width * source.height; ++pixel)
+        {
+            source.rgb.insert(source.rgb.end(),
+                              {colour[0] * scale, colour[1] * scale, colour[2] * scale});
+        }
+        const auto original = source;
+        Recipe recipe;
+        recipe.operations.push_back({"ravo.core.toneequal",
+                                     1,
+                                     "toneequal-normalized",
+                                     true,
+                                     {{std::string(names[selected]), ParameterValue{1.0}}},
+                                     std::nullopt});
+
+        const auto adjusted = apply_recipe_ops(source, recipe, CancellationToken{});
+        ASSERT_TRUE(adjusted) << adjusted.error().message;
+        std::array<double, 5> band_ev{};
+        band_ev[selected] = 1.0;
+        const std::array<double, 9> anchor_ev{
+            band_ev[0], 0.5 * (band_ev[0] + band_ev[1]),
+            band_ev[1], 0.5 * (band_ev[1] + band_ev[2]),
+            band_ev[2], 0.5 * (band_ev[2] + band_ev[3]),
+            band_ev[3], 0.5 * (band_ev[3] + band_ev[4]),
+            band_ev[4],
+        };
+        double weighted = 0.0;
+        double weight_sum = 0.0;
+        for (std::size_t anchor = 0U; anchor < anchors.size(); ++anchor)
+        {
+            const double distance = centers[selected] - anchors[anchor];
+            const double weight = std::exp(-(distance * distance) / 4.0);
+            weighted += weight * std::exp2(anchor_ev[anchor]);
+            weight_sum += weight;
+        }
+        const float expected_correction = static_cast<float>(weighted / weight_sum);
+        for (std::size_t channel = 0U; channel < colour.size(); ++channel)
+        {
+            EXPECT_NEAR(adjusted.value().rgb[channel] / source.rgb[channel], expected_correction,
+                        2.0e-4F);
+        }
+        EXPECT_EQ(source.rgb, original.rgb);
+    }
+}
+
+TEST(ToneEqualizerTest, LogGuidedMaskPreservesDarkTextureWithoutEdgeHaloAcrossScales)
+{
+    const auto operation = []
+    {
+        Recipe recipe;
+        recipe.operations.push_back({"ravo.core.toneequal",
+                                     1,
+                                     "toneequal-detail",
+                                     true,
+                                     {{"shadows", ParameterValue{1.0}}},
+                                     std::nullopt});
+        return recipe;
+    }();
+    const auto fixture = [](const std::uint32_t width, const std::uint32_t height,
+                            const std::uint32_t original_width, const std::uint32_t original_height,
+                            const bool texture)
+    {
+        WorkingImage source;
+        source.width = width;
+        source.height = height;
+        source.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(
+            width, height, original_width, original_height);
+        for (std::uint32_t y = 0U; y < height; ++y)
+        {
+            for (std::uint32_t x = 0U; x < width; ++x)
+            {
+                const bool dark = x >= width / 2U;
+                const float detail = dark && texture ? (x % 2U == 0U ? -0.08F : 0.08F) : 0.0F;
+                const float energy = std::exp2((dark ? -6.0F : -2.0F) + detail);
+                constexpr std::array<float, 3> flower{0.74F, 0.12F, 0.66F};
+                constexpr std::array<float, 3> stem{0.18F, 0.72F, 0.24F};
+                const auto &colour = dark ? stem : flower;
+                const float norm = std::hypot(colour[0], colour[1], colour[2]);
+                source.rgb.insert(source.rgb.end(),
+                                  {energy * colour[0] / norm, energy * colour[1] / norm,
+                                   energy * colour[2] / norm});
+            }
+        }
+        return source;
+    };
+    const auto correction_at =
+        [](const WorkingImage &before, const WorkingImage &after, const std::uint32_t x)
+    {
+        return after.rgb[static_cast<std::size_t>(x) * 3U] /
+               before.rgb[static_cast<std::size_t>(x) * 3U];
+    };
+
+    const WorkingImage textured = fixture(1024U, 8U, 1024U, 8U, true);
+    const auto adjusted = apply_recipe_ops(textured, operation, CancellationToken{});
+    ASSERT_TRUE(adjusted) << adjusted.error().message;
+    const float bright_far = correction_at(textured, adjusted.value(), 200U);
+    const float bright_edge = correction_at(textured, adjusted.value(), 508U);
+    const float dark_edge = correction_at(textured, adjusted.value(), 516U);
+    const float dark_far = correction_at(textured, adjusted.value(), 800U);
+    EXPECT_NEAR(bright_edge, bright_far, bright_far * 0.03F);
+    EXPECT_NEAR(dark_edge, dark_far, dark_far * 0.03F);
+    const float input_detail_ev = std::log2(textured.rgb[800U * 3U] / textured.rgb[801U * 3U]);
+    const float output_detail_ev =
+        std::log2(adjusted.value().rgb[800U * 3U] / adjusted.value().rgb[801U * 3U]);
+    EXPECT_NEAR(output_detail_ev, input_detail_ev, 0.03F);
+
+    const WorkingImage full = fixture(1024U, 8U, 1024U, 8U, false);
+    const WorkingImage half = fixture(512U, 4U, 1024U, 8U, false);
+    const auto full_adjusted = apply_recipe_ops(full, operation, CancellationToken{});
+    const auto half_adjusted = apply_recipe_ops(half, operation, CancellationToken{});
+    ASSERT_TRUE(full_adjusted) << full_adjusted.error().message;
+    ASSERT_TRUE(half_adjusted) << half_adjusted.error().message;
+    for (const std::uint32_t full_x : {200U, 508U, 516U, 800U})
+    {
+        EXPECT_NEAR(correction_at(full, full_adjusted.value(), full_x),
+                    correction_at(half, half_adjusted.value(), full_x / 2U), 0.01F);
+    }
+}
+
+TEST(ToneEqualizerTest, InvalidDataCancellationAndMemoryBudgetFailExplicitly)
+{
+    Recipe recipe;
+    recipe.operations.push_back({"ravo.core.toneequal",
+                                 1,
+                                 "toneequal-errors",
+                                 true,
+                                 {{"shadows", ParameterValue{1.0}}},
+                                 std::nullopt});
+    WorkingImage source;
+    source.width = 4U;
+    source.height = 1U;
+    source.rgb.assign(12U, 0.01F);
+    const auto original = source;
+
+    auto rejected = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_tone_equalizer_roi_scale");
+    source.canonical_roi_scale = CanonicalRoiScale::from_scaled_dimensions(4U, 1U, 4U, 1U);
+    source.rgb[6U] = std::numeric_limits<float>::quiet_NaN();
+    rejected = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "non_finite_tone_equalizer_input");
+    EXPECT_EQ(rejected.error().context.at("pixel_index"), "2");
+
+    source.rgb.assign(12U, std::numeric_limits<float>::max());
+    recipe.operations.front().parameters = {{"whites", ParameterValue{2.0}}};
+    rejected = apply_recipe_ops(source, recipe, CancellationToken{});
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "non_finite_tone_equalizer_output");
+
+    CancellationSource cancellation;
+    ASSERT_TRUE(cancellation.cancel("toneequal-pre"));
+    rejected = apply_recipe_ops(original, recipe, cancellation.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(original.rgb, std::vector<float>(12U, 0.01F));
+
+    DecodedRaw raw;
+    raw.width = 8U;
+    raw.height = 4U;
+    raw.pixels.assign(32U, 0U);
+    Recipe baseline_recipe;
+    const std::uint64_t baseline = estimate_raw_render_memory(raw, baseline_recipe, 8U, 4U);
+    const std::uint64_t estimated = estimate_raw_render_memory(raw, recipe, 8U, 4U);
+    constexpr std::uint64_t lut_bytes = (8U * 10000U + 1U) * sizeof(float);
+    EXPECT_EQ(estimated - baseline, 8U * 4U * 5U * sizeof(float) + lut_bytes);
 }
 
 TEST(EngineFacadeTest, VignetteHonorsSignedAmountShapeAndCenter)

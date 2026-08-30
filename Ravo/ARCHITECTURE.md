@@ -293,13 +293,13 @@ Import and Gallery use browse cache. One LibRaw open reads RAW metadata and
 embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg` key digest. It is not editable scene-linear data. Loupe,
 Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v8: full CPU
+`prefer_embedded_preview=false` use preview contract v10: full CPU
 decode/render followed by the `ravo.display.sigmoid` baseline at the end of
 the scene-linear buffer and the recipe-owned output profile. The cache types
 must not share a digest. Without
 embedded JPEG, browse fails open to full decode and never writes an empty image.
 Cached built-in sRGB PNGs contain one standard `sRGB` chunk; other RGB outputs
-contain one `iCCP` and no conflicting `sRGB`. Preview v7 rebuilds prior cache
+contain one `iCCP` and no conflicting `sRGB`. Preview v10 rebuilds prior cache
 output.
 The baseline creates no `asset_recipe` row and does not set `has_edits`;
 persistence begins only after a user override. Existing JPEG/PNG/TIFF are
@@ -507,6 +507,33 @@ CFA only. `ravo.raw.cacorrect` runs Bayer tile statistics, full-image
 polynomial shift fit, and optional avoid-color-shift on the same copy before
 demosaic. The RAW memory estimate includes owned CFA, float scratch, fitting,
 and avoid-shift factor; low budget fails before allocation or pixel publication.
+
+`ravo.detail.denoiseprofile` v1 remains the pre-light global Y0U0V0
+variance-stabilized edge-aware à-trous BayesShrink owner. The generic
+Poisson baseline is `a=0.0001`, `b=0`; the finest wavelet detail calibrates
+per-channel stabilized noise with a deterministic 2^18-sample MAD bound, then
+repeats edge-aware decomposition with the calibrated joint scale. The calibrated
+noise propagates through the frozen wavelet variance factor. Canonical ROI scale
+selects visible bands. Radius scales à-trous dilation and progressively weights
+coarse thresholds; Luminance mixes the reconstructed neutral delta and
+`Luminance * Chroma` mixes the colour delta into a separately owned output.
+Invalid parameters, scale, dimensions, buffers, finite math, allocation, or
+cancellation never swap that output into the working image. RAW preflight owns
+four float-RGB scratch planes plus the greater bounded MAD/coordinate scratch.
+Preview contract v10 invalidates fixed-profile output (ADR-0094).
+
+`ravo.core.toneequal` v1 remains a global hue-preserving scene operation before
+Sigmoid. Five authored controls at -8/-6/-4/-2/0 EV expand through adjacent-EV
+interpolation into nine one-stop correction targets; a normalized Gaussian RBF
+builds the bounded LUT. Pixel assignment uses the existing linear-RGB L2 energy,
+but its mask is filtered in log2-EV with a 240-original-pixel radius scaled by
+the immutable canonical ROI scale and 0.04 EV² regularization. The self-guided
+filter smooths low-contrast mask texture while retaining strong boundaries, so
+one common RGB correction preserves local texture and does not introduce broad
+edge halos. Invalid scale, dimensions, non-finite input/output, allocation, and
+cancellation fail without publication. The RAW memory estimate includes the
+five-plane peak and LUT; preview contract v9 first invalidated the former sparse
+pseudo-inverse/linear-mask pixels (ADR-0092).
 
 `ravo.color.temperature` v1 fixes `camera_cfa_or_linear_rgb` and
 `channel_scale_v4`. It normally parses four-channel coefficients from LibRaw

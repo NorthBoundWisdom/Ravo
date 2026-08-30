@@ -12,8 +12,8 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [phase0/README.md](phase0/README.md) | Historical frozen-fixture evidence, contracts, and decision records |
 | [concepts/p0-library-grid.svg](concepts/p0-library-grid.svg) | Ravo Studio concept-reference artwork |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
-| [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including synchronized Before/After comparison, Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
-| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, exact-prefix progressive-preview and comparison lifecycles, metadata-analysis, command, data, calibrated interchange response, and engine-private algorithm boundaries |
+| [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including synchronized Before/After comparison, adaptive Profile Denoise, edge-preserving Tone Equalizer, Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
+| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, exact-prefix progressive-preview and comparison lifecycles, metadata-analysis, command, data, adaptive wavelet noise calibration, scale-stable log-guided tone assignment, and engine-private algorithm boundaries |
 | [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
 | [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions, supersession relationships, and accepted interchange calibration contracts |

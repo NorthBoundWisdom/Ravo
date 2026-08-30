@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <numbers>
 #include <string>
@@ -24,9 +25,12 @@ constexpr float kPi = std::numbers::pi_v<float>;
 constexpr float kTwoPi = 2.0F * kPi;
 constexpr int kColorNodes = 8;
 constexpr int kUcsLutSize = 512;
-constexpr int kToneChannels = 9;
-constexpr int kTonePixelChan = 8;
+constexpr int kToneAnchorCount = 9;
 constexpr int kToneLutResolution = 10000;
+constexpr float kToneLutMinEv = -8.0F;
+constexpr float kToneLutMaxEv = 0.0F;
+constexpr float kToneMaskRadiusOriginalPixels = 240.0F;
+constexpr float kToneMaskEpsilonEv = 0.04F;
 constexpr int kVignetteSplines = 512;
 constexpr int kDenoiseBands = 7;
 constexpr float kDenoisePFulcrum = 0.05F;
@@ -35,8 +39,10 @@ constexpr float kBrightEffect = 8.0F;
 constexpr float kUcsLStarRange = 2.098883786377F;
 constexpr float kUcsLStarUpper = 2.09885F;
 constexpr float kAngleShiftDeg = 20.0F;
-constexpr float kGenericNoiseA = 5.0e-5F;
-constexpr float kGenericNoiseB = 1.0e-6F;
+constexpr float kGenericNoiseA = 1.0e-4F;
+constexpr float kGenericNoiseB = 0.0F;
+constexpr std::size_t kDenoiseNoiseSampleLimit = 1U << 18U;
+constexpr float kDenoiseGaussianMad = 0.67448975F;
 constexpr float kChannelMixerNormMin = 1.52587890625e-05F;
 constexpr float kChannelMixerInverseSqrt3 = 0.5773502691896258F;
 
@@ -615,32 +621,33 @@ Result<void> self_guided_filter_plane(std::vector<float> &plane, const std::uint
     const std::size_t count = plane.size();
     std::vector<float> mean;
     std::vector<float> corr;
-    std::vector<float> squared(count);
-    auto products = for_each_row(height, cancellation,
-                                 [&](const std::uint32_t row)
-                                 {
-                                     const std::size_t begin =
-                                         static_cast<std::size_t>(row) * width;
-                                     const std::size_t end = begin + width;
-                                     for (std::size_t index = begin; index < end; ++index)
-                                     {
-                                         squared[index] = plane[index] * plane[index];
-                                     }
-                                 });
-    if (!products)
-    {
-        return products.error();
-    }
     if (auto blurred = box_blur_plane(plane, mean, width, height, radius, cancellation); !blurred)
     {
         return blurred.error();
     }
-    if (auto blurred = box_blur_plane(squared, corr, width, height, radius, cancellation); !blurred)
     {
-        return blurred.error();
+        std::vector<float> squared(count);
+        auto products = for_each_row(height, cancellation,
+                                     [&](const std::uint32_t row)
+                                     {
+                                         const std::size_t begin =
+                                             static_cast<std::size_t>(row) * width;
+                                         const std::size_t end = begin + width;
+                                         for (std::size_t index = begin; index < end; ++index)
+                                         {
+                                             squared[index] = plane[index] * plane[index];
+                                         }
+                                     });
+        if (!products)
+        {
+            return products.error();
+        }
+        if (auto blurred = box_blur_plane(squared, corr, width, height, radius, cancellation);
+            !blurred)
+        {
+            return blurred.error();
+        }
     }
-    std::vector<float> a(count);
-    std::vector<float> b(count);
     auto coefficients =
         for_each_row(height, cancellation,
                      [&](const std::uint32_t row)
@@ -651,8 +658,8 @@ Result<void> self_guided_filter_plane(std::vector<float> &plane, const std::uint
                          {
                              const float cov = corr[index] - mean[index] * mean[index];
                              const float var = std::max(0.0F, cov);
-                             a[index] = cov / (var + eps);
-                             b[index] = mean[index] - a[index] * mean[index];
+                             corr[index] = var / (var + eps);
+                             mean[index] -= corr[index] * mean[index];
                          }
                      });
     if (!coefficients)
@@ -660,12 +667,11 @@ Result<void> self_guided_filter_plane(std::vector<float> &plane, const std::uint
         return coefficients.error();
     }
     std::vector<float> mean_a;
-    std::vector<float> mean_b;
-    if (auto blurred = box_blur_plane(a, mean_a, width, height, radius, cancellation); !blurred)
+    if (auto blurred = box_blur_plane(corr, mean_a, width, height, radius, cancellation); !blurred)
     {
         return blurred.error();
     }
-    if (auto blurred = box_blur_plane(b, mean_b, width, height, radius, cancellation); !blurred)
+    if (auto blurred = box_blur_plane(mean, corr, width, height, radius, cancellation); !blurred)
     {
         return blurred.error();
     }
@@ -676,7 +682,7 @@ Result<void> self_guided_filter_plane(std::vector<float> &plane, const std::uint
                             const std::size_t end = begin + width;
                             for (std::size_t index = begin; index < end; ++index)
                             {
-                                plane[index] = mean_a[index] * plane[index] + mean_b[index];
+                                plane[index] = mean_a[index] * plane[index] + corr[index];
                             }
                         });
 }
@@ -1404,8 +1410,9 @@ void float_to_raw(DecodedRaw &raw, const std::vector<float> &buffer, const doubl
 
 Result<void> eaw_dn_decompose(std::vector<float> &coarse, const std::vector<float> &input,
                               std::vector<float> &detail, std::array<float, 3> &sum_squared,
-                              const int scale, const float inv_sigma2, const int width,
-                              const int height, const CancellationToken &cancellation)
+                              const int scale, const float radius, const float inv_sigma2,
+                              const int width, const int height,
+                              const CancellationToken &cancellation)
 {
     static constexpr float kFilter[25] = {
         1.0F / 256.0F, 4.0F / 256.0F,  6.0F / 256.0F,  4.0F / 256.0F,  1.0F / 256.0F,
@@ -1413,7 +1420,10 @@ Result<void> eaw_dn_decompose(std::vector<float> &coarse, const std::vector<floa
         6.0F / 256.0F, 24.0F / 256.0F, 36.0F / 256.0F, 24.0F / 256.0F, 6.0F / 256.0F,
         4.0F / 256.0F, 16.0F / 256.0F, 24.0F / 256.0F, 16.0F / 256.0F, 4.0F / 256.0F,
         1.0F / 256.0F, 4.0F / 256.0F,  6.0F / 256.0F,  4.0F / 256.0F,  1.0F / 256.0F};
-    const int mult = 1 << scale;
+    const int maximum_multiplier = std::max(1, std::max(width, height) - 1);
+    const int mult =
+        std::clamp(static_cast<int>(std::lround(static_cast<float>(1 << scale) * radius)), 1,
+                   maximum_multiplier);
     sum_squared = {};
     if (coarse.size() != input.size())
     {
@@ -1554,6 +1564,62 @@ Result<void> eaw_synthesize(std::vector<float> &accum, const std::vector<float> 
                                 detail_pixel += 3;
                             }
                         });
+}
+
+Result<std::array<float, 3>> estimate_wavelet_noise_sigma(const std::vector<float> &detail,
+                                                          const std::size_t pixel_count,
+                                                          const CancellationToken &cancellation)
+{
+    if (pixel_count == 0U || pixel_count > std::numeric_limits<std::size_t>::max() / 3U ||
+        detail.size() != pixel_count * 3U)
+    {
+        return make_error(ErrorCode::kValidation, "Denoise detail buffer is invalid",
+                          {{"reason", "invalid_denoise_detail_buffer"}});
+    }
+    const std::size_t sample_count = std::min(pixel_count, kDenoiseNoiseSampleLimit);
+    std::vector<float> samples;
+    samples.reserve(sample_count);
+    std::array<float, 3> sigma{};
+    // Full small images are exact; large images use a fixed LCG sample so the MAD remains bounded,
+    // spatially distributed, deterministic, and independent of row/pixel periodicity.
+    for (std::size_t channel = 0U; channel < sigma.size(); ++channel)
+    {
+        samples.clear();
+        std::uint64_t sample_state = 0x9e3779b97f4a7c15ULL + channel;
+        for (std::size_t sample = 0U; sample < sample_count; ++sample)
+        {
+            if ((sample & 8191U) == 0U)
+            {
+                auto active = cancellation.check();
+                if (!active)
+                {
+                    return active.error();
+                }
+            }
+            sample_state = sample_state * 6364136223846793005ULL + 1442695040888963407ULL;
+            const std::size_t pixel = pixel_count <= kDenoiseNoiseSampleLimit ?
+                                          sample :
+                                          static_cast<std::size_t>(sample_state % pixel_count);
+            const float value = std::abs(detail[pixel * 3U + channel]);
+            if (!std::isfinite(value))
+            {
+                return make_error(ErrorCode::kValidation, "Denoise wavelet detail must be finite",
+                                  {{"reason", "non_finite_denoise_detail"},
+                                   {"pixel_index", std::to_string(pixel)},
+                                   {"channel_index", std::to_string(channel)}});
+            }
+            samples.push_back(value);
+        }
+        if (samples.empty())
+        {
+            return make_error(ErrorCode::kValidation, "Denoise noise sample is empty",
+                              {{"reason", "empty_denoise_noise_sample"}});
+        }
+        const auto middle = samples.begin() + static_cast<std::ptrdiff_t>(samples.size() / 2U);
+        std::nth_element(samples.begin(), middle, samples.end());
+        sigma[channel] = std::clamp(*middle / kDenoiseGaussianMad, 0.25F, 4.0F);
+    }
+    return sigma;
 }
 
 bool invert_matrix3(const float in[3][3], float out[3][3]) noexcept
@@ -1765,31 +1831,92 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
 Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance &operation,
                                    const CancellationToken &cancellation)
 {
-    const double strength = std::clamp(parameter(operation, "strength", 0.0), 0.0, 4.0);
-    if (strength <= 0.0 || image.width < 8 || image.height < 8)
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    const double strength = parameter(operation, "strength", 0.0);
+    const double chroma = parameter(operation, "chroma", 1.0);
+    const double radius = parameter(operation, "radius", 1.0);
+    const double shadows_value = parameter(operation, "shadows", 1.0);
+    const double bias_value = parameter(operation, "bias", 0.0);
+    const double noise_a_value = parameter(operation, "noise_a", kGenericNoiseA);
+    const double noise_b_value = parameter(operation, "noise_b", kGenericNoiseB);
+    if (!std::isfinite(strength) || strength < 0.0 || strength > 1.0 || !std::isfinite(chroma) ||
+        chroma < 0.0 || chroma > 1.0 || !std::isfinite(radius) || radius < 0.5 || radius > 8.0 ||
+        !std::isfinite(shadows_value) || shadows_value < 0.0 || shadows_value > 1.8 ||
+        !std::isfinite(bias_value) || std::abs(bias_value) > std::numeric_limits<float>::max() ||
+        !std::isfinite(noise_a_value) || noise_a_value <= 0.0 ||
+        noise_a_value > std::numeric_limits<float>::max() || !std::isfinite(noise_b_value) ||
+        noise_b_value < 0.0 || noise_b_value > std::numeric_limits<float>::max())
+    {
+        return make_error(ErrorCode::kValidation, "Profile denoise parameters are invalid",
+                          {{"reason", "invalid_profile_denoise_parameters"}});
+    }
+    if (strength == 0.0)
     {
         return {};
     }
-    const double chroma = std::clamp(parameter(operation, "chroma", 1.0), 0.0, 2.0);
-    const float shadows =
-        static_cast<float>(std::clamp(parameter(operation, "shadows", 1.0), 0.0, 1.8));
-    const float bias = static_cast<float>(parameter(operation, "bias", 0.0));
-    const float noise_a = static_cast<float>(
-        std::max(1.0e-8, parameter(operation, "noise_a", static_cast<double>(kGenericNoiseA))));
-    const float noise_b = static_cast<float>(
-        std::max(0.0, parameter(operation, "noise_b", static_cast<double>(kGenericNoiseB))));
+    const std::uint64_t pixel_count = static_cast<std::uint64_t>(image.width) * image.height;
+    if (pixel_count > std::numeric_limits<std::size_t>::max() / 3U ||
+        image.rgb.size() != static_cast<std::size_t>(pixel_count * 3U))
+    {
+        return make_error(ErrorCode::kValidation,
+                          "Profile denoise input does not match its dimensions",
+                          {{"reason", "invalid_profile_denoise_buffer"}});
+    }
+    if (image.width < 8U || image.height < 8U)
+    {
+        return {};
+    }
+    if (!image.canonical_roi_scale.valid())
+    {
+        return make_error(ErrorCode::kValidation, "Profile denoise requires canonical ROI scale",
+                          {{"reason", "invalid_profile_denoise_roi_scale"}});
+    }
+    if (image.width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
+        image.height > static_cast<std::uint32_t>(std::numeric_limits<int>::max()))
+    {
+        return make_error(ErrorCode::kUnsupported, "Profile denoise dimensions are too large",
+                          {{"reason", "unsupported_profile_denoise_dimensions"}});
+    }
+    const auto invalid_input =
+        std::find_if(image.rgb.cbegin(), image.rgb.cend(),
+                     [](const float value) { return !std::isfinite(value); });
+    if (invalid_input != image.rgb.cend())
+    {
+        const std::size_t sample =
+            static_cast<std::size_t>(std::distance(image.rgb.cbegin(), invalid_input));
+        return make_error(ErrorCode::kValidation, "Profile denoise input must be finite",
+                          {{"reason", "non_finite_profile_denoise_input"},
+                           {"pixel_index", std::to_string(sample / 3U)},
+                           {"channel_index", std::to_string(sample % 3U)}});
+    }
+    const float shadows = static_cast<float>(shadows_value);
+    const float bias = static_cast<float>(bias_value);
+    const float noise_a = static_cast<float>(noise_a_value);
+    const float noise_b = static_cast<float>(noise_b_value);
     const int width = static_cast<int>(image.width);
     const int height = static_cast<int>(image.height);
-    const std::size_t npixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    const std::size_t npixels = static_cast<std::size_t>(pixel_count);
 
     int max_scale = 0;
-    const float supp0 = std::min(2.0F * (2U << (kDenoiseBands - 1)) + 1.0F,
-                                 static_cast<float>(std::max(width, height)) * 0.2F);
+    const float input_scale = std::min(image.canonical_roi_scale.value(), 1.0F);
+    const float original_long_edge =
+        static_cast<float>(std::max(image.width, image.height)) / input_scale;
+    const float supp0 =
+        std::min(2.0F * (2U << (kDenoiseBands - 1)) + 1.0F, original_long_edge * 0.2F);
     const float i0 = std::log2(std::max(supp0 - 1.0F, 1.0F) * 0.5F);
+    if (!std::isfinite(i0) || i0 <= 0.0F)
+    {
+        return {};
+    }
     for (; max_scale < kDenoiseBands; ++max_scale)
     {
         const float supp = 2.0F * static_cast<float>(2U << max_scale) + 1.0F;
-        const float i_in = std::log2(std::max(supp - 1.0F, 1.0F) * 0.5F) - 1.0F;
+        const float original_support = supp / input_scale;
+        const float i_in = std::log2(std::max(original_support - 1.0F, 1.0F) * 0.5F) - 1.0F;
         const float t = 1.0F - (i_in + 0.5F) / i0;
         if (t < 0.0F)
         {
@@ -1797,24 +1924,19 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         }
     }
     max_scale = std::max(1, max_scale);
-    const int max_mult = 1 << (max_scale - 1);
+    const int max_mult =
+        std::max(1, static_cast<int>(std::lround(static_cast<float>(1 << (max_scale - 1)) *
+                                                 static_cast<float>(radius))));
     if (width < 2 * max_mult || height < 2 * max_mult)
     {
         return {};
-    }
-
-    auto cancelled = cancellation.check();
-    if (!cancelled)
-    {
-        return cancelled.error();
     }
 
     std::array<float, 3> wb{1.0F, 1.0F, 1.0F};
     const float p_base = std::max(shadows, 0.0F);
     const std::array<float, 3> p{p_base, p_base, p_base};
     const float compensate_p = kDenoisePFulcrum / std::pow(kDenoisePFulcrum, shadows);
-    const float compensate_strength = 2.5F;
-    const float strength_scale = static_cast<float>(strength) * compensate_strength;
+    constexpr float kYuvStrengthScale = 2.5F;
 
     float to_yuv[3][3] = {
         {1.0F / 3.0F, 1.0F / 3.0F, 1.0F / 3.0F}, {0.5F, 0.0F, -0.5F}, {0.25F, -0.5F, 0.25F}};
@@ -1842,8 +1964,8 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     {
         for (int c = 0; c < 3; ++c)
         {
-            to_yuv[k][c] /= strength_scale;
-            to_rgb[k][c] *= strength_scale;
+            to_yuv[k][c] /= kYuvStrengthScale;
+            to_rgb[k][c] *= kYuvStrengthScale;
         }
     }
 
@@ -1855,7 +1977,7 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     // The wavelet buffers carry YUV only. A padded fourth component would be
     // read across every 5x5 neighbourhood and every scale without contributing
     // to the result.
-    std::vector<float> precond(npixels * 3U, 0.0F);
+    std::vector<float> current(npixels * 3U, 0.0F);
     auto preconditioned = for_each_row(
         image.height, cancellation,
         [&](const std::uint32_t row)
@@ -1875,9 +1997,9 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
                 }
                 float yuv[3]{};
                 apply_matrix(to_yuv, tmp, yuv);
-                precond[pixel * 3U] = yuv[0];
-                precond[pixel * 3U + 1U] = yuv[1];
-                precond[pixel * 3U + 2U] = yuv[2];
+                current[pixel * 3U] = yuv[0];
+                current[pixel * 3U + 1U] = yuv[1];
+                current[pixel * 3U + 2U] = yuv[2];
             }
         });
     if (!preconditioned)
@@ -1885,45 +2007,73 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
         return preconditioned.error();
     }
 
-    std::vector<float> out(precond.size(), 0.0F);
-    std::vector<float> current = std::move(precond);
+    std::vector<float> out(current.size(), 0.0F);
     std::vector<float> coarse(current.size(), 0.0F);
     std::vector<float> detail(current.size(), 0.0F);
     const float varf = std::sqrt(2.0F + 2.0F * 16.0F + 36.0F) / 16.0F;
+    std::array<float, 3> base_noise_sigma{1.0F, 1.0F, 1.0F};
     for (int scale_index = 0; scale_index < max_scale; ++scale_index)
     {
-        cancelled = cancellation.check();
-        if (!cancelled)
+        active = cancellation.check();
+        if (!active)
         {
-            return cancelled.error();
+            return active.error();
         }
-        const float sigma_band = std::pow(varf, static_cast<float>(scale_index));
+        const float sigma_at_scale = std::pow(varf, static_cast<float>(scale_index));
+        const float guide_sigma =
+            sigma_at_scale * std::sqrt((base_noise_sigma[0] * base_noise_sigma[0] +
+                                        base_noise_sigma[1] * base_noise_sigma[1] +
+                                        base_noise_sigma[2] * base_noise_sigma[2]) /
+                                       3.0F);
         std::array<float, 3> sum_y2{};
-        auto decomposed =
-            eaw_dn_decompose(coarse, current, detail, sum_y2, scale_index,
-                             1.0F / (sigma_band * sigma_band), width, height, cancellation);
+        auto decomposed = eaw_dn_decompose(
+            coarse, current, detail, sum_y2, scale_index, static_cast<float>(radius),
+            1.0F / std::max(guide_sigma * guide_sigma, 1.0e-8F), width, height, cancellation);
         if (!decomposed)
         {
             return decomposed.error();
         }
-        const float sb2 = sigma_band * sigma_band;
-        const int offset_scale = kDenoiseBands - max_scale;
-        const int band_index = kDenoiseBands - (scale_index + offset_scale + 1);
-        const float y_force = 0.5F;
-        const float uv_force = 0.5F * static_cast<float>(chroma);
-        auto band_adj = [](const float force) { return 8.0F * force * force * 4.0F; };
-        std::array<float, 3> std_x{};
+        if (scale_index == 0)
+        {
+            auto estimated = estimate_wavelet_noise_sigma(detail, npixels, cancellation);
+            if (!estimated)
+            {
+                return estimated.error();
+            }
+            base_noise_sigma = estimated.value();
+            const float calibrated_guide = std::sqrt((base_noise_sigma[0] * base_noise_sigma[0] +
+                                                      base_noise_sigma[1] * base_noise_sigma[1] +
+                                                      base_noise_sigma[2] * base_noise_sigma[2]) /
+                                                     3.0F);
+            decomposed = eaw_dn_decompose(
+                coarse, current, detail, sum_y2, scale_index, static_cast<float>(radius),
+                1.0F / std::max(calibrated_guide * calibrated_guide, 1.0e-8F), width, height,
+                cancellation);
+            if (!decomposed)
+            {
+                return decomposed.error();
+            }
+        }
+        const float scale_position =
+            max_scale <= 1 ? 0.0F :
+                             static_cast<float>(scale_index) / static_cast<float>(max_scale - 1);
+        // Radius changes both sampling dilation and the coarse-band threshold. Radius 1 retains
+        // the source-default à-trous response; larger values progressively reach wider texture.
+        const float radius_threshold_gain = std::pow(static_cast<float>(radius), scale_position);
+        std::array<float, 3> thresholds{};
         for (int c = 0; c < 3; ++c)
         {
-            std_x[static_cast<std::size_t>(c)] = std::sqrt(std::max(
-                1.0e-6F,
-                sum_y2[static_cast<std::size_t>(c)] / (static_cast<float>(npixels) - 1.0F) - sb2));
+            const float noise_sigma =
+                base_noise_sigma[static_cast<std::size_t>(c)] * sigma_at_scale;
+            const float noise_variance = noise_sigma * noise_sigma;
+            const float signal_sigma =
+                std::sqrt(std::max(1.0e-6F, sum_y2[static_cast<std::size_t>(c)] /
+                                                    (static_cast<float>(npixels) - 1.0F) -
+                                                noise_variance));
+            thresholds[static_cast<std::size_t>(c)] =
+                8.0F * radius_threshold_gain * noise_variance / signal_sigma;
         }
-        const std::array<float, 3> thrs{band_adj(y_force) * sb2 / std_x[0],
-                                        band_adj(uv_force) * sb2 / std_x[1],
-                                        band_adj(uv_force) * sb2 / std_x[2]};
-        (void)band_index;
-        auto synthesized = eaw_synthesize(out, detail, thrs, width, height, cancellation);
+        auto synthesized = eaw_synthesize(out, detail, thresholds, width, height, cancellation);
         if (!synthesized)
         {
             return synthesized.error();
@@ -1935,7 +2085,10 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     const std::array<float, 3> back_scale{(std::sqrt(a) * (2.0F - p[0])) / 4.0F,
                                           (std::sqrt(a) * (2.0F - p[1])) / 4.0F,
                                           (std::sqrt(a) * (2.0F - p[2])) / 4.0F};
-    const float applied_bias = bias - 0.5F * std::log(1.0F);
+    const float applied_bias = bias;
+    constexpr std::array<float, 3> kLumaWeights{0.2126F, 0.7152F, 0.0722F};
+    const float luma_amount = static_cast<float>(strength);
+    const float chroma_amount = static_cast<float>(strength * chroma);
     auto restored = for_each_row(
         image.height, cancellation,
         [&](const std::uint32_t row)
@@ -1949,15 +2102,35 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
                              out[pixel * 3U + 2U] + current[pixel * 3U + 2U]};
                 float rgb[3]{};
                 apply_matrix(to_rgb, yuv, rgb);
+                std::array<float, 3> denoised{};
                 for (int c = 0; c < 3; ++c)
                 {
                     const float x = std::max(rgb[c], 0.0F);
                     const float delta = x * x + applied_bias * wb[static_cast<std::size_t>(c)];
                     const float z1 = (x + std::sqrt(std::max(delta, 0.0F))) *
                                      back_scale[static_cast<std::size_t>(c)];
-                    image.rgb[pixel * 3U + static_cast<std::size_t>(c)] =
+                    denoised[static_cast<std::size_t>(c)] =
                         std::pow(std::max(z1, 0.0F), back_expon[static_cast<std::size_t>(c)]) -
                         noise_b;
+                }
+                const std::size_t offset = pixel * 3U;
+                const std::array<float, 3> delta{denoised[0] - image.rgb[offset],
+                                                 denoised[1] - image.rgb[offset + 1U],
+                                                 denoised[2] - image.rgb[offset + 2U]};
+                const float luma_delta = kLumaWeights[0] * delta[0] + kLumaWeights[1] * delta[1] +
+                                         kLumaWeights[2] * delta[2];
+                for (std::size_t c = 0U; c < 3U; ++c)
+                {
+                    const float value = image.rgb[offset + c] + luma_amount * luma_delta +
+                                        chroma_amount * (delta[c] - luma_delta);
+                    if (!std::isfinite(value))
+                    {
+                        detail[offset + c] = std::numeric_limits<float>::quiet_NaN();
+                    }
+                    else
+                    {
+                        detail[offset + c] = value;
+                    }
                 }
             }
         });
@@ -1965,6 +2138,23 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
     {
         return restored.error();
     }
+    const auto invalid_output = std::find_if(detail.cbegin(), detail.cend(), [](const float value)
+                                             { return !std::isfinite(value); });
+    if (invalid_output != detail.cend())
+    {
+        const std::size_t sample =
+            static_cast<std::size_t>(std::distance(detail.cbegin(), invalid_output));
+        return make_error(ErrorCode::kValidation, "Profile denoise output must be finite",
+                          {{"reason", "non_finite_profile_denoise_output"},
+                           {"pixel_index", std::to_string(sample / 3U)},
+                           {"channel_index", std::to_string(sample % 3U)}});
+    }
+    active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    image.rgb.swap(detail);
     return {};
 }
 
@@ -2564,138 +2754,200 @@ Result<void> apply_graduated_nd(WorkingImage &image, const OperationInstance &op
 Result<void> apply_tone_equalizer(WorkingImage &image, const OperationInstance &operation,
                                   const CancellationToken &cancellation)
 {
-    std::array<float, kToneChannels> gains{
-        static_cast<float>(parameter(operation, "noise", parameter(operation, "blacks", 0.0))),
-        static_cast<float>(parameter(operation, "ultra_deep_blacks", 0.0)),
-        static_cast<float>(parameter(operation, "deep_blacks", 0.0)),
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
+    const std::array<float, 5> band_ev{
         static_cast<float>(parameter(operation, "blacks", 0.0)),
         static_cast<float>(parameter(operation, "shadows", 0.0)),
         static_cast<float>(parameter(operation, "midtones", 0.0)),
         static_cast<float>(parameter(operation, "highlights", 0.0)),
         static_cast<float>(parameter(operation, "whites", 0.0)),
-        static_cast<float>(
-            parameter(operation, "speculars", parameter(operation, "whites", 0.0) * 0.0)),
     };
-    // Map the 5-slider Develop schema onto the frozen 9-band C params:
-    // blacks(-8 via noise), shadows(-4), midtones(-3), highlights(-2), whites(-1).
-    if (operation.parameters.find("noise") == operation.parameters.end())
-    {
-        gains[0] = static_cast<float>(parameter(operation, "blacks", 0.0));
-    }
-    if (operation.parameters.find("speculars") == operation.parameters.end())
-    {
-        gains[8] = 0.0F;
-    }
     bool identity = true;
-    for (float &gain : gains)
+    for (const float gain : band_ev)
     {
         if (!std::isfinite(gain) || std::abs(gain) > 4.0F)
         {
             return make_error(ErrorCode::kValidation,
-                              "Tone equalizer band must be a finite EV in [-4, 4]");
+                              "Tone equalizer band must be a finite EV in [-4, 4]",
+                              {{"reason", "invalid_tone_equalizer_band"}});
         }
         if (std::abs(gain) > 1.0e-8F)
         {
             identity = false;
         }
-        gain = std::exp2(gain);
     }
     if (identity || image.width == 0 || image.height == 0)
     {
         return {};
     }
-
-    constexpr std::array<float, kTonePixelChan> kCentersOps{
-        -56.0F / 7.0F, -48.0F / 7.0F, -40.0F / 7.0F, -32.0F / 7.0F,
-        -24.0F / 7.0F, -16.0F / 7.0F, -8.0F / 7.0F,  0.0F};
-    constexpr std::array<float, kToneChannels> kCentersParams{-8.0F, -7.0F, -6.0F, -5.0F, -4.0F,
-                                                              -3.0F, -2.0F, -1.0F, 0.0F};
-    const float sigma = static_cast<float>(parameter(operation, "smoothing", std::sqrt(2.0)));
-    const float denom = gaussian_denom(sigma);
-    std::vector<float> matrix(static_cast<std::size_t>(kToneChannels * kTonePixelChan));
-    for (int i = 0; i < kToneChannels; ++i)
+    const std::uint64_t pixel_count = static_cast<std::uint64_t>(image.width) * image.height;
+    if (pixel_count > std::numeric_limits<std::size_t>::max() / 3U ||
+        image.rgb.size() != static_cast<std::size_t>(pixel_count * 3U))
     {
-        for (int j = 0; j < kTonePixelChan; ++j)
-        {
-            matrix[static_cast<std::size_t>(i * kTonePixelChan + j)] =
-                gaussian_func(kCentersParams[static_cast<std::size_t>(i)] -
-                                  kCentersOps[static_cast<std::size_t>(j)],
-                              denom);
-        }
+        return make_error(ErrorCode::kValidation,
+                          "Tone equalizer input does not match its dimensions",
+                          {{"reason", "invalid_tone_equalizer_buffer"}});
     }
-    std::vector<float> factors(gains.begin(), gains.end());
-    if (!pseudo_solve(matrix, factors, kToneChannels, kTonePixelChan))
+    if (!image.canonical_roi_scale.valid())
     {
-        factors.assign(kTonePixelChan, 1.0F);
-        for (int i = 0; i < kTonePixelChan && i < kToneChannels; ++i)
-        {
-            factors[static_cast<std::size_t>(i)] = gains[static_cast<std::size_t>(i)];
-        }
+        return make_error(ErrorCode::kValidation, "Tone equalizer requires canonical ROI scale",
+                          {{"reason", "invalid_tone_equalizer_roi_scale"}});
     }
 
-    std::vector<float> lut(static_cast<std::size_t>(kToneLutResolution * kTonePixelChan + 1));
-    for (int j = 0; j <= kToneLutResolution * kTonePixelChan; ++j)
+    // Expand the five authored photographic groups into the accepted nine one-stop bands. The
+    // intermediate bands interpolate authored EV, not linear gain. Normalizing the gaussian sum
+    // makes identity exact and avoids an under-determined inverse oscillating between controls.
+    // The correction bound retains the Studio slider's +/-2 EV range for recipes authored through
+    // the wider machine-visible validation interval.
+    constexpr std::array<float, kToneAnchorCount> kAnchorEv{-8.0F, -7.0F, -6.0F, -5.0F, -4.0F,
+                                                            -3.0F, -2.0F, -1.0F, 0.0F};
+    const std::array<float, kToneAnchorCount> kAnchorCorrectionEv{
+        band_ev[0], 0.5F * (band_ev[0] + band_ev[1]), band_ev[1], 0.5F * (band_ev[1] + band_ev[2]),
+        band_ev[2], 0.5F * (band_ev[2] + band_ev[3]), band_ev[3], 0.5F * (band_ev[3] + band_ev[4]),
+        band_ev[4],
+    };
+    const std::array<float, kToneAnchorCount> kAnchorGain{
+        std::exp2(kAnchorCorrectionEv[0]), std::exp2(kAnchorCorrectionEv[1]),
+        std::exp2(kAnchorCorrectionEv[2]), std::exp2(kAnchorCorrectionEv[3]),
+        std::exp2(kAnchorCorrectionEv[4]), std::exp2(kAnchorCorrectionEv[5]),
+        std::exp2(kAnchorCorrectionEv[6]), std::exp2(kAnchorCorrectionEv[7]),
+        std::exp2(kAnchorCorrectionEv[8]),
+    };
+    constexpr float kAnchorSigmaEv = std::numbers::sqrt2_v<float>;
+    const float denominator = gaussian_denom(kAnchorSigmaEv);
+    constexpr int kToneLutSteps =
+        static_cast<int>((kToneLutMaxEv - kToneLutMinEv) * kToneLutResolution);
+    std::vector<float> lut(static_cast<std::size_t>(kToneLutSteps + 1));
+    for (int step = 0; step <= kToneLutSteps; ++step)
     {
+        if ((step & 4095) == 0)
+        {
+            active = cancellation.check();
+            if (!active)
+            {
+                return active.error();
+            }
+        }
         const float exposure =
-            static_cast<float>(j) / static_cast<float>(kToneLutResolution) - 8.0F;
-        float result = 0.0F;
-        for (int i = 0; i < kTonePixelChan; ++i)
+            kToneLutMinEv + static_cast<float>(step) / static_cast<float>(kToneLutResolution);
+        float weighted_gain = 0.0F;
+        float weight_sum = 0.0F;
+        for (std::size_t anchor = 0; anchor < kAnchorEv.size(); ++anchor)
         {
-            result += gaussian_func(exposure - kCentersOps[static_cast<std::size_t>(i)], denom) *
-                      factors[static_cast<std::size_t>(i)];
+            const float weight = gaussian_func(exposure - kAnchorEv[anchor], denominator);
+            weighted_gain += weight * kAnchorGain[anchor];
+            weight_sum += weight;
         }
-        lut[static_cast<std::size_t>(j)] = std::clamp(result, 0.25F, 4.0F);
+        lut[static_cast<std::size_t>(step)] =
+            std::clamp(weighted_gain / std::max(weight_sum, 1.0e-12F), 0.25F, 4.0F);
     }
 
-    const std::size_t count = static_cast<std::size_t>(image.width) * image.height;
-    std::vector<float> luminance(count);
-    for (std::size_t pixel = 0; pixel < count; ++pixel)
-    {
-        const float r = image.rgb[pixel * 3U];
-        const float g = image.rgb[pixel * 3U + 1U];
-        const float b = image.rgb[pixel * 3U + 2U];
-        luminance[pixel] = std::max(std::exp2(-16.0F), std::sqrt(r * r + g * g + b * b));
-    }
-    const float blending = static_cast<float>(parameter(operation, "blending", 5.0)) / 100.0F;
-    const int max_size = static_cast<int>(std::max(image.width, image.height));
-    const int radius = static_cast<int>((blending * static_cast<float>(max_size) - 1.0F) / 2.0F);
-    if (radius >= 1)
-    {
-        const float feathering =
-            1.0F / static_cast<float>(std::max(0.01, parameter(operation, "feathering", 1.0)));
-        auto filtered = self_guided_filter_plane(luminance, image.width, image.height, radius,
-                                                 feathering, cancellation);
-        if (!filtered)
+    const std::size_t count = static_cast<std::size_t>(pixel_count);
+    std::vector<float> mask_ev(count);
+    auto measured = for_each_row(
+        image.height, cancellation,
+        [&](const std::uint32_t row)
         {
-            return filtered.error();
-        }
-    }
-    auto cancelled = cancellation.check();
-    if (!cancelled)
+            const std::size_t begin = static_cast<std::size_t>(row) * image.width;
+            const std::size_t end = begin + image.width;
+            for (std::size_t pixel = begin; pixel < end; ++pixel)
+            {
+                const float r = image.rgb[pixel * 3U];
+                const float g = image.rgb[pixel * 3U + 1U];
+                const float b = image.rgb[pixel * 3U + 2U];
+                if (!std::isfinite(r) || !std::isfinite(g) || !std::isfinite(b))
+                {
+                    mask_ev[pixel] = std::numeric_limits<float>::quiet_NaN();
+                    continue;
+                }
+                const double energy = std::hypot(static_cast<double>(r), static_cast<double>(g),
+                                                 static_cast<double>(b));
+                const double exposure =
+                    std::log2(std::max(static_cast<double>(std::exp2(-16.0F)), energy));
+                mask_ev[pixel] =
+                    static_cast<float>(std::clamp(exposure, static_cast<double>(kToneLutMinEv),
+                                                  static_cast<double>(kToneLutMaxEv)));
+            }
+        });
+    if (!measured)
     {
-        return cancelled.error();
+        return measured.error();
+    }
+    const auto invalid = std::find_if(mask_ev.cbegin(), mask_ev.cend(),
+                                      [](const float value) { return !std::isfinite(value); });
+    if (invalid != mask_ev.cend())
+    {
+        return make_error(ErrorCode::kValidation, "Tone equalizer input must be finite",
+                          {{"reason", "non_finite_tone_equalizer_input"},
+                           {"pixel_index", std::to_string(static_cast<std::size_t>(
+                                               std::distance(mask_ev.cbegin(), invalid)))}});
+    }
+    const std::uint32_t maximum_dimension = std::max(image.width, image.height);
+    if (maximum_dimension > static_cast<std::uint32_t>(std::numeric_limits<int>::max()))
+    {
+        return make_error(ErrorCode::kUnsupported, "Tone equalizer dimensions are too large",
+                          {{"reason", "unsupported_tone_equalizer_dimensions"}});
+    }
+    const int maximum_radius = std::max(1, static_cast<int>(maximum_dimension) - 1);
+    const double scaled_radius =
+        static_cast<double>(kToneMaskRadiusOriginalPixels) * image.canonical_roi_scale.value();
+    const int radius = scaled_radius >= static_cast<double>(maximum_radius) ?
+                           maximum_radius :
+                           std::max(1, static_cast<int>(std::lround(scaled_radius)));
+    auto filtered = self_guided_filter_plane(mask_ev, image.width, image.height, radius,
+                                             kToneMaskEpsilonEv, cancellation);
+    if (!filtered)
+    {
+        return filtered.error();
     }
 
     for (std::uint32_t y = 0; y < image.height; ++y)
     {
-        cancelled = cancellation.check();
-        if (!cancelled)
+        active = cancellation.check();
+        if (!active)
         {
-            return cancelled.error();
+            return active.error();
         }
         for (std::uint32_t x = 0; x < image.width; ++x)
         {
             const std::size_t pixel = static_cast<std::size_t>(y) * image.width + x;
-            const float exposure = std::clamp(std::log2(luminance[pixel]), -8.0F, 0.0F);
-            const auto lut_index =
-                static_cast<std::size_t>(std::lround((exposure + 8.0F) * kToneLutResolution));
-            const float correction = lut[std::min(lut_index, lut.size() - 1U)];
-            image.rgb[pixel * 3U] *= correction;
-            image.rgb[pixel * 3U + 1U] *= correction;
-            image.rgb[pixel * 3U + 2U] *= correction;
+            const float exposure = std::clamp(mask_ev[pixel], kToneLutMinEv, kToneLutMaxEv);
+            const auto lut_index = static_cast<std::size_t>(
+                std::lround((exposure - kToneLutMinEv) * kToneLutResolution));
+            mask_ev[pixel] = lut[std::min(lut_index, lut.size() - 1U)];
+            for (std::size_t channel = 0; channel < 3U; ++channel)
+            {
+                const double adjusted = static_cast<double>(image.rgb[pixel * 3U + channel]) *
+                                        static_cast<double>(mask_ev[pixel]);
+                if (!std::isfinite(adjusted) ||
+                    std::abs(adjusted) > std::numeric_limits<float>::max())
+                {
+                    return make_error(ErrorCode::kValidation,
+                                      "Tone equalizer output must be finite",
+                                      {{"reason", "non_finite_tone_equalizer_output"},
+                                       {"pixel_index", std::to_string(pixel)},
+                                       {"channel_index", std::to_string(channel)}});
+                }
+            }
         }
     }
-    return {};
+    return for_each_row(image.height, cancellation,
+                        [&](const std::uint32_t row)
+                        {
+                            const std::size_t begin = static_cast<std::size_t>(row) * image.width;
+                            const std::size_t end = begin + image.width;
+                            for (std::size_t pixel = begin; pixel < end; ++pixel)
+                            {
+                                const float correction = mask_ev[pixel];
+                                image.rgb[pixel * 3U] *= correction;
+                                image.rgb[pixel * 3U + 1U] *= correction;
+                                image.rgb[pixel * 3U + 2U] *= correction;
+                            }
+                        });
 }
 
 } // namespace ravo

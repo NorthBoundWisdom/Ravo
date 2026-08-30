@@ -426,11 +426,24 @@ preview/cache delete/reopen, PNG/JPEG/TIFF export, translations, and QML smoke
   at the pre-commit seam (ADR-0067).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v8 validates complete decode, explicit input/output
+- RAW preview contract v10 validates complete decode, explicit input/output
   profiles, and default Sigmoid; the raster baseline must not receive a second
   display transform. Sigmoid requires
   at least schema round-trip, synthetic colour patches, `mire1.cr2`
   channel-sum reference, and catalog reset/reopen.
+- Profile Denoise tests require deterministic MAD calibration to reduce flat
+  luminance and chroma variance while retaining a hard step, observable Radius
+  response, independent Chroma mixing, canonical-scale agreement, exact
+  identity, finite/parameter/scale failures, cancellation without mutation,
+  and four-RGB-plane plus bounded sample/coordinate memory accounting. A real
+  high-ISO RAW probe must remain recipe/cache neutral and is visual evidence,
+  not a committed pixel oracle (ADR-0094).
+- Tone Equalizer tests freeze five-control expansion into all nine one-stop EV
+  bands, normalized RBF response, log-guided dark-texture retention, strong-edge
+  halo rejection, full/preview scale consistency, finite/overflow errors,
+  cancellation, source ownership, and exact five-plane-plus-LUT RAW memory
+  accounting. A real RAW `catalog probe` remains read-only and must report both
+  recipe and preview records unchanged.
 - Cached PNG validation requires exactly one standard `sRGB` chunk for built-in
   sRGB output, or one `iCCP` and no `sRGB` chunk for every other RGB profile.
 - RAW import and Gallery thumbnails may persist embedded-JPEG browse cache. Its

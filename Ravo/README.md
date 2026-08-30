@@ -78,18 +78,22 @@ Current implementation status:
   stay desktop-only. The separate Qt local-control socket exposes neither.
 - Basic Develop provides catalog schema v5 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
-  highlight reconstruction (opposed by default), wavelets+Y0U0V0 denoising,
-  lensfun poly3/vignette, dt UCS `colorequal`, graduated filter, and nine-band
-  toneequal. Studio provides an Edit panel whose left rail lists the selected
-  photo's recipe history and snapshots. Clicking a history step previews that
-  recipe without appending; newer steps dim until a later parameter edit
-  discards them in the same recipe transaction. Consecutive commits from one
-  control update a single history row and remain one session Undo step;
-  changing controls or navigation/history state starts a new step. Section
-  lamps are gray at identity, green when modified, and black when those
-  parameters are kept but bypassed. The default grading stack is White Balance,
-  Light, Curves, Color Equalizer, Color Balance RGB wheels, and Camera
-  Calibration (ADR-0082/0084/0085). Color
+  highlight reconstruction (opposed by default), adaptive Y0U0V0 edge-aware
+  wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`, graduated
+  filter, and nine-band toneequal with a scale-stable log-EV guided mask. Its
+  five photographic controls drive all nine one-stop bands without the former
+  sparse inverse; low-contrast texture is retained while strong subject/
+  background edges do not leak correction halos (ADR-0092). Studio provides
+  an Edit panel whose left rail lists the selected photo's recipe history and
+  snapshots. Clicking a history step previews that recipe without appending;
+  newer steps dim until a later parameter edit discards them in the same
+  recipe transaction.
+  Consecutive commits from one control update a single history row and remain
+  one session Undo step; changing controls or navigation/history state starts
+  a new step. Section lamps are gray at identity, green when modified, and
+  black when those parameters are kept but bypassed. The default grading stack
+  is White Balance, Light, Curves, Color Equalizer, Color Balance RGB wheels,
+  and Camera Calibration (ADR-0082/0084/0085). Color
   Equalizer is an eight-band named mixer; Bayer RAW white-balance pick writes
   manual coefficients (ADR-0083);
   plus single-photo Before/After, a toolbar Left/Right comparison whose two
@@ -127,6 +131,11 @@ Current implementation status:
   RawTherapee two-pass tile/polynomial fitting and avoid-color-shift. Unit
   tests cover cancellation, sensor rejection, memory budget, cache immutability,
   catalog reopen, and real RAW references for both.
+- Profile Denoise keeps the accepted Y0U0V0 edge-aware à-trous BayesShrink,
+  calibrates actual stabilized noise from bounded deterministic MAD samples,
+  and gives Radius defined multiscale spatial behavior. Luminance and Chroma
+  mix separately into an owned result; scale, finite, cancellation, and exact
+  memory preflight failures publish nothing (ADR-0094).
 - White Balance provides `ravo.color.temperature` v1 before demosaic using
   R/G1/B/G2 four-channel coefficients. LibRaw `cam_mul` / `pre_mul` provide
   as-shot and camera-reference defaults; manual stores explicit coefficients,
@@ -165,7 +174,7 @@ Current implementation status:
   four rendering intents, soft proof, gamut warning, proof intent, and black-
   point compensation. Matrix/shaper output uses the frozen 65,536-sample LUT
   and unbounded extrapolation; general RGB/XYZ/Lab and proof transforms use
-  render-local LittleCMS. Preview contract v8 and `RenderedImage` carry owned
+  render-local LittleCMS. Preview contract v10 and `RenderedImage` carry owned
   ICC state. CLI PNG emits standard sRGB metadata or `iCCP`, Catalog PNG/JPEG/
   TIFF embeds the same declared profile, and missing/corrupt profiles fail
   before atomic publish. Studio presents the engine-owned result through Output

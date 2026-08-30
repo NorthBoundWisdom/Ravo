@@ -936,6 +936,21 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         {
             add_working_bytes(saturating_multiply(raw_pixels, 4U * sizeof(float)));
         }
+        if (operation.id == "ravo.detail.denoiseprofile")
+        {
+            // Adaptive Y0U0V0 wavelets own accumulator, current, coarse, and detail/output RGB
+            // planes. Robust MAD sampling and the per-scale clamped coordinate tables do not
+            // overlap, so budget only their larger bounded peak.
+            add_working_bytes(saturating_multiply(4U, float_rgb_bytes));
+            constexpr std::uint64_t sample_limit = 1U << 18U;
+            const std::uint64_t sample_bytes =
+                saturating_multiply(std::min(output_pixels, sample_limit), sizeof(float));
+            const std::uint64_t coordinate_count =
+                saturating_multiply(saturating_add(width, height), 5U);
+            const std::uint64_t coordinate_bytes =
+                saturating_multiply(coordinate_count, sizeof(int));
+            add_working_bytes(std::max(sample_bytes, coordinate_bytes));
+        }
         if (operation.id == "ravo.raw.cacorrect")
         {
             add_working_bytes(
@@ -1023,6 +1038,14 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
         {
             add_working_bytes(float_rgb_bytes);
             add_working_bytes(detail::kColorZonesLutBytes);
+        }
+        if (operation.id == "ravo.core.toneequal")
+        {
+            // One log-EV mask plus the four additional live planes at the peak of the
+            // self-guided filter. The normalized correction LUT spans [-8, 0] EV at
+            // 10,000 samples per stop, including both endpoints.
+            add_working_bytes(saturating_multiply(output_pixels, 5U * sizeof(float)));
+            add_working_bytes((8U * 10000U + 1U) * sizeof(float));
         }
         if (operation.id == kMonochromeOperationId)
         {
