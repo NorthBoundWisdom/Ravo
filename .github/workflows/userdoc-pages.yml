@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - userdoc/**
-      - .github/workflows/userdoc-pages.yml
   pull_request:
     paths:
       - userdoc/**
@@ -39,9 +36,16 @@ jobs:
       - name: Install documentation dependencies
         run: python -m pip install --disable-pip-version-check -r userdoc/requirements.txt
 
+      - name: Test documentation build metadata
+        run: python -m unittest discover -s userdoc/tests -p "test_*.py"
+
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v5
+
+      - name: Capture documentation build metadata
+        shell: bash
+        run: printf 'RAVO_DOCS_BUILT_AT=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
 
       - name: Build handbook
         env:

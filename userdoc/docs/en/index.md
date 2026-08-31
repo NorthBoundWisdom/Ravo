@@ -11,6 +11,8 @@ Develop, and export into one desktop workspace. The `ravo` command-line client
 exposes the same catalog and image engine for scripts, CI, and headless
 workflows.
 
+<!-- RAVO_DOCS_BUILD_METADATA -->
+
 ## Three things to know first
 
 - Import is reference-only. Ravo records the original path and reads the

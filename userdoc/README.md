@@ -36,6 +36,7 @@ Then run:
 
 ```text
 python3 -m pip install -r userdoc/requirements.txt
+python3 -m unittest discover -s userdoc/tests -p "test_*.py"
 python3 -m mkdocs serve -f userdoc/mkdocs.yml
 python3 -m mkdocs build -f userdoc/mkdocs.yml --strict
 ```
@@ -43,18 +44,26 @@ python3 -m mkdocs build -f userdoc/mkdocs.yml --strict
 The generated handbook is written to `userdoc/site/` and is local build output;
 it is intentionally not part of the source documentation.
 
+The home page build panel is injected by `hooks/build_metadata.py`. Local
+builds read the current Git commit and use the actual UTC build time; set
+`RAVO_DOCS_BUILT_AT` to an offset-bearing ISO 8601 value when a reproducible
+preview is required. Commit text is HTML-escaped and the tracked home page must
+contain exactly one metadata marker.
+
 ## GitHub Pages publication
 
 The repository publishes the handbook through
 `.github/workflows/userdoc-pages.yml`. Pull requests run the strict MkDocs
-build without deploying. A push to `main` that changes `userdoc/**` or the
-workflow builds `userdoc/site/` and deploys it to:
+build without deploying. Every push to `main` builds `userdoc/site/` and
+deploys it to:
 
 <https://northboundwisdom.github.io/Ravo/>
 
 The generated site is uploaded as a Pages artifact and is not committed to a
-branch. Keep secrets and private material out of the handbook because the
-published site is public.
+branch. The workflow records the documentation build time, links the complete
+commit SHA, and displays the full commit message on the home page. Keep secrets
+and private material out of both handbook content and commit messages because
+the published site is public.
 
 ## Authoring rules
 

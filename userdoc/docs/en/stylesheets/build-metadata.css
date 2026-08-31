@@ -1,0 +1,69 @@
+.ravo-build-metadata {
+  margin: 1.5rem 0 2rem;
+  overflow: hidden;
+  border: 0.05rem solid var(--md-default-fg-color--lighter);
+  border-radius: 0.6rem;
+  background: var(--md-default-bg-color);
+  box-shadow: var(--md-shadow-z1);
+}
+
+.ravo-build-metadata__grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(17rem, 2fr);
+  gap: 1rem 2rem;
+  padding: 1rem 1.25rem;
+}
+
+.ravo-build-metadata__item,
+.ravo-build-metadata__message {
+  min-width: 0;
+}
+
+.ravo-build-metadata__label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ravo-build-metadata__value {
+  color: var(--md-default-fg-color);
+  font-weight: 650;
+}
+
+.ravo-build-metadata__commit {
+  color: var(--md-accent-fg-color);
+  text-decoration: none;
+}
+
+.ravo-build-metadata__commit:hover {
+  text-decoration: underline;
+}
+
+.ravo-build-metadata__message {
+  padding: 1rem 1.25rem;
+  border-top: 0.05rem solid var(--md-default-fg-color--lighter);
+}
+
+.ravo-build-metadata__message pre {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  overflow-x: auto;
+  border-radius: 0.35rem;
+  background: var(--md-code-bg-color);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ravo-build-metadata__message code {
+  white-space: inherit;
+}
+
+@media screen and (max-width: 44.984375em) {
+  .ravo-build-metadata__grid {
+    grid-template-columns: 1fr;
+  }
+}
