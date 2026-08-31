@@ -139,6 +139,7 @@ struct RecoveryPublicationHookState
     std::error_code injected_error;
     CancellationSource *cancellation = nullptr;
     std::string competitor_output;
+    bool probe_temporary_rename = false;
     std::vector<std::string> observed_paths;
 };
 
@@ -153,6 +154,23 @@ recovery_publication_hook(void *context, const recovery_publication_internal::Ch
         return {};
     if (state.cancellation != nullptr)
         static_cast<void>(state.cancellation->cancel("recovery-publication-test"));
+    if (state.probe_temporary_rename)
+    {
+        const auto source = std::filesystem::path(path);
+        auto probe = source;
+        probe += ".ownership-probe";
+        std::error_code error;
+        std::filesystem::rename(source, probe, error);
+        if (error)
+            return error;
+        std::filesystem::rename(probe, source, error);
+        if (error)
+        {
+            std::error_code ignored;
+            std::filesystem::remove(probe, ignored);
+            return error;
+        }
+    }
     if (!state.competitor_output.empty())
     {
         QFile competitor(QString::fromStdString(state.competitor_output));
@@ -797,6 +815,24 @@ TEST(RecoveryPublicationInternalTest, EveryFailureAndCancellationCheckpointClean
                 EXPECT_FALSE(std::filesystem::exists(observed));
         }
     }
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST(RecoveryPublicationInternalTest, ReleasesTemporaryFileOwnershipBeforePublish)
+{
+    const auto root = make_temp_root();
+    const auto output = root / "ownership.ravo.json";
+    RecoveryPublicationHookState state;
+    state.target = recovery_publication_internal::Checkpoint::kBeforePublish;
+    state.probe_temporary_rename = true;
+    auto result = recovery_publication_internal::publish_no_replace(
+        output.string(), "candidate", CancellationToken{}, {recovery_publication_hook, &state});
+    ASSERT_TRUE(result) << result.error().message;
+    QFile published(QString::fromStdString(output.string()));
+    ASSERT_TRUE(published.open(QIODevice::ReadOnly));
+    EXPECT_EQ(published.readAll(), QByteArray("candidate"));
+    published.close();
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);
 }

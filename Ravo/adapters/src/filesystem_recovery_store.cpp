@@ -1155,6 +1155,32 @@ namespace
     return {};
 }
 
+class OwnedTemporaryPath
+{
+public:
+    OwnedTemporaryPath() = default;
+    OwnedTemporaryPath(const OwnedTemporaryPath &) = delete;
+    OwnedTemporaryPath &operator=(const OwnedTemporaryPath &) = delete;
+    ~OwnedTemporaryPath()
+    {
+        if (!path_.empty())
+            static_cast<void>(QFile::remove(qstring_from_utf8(path_)));
+    }
+
+    void reset(std::string path)
+    {
+        path_ = std::move(path);
+    }
+
+    void release() noexcept
+    {
+        path_.clear();
+    }
+
+private:
+    std::string path_;
+};
+
 [[nodiscard]] std::error_code publish_temporary_no_replace(const std::string_view temporary,
                                                            const std::string_view output) noexcept
 {
@@ -1198,60 +1224,71 @@ Result<void> publish_no_replace(const std::string_view output, const std::string
     if (!active)
         return active.error();
 
-    QTemporaryFile file(qstring_from_utf8(std::string(output) + ".tmp.XXXXXX"));
-    file.setAutoRemove(true);
-    if (!file.open())
-        return recovery_io_error("Unable to create recovery sidecar temporary",
-                                 "recovery_temporary_open_failed", std::string(output),
-                                 file.errorString().toUtf8().toStdString());
-    const auto temporary = file.fileName().toUtf8().toStdString();
-    hook_error = invoke_hook(hook, Checkpoint::kTemporaryCreated, temporary, 0U);
-    if (hook_error)
-        return publication_error(Checkpoint::kTemporaryCreated, output, hook_error);
-    active = check_cancellation(cancellation, output);
-    if (!active)
-        return active.error();
-
+    OwnedTemporaryPath owned_temporary;
+    std::string temporary;
     std::size_t offset = 0U;
-    while (offset < document.size())
     {
-        active = check_cancellation(cancellation, output);
-        if (!active)
-            return active.error();
-        hook_error = invoke_hook(hook, Checkpoint::kBeforeTemporaryWrite, temporary, offset);
-        if (hook_error)
-            return publication_error(Checkpoint::kBeforeTemporaryWrite, output, hook_error);
-        active = check_cancellation(cancellation, output);
-        if (!active)
-            return active.error();
-        const auto count = std::min(kPublicationChunkBytes, document.size() - offset);
-        if (file.write(document.data() + offset, static_cast<qint64>(count)) !=
-            static_cast<qint64>(count))
-            return recovery_io_error("Unable to write recovery sidecar",
-                                     "recovery_temporary_write_failed", std::string(output),
+        QTemporaryFile file(qstring_from_utf8(std::string(output) + ".tmp.XXXXXX"));
+        file.setAutoRemove(true);
+        if (!file.open())
+            return recovery_io_error("Unable to create recovery sidecar temporary",
+                                     "recovery_temporary_open_failed", std::string(output),
                                      file.errorString().toUtf8().toStdString());
-        offset += count;
-        hook_error = invoke_hook(hook, Checkpoint::kTemporaryChunkWritten, temporary, offset);
+        temporary = file.fileName().toUtf8().toStdString();
+        hook_error = invoke_hook(hook, Checkpoint::kTemporaryCreated, temporary, 0U);
         if (hook_error)
-            return publication_error(Checkpoint::kTemporaryChunkWritten, output, hook_error);
+            return publication_error(Checkpoint::kTemporaryCreated, output, hook_error);
         active = check_cancellation(cancellation, output);
         if (!active)
             return active.error();
-    }
 
-    active = check_cancellation(cancellation, output);
-    if (!active)
-        return active.error();
-    hook_error = invoke_hook(hook, Checkpoint::kBeforeTemporarySync, temporary, offset);
-    if (hook_error)
-        return publication_error(Checkpoint::kBeforeTemporarySync, output, hook_error);
-    active = check_cancellation(cancellation, output);
-    if (!active)
-        return active.error();
-    const auto sync_error = synchronize_file(file);
-    if (sync_error)
-        return publication_error(Checkpoint::kBeforeTemporarySync, output, sync_error);
-    file.close();
+        while (offset < document.size())
+        {
+            active = check_cancellation(cancellation, output);
+            if (!active)
+                return active.error();
+            hook_error = invoke_hook(hook, Checkpoint::kBeforeTemporaryWrite, temporary, offset);
+            if (hook_error)
+                return publication_error(Checkpoint::kBeforeTemporaryWrite, output, hook_error);
+            active = check_cancellation(cancellation, output);
+            if (!active)
+                return active.error();
+            const auto count = std::min(kPublicationChunkBytes, document.size() - offset);
+            if (file.write(document.data() + offset, static_cast<qint64>(count)) !=
+                static_cast<qint64>(count))
+                return recovery_io_error("Unable to write recovery sidecar",
+                                         "recovery_temporary_write_failed", std::string(output),
+                                         file.errorString().toUtf8().toStdString());
+            offset += count;
+            hook_error = invoke_hook(hook, Checkpoint::kTemporaryChunkWritten, temporary, offset);
+            if (hook_error)
+                return publication_error(Checkpoint::kTemporaryChunkWritten, output, hook_error);
+            active = check_cancellation(cancellation, output);
+            if (!active)
+                return active.error();
+        }
+
+        active = check_cancellation(cancellation, output);
+        if (!active)
+            return active.error();
+        hook_error = invoke_hook(hook, Checkpoint::kBeforeTemporarySync, temporary, offset);
+        if (hook_error)
+            return publication_error(Checkpoint::kBeforeTemporarySync, output, hook_error);
+        active = check_cancellation(cancellation, output);
+        if (!active)
+            return active.error();
+        const auto sync_error = synchronize_file(file);
+        if (sync_error)
+            return publication_error(Checkpoint::kBeforeTemporarySync, output, sync_error);
+
+        // QTemporaryFile's platform engine may retain an internal Windows handle
+        // after close(). Transfer cleanup first, then destroy the complete Qt file
+        // object before the no-replace rename so Windows cannot report a sharing
+        // violation against our own source handle.
+        owned_temporary.reset(temporary);
+        file.setAutoRemove(false);
+        file.close();
+    }
 
     active = check_cancellation(cancellation, output);
     if (!active)
@@ -1273,7 +1310,7 @@ Result<void> publish_no_replace(const std::string_view output, const std::string
         return recovery_io_error("Unable to publish recovery sidecar", "recovery_publish_failed",
                                  std::string(output), publish_error.message());
     }
-    file.setAutoRemove(false);
+    owned_temporary.release();
     return {};
 }
 
