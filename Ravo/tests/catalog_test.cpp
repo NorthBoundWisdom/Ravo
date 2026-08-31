@@ -1039,8 +1039,10 @@ TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwn
     EXPECT_TRUE(std::filesystem::is_directory(second.value().backup->path));
     EXPECT_TRUE(std::filesystem::is_directory(third.value().backup->path));
     EXPECT_TRUE(std::filesystem::is_regular_file(unverified / "user-content"));
+    const auto unverified_utf8 = unverified.generic_u8string();
+    const std::string unverified_path(unverified_utf8.begin(), unverified_utf8.end());
     EXPECT_NE(std::find(third.value().retained_unverified_paths.begin(),
-                        third.value().retained_unverified_paths.end(), unverified.string()),
+                        third.value().retained_unverified_paths.end(), unverified_path),
               third.value().retained_unverified_paths.end());
     EXPECT_GT(third.value().policy.last_backup_bytes, 0U);
     EXPECT_FALSE(third.value().policy.last_error);
