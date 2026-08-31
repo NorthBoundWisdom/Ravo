@@ -9,9 +9,11 @@
 #include <cstdint>
 #include <filesystem>
 #include <limits>
+#include <locale>
 #include <map>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -143,6 +145,24 @@ constexpr std::size_t kUriMaximumBytes = 32U * 1024U;
         return recovery_error(ErrorCode::kInternal, "Unable to format recovery sidecar number",
                               "recovery_number_format_failed");
     return std::string(buffer.data(), result.ptr);
+}
+
+[[nodiscard]] bool parse_json_double(const std::string_view text, double &value)
+{
+    if (text.empty())
+        return false;
+    // Apple libc++ still lacks floating std::from_chars. JSON has a fixed '.'
+    // decimal separator, so parse the already validated token with the classic
+    // locale and require complete, finite consumption on every platform.
+    std::istringstream stream{std::string(text)};
+    stream.imbue(std::locale::classic());
+    stream >> std::noskipws;
+    double parsed = 0.0;
+    if (!(stream >> parsed) || stream.peek() != std::char_traits<char>::eof() ||
+        !std::isfinite(parsed))
+        return false;
+    value = parsed;
+    return true;
 }
 
 [[nodiscard]] JsonValue optional_string_json(const std::optional<std::string> &value)
@@ -523,11 +543,7 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
                               "Recovery sidecar optional number has the wrong type",
                               "recovery_type_mismatch", {}, std::string(key));
     double value = 0.0;
-    const auto parsed =
-        std::from_chars(number->text.data(), number->text.data() + number->text.size(), value,
-                        std::chars_format::general);
-    if (parsed.ec != std::errc{} || parsed.ptr != number->text.data() + number->text.size() ||
-        !std::isfinite(value))
+    if (!parse_json_double(number->text, value))
         return recovery_error(ErrorCode::kValidation, "Recovery sidecar optional number is invalid",
                               "invalid_recovery_number", {}, std::string(key));
     return std::optional<double>{value};

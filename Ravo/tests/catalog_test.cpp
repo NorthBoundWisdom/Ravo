@@ -578,6 +578,15 @@ TEST_F(CatalogServiceTest, RecoverySidecarStrictlyRejectsChecksumValidMalformedN
              asset.insert_or_assign("capture", JsonValue{std::move(capture)});
              payload.insert_or_assign("asset", JsonValue{std::move(asset)});
          }},
+        {"invalid-capture-number",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             auto capture = *asset.at("capture").object_if();
+             capture.insert_or_assign("iso", JsonValue::number("1e309"));
+             asset.insert_or_assign("capture", JsonValue{std::move(capture)});
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
         {"invalid-history-order",
          [](JsonValue::Object &payload)
          {
@@ -612,6 +621,28 @@ TEST_F(CatalogServiceTest, RecoverySidecarStrictlyRejectsChecksumValidMalformedN
         if (!verified)
             EXPECT_EQ(verified.error().code, ErrorCode::kValidation) << name;
     }
+
+    const auto valid_number_output = root / "valid-capture-number.ravo.json";
+    const auto valid_number_document = recovery_document_with_mutated_payload(
+        source_sidecar,
+        [](JsonValue::Object &payload)
+        {
+            auto asset = *payload.at("asset").object_if();
+            auto capture = *asset.at("capture").object_if();
+            capture.insert_or_assign("iso", JsonValue::number("1.25e2"));
+            asset.insert_or_assign("capture", JsonValue{std::move(capture)});
+            payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+        });
+    ASSERT_FALSE(valid_number_document.empty());
+    QFile valid_number_file(QString::fromStdString(valid_number_output.string()));
+    ASSERT_TRUE(valid_number_file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(valid_number_file.write(valid_number_document.data(),
+                                      static_cast<qint64>(valid_number_document.size())),
+              static_cast<qint64>(valid_number_document.size()));
+    valid_number_file.close();
+    auto valid_number_verified = recovery.value()->verify_artifact(
+        valid_number_output.string(), asset_id, state.value().generation, CancellationToken{});
+    EXPECT_TRUE(valid_number_verified) << valid_number_verified.error().message;
     EXPECT_EQ(file_sha256(source_sidecar.string()), sidecar_hash);
     EXPECT_EQ(file_sha256(photo.string()), source_hash);
 }
