@@ -5,7 +5,7 @@
 Validate the shortest complete Ravo path from launch to catalog, preview,
 review, edit, and export.
 
-**Last verified:** 2026-08-27 against the current Studio and CLI acceptance
+**Last reviewed:** 2026-08-31 against the current Studio and CLI acceptance
 paths.
 
 ## Prerequisites
@@ -13,7 +13,8 @@ paths.
 - A built `ravo_studio` executable.
 - A writable temporary or test directory.
 - One known-good JPEG or PNG and, when RAW coverage is needed, one
-  LibRaw-supported Bayer RAW fixture.
+  LibRaw-supported Bayer or X-Trans RAW fixture.
+- A second disposable photo when selective parameter copy/paste is included.
 
 ## Minimum Studio path
 
@@ -27,12 +28,16 @@ paths.
 6. Switch the right scope through Histogram, Waveform, Parade, Vectorscope, and Split.
 7. Set a rating, a color label, and Reject/Keep; confirm the tile updates.
 8. Enter Edit, change one Light or Color control, then enable Canvas, Output
-   Frame, or Text Watermark; confirm preview, Before/After, Undo, and Redo.
-9. Create a labeled Snapshot, change a control again, and restore the snapshot.
-10. Export a PNG or JPEG to a new path and verify its dimensions and bytes.
-11. Attempt the same export path again and confirm that a conflict is reported
+   Frame, or Text Watermark; confirm preview, Before/After, the **Y|Y**
+   synchronized left/right comparison, Undo, and Redo.
+9. Save one explicitly selected modified parameter as a managed preset. Copy a
+   selected parameter, paste it onto a second photo, and confirm unrelated
+   target edits remain unchanged.
+10. Create a labeled Snapshot, change a control again, and restore the snapshot.
+11. Export a PNG or JPEG to a new path and verify its dimensions and bytes.
+12. Attempt the same export path again and confirm that a conflict is reported
     and the first file is unchanged.
-12. Close and reopen the same library; confirm review state, recipe, history,
+13. Close and reopen the same library; confirm review state, recipe, history,
     and preview are restored.
 
 ## Recovery checks
@@ -45,6 +50,9 @@ paths.
 - Use **Remove from Catalog** and confirm that the original remains on disk.
 - Test **Delete from Disk** only with a disposable copy and confirm the explicit
   confirmation boundary.
+- Confirm `catalog sidecar-status` reports the imported asset synchronized,
+  create a backup at an absent directory, and verify it. Confirm the backup has
+  no original or preview payload.
 
 ## CLI path
 
@@ -57,11 +65,15 @@ ravo catalog list --catalog <test-catalog.sqlite> --json
 ravo catalog preview --catalog <test-catalog.sqlite> --asset-id <id> --json
 ravo develop-fields --json
 ravo catalog probe --catalog <test-catalog.sqlite> --asset-id <id> --baseline --json
+ravo catalog sidecar-status --catalog <test-catalog.sqlite> --asset-id <id> --json
 ravo catalog export --catalog <test-catalog.sqlite> --asset-id <id> \
   --output <test-output.png> --format png --json
 ravo catalog export-batch --catalog <test-catalog.sqlite> \
   --asset-id <id> --output-dir <existing-output-directory> \
   --filename-template '{stem}-{sequence}{ext}' --format png --json
+ravo catalog backup --catalog <test-catalog.sqlite> \
+  --backup <absent-backup-directory> --json
+ravo catalog backup-verify --backup <created-backup-directory> --json
 ```
 
 The CLI path must use the same catalog and source as Studio when checking
@@ -73,5 +85,7 @@ cross-client persistence. Do not use the old CLI, old CTest project, or
 - The library opens and reopens without losing records.
 - Import, duplicate, unsupported, missing, and conflict results are explicit.
 - Review state and recipe edits persist across restart.
+- Recovery generation is synchronized, and the catalog backup verifies while
+  excluding originals and previews.
 - Preview and export never overwrite the original or an existing destination.
 - CLI JSON has one `ravo.cli.result` object and a correct `ok` value.

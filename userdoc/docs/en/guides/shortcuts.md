@@ -5,7 +5,7 @@
 Find Studio actions quickly from the keyboard and understand when a command is
 disabled.
 
-**Last verified:** 2026-08-27 against the current Studio command registry.
+**Last reviewed:** 2026-08-31 against the current Studio command registry.
 
 ## Command palette
 
@@ -33,27 +33,28 @@ modifier.
 | Open Library | `Cmd/Ctrl+O` |
 | Import Photos | `Cmd/Ctrl+I` |
 | Import Folder | `Cmd/Ctrl+Shift+I` |
-| Export Photo | `Cmd/Ctrl+Shift+E` |
+| Export Selected | `Cmd/Ctrl+Shift+E` |
 | Close Window | `Cmd/Ctrl+W` |
 | Settings | `Cmd/Ctrl+,` |
 | Assistant | `Cmd/Ctrl+Shift+A` (also the top-toolbar Assistant button) |
 | Quit Ravo Studio | `Cmd/Ctrl+Q` |
 | Undo | `Cmd/Ctrl+Z` |
 | Redo | `Cmd/Ctrl+Shift+Z` |
-| Copy Edits | `Cmd/Ctrl+Shift+C` |
-| Paste Edits | `Cmd/Ctrl+Alt+V` |
+| Copy Parameters | `Cmd/Ctrl+Shift+C` |
+| Paste Parameters | `Cmd/Ctrl+Alt+V` |
 | Reset All Edits | `Cmd/Ctrl+Shift+R` |
-| Gallery | `1` |
-| Loupe | `2` |
-| Edit | `3` |
-| Fit | `0` |
-| Fill | `9` |
-| Actual Size | `Cmd/Ctrl+Alt+0` |
+| Gallery | `Cmd/Ctrl+1` or `G` |
+| Loupe | `Cmd/Ctrl+2`, `E`, or Return |
+| Edit | `Cmd/Ctrl+3` or `D` |
+| Fit | `Cmd/Ctrl+0` or `F` |
+| Fill | `Cmd/Ctrl+9` |
+| Actual Size | `Cmd/Ctrl+Alt+0` or `Shift+1` |
 | Before / After | `\` |
+| Left / Right comparison | `Y` |
 | Previous / Next Photo | Left / Right Arrow |
 | Crop & Rotate | `R` |
-| Rotate Left / Right | `[` / `]` |
-| Flip Horizontal / Vertical | `H` / `V` |
+| Rotate Left / Right | `Cmd/Ctrl+[` / `Cmd/Ctrl+]` |
+| Flip Horizontal / Vertical | `Cmd/Ctrl+Shift+H` / `Cmd/Ctrl+Shift+V` |
 | Reject | `X` |
 | Remove from Catalog | Delete or Backspace |
 
@@ -67,8 +68,9 @@ where the cross-platform command definition uses Ctrl.
 - `Shift+Left` and `Shift+Right` extend the selection to the previous or next
   photo when that action is available.
 
-Review actions can operate on the selected set. Loupe, Edit, Inspector, and
-export use the active photo.
+Review actions and batch export can operate on the selected set. Loupe, Edit,
+and Inspector use the active photo; single-photo export uses that primary
+selection.
 
 ## Menus and controls
 
@@ -93,8 +95,8 @@ focus. Finish or cancel the text edit, then use the command.
 ### Why is a command visible but disabled?
 
 The command registry keeps unavailable actions visible with a reason. For
-example, Export Photo needs an open library and active photo, while Undo needs
-an available edit history.
+example, Export Selected needs an open library and at least one selected photo,
+while Undo needs an available edit history.
 
 ### Why does macOS show Command instead of Ctrl?
 

@@ -1,17 +1,19 @@
-# File Paths and Recovery
+# File Paths, Backups, and Recovery
 
 ## Goal
 
 Recover from missing originals, unavailable destinations, preview-cache issues,
-or catalog-open problems while preserving the files that still exist.
+pending recovery mirrors, or catalog-open problems, and create a verified
+catalog backup without confusing it with an original-media backup.
 
-**Last verified:** 2026-08-27 against the current catalog, cache, and atomic
-publication contracts.
+**Last reviewed:** 2026-08-31 against the current catalog schema-v6 recovery,
+backup, cache, and atomic-publication contracts.
 
 ## Applies to
 
 - Ravo Studio's local catalog and preview cache.
 - Local `ravo` CLI workflows.
+- Catalog-owned recovery mirrors and CLI catalog backup/verification.
 
 ## Original files are references
 
@@ -45,7 +47,7 @@ unmounted.
 The default cache is adjacent to the catalog:
 
 ```text
-<catalog>.sqlite.preview/
+<catalog>.preview/
 ```
 
 It contains rebuildable PNG previews and is not the source of truth for recipes
@@ -53,8 +55,74 @@ or review state. If a cache entry is missing, Ravo can regenerate it from a
 readable original. If the source is missing, cache regeneration cannot succeed.
 
 Do not treat a cached preview as an archival copy of the original RAW or raster
-file. For backup, preserve both the SQLite catalog and the referenced source
-files.
+file. Verified catalog backup deliberately excludes this cache.
+
+## Catalog-owned recovery mirrors
+
+Durable catalog state has a separate support root:
+
+```text
+<catalog>.ravo/sidecars/
+```
+
+Each asset's current generation is a bounded, checksummed `.ravo.json` snapshot
+of source identity, review/capture state, tags, writable metadata, recipe, and
+history. These files are derived from SQLite after a successful catalog commit.
+They are not placed beside originals, are never imported automatically, and do
+not become a second live edit authority.
+
+Studio and the CLI retry pending generations when a catalog opens or closes.
+Inspect or explicitly synchronize them with:
+
+```text
+ravo catalog sidecar-status --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog sidecar-status --catalog "/work/Ravo Library.sqlite" \
+  --asset-id <asset-id> --json
+ravo catalog sidecar-sync --catalog "/work/Ravo Library.sqlite" --json
+```
+
+Without `--asset-id`, status lists pending generations only. A mutation can
+commit to SQLite while filesystem publication fails; the error then reports
+`catalog_committed=true` and `recovery_pending=true`. Do not repeat the
+catalog edit blindly. Repair the support-directory problem and run
+`sidecar-sync` or reopen the catalog.
+
+Do not hand-edit, rename, or copy one recovery JSON back into the live catalog.
+Restore from these artifacts is not an accepted command yet.
+
+## Create and verify a catalog backup
+
+For a healthy catalog, prefer the supported backup command over copying a live
+SQLite filename:
+
+```text
+ravo catalog backup --catalog "/work/Ravo Library.sqlite" \
+  --backup "/backups/Ravo-2026-08-31" --json
+ravo catalog backup-verify --backup "/backups/Ravo-2026-08-31" --json
+```
+
+The backup destination must not exist. Creation drains pending recovery,
+integrity-checks and snapshots the live database, removes rebuildable preview
+rows, copies the exact recovery generations, verifies the staged result, and
+publishes the directory without replacement. The result has exactly:
+
+```text
+Ravo-2026-08-31/
+├── catalog.sqlite
+├── manifest.json
+└── sidecars/
+```
+
+`backup-verify` is self-contained and takes no `--catalog`; it verifies the
+strict layout, hashes, identities, sidecar generations, SQLite integrity, and
+the absence of preview rows without opening the snapshot as a live library.
+
+!!! warning
+
+    A verified catalog backup excludes originals and previews. Back up every
+    referenced original separately. Ravo currently has no restore command,
+    scheduled retention, cloud destination, or Studio backup UI; verification
+    proves artifact integrity, not restorability through a supported workflow.
 
 ## Catalog open errors
 
@@ -84,24 +152,33 @@ previous output is important, preserve it before retrying.
 ## Safe recovery sequence
 
 1. Stop the current import or export if it is still running.
-2. Copy the catalog file before attempting filesystem repair.
-3. Verify that the original path exists and is readable.
+2. If the catalog still opens, inspect pending recovery and create then verify a
+   new backup at an absent destination.
+3. Verify that every required original path exists and is readable; remember
+   that the catalog backup does not contain those files.
 4. Reopen the catalog and select the affected asset.
-5. Let Ravo rebuild the preview, then verify the image and review state.
+5. Let Ravo rebuild the preview, then verify the image, review state, recipe,
+   and history.
 6. Export to a new destination and check the result independently.
+
+If the catalog cannot open, close every Ravo process before making a forensic
+filesystem copy. Preserve the catalog, its `.ravo` support directory, and any
+same-name SQLite `-wal` / `-shm` files that still exist. That raw copy is not
+a verified Ravo backup, but it avoids destroying evidence before diagnosis.
 
 ## Result
 
-Recovery distinguishes catalog records, source files, cache files, and output
-files. You can restore one layer without accidentally deleting another.
+Recovery distinguishes catalog records, recovery mirrors, verified backup
+artifacts, source files, cache files, and outputs. Work on the affected layer
+without deleting another one or mistaking verification for restore.
 
 ## Common questions
 
 ### Can I delete the `.preview` directory to fix a stale preview?
 
 Previews are rebuildable, but remove or replace cache data only when Studio is
-closed and keep a backup if the workspace is important. The catalog and original
-files are the durable inputs.
+closed. First create and verify a catalog backup when the library is healthy,
+and preserve the originals separately.
 
 ### Will reopening the catalog relink moved photos?
 
@@ -112,3 +189,9 @@ external filesystem arrangement that makes the recorded path valid again.
 
 No. **Remove from Catalog** leaves the original on disk. **Delete from Disk** is
 the separate, confirmed, irreversible action.
+
+### Can I open `catalog.sqlite` inside a backup directly?
+
+No supported workflow does that. `backup-verify` treats the directory as a
+read-only artifact. Catalog restore and publication to a new live destination
+remain unfinished.

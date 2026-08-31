@@ -7,7 +7,7 @@ format boundary from a regression. A file suffix is only an import candidate;
 the actual container, pixel layout, profile, and decoder support still decide
 the result.
 
-**Last verified:** 2026-08-28 against the current decoder, encoder, and import
+**Last reviewed:** 2026-08-31 against the current decoder, encoder, and import
 candidate contracts.
 
 ## Input coverage
@@ -16,7 +16,7 @@ candidate contracts.
 | --- | --- | --- |
 | JPEG | `.jpg`, `.jpeg` | Baseline raster import, preview, Develop, and rendered export. RGB layouts and supported ICC state are required. |
 | PNG | `.png` | Baseline raster import, preview, Develop, and rendered export. Unsupported color types, interlace/encoding variants, or invalid color metadata fail explicitly. |
-| TIFF | `.tif`, `.tiff` | Baseline single-page raster layouts can be imported when the Qt TIFF plugin is present. BigTIFF, multi-page, tiled, floating-point, planar, unsupported compression, and unsupported sample layouts are outside the current input contract. |
+| TIFF | `.tif`, `.tiff` | Classic TIFF and structurally valid BigTIFF can import supported single-page contiguous 8/16-bit integer RGB or gray layouts when the Qt TIFF plugin is present. Multi-page, SubIFD, tiled, floating-point, planar, unsupported compression, and unsupported sample layouts fail explicitly. |
 | BMP | `.bmp` | Candidate raster input through the Qt image path; validate with a real file on the target kit. |
 | GIF | `.gif` | Candidate raster input through the required Qt GIF plugin; validate with a real file on the target kit. |
 | WebP | `.webp` | Candidate raster input through the required Qt WebP plugin; validate with a real file on the target kit. |
@@ -31,7 +31,7 @@ supported by copying or renaming them.
 | Output | Current behavior | User-facing options |
 | --- | --- | --- |
 | PNG | Opaque 8-bit or 16-bit output with resolved supported ICC state. | Studio format selection; CLI `--png-bit-depth 8|16` and `--png-compression 0..9`, defaults 8/5. A 16-bit request from an 8-bit source is structurally unsupported. |
-| JPEG | Opaque rendered output with resolved supported ICC state. | Studio format selection; CLI `--quality 5..100`, default 95. |
+| JPEG | Opaque rendered output with resolved supported ICC state. | Studio and CLI quality 5–100 (default 95) plus `auto|444|440|422|420` chroma subsampling. |
 | TIFF | Classic little-endian, top-left, contiguous output with baseline directory metadata and supported ICC state. | Studio format selection; CLI sample type, compression, level, and optional grayscale. Default is uint8 / Deflate predictor / level 6 / RGB / 300 DPI. |
 | Original copy | Exact source bytes copied to a new destination. | Studio filter or CLI `--format original`, `copy`, or `original-copy`. No Develop rendering. |
 
@@ -48,9 +48,11 @@ requests. TIFF-qualified flags are valid only with TIFF export.
 - Supported encoded outputs retain the resolved RGB profile where the format
   contract permits it.
 - Rendered JPEG/PNG/TIFF write the bounded Catalog-owned Exif/XMP/IPTC subset,
-  including validated capture time/offset/GPS. Arbitrary source-packet copying,
-  metadata refresh, privacy stripping, history interchange, and generated
-  sidecars are not part of the current general export contract.
+  including validated capture time/offset/GPS. Capture refresh and
+  full/no-location/none privacy are explicit catalog/export operations.
+  Arbitrary source-packet copying and adjacent history-sidecar interchange are
+  not part of the current export contract. Catalog-owned recovery JSON is a
+  separate durability artifact.
 
 ## Test evidence guidance
 

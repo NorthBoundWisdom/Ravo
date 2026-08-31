@@ -5,7 +5,7 @@
 Create one or a batch of local rendered outputs, or exact original copies,
 while preserving catalog recipes and refusing unsafe destination conflicts.
 
-**Last verified:** 2026-08-29 against the current CatalogService export path and
+**Last reviewed:** 2026-08-31 against the current CatalogService export path and
 CLI options.
 
 ## Applies to
@@ -136,7 +136,8 @@ If rendering, encoding, cancellation, or the final write fails, no partial
 current item is treated as successful. In a batch, earlier completed files are
 kept and the error reports the completed count, failed index/asset/path, and
 whether delivery is partial; Ravo never deletes already delivered user output.
-Original files and sidecar files are not modified by a rendered export.
+Original files and adjacent interchange sidecar files are not modified by a
+rendered export.
 
 ## Result
 
@@ -159,10 +160,12 @@ Rendered output follows the current preview/render size and optional
 
 ### Why did a TIFF request fail when the sample type is valid?
 
-The option is valid in the typed contract, but the current rendered source is
-RGB8. Higher-precision TIFF publication is intentionally not fabricated yet.
+The option can be valid while that particular rendered source is only RGB8.
+Ravo publishes uint16/float16/float32 only when the engine supplies matching
+higher-precision samples; it does not expand RGB8 into invented precision.
 
 ### Can export repair a missing original?
 
 No. Rendered export needs the original at its recorded path. Original-copy also
-needs the source to be readable. See [File paths and recovery](../troubleshooting/file-paths-and-recovery.md).
+needs the source to be readable. See
+[File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md).

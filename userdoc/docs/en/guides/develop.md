@@ -5,7 +5,7 @@
 Make non-destructive edits to a selected photo, inspect their effect, and keep
 or recover the result through the catalog recipe and history.
 
-**Last verified:** 2026-08-29 against the current Develop recipe and Studio
+**Last reviewed:** 2026-08-31 against the current Develop recipe and Studio
 presenter contracts.
 
 ## Applies to
@@ -25,8 +25,9 @@ presenter contracts.
 2. Switch the top view control to **Edit**, or choose **View → Edit**.
 3. Adjust a control, wait for the preview, and commit the value when you finish
    editing it.
-4. Use **Before / After** to compare the current rendered result with the
-   unedited product baseline.
+4. Use **Before / After** to toggle the current rendered result against the
+   unedited product baseline, or use the **Y|Y** toolbar control for a
+   synchronized left/right comparison.
 5. Continue editing, create a snapshot, or return to Gallery.
 
 Ravo stores a versioned recipe for a non-baseline edit in the catalog. The
@@ -306,7 +307,7 @@ The current pane exposes:
 
 Use the reset button beside a control when you want to remove only that effect.
 
-## Reuse edits as a Recipe Style
+## Reuse edits as styles and presets
 
 Use **File → Save Edits as Style…** to write the selected photo's complete
 canonical edit state to `.rstyle.json`. The artifact includes operation order,
@@ -315,14 +316,27 @@ asset identity. Use **File → Apply Recipe Style…** on another selected photo
 replace its current edit recipe; the result enters normal history and can be
 undone during the session.
 
-Ravo validates the complete template before applying it. Legacy `.dtstyle`
-files are not partially imported because their dynamic IOP parameters may not
-have accepted Ravo equivalents.
+This complete replacement is recipe-style schema v1. Ravo validates the whole
+template before applying it. Legacy `.dtstyle` files are not partially
+imported because their dynamic IOP parameters may not have accepted Ravo
+equivalents.
 
-The Edit left rail lists **Presets** above History. **Import…** copies a
-Lightroom Classic `.xmp` or a Ravo `.rstyle.json` into a `Ravo Presets` folder
-next to the open library, then applies it to the selected photo. Click a listed
-preset to apply it again. **File → Import Preset…** is the same command.
+The Edit left rail lists **Presets** above History:
+
+- **Import…** copies a Lightroom Classic `.xmp` or a Ravo `.rstyle.json` into
+  a `Ravo Presets` folder next to the open library, then applies it to the
+  selected photo. **File → Import Preset…** is the same command.
+- **Save…** opens the modified-parameter chooser. Only changes relative to the
+  selected photo's product baseline are listed, nothing is selected by
+  default, and a name plus at least one explicit selection is required.
+  Successful save creates a schema-v2 `.rstyle.json` in `Ravo Presets`;
+  an existing name is a conflict and is not overwritten.
+- Clicking a schema-v2 preset overlays only its selected logical fields while
+  preserving every unselected target edit. Compound curves, profiles, Retouch,
+  output layout, and mask-backed operations remain atomic choices; required
+  mask nodes are merged and validated. A schema-v1 preset still replaces the
+  complete recipe.
+
 Right-click a listed preset and choose **Copy Info** to copy its name, path,
 kind, size, and SHA-256. Paste that block together with a photo **Copy Info**
 block to identify the exact library photo and preset file.
@@ -366,15 +380,22 @@ Equalizer is a separate earlier section.
 
 ## Before and After
 
-Press **Before / After** in the Edit pane or use the View compare command. The
-image surface switches between the current edited result and the selected
-photo's product baseline. It does not replace the stored recipe and does not
-rewrite the preview cache as a new edit.
+Press **Before / After** in the Edit pane, use the View compare command, or
+press `\`. The image surface toggles between the current edited result and the
+selected photo's product baseline. It does not replace the stored recipe and
+does not rewrite the preview cache as a new edit.
+
+For a simultaneous comparison, press the **Y|Y** toolbar button or `Y`. Studio
+shows the immutable product baseline on the left and the live edited preview on
+the right. Both panes share Fit/Fill/1:1, zoom, and pan. This comparison is
+transient and closes when the selection changes, Edit closes, or crop,
+white-balance pick, or mask editing takes the image surface.
 
 ## Undo, redo, reset, and snapshots
 
-- **Undo**, **Redo**, **Before / After**, **Reset all**, **Copy**, and **Paste**
-  live on the left History rail. Undo and Redo are the session stack for
+- **Undo**, **Redo**, **Before / After**, **Reset all**, **Copy Parameters**, and
+  **Paste Parameters** live on the left History rail. Undo and Redo are the
+  session stack for
   Develop-panel commits, history restore, Original, snapshot restore, paste,
   and reset. Live slider or crop drags stay in memory until they are committed.
   Undo and Redo then save the resulting recipe through the same catalog
@@ -384,13 +405,14 @@ rewrite the preview cache as a new edit.
   one Undo returns to the value before the sequence. Changing controls, leaving
   Edit, selecting another photo, using Undo/Redo or History, creating a
   snapshot, or an intervening external edit starts a new row.
-- **Copy Edits** (`Cmd/Ctrl+Shift+C`) stores the current complete develop
-  recipe in a session clipboard. **Paste** (`Cmd/Ctrl+Alt+V`) applies that
-  whole recipe to the active photo as a normal history step, including masks.
-  **Paste Light** applies White Balance, Light, and Curves. **Paste Color** applies
-  Color, Color Equalizer, and Camera Calibration and keeps the destination
-  photo's mask attachments. The clipboard is not a file and is not the system pasteboard.
-  Style save/apply remains the portable artifact.
+- **Copy Parameters** (`Cmd/Ctrl+Shift+C`) opens the same initially-empty
+  chooser as selective preset saving and lists only baseline-relative
+  modifications. After you explicitly select fields, Studio stores that
+  immutable parameter snapshot in a session clipboard. **Paste Parameters**
+  (`Cmd/Ctrl+Alt+V`) overlays only those selected logical fields on the active
+  photo through normal history, undo, validation, and preview. Unselected
+  destination edits and target-only mask state are preserved. The clipboard is
+  not a file or the system pasteboard; a style remains the portable artifact.
 - A control reset changes one field back to its default.
 - A mask-control reset keeps its attached editable mask. **Reset to all**
   changes that mask to All, while **Detach mask** removes only the current

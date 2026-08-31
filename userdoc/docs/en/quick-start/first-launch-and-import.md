@@ -5,7 +5,7 @@
 Create or open a local library, import photos by reference, and confirm that
 the first previews appear in Gallery.
 
-**Last verified:** 2026-08-27 against the current Studio and catalog service
+**Last reviewed:** 2026-08-31 against the current Studio and catalog service
 contracts.
 
 ## Applies to
@@ -80,6 +80,9 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 - A rebuildable preview is written outside the SQLite file. RAW Gallery
   thumbnails may use a readable embedded JPEG; Loupe, Develop, scopes, and
   export use the processed CPU path.
+- Durable catalog changes also produce a catalog-owned recovery generation
+  under `<catalog>.ravo/sidecars/`. This is not an adjacent XMP file and is
+  never read as an edit authority.
 - The original file is not moved, copied, renamed, or rewritten.
 
 ## Progress and results
@@ -101,6 +104,9 @@ Keep the exact error text when troubleshooting.
 - Selecting a photo loads its thumbnail and, when needed, a larger preview.
 - Restarting Studio and reopening the same `.sqlite` file restores the catalog
   records; missing previews can be rebuilt from still-readable originals.
+- For a durable copy of catalog state, use the verified CLI backup workflow in
+  [File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md);
+  copying only the SQLite filename while Studio is active is not that workflow.
 
 ## Common questions
 
@@ -114,7 +120,7 @@ record for it. This is expected protection against duplicate entries.
 The catalog keeps the original path; it does not track a moved file. The asset
 remains in the library with its review and recipe state, but previews and export
 cannot regenerate until the original is available at the recorded path. See
-[File paths and recovery](../troubleshooting/file-paths-and-recovery.md).
+[File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md).
 
 ### Can I import a whole folder without copying it?
 

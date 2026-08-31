@@ -5,7 +5,7 @@
 Complete one short path through library management, review, viewing, Develop,
 and export.
 
-**Last verified:** 2026-08-27 against the current Studio command registry and
+**Last reviewed:** 2026-08-31 against the current Studio command registry and
 QML workspace.
 
 ## Applies to
@@ -17,6 +17,7 @@ QML workspace.
 
 - A library is open.
 - At least one photo has been imported and its original is readable.
+- A second photo is available when you want to exercise parameter copy/paste.
 
 ## Five-minute route
 
@@ -32,12 +33,16 @@ QML workspace.
 5. Switch the right-side scope through **Histogram**, **Waveform**, **Parade**,
    **Vectorscope**, and **Split**.
 6. Switch the top view control to **Edit**. Change one light or color control,
-   wait for the preview, then press **Before / After**.
-7. Press **Undo**, then **Redo**. Use the individual reset button or **Reset
+   wait for the preview, then press **Before / After**. Press **Y|Y** to compare
+   the immutable baseline and live edit side by side with shared zoom and pan.
+7. Choose **Copy Parameters**, explicitly select that changed field, move to a
+   second photo, and use **Paste Parameters**. Unselected target edits remain
+   unchanged.
+8. Press **Undo**, then **Redo**. Use the individual reset button or **Reset
    all** if you do not want to keep the change.
-8. Return to **Gallery**, select the edited photo, and choose **File → Export
-   Photo**. Pick PNG, JPEG, TIFF, or Original copy and choose a new path.
-9. Close and reopen Studio with the same library to confirm that review state
+9. Return to **Gallery**, select the edited photo, and choose **File → Export
+   Selected**. Pick PNG, JPEG, TIFF, or Original copy and choose a new path.
+10. Close and reopen Studio with the same library to confirm that review state
    and the edit survive a restart.
 
 ## What each area is for
@@ -49,7 +54,7 @@ QML workspace.
 | Library panel | Folders, tag filtering, import, export, and a small navigator. |
 | Center stage | Gallery grid, Loupe preview, or Edit image/crop surface. |
 | Review bar | Thumbnail size, rating, color label, Keep/Reject, Previous, and Next. |
-| Inspector | Photo information, catalog metadata, history, Develop controls, and scopes. |
+| Inspector | Photo information, catalog metadata, presets, history, Develop controls, and scopes. |
 | Filmstrip | Whole-photo thumbnails with sequence number, rating, flags, and edit state. |
 | Status bar | Import, preview, loading, success, and error feedback. |
 

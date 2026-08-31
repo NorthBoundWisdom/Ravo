@@ -5,7 +5,7 @@
 Use the local library to organize referenced photos, review them quickly, and
 keep catalog state separate from original files.
 
-**Last verified:** 2026-08-27 against the current catalog schema and Studio
+**Last reviewed:** 2026-08-31 against the current catalog schema and Studio
 review workflow.
 
 ## Applies to
@@ -36,8 +36,16 @@ the default preview root is:
 /work/Ravo Library.sqlite.preview/
 ```
 
-The cache can be rebuilt from readable originals. The catalog does not become a
-copy of the source folder.
+The cache can be rebuilt from readable originals. Durable catalog changes have
+a separate catalog-owned recovery mirror under:
+
+```text
+/work/Ravo Library.sqlite.ravo/sidecars/
+```
+
+That support directory contains versioned, checksummed recovery JSON; it is not
+an adjacent photo sidecar or a second edit authority. The catalog does not
+become a copy of the source folder.
 
 ## Open or create a library
 
@@ -109,10 +117,10 @@ already matches camera make/model.
 - Use **Previous** and **Next**, or the Left/Right arrow commands, to move the
   active photo through the current visible order.
 
-The active photo is the one shown in Loupe, Edit, the Inspector, and export.
+The active photo is the one shown in Loupe, Edit, and the Inspector.
 Review actions such as rating, color label, reject state, tags, and catalog
-metadata can apply to the current selection. Develop and export operate on the
-active photo.
+metadata can apply to the current selection. Develop operates on the active
+photo; export uses one active photo or the current multi-selection.
 
 ## Rate, label, and reject photos
 
@@ -130,6 +138,11 @@ Use the bottom review bar, the **Photo** menu, or the photo context menu:
   the complete canonical recipe JSON. It includes in-memory adjustments that
   have not yet been saved; QML does not translate or reformat the parameter
   names and values.
+
+The photo context-menu **Copy Parameters** command above writes diagnostic text
+to the system clipboard. The Edit History rail's command with the same visible
+name opens a field chooser and stores selected Develop values in Studio's
+session clipboard; it does not expose recipe JSON.
 
 These states are catalog values. They do not modify the original image. Rating,
 label, and reject state are also visible in the thumbnail and filmstrip when
@@ -152,17 +165,33 @@ guide](cli.md).
 Use **Photo → Refresh Capture Metadata** when the original's embedded capture
 tags changed after import. Refresh replaces the Catalog capture snapshot and
 file identity atomically; malformed or unreadable metadata leaves the prior
-Catalog values in place. It never writes the original or a sidecar.
+Catalog values in place. It never writes the original or an adjacent
+interchange sidecar; the committed catalog change advances its recovery
+generation normally.
 
 Writable metadata is catalog metadata. It is not written back into the source
 file during review or editing. Rendered JPEG/PNG/TIFF write the bounded
 Catalog-owned public metadata snapshot, including validated capture
 time/offset/GPS; TIFF also maps current writable values into its baseline
-directory metadata. Arbitrary source-packet copying, metadata refresh,
-and privacy stripping remain outside the current contract. Sidecar behavior is
-intentional: Studio never automatically reads or writes adjacent sidecars;
-legacy XMP conversion is an explicit CLI operation and rendered XMP is embedded
-only in the new destination.
+directory metadata. Export can keep full metadata, remove location, or omit
+public metadata; explicit capture refresh updates the catalog snapshot.
+Arbitrary source-packet copying remains outside the contract. Adjacent-sidecar
+behavior is intentional: Studio never automatically reads or writes XMP beside
+the original; legacy XMP conversion is explicit and rendered XMP is embedded
+only in the new destination. Catalog-owned recovery JSON is a separate
+durability artifact and is never imported as interchange metadata.
+
+## Recovery state and catalog backups
+
+Normal durable edits advance an asset-local recovery generation. Ravo retries
+an unpublished generation when the catalog opens or closes, and the CLI can
+inspect or synchronize it explicitly. The CLI can also create and independently
+verify an immutable catalog backup that includes the database snapshot and
+recovery mirrors but excludes originals and rebuildable previews.
+
+Studio does not yet expose backup, verification, or restore controls. Use the
+commands and safety boundaries in
+[File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md).
 
 ## Remove a photo
 

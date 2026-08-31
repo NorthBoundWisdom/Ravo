@@ -49,10 +49,28 @@ contracts.
 - [ ] Exercise Velvia strength and mid-tones bias at both endpoints; confirm
       preview, save/reopen, export, reset, and an attached mask agree.
 - [ ] Confirm interactive preview cannot replace a newer committed request.
-- [ ] Exercise Before/After, per-control reset, section reset, Reset all,
-      Undo, Redo, and Copy/Paste Edits onto a second photo.
+- [ ] Exercise the Before/After toggle and the synchronized left/right
+      comparison; confirm both comparison panes share zoom and pan.
+- [ ] Exercise per-control reset, section reset, Reset all, Undo, and Redo.
+- [ ] Copy an explicit parameter subset onto a second photo and confirm every
+      unselected target edit remains unchanged.
+- [ ] Save a managed selective preset with no default selections, apply it to a
+      second photo, and confirm a schema-v1 complete style still replaces the
+      complete recipe.
 - [ ] Create, list, and restore a labeled snapshot.
 - [ ] Close and reopen; confirm recipe, history, and Edited state persist.
+
+## Recovery and backup
+
+- [ ] Inspect one asset's recovery generation and the catalog-wide pending set.
+- [ ] Force or repair a pending recovery generation, synchronize it, and confirm
+      the catalog edit was not repeated or rolled back.
+- [ ] Create a backup at an absent directory and verify it without
+      `--catalog`.
+- [ ] Confirm the backup contains only `catalog.sqlite`, `manifest.json`, and
+      `sidecars/`, with no original or preview payload.
+- [ ] Confirm an existing backup destination conflicts and a tampered artifact
+      fails verification.
 
 ## Export and CLI
 

@@ -17,7 +17,8 @@ workflows.
   source; it does not copy, move, rename, or rewrite the original during
   import or editing.
 - The library is a local SQLite file. Rebuildable preview PNGs live outside
-  the database, beside it in a `<catalog>.preview/` directory.
+  the database, beside it in a `<catalog>.preview/` directory. Catalog-owned
+  recovery JSON lives separately under `<catalog>.ravo/sidecars/`.
 - Editing is non-destructive. Develop settings are stored as versioned recipes;
   previews and exports use the same CPU image engine.
 
@@ -39,12 +40,19 @@ workflows.
   filter by media/edit/review/tag/folder/capture fields, and sort deterministically.
 - Edit a selected photo with geometry, profile, exposure, color, detail,
   effects, RAW repair, lens, and tone controls.
-- Compare Before and After, reset controls or sections, undo and redo changes,
-  create snapshots, and restore recipe history.
+- Compare Before and After as a toggle or synchronized left/right view, reset
+  controls or sections, undo and redo changes, create snapshots, and restore
+  recipe history.
+- Save selected modified parameters as a managed preset, or copy an explicit
+  parameter subset to another photo without resetting unrelated edits.
 - Store catalog tags and writable metadata without changing the source file.
 - Export a rendered photo as PNG, JPEG, or TIFF, or make an exact original
   copy. Existing destination files are never overwritten implicitly.
 - Run the same catalog, preview, recipe, and export paths through `ravo`.
+- Inspect or synchronize recovery generations and create or verify an immutable
+  catalog backup through `ravo`. Backups exclude originals and previews.
+- Switch Studio among English, German, Spanish, French, Brazilian Portuguese,
+  Simplified or Traditional Chinese, Japanese, and Korean.
 - Open a floating Assistant panel and configure its URL, model, and API key in
   Settings.
 
@@ -64,7 +72,10 @@ workflows.
 - [Export and sharing](guides/export-and-share.md) — choose an output format
   and understand conflict behavior.
 - [CLI](guides/cli.md) — automate inspection, catalog operations, recipes,
-  preview diagnostics, and export.
+  preview diagnostics, recovery/backup, and export.
+- [File paths, backups, and recovery](troubleshooting/file-paths-and-recovery.md)
+  — distinguish originals, catalog state, recovery mirrors, previews, and
+  verified backups.
 
 ## Recommended reading order
 
@@ -76,7 +87,8 @@ workflows.
 6. [Develop](guides/develop.md)
 7. [Export and sharing](guides/export-and-share.md)
 8. [Settings](guides/settings.md)
-9. [Troubleshooting](troubleshooting/import-failures.md)
+9. [File paths, backups, and recovery](troubleshooting/file-paths-and-recovery.md)
+10. [Troubleshooting import failures](troubleshooting/import-failures.md)
 
 ## How this handbook is organized
 

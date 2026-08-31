@@ -3,10 +3,10 @@
 ## Goal
 
 Use `ravo` for inspection, catalog automation, recipe validation, preview
-diagnostics, and local export with machine-readable results.
+diagnostics, recovery/backup, and local export with machine-readable results.
 
-**Last verified:** 2026-08-30 against the current `ravo-cli/v1` implementation
-and macOS Debug binary.
+**Last reviewed:** 2026-08-31 against the current `ravo-cli/v1` implementation
+and committed CLI contract tests.
 
 ## Applies to
 
@@ -97,10 +97,12 @@ network listener and does not expose Assistant credentials.
 | `develop-fields` | List every closed Develop `--set` field name, kind, and range. |
 | `inspect <input>` | Inspect a supported RAW input's format, dimensions, and camera identity. |
 | `lut inspect <file.cube>` | Validate a bounded 3D LUT and report its canonical path, size, domain, title, and content fingerprint. |
+| `noise calibrate ...` / `noise inspect ...` | Fit or validate a deterministic camera-noise profile artifact without changing a photo or catalog. |
 | `recipe validate <recipe>` | Parse and validate a recipe without rendering it. |
 | `recipe import-xmp <xmp> ...` | Convert a strictly supported leftover darktable XMP subset, or a Lightroom CRS preset, into a versioned recipe file. |
+| `recipe style-create ...`, `style-validate ...`, or `style-apply ...` | Create, validate, or apply complete and selective `.rstyle.json` artifacts. |
 | `render <input> ...` | Render a validated recipe to an atomic PNG output using CPU. |
-| `catalog ...` | Create, query, edit, preview, history-manage, and export a Ravo catalog. |
+| `catalog ...` | Create, query, edit, preview, history-manage, synchronize recovery, back up, verify, and export a Ravo catalog. |
 | `studio ...` | Discover a live Studio session, inspect its selected recipe, commit strict Develop fields, and publish its latest effect. |
 
 ## Control the selected photo in a running Studio
@@ -159,9 +161,11 @@ ravo inspect "/photos/source.cr2" --json
 ```
 
 The current inspection command is the RAW inspection path. For a supported RAW
-file it reports `format`, `width`, `height`, `is_raw`, `make`, `model`, and the
-normalized input URI. Raster files should be checked through catalog import and
-preview instead. Inspection does not import, edit, or write the source.
+file it reports `format`, display dimensions, `is_raw`, camera identity, CFA
+family/size, the sensor-default demosaic mode, white-balance coefficients, DNG
+OpcodeList2/3 support and optional-skip state, and the normalized input URI.
+Raster files should be checked through catalog import and preview instead.
+Inspection does not import, edit, or write the source.
 
 ## Inspect available operations
 
@@ -182,7 +186,9 @@ ravo catalog fields --json
 
 Both commands return the same inventory. Neither needs a catalog. Each closed
 numeric or toggle field includes `name`, `kind`, `minimum`, and `maximum`.
-`watermarkText` is the one text field and is set with `--watermark-text`.
+Text fields currently include `watermarkText` and `lut3dFile`; set advertised
+text fields with `--set-text name=value`. `--watermark-text` remains a
+convenience spelling for the watermark value.
 Canonical-mask names are not a closed list; the result includes `prefixes` for
 `colorHarmonizerMask` and `graduatedMask`. Unknown, duplicate, non-finite, or
 out-of-range `--set` values fail closed.
@@ -234,6 +240,56 @@ coordinates are scaled-decimal numbers with at most six fractional digits, and
 ravo catalog list --catalog "/work/Ravo Library.sqlite" \
   --tag landscape --json
 ```
+
+## Inspect recovery state and create a catalog backup
+
+Every durable asset, review, metadata, recipe, or history mutation advances an
+asset-local recovery generation. The derived checksummed JSON is stored under
+`<catalog>.ravo/sidecars/`, never beside an original and never as a second
+live edit authority.
+
+List pending generations for the catalog, or inspect one asset even when it is
+already synchronized:
+
+```text
+ravo catalog sidecar-status --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog sidecar-status --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --json
+```
+
+Synchronize all pending generations, or one named asset:
+
+```text
+ravo catalog sidecar-sync --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog sidecar-sync --catalog "/work/Ravo Library.sqlite" \
+  --asset-id asset-123 --json
+```
+
+`sidecar-status` without an asset returns only pending states. A sync result
+reports the support root, pending counts before/after, and each published
+artifact's asset ID, generation, path, byte count, and SHA-256. A catalog write
+can be committed even when recovery publication fails; structured context then
+reports that recovery remains pending for a later open, close, sync, or backup.
+
+Create a backup at a directory that does not yet exist, then verify it without
+opening its snapshot as a live catalog:
+
+```text
+ravo catalog backup --catalog "/work/Ravo Library.sqlite" \
+  --backup "/backups/Ravo-2026-08-31" --json
+ravo catalog backup-verify --backup "/backups/Ravo-2026-08-31" --json
+```
+
+Creation drains pending recovery, snapshots and integrity-checks the database,
+removes rebuildable preview rows, copies the exact recovery generations, and
+publishes the directory without replacement. The backup contains
+`catalog.sqlite`, `manifest.json`, and `sidecars/`; its JSON result reports
+hashes, byte counts, schema/revision identity, and `verified: true`.
+`backup-verify` accepts no `--catalog` argument and is read-only.
+
+Catalog backups deliberately exclude originals and preview files. Back up the
+referenced originals separately. Restore, retention scheduling, and Studio
+backup controls are not implemented; successful verification is not a restore.
 
 ## Import files or directories
 
@@ -514,9 +570,23 @@ ravo recipe style-apply warm-repair.rstyle.json --asset-id target-asset \
   --input file:///photos/target.jpg --output target.recipe.json --json
 ```
 
-Styles are complete versioned Recipe templates. Output paths must be new;
+Styles are versioned Recipe templates. Output paths must be new;
 unknown/newer/malformed state and legacy `.dtstyle` fail instead of dropping
-operations.
+operations. The commands above create and apply schema-v1 complete-replacement
+styles.
+
+Studio can also create schema-v2 selective presets. To apply either schema to
+an existing target recipe, use the explicit target form:
+
+```text
+ravo recipe style-apply selected.rstyle.json \
+  --target-recipe target.recipe.json --output merged.recipe.json --json
+```
+
+A schema-v2 style overlays only its sorted selected logical fields and
+preserves unselected target state. It requires `--target-recipe`; the older
+`--asset-id` / `--input` form remains valid only for schema-v1 complete
+styles and will not silently widen a selective preset.
 
 ## Render a standalone recipe to PNG
 

@@ -5,7 +5,7 @@
 Distinguish an unsupported file, an unreadable source, a duplicate, and a
 directory or runtime problem without losing the catalog state you already have.
 
-**Last verified:** 2026-08-27 against the current import candidate and decoder
+**Last reviewed:** 2026-08-31 against the current import candidate and decoder
 paths.
 
 ## Applies to
@@ -64,7 +64,8 @@ successful import.
 
 The catalog record and source reference can exist even when preview generation
 fails. Select the asset again after correcting the source or runtime problem.
-If the original path is missing, follow [File paths and recovery](file-paths-and-recovery.md).
+If the original path is missing, follow
+[File paths, backups, and recovery](file-paths-and-recovery.md).
 
 ### Required Qt plugin is missing
 

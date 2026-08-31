@@ -19,6 +19,7 @@ Start with [the handbook home page](docs/en/index.md), then follow:
 5. [Viewer and scopes](docs/en/guides/viewer-and-scopes.md)
 6. [Develop](docs/en/guides/develop.md)
 7. [Export and sharing](docs/en/guides/export-and-share.md)
+8. [File paths, backups, and recovery](docs/en/troubleshooting/file-paths-and-recovery.md)
 
 The [CLI guide](docs/en/guides/cli.md) is the best entry point for automation
 and headless workflows.
@@ -55,6 +56,9 @@ published site is public.
 - Treat `Ravo/README.md` and the Ravo source as the behavior authority.
 - Keep original-file safety, rebuildable previews, structured failures, and
   explicit unsupported states visible in task instructions.
+- Distinguish SQLite authority, catalog-owned recovery mirrors, adjacent
+  interchange sidecars, and verified backups; catalog backup excludes
+  originals and previews and is not a restore workflow.
 - Describe a feature as available only when it is exposed through the current
   Studio or CLI path.
 - Record platform differences and untested release conditions instead of

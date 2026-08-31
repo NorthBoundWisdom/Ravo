@@ -5,8 +5,8 @@
 Inspect a selected photo at useful zoom levels, navigate large images, and use
 the available RGB scopes without changing the source.
 
-**Last verified:** 2026-08-27 against the current Studio viewer and scope
-presenter.
+**Last reviewed:** 2026-08-31 against the current Studio viewer, shortcut, and
+scope presenter contracts.
 
 ## Applies to
 
@@ -34,8 +34,8 @@ double-click it to open Loupe.
 ## Loupe
 
 Loupe displays the active photo on the center image surface. Use **View →
-Loupe**, double-click a thumbnail, or press `2` to enter it. A single selected
-photo is required.
+Loupe**, double-click a thumbnail, press `Cmd/Ctrl+2`, or press `E` to enter
+it. A single selected photo is required.
 
 The left navigator shows the whole preview and the current viewport rectangle.
 At a zoom that is larger than the available surface, drag the image or drag the

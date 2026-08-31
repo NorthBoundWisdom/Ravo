@@ -65,7 +65,7 @@ nav:
       - Command-line client: guides/cli.md
   - Troubleshooting:
       - Import failures: troubleshooting/import-failures.md
-      - File paths and recovery: troubleshooting/file-paths-and-recovery.md
+      - File paths, backups, and recovery: troubleshooting/file-paths-and-recovery.md
       - Known limitations: troubleshooting/known-limitations.md
       - Glossary: troubleshooting/glossary.md
   - QA Appendix:

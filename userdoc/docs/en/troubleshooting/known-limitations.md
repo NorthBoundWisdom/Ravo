@@ -5,7 +5,7 @@
 Identify current product boundaries before treating an explicit unsupported
 result as a regression.
 
-**Last verified:** 2026-08-29 against the current migration status and product
+**Last reviewed:** 2026-08-31 against the current migration status and product
 baseline.
 
 ## Current boundaries
@@ -13,8 +13,9 @@ baseline.
 ### Local-only library
 
 The current library is a local SQLite catalog with local source references and a
-local preview cache. There is no cloud catalog, remote publishing, or automatic
-cross-machine relinking.
+local preview cache. Catalog-owned recovery mirrors and verified CLI backups
+are local filesystem artifacts. There is no cloud catalog, remote publishing,
+or automatic cross-machine relinking.
 
 ### No legacy catalog migration
 
@@ -90,6 +91,15 @@ source-file action and requires confirmation.
 Ravo retains the record and recipe for a missing source, but the current Studio
 has no relink-by-search workflow. Restore the original at its recorded path.
 
+### Catalog backup is not restore
+
+The CLI can synchronize catalog-owned recovery generations and create or verify
+an immutable backup containing a database snapshot plus recovery JSON. It
+excludes originals and rebuildable previews. There is no supported restore
+command, scheduled retention policy, cloud target, or Studio backup UI yet; do
+not open the backup snapshot as a live library or describe verification as a
+restore test.
+
 ### Export scope
 
 Studio exports one active photo through a save-file dialog or an explicit
@@ -105,9 +115,12 @@ fabricating precision. Validated capture time and GPS from the Catalog are
 embedded on rendered JPEG/PNG/TIFF under explicit full, no-location, or none
 privacy.
 Ravo intentionally does not automatically read, attach, generate, watch, or
-merge sidecars. Use the explicit strict CLI XMP conversion when needed;
-rendered XMP is embedded in the destination. Full historic edit-history packet
-attachment remains outside the current contract.
+merge adjacent interchange sidecars. Use the explicit strict CLI XMP conversion
+when needed; rendered XMP is embedded in the destination. Catalog-owned
+`.ravo.json` recovery mirrors are generated under the catalog support
+directory, but they are durability artifacts and never implicit edit input.
+Full historic edit-history packet attachment remains outside the current
+interchange contract.
 
 ### Format-specific input layouts
 

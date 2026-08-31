@@ -38,8 +38,9 @@ reference. Expect gaps, evolving schemas, and platform-specific validation
 status. There is no binary release channel yet; build from source.
 
 Ravo is **not yet a complete darktable replacement**. Historic blend modes,
-remaining image operations, sidecar/history metadata policy, GPU acceleration,
-and end-to-end installation verification on every platform are still open.
+remaining image operations, adjacent-sidecar interoperability and catalog
+restore, GPU acceleration, and end-to-end installation verification on every
+platform are still open.
 [The Ravo product document](Ravo/README.md) and the
 [active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
 validation status, and next work item.
@@ -60,16 +61,20 @@ validation status, and next work item.
   renames, or rewrites source files during import or editing.
 - **A local photo library:** a portable SQLite catalog stores photos, ratings,
   color labels, rejection state, tags, metadata, and editing history. No cloud
-  account, no subscription, no telemetry.
+  account, no subscription, no telemetry. Catalog-owned recovery mirrors and
+  a verifiable CLI backup keep durable edit state separate from rebuildable
+  previews and user-owned originals.
 - **Focused browsing and culling:** gallery grid and loupe views, filmstrip,
   folder tree, Fit / Fill / 100% zoom, magnifier, filtering and sorting, plus
   histogram, waveform, RGB parade, vectorscope, and split scopes.
 - **Non-destructive develop:** edits are versioned recipes with history,
-  snapshots, undo/redo, and before/after; previews, CLI commands, and exports
-  all run through the same CPU image engine.
-- **Reusable presets and styles:** `.rstyle.json` styles capture a full recipe;
-  Lightroom Classic CRS XMP presets and strict darktable XMP history can be
-  imported through explicit commands.
+  snapshots, undo/redo, single-image before/after, and a synchronized
+  left/right comparison; previews, CLI commands, and exports all run through
+  the same CPU image engine.
+- **Reusable presets and styles:** `.rstyle.json` schema v1 captures a complete
+  recipe, while schema v2 applies an explicitly selected subset without
+  resetting unrelated target edits. Lightroom Classic CRS XMP presets and
+  strict darktable XMP history can be imported through explicit commands.
 - **Predictable export:** single or batch export to JPEG, PNG, TIFF, or an exact
   original copy, with typed format options, metadata privacy modes, and explicit
   output-conflict and cancellation results. Existing files are never silently
@@ -77,10 +82,11 @@ validation status, and next work item.
 - **Scriptable:** every catalog, recipe, render, and export capability is
   reachable from the `ravo` CLI with machine-readable JSON output. The same
   CLI can discover a running Studio session, read its revisioned selection and
-  recipe, commit strict Develop fields, and obtain the latest no-replace PNG.
+  recipe, commit strict Develop fields, obtain the latest no-replace PNG,
+  synchronize catalog recovery mirrors, and create or verify catalog backups.
 - **Localized:** Ravo Studio ships English, German, Spanish, French, Brazilian
-  Portuguese, Simplified and Traditional Chinese, Japanese, and Korean, driven by one
-  C++ command registry with menus, shortcuts, and a command palette
+  Portuguese, Simplified and Traditional Chinese, Japanese, and Korean, driven
+  by one C++ command registry with menus, shortcuts, and a command palette
   (`Cmd/Ctrl+Shift+P`).
 
 ## Supported file formats
@@ -88,30 +94,34 @@ validation status, and next work item.
 | Direction | Formats |
 | --- | --- |
 | Import | JPEG, PNG, TIFF, plus BMP / GIF / WebP through Qt image plugins |
-| RAW import | LibRaw-decoded RAW such as `.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.orf`, `.rw2` and other recognized suffixes |
+| RAW import | LibRaw-decoded RAW such as `.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.raf`, `.orf`, `.rw2` and other recognized suffixes |
 | Export | JPEG, PNG (8/16-bit), TIFF (uint8/uint16/float16/float32), or an exact original copy |
 
-Full RAW develop currently requires a **Bayer-sensor** file decoded by the
-pinned LibRaw path. Fujifilm X-Trans and other non-Bayer sensors are explicitly
-unsupported for develop today, though an embedded JPEG can still provide a
-gallery thumbnail. See the
+Full RAW develop currently accepts validated **Bayer 2×2** and **Fujifilm
+X-Trans 6×6** CFA data decoded by the pinned LibRaw path. Bayer defaults to RCD
+and can use PPG; X-Trans defaults to Markesteijn 3-pass and can use the 1-pass
+variant. Other sensor layouts and a mode chosen for the wrong CFA fail
+explicitly, though an embedded JPEG may still provide a Gallery thumbnail. See
+the
 [format coverage matrix](userdoc/docs/en/qa/format-coverage.md) for the exact
 boundaries.
 
 ## Editing and color grading tools
 
-The CPU engine currently implements RAW highlight reconstruction, hot-pixel and
-chromatic-aberration correction, denoising, lens correction, white balance,
-input/output ICC color management with soft proof, camera color calibration,
-color checker fitting, post-demosaic color reconstruction, RGB primaries,
-Color Balance RGB, color equalizer and optional color zones, color harmonizer,
-color correction and contrast, monochrome, split toning, graduated filter, RGB
-and tone curves, tone equalizer, D50 Lab sharpening, dark-channel dehazing,
-mask-based clone / heal / blur / fill retouch, canvas and output frame, dither
-and posterize, and a deterministic text watermark. RAW output uses the Sigmoid
-Standard SDR display transform. Masks form a typed graph — gradient, circle,
-ellipse, parametric, path, brush, and ordered groups — with a live Studio
-overlay.
+The CPU engine currently implements Bayer and X-Trans demosaic/RAW denoise,
+DNG GainMap and geometric corrections, RAW highlight reconstruction, hot-pixel
+and chromatic-aberration correction, profile denoising, lens and perspective
+correction, white balance, input/output ICC color management with soft proof,
+camera color calibration, color checker fitting, post-demosaic color
+reconstruction, RGB primaries, Color Balance RGB, color equalizer and optional
+color zones, color harmonizer, color correction and contrast, Velvia,
+monochrome, split toning, profile-explicit 3D LUTs, graduated filter, RGB and
+tone curves, tone equalizer, guided Texture, D50 Lab sharpening, dark-channel
+dehazing, mask-based clone / heal / blur / fill retouch, canvas and output
+frame, dither and posterize, and a deterministic text watermark. RAW output
+uses the Sigmoid Standard SDR display transform. Masks form a typed graph —
+gradient, circle, ellipse, parametric, path, brush, and ordered groups — with a
+live Studio overlay.
 
 The engine is **CPU-only today**; GPU acceleration is planned as an independent
 adapter behind the correctness and performance gates in
