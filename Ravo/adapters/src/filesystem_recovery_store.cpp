@@ -34,6 +34,13 @@
 #include "recovery_publication_internal.h"
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 #include <io.h>
 #else
 #include <unistd.h>
@@ -1148,6 +1155,22 @@ namespace
     return {};
 }
 
+[[nodiscard]] std::error_code publish_temporary_no_replace(const std::string_view temporary,
+                                                           const std::string_view output) noexcept
+{
+#ifdef _WIN32
+    const auto temporary_path = path_from_utf8(temporary);
+    const auto output_path = path_from_utf8(output);
+    if (::MoveFileExW(temporary_path.c_str(), output_path.c_str(), MOVEFILE_WRITE_THROUGH) != 0)
+        return {};
+    return std::error_code(static_cast<int>(::GetLastError()), std::system_category());
+#else
+    if (QFile::rename(qstring_from_utf8(temporary), qstring_from_utf8(output)))
+        return {};
+    return std::make_error_code(std::errc::io_error);
+#endif
+}
+
 } // namespace
 
 Result<void> publish_no_replace(const std::string_view output, const std::string_view document,
@@ -1239,7 +1262,8 @@ Result<void> publish_no_replace(const std::string_view output, const std::string
     active = check_cancellation(cancellation, output);
     if (!active)
         return active.error();
-    if (!QFile::rename(qstring_from_utf8(temporary), qstring_from_utf8(output)))
+    const auto publish_error = publish_temporary_no_replace(temporary, output);
+    if (publish_error)
     {
         status_error.clear();
         const auto raced_status = std::filesystem::symlink_status(output_path, status_error);
@@ -1247,7 +1271,7 @@ Result<void> publish_no_replace(const std::string_view output, const std::string
             return recovery_error(ErrorCode::kConflict, "Recovery sidecar already exists",
                                   "recovery_sidecar_exists", std::string(output));
         return recovery_io_error("Unable to publish recovery sidecar", "recovery_publish_failed",
-                                 std::string(output), "rename failed");
+                                 std::string(output), publish_error.message());
     }
     file.setAutoRemove(false);
     return {};
