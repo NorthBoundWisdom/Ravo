@@ -89,7 +89,7 @@ legacy migration state.
   or `DevDocs/README.md` as appropriate.
 - Fix factual paths, commands, names, versions, and coverage directly.
   Do not perform a broad narrative rewrite unless the user requested it.
-- Root `TODO_<TOPIC>.md` files contain unfinished execution only. Move durable
+- `DevDocs/TODO_<TOPIC>.md` files contain unfinished execution only. Move durable
   conclusions to stable truth sources, remove completed items, and hard-cut
   renames without redirects or compatibility copies.
 - Validate relative links and search for stale references after deleting or

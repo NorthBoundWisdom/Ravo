@@ -2,7 +2,7 @@ find_package(GTest 1.17 CONFIG REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 include(GoogleTest)
 
-function(ravo_add_phase0_check name script)
+function(ravo_add_repository_check name script)
   add_test(
     NAME ${name}
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/${script}"
@@ -357,9 +357,9 @@ gtest_discover_tests(ravo_desktop_command_tests
   DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "ravo-desktop-smoke")
 
-ravo_add_phase0_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
-ravo_add_phase0_check(ravo_capability_inventory check_capability_inventory.py)
-ravo_add_phase0_check(ravo_dependency_boundary check_ravo_dependency_boundary.py)
-ravo_add_phase0_check(ravo_vertical_slice_plan check_vertical_slice_plan.py)
-ravo_add_phase0_check(ravo_fixture_classification_ledger check_fixture_classification_ledger.py)
-ravo_add_phase0_check(ravo_freeze_reference check_freeze_reference.py)
+ravo_add_repository_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
+ravo_add_repository_check(ravo_capability_inventory check_capability_inventory.py)
+ravo_add_repository_check(ravo_dependency_boundary check_ravo_dependency_boundary.py)
+ravo_add_repository_check(ravo_vertical_slice_plan check_vertical_slice_plan.py)
+ravo_add_repository_check(ravo_fixture_classification_ledger check_fixture_classification_ledger.py)
+ravo_add_repository_check(ravo_freeze_reference check_freeze_reference.py)

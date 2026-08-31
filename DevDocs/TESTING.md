@@ -289,13 +289,12 @@ may be used where port interaction requires it. CMocka belongs only to frozen
 through the existing FreeCM/CMake toolchain; do not use FetchContent or CMake
 network downloads.
 
-Test targets link only new Ravo targets. After Qt Core/Gui/Qml/Quick/Sql and
-SQLite enter the first version, tests still must not include GTK, Qt Widgets,
+Test targets link only Ravo targets. Tests must not include GTK, Qt Widgets,
 old `src` headers, old database types, or dynamic IOP. `QSqlDatabase` and
 `QImageReader` appear only in adapter implementation and their contract tests;
 QML source and Qt Quick Test appear only in desktop/test owners.
 
-## First-version test layers
+## Test layers
 
 | Layer | Goal | Current representative content |
 | --- | --- | --- |
@@ -335,7 +334,7 @@ fake upgrade success by directly editing an old fixture.
 
 ## Import and source-image safety
 
-The first integration covers both a repository PNG and
+The baseline integration covers both a repository PNG and
 `legacy/tests/images/mire1.cr2`. JPEG/PNG/TIFF catalog import now fully decodes
 before publication: truncated JPEG/PNG/TIFF publish no asset or preview;
 recognized but unimplemented TIFF layouts stay `unsupported` and do not become

@@ -21,9 +21,9 @@ git diff --cached
 ```
 
 Record the current goal and point to existing truth sources before summarizing them:
-`TODO_<TOPIC>.md` for unfinished execution, `Ravo/README.md` for current capability,
-`Ravo/ARCHITECTURE.md` for ownership, `Ravo/MIGRATION.md` for legacy boundaries, and
-`Ravo/TESTING.md` for validation. A handoff supplements these files and never replaces them.
+`DevDocs/TODO_<TOPIC>.md` for unfinished execution, `Ravo/README.md` for current capability,
+`DevDocs/ARCHITECTURE.md` for ownership, `DevDocs/MIGRATION.md` for legacy boundaries, and
+`DevDocs/TESTING.md` for validation. A handoff supplements these files and never replaces them.
 
 Record files actually changed and the latest build/test output. If a linked dependency checkout is involved, collect its Git state,
 the active dependency mode, path, pinned commit, and whether that commit was pushed.
@@ -44,9 +44,9 @@ Use these sections in this order:
 8. **Remaining sequence** — ordered steps to reach the goal.
 9. **Do not do** — known destructive, stale, or architecturally invalid paths.
 
-When no output path is requested, return the handoff in the conversation. Only write a
-repository file when the user explicitly requests it. Use a root
-`HANDOFF_<TOPIC>.md` name, never `TODO_`, and do not create handoff/archive
+When no output path is requested, return the handoff in the conversation. Only
+write a repository file when the user explicitly requests it. Use
+`DevDocs/HANDOFF_<TOPIC>.md`, never `TODO_`, and do not create handoff/archive
 subdirectories or overwrite roadmap documents.
 
 ## Accuracy rules

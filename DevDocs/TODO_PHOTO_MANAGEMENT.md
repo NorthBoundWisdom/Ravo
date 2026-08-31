@@ -31,7 +31,7 @@ RAVO_INTERACTIVE_PERF_P90_BUDGET_MS=30 \
 Acceptance gate:
 
 - record RAW/raster import, cold/warm settled preview, page, and interactive
-  P50/P90/max using the definitions in `Ravo/TESTING.md`;
+  P50/P90/max using the definitions in `DevDocs/TESTING.md`;
 - freeze host-local budgets only from a repeatable candidate run, then rerun
   with those budget variables enabled;
 - prove every corpus file retains exact SHA-256, size, and modification time;

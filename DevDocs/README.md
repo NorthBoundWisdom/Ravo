@@ -1,41 +1,56 @@
-# Ravo developer notes
+# Ravo developer documentation
 
-Live documentation for the Ravo build and GPU work. Frozen Darktable 0.9 source
-maps live in [`legacy/docs/`](../legacy/docs/).
+Repository-owned development, architecture, execution, compliance, and legacy
+evidence documents are centralized here. `README.md` files remain beside the
+audience or component they introduce, and `AGENTS.md` files remain at their
+scope roots for tool discovery.
 
-| File | Description |
+The following are separate owners and are not folded into `DevDocs/`:
+
+- `userdoc/`: publishable user handbook;
+- `legacy/`: frozen darktable source and static reference notes;
+- `FreeCM/`: independent submodule;
+- `.codex/skills/`: executable agent workflows.
+
+## Current authorities
+
+| Document | Authority |
 | --- | --- |
-| [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM lock modes, `--update`, and publication order |
-| [Packaging.md](Packaging.md) | FreeCM release packaging, platform artifacts, and CI ownership |
-| [GPU_Baseline.md](GPU_Baseline.md) | CPU gold samples and later GPU performance gates |
-| [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities that are not ready for the product or migration execution queues |
-| [phase0/README.md](phase0/README.md) | Historical frozen-fixture evidence, contracts, and decision records |
-| [concepts/p0-library-grid.svg](concepts/p0-library-grid.svg) | Ravo Studio concept-reference artwork |
-| [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
-| [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including catalog recovery/restore, paged libraries, scheduled verified backup, stable-folder relink, selective Develop presets and parameter copy/paste, synchronized Before/After comparison, adaptive Profile Denoise, edge-preserving Tone Equalizer, Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
-| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, catalog recovery/restore/paging/scheduling/relink, shared selective-preset/session-clipboard merge, exact-prefix progressive-preview and comparison lifecycles, metadata-analysis, command, data, adaptive wavelet noise calibration, scale-stable log-guided tone assignment, and engine-private algorithm boundaries |
-| [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
-| [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
-| [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions, supersession relationships, and accepted interchange calibration contracts |
-| [../.codex/skills/i18n-translation-workflow/SKILL.md](../.codex/skills/i18n-translation-workflow/SKILL.md) | Ravo Studio source extraction, locale-specific translation memory, and catalog workflow |
-| [../.codex/skills/ravo-live-grading/SKILL.md](../.codex/skills/ravo-live-grading/SKILL.md) | Current-checkout live Studio photo, recipe, exact-preview, and revision-bound grading workflow |
-| [../TODO_PHOTO_MANAGEMENT.md](../TODO_PHOTO_MANAGEMENT.md) | Remaining private-corpus and Windows/Linux release evidence for the implemented product P0/P1 slice |
-| [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Paused `MR*` legacy algorithm-absorption and retirement queue |
-| [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Target boundaries, ownership, lifecycle, threads, data, and failure behavior |
+| [MIGRATION.md](MIGRATION.md) | Ravo/legacy boundary, accepted capabilities, leftovers, and retirement rules |
+| [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, and validation depth |
+| [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md) | Remaining P0/P1 release evidence |
+| [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md) | Paused legacy absorption and retirement execution queue |
+| [ProductRoadmap.md](ProductRoadmap.md) | Cross-layer product decisions not ready for either TODO |
+| [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history |
+
+## Operations and compliance
+
+| Document | Scope |
+| --- | --- |
+| [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM source roots, local integration, refresh, and publication order |
+| [Packaging.md](Packaging.md) | Release packaging ownership, artifacts, and validation |
+| [GPU_Baseline.md](GPU_Baseline.md) | Ravo-only GPU correctness and performance admission gates |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party attribution and license notices packaged with Ravo |
+
+## Frozen legacy evidence
+
+| Document | Scope |
+| --- | --- |
+| [legacy/Baseline.md](legacy/Baseline.md) | Frozen commit/tree identities and live-oracle limitation |
+| [legacy/CapabilityInventory.md](legacy/CapabilityInventory.md) | Machine-checked remaining IOP and fixture census |
+| `legacy/retired-src-paths.txt` | Freeze-check exclusions for accepted retired source owners |
+| `legacy/retired-host-data-paths.txt` | Freeze-check exclusions for accepted retired host-data owners |
 
 ## Maintenance rules
 
-1. Describe current ownership, invariants, failure behavior and reproducible
-   validation commands. Do not append implementation diaries, completed
-   checklists or per-run samples.
-2. Keep one authority per topic. Fold durable conclusions into that document
-   and delete superseded designs instead of preserving competing summaries.
-3. Treat code, manifests, checkers and repository workflows as executable
-   truth. Update the owning document in the same change when their contract
-   changes.
-4. Keep transient measurements and reports under `build/` or `/tmp`; document
-   only stable metric definitions and hard gates.
-5. Update generated documentation only through its owning generator.
-6. Put unfinished execution work in a root `TODO_<TOPIC>.md`. File-local
-   refactoring notes stay with the implementation, not in a repository-wide
-   backlog.
+1. Keep one authority per topic. ADRs retain durable decisions; current facts
+   belong in architecture, migration, testing, code, or tests.
+2. TODOs contain only unfinished work, dependencies, risks, validation commands,
+   and acceptance gates. Delete a completed TODO after moving durable facts.
+3. Remove obsolete plans, historical run diaries, and concept mockups instead of
+   archiving competing descriptions.
+4. Update every tracked reference in the same change when a document moves or is
+   renamed. Do not leave redirects or compatibility copies.
+5. Keep transient reports and private measurements outside the repository.
+6. Update generated evidence only through its owning script.

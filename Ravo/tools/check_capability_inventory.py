@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Phase 0 IOP census against frozen CMake and fixture inputs."""
+"""Verify the legacy IOP census against frozen CMake and fixture inputs."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any
 
 IOP_PATTERN = re.compile(r"^\s*add_iop\(\s*([A-Za-z0-9_]+)", re.MULTILINE)
 TABLE_HEADING = "## Legacy registry census"
-TABLE_HEADER = ["Legacy IOP", "Fixture", "Phase 0 Ravo disposition"]
+TABLE_HEADER = ["Legacy IOP", "Fixture"]
 
 
 class InventoryError(Exception):
@@ -63,7 +63,7 @@ def cells(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
-def table_rows(path: Path) -> dict[str, tuple[str, str]]:
+def table_rows(path: Path) -> dict[str, str]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
@@ -78,21 +78,20 @@ def table_rows(path: Path) -> dict[str, tuple[str, str]]:
     if not table_lines[2].startswith("|"):
         raise InventoryError("capability inventory table separator is missing")
 
-    rows: dict[str, tuple[str, str]] = {}
+    rows: dict[str, str] = {}
     for line in table_lines[3:]:
         if not line.startswith("|"):
             break
         row = cells(line)
-        if len(row) != 3:
+        if len(row) != 2:
             raise InventoryError("capability inventory table has a malformed row")
         operation = row[0].strip("`")
         fixture = row[1]
-        disposition = row[2]
-        if not operation or fixture not in {"yes", "no"} or not disposition:
+        if not operation or fixture not in {"yes", "no"}:
             raise InventoryError(f"capability inventory row is invalid: {line}")
         if operation in rows:
             raise InventoryError(f"capability inventory repeats operation {operation}")
-        rows[operation] = (fixture, disposition)
+        rows[operation] = fixture
     if not rows:
         raise InventoryError("capability inventory contains no IOP rows")
     return rows
@@ -100,7 +99,7 @@ def table_rows(path: Path) -> dict[str, tuple[str, str]]:
 
 def verify(repository_root: Path) -> None:
     manifest_path = repository_root / "Ravo" / "tests" / "fixtures" / "legacy_manifest.json"
-    inventory_path = repository_root / "DevDocs" / "phase0" / "capability-inventory.md"
+    inventory_path = repository_root / "DevDocs" / "legacy" / "CapabilityInventory.md"
     cmake_path = repository_root / "legacy" / "src" / "iop" / "CMakeLists.txt"
     registry = registered_iops(cmake_path)
     operations = manifest_operations(load_json(manifest_path))
@@ -114,7 +113,7 @@ def verify(repository_root: Path) -> None:
         if extra:
             details.append("unexpected: " + ", ".join(extra))
         raise InventoryError("capability inventory registry set differs from legacy/src/iop/CMakeLists.txt; " + "; ".join(details))
-    for operation, (fixture, _disposition) in rows.items():
+    for operation, fixture in rows.items():
         expected = "yes" if operation in operations else "no"
         if fixture != expected:
             raise InventoryError(

@@ -8,7 +8,7 @@
 // state, OpenMP, callbacks/UI, unsafe multidimensional pointer arithmetic and
 // implicit algorithm fallback were removed; CFA phase, preview reduction,
 // mirrored borders, cancellation, allocation bounds and output ownership are
-// Ravo-owned. See THIRD_PARTY_NOTICES.md.
+// Ravo-owned. See DevDocs/THIRD_PARTY_NOTICES.md.
 
 #include <algorithm>
 #include <array>

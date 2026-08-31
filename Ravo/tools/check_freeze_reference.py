@@ -20,10 +20,8 @@ PROTECTED_PATHS: tuple[tuple[str, str], ...] = (
     ("legacy/host/data", "data"),
     ("legacy/host/packaging", "packaging"),
 )
-RETIRED_SRC_LIST = Path("DevDocs/phase0/legacy-retired-src-paths.txt")
-RETIRED_HOST_DATA_LIST = Path(
-    "DevDocs/phase0/legacy-retired-host-data-paths.txt"
-)
+RETIRED_SRC_LIST = Path("DevDocs/legacy/retired-src-paths.txt")
+RETIRED_HOST_DATA_LIST = Path("DevDocs/legacy/retired-host-data-paths.txt")
 JPEG_WRAPPER_CONSUMERS = Path(
     "Ravo/tests/fixtures/legacy_jpeg_wrapper_consumers.json"
 )

@@ -8,6 +8,8 @@ roots or configures a build tree as a hidden side effect.
 
 - Ravo CMake owns the `ravo_studio` and `ravo` payload, generated package JSON,
   stable `RavoDeploy` / `RavoPackage` targets, and final archive names.
+- `DevDocs/THIRD_PARTY_NOTICES.md` is the tracked notice source and is packaged
+  beside the root GPL license under its basename.
 - FreeCM `repomgrcpp.package` owns Qt/QML deployment, runtime dependency
   collection, the platform dist directory, macOS signing, and DMG creation.
 - `configs/freecm.commands.jsonc` owns the local plugin action. GitHub Actions

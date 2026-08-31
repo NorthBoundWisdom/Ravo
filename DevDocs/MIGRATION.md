@@ -6,17 +6,17 @@ Ravo will ultimately replace `legacy/src/`. Catalog/import/viewer and Basic
 Develop are already implemented in Ravo. The P0/P1 implementation now includes
 catalog restore/operator recovery, bounded large-library paging and scheduling,
 verified recurring backup retention, and stable missing-folder relink
-(ADR-0099–0101). [`TODO_PHOTO_MANAGEMENT.md`](../TODO_PHOTO_MANAGEMENT.md)
+(ADR-0099–0101). [`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md)
 retains only the unfinished private-corpus and non-macOS release evidence.
 Legacy absorption remains paused until those release gates are accepted;
 when explicitly resumed it follows the `MR*` ranks in
-[`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md), bundling the legacy
+[`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md), bundling the legacy
 owners required for one user-visible outcome instead of walking old source
 order. Delete each corresponding old owner only after it is “Ravo accepted.”
 New ownership lives only in `Ravo/`. Version 0.9 remains prohibited from
 configuration, compilation, and execution.
 
-Under [ADR-0015](docs/adr/0015-migrate-all-non-ui-algorithms.md), every
+Under [ADR-0015](adr/0015-migrate-all-non-ui-algorithms.md), every
 remaining non-UI image algorithm is in scope for C++20 migration. Defaults
 remain unchanged, but substitute algorithms are not permanent leftovers. GTK,
 Lua, dynamic ABI, and OpenCL are ultimately removed rather than ported.
@@ -93,7 +93,7 @@ For an editing capability, shared algorithm, or operation, use this order:
 5. Run unit, synthetic, old-mapping, real-RAW/golden, error/cancellation, and
    resource validation.
 6. Make CLI and Studio supported consumers through the same services/engine.
-7. Under the explicitly resumed root legacy-migration TODO, delete the old
+7. Under the explicitly resumed legacy-migration TODO, delete the old
    owner after Ravo accepts the item and synchronize freeze/inventory checks.
 
 ## Definition of “absorbed by Ravo”

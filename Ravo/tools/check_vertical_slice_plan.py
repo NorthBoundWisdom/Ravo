@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that the Phase 0 vertical-slice candidate matches the fixture manifest."""
+"""Verify that the frozen vertical-slice candidate matches the fixture manifest."""
 
 from __future__ import annotations
 

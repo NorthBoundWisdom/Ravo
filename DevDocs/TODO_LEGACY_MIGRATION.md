@@ -17,7 +17,8 @@
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
 migration policy, leftover boundary, and test contracts are owned by
-Ravo/README.md, Ravo/ARCHITECTURE.md, Ravo/MIGRATION.md, and Ravo/TESTING.md.
+Ravo/README.md, DevDocs/ARCHITECTURE.md, DevDocs/MIGRATION.md, and
+DevDocs/TESTING.md.
 DevDocs/ProductRoadmap.md records cross-layer design constraints that are not
 ready for execution.
 
@@ -45,7 +46,7 @@ ready for execution.
   filters, and default mode. Do not call a simplified replacement “migrated” or
   use it to delete old implementation. GUI, lifecycle, OpenCL, and dynamic ABI
   may be removed, but core mathematics may not be substituted.
-- Use Ravo/MIGRATION.md for “Ravo accepted” and old-owner deletion gates. Until
+- Use DevDocs/MIGRATION.md for “Ravo accepted” and old-owner deletion gates. Until
   those gates are met, modify only Ravo.
 - On completion, move durable conclusions into README/ARCHITECTURE/MIGRATION/
   TESTING/ADR/code/tests, then remove the item here. Do not leave checked-off
@@ -353,9 +354,9 @@ Delete this document only when all are true:
 - [ ] Every remaining algorithm is accepted and removed from this document,
   with each accepted old owner retired in the same change.
 - [ ] Shared old owners have only explicit consumers left and the remaining tree
-  maps to leftovers in Ravo/MIGRATION.md.
+  maps to leftovers in DevDocs/MIGRATION.md.
 - [ ] Cross-cutting reliability and promised platform-install loops meet release
-  gates, or become independent root TODOs with owners.
+  gates, or become independent `DevDocs/TODO_*.md` files with owners.
 - [ ] Original safety, schema migration, backup/rollback, and structured
   unsupported state have test evidence.
 - [ ] Repository search, target/link graph, and runtime acceptance prove no Ravo

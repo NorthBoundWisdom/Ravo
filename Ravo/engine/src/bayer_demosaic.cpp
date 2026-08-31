@@ -8,7 +8,7 @@
 // Modified for Ravo on 2026-08-30: application globals, OpenMP, callbacks/UI,
 // integer clipping and the implicit IGV fallback were removed; bounds,
 // cancellation, allocation failure, source ownership, float headroom and
-// same-CFA preview reduction are Ravo-owned. See THIRD_PARTY_NOTICES.md.
+// same-CFA preview reduction are Ravo-owned. See DevDocs/THIRD_PARTY_NOTICES.md.
 
 #include <algorithm>
 #include <array>

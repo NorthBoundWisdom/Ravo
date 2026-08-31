@@ -2,11 +2,11 @@
 
 ## Core conclusion
 
-Ravo's current first product is a usable local photo browser: create or open an
-SQLite catalog, import JPEG/PNG/TIFF/RAW by reference, and view images in Ravo
-Studio. The `ravo` CLI remains a supported headless client. CLI and desktop
-must call the same application services and engine; they must not own separate
-catalog, import, preview, or recipe implementations.
+Ravo is one local photo-management and non-destructive editing product: create
+or open an SQLite catalog, import JPEG/PNG/TIFF/RAW by reference, browse and
+review, develop, recover/backup, and export. The `ravo` CLI and Ravo Studio are
+supported clients of the same application services and Engine; neither owns a
+separate catalog, import, preview, recipe, or render implementation.
 
 ```text
 ravo CLI ───────────────┐
@@ -15,7 +15,7 @@ ravo CLI ───────────────┐
                  │ create/open                    │ Gallery
                  │ import/page/relink             │ viewer
                  │ recovery/backup/restore        │ visible errors
-                 │ request/cancel preview
+                 │ develop/preview/export          │ Develop
                  ├───────────────┐
                  ▼               ▼
            Catalog Domain     Ravo Engine Facade
@@ -27,9 +27,10 @@ Frozen 0.9 legacy/src/ ──read-only source and fixture evidence──▶ Ravo
 Frozen 0.9 legacy/src/ ╳────────────────────────────────────────▶ Ravo production
 ```
 
-[ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md) accepts this order. It
-validates catalog, import, preview, task, and window lifecycles early without
-restoring the old GTK, dynamic IOP ABI, or global state.
+[ADR-0007](adr/0007-first-usable-catalog-viewer.md) established the initial
+vertical-slice order; later ADRs extend the same owners through Develop,
+recovery, paging, and export without restoring the old GTK, dynamic IOP ABI, or
+global state.
 
 ## Targets and dependency direction
 
@@ -227,7 +228,7 @@ appending a new history row. Deleting a photo
 normally removes only the catalog record
 and preview cache. The explicit “Delete from Disk” command deletes the source
 after confirmation, then removes the catalog record. QML resources are built
-and deployed with `qt_add_qml_module`; the first version links no Qt Widgets
+and deployed with `qt_add_qml_module`; the product links no Qt Widgets
 and has no hybrid fallback.
 
 ## Core data contracts
@@ -274,7 +275,7 @@ ordinary-history ID and update that row in place only while it remains newest;
 snapshots, another control, selection/view changes, undo/redo, and intervening
 client rows end the session-only group. Any failed step rolls back everything;
 services neither compensate writes nor expose a partially committed recipe.
-The first version does not read or migrate a frozen 0.9 catalog. Future
+Ravo does not read or migrate a frozen 0.9 catalog. Future
 compatibility requires an independent product decision, backup/rollback, and
 fixtures.
 
@@ -443,14 +444,14 @@ the decode call. The adapter owns header/RLE parsing, bounds, and file I/O.
 Until a later HDR engine/preview tranche is accepted, the Qt raster adapter
 recognizes both RGBE magic tokens as structured unsupported input and Catalog
 publishes no asset or preview. See
-[ADR-0027](docs/adr/0027-radiance-rgbe-decoder-contract.md).
+[ADR-0027](adr/0027-radiance-rgbe-decoder-contract.md).
 
 ### Recipe and operation
 
-Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`,
-and the explicit colour contract remain valid. The first viewer needs only the
-minimal CPU chain that yields a trusted preview; later editing UI maps the
-versioned schema only and owns neither a second algorithm nor history format.
+Canonical recipes, operation descriptors, `RenderRequest`/`RenderResult`, and
+the explicit colour contract are shared by preview, Develop, CLI render, and
+export. Editing UI maps the versioned schema only and owns neither a second
+algorithm nor history format.
 
 External 3D LUT state is a recipe-owned path plus declared input/output colour
 spaces, interpolation, and strength; QML only selects and displays those
@@ -475,14 +476,14 @@ artifact automatically. Measurement/extraction and later profile selection are
 separate gates (ADR-0096).
 
 S3.1 adds a recipe-owned canonical mask graph under
-[ADR-0043](docs/adr/0043-canonical-mask-graph-foundation.md). Each immutable
+[ADR-0043](adr/0043-canonical-mask-graph-foundation.md). Each immutable
 node has its own schema version and typed all/linear-gradient/circle/rotated-
 ellipse/parametric/group payload; v1 identity `all` upgrades on read.
-[ADR-0045](docs/adr/0045-studio-mask-overlay-group-path.md) extends that graph
+[ADR-0045](adr/0045-studio-mask-overlay-group-path.md) extends that graph
 with path/brush kinds, preview overlay, and owned group authoring. Recipe
 parsing, upgrade, deterministic serialization, and DAG validation are the only
 owners of IDs, references, opacity/inversion, bounds, topology, and version
-rules. S3.2's [ADR-0044](docs/adr/0044-studio-canonical-mask-authoring.md)
+rules. S3.2's [ADR-0044](adr/0044-studio-canonical-mask-authoring.md)
 keeps that ownership in recipe: its pure Develop helper owns Studio's stable
 numeric field intents, reserved collision-safe leaf IDs, strict edits, and
 detach rules. Catalog/services preserve the canonical graph without rewriting
@@ -617,7 +618,7 @@ has no implicit Studio substitute. Legacy import accepts only the exact
 default-unmasked singleton boundary and returns stable incompatibility for
 mask, custom blend, or multi-instance state. Shared old exposure proxy/order
 names and `basic.cl` kernel text are cleanup owners for D0.4/S4/S14, not runtime
-exposure owners. [ADR-0024](docs/adr/0024-exposure-analysis-and-metadata-contract.md)
+exposure owners. [ADR-0024](adr/0024-exposure-analysis-and-metadata-contract.md)
 freezes these boundaries.
 
 `ravo.display.sigmoid` v1 is the sole default display transform:
@@ -852,7 +853,7 @@ the GTK live chart, picker, add/remove interaction, and OpenCL execution are not
 new product contracts. Shared `common/colorchecker.h`, Gaussian helpers,
 `extended.cl`, order, and registry text remain D0.3/D0.4/S1/S4 cleanup owners,
 not runtime dependencies of the canonical operation.
-[ADR-0026](docs/adr/0026-colorchecker-calibration-contract.md)
+[ADR-0026](adr/0026-colorchecker-calibration-contract.md)
 freezes these boundaries.
 
 The RGB↔XYZ D50↔Lab conversion is one engine-private, value-only owner shared
@@ -917,7 +918,7 @@ non-finite state rejects structurally. Studio exposes the five numeric intents,
 not the old GTK 2D plane/picker, three presets, blend UI, or OpenCL path. Shared
 `basic.cl`, order/modulegroup/usermanual names, and pixmap remain D0.3/D0.4 or
 later cleanup owners. Bundled `.dtstyle` examples are retired by ADR-0072.
-[ADR-0029](docs/adr/0029-colorcorrection-contract.md)
+[ADR-0029](adr/0029-colorcorrection-contract.md)
 freezes this boundary.
 
 `ravo.color.colorcontrast` v2 is the independent frozen Color Contrast owner.
@@ -958,7 +959,7 @@ the same recipe/engine/cache path; QML forwards only the six Develop fields and
 contains no Lab mathematics. GTK presentation and OpenCL are not product
 contracts. Shared `extended.cl`, order/modulegroup/usermanual names, the sepia
 style, and frozen fixtures remain D0.3/D0.4/S14/E1 cleanup or evidence owners.
-[ADR-0031](docs/adr/0031-colorcontrast-contract.md) freezes this boundary.
+[ADR-0031](adr/0031-colorcontrast-contract.md) freezes this boundary.
 
 `ravo.color.velvia` v2 follows Color Contrast in linear Rec.709. Its canonical
 state is explicit presence/enabled, strength `0..100`, mid-tones bias `0..1`,
@@ -977,7 +978,7 @@ blend-v10 default-unmasked envelope. Recipe, CLI, Catalog, Studio, history,
 styles, preview, and export consume the same typed state; QML contains no
 Velvia math. The old IOP, exclusive kernel, and icons are retired while shared
 order/module-group/manual names and frozen fixtures remain with their owners.
-[ADR-0095](docs/adr/0095-velvia-weighted-saturation-contract.md) freezes this
+[ADR-0095](adr/0095-velvia-weighted-saturation-contract.md) freezes this
 boundary.
 
 `ravo.color.colorharmonizer` v1 is a bounded profile-aware colour operation,
@@ -1034,12 +1035,12 @@ identity follows the canonical recipe/engine path. Synthetic positive legacy
 payloads remain rejected because no frozen record evidences them. S3.1/S3.2's
 canonical recipe graph and bounded Studio authoring do not relax that importer.
 Studio overlay, owned group editing, and path/brush are accepted under
-[ADR-0045](docs/adr/0045-studio-mask-overlay-group-path.md). Remaining blend
+[ADR-0045](adr/0045-studio-mask-overlay-group-path.md). Remaining blend
 modes and leftover GTK mask-manager consumers stay later work and do not
 authorize C15. The frozen `iop/colorharmonizer.c` owner is retired.
-[ADR-0035](docs/adr/0035-colorharmonizer-core-contract.md) freezes the core;
-[ADR-0041](docs/adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
-extends it with the first product surface; [ADR-0042](docs/adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
+[ADR-0035](adr/0035-colorharmonizer-core-contract.md) freezes the core;
+[ADR-0041](adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
+extends it with the first product surface; [ADR-0042](adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
 accepts canonical positive smoothing.
 
 `ravo.color.colorzones` v1 is an optional D50 Lab/LCh curve owner, distinct
@@ -1090,7 +1091,7 @@ priority-zero, unnamed, default-unmasked singleton and exact built-in RAW blend
 tuples in that document. Studio exposes the same threshold, spatial/range,
 hue, and precedence values through the existing revisioned Develop task path.
 No GTK preview-grid cache, historic blend graph, tile-local approximation, or
-OpenCL owner enters Ravo. [ADR-0055](docs/adr/0055-colorreconstruction-bilateral-grid-contract.md)
+OpenCL owner enters Ravo. [ADR-0055](adr/0055-colorreconstruction-bilateral-grid-contract.md)
 freezes these boundaries.
 
 `ravo.detail.texture` v1 is the optional local-texture owner before Sharpen.
@@ -1117,7 +1118,7 @@ production operation at 30 ms for each committed 960×640 RAW buffer. ART's
 mask/resampling/application/OpenMP owners and the rejected Local Laplacian
 pyramids remain outside production. Filmulator's physical-development model is
 also test-only research after its 155–157 ms CPU result failed the interaction
-budget. [ADR-0096](docs/adr/0096-reference-algorithm-assimilation-boundary.md)
+budget. [ADR-0096](adr/0096-reference-algorithm-assimilation-boundary.md)
 records the selection and rejection evidence.
 
 `ravo.detail.sharpen` schema v2 is the accepted scale-aware D50 Lab L* USM.
@@ -1140,7 +1141,7 @@ borrowed input and publish no partial output. RAW memory preflight includes the
 Lab plane, row, and bounded kernel. Strict import accepts only the three
 evidenced enabled-v1 singleton records with their exact v9/v11 default-unmasked
 blends. Demosaic capture sharpening in fixture 0171 is a separate R2/S2 owner.
-[ADR-0056](docs/adr/0056-source-exact-lab-sharpen.md) freezes these boundaries.
+[ADR-0056](adr/0056-source-exact-lab-sharpen.md) freezes these boundaries.
 
 `ravo.effect.dehaze` schema v2 is a RAW source-preprocess operation with
 `working_space=source_linear_rgb`, `algorithm=dark_channel_guided_v4`,
@@ -1162,13 +1163,13 @@ RAW memory preflight. Dark-channel, selection, transition, guided statistics/
 solve, output and prepublication checkpoints share the render cancellation
 token; every invalid ambient/profile/scale/buffer/non-finite/allocation path
 publishes no output. The generic old guided-filter owner remains frozen for
-other unaccepted consumers. [ADR-0057](docs/adr/0057-source-linear-dark-channel-dehaze.md)
+other unaccepted consumers. [ADR-0057](adr/0057-source-linear-dark-channel-dehaze.md)
 freezes these boundaries.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked
 buffer must not implicitly select colour strategy. See
-[ADR-0006](docs/adr/0006-explicit-colour-contract.md).
+[ADR-0006](adr/0006-explicit-colour-contract.md).
 
 ## Services
 
@@ -1222,7 +1223,7 @@ assemble the same services, ports, and adapters.
 
 ## Desktop boundary
 
-The Ravo Studio first version owns:
+Ravo Studio owns:
 
 - creating/opening catalogs and choosing files/directories;
 - Gallery list states: loading, ready, missing, unsupported, and failed;
@@ -1343,8 +1344,8 @@ I14 batch policy: strict flat `{stem}`/`{asset_id}`/`{sequence}`/`{ext}`
 expansion, complete known-conflict preflight, ordered calls to the same
 no-replace item owner, and explicit non-rollback partial-delivery context.
 CLI and Studio project that contract without expanding paths themselves. See
-[ADR-0032](docs/adr/0032-encoded-byte-publication-contract.md) and
-[ADR-0068](docs/adr/0068-typed-batch-export-storage.md).
+[ADR-0032](adr/0032-encoded-byte-publication-contract.md) and
+[ADR-0068](adr/0068-typed-batch-export-storage.md).
 
 ## Current non-goals
 
@@ -1365,7 +1366,7 @@ CLI and Studio project that contract without expanding paths themselves. See
   shared old export consumers remain out of scope. Studio collects one explicit
   format plus matching typed options before the native file/folder dialog; it
   does not infer format from a localized filter.
-- The first version does not implement every historic blend/operation or
+- Ravo does not implement every historic blend/operation or
   old-catalog migration.
 - Do not implement GPU before CPU correctness and viewer resource gates.
 - Do not freeze APIs for networks, cloud sync, public plugin ABI, or a complex

@@ -78,7 +78,7 @@ The selected reference projects can accelerate exact algorithms without
 creating a second engine, scheduler, UI or control plane. Errors remain visible
 and source pixels/caches publish only complete owned results. The serial
 reference-algorithm program is complete: durable accepted and rejected results
-live here, while the root TODO retains no completed research checklist.
+live here, while the migration TODO retains no completed research checklist.
 
 ## First implementation: DNG opcodes
 
@@ -130,7 +130,7 @@ edge with false-colour bounds, cancellation/allocation estimates, duplicate and
 unsupported-state rejection, source immutability, and quantized RCD/PPG goldens
 from `legacy/tests/images/mire1.cr2`. File-level authorship, exact source paths,
 licenses and Ravo modifications are recorded in the implementation and
-`THIRD_PARTY_NOTICES.md`.
+`DevDocs/THIRD_PARTY_NOTICES.md`.
 
 ## Third implementation: Perspective and safe crop
 

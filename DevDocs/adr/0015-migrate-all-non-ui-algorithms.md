@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-26
 - Supersedes: ADR-0010 final leftover disposition; product-decision register algorithm leftovers
-- Relates to: ADR-0004, ADR-0010, root `TODO_LEGACY_MIGRATION.md`
+- Relates to: ADR-0004, ADR-0010, `DevDocs/TODO_LEGACY_MIGRATION.md`
 
 ## Context
 
@@ -20,7 +20,7 @@ rewritten in C++ and verified by Ravo tests.
   choices such as Sigmoid and `colorequal` stay defaults; alternatives become
   explicit optional operations rather than hidden fallback or permanent
   leftover.
-- Migration remains serial under the active root TODO. Each capability gets an
+- Migration remains serial under the active migration TODO. Each capability gets an
   explicit schema/workspace/ROI contract, the frozen default CPU mathematics,
   synthetic and real-fixture UT, cancellation/resource errors and formal
   CLI/Studio/service consumers before its old owner is removed.

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-26
-- Relates to: ADR-0006, ADR-0015, root `TODO_LEGACY_MIGRATION.md` C2
+- Relates to: ADR-0006, ADR-0015, `DevDocs/TODO_LEGACY_MIGRATION.md` C2
 - Supersedes: ADR-0009's lift/gamma/gain approximation
 
 ## Context

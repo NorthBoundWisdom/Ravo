@@ -17,5 +17,5 @@ those files keep the `.codex/skills/...` paths.
 | Skill | Use |
 | --- | --- |
 | `build-repo` | Configure, build, test, run, or diagnose the Ravo C++20 project using its FreeCM-managed source roots and host tooling |
-| `context-handoff` | Capture a durable, evidence-based continuation note for an unfinished DarkTableNext maintenance task or investigation |
+| `context-handoff` | Capture a durable, evidence-based continuation note for an unfinished Ravo task or investigation |
 | `review-and-commit` | Review the working tree, commit and push dirty source-root seeds before pinning and committing the Ravo main repo |

@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-26
-- Relates to: ADR-0009, root `TODO_LEGACY_MIGRATION.md` C1
+- Relates to: ADR-0009, `DevDocs/TODO_LEGACY_MIGRATION.md` C1
 
 ## Context
 

@@ -25,25 +25,23 @@ template declares a sibling, FreeCM resolves the transitive closure recursively
 from local seeds. Do not repeat every transitive dependency in the root lock.
 
 Current direct dependencies are LibRaw, GeoControls, LittleCMS, Exiv2, LensFun,
-LibJpegTurbo, LibTIFF, and RawSpeed. LibRaw, GeoControls, and LittleCMS are
-linked by current product targets. The other five are approved migration
-inputs: configure verifies their exact materialized roots, while product code
-does not link them until the owning metadata, lens-database, or codec adapter
-reaches its migration gate. This prevents host-selected source from becoming
-an interim fallback without claiming an unfinished capability. RawSpeed is
-reserved for the I3 independent-decoder decision and must not silently replace
-or fall back to LibRaw.
+LibJpegTurbo, LibTIFF, and RawSpeed. Current product targets consume LibRaw,
+GeoControls, LittleCMS, Exiv2, LibJpegTurbo, and LibTIFF. LensFun and RawSpeed
+remain pinned, configure-verified inputs for their explicit future owners;
+neither may silently replace an accepted path. In particular, RawSpeed is
+reserved for the independent-decoder decision and must not fall back from or
+replace LibRaw implicitly.
 
 SQLite/QSQLITE, zlib/libpng, and the current Qt JPEG/TIFF imageformat plugins
 remain real host/Qt-kit dependencies; duplicating them in the root lock would
 not control the code used by QSQLITE or an already-built Qt plugin. The pinned
-LibJpegTurbo and LibTIFF roots instead reserve the low-level APIs required for
-explicit JPEG chroma subsampling and TIFF Deflate/predictor/level and multi-page
-contracts; they replace the Qt codec path only when those private adapters are
-accepted. Quill likewise resolves through `find_package(quill CONFIG REQUIRED)`
-from `CMAKE_PREFIX_PATH`. Use the logical source-root dependency names above as
-`depsManualPath` keys, not guessed directory names. Transitive packages belong
-to the owning dependency template, not the Ravo root lock.
+LibJpegTurbo and LibTIFF roots provide the accepted private JPEG/TIFF output
+encoders, while Qt plugins still own the corresponding supported input paths.
+Pinned Exiv2 is private to Engine metadata reading. Quill resolves through
+`find_package(quill CONFIG REQUIRED)` from `CMAKE_PREFIX_PATH`. Use the logical
+source-root dependency names above as `depsManualPath` keys, not guessed
+directory names. Transitive packages belong to the owning dependency template,
+not the Ravo root lock.
 
 ## FreeCM submodule tracking
 

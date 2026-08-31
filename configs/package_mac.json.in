@@ -21,7 +21,7 @@
         "destinationDir": "."
       },
       {
-        "source": "@CMAKE_SOURCE_DIR@/THIRD_PARTY_NOTICES.md",
+        "source": "@CMAKE_SOURCE_DIR@/DevDocs/THIRD_PARTY_NOTICES.md",
         "destinationDir": "."
       }
     ]

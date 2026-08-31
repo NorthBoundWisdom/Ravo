@@ -7,14 +7,16 @@ constraint.
 ## Before starting work
 
 1. Run `git status --short --branch` and preserve user changes.
-2. Read `Ravo/README.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `TESTING.md`, and
-   relevant ADRs.
+2. Read `Ravo/README.md`, `../DevDocs/ARCHITECTURE.md`,
+   `../DevDocs/MIGRATION.md`, `../DevDocs/TESTING.md`, and relevant ADRs.
 3. For old behavior or algorithms, read the corresponding `legacy/src/`
    implementation and fixtures; do not infer from upstream darktable habits.
 4. Confirm that work belongs to the active product/release item in
-   [`../TODO_PHOTO_MANAGEMENT.md`](../TODO_PHOTO_MANAGEMENT.md), to an explicitly
+   [`../DevDocs/TODO_PHOTO_MANAGEMENT.md`](../DevDocs/TODO_PHOTO_MANAGEMENT.md),
+   to an explicitly
    resumed `MR*` item in
-   [`../TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md), or to a
+   [`../DevDocs/TODO_LEGACY_MIGRATION.md`](../DevDocs/TODO_LEGACY_MIGRATION.md),
+   or to a
    cross-cutting reliability gate. Desktop uses Qt 6 Quick/QML; Qt Sql remains
    solely in the private SQLite adapter. Qt Widgets, a second presentation
    architecture, and an old GTK adapter are not approved.
@@ -26,8 +28,8 @@ constraint.
 - All first-party new code uses C++20, CMake, and FreeCM; do not add Rust/Cargo
   to the build graph.
 - CPU is the correctness reference and reliable fallback. GPU may be added as
-  an adapter only after the CPU/golden/performance gates in `MIGRATION.md` and
-  `../DevDocs/GPU_Baseline.md` are met.
+  an adapter only after the CPU/golden/performance gates in
+  `../DevDocs/MIGRATION.md` and `../DevDocs/GPU_Baseline.md` are met.
 - The `ravo` CLI and Ravo Studio are both supported clients. Algorithms belong
   in the engine; catalog/import/preview orchestration belongs in services; CLI
   and UI are limited to input/output, progress, selection, and error
@@ -167,7 +169,7 @@ constraint.
   must not be presented as a completed migration (for example, HSL for UCS,
   neighborhood average for opposed reconstruction, three-level Gaussian for
   a-trous Y0U0V0, or five bands for nine-band toneequal).
-- After the explicitly resumed root legacy-migration TODO accepts a Ravo item,
+- After the explicitly resumed legacy-migration TODO accepts a Ravo item,
   delete the corresponding legacy owner (CMake, registration, resources,
   documentation, and checks). Do not delete unaccepted items or leftovers
   early. Search the whole repository to confirm there are no consumers.

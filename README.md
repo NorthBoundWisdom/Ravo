@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml/badge.svg)](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C.svg)](Ravo/ARCHITECTURE.md)
-[![Qt 6 Quick](https://img.shields.io/badge/Qt-6%20Quick%2FQML-41CD52.svg)](Ravo/ARCHITECTURE.md)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C.svg)](DevDocs/ARCHITECTURE.md)
+[![Qt 6 Quick](https://img.shields.io/badge/Qt-6%20Quick%2FQML-41CD52.svg)](DevDocs/ARCHITECTURE.md)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#install-and-build-from-source)
 [![Status](https://img.shields.io/badge/status-in%20active%20development-orange.svg)](#project-status)
 
@@ -41,9 +41,9 @@ Ravo is **not yet a complete darktable replacement**. Historic blend modes,
 remaining image operations, sidecar/history metadata policy, GPU acceleration,
 and end-to-end installation verification on every platform are still open.
 [The Ravo product document](Ravo/README.md), the
-[remaining product P0/P1 release gates](TODO_PHOTO_MANAGEMENT.md), and the separate
-[legacy migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
-validation status, and next work item.
+[remaining product P0/P1 release gates](DevDocs/TODO_PHOTO_MANAGEMENT.md), and
+the separate [legacy migration TODO](DevDocs/TODO_LEGACY_MIGRATION.md) define
+the supported scope, validation status, and next work item.
 
 ## Screenshots
 
@@ -133,11 +133,11 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 [online documentation](https://northboundwisdom.github.io/Ravo/).
 
 - [Ravo capabilities and CLI reference](Ravo/README.md)
-- [Architecture and data lifetimes](Ravo/ARCHITECTURE.md)
-- [Testing and validation strategy](Ravo/TESTING.md)
-- [Migration policy and capability ledger](Ravo/MIGRATION.md)
-- [Remaining product P0/P1 release evidence](TODO_PHOTO_MANAGEMENT.md)
-- [Legacy algorithm migration and retirement](TODO_LEGACY_MIGRATION.md)
+- [Architecture and data lifetimes](DevDocs/ARCHITECTURE.md)
+- [Testing and validation strategy](DevDocs/TESTING.md)
+- [Migration policy and capability ledger](DevDocs/MIGRATION.md)
+- [Remaining product P0/P1 release evidence](DevDocs/TODO_PHOTO_MANAGEMENT.md)
+- [Legacy algorithm migration and retirement](DevDocs/TODO_LEGACY_MIGRATION.md)
 - [Developer documentation index](DevDocs/README.md)
 - [Frozen darktable 0.9 reference tree](legacy/README.md)
 
@@ -186,16 +186,17 @@ reports unsupported state instead of silently approximating it.
 Issues and pull requests are welcome. Start with
 [`AGENTS.md`](AGENTS.md) for repository-wide engineering constraints,
 [`Ravo/AGENTS.md`](Ravo/AGENTS.md) for the `Ravo/` subtree, and
-[`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md) for the remaining product
-P0/P1 release gates. Legacy algorithm work additionally follows
-[`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md). Behavior changes need
-matching Ravo unit or contract tests; `legacy/` is read-only.
+[`DevDocs/TODO_PHOTO_MANAGEMENT.md`](DevDocs/TODO_PHOTO_MANAGEMENT.md) for the
+remaining product P0/P1 release gates. Legacy algorithm work additionally
+follows [`DevDocs/TODO_LEGACY_MIGRATION.md`](DevDocs/TODO_LEGACY_MIGRATION.md).
+Behavior changes need matching Ravo unit or contract tests; `legacy/` is
+read-only.
 
 ## License
 
 Ravo is distributed under the
 [GNU General Public License, version 3](LICENSE). Third-party components are
-listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+listed in [DevDocs/THIRD_PARTY_NOTICES.md](DevDocs/THIRD_PARTY_NOTICES.md).
 
 ---
 

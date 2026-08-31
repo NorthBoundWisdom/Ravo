@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-26
-- Relates to: ADR-0006, ADR-0012, ADR-0015, root `TODO_LEGACY_MIGRATION.md` C3
+- Relates to: ADR-0006, ADR-0012, ADR-0015, `DevDocs/TODO_LEGACY_MIGRATION.md` C3
 - Supersedes: the `ravo.color.white_balance` Kelvin/tint approximation and
   ADR-0012's decoder-owned white-balance wording
 
