@@ -44,6 +44,8 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Build handbook
+        env:
+          NO_MKDOCS_2_WARNING: "true"
         run: python -m mkdocs build --config-file userdoc/mkdocs.yml --strict
 
       - name: Upload Pages artifact

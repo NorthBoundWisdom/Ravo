@@ -26,7 +26,13 @@ and headless workflows.
 
 ## Build the handbook locally
 
-From the repository root:
+From the repository root, first set `NO_MKDOCS_2_WARNING=true` in the
+environment. On POSIX shells use `export NO_MKDOCS_2_WARNING=true`; in
+PowerShell use `$env:NO_MKDOCS_2_WARNING = "true"`. This suppresses only
+Material's MkDocs 2.0 advisory; ordinary MkDocs warnings still participate in
+the strict build.
+
+Then run:
 
 ```text
 python3 -m pip install -r userdoc/requirements.txt
