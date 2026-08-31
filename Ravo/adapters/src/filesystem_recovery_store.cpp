@@ -34,13 +34,7 @@
 #include "recovery_publication_internal.h"
 
 #ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <Windows.h>
+#include <io.h>
 #else
 #include <unistd.h>
 #endif
@@ -1145,9 +1139,8 @@ namespace
     if (!file.flush())
         return std::make_error_code(std::errc::io_error);
 #ifdef _WIN32
-    const auto handle = reinterpret_cast<HANDLE>(file.handle());
-    if (handle == INVALID_HANDLE_VALUE || !::FlushFileBuffers(handle))
-        return std::error_code(static_cast<int>(::GetLastError()), std::system_category());
+    if (file.handle() < 0 || ::_commit(static_cast<int>(file.handle())) != 0)
+        return std::error_code(errno, std::generic_category());
 #else
     if (file.handle() < 0 || ::fsync(static_cast<int>(file.handle())) != 0)
         return std::error_code(errno, std::generic_category());
