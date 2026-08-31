@@ -5,8 +5,11 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <ios>
 #include <limits>
+#include <locale>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -108,10 +111,11 @@ template <typename T>
     if (number == nullptr)
         return document_error("Camera noise field must be numeric", "type_mismatch",
                               std::string(key));
+    std::istringstream stream{number->text};
+    stream.imbue(std::locale::classic());
+    stream >> std::noskipws;
     double value = 0.0;
-    const auto parsed =
-        std::from_chars(number->text.data(), number->text.data() + number->text.size(), value);
-    if (parsed.ec != std::errc{} || parsed.ptr != number->text.data() + number->text.size() ||
+    if (!(stream >> value) || stream.peek() != std::char_traits<char>::eof() ||
         !std::isfinite(value) || (minimum_inclusive ? value < minimum : value <= minimum) ||
         value > maximum)
         return document_error("Camera noise numeric field is outside its supported bounds",

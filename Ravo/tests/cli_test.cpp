@@ -4473,7 +4473,11 @@ TEST_F(CliTest, RealCliLut3dPersistsProbesExportsAndRejectsChangedCorruptSource)
     auto stored = recipe_text(id);
     ASSERT_TRUE(stored) << stored.error().message;
     EXPECT_NE(stored.value().find("ravo.color.lut3d"), std::string::npos);
-    EXPECT_NE(stored.value().find(cube.string()), std::string::npos);
+    auto stored_recipe = parse_recipe_json(stored.value());
+    ASSERT_TRUE(stored_recipe) << stored_recipe.error().message;
+    auto stored_develop = develop_from_recipe(stored_recipe.value());
+    ASSERT_TRUE(stored_develop) << stored_develop.error().message;
+    EXPECT_EQ(stored_develop.value().lut3d.file_path, cube.string());
     EXPECT_NE(stored.value().find("linear_rec709"), std::string::npos);
     auto developed_luma = probe_luma({id});
     ASSERT_TRUE(developed_luma) << developed_luma.error().message;

@@ -221,8 +221,8 @@ std::filesystem::path temporary_candidate(const std::filesystem::path &output,
 {
     const auto parent =
         output.parent_path().empty() ? std::filesystem::path(".") : output.parent_path();
-    auto filename = output.filename();
-    filename += path_utf8(".ravo-" + std::string(owner) + "-" + generate_catalog_id() + ".tmp");
+    const auto filename =
+        path_utf8(".ravo-" + std::string(owner) + "-" + generate_catalog_id() + ".tmp");
     return parent / filename;
 }
 

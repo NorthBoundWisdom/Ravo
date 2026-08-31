@@ -457,7 +457,7 @@ QVariantMap StudioPresenter::editTexture() const
 {
     return {{QStringLiteral("strength"), develop_.texture.strength},
             {QStringLiteral("detailThreshold"), develop_.texture.detail_threshold},
-            {QStringLiteral("iterations"), develop_.texture.iterations}};
+            {QStringLiteral("iterations"), static_cast<qlonglong>(develop_.texture.iterations)}};
 }
 
 QVariantMap StudioPresenter::editRetouch() const

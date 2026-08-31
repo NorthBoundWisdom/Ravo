@@ -254,6 +254,29 @@ TEST(EncodedPublicationTest, PublishesLargeAndEmptyPayloadsAndPreservesLegacySen
     EXPECT_EQ(std::filesystem::file_size(empty_output), 0U);
 }
 
+TEST(EncodedPublicationTest, KeepsTemporaryLeafBoundedForLongDestinations)
+{
+    PublicationTempDirectory temporary;
+    const auto output = temporary.path() / (std::string(120U, 'x') + ".bin");
+    const auto payload = patterned_bytes(kPublicationChunkBytes + 17U);
+    PublicationHookFixture fixture;
+
+    const auto published =
+        write_bytes_atomically(output.string(), payload, CancellationToken{}, hook_for(fixture));
+
+    ASSERT_TRUE(published) << published.error().message;
+    EXPECT_EQ(read_file(output), payload);
+    ASSERT_NE(fixture.temporary_size, 0U);
+    const auto observed = observed_temporary(fixture);
+    std::error_code path_error;
+    EXPECT_TRUE(
+        std::filesystem::equivalent(observed.parent_path(), output.parent_path(), path_error));
+    EXPECT_FALSE(path_error);
+    EXPECT_LE(observed.filename().string().size(), 96U);
+    EXPECT_EQ(observed.filename().string().find(output.filename().string()), std::string::npos);
+    expect_owned_temporary_removed(fixture);
+}
+
 TEST(EncodedPublicationTest, PrioritizesEntryLoopSyncAndPrepublishCancellation)
 {
     PublicationTempDirectory temporary;
