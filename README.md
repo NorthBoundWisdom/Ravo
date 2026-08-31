@@ -51,7 +51,7 @@ the supported scope, validation status, and next work item.
 
 *Gallery: browse JPEG and RAW photos, then inspect metadata, ratings, tags, and histograms.*
 
-![Ravo Studio edit view: non-destructive RAW develop with White Balance and Color Calibration controls.](assets/screenshots/ravo-studio-edit.png)
+![Ravo Studio edit view: non-destructive RAW develop with Monochrome and Camera Calibration controls.](assets/screenshots/ravo-studio-edit.png)
 
 *Edit: inspect a photo and adjust Develop parameters without changing the original.*
 
