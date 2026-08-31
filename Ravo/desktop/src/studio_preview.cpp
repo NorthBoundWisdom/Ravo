@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_presenter.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -12,6 +13,7 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QMutexLocker>
+#include <QSize>
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
@@ -94,11 +96,52 @@ namespace
     return cached;
 }
 
+[[nodiscard]] QSize stable_preview_viewport_size(const QSize current, const QSize displayed,
+                                                 const bool preserve_extent)
+{
+    if (!preserve_extent || current.isEmpty())
+    {
+        return displayed;
+    }
+
+    const double current_aspect =
+        static_cast<double>(current.width()) / static_cast<double>(current.height());
+    const double displayed_aspect =
+        static_cast<double>(displayed.width()) / static_cast<double>(displayed.height());
+    const int compared_extent = std::min(std::max(current.width(), current.height()),
+                                         std::max(displayed.width(), displayed.height()));
+    if (std::abs(current_aspect - displayed_aspect) <= 1.0 / static_cast<double>(compared_extent))
+    {
+        return current;
+    }
+
+    const int extent = std::max(current.width(), current.height());
+    if (displayed.width() >= displayed.height())
+    {
+        return QSize(extent, std::max(1, static_cast<int>(std::lround(static_cast<double>(extent) *
+                                                                      displayed.height() /
+                                                                      displayed.width()))));
+    }
+    return QSize(std::max(1, static_cast<int>(std::lround(static_cast<double>(extent) *
+                                                          displayed.width() / displayed.height()))),
+                 extent);
+}
+
 } // namespace
 
 QUrl StudioPresenter::previewUrl() const
 {
     return preview_url_;
+}
+
+int StudioPresenter::previewViewportWidth() const noexcept
+{
+    return preview_viewport_width_;
+}
+
+int StudioPresenter::previewViewportHeight() const noexcept
+{
+    return preview_viewport_height_;
 }
 
 QImage StudioPresenter::previewImage() const
@@ -145,6 +188,8 @@ void StudioPresenter::clear_displayed_preview()
         preview_url_.clear();
     }
     preview_base_image_ = QImage();
+    preview_viewport_width_ = 0;
+    preview_viewport_height_ = 0;
     preview_mask_alpha_.clear();
     live_preview_revision_ = 0;
     live_preview_width_ = 0;
@@ -299,7 +344,8 @@ void StudioPresenter::refresh_scopes(const QImage &image)
 }
 
 void StudioPresenter::show_preview_result(const PreviewResult &preview,
-                                          const std::uint64_t revision)
+                                          const std::uint64_t revision,
+                                          const bool preserve_viewport_extent)
 {
     auto prepared = preview_result_image(preview);
     if (!prepared)
@@ -347,6 +393,11 @@ void StudioPresenter::show_preview_result(const PreviewResult &preview,
         const QMutexLocker lock(&preview_image_mutex_);
         preview_image_ = displayed;
     }
+    const QSize viewport_size =
+        stable_preview_viewport_size(QSize(preview_viewport_width_, preview_viewport_height_),
+                                     displayed.size(), preserve_viewport_extent);
+    preview_viewport_width_ = viewport_size.width();
+    preview_viewport_height_ = viewport_size.height();
     live_preview_revision_ = revision;
     live_preview_width_ = static_cast<std::uint32_t>(std::max(0, displayed.width()));
     live_preview_height_ = static_cast<std::uint32_t>(std::max(0, displayed.height()));

@@ -205,6 +205,11 @@ worker-start failure is structured rather than falling back silently
 (ADR-0087/0089). Studio posts the pixel job before broadcasting live edit
 property changes, so QML binding reevaluation can overlap the foreground work;
 revision acceptance still exclusively controls publication.
+The presenter also publishes a stable viewport extent: an accepted 960px
+interactive result retains the prior settled maximum edge while adopting a
+changed aspect ratio, and an accepted settled result replaces the extent.
+Failed, cancelled, superseded, or loader-transient results cannot shrink the
+Flickable geometry or clamp the user's same-photo pan.
 
 Develop comparison is desktop-owned transient presentation state. The toolbar
 Left/Right view retains one immutable, non-persistent baseline image for the

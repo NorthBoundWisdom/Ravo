@@ -177,12 +177,12 @@ ApplicationWindow {
     }
 
     function inspectSourceWidth() {
-        const width = Math.max(previewImage.implicitWidth, 1);
+        const width = Math.max(studio.previewViewportWidth, 1);
         return window.comparisonReady ? width * 2 : width;
     }
 
     function inspectSourceHeight() {
-        return Math.max(previewImage.implicitHeight, 1);
+        return Math.max(studio.previewViewportHeight, 1);
     }
 
     onComparisonReadyChanged: {

@@ -18,6 +18,11 @@ navigator, but its pan reset timing was implicit.
 - QML owns only presentation geometry. Its Flickable stops at bounds, and the
   navigator derives a normalized visible rectangle and clamps seek requests to
   current content extents.
+- The presenter publishes a stable viewport extent with each accepted preview.
+  A lower-resolution interactive preview keeps the preceding settled maximum
+  edge while adopting any changed aspect ratio; the settled preview replaces
+  that extent. QML never derives pan geometry from an `Image` resource's
+  transient implicit size while its source is changing.
 - A changed active asset ID, browse mode, or zoom state recenters the viewport
   after layout. Rating, metadata, or other `selectionChanged` notifications for
   the same active asset do not interrupt the user's pan.

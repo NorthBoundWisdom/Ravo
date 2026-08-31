@@ -26,6 +26,7 @@
 #include <QImage>
 #include <QKeySequence>
 #include <QProcess>
+#include <QSize>
 #include <QThread>
 #include <QTranslator>
 #include <QSettings>
@@ -1415,7 +1416,7 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
     QTemporaryDir directory;
     ASSERT_TRUE(directory.isValid());
     const QString photo = directory.filePath(QStringLiteral("photo.png"));
-    QImage image(96, 64, QImage::Format_RGB888);
+    QImage image(1920, 1280, QImage::Format_RGB888);
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(QColor(90, 120, 170));
     ASSERT_TRUE(image.save(photo, "PNG"));
@@ -1462,29 +1463,50 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
         [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
         << presenter.errorText().toStdString();
     EXPECT_TRUE(saw_initial_live);
+    const QSize settled_viewport(presenter.previewViewportWidth(),
+                                 presenter.previewViewportHeight());
+    EXPECT_EQ(settled_viewport, presenter.previewImage().size());
+    EXPECT_EQ(std::max(settled_viewport.width(), settled_viewport.height()), 1600);
 
     bool saw_uncommitted_live = false;
+    QSize uncommitted_live_image_size;
+    QSize uncommitted_live_viewport;
     QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
                      [&]
                      {
                          const auto url = presenter.previewUrl();
-                         saw_uncommitted_live =
-                             saw_uncommitted_live || (url.scheme() == QLatin1String("image") &&
-                                                      url.path() == QLatin1String("/live"));
+                         if (url.scheme() == QLatin1String("image") &&
+                             url.path() == QLatin1String("/live"))
+                         {
+                             saw_uncommitted_live = true;
+                             uncommitted_live_image_size = presenter.previewImage().size();
+                             uncommitted_live_viewport = QSize(presenter.previewViewportWidth(),
+                                                               presenter.previewViewportHeight());
+                         }
                      });
     presenter.previewDevelopNumber(QStringLiteral("exposure"), 0.25);
     ASSERT_TRUE(wait_until([&] { return saw_uncommitted_live && !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
     EXPECT_NEAR(presenter.editExposure(), 0.25, 1e-9);
+    EXPECT_EQ(std::max(uncommitted_live_image_size.width(), uncommitted_live_image_size.height()),
+              960);
+    EXPECT_EQ(uncommitted_live_viewport, settled_viewport);
 
     bool saw_live = false;
     bool saw_settled = false;
+    bool live_viewport_stayed_settled = false;
     QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
                      [&]
                      {
                          const auto url = presenter.previewUrl();
-                         saw_live = saw_live || (url.scheme() == QLatin1String("image") &&
-                                                 url.path() == QLatin1String("/live"));
+                         if (url.scheme() == QLatin1String("image") &&
+                             url.path() == QLatin1String("/live"))
+                         {
+                             saw_live = true;
+                             live_viewport_stayed_settled =
+                                 QSize(presenter.previewViewportWidth(),
+                                       presenter.previewViewportHeight()) == settled_viewport;
+                         }
                          saw_settled = saw_live && url.isLocalFile();
                      });
     presenter.applyStyleFromPath(style_path);
@@ -1493,6 +1515,9 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
         << " url=" << presenter.previewUrl().toString().toStdString();
     EXPECT_FALSE(presenter.previewLoading());
     EXPECT_NEAR(presenter.editExposure(), 1.0, 1e-9);
+    EXPECT_TRUE(live_viewport_stayed_settled);
+    EXPECT_EQ(QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight()),
+              settled_viewport);
 }
 
 TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
@@ -3501,6 +3526,10 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("cropToolActive")));
     EXPECT_TRUE(source.contains(QStringLiteral("function togglePhotoInspectZoom(stagePos)")));
     EXPECT_TRUE(source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportWidth")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportHeight")));
+    EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitWidth")));
+    EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));
     EXPECT_TRUE(source.contains(QStringLiteral("id: inspectZoomAnim")));
     EXPECT_TRUE(source.contains(QStringLiteral("inspectStageLockW")));

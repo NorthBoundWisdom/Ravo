@@ -3075,7 +3075,7 @@ void StudioPresenter::kick_develop_work()
                         kick_develop_work();
                         return;
                     }
-                    show_preview_result(preview.value(), revision);
+                    show_preview_result(preview.value(), revision, job.interactive);
                     displayed_develop_ = job.ignore_edits ?
                                              std::optional<DevelopParams>{} :
                                              std::optional<DevelopParams>{job.params};

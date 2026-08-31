@@ -56,6 +56,8 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(QString selectedImportState READ selectedImportState NOTIFY selectionChanged)
     Q_PROPERTY(bool canDeleteFromDisk READ canDeleteFromDisk NOTIFY selectionChanged)
     Q_PROPERTY(QUrl previewUrl READ previewUrl NOTIFY previewChanged)
+    Q_PROPERTY(int previewViewportWidth READ previewViewportWidth NOTIFY previewChanged)
+    Q_PROPERTY(int previewViewportHeight READ previewViewportHeight NOTIFY previewChanged)
     Q_PROPERTY(QUrl comparisonBeforeUrl READ comparisonBeforeUrl NOTIFY previewChanged)
     Q_PROPERTY(bool previewLoading READ previewLoading NOTIFY previewChanged)
     Q_PROPERTY(QString scopeMode READ scopeMode WRITE setScopeMode NOTIFY scopesChanged)
@@ -295,6 +297,8 @@ public:
     [[nodiscard]] QString selectedImportState() const;
     [[nodiscard]] bool canDeleteFromDisk() const;
     [[nodiscard]] QUrl previewUrl() const;
+    [[nodiscard]] int previewViewportWidth() const noexcept;
+    [[nodiscard]] int previewViewportHeight() const noexcept;
     [[nodiscard]] QImage previewImage() const;
     [[nodiscard]] QUrl comparisonBeforeUrl() const;
     [[nodiscard]] QImage comparisonBeforeImage() const;
@@ -689,7 +693,8 @@ private:
     void kick_develop_work();
     void clear_displayed_preview();
     [[nodiscard]] bool clear_comparison();
-    void show_preview_result(const PreviewResult &preview, std::uint64_t revision);
+    void show_preview_result(const PreviewResult &preview, std::uint64_t revision,
+                             bool preserve_viewport_extent);
     void show_comparison_before_result(const PreviewResult &preview, std::uint64_t revision);
     void refresh_scopes(const QImage &image);
     void refresh_scopes_from_thumbnail(const QString &asset_id);
@@ -779,6 +784,8 @@ private:
     QImage preview_image_;
     QImage comparison_before_image_;
     QImage preview_base_image_;
+    int preview_viewport_width_ = 0;
+    int preview_viewport_height_ = 0;
     std::uint64_t live_preview_revision_ = 0;
     std::uint32_t live_preview_width_ = 0;
     std::uint32_t live_preview_height_ = 0;
