@@ -25,9 +25,21 @@ the already prepared settled working image.
   for persisted settlement. There is no approximate recipe or reduced
   operation set.
 - Studio retains the existing one-in-flight, one-pending-save, and
-  one-pending-preview bounds. A later revision cancels either stage and rejects
-  a late result by revision and asset. Crop guides, mask overlay, before/after,
-  and drag previews retain their existing explicit interactive behavior.
+  one-latest-pending-preview bounds. Repeated pure-interactive intents finish
+  the active pixel frame instead of cancelling it into starvation; completed
+  frames publish in increasing request order and the latest parameters run
+  next. The presenter records the parameters represented by each frame, so a
+  progressive intermediate never claims to match newer current state. Save,
+  selection, close, comparison, and non-interactive supersession still cancel
+  the token and reject a late result by revision and asset. Crop guides, mask
+  overlay, and before/after retain their explicit behavior.
+- Owned interactive pixels become the QML image resource before preview
+  identity and scopes. A second presenter-owned serial worker keeps only the
+  latest immutable frame, computes its pixel/profile SHA-256 and selected
+  diagnostic, and publishes them only when analysis, preview, and asset
+  revisions still match. Live control reports identity loading during that
+  bounded interval. New frames cancel analysis between bounded image rows and
+  diagnostic stages; window destruction cancels and waits for both workers.
 - CatalogService owns two linear-working slots: one for the interactive size
   class and one for the settled size class. Both remain keyed by asset, source
   fingerprint, target size, and RAW/input-colour preprocess state. New RAW
@@ -59,8 +71,11 @@ persisted result, cache identity, and export path remain exact. The additional
 960px working slot raises bounded session memory modestly and avoids rebuilding
 the larger linear image after the first stage. Fast cache PNG may consume more
 of the existing 512 MiB LRU budget, but it is disposable and pixel/profile
-equivalent when decoded. This decision adds neither a GPU/CPU fallback nor a
-process-wide worker pool.
+equivalent when decoded. Progressive drag frames may briefly trail the newest
+slider position, but they never regress after a newer frame and the final
+queued intent remains exact. The analysis worker adds at most one active and
+one pending implicitly shared image per Studio window. This decision adds
+neither a GPU/CPU fallback nor a process-wide worker pool.
 
 ## Rejected alternatives
 

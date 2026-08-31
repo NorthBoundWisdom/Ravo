@@ -187,7 +187,10 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(catalog_operation_.cancel("window_closed"));
     static_cast<void>(import_operation_.cancel("window_closed"));
     develop_preview_owner_.cancel("window_closed");
+    cancel_preview_analysis("window_closed");
     perspective_analysis_owner_.cancel("window_closed");
+    preview_analysis_executor_.request_stop();
+    preview_analysis_executor_.wait();
     executor_.submit(
         [this]()
         {

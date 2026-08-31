@@ -33,6 +33,7 @@
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUrlQuery>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/filesystem_recovery_store.h"
@@ -1737,6 +1738,120 @@ TEST(StudioPresenterTest, ToolbarComparisonKeepsBeforeStableWhileAfterUpdates)
     EXPECT_TRUE(presenter.comparisonBeforeUrl().isEmpty());
 }
 
+TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdentity)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ScopedEnvironmentVariable registry("RAVO_LIVE_CONTROL_DIR",
+                                       directory.filePath(QStringLiteral("live-control")).toUtf8());
+    const QString photo = directory.filePath(QStringLiteral("rapid-preview.png"));
+    QImage image(1440, 960, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(80, 120, 170));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    auto live = StudioLiveSessionController::create(presenter, commands);
+    ASSERT_TRUE(live) << live.error().message;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }))
+        << presenter.errorText().toStdString();
+
+    std::vector<qulonglong> published_revisions;
+    std::vector<qulonglong> timed_revisions;
+    QUrl last_url = presenter.previewUrl();
+    QObject::connect(&presenter, &StudioPresenter::interactivePreviewPublished, &presenter,
+                     [&](const qulonglong revision, const qlonglong intent_to_image_us)
+                     {
+                         EXPECT_GT(intent_to_image_us, 0);
+                         timed_revisions.push_back(revision);
+                     });
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+                     [&]
+                     {
+                         const QUrl current = presenter.previewUrl();
+                         if (current == last_url || current.scheme() != QLatin1String("image") ||
+                             current.path() != QLatin1String("/live"))
+                         {
+                             return;
+                         }
+                         last_url = current;
+                         published_revisions.push_back(
+                             QUrlQuery(current).queryItemValue(QStringLiteral("r")).toULongLong());
+                     });
+
+    presenter.previewDevelopNumber(QStringLiteral("exposure"), -0.2);
+    constexpr int kIntentCount = 40;
+    for (int index = 1; index < kIntentCount; ++index)
+    {
+        presenter.previewDevelopNumber(QStringLiteral("exposure"),
+                                       -0.2 + static_cast<double>(index) * 0.02);
+    }
+    const double latest_exposure = -0.2 + static_cast<double>(kIntentCount - 1) * 0.02;
+
+    ASSERT_TRUE(wait_until([&] { return published_revisions.size() >= 2U; }, 10000))
+        << presenter.errorText().toStdString();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            const auto state = live.value()->snapshot();
+            const auto *preview = state.find("preview");
+            if (preview == nullptr || preview->object_if() == nullptr)
+                return false;
+            const auto *status = preview->find("state");
+            const auto *matches = preview->find("matches_current_recipe");
+            const auto *digest = preview->find("pixel_sha256");
+            return status != nullptr && status->string_if() != nullptr &&
+                   *status->string_if() == "ready" && matches != nullptr &&
+                   matches->boolean_if() != nullptr && *matches->boolean_if() &&
+                   digest != nullptr && digest->string_if() != nullptr &&
+                   !digest->string_if()->empty();
+        },
+        10000))
+        << presenter.errorText().toStdString();
+
+    EXPECT_EQ(published_revisions.size(), 2U);
+    EXPECT_EQ(timed_revisions, published_revisions);
+    EXPECT_LT(published_revisions.front(), published_revisions.back());
+    EXPECT_NEAR(presenter.editExposure(), latest_exposure, 1e-9);
+
+    const auto state = live.value()->snapshot();
+    const auto *preview = state.find("preview");
+    ASSERT_NE(preview, nullptr);
+    const auto *profile = preview->find("color_profile");
+    const auto *digest = preview->find("pixel_sha256");
+    ASSERT_NE(profile, nullptr);
+    ASSERT_NE(profile->string_if(), nullptr);
+    ASSERT_NE(digest, nullptr);
+    ASSERT_NE(digest->string_if(), nullptr);
+    const QImage displayed = presenter.previewImage();
+    ASSERT_EQ(displayed.format(), QImage::Format_RGB888);
+    QCryptographicHash expected(QCryptographicHash::Sha256);
+    for (int row = 0; row < displayed.height(); ++row)
+    {
+        expected.addData(
+            QByteArrayView(reinterpret_cast<const char *>(displayed.constScanLine(row)),
+                           static_cast<qsizetype>(displayed.width() * 3)));
+    }
+    expected.addData(QByteArray::fromStdString(*profile->string_if()));
+    EXPECT_EQ(*digest->string_if(), expected.result().toHex().toStdString());
+}
+
 TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImagePublication)
 {
     const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
@@ -1770,6 +1885,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
         << presenter.errorText().toStdString();
 
     const double baseline = presenter.editExposure();
+    const double sweep_center = std::clamp(baseline, -2.9, 3.9);
     std::vector<std::int64_t> elapsed_us;
     elapsed_us.reserve(runs);
     for (std::size_t run = 0U; run < runs; ++run)
@@ -1796,7 +1912,7 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
                 }
             });
         timer.start();
-        presenter.previewDevelopNumber(QStringLiteral("exposure"), baseline + offset);
+        presenter.previewDevelopNumber(QStringLiteral("exposure"), sweep_center + offset);
         timeout.start(5000);
         if (!published_us.has_value())
         {
@@ -1818,6 +1934,131 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresExposureIntentThroughImag
     if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
     {
         EXPECT_LE(p90_us, std::stoll(budget) * 1000);
+    }
+}
+
+TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRapidIntentBurstToLatestPublication)
+{
+    const char *catalog_path = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset_id = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (catalog_path == nullptr || asset_id == nullptr)
+    {
+        GTEST_SKIP() << "set RAVO_INTERACTIVE_PERF_CATALOG and RAVO_INTERACTIVE_PERF_ASSET_ID";
+    }
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir registry;
+    ASSERT_TRUE(registry.isValid());
+    ScopedEnvironmentVariable registry_path("RAVO_LIVE_CONTROL_DIR", registry.path().toUtf8());
+    const std::size_t intents =
+        std::getenv("RAVO_INTERACTIVE_BURST_RUNS") != nullptr ?
+            static_cast<std::size_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_BURST_RUNS"))) :
+            40U;
+    ASSERT_GT(intents, 1U);
+
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    auto live = StudioLiveSessionController::create(presenter, commands);
+    ASSERT_TRUE(live) << live.error().message;
+    presenter.openCatalogFromPath(QString::fromUtf8(catalog_path));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    presenter.selectAsset(QString::fromUtf8(asset_id));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.selectedAssetId() == QString::fromUtf8(asset_id) && !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && presenter.previewUrl().isLocalFile(); }, 30000))
+        << presenter.errorText().toStdString();
+
+    const double baseline = presenter.editExposure();
+    const double burst_start = std::clamp(baseline, -2.8, 3.8) - 0.02;
+    QElapsedTimer timer;
+    QEventLoop event_loop;
+    QTimer intent_timer;
+    QTimer timeout;
+    intent_timer.setTimerType(Qt::PreciseTimer);
+    intent_timer.setInterval(1);
+    timeout.setSingleShot(true);
+    std::size_t sent = 0U;
+    std::optional<std::int64_t> first_intent_us;
+    std::optional<std::int64_t> last_intent_us;
+    std::optional<std::int64_t> latest_published_us;
+    std::vector<std::int64_t> frame_us;
+    QUrl last_url = presenter.previewUrl();
+    const auto preview_matches_current = [&]
+    {
+        const auto state = live.value()->snapshot();
+        const auto *preview = state.find("preview");
+        if (preview == nullptr || preview->object_if() == nullptr)
+            return false;
+        const auto *matches = preview->find("matches_current_recipe");
+        return matches != nullptr && matches->boolean_if() != nullptr && *matches->boolean_if();
+    };
+    QObject::connect(&intent_timer, &QTimer::timeout, &event_loop,
+                     [&]
+                     {
+                         const auto now_us = timer.nsecsElapsed() / 1000;
+                         if (!first_intent_us)
+                             first_intent_us = now_us;
+                         presenter.previewDevelopNumber(QStringLiteral("exposure"),
+                                                        burst_start +
+                                                            static_cast<double>(sent) * 0.001);
+                         last_intent_us = now_us;
+                         ++sent;
+                         if (sent == intents)
+                             intent_timer.stop();
+                     });
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &event_loop,
+                     [&]
+                     {
+                         const QUrl current = presenter.previewUrl();
+                         if (current == last_url || current.scheme() != QLatin1String("image") ||
+                             current.path() != QLatin1String("/live"))
+                         {
+                             return;
+                         }
+                         last_url = current;
+                         const auto now_us = timer.nsecsElapsed() / 1000;
+                         frame_us.push_back(now_us);
+                         if (sent == intents && preview_matches_current())
+                         {
+                             latest_published_us = now_us;
+                             event_loop.quit();
+                         }
+                     });
+    QObject::connect(&timeout, &QTimer::timeout, &event_loop, &QEventLoop::quit);
+
+    timer.start();
+    intent_timer.start();
+    timeout.start(5000);
+    event_loop.exec();
+    ASSERT_TRUE(first_intent_us.has_value());
+    ASSERT_TRUE(last_intent_us.has_value());
+    ASSERT_TRUE(latest_published_us.has_value()) << presenter.errorText().toStdString();
+    ASSERT_GE(frame_us.size(), 2U);
+    const auto first_latency_us = frame_us.front() - *first_intent_us;
+    const auto latest_latency_us = *latest_published_us - *last_intent_us;
+    std::int64_t maximum_frame_gap_us = 0;
+    for (std::size_t index = 1U; index < frame_us.size(); ++index)
+    {
+        maximum_frame_gap_us =
+            std::max(maximum_frame_gap_us, frame_us[index] - frame_us[index - 1U]);
+    }
+    std::cerr << "studio_interactive_burst_intents=" << intents
+              << " published_frames=" << frame_us.size()
+              << " first_intent_to_publish_us=" << first_latency_us
+              << " latest_intent_to_publish_us=" << latest_latency_us
+              << " maximum_frame_gap_us=" << maximum_frame_gap_us << '\n';
+    if (const char *budget = std::getenv("RAVO_INTERACTIVE_BURST_BUDGET_MS"))
+    {
+        const auto budget_us = std::stoll(budget) * 1000;
+        EXPECT_LE(first_latency_us, budget_us);
+        EXPECT_LE(latest_latency_us, budget_us);
     }
 }
 

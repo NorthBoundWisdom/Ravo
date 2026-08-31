@@ -1,3 +1,9 @@
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <memory>
+#include <optional>
+
 #include <QColor>
 #include <QColorSpace>
 #include <QCoreApplication>
@@ -9,6 +15,7 @@
 #include <QPalette>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickWindow>
 #include <QQuickStyle>
 #include <QString>
 #include <QStyleHints>
@@ -28,6 +35,13 @@ void qml_register_types_GeoControls_AppShell();
 
 namespace
 {
+
+struct PreviewPresentationTrace
+{
+    std::optional<std::uint64_t> pending_revision;
+    std::chrono::steady_clock::time_point intent_started_at{};
+    std::int64_t intent_to_image_us = 0;
+};
 
 bool generic_font_family(const QString &family)
 {
@@ -86,9 +100,7 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
     QStringList families;
 
     auto append_installed = [&](const QString &family)
-    {
-        append_family(families, installed_family(installed, family));
-    };
+    { append_family(families, installed_family(installed, family)); };
 
     for (const QString &family : system_font.families())
     {
@@ -110,10 +122,9 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
         for (const auto &family :
              {QStringLiteral("Segoe UI"), QStringLiteral("Noto Sans"),
               QStringLiteral("DejaVu Sans"), QStringLiteral("Liberation Sans"),
-              QStringLiteral("Ubuntu"), QStringLiteral("Cantarell"),
-              QStringLiteral("FreeSans"), QStringLiteral("Lucida Grande"),
-              QStringLiteral("Helvetica Neue"), QStringLiteral("Helvetica"),
-              QStringLiteral("Arial")})
+              QStringLiteral("Ubuntu"), QStringLiteral("Cantarell"), QStringLiteral("FreeSans"),
+              QStringLiteral("Lucida Grande"), QStringLiteral("Helvetica Neue"),
+              QStringLiteral("Helvetica"), QStringLiteral("Arial")})
         {
             append_installed(family);
             if (!families.isEmpty())
@@ -127,8 +138,8 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
         append_family(families, first_public_family(QFontDatabase::Latin));
     }
 
-    auto append_script = [&](const QStringList &candidates,
-                             const QFontDatabase::WritingSystem writing_system)
+    auto append_script =
+        [&](const QStringList &candidates, const QFontDatabase::WritingSystem writing_system)
     {
         const qsizetype before = families.size();
         for (const auto &family : candidates)
@@ -140,8 +151,7 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
     {
         append_script({QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
                        QStringLiteral("Noto Sans CJK SC"), QStringLiteral("Noto Sans SC"),
-                       QStringLiteral("Source Han Sans SC"),
-                       QStringLiteral("Microsoft YaHei UI"),
+                       QStringLiteral("Source Han Sans SC"), QStringLiteral("Microsoft YaHei UI"),
                        QStringLiteral("Microsoft YaHei")},
                       QFontDatabase::SimplifiedChinese);
     };
@@ -162,8 +172,7 @@ QStringList studio_ui_font_families(const QFont &system_font, const QString &lan
     };
     auto append_korean = [&]()
     {
-        append_script({QStringLiteral("Apple SD Gothic Neo"),
-                       QStringLiteral("Malgun Gothic"),
+        append_script({QStringLiteral("Apple SD Gothic Neo"), QStringLiteral("Malgun Gothic"),
                        QStringLiteral("Noto Sans CJK KR"), QStringLiteral("Noto Sans KR")},
                       QFontDatabase::Korean);
     };
@@ -322,8 +331,8 @@ int main(int argc, char *argv[])
         QGuiApplication::setFont(ui_font);
     };
     apply_ui_font();
-    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
-                     &application, apply_ui_font);
+    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &application,
+                     apply_ui_font);
     ravo::StudioPresenter presenter;
     ravo::StudioCommandController command_controller(presenter);
     ravo::StudioAssistantController assistant_controller;
@@ -368,12 +377,54 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated, &application,
-        [smoke](QObject *object, const QUrl &)
+        [smoke, &presenter](QObject *object, const QUrl &)
         {
             if (smoke)
             {
                 QCoreApplication::exit(object == nullptr ? 1 : 0);
+                return;
             }
+            if (object == nullptr ||
+                !qEnvironmentVariableIntValue("RAVO_TRACE_PREVIEW_PRESENTATION"))
+            {
+                return;
+            }
+            auto *window = qobject_cast<QQuickWindow *>(object);
+            if (window == nullptr)
+            {
+                LOG_ERROR(ravo::logger(),
+                          "interactive preview presentation trace requires a QQuickWindow root");
+                return;
+            }
+            auto trace = std::make_shared<PreviewPresentationTrace>();
+            QObject::connect(
+                &presenter, &ravo::StudioPresenter::interactivePreviewPublished, window,
+                [trace](const qulonglong revision, const qlonglong intent_to_image_us)
+                {
+                    trace->pending_revision = static_cast<std::uint64_t>(revision);
+                    trace->intent_to_image_us = std::max<std::int64_t>(intent_to_image_us, 0);
+                    trace->intent_started_at = std::chrono::steady_clock::now() -
+                                               std::chrono::microseconds(trace->intent_to_image_us);
+                });
+            QObject::connect(
+                window, &QQuickWindow::frameSwapped, window,
+                [trace]
+                {
+                    if (!trace->pending_revision)
+                    {
+                        return;
+                    }
+                    const auto intent_to_frame_swap_us =
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now() - trace->intent_started_at)
+                            .count();
+                    LOG_INFO(ravo::logger(),
+                             "interactive preview presented revision={} intent_to_image={}us "
+                             "intent_to_frame_swap={}us",
+                             *trace->pending_revision, trace->intent_to_image_us,
+                             intent_to_frame_swap_us);
+                    trace->pending_revision.reset();
+                });
         },
         Qt::QueuedConnection);
     engine.loadFromModule("Ravo.Studio", "Main");

@@ -2592,6 +2592,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
     {
         return;
     }
+    const auto intent_started_at = std::chrono::steady_clock::now();
     clamp_develop(params);
     const auto previous = saved_develop_;
     const bool same_control = push_history && params != saved_develop_ &&
@@ -2651,7 +2652,7 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         (!displayed_develop_.has_value() || *displayed_develop_ != params);
     preview_loading_ = refresh_preview;
     emit previewChanged();
-    static_cast<void>(develop_preview_owner_.supersede("develop_save_superseded"));
+    const auto request_revision = develop_preview_owner_.supersede("develop_save_superseded");
     pending_save_ = PendingDevelopWork{
         .save = true,
         .interactive = crop_guides || overlay || needs_first_preview,
@@ -2670,6 +2671,8 @@ void StudioPresenter::commit_develop(DevelopParams params, const bool push_histo
         .refresh_preview = refresh_preview,
         .settle_preview = needs_first_preview,
         .overlay_mask_id = current_overlay_mask_id(params),
+        .request_revision = request_revision,
+        .intent_started_at = intent_started_at,
     };
     pending_preview_.reset();
     kick_develop_work();
@@ -2694,6 +2697,7 @@ void StudioPresenter::preview_develop(DevelopParams params)
     {
         return;
     }
+    const auto intent_started_at = std::chrono::steady_clock::now();
     clamp_develop(params);
     if (params == develop_)
     {
@@ -2701,7 +2705,13 @@ void StudioPresenter::preview_develop(DevelopParams params)
     }
     develop_ = params;
     const bool crop_guides = crop_tool_active_ && !before_after_;
-    static_cast<void>(develop_preview_owner_.supersede("interactive_preview_superseded"));
+    std::optional<std::uint64_t> request_revision;
+    const bool finish_active_frame =
+        develop_job_in_flight_ && develop_interactive_job_in_flight_ && !pending_save_.has_value();
+    if (!finish_active_frame)
+    {
+        request_revision = develop_preview_owner_.supersede("interactive_preview_superseded");
+    }
     pending_preview_ = PendingDevelopWork{
         .interactive = true,
         .params = params,
@@ -2715,6 +2725,8 @@ void StudioPresenter::preview_develop(DevelopParams params)
         .ignore_crop = crop_guides,
         .ignore_straighten = false,
         .overlay_mask_id = current_overlay_mask_id(params),
+        .request_revision = request_revision,
+        .intent_started_at = intent_started_at,
     };
     kick_develop_work();
     // Start the pixel job before notifying the broad inspector property set. QML may reevaluate
@@ -2782,7 +2794,7 @@ void StudioPresenter::enqueue_preview()
     }
     preview_loading_ = true;
     emit previewChanged();
-    static_cast<void>(develop_preview_owner_.supersede("preview_superseded"));
+    const auto request_revision = develop_preview_owner_.supersede("preview_superseded");
     const bool crop_guides = crop_tool_active_ && !before_after_;
     const bool progressive_develop = browse_mode_ == QLatin1String("develop") &&
                                      !mask_overlay_visible_ && !crop_guides && !before_after_;
@@ -2800,6 +2812,8 @@ void StudioPresenter::enqueue_preview()
         .ignore_straighten = false,
         .settle_preview = progressive_develop,
         .overlay_mask_id = current_overlay_mask_id(develop_),
+        .request_revision = request_revision,
+        .intent_started_at = std::chrono::steady_clock::now(),
     };
     kick_develop_work();
 }
@@ -2851,6 +2865,8 @@ void StudioPresenter::kick_develop_work()
             .refresh_preview = true,
             .comparison_before = true,
             .overlay_mask_id = {},
+            .request_revision = {},
+            .intent_started_at = std::chrono::steady_clock::now(),
         };
     }
     else
@@ -2860,13 +2876,16 @@ void StudioPresenter::kick_develop_work()
     }
     if (starting_comparison_before)
     {
-        static_cast<void>(develop_preview_owner_.supersede("comparison_before_requested"));
+        job.request_revision = develop_preview_owner_.supersede("comparison_before_requested");
         preview_loading_ = true;
         emit previewChanged();
     }
     static_cast<void>(thumbnail_work_.cancel("foreground_preview_requested"));
     develop_job_in_flight_ = true;
-    const auto revision = develop_preview_owner_.revision();
+    develop_interactive_job_in_flight_ = job.interactive && !job.save && !job.comparison_before;
+    const auto revision = job.request_revision ?
+                              *job.request_revision :
+                              develop_preview_owner_.supersede("queued_preview_started");
     const auto cancellation = develop_preview_owner_.begin();
     executor_.post(
         [this, job, revision, cancellation]()
@@ -2920,6 +2939,7 @@ void StudioPresenter::kick_develop_work()
                  preview = std::move(preview)]() mutable
                 {
                     develop_job_in_flight_ = false;
+                    develop_interactive_job_in_flight_ = false;
                     const bool selected_matches =
                         utf8_from_qstring(selected_asset_id_) == job.asset_id;
                     if (job.save)
@@ -3079,6 +3099,17 @@ void StudioPresenter::kick_develop_work()
                     displayed_develop_ = job.ignore_edits ?
                                              std::optional<DevelopParams>{} :
                                              std::optional<DevelopParams>{job.params};
+                    if (job.interactive &&
+                        job.intent_started_at != std::chrono::steady_clock::time_point{})
+                    {
+                        const auto intent_to_image_us =
+                            std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - job.intent_started_at)
+                                .count();
+                        emit interactivePreviewPublished(
+                            static_cast<qulonglong>(revision),
+                            static_cast<qlonglong>(intent_to_image_us));
+                    }
                     emit previewChanged();
                     if (job.settle_preview)
                     {
@@ -3100,6 +3131,8 @@ void StudioPresenter::kick_develop_work()
                             .refresh_preview = true,
                             .settle_preview = false,
                             .overlay_mask_id = {},
+                            .request_revision = {},
+                            .intent_started_at = job.intent_started_at,
                         };
                     }
                     if (comparison_active_ && comparison_before_url_.isEmpty())

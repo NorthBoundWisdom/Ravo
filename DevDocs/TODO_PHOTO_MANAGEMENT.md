@@ -23,15 +23,19 @@ RAVO_PHOTO_CORPUS=/absolute/private/photos \
   --gtest_filter=CatalogServiceTest.PrivatePhotoManagementReleaseProbePreservesCorpus
 RAVO_INTERACTIVE_PERF_CATALOG=/temporary/private-corpus/library.sqlite \
 RAVO_INTERACTIVE_PERF_ASSET_ID=<imported-raw-asset-id> \
-RAVO_INTERACTIVE_PERF_P90_BUDGET_MS=30 \
+RAVO_INTERACTIVE_PERF_P90_BUDGET_MS=10 \
+RAVO_INTERACTIVE_BURST_BUDGET_MS=10 \
   build/mac_clang_release/Ravo/tests/ravo_desktop_command_tests \
-  --gtest_filter=StudioInteractivePreviewPerformanceProbe.MeasuresExposureIntentThroughImagePublication
+  --gtest_filter='StudioInteractivePreviewPerformanceProbe.*'
 ```
 
 Acceptance gate:
 
-- record RAW/raster import, cold/warm settled preview, page, and interactive
-  P50/P90/max using the definitions in `DevDocs/TESTING.md`;
+- record RAW/raster import, cold/warm settled preview, page, sequential
+  interactive P50/P90/max, and rapid-intent first/latest/frame-gap timings using
+  the definitions in `DevDocs/TESTING.md`;
+- record the opt-in native frame-swap trace with display refresh rate and power
+  state, separately from the owned-image latency gate;
 - freeze host-local budgets only from a repeatable candidate run, then rerun
   with those budget variables enabled;
 - prove every corpus file retains exact SHA-256, size, and modification time;

@@ -18,8 +18,8 @@ The following are separate owners and are not folded into `DevDocs/`:
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Target boundaries, ownership, lifecycle, threads, data, and failure behavior |
 | [MIGRATION.md](MIGRATION.md) | Ravo/legacy boundary, accepted capabilities, leftovers, and retirement rules |
-| [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, and validation depth |
-| [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md) | Remaining P0/P1 release evidence |
+| [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth |
+| [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md) | Remaining P0/P1 platform, corpus, and interactive-latency release evidence |
 | [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md) | Paused legacy absorption and retirement execution queue |
 | [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md) | Release measurements and gated Gallery concurrency/cache candidates |
 | [ProductRoadmap.md](ProductRoadmap.md) | Cross-layer product decisions not ready for either TODO |

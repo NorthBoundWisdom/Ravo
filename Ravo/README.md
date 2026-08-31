@@ -158,9 +158,13 @@ Current implementation status:
   prefix and its bounded row team, so Exposure does not recompute unchanged
   calibration, denoise, or lens/canvas stages. Prefix changes publish only
   after successful completion and invalidate with the working generation.
-  Superseded requests cancel and late results are dropped by revision;
-  recipe/history/revision save atomically. Preview-cache PNG favors latency
-  because it is rebuildable, while export encoding is unchanged
+  Rapid slider intents retain one active frame plus only the latest pending
+  parameters, avoiding cancellation starvation while never presenting an
+  older frame after a newer one. The UI publishes owned pixels before a
+  separate latest-only worker computes exact live-control SHA-256 and scopes;
+  save, selection, close, and non-interactive supersession still cancel and
+  reject late work. Recipe/history/revision save atomically. Preview-cache PNG
+  favors latency because it is rebuildable, while export encoding is unchanged
   (ADR-0087/0089). Catalog unit tests cover L2–L9 parameters and pixel reopen
   contracts.
 - Reusable complete styles use `.rstyle.json` schema v1: a complete canonical

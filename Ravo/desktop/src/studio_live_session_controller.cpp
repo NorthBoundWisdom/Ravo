@@ -280,6 +280,7 @@ Result<void> StudioLiveSessionController::start()
     connect(&presenter_, &StudioPresenter::browseModeChanged, this, changed);
     connect(&presenter_, &StudioPresenter::editChanged, this, changed);
     connect(&presenter_, &StudioPresenter::previewChanged, this, changed);
+    connect(&presenter_, &StudioPresenter::previewIdentityChanged, this, changed);
     connect(&commands_, &StudioCommandController::commandsChanged, this, changed);
     refresh();
 
@@ -372,7 +373,8 @@ void StudioLiveSessionController::refresh()
 
     const std::string preview = std::to_string(presenter_.live_preview_revision_) + "\n" +
                                 utf8_from_qstring(presenter_.live_preview_pixel_sha256_) + "\n" +
-                                std::to_string(presenter_.preview_loading_ ? 1 : 0);
+                                std::to_string(presenter_.preview_loading_ ? 1 : 0) + "\n" +
+                                std::to_string(presenter_.preview_identity_pending_ ? 1 : 0);
     if (preview != preview_identity_)
     {
         preview_identity_ = preview;
@@ -463,9 +465,9 @@ JsonValue StudioLiveSessionController::snapshot() const
                             std::string{}},
         {"revision", JsonValue::number(std::to_string(preview_state_revision_))},
         {"source_revision", JsonValue::number(std::to_string(presenter_.live_preview_revision_))},
-        {"state", presenter_.preview_loading_ ? "loading" :
-                  preview_ready               ? "ready" :
-                                                "none"},
+        {"state", presenter_.preview_loading_ || presenter_.preview_identity_pending_ ? "loading" :
+                  preview_ready                                                       ? "ready" :
+                                                                                        "none"},
         {"width", JsonValue::number(std::to_string(presenter_.live_preview_width_))},
     };
 

@@ -611,9 +611,15 @@ gated (ADR-0096).
   RAW decode on selection; loupe/develop still use processed preview and never
   treat embedded JPEG as editable data.
 - Quickly switching assets drops late results from old request revisions.
-- A superseded Develop request's independent token cancels when a new revision
-  publishes; even if cancellation races with completion, an old revision/asset
-  cannot update preview.
+- A rapid pure-interactive burst publishes the active frame, replaces only the
+  bounded pending request, advances image revisions monotonically, and ends on
+  pixels that match the latest parameters. Save, selection, close, comparison,
+  and non-interactive supersession still cancel the independent token; an old
+  revision/asset cannot update preview.
+- Preview SHA-256 and scopes run on the presenter-owned latest-only analysis
+  worker. Live control reports identity loading until the exact matching digest
+  arrives; a newer frame, selection change, or destruction cancels analysis and
+  cannot publish stale identity or diagnostics.
 - After window or catalog close, there is no detached task, late UI update,
   uncommitted transaction, or temporary preview.
 - Manual viewer acceptance covers at least loading/ready/missing/unsupported/
@@ -1148,19 +1154,34 @@ timings do not make the normal contract suite flaky.
 
 The opt-in `InteractivePreviewPerformanceProbe` warms both live and settled
 working slots, then measures a non-persistent Develop parameter sweep through
-CatalogService and includes the RGB ownership copies plus histogram work
-required before Studio can publish a frame. The corresponding
+CatalogService and includes the RGB ownership copies plus histogram work used
+by its service-level result. The corresponding
 `StudioInteractivePreviewPerformanceProbe` measures from the Presenter numeric
-intent through publication of the owned live `QImage`. Run them from a Release
-build against a private catalog copy with
+intent through publication of the owned live `QImage`; SHA-256 and scopes are
+intentionally a separate latest-only stage and their exact final identity is a
+functional contract. Its rapid-intent case injects one-millisecond slider
+updates and reports first-frame latency, latest-intent latency, published-frame
+count, and maximum frame gap. Run the probes from a Release build against a
+private catalog copy with
 `RAVO_INTERACTIVE_PERF_CATALOG` and `RAVO_INTERACTIVE_PERF_ASSET_ID`; optional
 `RAVO_INTERACTIVE_PERF_MAX_EDGE`, `RAVO_INTERACTIVE_PERF_RUNS`, and
 `RAVO_INTERACTIVE_PERF_P90_BUDGET_MS` select the size, sample count, and visible
-P90 gate. `InteractivePreviewQualityProbe` uses the same fixture variables to
-compare the 960px and former 640px complete pipelines with the 1600px settled
-display pixels; `RAVO_INTERACTIVE_QUALITY_MIN_PSNR_DB` adds a local PSNR gate.
-Both probes skip without explicit fixture variables and leave recipe and
-preview-record state unchanged.
+P90 gate. `RAVO_INTERACTIVE_BURST_RUNS` and
+`RAVO_INTERACTIVE_BURST_BUDGET_MS` select the burst length and cap both its
+first and latest owned-image response. `InteractivePreviewQualityProbe` uses the
+same fixture variables to compare the 960px and former 640px complete pipelines
+with the 1600px settled display pixels;
+`RAVO_INTERACTIVE_QUALITY_MIN_PSNR_DB` adds a local PSNR gate. Both probes skip
+without explicit fixture variables and leave recipe and preview-record state
+unchanged.
+
+`RAVO_TRACE_PREVIEW_PRESENTATION=1` enables a read-only Studio trace that joins
+the presenter's interactive intent timestamp to the next native
+`QQuickWindow::frameSwapped` after owned-image publication. It records both
+intent-to-image and intent-to-frame-swap microseconds. Use it only with a fixed
+display refresh rate and power state: swap time is quantized by the display and
+is reported separately from the 5/10 ms CPU/presentation-publication gate. The
+trace neither changes scheduling nor supplies a fallback renderer.
 
 `PerspectiveInteractivePerformanceProbe` uses the same Release-only catalog
 and asset variables, warms the normal CatalogService working buffer, sweeps

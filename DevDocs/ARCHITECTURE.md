@@ -193,14 +193,19 @@ clipboard nor merge policy. The former complete clipboard and fixed Light/Color
 paste paths have no product consumer (ADR-0078/0098).
 
 Develop preview is bounded and coalesced: at most one render is in flight, plus
-one recipe waiting to save and one preview request waiting. A new revision
-cancels the old token; stale results are dropped by revision and asset, while
-failure retains the prior verified preview. During a drag, the presenter only
-forwards in-memory parameters. Services apply the complete effect stack to a
-cached 960px scene-linear working image, return memory pixels, and do not write
-PNG/cache. Entering Develop prepares that image before settling at 1600px, so
-the first later slider change does not pay decode/preprocess setup. For an
-ordinary commit whose parameters are not already displayed, Studio first saves
+one recipe waiting to save and one latest preview request waiting. Repeated
+pure-interactive intents do not cancel the frame already in its pixel stage:
+that monotonically newer result may publish while the latest parameters remain
+queued, and `displayed_develop_` keeps live control from claiming it matches the
+current recipe. The latest request starts immediately afterwards. Save,
+selection, catalog-close, comparison, and non-interactive supersession still
+cancel the active token and reject late results by revision and asset. During a
+drag, the presenter only forwards in-memory parameters. Services apply the
+complete effect stack to a cached 960px scene-linear working image, return
+memory pixels, and do not write PNG/cache. Entering Develop prepares that image
+before settling at 1600px, so the first later slider change does not pay
+decode/preprocess setup. For an ordinary commit whose parameters are not
+already displayed, Studio first saves
 atomically, publishes that exact 960px memory preview, then queues the same
 revision for an exact 1600px persisted preview. Foreground Develop and
 background Gallery work own separate bounded decode/working lanes; within the
@@ -221,6 +226,16 @@ worker-start failure is structured rather than falling back silently
 (ADR-0087/0089). Studio posts the pixel job before broadcasting live edit
 property changes, so QML binding reevaluation can overlap the foreground work;
 revision acceptance still exclusively controls publication.
+The UI thread publishes an owned `QImage` and its revision before diagnostic
+work. A second presenter-owned serial worker keeps only the latest immutable
+image, computes its exact pixel/profile SHA-256 and current scope mode, and
+posts those value results back with analysis, preview, and asset revisions. New
+frames cancel that analysis between bounded image rows and diagnostic stages.
+Live control reports the preview identity as loading until the matching hash
+arrives; stale analysis cannot change the resource ID or scopes.
+Close/destruction cancels both owners, clears the bounded pending image, and
+waits for both workers. QML still receives only the image URL and engine-owned
+diagnostics; this adds neither another renderer nor a pixel algorithm in QML.
 The presenter also publishes a stable viewport extent: an accepted 960px
 interactive result retains the prior settled maximum edge while adopting a
 changed aspect ratio, and an accepted settled result replaces the extent.

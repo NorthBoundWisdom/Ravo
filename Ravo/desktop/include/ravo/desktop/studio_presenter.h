@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -618,6 +619,8 @@ signals:
     void errorChanged();
     void selectionChanged();
     void previewChanged();
+    void previewIdentityChanged();
+    void interactivePreviewPublished(qulonglong revision, qlonglong intentToImageMicroseconds);
     void scopesChanged();
     void browseModeChanged();
     void zoomChanged();
@@ -698,6 +701,11 @@ private:
     void show_preview_result(const PreviewResult &preview, std::uint64_t revision,
                              bool preserve_viewport_extent);
     void show_comparison_before_result(const PreviewResult &preview, std::uint64_t revision);
+    void schedule_preview_analysis(const QImage &identity_image, const QImage &scope_image,
+                                   std::uint64_t preview_revision, const std::string &asset_id,
+                                   const QString &profile_id);
+    void drain_preview_analysis();
+    void cancel_preview_analysis(std::string reason);
     void refresh_scopes(const QImage &image);
     void refresh_scopes_from_thumbnail(const QString &asset_id);
     void clear_scopes();
@@ -723,6 +731,8 @@ private:
         bool settle_preview = false;
         bool comparison_before = false;
         std::optional<std::string> overlay_mask_id;
+        std::optional<std::uint64_t> request_revision;
+        std::chrono::steady_clock::time_point intent_started_at{};
     };
     [[nodiscard]] LibraryQuery current_query() const;
     [[nodiscard]] Result<std::unique_ptr<CatalogService>>
@@ -736,6 +746,7 @@ private:
     [[nodiscard]] std::vector<std::string> selected_asset_ids() const;
 
     SerialExecutor executor_;
+    SerialExecutor preview_analysis_executor_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;
@@ -793,10 +804,14 @@ private:
     std::uint32_t live_preview_height_ = 0;
     QString live_preview_color_profile_id_;
     QString live_preview_pixel_sha256_;
+    bool preview_identity_pending_ = false;
     std::vector<float> preview_mask_alpha_;
     bool mask_overlay_visible_ = false;
     QString mask_overlay_target_{QStringLiteral("color_harmonizer")};
     mutable QMutex preview_image_mutex_;
+    QMutex preview_analysis_queue_mutex_;
+    std::optional<std::function<void()>> pending_preview_analysis_;
+    bool preview_analysis_worker_active_ = false;
     QString scope_mode_{QStringLiteral("histogram")};
     RgbHistogram scope_histogram_{};
     QImage scope_parade_image_;
@@ -817,6 +832,7 @@ private:
     bool busy_ = false;
     bool preview_loading_ = false;
     PreviewRequestOwner develop_preview_owner_;
+    PreviewRequestOwner preview_analysis_owner_;
     PreviewRequestOwner perspective_analysis_owner_;
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
@@ -848,6 +864,7 @@ private:
     QString crop_aspect_{QStringLiteral("free")};
     double locked_crop_ratio_ = 0.0;
     bool develop_job_in_flight_ = false;
+    bool develop_interactive_job_in_flight_ = false;
     std::optional<PendingDevelopWork> pending_save_;
     std::optional<PendingDevelopWork> pending_preview_;
     QVariantList recipe_history_;
