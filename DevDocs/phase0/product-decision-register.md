@@ -61,4 +61,4 @@ decision can claim support.
    old expected PNG exists.
 4. A capability reaches `Ravo accepted` only after its CPU, error, cancellation,
    resource, and fixture evidence meets the migration policy. Old-owner removal
-   follows the root active migration TODO gate, not a final bulk sweep.
+   follows the root legacy migration TODO gate, not a final bulk sweep.

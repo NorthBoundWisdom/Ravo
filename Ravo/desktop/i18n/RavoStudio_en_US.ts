@@ -37,6 +37,57 @@
         </message>
     </context>
     <context>
+        <name>BackupScheduleDialog</name>
+        <message>
+            <source>Scheduled Backups</source>
+            <translation>Scheduled Backups</translation>
+        </message>
+        <message>
+            <source>Every 15 minutes</source>
+            <translation>Every 15 minutes</translation>
+        </message>
+        <message>
+            <source>Hourly</source>
+            <translation>Hourly</translation>
+        </message>
+        <message>
+            <source>Daily</source>
+            <translation>Daily</translation>
+        </message>
+        <message>
+            <source>Weekly</source>
+            <translation>Weekly</translation>
+        </message>
+        <message>
+            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
+            <translation>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</translation>
+        </message>
+        <message>
+            <source>Frequency</source>
+            <translation>Frequency</translation>
+        </message>
+        <message>
+            <source>Backup frequency</source>
+            <translation>Backup frequency</translation>
+        </message>
+        <message>
+            <source>Keep backups</source>
+            <translation>Keep backups</translation>
+        </message>
+        <message>
+            <source>Backup retention count</source>
+            <translation>Backup retention count</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Choose Folder…</source>
+            <translation>Choose Folder…</translation>
+        </message>
+    </context>
+    <context>
         <name>ColorGradeWheel</name>
         <message>
             <source>Luminance</source>
@@ -2951,6 +3002,26 @@
     <context>
         <name>LibrarySidePanel</name>
         <message>
+            <source>Never</source>
+            <translation>Never</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
             <source>Library</source>
             <translation>Library</translation>
         </message>
@@ -2963,8 +3034,36 @@
             <translation>Scanning…</translation>
         </message>
         <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
             <source>Previews</source>
             <translation>Previews</translation>
+        </message>
+        <message>
+            <source>Scheduled backups</source>
+            <translation>Scheduled backups</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>On</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Off</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>Last verified: %1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>Next: %1 · Keep %2</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>Last failure: %1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -2995,6 +3094,10 @@
             <translation>All Photographs</translation>
         </message>
         <message>
+            <source>%1 (missing — click to locate)</source>
+            <translation>%1 (missing — click to locate)</translation>
+        </message>
+        <message>
             <source>Import…</source>
             <translation>Import…</translation>
         </message>
@@ -3012,6 +3115,10 @@
         <message>
             <source>Ravo Studio</source>
             <translation>Ravo Studio</translation>
+        </message>
+        <message>
+            <source>Ravo Catalog Backup.ravobackup</source>
+            <translation>Ravo Catalog Backup.ravobackup</translation>
         </message>
         <message>
             <source>JPEG (*.jpg *.jpeg)</source>
@@ -3160,6 +3267,42 @@
         <message>
             <source>Import Folder</source>
             <translation>Import Folder</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup</source>
+            <translation>Create Catalog Backup</translation>
+        </message>
+        <message>
+            <source>Ravo catalog backup (*.ravobackup)</source>
+            <translation>Ravo catalog backup (*.ravobackup)</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup</source>
+            <translation>Verify Catalog Backup</translation>
+        </message>
+        <message>
+            <source>Select Catalog Backup to Restore</source>
+            <translation>Select Catalog Backup to Restore</translation>
+        </message>
+        <message>
+            <source>Restored Ravo Library.sqlite</source>
+            <translation>Restored Ravo Library.sqlite</translation>
+        </message>
+        <message>
+            <source>Restore Catalog As</source>
+            <translation>Restore Catalog As</translation>
+        </message>
+        <message>
+            <source>Ravo catalog (*.sqlite)</source>
+            <translation>Ravo catalog (*.sqlite)</translation>
+        </message>
+        <message>
+            <source>Choose Scheduled Backup Folder</source>
+            <translation>Choose Scheduled Backup Folder</translation>
+        </message>
+        <message>
+            <source>Locate Missing Folder</source>
+            <translation>Locate Missing Folder</translation>
         </message>
         <message>
             <source>Save Export</source>
@@ -3677,6 +3820,10 @@
             <translation>The selected originals cannot be deleted.</translation>
         </message>
         <message>
+            <source>No catalog operation is running.</source>
+            <translation>No catalog operation is running.</translation>
+        </message>
+        <message>
             <source>Command unavailable in the current context.</source>
             <translation>Command unavailable in the current context.</translation>
         </message>
@@ -3737,6 +3884,50 @@
             <translation>Export Selected...</translation>
         </message>
         <message>
+            <source>Recovery Status</source>
+            <translation>Recovery Status</translation>
+        </message>
+        <message>
+            <source>Synchronize Recovery</source>
+            <translation>Synchronize Recovery</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup...</source>
+            <translation>Create Catalog Backup...</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup...</source>
+            <translation>Verify Catalog Backup...</translation>
+        </message>
+        <message>
+            <source>Restore Catalog Backup...</source>
+            <translation>Restore Catalog Backup...</translation>
+        </message>
+        <message>
+            <source>Enable Scheduled Backups...</source>
+            <translation>Enable Scheduled Backups...</translation>
+        </message>
+        <message>
+            <source>Run Scheduled Backup Now</source>
+            <translation>Run Scheduled Backup Now</translation>
+        </message>
+        <message>
+            <source>Disable Scheduled Backups</source>
+            <translation>Disable Scheduled Backups</translation>
+        </message>
+        <message>
+            <source>Rebuild Selected Previews</source>
+            <translation>Rebuild Selected Previews</translation>
+        </message>
+        <message>
+            <source>Rebuild All Previews</source>
+            <translation>Rebuild All Previews</translation>
+        </message>
+        <message>
+            <source>Cancel Catalog Operation</source>
+            <translation>Cancel Catalog Operation</translation>
+        </message>
+        <message>
             <source>Import Preset...</source>
             <translation>Import Preset...</translation>
         </message>
@@ -3747,6 +3938,26 @@
         <message>
             <source>Copy Info</source>
             <translation>Copy Info</translation>
+        </message>
+        <message>
+            <source>Backup and restored catalog paths must not be empty.</source>
+            <translation>Backup and restored catalog paths must not be empty.</translation>
+        </message>
+        <message>
+            <source>Backup directory must not be empty.</source>
+            <translation>Backup directory must not be empty.</translation>
+        </message>
+        <message>
+            <source>Backup interval is outside the supported range.</source>
+            <translation>Backup interval is outside the supported range.</translation>
+        </message>
+        <message>
+            <source>Backup retention count is outside the supported range.</source>
+            <translation>Backup retention count is outside the supported range.</translation>
+        </message>
+        <message>
+            <source>Folder identity and replacement path must not be empty.</source>
+            <translation>Folder identity and replacement path must not be empty.</translation>
         </message>
         <message>
             <source>Copy Parameters</source>
@@ -4209,12 +4420,20 @@
             <translation>Scanning folder…</translation>
         </message>
         <message>
+            <source>Importing 0 / %1…</source>
+            <translation>Importing 0 / %1…</translation>
+        </message>
+        <message>
             <source>Importing %1 / %2…</source>
             <translation>Importing %1 / %2…</translation>
         </message>
         <message>
             <source>Import failed.</source>
             <translation>Import failed.</translation>
+        </message>
+        <message>
+            <source>Import cancelled after %1 of %2 photos.</source>
+            <translation>Import cancelled after %1 of %2 photos.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4415,6 +4634,162 @@
         <message>
             <source>Preset information copied.</source>
             <translation>Preset information copied.</translation>
+        </message>
+        <message>
+            <source>Verifying backup…</source>
+            <translation>Verifying backup…</translation>
+        </message>
+        <message>
+            <source>Staging catalog…</source>
+            <translation>Staging catalog…</translation>
+        </message>
+        <message>
+            <source>Staging recovery files…</source>
+            <translation>Staging recovery files…</translation>
+        </message>
+        <message>
+            <source>Verifying staged restore…</source>
+            <translation>Verifying staged restore…</translation>
+        </message>
+        <message>
+            <source>Publishing catalog support…</source>
+            <translation>Publishing catalog support…</translation>
+        </message>
+        <message>
+            <source>Publishing restored catalog…</source>
+            <translation>Publishing restored catalog…</translation>
+        </message>
+        <message>
+            <source>Opening restored catalog…</source>
+            <translation>Opening restored catalog…</translation>
+        </message>
+        <message>
+            <source>Restore complete.</source>
+            <translation>Restore complete.</translation>
+        </message>
+        <message>
+            <source>Reading recovery state…</source>
+            <translation>Reading recovery state…</translation>
+        </message>
+        <message>
+            <source>Recovery status failed.</source>
+            <translation>Recovery status failed.</translation>
+        </message>
+        <message>
+            <source>Recovery is synchronized.</source>
+            <translation>Recovery is synchronized.</translation>
+        </message>
+        <message>
+            <source>%1 recovery items are pending.</source>
+            <translation>%1 recovery items are pending.</translation>
+        </message>
+        <message>
+            <source>Synchronizing recovery…</source>
+            <translation>Synchronizing recovery…</translation>
+        </message>
+        <message>
+            <source>Recovery synchronization failed.</source>
+            <translation>Recovery synchronization failed.</translation>
+        </message>
+        <message>
+            <source>Synchronized %1 recovery items.</source>
+            <translation>Synchronized %1 recovery items.</translation>
+        </message>
+        <message>
+            <source>Creating backup…</source>
+            <translation>Creating backup…</translation>
+        </message>
+        <message>
+            <source>Backup failed.</source>
+            <translation>Backup failed.</translation>
+        </message>
+        <message>
+            <source>Created verified backup at %1</source>
+            <translation>Created verified backup at %1</translation>
+        </message>
+        <message>
+            <source>Backup verification failed.</source>
+            <translation>Backup verification failed.</translation>
+        </message>
+        <message>
+            <source>Backup verified: %1 photos</source>
+            <translation>Backup verified: %1 photos</translation>
+        </message>
+        <message>
+            <source>Restore failed.</source>
+            <translation>Restore failed.</translation>
+        </message>
+        <message>
+            <source>Restored catalog to %1</source>
+            <translation>Restored catalog to %1</translation>
+        </message>
+        <message>
+            <source>Rebuilding previews…</source>
+            <translation>Rebuilding previews…</translation>
+        </message>
+        <message>
+            <source>Preview rebuild stopped.</source>
+            <translation>Preview rebuild stopped.</translation>
+        </message>
+        <message>
+            <source>Rebuilt %1 of %2 previews.</source>
+            <translation>Rebuilt %1 of %2 previews.</translation>
+        </message>
+        <message>
+            <source>Saving backup schedule…</source>
+            <translation>Saving backup schedule…</translation>
+        </message>
+        <message>
+            <source>Backup schedule failed.</source>
+            <translation>Backup schedule failed.</translation>
+        </message>
+        <message>
+            <source>Scheduled backups enabled.</source>
+            <translation>Scheduled backups enabled.</translation>
+        </message>
+        <message>
+            <source>Scheduled backups disabled.</source>
+            <translation>Scheduled backups disabled.</translation>
+        </message>
+        <message>
+            <source>Relinking folder…</source>
+            <translation>Relinking folder…</translation>
+        </message>
+        <message>
+            <source>Folder relink failed.</source>
+            <translation>Folder relink failed.</translation>
+        </message>
+        <message>
+            <source>Folder relinked; folder refresh failed.</source>
+            <translation>Folder relinked; folder refresh failed.</translation>
+        </message>
+        <message>
+            <source>Relinked %1 photos to %2</source>
+            <translation>Relinked %1 photos to %2</translation>
+        </message>
+        <message>
+            <source>Running scheduled backup…</source>
+            <translation>Running scheduled backup…</translation>
+        </message>
+        <message>
+            <source>Checking backup schedule…</source>
+            <translation>Checking backup schedule…</translation>
+        </message>
+        <message>
+            <source>Scheduled backup failed.</source>
+            <translation>Scheduled backup failed.</translation>
+        </message>
+        <message>
+            <source>Scheduled backup created at %1</source>
+            <translation>Scheduled backup created at %1</translation>
+        </message>
+        <message>
+            <source>Scheduled backups are disabled.</source>
+            <translation>Scheduled backups are disabled.</translation>
+        </message>
+        <message>
+            <source>Cancelling catalog operation…</source>
+            <translation>Cancelling catalog operation…</translation>
         </message>
     </context>
     <context>

@@ -8,19 +8,19 @@ maps live in [`legacy/docs/`](../legacy/docs/).
 | [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM lock modes, `--update`, and publication order |
 | [Packaging.md](Packaging.md) | FreeCM release packaging, platform artifacts, and CI ownership |
 | [GPU_Baseline.md](GPU_Baseline.md) | CPU gold samples and later GPU performance gates |
-| [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities that have not reached an accepted owner/contract |
+| [ProductRoadmap.md](ProductRoadmap.md) | Deferred cross-layer capabilities that are not ready for the product or migration execution queues |
 | [phase0/README.md](phase0/README.md) | Historical frozen-fixture evidence, contracts, and decision records |
 | [concepts/p0-library-grid.svg](concepts/p0-library-grid.svg) | Ravo Studio concept-reference artwork |
 | [../hooks/README.md](../hooks/README.md) | Host installer for FreeCM commit-time formatting |
-| [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including catalog recovery/backup, selective Develop presets and parameter copy/paste, synchronized Before/After comparison, adaptive Profile Denoise, edge-preserving Tone Equalizer, Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
-| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, catalog recovery/backup, shared selective-preset/session-clipboard merge, exact-prefix progressive-preview and comparison lifecycles, metadata-analysis, command, data, adaptive wavelet noise calibration, scale-stable log-guided tone assignment, and engine-private algorithm boundaries |
+| [../Ravo/README.md](../Ravo/README.md) | Engine, CLI, Studio, and the current product slice including catalog recovery/restore, paged libraries, scheduled verified backup, stable-folder relink, selective Develop presets and parameter copy/paste, synchronized Before/After comparison, adaptive Profile Denoise, edge-preserving Tone Equalizer, Color Reconstruction/Zones/Monochrome, source-exact Lab sharpening, Retouch, Dehaze, Canvas, Output Frame/Dither, and deterministic text Watermark |
+| [../Ravo/ARCHITECTURE.md](../Ravo/ARCHITECTURE.md) | Target, ownership, catalog recovery/restore/paging/scheduling/relink, shared selective-preset/session-clipboard merge, exact-prefix progressive-preview and comparison lifecycles, metadata-analysis, command, data, adaptive wavelet noise calibration, scale-stable log-guided tone assignment, and engine-private algorithm boundaries |
 | [../Ravo/MIGRATION.md](../Ravo/MIGRATION.md) | Legacy migration policy, ledger, and leftover boundary |
 | [../Ravo/TESTING.md](../Ravo/TESTING.md) | Test ownership, fixtures, and validation contracts |
 | [../Ravo/docs/adr/README.md](../Ravo/docs/adr/README.md) | Architecture decisions, supersession relationships, and accepted interchange calibration contracts |
 | [../.codex/skills/i18n-translation-workflow/SKILL.md](../.codex/skills/i18n-translation-workflow/SKILL.md) | Ravo Studio source extraction, locale-specific translation memory, and catalog workflow |
 | [../.codex/skills/ravo-live-grading/SKILL.md](../.codex/skills/ravo-live-grading/SKILL.md) | Current-checkout live Studio photo, recipe, exact-preview, and revision-bound grading workflow |
-| [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Unfinished legacy migration execution |
-| [../TODO_PHOTO_MANAGEMENT.md](../TODO_PHOTO_MANAGEMENT.md) | Unfinished professional catalog, restore, scalability, and library workflow execution |
+| [../TODO_PHOTO_MANAGEMENT.md](../TODO_PHOTO_MANAGEMENT.md) | Remaining private-corpus and Windows/Linux release evidence for the implemented product P0/P1 slice |
+| [../TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md) | Paused `MR*` legacy algorithm-absorption and retirement queue |
 | [../legacy/README.md](../legacy/README.md) | Frozen 0.9 reference tree |
 
 ## Maintenance rules

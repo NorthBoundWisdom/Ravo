@@ -37,6 +37,57 @@
         </message>
     </context>
     <context>
+        <name>BackupScheduleDialog</name>
+        <message>
+            <source>Scheduled Backups</source>
+            <translation>정기 백업</translation>
+        </message>
+        <message>
+            <source>Every 15 minutes</source>
+            <translation>15분마다</translation>
+        </message>
+        <message>
+            <source>Hourly</source>
+            <translation>매시간</translation>
+        </message>
+        <message>
+            <source>Daily</source>
+            <translation>매일</translation>
+        </message>
+        <message>
+            <source>Weekly</source>
+            <translation>매주</translation>
+        </message>
+        <message>
+            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
+            <translation>Ravo가 검증된 카탈로그 백업을 만드는 주기와 보관할 백업 수를 선택합니다. 다음 단계에서 대상 폴더를 선택합니다.</translation>
+        </message>
+        <message>
+            <source>Frequency</source>
+            <translation>주기</translation>
+        </message>
+        <message>
+            <source>Backup frequency</source>
+            <translation>백업 주기</translation>
+        </message>
+        <message>
+            <source>Keep backups</source>
+            <translation>보관할 백업 수</translation>
+        </message>
+        <message>
+            <source>Backup retention count</source>
+            <translation>백업 보관 개수</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
+            <source>Choose Folder…</source>
+            <translation>폴더 선택…</translation>
+        </message>
+    </context>
+    <context>
         <name>ColorGradeWheel</name>
         <message>
             <source>Luminance</source>
@@ -2951,6 +3002,26 @@
     <context>
         <name>LibrarySidePanel</name>
         <message>
+            <source>Never</source>
+            <translation>없음</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
             <source>Library</source>
             <translation>라이브러리</translation>
         </message>
@@ -2963,8 +3034,36 @@
             <translation>스캔 중…</translation>
         </message>
         <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+        <message>
             <source>Previews</source>
             <translation>미리 보기</translation>
+        </message>
+        <message>
+            <source>Scheduled backups</source>
+            <translation>정기 백업</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>켜짐</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>꺼짐</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>마지막 검증: %1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>다음: %1 · %2개 보관</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>마지막 실패: %1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -2995,6 +3094,10 @@
             <translation>모든 사진</translation>
         </message>
         <message>
+            <source>%1 (missing — click to locate)</source>
+            <translation>%1(누락됨 — 클릭하여 위치 지정)</translation>
+        </message>
+        <message>
             <source>Import…</source>
             <translation>가져오기…</translation>
         </message>
@@ -3012,6 +3115,10 @@
         <message>
             <source>Ravo Studio</source>
             <translation>Ravo Studio</translation>
+        </message>
+        <message>
+            <source>Ravo Catalog Backup.ravobackup</source>
+            <translation>Ravo 카탈로그 백업.ravobackup</translation>
         </message>
         <message>
             <source>JPEG (*.jpg *.jpeg)</source>
@@ -3160,6 +3267,42 @@
         <message>
             <source>Import Folder</source>
             <translation>폴더 가져오기</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup</source>
+            <translation>카탈로그 백업 만들기</translation>
+        </message>
+        <message>
+            <source>Ravo catalog backup (*.ravobackup)</source>
+            <translation>Ravo 카탈로그 백업 (*.ravobackup)</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup</source>
+            <translation>카탈로그 백업 검증</translation>
+        </message>
+        <message>
+            <source>Select Catalog Backup to Restore</source>
+            <translation>복원할 카탈로그 백업 선택</translation>
+        </message>
+        <message>
+            <source>Restored Ravo Library.sqlite</source>
+            <translation>복원된 Ravo 라이브러리.sqlite</translation>
+        </message>
+        <message>
+            <source>Restore Catalog As</source>
+            <translation>카탈로그 복원 위치</translation>
+        </message>
+        <message>
+            <source>Ravo catalog (*.sqlite)</source>
+            <translation>Ravo 카탈로그 (*.sqlite)</translation>
+        </message>
+        <message>
+            <source>Choose Scheduled Backup Folder</source>
+            <translation>정기 백업 폴더 선택</translation>
+        </message>
+        <message>
+            <source>Locate Missing Folder</source>
+            <translation>누락된 폴더 위치 지정</translation>
         </message>
         <message>
             <source>Save Export</source>
@@ -3677,6 +3820,10 @@
             <translation>선택한 원본은 삭제할 수 없습니다.</translation>
         </message>
         <message>
+            <source>No catalog operation is running.</source>
+            <translation>실행 중인 카탈로그 작업이 없습니다.</translation>
+        </message>
+        <message>
             <source>Command unavailable in the current context.</source>
             <translation>현재 컨텍스트에서는 명령을 사용할 수 없습니다.</translation>
         </message>
@@ -3735,6 +3882,50 @@
         <message>
             <source>Export Selected...</source>
             <translation>선택한 사진 내보내기...</translation>
+        </message>
+        <message>
+            <source>Recovery Status</source>
+            <translation>복구 상태</translation>
+        </message>
+        <message>
+            <source>Synchronize Recovery</source>
+            <translation>복구 데이터 동기화</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup...</source>
+            <translation>카탈로그 백업 만들기…</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup...</source>
+            <translation>카탈로그 백업 검증…</translation>
+        </message>
+        <message>
+            <source>Restore Catalog Backup...</source>
+            <translation>카탈로그 백업 복원…</translation>
+        </message>
+        <message>
+            <source>Enable Scheduled Backups...</source>
+            <translation>정기 백업 사용…</translation>
+        </message>
+        <message>
+            <source>Run Scheduled Backup Now</source>
+            <translation>지금 정기 백업 실행</translation>
+        </message>
+        <message>
+            <source>Disable Scheduled Backups</source>
+            <translation>정기 백업 사용 안 함</translation>
+        </message>
+        <message>
+            <source>Rebuild Selected Previews</source>
+            <translation>선택한 미리보기 다시 만들기</translation>
+        </message>
+        <message>
+            <source>Rebuild All Previews</source>
+            <translation>모든 미리보기 다시 만들기</translation>
+        </message>
+        <message>
+            <source>Cancel Catalog Operation</source>
+            <translation>카탈로그 작업 취소</translation>
         </message>
         <message>
             <source>Save Edits as Style...</source>
@@ -3875,6 +4066,26 @@
         <message>
             <source>Copy Info</source>
             <translation>정보 복사</translation>
+        </message>
+        <message>
+            <source>Backup and restored catalog paths must not be empty.</source>
+            <translation>백업 및 복원된 카탈로그 경로는 비워 둘 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Backup directory must not be empty.</source>
+            <translation>백업 디렉터리는 비워 둘 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Backup interval is outside the supported range.</source>
+            <translation>백업 간격이 지원 범위를 벗어났습니다.</translation>
+        </message>
+        <message>
+            <source>Backup retention count is outside the supported range.</source>
+            <translation>백업 보관 개수가 지원 범위를 벗어났습니다.</translation>
+        </message>
+        <message>
+            <source>Folder identity and replacement path must not be empty.</source>
+            <translation>폴더 ID와 대체 경로는 비워 둘 수 없습니다.</translation>
         </message>
         <message>
             <source>Copy Parameters</source>
@@ -4377,12 +4588,20 @@
             <translation>폴더 검사 중…</translation>
         </message>
         <message>
+            <source>Importing 0 / %1…</source>
+            <translation>가져오는 중 0 / %1…</translation>
+        </message>
+        <message>
             <source>Importing %1 / %2…</source>
             <translation>%1 / %2 가져오는 중…</translation>
         </message>
         <message>
             <source>Import failed.</source>
             <translation>가져오지 못했습니다.</translation>
+        </message>
+        <message>
+            <source>Import cancelled after %1 of %2 photos.</source>
+            <translation>사진 %2장 중 %1장을 처리한 후 가져오기를 취소했습니다.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4415,6 +4634,162 @@
         <message>
             <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
             <translation>가져옴 %1, 중복 %2, 미지원 %3, 실패 %4</translation>
+        </message>
+        <message>
+            <source>Verifying backup…</source>
+            <translation>백업 검증 중…</translation>
+        </message>
+        <message>
+            <source>Staging catalog…</source>
+            <translation>카탈로그 준비 중…</translation>
+        </message>
+        <message>
+            <source>Staging recovery files…</source>
+            <translation>복구 파일 준비 중…</translation>
+        </message>
+        <message>
+            <source>Verifying staged restore…</source>
+            <translation>준비된 복원 데이터 검증 중…</translation>
+        </message>
+        <message>
+            <source>Publishing catalog support…</source>
+            <translation>카탈로그 지원 데이터 게시 중…</translation>
+        </message>
+        <message>
+            <source>Publishing restored catalog…</source>
+            <translation>복원된 카탈로그 게시 중…</translation>
+        </message>
+        <message>
+            <source>Opening restored catalog…</source>
+            <translation>복원된 카탈로그 여는 중…</translation>
+        </message>
+        <message>
+            <source>Restore complete.</source>
+            <translation>복원이 완료되었습니다.</translation>
+        </message>
+        <message>
+            <source>Reading recovery state…</source>
+            <translation>복구 상태 읽는 중…</translation>
+        </message>
+        <message>
+            <source>Recovery status failed.</source>
+            <translation>복구 상태를 읽지 못했습니다.</translation>
+        </message>
+        <message>
+            <source>Recovery is synchronized.</source>
+            <translation>복구 데이터가 동기화되었습니다.</translation>
+        </message>
+        <message>
+            <source>%1 recovery items are pending.</source>
+            <translation>복구 항목 %1개가 대기 중입니다.</translation>
+        </message>
+        <message>
+            <source>Synchronizing recovery…</source>
+            <translation>복구 데이터 동기화 중…</translation>
+        </message>
+        <message>
+            <source>Recovery synchronization failed.</source>
+            <translation>복구 데이터 동기화에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Synchronized %1 recovery items.</source>
+            <translation>복구 항목 %1개를 동기화했습니다.</translation>
+        </message>
+        <message>
+            <source>Creating backup…</source>
+            <translation>백업 만드는 중…</translation>
+        </message>
+        <message>
+            <source>Backup failed.</source>
+            <translation>백업에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Created verified backup at %1</source>
+            <translation>%1에 검증된 백업을 만들었습니다</translation>
+        </message>
+        <message>
+            <source>Backup verification failed.</source>
+            <translation>백업 검증에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Backup verified: %1 photos</source>
+            <translation>백업 검증 완료: 사진 %1장</translation>
+        </message>
+        <message>
+            <source>Restore failed.</source>
+            <translation>복원에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Restored catalog to %1</source>
+            <translation>카탈로그를 %1에 복원했습니다</translation>
+        </message>
+        <message>
+            <source>Rebuilding previews…</source>
+            <translation>미리보기 다시 만드는 중…</translation>
+        </message>
+        <message>
+            <source>Preview rebuild stopped.</source>
+            <translation>미리보기 다시 만들기가 중지되었습니다.</translation>
+        </message>
+        <message>
+            <source>Rebuilt %1 of %2 previews.</source>
+            <translation>미리보기 %2개 중 %1개를 다시 만들었습니다.</translation>
+        </message>
+        <message>
+            <source>Saving backup schedule…</source>
+            <translation>백업 일정 저장 중…</translation>
+        </message>
+        <message>
+            <source>Backup schedule failed.</source>
+            <translation>백업 일정 저장에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Scheduled backups enabled.</source>
+            <translation>정기 백업을 사용 설정했습니다.</translation>
+        </message>
+        <message>
+            <source>Scheduled backups disabled.</source>
+            <translation>정기 백업을 사용 중지했습니다.</translation>
+        </message>
+        <message>
+            <source>Relinking folder…</source>
+            <translation>폴더 다시 연결 중…</translation>
+        </message>
+        <message>
+            <source>Folder relink failed.</source>
+            <translation>폴더 다시 연결에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Folder relinked; folder refresh failed.</source>
+            <translation>폴더는 다시 연결되었지만 폴더 새로 고침에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Relinked %1 photos to %2</source>
+            <translation>사진 %1장을 %2에 다시 연결했습니다</translation>
+        </message>
+        <message>
+            <source>Running scheduled backup…</source>
+            <translation>정기 백업 실행 중…</translation>
+        </message>
+        <message>
+            <source>Checking backup schedule…</source>
+            <translation>백업 일정 확인 중…</translation>
+        </message>
+        <message>
+            <source>Scheduled backup failed.</source>
+            <translation>정기 백업에 실패했습니다.</translation>
+        </message>
+        <message>
+            <source>Scheduled backup created at %1</source>
+            <translation>%1에 정기 백업을 만들었습니다</translation>
+        </message>
+        <message>
+            <source>Scheduled backups are disabled.</source>
+            <translation>정기 백업이 사용 중지되어 있습니다.</translation>
+        </message>
+        <message>
+            <source>Cancelling catalog operation…</source>
+            <translation>카탈로그 작업 취소 중…</translation>
         </message>
     </context>
     <context>

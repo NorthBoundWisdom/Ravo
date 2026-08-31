@@ -30,7 +30,7 @@ admit a new dependency.
 
 The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
 integration, including first-frame Bayer RAW/DNG errors and preview-cache miss
-rebuild. Review contracts include schema v2→v6 migration, review
+rebuild. Review contracts include schema v2→v9 migration, review
 persistence, filtering, and missing-source state. Develop contracts include one
 canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
 CPU Develop operations, edited previews, and
@@ -44,7 +44,17 @@ the ADR-0040 magnitude/ref columns in place. Schema v6 adds transactional
 per-asset recovery generations, exact acknowledgement, post-preview Studio
 Develop publication, restart retry, tamper rejection, and catalog backup/
 verification with strict layout, hashes, integrity, destination conflicts, and
-preview/original exclusion. LibraryQuery tests cover every
+preview/original exclusion. ADR-0099 tests add cancellable chunked database
+copy, every backup/restore publication checkpoint, destination races,
+support-first/catalog-last commit, post-commit durable-fact errors, ordinary
+reopen, source immutability, CLI round trip, Studio progress/cancellation, and
+explicit preview rebuild. Schema v7 page tests compare every accepted filter
+and sort against the domain oracle, traverse 10,000 real SQLite rows in 50
+bounded pages, require at most 200 materialized assets per page, and pin page,
+tag, and stable-folder query plans. A sparse-model test exposes 10,000 logical
+rows while retaining no more than three pages. Import tests require one-item
+dispatch, deterministic result order, foreground interleaving, and cancellation
+that commits no undispatched input (ADR-0100). LibraryQuery tests cover every
 supported predicate, missing capture values, inclusive numeric/time endpoints,
 ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
 text/range state, deterministic capture/file-size sorting, Catalog validation
@@ -52,6 +62,16 @@ propagation, Studio command/QML wiring, clear state, translations, and QML
 smoke. They also pin the ADR-0059 decision not to persist recent filters or
 silently map legacy-only bookkeeping fields, and the ADR-0077 compact filter
 bar (default rating stars, opt-in extra chips, command-owned query).
+Schema v8 scheduling tests persist and reopen policy state, exercise due and
+forced runs, display last verified success/next run/bytes/failure, and retain
+unknown or checksum-invalid paths while deleting only strict-name, reverified,
+same-catalog artifacts after quarantine re-verification. Schema v9 tests assign
+and preserve stable direct-folder IDs through migration/reopen, derive missing
+state, validate every replacement file identity, reject conflict/mismatch/
+cancellation without mutation, inject failure after folder/asset/revision
+updates, and prove transaction/revision/recovery rollback. CLI and Studio
+tests use explicit folder IDs and verify that source hashes remain unchanged
+(ADR-0101).
 Assistant tests pin default xAI endpoint/model, reject non-http(s) URLs and
 blank models, persist valid URL/model/key, repair malformed stored URL, and
 toggle the floating panel command. Copy/paste parameter tests pin an empty
@@ -216,6 +236,50 @@ leave the prior language active, and load every manifest QM; the offscreen smoke
 launches every locale. Refresh catalogs only through the project i18n workflow
 so current source and locale-specific historical translations remain separate
 and reproducible.
+
+## Photo-management performance evidence
+
+All timing uses one host monotonic clock. Enumeration begins immediately before
+`enumerate_import_inputs` and ends when its sorted bounded path vector is
+owned. Per-item import begins before `import_one` and ends after the item result,
+catalog commit, browse-preview publication, and recovery publication return.
+Cold settled preview begins before the first non-embedded 1600-edge request;
+warm preview repeats the same request against the verified cache. Page time is
+the adapter-owned `LibraryPage.query_elapsed_us`, measured from validated SQL
+construction through current-page tags/metadata attachment. The Studio
+interactive probe begins at the presenter intent and ends only when the owned
+live `QImage` publication signal is observed. Results report P50, P90, and max;
+RAW and raster import are separate populations. A zero-entry population is
+reported as zero, never merged into another media class.
+
+`CatalogServiceTest.PrivatePhotoManagementReleaseProbePreservesCorpus` is the
+explicit private-corpus workflow. Set `RAVO_PHOTO_CORPUS` to a read-only mixed
+photo tree and run that single test from a Release build. It snapshots SHA-256,
+size, and modification time for every enumerated source, creates all catalog,
+preview, recovery, and report state under the test temporary root, imports in
+deterministic order, samples at most eight RAW and eight raster cold/warm
+previews, traverses the complete catalog in bounded pages, then proves every
+source snapshot unchanged. Optional host-local gates are
+`RAVO_PRIVATE_PAGE_P90_BUDGET_US`,
+`RAVO_PRIVATE_COLD_PREVIEW_P90_BUDGET_MS`, and
+`RAVO_PRIVATE_WARM_PREVIEW_P90_BUDGET_MS`. Run the existing
+`StudioInteractivePreviewPerformanceProbe` with its fixture/sample/budget
+variables for the first slider frame; ADR-0087/0089 remain the exact 960/1600
+pixel and 30 ms Release P90 authority. Queue depth is structurally one
+dispatched import plus one pending foreground executor item, and sparse-model
+memory is structurally three pages, so neither is inferred from process RSS.
+
+Example:
+
+```text
+RAVO_PHOTO_CORPUS=/absolute/private/photos \
+  build/mac_clang_release/Ravo/tests/ravo_catalog_tests \
+  --gtest_filter=CatalogServiceTest.PrivatePhotoManagementReleaseProbePreservesCorpus
+```
+
+Corpus results are host-local evidence and stay outside the repository. They
+cannot satisfy another OS/toolchain gate, and an unset corpus is a skipped
+probe rather than a pass.
 
 ## Test framework and target boundaries
 

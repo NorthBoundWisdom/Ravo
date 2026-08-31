@@ -3,10 +3,12 @@
 ## Status and authority
 
 This is a historical Phase 0 contract. It still records valid CLI behaviours
-and service-boundary evidence, but [ADR-0007](../../Ravo/docs/adr/0007-first-usable-catalog-viewer.md)
-and the root [active migration TODO](../../TODO_LEGACY_MIGRATION.md) supersede its original delivery order.
-The implementation-state column remains evidence; only the root roadmap can
-promote an unfinished use case.
+and service-boundary evidence, but
+[ADR-0007](../../Ravo/docs/adr/0007-first-usable-catalog-viewer.md), the current
+[product release TODO](../../TODO_PHOTO_MANAGEMENT.md), and the separate
+[legacy migration TODO](../../TODO_LEGACY_MIGRATION.md) supersede its original
+delivery order. The implementation-state column remains evidence; only the
+applicable root execution queue can promote an unfinished use case.
 
 The command names, JSON envelope, exit codes, and no-write failure semantics
 are part of the `ravo-cli/v1` contract. Adding a machine-visible command or

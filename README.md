@@ -38,11 +38,11 @@ reference. Expect gaps, evolving schemas, and platform-specific validation
 status. There is no binary release channel yet; build from source.
 
 Ravo is **not yet a complete darktable replacement**. Historic blend modes,
-remaining image operations, adjacent-sidecar interoperability and catalog
-restore, GPU acceleration, and end-to-end installation verification on every
-platform are still open.
-[The Ravo product document](Ravo/README.md) and the
-[active migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
+remaining image operations, sidecar/history metadata policy, GPU acceleration,
+and end-to-end installation verification on every platform are still open.
+[The Ravo product document](Ravo/README.md), the
+[remaining product P0/P1 release gates](TODO_PHOTO_MANAGEMENT.md), and the separate
+[legacy migration TODO](TODO_LEGACY_MIGRATION.md) define the supported scope,
 validation status, and next work item.
 
 ## Screenshots
@@ -97,12 +97,11 @@ validation status, and next work item.
 | RAW import | LibRaw-decoded RAW such as `.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.raf`, `.orf`, `.rw2` and other recognized suffixes |
 | Export | JPEG, PNG (8/16-bit), TIFF (uint8/uint16/float16/float32), or an exact original copy |
 
-Full RAW develop currently accepts validated **Bayer 2×2** and **Fujifilm
-X-Trans 6×6** CFA data decoded by the pinned LibRaw path. Bayer defaults to RCD
-and can use PPG; X-Trans defaults to Markesteijn 3-pass and can use the 1-pass
-variant. Other sensor layouts and a mode chosen for the wrong CFA fail
-explicitly, though an embedded JPEG may still provide a Gallery thumbnail. See
-the
+Full RAW develop currently supports validated **Bayer 2×2** files through RCD
+or PPG and standard **Fujifilm X-Trans 6×6** files through Markesteijn 1/3-pass
+on the pinned LibRaw path. Other CFA families and sensor/mode mismatches fail
+structurally, though an embedded JPEG may still provide a Gallery thumbnail.
+See the
 [format coverage matrix](userdoc/docs/en/qa/format-coverage.md) for the exact
 boundaries.
 
@@ -137,7 +136,8 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 - [Architecture and data lifetimes](Ravo/ARCHITECTURE.md)
 - [Testing and validation strategy](Ravo/TESTING.md)
 - [Migration policy and capability ledger](Ravo/MIGRATION.md)
-- [Active migration work](TODO_LEGACY_MIGRATION.md)
+- [Remaining product P0/P1 release evidence](TODO_PHOTO_MANAGEMENT.md)
+- [Legacy algorithm migration and retirement](TODO_LEGACY_MIGRATION.md)
 - [Developer documentation index](DevDocs/README.md)
 - [Frozen darktable 0.9 reference tree](legacy/README.md)
 
@@ -186,9 +186,10 @@ reports unsupported state instead of silently approximating it.
 Issues and pull requests are welcome. Start with
 [`AGENTS.md`](AGENTS.md) for repository-wide engineering constraints,
 [`Ravo/AGENTS.md`](Ravo/AGENTS.md) for the `Ravo/` subtree, and
-[`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md) for the current work
-queue. Behavior changes need matching Ravo unit or contract tests; `legacy/` is
-read-only.
+[`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md) for the remaining product
+P0/P1 release gates. Legacy algorithm work additionally follows
+[`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md). Behavior changes need
+matching Ravo unit or contract tests; `legacy/` is read-only.
 
 ## License
 

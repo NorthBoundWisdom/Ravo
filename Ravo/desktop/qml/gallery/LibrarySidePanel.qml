@@ -18,6 +18,22 @@ Rectangle {
     readonly property bool developOpen: presenter && presenter.browseMode === "develop"
     signal viewportSeeked(real nx, real ny)
 
+    function backupTime(unixMs) {
+        if (!unixMs || unixMs <= 0)
+            return qsTr("Never");
+        return new Date(unixMs).toLocaleString(Qt.locale(), Locale.ShortFormat);
+    }
+
+    function backupBytes(bytes) {
+        if (!bytes || bytes <= 0)
+            return qsTr("0 B");
+        if (bytes < 1024)
+            return qsTr("%1 B").arg(bytes);
+        if (bytes < 1024 * 1024)
+            return qsTr("%1 KiB").arg((bytes / 1024).toFixed(1));
+        return qsTr("%1 MiB").arg((bytes / (1024 * 1024)).toFixed(1));
+    }
+
     Connections {
         target: root.presenter
         function onSelectionChanged() {
@@ -50,9 +66,7 @@ Rectangle {
             Layout.rightMargin: Fonts.standardMargin
             Layout.bottomMargin: Fonts.size8
             spacing: Fonts.size6
-            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.previewWorkActive ||
-                     (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) ||
-                     (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
+            visible: !root.developOpen && root.presenter && (root.presenter.importWorkActive || root.presenter.previewWorkActive || root.presenter.catalogOperationActive || (root.presenter.importWorkTotal > 0 && root.presenter.importWorkCompleted < root.presenter.importWorkTotal) || (root.presenter.previewWorkTotal > 0 && root.presenter.previewWorkCompleted < root.presenter.previewWorkTotal))
 
             function meterVisible(active, completed, total) {
                 return active || (total > 0 && completed < total);
@@ -90,6 +104,13 @@ Rectangle {
                         color: Theme.accentColor
                     }
                 }
+                CustomButton {
+                    Layout.alignment: Qt.AlignRight
+                    text: qsTr("Cancel")
+                    visible: root.presenter.importWorkActive
+                    onClicked: if (root.commands)
+                        root.commands.run(root.commands.ids.libraryCancelOperation)
+                }
             }
 
             ColumnLayout {
@@ -124,6 +145,103 @@ Rectangle {
                         color: Theme.highlightColor
                     }
                 }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                visible: root.presenter.catalogOperationActive
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: root.presenter.catalogOperationStage
+                        elide: Text.ElideRight
+                        font.pixelSize: Fonts.size10
+                    }
+                    CustomLabel {
+                        visible: root.presenter.catalogOperationTotal > 0
+                        text: root.presenter.catalogOperationCompleted + " / " + root.presenter.catalogOperationTotal
+                        color: Theme.placeholderTextColor
+                        font.pixelSize: Fonts.size10
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 6
+                    radius: 3
+                    color: Theme.midlightColor
+                    Rectangle {
+                        width: parent.width * (root.presenter.catalogOperationTotal > 0 ? Math.min(1, root.presenter.catalogOperationCompleted / root.presenter.catalogOperationTotal) : 0.35)
+                        height: parent.height
+                        radius: 3
+                        color: Theme.accentColor
+                    }
+                }
+                CustomButton {
+                    Layout.alignment: Qt.AlignRight
+                    text: qsTr("Cancel")
+                    onClicked: if (root.commands)
+                        root.commands.run(root.commands.ids.libraryCancelOperation)
+                }
+            }
+        }
+
+        ColumnLayout {
+            id: backupStatus
+            readonly property var value: root.presenter ? root.presenter.backupScheduleStatus : ({})
+            Layout.fillWidth: true
+            Layout.leftMargin: Fonts.standardMargin
+            Layout.rightMargin: Fonts.standardMargin
+            Layout.bottomMargin: Fonts.size8
+            spacing: 2
+            visible: !root.developOpen && root.presenter && root.presenter.catalogOpen && value.loaded
+
+            RowLayout {
+                Layout.fillWidth: true
+                CustomLabel {
+                    Layout.fillWidth: true
+                    text: qsTr("Scheduled backups")
+                    font.pixelSize: Fonts.size10
+                    font.bold: true
+                }
+                CustomLabel {
+                    text: backupStatus.value.enabled ? qsTr("On") : qsTr("Off")
+                    color: backupStatus.value.enabled ? Theme.accentColor : Theme.placeholderTextColor
+                    font.pixelSize: Fonts.size10
+                }
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                text: qsTr("Last verified: %1 · %2").arg(root.backupTime(backupStatus.value.lastSuccessUnixMs)).arg(root.backupBytes(backupStatus.value.lastBackupBytes))
+                color: Theme.placeholderTextColor
+                font.pixelSize: Fonts.size10
+                elide: Text.ElideRight
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                visible: backupStatus.value.enabled === true
+                text: qsTr("Next: %1 · Keep %2").arg(root.backupTime(backupStatus.value.nextRunUnixMs)).arg(backupStatus.value.retentionCount)
+                color: Theme.placeholderTextColor
+                font.pixelSize: Fonts.size10
+                elide: Text.ElideRight
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                visible: String(backupStatus.value.destination || "").length > 0
+                text: String(backupStatus.value.destination || "")
+                color: Theme.placeholderTextColor
+                font.pixelSize: Fonts.size10
+                elide: Text.ElideMiddle
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                visible: String(backupStatus.value.lastError || "").length > 0
+                text: qsTr("Last failure: %1").arg(String(backupStatus.value.lastError || ""))
+                color: Theme.errorColor
+                font.pixelSize: Fonts.size10
+                wrapMode: Text.WordWrap
             }
         }
 
@@ -231,8 +349,7 @@ Rectangle {
                 function activate(index) {
                     if (!root.presenter || !root.commands)
                         return;
-                    root.commands.run(root.commands.ids.viewSetZoomMode,
-                                      index === 1 ? "fill" : (index === 2 ? "actual" : "fit"));
+                    root.commands.run(root.commands.ids.viewSetZoomMode, index === 1 ? "fill" : (index === 2 ? "actual" : "fit"));
                 }
 
                 Item {
@@ -329,6 +446,7 @@ Rectangle {
 
             delegate: Item {
                 id: folderRow
+                required property string folderId
                 required property string folderUri
                 required property string displayName
                 required property int depth
@@ -337,6 +455,7 @@ Rectangle {
                 required property bool hasNextSibling
                 required property var ancestorLineContinues
                 required property bool collapsed
+                required property bool missing
                 required property int index
 
                 readonly property int treeDepth: Math.max(0, folderRow.depth)
@@ -480,8 +599,12 @@ Rectangle {
                         elide: Text.ElideRight
                         wrapMode: Text.NoWrap
                         maximumLineCount: 1
-                        text: folderRow.folderUri.length === 0 ? qsTr("All Photographs") : folderRow.displayName
-                        color: Theme.textColor
+                        text: {
+                            if (folderRow.folderUri.length === 0)
+                                return qsTr("All Photographs");
+                            return folderRow.missing ? qsTr("%1 (missing — click to locate)").arg(folderRow.displayName) : folderRow.displayName;
+                        }
+                        color: folderRow.missing ? Theme.errorColor : Theme.textColor
                     }
                     CustomLabel {
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
@@ -496,8 +619,12 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: if (root.commands)
-                        root.commands.run(root.commands.ids.librarySelectFolder, folderRow.folderUri)
+                    onClicked: if (root.commands) {
+                        if (folderRow.missing && folderRow.folderId.length > 0)
+                            root.commands.run(root.commands.ids.libraryFolderRelink, folderRow.folderId);
+                        else
+                            root.commands.run(root.commands.ids.librarySelectFolder, folderRow.folderUri);
+                    }
                 }
             }
         }

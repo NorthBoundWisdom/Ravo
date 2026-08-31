@@ -51,6 +51,25 @@ private:
     std::filesystem::path path_;
 };
 
+class OwnedTemporaryDirectory
+{
+public:
+    OwnedTemporaryDirectory() = default;
+    OwnedTemporaryDirectory(const OwnedTemporaryDirectory &) = delete;
+    OwnedTemporaryDirectory &operator=(const OwnedTemporaryDirectory &) = delete;
+    ~OwnedTemporaryDirectory();
+
+    void reset(std::filesystem::path path);
+    [[nodiscard]] const std::filesystem::path &path() const noexcept;
+    [[nodiscard]] std::error_code remove() noexcept;
+    void release() noexcept;
+
+private:
+    void remove_ignoring_error() noexcept;
+
+    std::filesystem::path path_;
+};
+
 [[nodiscard]] int open_temporary_descriptor(const std::filesystem::path &path) noexcept;
 [[nodiscard]] std::int64_t write_descriptor(int descriptor, const void *bytes,
                                             std::size_t size) noexcept;

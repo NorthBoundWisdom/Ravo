@@ -37,6 +37,57 @@
         </message>
     </context>
     <context>
+        <name>BackupScheduleDialog</name>
+        <message>
+            <source>Scheduled Backups</source>
+            <translation>定期バックアップ</translation>
+        </message>
+        <message>
+            <source>Every 15 minutes</source>
+            <translation>15 分ごと</translation>
+        </message>
+        <message>
+            <source>Hourly</source>
+            <translation>1 時間ごと</translation>
+        </message>
+        <message>
+            <source>Daily</source>
+            <translation>毎日</translation>
+        </message>
+        <message>
+            <source>Weekly</source>
+            <translation>毎週</translation>
+        </message>
+        <message>
+            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
+            <translation>Ravo が検証済みカタログバックアップを作成する頻度と、保持する数を選択します。次に保存先フォルダーを選択します。</translation>
+        </message>
+        <message>
+            <source>Frequency</source>
+            <translation>頻度</translation>
+        </message>
+        <message>
+            <source>Backup frequency</source>
+            <translation>バックアップ頻度</translation>
+        </message>
+        <message>
+            <source>Keep backups</source>
+            <translation>保持するバックアップ数</translation>
+        </message>
+        <message>
+            <source>Backup retention count</source>
+            <translation>バックアップ保持数</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+        <message>
+            <source>Choose Folder…</source>
+            <translation>フォルダーを選択…</translation>
+        </message>
+    </context>
+    <context>
         <name>ColorGradeWheel</name>
         <message>
             <source>Luminance</source>
@@ -2951,6 +3002,26 @@
     <context>
         <name>LibrarySidePanel</name>
         <message>
+            <source>Never</source>
+            <translation>なし</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
             <source>Library</source>
             <translation>LibrarySidePanel::Library</translation>
         </message>
@@ -2963,8 +3034,36 @@
             <translation>スキャン中…</translation>
         </message>
         <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+        <message>
             <source>Previews</source>
             <translation>プレビュー</translation>
+        </message>
+        <message>
+            <source>Scheduled backups</source>
+            <translation>定期バックアップ</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>オン</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>オフ</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>最終検証：%1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>次回：%1 · %2 個を保持</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>前回の失敗：%1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -2995,6 +3094,10 @@
             <translation>すべての写真</translation>
         </message>
         <message>
+            <source>%1 (missing — click to locate)</source>
+            <translation>%1（見つかりません — クリックして場所を指定）</translation>
+        </message>
+        <message>
             <source>Import…</source>
             <translation>LibrarySidePanel::Import…</translation>
         </message>
@@ -3012,6 +3115,10 @@
         <message>
             <source>Ravo Studio</source>
             <translation>Ravo Studio</translation>
+        </message>
+        <message>
+            <source>Ravo Catalog Backup.ravobackup</source>
+            <translation>Ravo カタログバックアップ.ravobackup</translation>
         </message>
         <message>
             <source>JPEG (*.jpg *.jpeg)</source>
@@ -3160,6 +3267,42 @@
         <message>
             <source>Import Folder</source>
             <translation>フォルダーのインポート</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup</source>
+            <translation>カタログバックアップを作成</translation>
+        </message>
+        <message>
+            <source>Ravo catalog backup (*.ravobackup)</source>
+            <translation>Ravo カタログバックアップ (*.ravobackup)</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup</source>
+            <translation>カタログバックアップを検証</translation>
+        </message>
+        <message>
+            <source>Select Catalog Backup to Restore</source>
+            <translation>復元するカタログバックアップを選択</translation>
+        </message>
+        <message>
+            <source>Restored Ravo Library.sqlite</source>
+            <translation>復元済み Ravo ライブラリ.sqlite</translation>
+        </message>
+        <message>
+            <source>Restore Catalog As</source>
+            <translation>カタログの復元先</translation>
+        </message>
+        <message>
+            <source>Ravo catalog (*.sqlite)</source>
+            <translation>Ravo カタログ (*.sqlite)</translation>
+        </message>
+        <message>
+            <source>Choose Scheduled Backup Folder</source>
+            <translation>定期バックアップ先フォルダーを選択</translation>
+        </message>
+        <message>
+            <source>Locate Missing Folder</source>
+            <translation>見つからないフォルダーの場所を指定</translation>
         </message>
         <message>
             <source>Save Export</source>
@@ -3677,6 +3820,10 @@
             <translation>選択した原稿は削除できません。</translation>
         </message>
         <message>
+            <source>No catalog operation is running.</source>
+            <translation>実行中のカタログ操作はありません。</translation>
+        </message>
+        <message>
             <source>Command unavailable in the current context.</source>
             <translation>コマンドは現在のコンテキストでは使用できません。</translation>
         </message>
@@ -3735,6 +3882,50 @@
         <message>
             <source>Export Selected...</source>
             <translation>選択内容をエクスポート...</translation>
+        </message>
+        <message>
+            <source>Recovery Status</source>
+            <translation>復旧状態</translation>
+        </message>
+        <message>
+            <source>Synchronize Recovery</source>
+            <translation>復旧データを同期</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup...</source>
+            <translation>カタログバックアップを作成…</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup...</source>
+            <translation>カタログバックアップを検証…</translation>
+        </message>
+        <message>
+            <source>Restore Catalog Backup...</source>
+            <translation>カタログバックアップを復元…</translation>
+        </message>
+        <message>
+            <source>Enable Scheduled Backups...</source>
+            <translation>定期バックアップを有効化…</translation>
+        </message>
+        <message>
+            <source>Run Scheduled Backup Now</source>
+            <translation>定期バックアップを今すぐ実行</translation>
+        </message>
+        <message>
+            <source>Disable Scheduled Backups</source>
+            <translation>定期バックアップを無効化</translation>
+        </message>
+        <message>
+            <source>Rebuild Selected Previews</source>
+            <translation>選択したプレビューを再構築</translation>
+        </message>
+        <message>
+            <source>Rebuild All Previews</source>
+            <translation>すべてのプレビューを再構築</translation>
+        </message>
+        <message>
+            <source>Cancel Catalog Operation</source>
+            <translation>カタログ操作をキャンセル</translation>
         </message>
         <message>
             <source>Save Edits as Style...</source>
@@ -3875,6 +4066,26 @@
         <message>
             <source>Copy Info</source>
             <translation>情報のコピー</translation>
+        </message>
+        <message>
+            <source>Backup and restored catalog paths must not be empty.</source>
+            <translation>バックアップと復元先カタログのパスを空にすることはできません。</translation>
+        </message>
+        <message>
+            <source>Backup directory must not be empty.</source>
+            <translation>バックアップディレクトリを空にすることはできません。</translation>
+        </message>
+        <message>
+            <source>Backup interval is outside the supported range.</source>
+            <translation>バックアップ間隔が対応範囲外です。</translation>
+        </message>
+        <message>
+            <source>Backup retention count is outside the supported range.</source>
+            <translation>バックアップ保持数が対応範囲外です。</translation>
+        </message>
+        <message>
+            <source>Folder identity and replacement path must not be empty.</source>
+            <translation>フォルダー ID と置換先パスを空にすることはできません。</translation>
         </message>
         <message>
             <source>Copy Parameters</source>
@@ -4377,12 +4588,20 @@
             <translation>フォルダーをスキャン中…</translation>
         </message>
         <message>
+            <source>Importing 0 / %1…</source>
+            <translation>インポート中 0 / %1…</translation>
+        </message>
+        <message>
             <source>Importing %1 / %2…</source>
             <translation>インポート中 %1 / %2…</translation>
         </message>
         <message>
             <source>Import failed.</source>
             <translation>インポートに失敗しました。</translation>
+        </message>
+        <message>
+            <source>Import cancelled after %1 of %2 photos.</source>
+            <translation>%2 枚中 %1 枚の処理後にインポートをキャンセルしました。</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4415,6 +4634,162 @@
         <message>
             <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
             <translation>インポート: %1、重複: %2、未対応: %3、失敗: %4</translation>
+        </message>
+        <message>
+            <source>Verifying backup…</source>
+            <translation>バックアップを検証中…</translation>
+        </message>
+        <message>
+            <source>Staging catalog…</source>
+            <translation>カタログを準備中…</translation>
+        </message>
+        <message>
+            <source>Staging recovery files…</source>
+            <translation>復旧ファイルを準備中…</translation>
+        </message>
+        <message>
+            <source>Verifying staged restore…</source>
+            <translation>準備した復元データを検証中…</translation>
+        </message>
+        <message>
+            <source>Publishing catalog support…</source>
+            <translation>カタログ補助データを公開中…</translation>
+        </message>
+        <message>
+            <source>Publishing restored catalog…</source>
+            <translation>復元したカタログを公開中…</translation>
+        </message>
+        <message>
+            <source>Opening restored catalog…</source>
+            <translation>復元したカタログを開いています…</translation>
+        </message>
+        <message>
+            <source>Restore complete.</source>
+            <translation>復元が完了しました。</translation>
+        </message>
+        <message>
+            <source>Reading recovery state…</source>
+            <translation>復旧状態を読み取り中…</translation>
+        </message>
+        <message>
+            <source>Recovery status failed.</source>
+            <translation>復旧状態の取得に失敗しました。</translation>
+        </message>
+        <message>
+            <source>Recovery is synchronized.</source>
+            <translation>復旧データは同期済みです。</translation>
+        </message>
+        <message>
+            <source>%1 recovery items are pending.</source>
+            <translation>%1 件の復旧項目が保留中です。</translation>
+        </message>
+        <message>
+            <source>Synchronizing recovery…</source>
+            <translation>復旧データを同期中…</translation>
+        </message>
+        <message>
+            <source>Recovery synchronization failed.</source>
+            <translation>復旧データの同期に失敗しました。</translation>
+        </message>
+        <message>
+            <source>Synchronized %1 recovery items.</source>
+            <translation>%1 件の復旧項目を同期しました。</translation>
+        </message>
+        <message>
+            <source>Creating backup…</source>
+            <translation>バックアップを作成中…</translation>
+        </message>
+        <message>
+            <source>Backup failed.</source>
+            <translation>バックアップに失敗しました。</translation>
+        </message>
+        <message>
+            <source>Created verified backup at %1</source>
+            <translation>%1 に検証済みバックアップを作成しました</translation>
+        </message>
+        <message>
+            <source>Backup verification failed.</source>
+            <translation>バックアップの検証に失敗しました。</translation>
+        </message>
+        <message>
+            <source>Backup verified: %1 photos</source>
+            <translation>バックアップ検証済み：%1 枚</translation>
+        </message>
+        <message>
+            <source>Restore failed.</source>
+            <translation>復元に失敗しました。</translation>
+        </message>
+        <message>
+            <source>Restored catalog to %1</source>
+            <translation>カタログを %1 に復元しました</translation>
+        </message>
+        <message>
+            <source>Rebuilding previews…</source>
+            <translation>プレビューを再構築中…</translation>
+        </message>
+        <message>
+            <source>Preview rebuild stopped.</source>
+            <translation>プレビューの再構築を停止しました。</translation>
+        </message>
+        <message>
+            <source>Rebuilt %1 of %2 previews.</source>
+            <translation>%2 件中 %1 件のプレビューを再構築しました。</translation>
+        </message>
+        <message>
+            <source>Saving backup schedule…</source>
+            <translation>バックアップスケジュールを保存中…</translation>
+        </message>
+        <message>
+            <source>Backup schedule failed.</source>
+            <translation>バックアップスケジュールの保存に失敗しました。</translation>
+        </message>
+        <message>
+            <source>Scheduled backups enabled.</source>
+            <translation>定期バックアップを有効にしました。</translation>
+        </message>
+        <message>
+            <source>Scheduled backups disabled.</source>
+            <translation>定期バックアップを無効にしました。</translation>
+        </message>
+        <message>
+            <source>Relinking folder…</source>
+            <translation>フォルダーを再リンク中…</translation>
+        </message>
+        <message>
+            <source>Folder relink failed.</source>
+            <translation>フォルダーの再リンクに失敗しました。</translation>
+        </message>
+        <message>
+            <source>Folder relinked; folder refresh failed.</source>
+            <translation>フォルダーは再リンクされましたが、一覧の更新に失敗しました。</translation>
+        </message>
+        <message>
+            <source>Relinked %1 photos to %2</source>
+            <translation>%1 枚の写真を %2 に再リンクしました</translation>
+        </message>
+        <message>
+            <source>Running scheduled backup…</source>
+            <translation>定期バックアップを実行中…</translation>
+        </message>
+        <message>
+            <source>Checking backup schedule…</source>
+            <translation>バックアップスケジュールを確認中…</translation>
+        </message>
+        <message>
+            <source>Scheduled backup failed.</source>
+            <translation>定期バックアップに失敗しました。</translation>
+        </message>
+        <message>
+            <source>Scheduled backup created at %1</source>
+            <translation>%1 に定期バックアップを作成しました</translation>
+        </message>
+        <message>
+            <source>Scheduled backups are disabled.</source>
+            <translation>定期バックアップは無効です。</translation>
+        </message>
+        <message>
+            <source>Cancelling catalog operation…</source>
+            <translation>カタログ操作をキャンセル中…</translation>
         </message>
     </context>
     <context>

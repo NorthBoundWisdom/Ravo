@@ -189,8 +189,9 @@ inspect or synchronize it explicitly. The CLI can also create and independently
 verify an immutable catalog backup that includes the database snapshot and
 recovery mirrors but excludes originals and rebuildable previews.
 
-Studio does not yet expose backup, verification, or restore controls. Use the
-commands and safety boundaries in
+Studio exposes recovery status/sync, backup create/verify/restore, scheduled
+retention, and selected/all preview rebuild under **File → Recovery**. Use the
+same CLI commands and safety boundaries in
 [File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md).
 
 ## Remove a photo
@@ -232,9 +233,11 @@ records and are not shown.
 
 ### Can I use one catalog on another computer?
 
-Yes, but the original paths must resolve on the other computer. Ravo stores
-references rather than portable source copies, so moving the catalog alone does
-not move or relink the photos.
+Yes, but the originals still need to be available. Ravo stores references
+rather than portable source copies, so moving the catalog alone does not move
+the photos. If a stable direct source folder is missing and an unchanged copy
+is available elsewhere, use its missing row to choose the explicit replacement;
+Ravo validates every file identity before relinking.
 
 ### What happens to previews when I remove a catalog record?
 

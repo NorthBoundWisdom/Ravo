@@ -16,11 +16,13 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 6;
+inline constexpr std::int64_t kCatalogSchemaVersion = 9;
+inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 1;
 inline constexpr std::uintmax_t kRecoverySidecarMaximumBytes = 16U * 1024U * 1024U;
 inline constexpr std::size_t kRecoveryHistoryMaximumEntries = 10'000U;
+inline constexpr std::size_t kRecoveryTagMaximumEntries = 10'000U;
 inline constexpr std::uintmax_t kCatalogBackupManifestMaximumBytes = 64U * 1024U * 1024U;
 inline constexpr std::string_view kCatalogBackupCatalogFilename = "catalog.sqlite";
 inline constexpr std::string_view kCatalogBackupManifestFilename = "manifest.json";
@@ -65,6 +67,13 @@ inline constexpr int kTiffResolutionDpiMax = 9600;
 inline constexpr std::size_t kExportBatchMaxAssets = 10'000U;
 inline constexpr std::size_t kExportFilenameTemplateMaxBytes = 512U;
 inline constexpr std::size_t kExportFilenameMaxBytes = 240U;
+inline constexpr std::size_t kLibraryPageDefaultSize = 200U;
+inline constexpr std::size_t kLibraryPageMaximumSize = 512U;
+inline constexpr std::size_t kImportBatchMaximumAssets = 100'000U;
+inline constexpr std::int64_t kBackupScheduleIntervalMinutesMin = 15;
+inline constexpr std::int64_t kBackupScheduleIntervalMinutesMax = 365 * 24 * 60;
+inline constexpr int kBackupRetentionCountMin = 1;
+inline constexpr int kBackupRetentionCountMax = 100;
 inline constexpr std::size_t kExportDocumentNameMaxBytes = 16U * 1024U;
 inline constexpr std::size_t kExportCaptureFieldMaxLength = kMetadataFieldMaxLength;
 inline constexpr std::size_t kJpegAppMarkerMaxPayloadBytes = 65533U;
@@ -305,6 +314,15 @@ struct LibraryQuery
     [[nodiscard]] bool operator==(const LibraryQuery &) const noexcept = default;
 };
 
+struct LibraryPageRequest
+{
+    LibraryQuery query;
+    std::size_t offset = 0U;
+    std::size_t limit = kLibraryPageDefaultSize;
+    std::optional<std::string> after_asset_id;
+    std::optional<std::size_t> known_total;
+};
+
 struct CaptureDateTime
 {
     std::string local_exif;
@@ -411,10 +429,44 @@ struct RecipeHistoryEntry
 
 struct FolderRecord
 {
+    std::string id;
     std::string uri;
     std::string display_name;
     int depth = 0;
     int asset_count = 0;
+    bool missing = false;
+};
+
+struct FolderAssetCount
+{
+    std::string id;
+    std::string uri;
+    int direct_asset_count = 0;
+    bool missing = false;
+};
+
+struct FolderRelinkAsset
+{
+    std::string asset_id;
+    std::string expected_old_uri;
+    std::string replacement_uri;
+};
+
+struct FolderRelinkCommit
+{
+    std::string folder_id;
+    std::string expected_old_uri;
+    std::string replacement_uri;
+    std::vector<FolderRelinkAsset> assets;
+};
+
+struct FolderRelinkResult
+{
+    std::string folder_id;
+    std::string previous_uri;
+    std::string replacement_uri;
+    std::size_t asset_count = 0U;
+    std::size_t recovery_pending = 0U;
 };
 
 struct CatalogSnapshot
@@ -446,6 +498,17 @@ struct AssetRecord
     std::vector<std::string> tags;
     CaptureMetadata capture;
     WritableMetadata metadata;
+};
+
+struct LibraryPage
+{
+    std::vector<AssetRecord> assets;
+    std::size_t offset = 0U;
+    std::size_t total = 0U;
+    bool has_more = false;
+    std::optional<std::string> next_cursor;
+    std::int64_t query_elapsed_us = 0;
+    std::size_t materialized_rows = 0U;
 };
 
 // The catalog transaction owns generation. Filesystem publication acknowledges
@@ -520,6 +583,64 @@ struct CatalogBackupVerification
     bool previews_included = false;
 };
 
+struct CatalogBackupPolicy
+{
+    bool enabled = false;
+    std::string destination_directory;
+    std::int64_t interval_minutes = 24 * 60;
+    int retention_count = 7;
+    std::optional<std::int64_t> last_success_unix_ms;
+    std::optional<std::int64_t> next_run_unix_ms;
+    std::uint64_t last_backup_bytes = 0U;
+    std::optional<std::string> last_error;
+};
+
+struct CatalogBackupScheduleResult
+{
+    bool ran = false;
+    CatalogBackupPolicy policy;
+    std::optional<CatalogBackupArtifact> backup;
+    std::vector<std::string> removed_backups;
+    std::vector<std::string> retained_unverified_paths;
+};
+
+enum class CatalogRestoreStage : std::uint8_t
+{
+    kVerifySource,
+    kStageDatabase,
+    kStageSidecars,
+    kVerifyStaging,
+    kPublishSupport,
+    kPublishCatalog,
+    kOpenCatalog,
+    kComplete,
+};
+
+struct CatalogRestoreRequest
+{
+    std::string backup_directory;
+    std::string destination_catalog;
+    CancellationToken cancellation{};
+    std::string correlation_id;
+};
+
+struct CatalogRestoreProgress
+{
+    CatalogRestoreStage stage = CatalogRestoreStage::kVerifySource;
+    std::size_t completed = 0U;
+    std::size_t total = 0U;
+    std::uint64_t bytes_completed = 0U;
+};
+
+struct CatalogRestoreResult
+{
+    CatalogBackupArtifact source_backup;
+    CatalogSnapshot catalog;
+    std::string support_root;
+    bool previews_rebuild_required = true;
+    bool published = false;
+};
+
 struct PreviewRecord
 {
     std::string asset_id;
@@ -580,6 +701,23 @@ struct PreviewResult
     std::vector<std::uint8_t> rgb;
     ColorProfileState color_profile;
     std::vector<float> mask_alpha;
+};
+
+struct PreviewRebuildItemResult
+{
+    std::string asset_id;
+    std::optional<std::string> browse_cache_path;
+    std::optional<std::string> develop_cache_path;
+    std::optional<TaskError> error;
+};
+
+struct PreviewRebuildResult
+{
+    std::size_t total = 0U;
+    std::size_t completed = 0U;
+    std::size_t succeeded = 0U;
+    std::size_t failed = 0U;
+    std::vector<PreviewRebuildItemResult> items;
 };
 
 struct ExportOptions
@@ -649,6 +787,8 @@ struct FileIdentity
 
 [[nodiscard]] std::string generate_catalog_id();
 [[nodiscard]] std::string generate_asset_id();
+[[nodiscard]] std::string generate_folder_id();
+[[nodiscard]] std::string_view catalog_restore_stage_name(CatalogRestoreStage stage) noexcept;
 [[nodiscard]] std::string make_content_fingerprint(const FileIdentity &identity);
 [[nodiscard]] std::string make_preview_cache_key(std::string_view asset_id, std::uint32_t width,
                                                  std::uint32_t height, std::string_view fingerprint,
@@ -657,6 +797,7 @@ void fit_within_max_edge(std::uint32_t source_width, std::uint32_t source_height
                          std::uint32_t max_edge, std::uint32_t &output_width,
                          std::uint32_t &output_height) noexcept;
 [[nodiscard]] Result<void> validate_rating(int rating);
+[[nodiscard]] Result<void> validate_catalog_backup_policy(const CatalogBackupPolicy &policy);
 [[nodiscard]] std::string_view color_label_name(ColorLabel label) noexcept;
 [[nodiscard]] Result<ColorLabel> parse_color_label(std::string_view name);
 [[nodiscard]] std::string_view export_format_name(ExportFormat format) noexcept;
@@ -716,9 +857,13 @@ estimate_export_metadata_packets(const ExportMetadataSnapshot &metadata);
 [[nodiscard]] std::string asset_display_name(const AssetRecord &asset);
 [[nodiscard]] bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query);
 [[nodiscard]] Result<void> validate_library_query(const LibraryQuery &query);
+[[nodiscard]] Result<void> validate_library_page_request(const LibraryPageRequest &request);
 [[nodiscard]] std::vector<AssetRecord> filter_and_sort_assets(std::vector<AssetRecord> assets,
                                                               const LibraryQuery &query);
 [[nodiscard]] bool asset_in_folder(const AssetRecord &asset, std::string_view folder_uri) noexcept;
 [[nodiscard]] std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets);
+[[nodiscard]] std::vector<FolderRecord>
+library_folders_from_counts(const std::vector<FolderAssetCount> &direct_counts,
+                            int total_asset_count);
 
 } // namespace ravo

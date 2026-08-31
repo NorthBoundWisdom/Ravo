@@ -79,52 +79,6 @@ constexpr std::size_t kManifestReadChunkBytes = 64U * 1024U;
     return std::string(asset_id) + "." + std::to_string(generation) + ".ravo.json";
 }
 
-class OwnedBackupDirectory
-{
-public:
-    OwnedBackupDirectory() = default;
-    OwnedBackupDirectory(const OwnedBackupDirectory &) = delete;
-    OwnedBackupDirectory &operator=(const OwnedBackupDirectory &) = delete;
-
-    ~OwnedBackupDirectory()
-    {
-        if (!path_.empty())
-        {
-            std::error_code ignored;
-            std::filesystem::remove_all(path_, ignored);
-        }
-    }
-
-    void reset(std::filesystem::path path)
-    {
-        path_ = std::move(path);
-    }
-
-    [[nodiscard]] const std::filesystem::path &path() const noexcept
-    {
-        return path_;
-    }
-
-    [[nodiscard]] std::error_code remove() noexcept
-    {
-        if (path_.empty())
-            return {};
-        std::error_code error;
-        std::filesystem::remove_all(path_, error);
-        if (!error)
-            path_.clear();
-        return error;
-    }
-
-    void release() noexcept
-    {
-        path_.clear();
-    }
-
-private:
-    std::filesystem::path path_;
-};
-
 [[nodiscard]] Result<void> expect_exact_keys(const JsonValue::Object &object,
                                              const std::initializer_list<std::string_view> keys,
                                              const std::string_view owner)
@@ -321,8 +275,13 @@ parse_backup_manifest(const std::filesystem::path &backup_root,
         return catalog_sha.error();
     if (!catalog_bytes)
         return catalog_bytes.error();
+    if (catalog_schema.value() > kCatalogSchemaVersion)
+        return backup_error(ErrorCode::kUnsupported,
+                            "Backup catalog schema is newer than this Ravo",
+                            "newer_backup_catalog_schema");
     if (catalog_file.value() != kCatalogBackupCatalogFilename ||
-        !valid_sha256(catalog_sha.value()) || catalog_schema.value() != kCatalogSchemaVersion)
+        !valid_sha256(catalog_sha.value()) ||
+        catalog_schema.value() < kCatalogRecoveryMinimumSchemaVersion)
         return backup_error(ErrorCode::kValidation, "Backup catalog descriptor is invalid",
                             "invalid_backup_catalog_descriptor");
 
@@ -518,6 +477,36 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
                             "backup_destination_inspect_failed", std::string(destination),
                             status_error.message());
 
+    const auto checkpoint = [this, &cancellation](const std::string_view name,
+                                                  const std::string_view path) -> Result<void>
+    {
+        if (testing_backup_checkpoint_)
+        {
+            auto injected = testing_backup_checkpoint_(name, path);
+            if (!injected)
+            {
+                auto error = std::move(injected).error();
+                error.context.insert_or_assign("checkpoint", std::string(name));
+                if (!path.empty())
+                    error.context.insert_or_assign("path", std::string(path));
+                return error;
+            }
+        }
+        auto active = cancellation.check();
+        if (!active)
+        {
+            auto error = std::move(active).error();
+            error.context.insert_or_assign("checkpoint", std::string(name));
+            if (!path.empty())
+                error.context.insert_or_assign("path", std::string(path));
+            return error;
+        }
+        return {};
+    };
+    auto ready = checkpoint("before_snapshot", destination);
+    if (!ready)
+        return ready.error();
+
     auto synchronized = sync_recovery(std::nullopt, cancellation);
     if (!synchronized)
         return synchronized.error();
@@ -532,7 +521,7 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         return backup_error(ErrorCode::kConflict, "Catalog has pending recovery generations",
                             "backup_recovery_pending");
 
-    OwnedBackupDirectory stage;
+    atomic_publication_internal::OwnedTemporaryDirectory stage;
     std::error_code create_error;
     for (int attempt = 0; attempt < 16 && stage.path().empty(); ++attempt)
     {
@@ -558,6 +547,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         }
         return error;
     };
+    ready = checkpoint("stage_created", path_utf8(stage.path()));
+    if (!ready)
+        return fail(ready.error());
 
     const auto stage_sidecars = stage.path() / path_from_utf8(kCatalogBackupSidecarDirectory);
     if (!std::filesystem::create_directory(stage_sidecars, create_error))
@@ -565,6 +557,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
                                  "Unable to create backup sidecar staging directory",
                                  "backup_sidecar_staging_create_failed", path_utf8(stage_sidecars),
                                  create_error.message()));
+    ready = checkpoint("sidecar_directory_created", path_utf8(stage_sidecars));
+    if (!ready)
+        return fail(ready.error());
 
     const auto stage_catalog = stage.path() / path_from_utf8(kCatalogBackupCatalogFilename);
     auto catalog = repository_->create_backup_database(path_utf8(stage_catalog), cancellation);
@@ -577,6 +572,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         return fail(backup_error(ErrorCode::kConflict,
                                  "Catalog changed while its backup snapshot was created",
                                  "backup_snapshot_changed"));
+    ready = checkpoint("database_snapshot_created", path_utf8(stage_catalog));
+    if (!ready)
+        return fail(ready.error());
 
     std::vector<RecoveryArtifact> copied_sidecars;
     copied_sidecars.reserve(catalog.value().recovery_states.size());
@@ -615,6 +613,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
                                      "Copied backup sidecar differs from its source",
                                      "backup_sidecar_copy_mismatch", path_utf8(output_sidecar)));
         copied_sidecars.push_back(std::move(verified).value());
+        ready = checkpoint("sidecar_copied", path_utf8(output_sidecar));
+        if (!ready)
+            return fail(ready.error());
     }
 
     auto after = repository_->snapshot();
@@ -629,6 +630,9 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         return fail(backup_error(ErrorCode::kConflict,
                                  "Catalog changed while its backup was materialized",
                                  "backup_source_changed"));
+    ready = checkpoint("source_rechecked", path_utf8(stage.path()));
+    if (!ready)
+        return fail(ready.error());
 
     const auto created_unix_ms = now_unix_ms();
     const auto manifest_path = stage.path() / path_from_utf8(kCatalogBackupManifestFilename);
@@ -641,10 +645,19 @@ Result<CatalogBackupArtifact> CatalogService::create_backup(const std::string_vi
         publish_text_artifact_no_replace(path_utf8(manifest_path), manifest, cancellation);
     if (!published_manifest)
         return fail(published_manifest.error());
+    ready = checkpoint("manifest_published", path_utf8(manifest_path));
+    if (!ready)
+        return fail(ready.error());
 
     auto verified = verify_backup(path_utf8(stage.path()), cancellation);
     if (!verified)
         return fail(verified.error());
+    ready = checkpoint("staging_verified", path_utf8(stage.path()));
+    if (!ready)
+        return fail(ready.error());
+    ready = checkpoint("before_publish", path_utf8(stage.path()));
+    if (!ready)
+        return fail(ready.error());
     const auto publish_error =
         atomic_publication_internal::publish_no_replace(stage.path(), output);
     if (publish_error)

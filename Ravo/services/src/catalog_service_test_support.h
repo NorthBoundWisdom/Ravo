@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <string_view>
 
 #include "ravo/services/catalog_service.h"
 
@@ -14,6 +15,9 @@ public:
                                               std::function<void()> callback);
     static void set_before_preview_cache_publication(CatalogService &service,
                                                      std::function<void()> callback);
+    static void set_backup_checkpoint(
+        CatalogService &service,
+        std::function<Result<void>(std::string_view checkpoint, std::string_view path)> callback);
     [[nodiscard]] static std::array<std::optional<std::uint32_t>, 2>
     linear_working_max_edges(const CatalogService &service);
     [[nodiscard]] static std::optional<std::uint32_t>

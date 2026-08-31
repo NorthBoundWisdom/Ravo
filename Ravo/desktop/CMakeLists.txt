@@ -18,6 +18,7 @@ target_sources(ravo_desktop
     src/studio_language_manager.cpp
     src/studio_live_session_controller.cpp
     src/studio_presenter.cpp
+    src/studio_recovery.cpp
     src/studio_preview.cpp
     src/studio_develop.cpp
     src/export_option_conversion.cpp
@@ -138,6 +139,7 @@ qt_add_qml_module(ravo_studio
     qml/inspect/ToneCurveEditor.qml
     qml/inspect/ScopePanel.qml
     qml/chrome/FolderDialogPage.qml
+    qml/chrome/BackupScheduleDialog.qml
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
     qml/chrome/AssistantPanel.qml

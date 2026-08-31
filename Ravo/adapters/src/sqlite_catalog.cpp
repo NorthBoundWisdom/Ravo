@@ -16,12 +16,14 @@
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QMetaType>
+#include <QtCore/QSaveFile>
 #include <QtCore/QVariant>
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlError>
 #include <QtSql/QSqlQuery>
 
 #include "ravo/domain/types.h"
+#include "ravo/domain/uri.h"
 
 namespace ravo
 {
@@ -38,9 +40,17 @@ const char *kSchemaStatements[] = {
     "  created_unix_ms INTEGER NOT NULL,"
     "  migrated_unix_ms INTEGER NOT NULL"
     ")",
+    "CREATE TABLE catalog_folder ("
+    "  id TEXT PRIMARY KEY,"
+    "  uri TEXT NOT NULL UNIQUE,"
+    "  created_unix_ms INTEGER NOT NULL"
+    ")",
     "CREATE TABLE asset ("
     "  id TEXT PRIMARY KEY,"
     "  normalized_uri TEXT NOT NULL UNIQUE,"
+    "  display_name TEXT NOT NULL,"
+    "  folder_uri TEXT NOT NULL,"
+    "  folder_id TEXT NOT NULL REFERENCES catalog_folder(id),"
     "  media_type TEXT NOT NULL,"
     "  size_bytes INTEGER NOT NULL,"
     "  mtime_unix_ms INTEGER NOT NULL,"
@@ -109,6 +119,36 @@ const char *kSchemaStatements[] = {
     ")",
 };
 
+constexpr const char *kSchemaV7Indexes[] = {
+    "CREATE INDEX IF NOT EXISTS asset_created_id_idx ON asset(created_unix_ms, id)",
+    "CREATE INDEX IF NOT EXISTS asset_display_name_id_idx ON asset(display_name, id)",
+    "CREATE INDEX IF NOT EXISTS asset_folder_uri_idx ON asset(folder_uri)",
+    "CREATE INDEX IF NOT EXISTS asset_rating_id_idx ON asset(rating, id)",
+    "CREATE INDEX IF NOT EXISTS asset_size_id_idx ON asset(size_bytes, id)",
+    "CREATE INDEX IF NOT EXISTS asset_media_type_idx ON asset(media_type)",
+    "CREATE INDEX IF NOT EXISTS asset_tag_name_idx ON asset_tag(name, asset_id)",
+    ("CREATE INDEX IF NOT EXISTS asset_metadata_capture_idx ON "
+     "asset_metadata(captured_unix_s, asset_id)"),
+};
+
+constexpr const char *kSchemaV8BackupPolicy[] = {
+    "CREATE TABLE IF NOT EXISTS catalog_backup_policy ("
+    "  id INTEGER PRIMARY KEY CHECK(id = 1),"
+    "  enabled INTEGER NOT NULL DEFAULT 0,"
+    "  destination_directory TEXT NOT NULL DEFAULT '',"
+    "  interval_minutes INTEGER NOT NULL DEFAULT 1440,"
+    "  retention_count INTEGER NOT NULL DEFAULT 7,"
+    "  last_success_unix_ms INTEGER,"
+    "  next_run_unix_ms INTEGER,"
+    "  last_backup_bytes INTEGER NOT NULL DEFAULT 0,"
+    "  last_error TEXT"
+    ")",
+    "INSERT OR IGNORE INTO catalog_backup_policy(id) VALUES (1)",
+};
+
+constexpr const char *kSchemaV9FolderIdentityIndex =
+    "CREATE INDEX IF NOT EXISTS asset_folder_id_idx ON asset(folder_id, id)";
+
 constexpr const char *kSchemaV4Statements[] = {
     "CREATE TABLE asset_tag ("
     "  asset_id TEXT NOT NULL REFERENCES asset(id) ON DELETE CASCADE,"
@@ -149,6 +189,13 @@ constexpr const char *kSchemaV6Table =
     "    CHECK(synchronized_generation >= 0 AND synchronized_generation <= generation)"
     ")";
 
+constexpr const char *kSchemaV6AssetUpdateTrigger =
+    "CREATE TRIGGER asset_recovery_update AFTER UPDATE OF normalized_uri, media_type, size_bytes, "
+    "mtime_unix_ms, content_fingerprint, width, height, import_state, error_code, error_message, "
+    "created_unix_ms, rating, color_label, rejected ON asset BEGIN "
+    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.id; "
+    "END";
+
 // Generation is catalog-owned durable state. Every durable per-asset write marks
 // the derived recovery sidecar pending, while preview/cache writes intentionally
 // do not participate because they are rebuildable.
@@ -157,9 +204,7 @@ constexpr const char *kSchemaV6Triggers[] = {
     "  INSERT INTO asset_recovery_state(asset_id, generation, synchronized_generation) "
     "  VALUES (NEW.id, 1, 0); "
     "END",
-    "CREATE TRIGGER asset_recovery_update AFTER UPDATE ON asset BEGIN "
-    "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.id; "
-    "END",
+    kSchemaV6AssetUpdateTrigger,
     "CREATE TRIGGER asset_recipe_recovery_insert AFTER INSERT ON asset_recipe BEGIN "
     "  UPDATE asset_recovery_state SET generation = generation + 1 WHERE asset_id = NEW.asset_id; "
     "END",
@@ -206,6 +251,24 @@ constexpr const char *kSchemaV6Triggers[] = {
     return {bytes.constData(), static_cast<std::size_t>(bytes.size())};
 }
 
+[[nodiscard]] QString contains_like_pattern(const std::string_view text)
+{
+    QString escaped = qstring_from_utf8(text);
+    escaped.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
+    escaped.replace(QStringLiteral("%"), QStringLiteral("\\%"));
+    escaped.replace(QStringLiteral("_"), QStringLiteral("\\_"));
+    return QLatin1Char('%') + escaped + QLatin1Char('%');
+}
+
+[[nodiscard]] QString prefix_like_pattern(const std::string_view text)
+{
+    QString escaped = qstring_from_utf8(text);
+    escaped.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
+    escaped.replace(QStringLiteral("%"), QStringLiteral("\\%"));
+    escaped.replace(QStringLiteral("_"), QStringLiteral("\\_"));
+    return escaped + QStringLiteral("/%");
+}
+
 [[nodiscard]] TaskError map_sql_error(const QSqlQuery &query, const std::string_view action)
 {
     return make_error(ErrorCode::kIo, "Catalog SQL statement failed",
@@ -226,6 +289,17 @@ asset_metadata_columns(QSqlDatabase &database)
     {
         columns.insert(utf8_from_qstring(query.value(1).toString()));
     }
+    return columns;
+}
+
+[[nodiscard]] Result<std::set<std::string, std::less<>>> asset_columns(QSqlDatabase &database)
+{
+    QSqlQuery query(database);
+    if (!query.exec(QStringLiteral("PRAGMA table_info(asset)")))
+        return map_sql_error(query, "read_asset_columns");
+    std::set<std::string, std::less<>> columns;
+    while (query.next())
+        columns.insert(utf8_from_qstring(query.value(1).toString()));
     return columns;
 }
 
@@ -446,8 +520,18 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
         by_id.emplace(asset.id, &asset);
     }
 
+    QStringList placeholders;
+    placeholders.reserve(static_cast<qsizetype>(assets.size()));
+    for (std::size_t index = 0; index < assets.size(); ++index)
+        placeholders.push_back(QStringLiteral("?"));
+    const auto in_clause = placeholders.join(QLatin1Char(','));
+
     QSqlQuery tags(database);
-    if (!tags.exec(QStringLiteral("SELECT asset_id, name FROM asset_tag ORDER BY name ASC")))
+    tags.prepare(QStringLiteral("SELECT asset_id, name FROM asset_tag WHERE asset_id IN (") +
+                 in_clause + QStringLiteral(") ORDER BY name ASC"));
+    for (const auto &asset : assets)
+        tags.addBindValue(qstring_from_utf8(asset.id));
+    if (!tags.exec())
     {
         return map_sql_error(tags, "list_asset_tags");
     }
@@ -462,11 +546,17 @@ text_column(const QSqlQuery &query, const int index, const std::string_view fiel
     }
 
     QSqlQuery metadata(database);
-    if (!metadata.exec(QStringLiteral(
-            "SELECT asset_id, title, description, creator, copyright, camera_make, camera_model, "
-            "iso, aperture, focal_length_mm, shutter_s, captured_unix_s, captured_local_exif, "
-            "captured_subsecond_digits, captured_utc_offset_minutes, gps_latitude_e6, "
-            "gps_longitude_e6, gps_altitude_magnitude_mm, gps_altitude_ref FROM asset_metadata")))
+    metadata.prepare(
+        QStringLiteral("SELECT asset_id, title, description, creator, copyright, camera_make, "
+                       "camera_model, iso, aperture, focal_length_mm, shutter_s, "
+                       "captured_unix_s, captured_local_exif, captured_subsecond_digits, "
+                       "captured_utc_offset_minutes, gps_latitude_e6, gps_longitude_e6, "
+                       "gps_altitude_magnitude_mm, gps_altitude_ref FROM asset_metadata "
+                       "WHERE asset_id IN (") +
+        in_clause + QStringLiteral(")"));
+    for (const auto &asset : assets)
+        metadata.addBindValue(qstring_from_utf8(asset.id));
+    if (!metadata.exec())
     {
         return map_sql_error(metadata, "list_asset_metadata");
     }
@@ -846,8 +936,13 @@ inspect_backup_database(const std::string_view path, const std::string_view expe
     {
         return *database_error;
     }
+    if (artifact.schema_version > kCatalogSchemaVersion)
+        return make_error(ErrorCode::kUnsupported, "Catalog backup schema is newer than this Ravo",
+                          {{"path", std::string(path)},
+                           {"schema_version", std::to_string(artifact.schema_version)},
+                           {"reason", "newer_backup_catalog_schema"}});
     if (extra_schema_row || artifact.catalog_id.empty() ||
-        artifact.schema_version != kCatalogSchemaVersion || artifact.revision < 0 ||
+        artifact.schema_version < kCatalogRecoveryMinimumSchemaVersion || artifact.revision < 0 ||
         std::any_of(
             artifact.recovery_states.begin(), artifact.recovery_states.end(),
             [](const AssetRecoveryState &state)
@@ -861,6 +956,64 @@ inspect_backup_database(const std::string_view path, const std::string_view expe
             {{"path", std::string(path)}, {"reason", "backup_catalog_identity_invalid"}});
     }
     return artifact;
+}
+
+[[nodiscard]] Result<void> copy_database_snapshot(const std::string_view source_path,
+                                                  const std::string_view output_path,
+                                                  const CancellationToken &cancellation)
+{
+    constexpr qint64 kChunkBytes = 1024 * 1024;
+    QFile source(qstring_from_utf8(source_path));
+    if (!source.open(QIODevice::ReadOnly))
+        return make_error(ErrorCode::kIo, "Unable to open catalog database for backup",
+                          {{"detail", utf8_from_qstring(source.errorString())},
+                           {"path", std::string(source_path)},
+                           {"reason", "backup_database_source_open_failed"}});
+    QSaveFile output(qstring_from_utf8(output_path));
+    output.setDirectWriteFallback(false);
+    if (!output.open(QIODevice::WriteOnly))
+        return make_error(ErrorCode::kIo, "Unable to create backup database temporary",
+                          {{"detail", utf8_from_qstring(output.errorString())},
+                           {"path", std::string(output_path)},
+                           {"reason", "backup_database_temporary_open_failed"}});
+    while (!source.atEnd())
+    {
+        auto active = cancellation.check();
+        if (!active)
+        {
+            output.cancelWriting();
+            return active.error();
+        }
+        const auto bytes = source.read(kChunkBytes);
+        if (bytes.isEmpty() && !source.atEnd())
+        {
+            output.cancelWriting();
+            return make_error(ErrorCode::kIo, "Unable to read catalog database snapshot",
+                              {{"detail", utf8_from_qstring(source.errorString())},
+                               {"path", std::string(source_path)},
+                               {"reason", "backup_database_source_read_failed"}});
+        }
+        if (output.write(bytes) != bytes.size())
+        {
+            output.cancelWriting();
+            return make_error(ErrorCode::kIo, "Unable to write catalog database snapshot",
+                              {{"detail", utf8_from_qstring(output.errorString())},
+                               {"path", std::string(output_path)},
+                               {"reason", "backup_database_temporary_write_failed"}});
+        }
+    }
+    auto active = cancellation.check();
+    if (!active)
+    {
+        output.cancelWriting();
+        return active.error();
+    }
+    if (!output.commit())
+        return make_error(ErrorCode::kIo, "Unable to publish catalog database snapshot",
+                          {{"detail", utf8_from_qstring(output.errorString())},
+                           {"path", std::string(output_path)},
+                           {"reason", "backup_database_publish_failed"}});
+    return {};
 }
 
 [[nodiscard]] Result<void> strip_backup_preview_rows(const std::string_view path,
@@ -913,16 +1066,19 @@ inspect_backup_database(const std::string_view path, const std::string_view expe
     }
     if (!failure)
     {
-        QSqlQuery compact(database);
-        if (!compact.exec(QStringLiteral("VACUUM")))
-            failure = make_error(ErrorCode::kIo, "Unable to compact backup database",
+        QSqlQuery journal(database);
+        if (!journal.exec(QStringLiteral("PRAGMA journal_mode = DELETE")) || !journal.next() ||
+            journal.value(0).toString().compare(QStringLiteral("delete"), Qt::CaseInsensitive) != 0)
+            failure = make_error(ErrorCode::kIo, "Unable to make backup database self-contained",
                                  {{"path", std::string(path)},
-                                  {"detail", utf8_from_qstring(compact.lastError().text())},
-                                  {"reason", "backup_compact_failed"}});
+                                  {"detail", utf8_from_qstring(journal.lastError().text())},
+                                  {"reason", "backup_journal_mode_failed"}});
     }
     database.close();
     database = QSqlDatabase();
     QSqlDatabase::removeDatabase(connection);
+    static_cast<void>(QFile::remove(qstring_from_utf8(std::string(path) + "-wal")));
+    static_cast<void>(QFile::remove(qstring_from_utf8(std::string(path) + "-shm")));
     if (failure)
         return *failure;
     active = cancellation.check();
@@ -937,6 +1093,13 @@ constexpr const char *kAssetSelect =
     "color_label, rejected, "
     "EXISTS(SELECT 1 FROM asset_recipe WHERE asset_id = asset.id) FROM asset";
 
+constexpr const char *kAssetPageSelect =
+    "SELECT a.id, a.normalized_uri, a.media_type, a.size_bytes, a.mtime_unix_ms, "
+    "a.content_fingerprint, a.width, a.height, a.import_state, a.error_code, a.error_message, "
+    "a.created_unix_ms, a.rating, a.color_label, a.rejected, "
+    "EXISTS(SELECT 1 FROM asset_recipe r WHERE r.asset_id = a.id) "
+    "FROM asset a LEFT JOIN asset_metadata m ON m.asset_id = a.id";
+
 constexpr const char *kPreviewSelect =
     "SELECT asset_id, contract_version, cache_key, width, height, state, cache_relpath, "
     "last_success_unix_ms FROM preview";
@@ -950,6 +1113,9 @@ struct SqliteCatalogRepository::Impl
     std::string database_path;
     CatalogSnapshot snapshot;
     testing::SqliteImportFailure import_failure = testing::SqliteImportFailure::kNone;
+    testing::SqliteRecoveryFailure recovery_failure = testing::SqliteRecoveryFailure::kNone;
+    testing::SqliteFolderRelinkFailure folder_relink_failure =
+        testing::SqliteFolderRelinkFailure::kNone;
 
     [[nodiscard]] bool consume_import_failure(const testing::SqliteImportFailure expected) noexcept
     {
@@ -985,6 +1151,24 @@ struct SqliteCatalogRepository::Impl
                                       utf8_from_qstring(database.lastError().text().left(128)));
         }
         return primary;
+    }
+
+    [[nodiscard]] bool
+    consume_recovery_failure(const testing::SqliteRecoveryFailure expected) noexcept
+    {
+        if (recovery_failure != expected)
+            return false;
+        recovery_failure = testing::SqliteRecoveryFailure::kNone;
+        return true;
+    }
+
+    [[nodiscard]] bool
+    consume_folder_relink_failure(const testing::SqliteFolderRelinkFailure expected) noexcept
+    {
+        if (folder_relink_failure != expected)
+            return false;
+        folder_relink_failure = testing::SqliteFolderRelinkFailure::kNone;
+        return true;
     }
 
     [[nodiscard]] Result<void> exec(const QString &sql, const std::string_view action)
@@ -1074,6 +1258,20 @@ void testing::SqliteCatalogTestControl::inject(SqliteCatalogRepository &reposito
     {
         repository.impl_->import_failure = failure;
     }
+}
+
+void testing::SqliteCatalogTestControl::inject_recovery(
+    SqliteCatalogRepository &repository, const SqliteRecoveryFailure failure) noexcept
+{
+    if (repository.impl_ != nullptr)
+        repository.impl_->recovery_failure = failure;
+}
+
+void testing::SqliteCatalogTestControl::inject_folder_relink(
+    SqliteCatalogRepository &repository, const SqliteFolderRelinkFailure failure) noexcept
+{
+    if (repository.impl_ != nullptr)
+        repository.impl_->folder_relink_failure = failure;
 }
 
 SqliteCatalogRepository::SqliteCatalogRepository(std::unique_ptr<Impl> impl)
@@ -1202,6 +1400,22 @@ SqliteCatalogRepository::create(const std::string_view database_path)
             return impl->abort_transaction(created.error());
         }
     }
+    for (const char *statement : kSchemaV7Indexes)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_library_index");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
+    for (const char *statement : kSchemaV8BackupPolicy)
+    {
+        const auto created = impl->exec(QString::fromUtf8(statement), "create_backup_policy");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
+    const auto folder_index =
+        impl->exec(QString::fromUtf8(kSchemaV9FolderIdentityIndex), "create_folder_identity_index");
+    if (!folder_index)
+        return impl->abort_transaction(folder_index.error());
 
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
@@ -1368,6 +1582,147 @@ SqliteCatalogRepository::open(const std::string_view database_path)
             }
             version = 6;
         }
+        if (version == 6)
+        {
+            auto columns = asset_columns(impl->database);
+            if (!columns)
+                return impl->abort_transaction(columns.error());
+            if (!columns.value().contains("display_name"))
+            {
+                auto display_column = impl->exec(
+                    QStringLiteral(
+                        "ALTER TABLE asset ADD COLUMN display_name TEXT NOT NULL DEFAULT ''"),
+                    "migrate_v7_display_name");
+                if (!display_column)
+                    return impl->abort_transaction(display_column.error());
+            }
+            if (!columns.value().contains("folder_uri"))
+            {
+                auto folder_column = impl->exec(
+                    QStringLiteral(
+                        "ALTER TABLE asset ADD COLUMN folder_uri TEXT NOT NULL DEFAULT ''"),
+                    "migrate_v7_folder_uri");
+                if (!folder_column)
+                    return impl->abort_transaction(folder_column.error());
+            }
+            auto dropped_update_trigger =
+                impl->exec(QStringLiteral("DROP TRIGGER IF EXISTS asset_recovery_update"),
+                           "migrate_v7_drop_asset_recovery_update");
+            if (!dropped_update_trigger)
+                return impl->abort_transaction(dropped_update_trigger.error());
+            auto recreated_update_trigger =
+                impl->exec(QString::fromUtf8(kSchemaV6AssetUpdateTrigger),
+                           "migrate_v7_create_asset_recovery_update");
+            if (!recreated_update_trigger)
+                return impl->abort_transaction(recreated_update_trigger.error());
+            QSqlQuery assets(impl->database);
+            if (!assets.exec(QStringLiteral("SELECT id, normalized_uri FROM asset ORDER BY id")))
+                return impl->abort_transaction(map_sql_error(assets, "migrate_v7_read_assets"));
+            QSqlQuery update_asset(impl->database);
+            update_asset.prepare(
+                QStringLiteral("UPDATE asset SET display_name = ?, folder_uri = ? WHERE id = ?"));
+            while (assets.next())
+            {
+                const auto id = utf8_from_qstring(assets.value(0).toString());
+                const auto uri = utf8_from_qstring(assets.value(1).toString());
+                update_asset.bindValue(0, qstring_from_utf8(uri_display_name(uri)));
+                update_asset.bindValue(1, qstring_from_utf8(uri_parent(uri)));
+                update_asset.bindValue(2, qstring_from_utf8(id));
+                if (!update_asset.exec())
+                    return impl->abort_transaction(
+                        map_sql_error(update_asset, "migrate_v7_index_asset"));
+            }
+            for (const char *statement : kSchemaV7Indexes)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v7_library_index");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 7;
+        }
+        if (version == 7)
+        {
+            for (const char *statement : kSchemaV8BackupPolicy)
+            {
+                const auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v8_backup_policy");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 8;
+        }
+        if (version == 8)
+        {
+            auto folders =
+                impl->exec(QStringLiteral("CREATE TABLE IF NOT EXISTS catalog_folder ("
+                                          "id TEXT PRIMARY KEY, uri TEXT NOT NULL UNIQUE, "
+                                          "created_unix_ms INTEGER NOT NULL)"),
+                           "migrate_v9_folder_table");
+            if (!folders)
+                return impl->abort_transaction(folders.error());
+            auto columns = asset_columns(impl->database);
+            if (!columns)
+                return impl->abort_transaction(columns.error());
+            if (!columns.value().contains("folder_id"))
+            {
+                auto folder_column =
+                    impl->exec(QStringLiteral("ALTER TABLE asset ADD COLUMN folder_id TEXT "
+                                              "REFERENCES catalog_folder(id)"),
+                               "migrate_v9_folder_column");
+                if (!folder_column)
+                    return impl->abort_transaction(folder_column.error());
+            }
+            QSqlQuery folder_uris(impl->database);
+            if (!folder_uris.exec(QStringLiteral(
+                    "SELECT folder_uri, MIN(created_unix_ms) FROM asset GROUP BY folder_uri "
+                    "ORDER BY folder_uri")))
+                return impl->abort_transaction(
+                    map_sql_error(folder_uris, "migrate_v9_read_folders"));
+            QSqlQuery insert_folder(impl->database);
+            insert_folder.prepare(QStringLiteral(
+                "INSERT OR IGNORE INTO catalog_folder(id, uri, created_unix_ms) VALUES (?, ?, ?)"));
+            QSqlQuery read_folder(impl->database);
+            read_folder.prepare(QStringLiteral("SELECT id FROM catalog_folder WHERE uri = ?"));
+            QSqlQuery assign_folder(impl->database);
+            assign_folder.prepare(QStringLiteral(
+                "UPDATE asset SET folder_id = ? WHERE folder_uri = ? AND folder_id IS NULL"));
+            while (folder_uris.next())
+            {
+                const auto id = generate_folder_id();
+                const auto uri = folder_uris.value(0).toString();
+                insert_folder.bindValue(0, qstring_from_utf8(id));
+                insert_folder.bindValue(1, uri);
+                insert_folder.bindValue(2, folder_uris.value(1));
+                if (!insert_folder.exec())
+                    return impl->abort_transaction(
+                        map_sql_error(insert_folder, "migrate_v9_insert_folder"));
+                read_folder.bindValue(0, uri);
+                if (!read_folder.exec() || !read_folder.next())
+                    return impl->abort_transaction(
+                        map_sql_error(read_folder, "migrate_v9_resolve_folder"));
+                assign_folder.bindValue(0, read_folder.value(0));
+                assign_folder.bindValue(1, uri);
+                if (!assign_folder.exec())
+                    return impl->abort_transaction(
+                        map_sql_error(assign_folder, "migrate_v9_assign_folder"));
+            }
+            QSqlQuery unassigned(impl->database);
+            if (!unassigned.exec(
+                    QStringLiteral("SELECT COUNT(*) FROM asset WHERE folder_id IS NULL")) ||
+                !unassigned.next())
+                return impl->abort_transaction(
+                    map_sql_error(unassigned, "migrate_v9_verify_folders"));
+            if (unassigned.value(0).toLongLong() != 0)
+                return impl->abort_transaction(make_error(
+                    ErrorCode::kValidation, "Catalog folder migration left unassigned assets",
+                    {{"reason", "unassigned_folder_identity"}}));
+            auto folder_index = impl->exec(QString::fromUtf8(kSchemaV9FolderIdentityIndex),
+                                           "migrate_v9_folder_index");
+            if (!folder_index)
+                return impl->abort_transaction(folder_index.error());
+            version = 9;
+        }
         if (version != kCatalogSchemaVersion)
         {
             return impl->abort_transaction(
@@ -1447,6 +1802,520 @@ Result<std::vector<AssetRecord>> SqliteCatalogRepository::list_assets() const
     return assets;
 }
 
+Result<LibraryPage>
+SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    auto valid = validate_library_page_request(request);
+    if (!valid)
+        return valid.error();
+    const auto started = std::chrono::steady_clock::now();
+    QStringList predicates;
+    QVariantList bindings;
+    const auto add =
+        [&predicates, &bindings](QString predicate, std::initializer_list<QVariant> values)
+    {
+        predicates.push_back(std::move(predicate));
+        for (const auto &value : values)
+            bindings.push_back(value);
+    };
+    switch (request.query.rating_mode)
+    {
+    case RatingFilterMode::kAny:
+        break;
+    case RatingFilterMode::kMinimum:
+        add(QStringLiteral("a.rating >= ?"), {request.query.rating_value});
+        break;
+    case RatingFilterMode::kExact:
+        add(QStringLiteral("a.rating = ?"), {request.query.rating_value});
+        break;
+    }
+    if (!request.query.color_labels.empty())
+    {
+        QStringList placeholders;
+        for (const auto label : request.query.color_labels)
+        {
+            placeholders.push_back(QStringLiteral("?"));
+            bindings.push_back(qstring_from_utf8(color_label_name(label)));
+        }
+        predicates.push_back(QStringLiteral("a.color_label IN (") +
+                             placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    }
+    switch (request.query.reject_filter)
+    {
+    case RejectFilter::kInclude:
+        break;
+    case RejectFilter::kExclude:
+        predicates.push_back(QStringLiteral("a.rejected = 0"));
+        break;
+    case RejectFilter::kOnly:
+        predicates.push_back(QStringLiteral("a.rejected != 0"));
+        break;
+    }
+    if (!request.query.folder_uri.empty())
+        add(QStringLiteral("(a.folder_uri = ? OR a.folder_uri LIKE ? ESCAPE '\\')"),
+            {qstring_from_utf8(request.query.folder_uri),
+             prefix_like_pattern(request.query.folder_uri)});
+    if (!request.query.tag.empty())
+        add(QStringLiteral("a.id IN (SELECT t.asset_id FROM asset_tag t WHERE t.name = ?)"),
+            {qstring_from_utf8(request.query.tag)});
+    if (!request.query.text.empty())
+    {
+        const auto pattern = contains_like_pattern(request.query.text);
+        add(QStringLiteral("(a.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "a.normalized_uri LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "a.media_type LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.title LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.description LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.creator LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.copyright LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.camera_make LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "EXISTS(SELECT 1 FROM asset_tag tx WHERE tx.asset_id = a.id "
+                           "AND tx.name LIKE ? ESCAPE '\\' COLLATE NOCASE))"),
+            {pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern,
+             pattern});
+    }
+    if (!request.query.media_types.empty())
+    {
+        QStringList placeholders;
+        for (const auto &media_type : request.query.media_types)
+        {
+            placeholders.push_back(QStringLiteral("?"));
+            bindings.push_back(qstring_from_utf8(media_type));
+        }
+        predicates.push_back(QStringLiteral("a.media_type IN (") +
+                             placeholders.join(QLatin1Char(',')) + QLatin1Char(')'));
+    }
+    switch (request.query.edit_filter)
+    {
+    case EditFilter::kAny:
+        break;
+    case EditFilter::kEdited:
+        predicates.push_back(
+            QStringLiteral("EXISTS(SELECT 1 FROM asset_recipe er WHERE er.asset_id = a.id)"));
+        break;
+    case EditFilter::kUnedited:
+        predicates.push_back(
+            QStringLiteral("NOT EXISTS(SELECT 1 FROM asset_recipe er WHERE er.asset_id = a.id)"));
+        break;
+    }
+    if (!request.query.camera.empty())
+    {
+        const auto pattern = contains_like_pattern(request.query.camera);
+        add(QStringLiteral("(m.camera_make LIKE ? ESCAPE '\\' COLLATE NOCASE OR "
+                           "m.camera_model LIKE ? ESCAPE '\\' COLLATE NOCASE)"),
+            {pattern, pattern});
+    }
+    const auto add_range =
+        [&predicates, &bindings](const QString &column, const LibraryNumericRange &range)
+    {
+        if (range.minimum)
+        {
+            predicates.push_back(column + QStringLiteral(" >= ?"));
+            bindings.push_back(*range.minimum);
+        }
+        if (range.maximum)
+        {
+            predicates.push_back(column + QStringLiteral(" <= ?"));
+            bindings.push_back(*range.maximum);
+        }
+    };
+    add_range(QStringLiteral("m.iso"), request.query.iso);
+    add_range(QStringLiteral("m.aperture"), request.query.aperture);
+    add_range(QStringLiteral("m.focal_length_mm"), request.query.focal_length_mm);
+    add_range(QStringLiteral("m.shutter_s"), request.query.shutter_s);
+    add_range(QStringLiteral("(CAST(a.width AS REAL) / NULLIF(a.height, 0))"),
+              request.query.aspect_ratio);
+    if (request.query.imported_after_unix_ms)
+        add(QStringLiteral("a.created_unix_ms >= ?"),
+            {static_cast<qlonglong>(*request.query.imported_after_unix_ms)});
+    if (request.query.imported_before_unix_ms)
+        add(QStringLiteral("a.created_unix_ms <= ?"),
+            {static_cast<qlonglong>(*request.query.imported_before_unix_ms)});
+    if (request.query.captured_after_unix_s)
+        add(QStringLiteral("m.captured_unix_s >= ?"),
+            {static_cast<qlonglong>(*request.query.captured_after_unix_s)});
+    if (request.query.captured_before_unix_s)
+        add(QStringLiteral("m.captured_unix_s <= ?"),
+            {static_cast<qlonglong>(*request.query.captured_before_unix_s)});
+
+    const auto filter_where =
+        predicates.empty() ? QString{} :
+                             QStringLiteral(" WHERE ") + predicates.join(QStringLiteral(" AND "));
+    const auto filter_bindings = bindings;
+    std::size_t total = 0U;
+    if (request.known_total)
+    {
+        total = *request.known_total;
+    }
+    else
+    {
+        QSqlQuery count(impl_->database);
+        count.prepare(QStringLiteral("SELECT COUNT(*) FROM asset a LEFT JOIN asset_metadata m "
+                                     "ON m.asset_id = a.id") +
+                      filter_where);
+        for (const auto &binding : filter_bindings)
+            count.addBindValue(binding);
+        if (!count.exec() || !count.next())
+            return map_sql_error(count, "list_assets_page_count");
+        const auto total_value = count.value(0).toLongLong();
+        if (total_value < 0)
+            return make_error(ErrorCode::kValidation, "Library page count is invalid",
+                              {{"reason", "invalid_library_page_count"}});
+        total = static_cast<std::size_t>(total_value);
+    }
+    const auto direction = request.query.sort_direction == SortDirection::kAscending ?
+                               QStringLiteral(" ASC") :
+                               QStringLiteral(" DESC");
+    const auto comparison = request.query.sort_direction == SortDirection::kAscending ?
+                                QStringLiteral(" > ") :
+                                QStringLiteral(" < ");
+    QStringList order;
+    switch (request.query.sort_field)
+    {
+    case AssetSortField::kImportTime:
+        order.push_back(QStringLiteral("a.created_unix_ms") + direction);
+        break;
+    case AssetSortField::kCaptureTime:
+        order.push_back(
+            QStringLiteral("CASE WHEN m.captured_unix_s IS NULL THEN 1 ELSE 0 END ASC"));
+        order.push_back(QStringLiteral("m.captured_unix_s") + direction);
+        break;
+    case AssetSortField::kDisplayName:
+        order.push_back(QStringLiteral("a.display_name COLLATE BINARY") + direction);
+        break;
+    case AssetSortField::kRating:
+        order.push_back(QStringLiteral("a.rating") + direction);
+        break;
+    case AssetSortField::kFileSize:
+        order.push_back(QStringLiteral("a.size_bytes") + direction);
+        break;
+    }
+    order.push_back(QStringLiteral("a.id") + direction);
+
+    if (request.after_asset_id)
+    {
+        QSqlQuery anchor(impl_->database);
+        anchor.prepare(QStringLiteral(
+            "SELECT a.created_unix_ms, a.display_name, a.rating, a.size_bytes, "
+            "m.captured_unix_s FROM asset a LEFT JOIN asset_metadata m ON m.asset_id = a.id "
+            "WHERE a.id = ?"));
+        anchor.addBindValue(qstring_from_utf8(*request.after_asset_id));
+        if (!anchor.exec())
+            return map_sql_error(anchor, "list_assets_page_cursor");
+        if (!anchor.next())
+            return make_error(
+                ErrorCode::kConflict, "Library page cursor no longer exists",
+                {{"asset_id", *request.after_asset_id}, {"reason", "stale_library_page_cursor"}});
+        const auto add_cursor = [&](const QString &column, const QVariant &value)
+        {
+            predicates.push_back(QLatin1Char('(') + column + comparison + QStringLiteral("? OR (") +
+                                 column + QStringLiteral(" = ? AND a.id") + comparison +
+                                 QStringLiteral("?))"));
+            bindings.push_back(value);
+            bindings.push_back(value);
+            bindings.push_back(qstring_from_utf8(*request.after_asset_id));
+        };
+        switch (request.query.sort_field)
+        {
+        case AssetSortField::kImportTime:
+            add_cursor(QStringLiteral("a.created_unix_ms"), anchor.value(0));
+            break;
+        case AssetSortField::kCaptureTime:
+            if (anchor.isNull(4))
+            {
+                predicates.push_back(QStringLiteral("(m.captured_unix_s IS NULL AND a.id") +
+                                     comparison + QStringLiteral("?)"));
+                bindings.push_back(qstring_from_utf8(*request.after_asset_id));
+            }
+            else
+            {
+                predicates.push_back(
+                    QStringLiteral("((m.captured_unix_s IS NOT NULL AND "
+                                   "(m.captured_unix_s") +
+                    comparison + QStringLiteral("? OR (m.captured_unix_s = ? AND a.id") +
+                    comparison + QStringLiteral("?))) OR m.captured_unix_s IS NULL)"));
+                bindings.push_back(anchor.value(4));
+                bindings.push_back(anchor.value(4));
+                bindings.push_back(qstring_from_utf8(*request.after_asset_id));
+            }
+            break;
+        case AssetSortField::kDisplayName:
+            add_cursor(QStringLiteral("a.display_name COLLATE BINARY"), anchor.value(1));
+            break;
+        case AssetSortField::kRating:
+            add_cursor(QStringLiteral("a.rating"), anchor.value(2));
+            break;
+        case AssetSortField::kFileSize:
+            add_cursor(QStringLiteral("a.size_bytes"), anchor.value(3));
+            break;
+        }
+    }
+    const auto page_where =
+        predicates.empty() ? QString{} :
+                             QStringLiteral(" WHERE ") + predicates.join(QStringLiteral(" AND "));
+    QSqlQuery page_query(impl_->database);
+    page_query.prepare(QString::fromUtf8(kAssetPageSelect) + page_where +
+                       QStringLiteral(" ORDER BY ") + order.join(QStringLiteral(", ")) +
+                       (request.after_asset_id ? QStringLiteral(" LIMIT ?") :
+                                                 QStringLiteral(" LIMIT ? OFFSET ?")));
+    for (const auto &binding : bindings)
+        page_query.addBindValue(binding);
+    page_query.addBindValue(static_cast<qlonglong>(request.limit));
+    if (!request.after_asset_id)
+        page_query.addBindValue(static_cast<qlonglong>(request.offset));
+    if (!page_query.exec())
+        return map_sql_error(page_query, "list_assets_page");
+    std::vector<AssetRecord> assets;
+    assets.reserve(request.limit);
+    while (page_query.next())
+        assets.push_back(read_asset(page_query));
+    auto attached = attach_asset_fields(impl_->database, assets);
+    if (!attached)
+        return attached.error();
+
+    LibraryPage page;
+    page.assets = std::move(assets);
+    page.offset = request.offset;
+    page.total = total;
+    page.has_more = !page.assets.empty() && page.offset < page.total &&
+                    page.assets.size() < page.total - page.offset;
+    if (page.has_more)
+        page.next_cursor = page.assets.back().id;
+    page.materialized_rows = page.assets.size();
+    page.query_elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - started)
+                                .count();
+    return page;
+}
+
+Result<std::vector<FolderRecord>> SqliteCatalogRepository::list_folders() const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery total_query(impl_->database);
+    if (!total_query.exec(QStringLiteral("SELECT COUNT(*) FROM asset")) || !total_query.next())
+        return map_sql_error(total_query, "list_folder_total");
+    const auto total_value = total_query.value(0).toLongLong();
+    if (total_value < 0 || total_value > std::numeric_limits<int>::max())
+        return make_error(ErrorCode::kValidation, "Folder asset count is outside its bounds",
+                          {{"reason", "invalid_folder_asset_count"}});
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QStringLiteral(
+            "SELECT f.id, f.uri, COUNT(*) FROM catalog_folder f "
+            "JOIN asset a ON a.folder_id = f.id GROUP BY f.id, f.uri ORDER BY f.uri")))
+        return map_sql_error(query, "list_folders");
+    std::vector<FolderAssetCount> direct;
+    while (query.next())
+    {
+        const auto count = query.value(2).toLongLong();
+        if (count <= 0 || count > std::numeric_limits<int>::max())
+            return make_error(ErrorCode::kValidation, "Folder asset count is outside its bounds",
+                              {{"reason", "invalid_folder_asset_count"}});
+        direct.push_back({utf8_from_qstring(query.value(0).toString()),
+                          utf8_from_qstring(query.value(1).toString()), static_cast<int>(count),
+                          false});
+    }
+    return library_folders_from_counts(direct, static_cast<int>(total_value));
+}
+
+Result<std::optional<FolderRecord>>
+SqliteCatalogRepository::find_folder_by_id(const std::string_view folder_id) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    query.prepare(QStringLiteral(
+        "SELECT f.id, f.uri, COUNT(a.id) FROM catalog_folder f "
+        "LEFT JOIN asset a ON a.folder_id = f.id WHERE f.id = ? GROUP BY f.id, f.uri"));
+    query.addBindValue(qstring_from_utf8(folder_id));
+    if (!query.exec())
+        return map_sql_error(query, "find_folder_by_id");
+    if (!query.next())
+        return std::optional<FolderRecord>{};
+    const auto count = query.value(2).toLongLong();
+    if (count < 0 || count > std::numeric_limits<int>::max())
+        return make_error(ErrorCode::kValidation, "Folder asset count is outside its bounds",
+                          {{"reason", "invalid_folder_asset_count"}});
+    FolderRecord folder;
+    folder.id = utf8_from_qstring(query.value(0).toString());
+    folder.uri = utf8_from_qstring(query.value(1).toString());
+    folder.display_name = uri_display_name(folder.uri);
+    folder.asset_count = static_cast<int>(count);
+    return std::optional<FolderRecord>{std::move(folder)};
+}
+
+Result<std::vector<AssetRecord>>
+SqliteCatalogRepository::list_folder_assets(const std::string_view folder_id) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    query.prepare(QString(kAssetSelect) + QStringLiteral(" WHERE folder_id = ? ORDER BY id ASC"));
+    query.addBindValue(qstring_from_utf8(folder_id));
+    if (!query.exec())
+        return map_sql_error(query, "list_folder_assets");
+    std::vector<AssetRecord> assets;
+    while (query.next())
+        assets.push_back(read_asset(query));
+    auto attached = attach_asset_fields(impl_->database, assets);
+    if (!attached)
+        return attached.error();
+    return assets;
+}
+
+Result<void> SqliteCatalogRepository::commit_folder_relink(const FolderRelinkCommit &relink,
+                                                           const CancellationToken &cancellation)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (relink.folder_id.empty() || relink.expected_old_uri.empty() ||
+        relink.replacement_uri.empty() || relink.assets.empty() ||
+        relink.assets.size() > kImportBatchMaximumAssets)
+        return make_error(ErrorCode::kInvalidArgument, "Folder relink commit is invalid",
+                          {{"reason", "invalid_folder_relink_commit"}});
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    if (!impl_->database.transaction())
+        return make_error(ErrorCode::kIo, "Unable to start folder relink transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+
+    QSqlQuery folder(impl_->database);
+    folder.prepare(QStringLiteral("SELECT uri FROM catalog_folder WHERE id = ?"));
+    folder.addBindValue(qstring_from_utf8(relink.folder_id));
+    if (!folder.exec())
+        return impl_->abort_transaction(map_sql_error(folder, "relink_read_folder"));
+    if (!folder.next())
+        return impl_->abort_transaction(make_error(ErrorCode::kNotFound,
+                                                   "Folder identity does not exist",
+                                                   {{"folder_id", relink.folder_id}}));
+    const auto current_uri = utf8_from_qstring(folder.value(0).toString());
+    if (current_uri != relink.expected_old_uri)
+        return impl_->abort_transaction(make_error(ErrorCode::kConflict,
+                                                   "Folder path changed before relink",
+                                                   {{"reason", "stale_folder_path"},
+                                                    {"expected_uri", relink.expected_old_uri},
+                                                    {"actual_uri", current_uri}}));
+
+    std::map<std::string, const FolderRelinkAsset *, std::less<>> updates;
+    for (const auto &asset : relink.assets)
+    {
+        if (asset.asset_id.empty() || asset.expected_old_uri.empty() ||
+            asset.replacement_uri.empty() || !updates.emplace(asset.asset_id, &asset).second)
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kInvalidArgument, "Folder relink asset set is invalid",
+                           {{"reason", "invalid_folder_relink_assets"}}));
+    }
+    QSqlQuery current_assets(impl_->database);
+    current_assets.prepare(
+        QStringLiteral("SELECT id, normalized_uri FROM asset WHERE folder_id = ? ORDER BY id"));
+    current_assets.addBindValue(qstring_from_utf8(relink.folder_id));
+    if (!current_assets.exec())
+        return impl_->abort_transaction(map_sql_error(current_assets, "relink_read_folder_assets"));
+    std::size_t matched = 0U;
+    while (current_assets.next())
+    {
+        const auto id = utf8_from_qstring(current_assets.value(0).toString());
+        const auto found = updates.find(id);
+        if (found == updates.end() || found->second->expected_old_uri !=
+                                          utf8_from_qstring(current_assets.value(1).toString()))
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kConflict, "Folder contents changed before relink",
+                           {{"reason", "stale_folder_assets"}, {"asset_id", id}}));
+        ++matched;
+    }
+    if (matched != updates.size())
+        return impl_->abort_transaction(make_error(ErrorCode::kConflict,
+                                                   "Folder contents changed before relink",
+                                                   {{"reason", "stale_folder_asset_count"},
+                                                    {"expected", std::to_string(updates.size())},
+                                                    {"actual", std::to_string(matched)}}));
+
+    QSqlQuery update_folder(impl_->database);
+    update_folder.prepare(
+        QStringLiteral("UPDATE catalog_folder SET uri = ? WHERE id = ? AND uri = ?"));
+    update_folder.addBindValue(qstring_from_utf8(relink.replacement_uri));
+    update_folder.addBindValue(qstring_from_utf8(relink.folder_id));
+    update_folder.addBindValue(qstring_from_utf8(relink.expected_old_uri));
+    if (!update_folder.exec())
+    {
+        const auto sql_text = update_folder.lastError().text();
+        if (update_folder.lastError().nativeErrorCode() == QStringLiteral("2067") ||
+            sql_text.contains(QStringLiteral("UNIQUE"), Qt::CaseInsensitive))
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kConflict, "Replacement folder is already cataloged",
+                {{"reason", "folder_uri_conflict"}, {"replacement_uri", relink.replacement_uri}}));
+        return impl_->abort_transaction(map_sql_error(update_folder, "relink_update_folder"));
+    }
+    if (update_folder.numRowsAffected() != 1)
+        return impl_->abort_transaction(make_error(ErrorCode::kConflict,
+                                                   "Folder path changed before relink",
+                                                   {{"reason", "stale_folder_path"}}));
+    if (impl_->consume_folder_relink_failure(
+            testing::SqliteFolderRelinkFailure::kAfterFolderUpdate))
+        return impl_->abort_transaction(make_error(ErrorCode::kIo, "Injected folder relink failure",
+                                                   {{"reason", "injected_after_folder_update"}}));
+
+    QSqlQuery update_asset(impl_->database);
+    update_asset.prepare(
+        QStringLiteral("UPDATE asset SET normalized_uri = ?, display_name = ?, folder_uri = ? "
+                       "WHERE id = ? AND folder_id = ? AND normalized_uri = ?"));
+    std::size_t updated_count = 0U;
+    for (const auto &[id, asset] : updates)
+    {
+        active = cancellation.check();
+        if (!active)
+            return impl_->abort_transaction(active.error());
+        update_asset.bindValue(0, qstring_from_utf8(asset->replacement_uri));
+        update_asset.bindValue(1, qstring_from_utf8(uri_display_name(asset->replacement_uri)));
+        update_asset.bindValue(2, qstring_from_utf8(relink.replacement_uri));
+        update_asset.bindValue(3, qstring_from_utf8(id));
+        update_asset.bindValue(4, qstring_from_utf8(relink.folder_id));
+        update_asset.bindValue(5, qstring_from_utf8(asset->expected_old_uri));
+        if (!update_asset.exec())
+        {
+            const auto sql_text = update_asset.lastError().text();
+            if (update_asset.lastError().nativeErrorCode() == QStringLiteral("2067") ||
+                sql_text.contains(QStringLiteral("UNIQUE"), Qt::CaseInsensitive))
+                return impl_->abort_transaction(
+                    make_error(ErrorCode::kConflict, "Replacement asset URI is already cataloged",
+                               {{"reason", "asset_uri_conflict"},
+                                {"asset_id", id},
+                                {"replacement_uri", asset->replacement_uri}}));
+            return impl_->abort_transaction(map_sql_error(update_asset, "relink_update_asset"));
+        }
+        if (update_asset.numRowsAffected() != 1)
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kConflict, "Folder contents changed before relink",
+                           {{"reason", "stale_folder_assets"}, {"asset_id", id}}));
+        ++updated_count;
+        if (updated_count == 1U && impl_->consume_folder_relink_failure(
+                                       testing::SqliteFolderRelinkFailure::kAfterFirstAssetUpdate))
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kIo, "Injected folder relink failure",
+                           {{"reason", "injected_after_first_asset_update"}}));
+    }
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(
+            QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+        return impl_->abort_transaction(map_sql_error(revision, "relink_revision"));
+    if (impl_->consume_folder_relink_failure(testing::SqliteFolderRelinkFailure::kBeforeCommit))
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Injected folder relink failure",
+                       {{"reason", "injected_before_folder_relink_commit"}}));
+    active = cancellation.check();
+    if (!active)
+        return impl_->abort_transaction(active.error());
+    if (!impl_->database.commit())
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit folder relink transaction",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    return {};
+}
+
 Result<std::optional<AssetRecord>>
 SqliteCatalogRepository::find_asset_by_id(const std::string_view asset_id) const
 {
@@ -1507,14 +2376,37 @@ Result<void> SqliteCatalogRepository::insert_asset(const AssetRecord &asset)
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
+    const auto folder_uri = uri_parent(asset.normalized_uri);
+    QSqlQuery insert_folder(impl_->database);
+    insert_folder.prepare(QStringLiteral(
+        "INSERT OR IGNORE INTO catalog_folder(id, uri, created_unix_ms) VALUES (?, ?, ?)"));
+    insert_folder.addBindValue(qstring_from_utf8(generate_folder_id()));
+    insert_folder.addBindValue(qstring_from_utf8(folder_uri));
+    insert_folder.addBindValue(static_cast<qlonglong>(asset.created_unix_ms));
+    if (!insert_folder.exec())
+        return map_sql_error(insert_folder, "ensure_import_folder");
+    QSqlQuery read_folder(impl_->database);
+    read_folder.prepare(QStringLiteral("SELECT id FROM catalog_folder WHERE uri = ?"));
+    read_folder.addBindValue(qstring_from_utf8(folder_uri));
+    if (!read_folder.exec())
+        return map_sql_error(read_folder, "read_import_folder");
+    if (!read_folder.next())
+        return make_error(ErrorCode::kConflict, "Unable to establish stable folder identity",
+                          {{"reason", "folder_identity_conflict"}, {"uri", folder_uri}});
+    const auto folder_id = read_folder.value(0).toString();
+
     QSqlQuery query(impl_->database);
     query.prepare(QStringLiteral(
-        "INSERT INTO asset(id, normalized_uri, media_type, size_bytes, mtime_unix_ms, "
+        "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, size_bytes, "
+        "mtime_unix_ms, "
         "content_fingerprint, width, height, import_state, error_code, error_message, "
         "created_unix_ms, rating, color_label, rejected) VALUES "
-        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+        "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
     query.addBindValue(qstring_from_utf8(asset.id));
     query.addBindValue(qstring_from_utf8(asset.normalized_uri));
+    query.addBindValue(qstring_from_utf8(uri_display_name(asset.normalized_uri)));
+    query.addBindValue(qstring_from_utf8(folder_uri));
+    query.addBindValue(folder_id);
     query.addBindValue(qstring_from_utf8(asset.media_type));
     query.addBindValue(static_cast<qlonglong>(asset.size_bytes));
     query.addBindValue(static_cast<qlonglong>(asset.mtime_unix_ms));
@@ -1630,6 +2522,10 @@ Result<void> SqliteCatalogRepository::remove_asset(const std::string_view asset_
         return impl_->abort_transaction(make_error(ErrorCode::kNotFound, "Asset does not exist",
                                                    {{"asset_id", std::string(asset_id)}}));
     }
+    if (!query.exec(
+            QStringLiteral("DELETE FROM catalog_folder WHERE NOT EXISTS "
+                           "(SELECT 1 FROM asset WHERE asset.folder_id = catalog_folder.id)")))
+        return impl_->abort_transaction(map_sql_error(query, "remove_empty_catalog_folders"));
     QSqlQuery revision(impl_->database);
     if (!revision.exec(
             QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
@@ -1689,6 +2585,41 @@ Result<std::vector<PreviewRecord>> SqliteCatalogRepository::list_previews() cons
     {
         previews.push_back(read_preview(query));
     }
+    return previews;
+}
+
+Result<std::vector<PreviewRecord>>
+SqliteCatalogRepository::list_previews_for_assets(const std::vector<std::string> &asset_ids) const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    if (asset_ids.empty())
+        return std::vector<PreviewRecord>{};
+    if (asset_ids.size() > kLibraryPageMaximumSize)
+        return make_error(ErrorCode::kInvalidArgument, "Preview page exceeds its asset bound",
+                          {{"reason", "preview_page_too_large"}});
+    std::set<std::string, std::less<>> unique;
+    QStringList placeholders;
+    placeholders.reserve(static_cast<qsizetype>(asset_ids.size()));
+    for (const auto &asset_id : asset_ids)
+    {
+        if (asset_id.empty() || !unique.insert(asset_id).second)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Preview page asset IDs must be non-empty and unique",
+                              {{"asset_id", asset_id}, {"reason", "invalid_preview_page"}});
+        placeholders.push_back(QStringLiteral("?"));
+    }
+    QSqlQuery query(impl_->database);
+    query.prepare(QString(kPreviewSelect) + QStringLiteral(" WHERE asset_id IN (") +
+                  placeholders.join(QLatin1Char(',')) + QStringLiteral(")"));
+    for (const auto &asset_id : asset_ids)
+        query.addBindValue(qstring_from_utf8(asset_id));
+    if (!query.exec())
+        return map_sql_error(query, "list_previews_for_assets");
+    std::vector<PreviewRecord> previews;
+    previews.reserve(asset_ids.size());
+    while (query.next())
+        previews.push_back(read_preview(query));
     return previews;
 }
 
@@ -1885,6 +2816,10 @@ SqliteCatalogRepository::acknowledge_recovery(const std::string_view asset_id,
         return make_error(ErrorCode::kInvalidArgument, "Recovery generation must be positive",
                           {{"generation", std::to_string(generation)}});
     }
+    if (impl_->consume_recovery_failure(testing::SqliteRecoveryFailure::kAcknowledge))
+        return make_error(ErrorCode::kIo, "Unable to acknowledge recovery generation",
+                          {{"action", "acknowledge_recovery"},
+                           {"reason", "injected_recovery_acknowledgement_failure"}});
     QSqlQuery update(impl_->database);
     update.prepare(
         QStringLiteral("UPDATE asset_recovery_state SET synchronized_generation = ? "
@@ -1969,15 +2904,66 @@ SqliteCatalogRepository::create_backup_database(const std::string_view output_pa
     {
         return integrity.error();
     }
-    QSqlQuery backup(impl_->database);
-    backup.prepare(QStringLiteral("VACUUM INTO ?"));
-    backup.addBindValue(qstring_from_utf8(output_path));
-    if (!backup.exec())
+    bool locked = false;
+    for (int attempt = 0; attempt < 3 && !locked; ++attempt)
     {
-        auto error = map_sql_error(backup, "create_backup_database");
-        error.context.insert_or_assign("path", std::string(output_path));
-        error.context.insert_or_assign("reason", "backup_database_snapshot_failed");
+        active = cancellation.check();
+        if (!active)
+            return active.error();
+        QSqlQuery checkpoint(impl_->database);
+        if (!checkpoint.exec(QStringLiteral("PRAGMA wal_checkpoint(TRUNCATE)")) ||
+            !checkpoint.next() || checkpoint.value(0).toInt() != 0)
+            return make_error(ErrorCode::kIo, "Unable to checkpoint catalog before backup",
+                              {{"detail", utf8_from_qstring(checkpoint.lastError().text())},
+                               {"path", impl_->database_path},
+                               {"reason", "backup_database_checkpoint_failed"}});
+        QSqlQuery version_before(impl_->database);
+        if (!version_before.exec(QStringLiteral("PRAGMA data_version")) || !version_before.next())
+            return map_sql_error(version_before, "backup_database_version_before");
+        const auto observed_version = version_before.value(0).toLongLong();
+        QSqlQuery begin(impl_->database);
+        if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
+            return map_sql_error(begin, "backup_database_begin_snapshot");
+        QSqlQuery version_after(impl_->database);
+        if (!version_after.exec(QStringLiteral("PRAGMA data_version")) || !version_after.next())
+        {
+            QSqlQuery rollback(impl_->database);
+            static_cast<void>(rollback.exec(QStringLiteral("ROLLBACK")));
+            return map_sql_error(version_after, "backup_database_version_after");
+        }
+        if (version_after.value(0).toLongLong() == observed_version)
+        {
+            locked = true;
+            break;
+        }
+        QSqlQuery rollback(impl_->database);
+        if (!rollback.exec(QStringLiteral("ROLLBACK")))
+            return map_sql_error(rollback, "backup_database_retry_rollback");
+    }
+    if (!locked)
+        return make_error(
+            ErrorCode::kConflict, "Catalog changed repeatedly while backup snapshot was acquired",
+            {{"path", impl_->database_path}, {"reason", "backup_database_snapshot_changed"}});
+    auto copied = copy_database_snapshot(impl_->database_path, output_path, cancellation);
+    QSqlQuery rollback(impl_->database);
+    const bool unlocked = rollback.exec(QStringLiteral("ROLLBACK"));
+    if (!copied)
+    {
+        if (QFileInfo::exists(qstring_from_utf8(output_path)))
+            static_cast<void>(QFile::remove(qstring_from_utf8(output_path)));
+        auto error = copied.error();
+        if (!unlocked)
+        {
+            error.context.insert_or_assign("snapshot_unlock_failed", "true");
+            error.context.insert_or_assign("snapshot_unlock_error",
+                                           utf8_from_qstring(rollback.lastError().text()));
+        }
         return error;
+    }
+    if (!unlocked)
+    {
+        static_cast<void>(QFile::remove(qstring_from_utf8(output_path)));
+        return map_sql_error(rollback, "backup_database_end_snapshot");
     }
     auto pruned = strip_backup_preview_rows(output_path, cancellation);
     if (!pruned)
@@ -2017,6 +3003,110 @@ SqliteCatalogBackupVerifier::verify_backup_database(const std::string_view backu
                                                     const CancellationToken &cancellation) const
 {
     return inspect_backup_database(backup_path, expected_sha256, cancellation);
+}
+
+Result<CatalogBackupPolicy> SqliteCatalogRepository::backup_policy() const
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    QSqlQuery query(impl_->database);
+    if (!query.exec(QStringLiteral(
+            "SELECT enabled, destination_directory, interval_minutes, retention_count, "
+            "last_success_unix_ms, next_run_unix_ms, last_backup_bytes, last_error "
+            "FROM catalog_backup_policy WHERE id = 1")))
+        return map_sql_error(query, "read_backup_policy");
+    if (!query.next() || query.value(6).toLongLong() < 0)
+        return make_error(ErrorCode::kValidation, "Catalog backup policy row is invalid",
+                          {{"reason", "invalid_catalog_backup_policy_row"}});
+    CatalogBackupPolicy policy;
+    policy.enabled = query.value(0).toInt() != 0;
+    policy.destination_directory = utf8_from_qstring(query.value(1).toString());
+    policy.interval_minutes = query.value(2).toLongLong();
+    policy.retention_count = query.value(3).toInt();
+    policy.last_success_unix_ms = i64_column(query, 4);
+    policy.next_run_unix_ms = i64_column(query, 5);
+    policy.last_backup_bytes = static_cast<std::uint64_t>(query.value(6).toLongLong());
+    policy.last_error = string_column(query, 7);
+    auto valid = validate_catalog_backup_policy(policy);
+    if (!valid)
+        return valid.error();
+    return policy;
+}
+
+Result<void> SqliteCatalogRepository::save_backup_policy(const CatalogBackupPolicy &policy)
+{
+    if (impl_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog repository is closed");
+    auto valid = validate_catalog_backup_policy(policy);
+    if (!valid)
+        return valid.error();
+    if (!impl_->database.transaction())
+        return make_error(ErrorCode::kIo, "Unable to start backup policy transaction",
+                          {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
+    QSqlQuery update(impl_->database);
+    update.prepare(
+        QStringLiteral("UPDATE catalog_backup_policy SET enabled = ?, destination_directory = ?, "
+                       "interval_minutes = ?, retention_count = ?, last_success_unix_ms = ?, "
+                       "next_run_unix_ms = ?, last_backup_bytes = ?, last_error = ? WHERE id = 1"));
+    update.addBindValue(policy.enabled ? 1 : 0);
+    update.addBindValue(qstring_from_utf8(policy.destination_directory));
+    update.addBindValue(static_cast<qlonglong>(policy.interval_minutes));
+    update.addBindValue(policy.retention_count);
+    update.addBindValue(optional_i64(policy.last_success_unix_ms));
+    update.addBindValue(optional_i64(policy.next_run_unix_ms));
+    update.addBindValue(static_cast<qlonglong>(policy.last_backup_bytes));
+    update.addBindValue(optional_string(policy.last_error));
+    if (!update.exec())
+        return impl_->abort_transaction(map_sql_error(update, "save_backup_policy"));
+    if (update.numRowsAffected() != 1)
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kValidation, "Catalog backup policy owner row is missing",
+                       {{"reason", "missing_catalog_backup_policy_row"}}));
+    QSqlQuery revision(impl_->database);
+    if (!revision.exec(
+            QStringLiteral("UPDATE schema_info SET revision = revision + 1 WHERE id = 1")))
+        return impl_->abort_transaction(map_sql_error(revision, "save_backup_policy_revision"));
+    if (!impl_->database.commit())
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Unable to commit backup policy",
+                       {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
+    return {};
+}
+
+Result<CatalogSnapshot>
+SqliteCatalogBackupVerifier::verify_restored_catalog(const std::string_view catalog_path,
+                                                     const std::string_view expected_catalog_id,
+                                                     const CancellationToken &cancellation) const
+{
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    auto opened = SqliteCatalogRepository::open(catalog_path);
+    if (!opened)
+        return opened.error();
+    auto repository = std::move(opened).value();
+    auto snapshot = repository->snapshot();
+    if (!snapshot)
+    {
+        static_cast<void>(repository->close());
+        return snapshot.error();
+    }
+    if (snapshot.value().catalog_id != expected_catalog_id)
+    {
+        static_cast<void>(repository->close());
+        return make_error(ErrorCode::kValidation, "Restored catalog identity does not match backup",
+                          {{"actual_catalog_id", snapshot.value().catalog_id},
+                           {"expected_catalog_id", std::string(expected_catalog_id)},
+                           {"path", std::string(catalog_path)},
+                           {"reason", "restored_catalog_identity_mismatch"}});
+    }
+    auto closed = repository->close();
+    if (!closed)
+        return closed.error();
+    active = cancellation.check();
+    if (!active)
+        return active.error();
+    return snapshot;
 }
 
 Result<std::optional<std::string>>

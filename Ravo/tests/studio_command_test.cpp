@@ -176,6 +176,44 @@ void ensure_qt_core()
     return ready();
 }
 
+TEST(AssetListModelTest, SparsePagesKeepTotalRowsAndBoundResidentRecords)
+{
+    AssetListModel model;
+    const auto make_page = [](const int first)
+    {
+        std::vector<AssetRecord> assets;
+        assets.reserve(kLibraryPageDefaultSize);
+        for (int index = 0; index < static_cast<int>(kLibraryPageDefaultSize); ++index)
+        {
+            AssetRecord asset;
+            asset.id = "ast_sparse_" + std::to_string(first + index);
+            asset.normalized_uri =
+                "file:///library/photo-" + std::to_string(first + index) + ".jpg";
+            asset.media_type = std::string(kMediaTypeJpeg);
+            assets.push_back(std::move(asset));
+        }
+        return assets;
+    };
+    model.setAssets(make_page(0), {}, {}, 10'000U);
+    EXPECT_EQ(model.rowCount(), 10'000);
+    EXPECT_EQ(model.loadedCount(), static_cast<int>(kLibraryPageDefaultSize));
+    EXPECT_TRUE(model.rowLoaded(0));
+    EXPECT_FALSE(model.rowLoaded(5000));
+    EXPECT_EQ(model.data(model.index(5000, 0), AssetListModel::ThumbnailStateRole).toString(),
+              QStringLiteral("unloaded"));
+
+    model.setSelectedIds({"ast_sparse_0"});
+    model.setPage(200U, make_page(200), {}, {}, 10'000U);
+    model.setPage(400U, make_page(400), {}, {}, 10'000U);
+    model.setPage(600U, make_page(600), {}, {}, 10'000U);
+    EXPECT_LE(model.loadedCount(), static_cast<int>(kLibraryPageDefaultSize * 3U));
+    EXPECT_TRUE(model.rowLoaded(0));
+    EXPECT_FALSE(model.rowLoaded(200));
+    EXPECT_TRUE(model.rowLoaded(600));
+    EXPECT_EQ(model.assetIdAt(600), QStringLiteral("ast_sparse_600"));
+    EXPECT_TRUE(model.isSelected("ast_sparse_0"));
+}
+
 class ScopedEnvironmentVariable
 {
 public:
@@ -399,7 +437,8 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
         [&]
         {
             return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
-                   !presenter.busy() && !presenter.previewLoading();
+                   !presenter.busy() && !presenter.importWorkActive() &&
+                   !presenter.previewLoading();
         }))
         << presenter.errorText().toStdString();
     presenter.openDevelop();
@@ -2453,8 +2492,8 @@ TEST(StudioQmlContract, DevelopSlidersPublishUserEditsBeforeRelease)
     ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
         << panel.errorString().toStdString();
     const auto panel_source = QString::fromUtf8(panel.readAll());
-    EXPECT_TRUE(panel_source.contains(
-        QStringLiteral("onValueEdited: if (root.liveReady && root.commands)")));
+    EXPECT_TRUE(panel_source.contains(QStringLiteral("onValueEdited: function (value)")));
+    EXPECT_FALSE(panel_source.contains(QStringLiteral("onValueEdited: if (")));
     EXPECT_FALSE(panel_source.contains(
         QStringLiteral("onValueChanged: if (root.liveReady && root.commands)")));
     EXPECT_TRUE(panel_source.contains(QStringLiteral("onValueCommitted: function (value)")));
@@ -2465,8 +2504,8 @@ TEST(StudioQmlContract, DevelopSlidersPublishUserEditsBeforeRelease)
     ASSERT_TRUE(wheel.open(QIODevice::ReadOnly | QIODevice::Text))
         << wheel.errorString().toStdString();
     const auto wheel_source = QString::fromUtf8(wheel.readAll());
-    EXPECT_TRUE(wheel_source.contains(
-        QStringLiteral("onValueEdited: if (root.liveReady && root.commands)")));
+    EXPECT_TRUE(wheel_source.contains(QStringLiteral("onValueEdited: function (value)")));
+    EXPECT_FALSE(wheel_source.contains(QStringLiteral("onValueEdited: if (")));
     EXPECT_FALSE(wheel_source.contains(
         QStringLiteral("onValueChanged: if (root.liveReady && root.commands)")));
     EXPECT_TRUE(wheel_source.contains(QStringLiteral("onValueCommitted: function (value)")));
@@ -3089,6 +3128,268 @@ TEST(StudioPresenterTest, OutputDitherPresentationOwnsAllFrozenMethods)
     EXPECT_DOUBLE_EQ(split.value(QStringLiteral("compress")).toDouble(), 33.0);
 }
 
+TEST(StudioPresenterTest, CatalogRecoveryCommandsBackupVerifyRestoreAndRebuild)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString photo = directory.filePath(QStringLiteral("recovery-photo.png"));
+    QImage image(48, 32, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(70, 120, 180));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+    const QString backup = directory.filePath(QStringLiteral("library.ravobackup"));
+    const QString restored = directory.filePath(QStringLiteral("restored.sqlite"));
+    const QString scheduled_backups = directory.filePath(QStringLiteral("scheduled-backups"));
+    ASSERT_TRUE(QDir().mkdir(scheduled_backups));
+
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    presenter.importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy() && !presenter.importWorkActive() &&
+                   !presenter.previewLoading();
+        }))
+        << presenter.errorText().toStdString();
+
+    const auto ids = controller.ids();
+    EXPECT_EQ(ids.value(QStringLiteral("libraryRecoveryStatus")).toString(),
+              QStringLiteral("studio.library.recovery_status"));
+    EXPECT_EQ(ids.value(QStringLiteral("libraryBackupRestorePaths")).toString(),
+              QStringLiteral("studio.library.backup_restore_paths"));
+    EXPECT_EQ(ids.value(QStringLiteral("libraryPreviewRebuildSelected")).toString(),
+              QStringLiteral("studio.library.preview_rebuild_selected"));
+    EXPECT_EQ(ids.value(QStringLiteral("libraryBackupSchedulePath")).toString(),
+              QStringLiteral("studio.library.backup_schedule_path"));
+
+    auto status =
+        controller.executeCommand(ids.value(QStringLiteral("libraryRecoveryStatus")).toString(), {},
+                                  QStringLiteral("control"));
+    ASSERT_TRUE(status.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.recoveryPendingCount(), 0);
+
+    auto created =
+        controller.executeCommand(ids.value(QStringLiteral("libraryBackupCreatePath")).toString(),
+                                  backup, QStringLiteral("control"));
+    ASSERT_TRUE(created.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(QFileInfo::exists(backup + QStringLiteral("/manifest.json")));
+
+    auto verified =
+        controller.executeCommand(ids.value(QStringLiteral("libraryBackupVerifyPath")).toString(),
+                                  backup, QStringLiteral("control"));
+    ASSERT_TRUE(verified.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.errorText().isEmpty());
+    const QVariantMap schedule{{QStringLiteral("directory"), scheduled_backups},
+                               {QStringLiteral("intervalMinutes"), 15},
+                               {QStringLiteral("retentionCount"), 2}};
+    auto scheduled =
+        controller.executeCommand(ids.value(QStringLiteral("libraryBackupSchedulePath")).toString(),
+                                  schedule, QStringLiteral("control"));
+    ASSERT_TRUE(scheduled.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    auto schedule_status = presenter.backupScheduleStatus();
+    EXPECT_TRUE(schedule_status.value(QStringLiteral("loaded")).toBool());
+    EXPECT_TRUE(schedule_status.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(schedule_status.value(QStringLiteral("retentionCount")).toInt(), 2);
+
+    auto run_schedule =
+        controller.executeCommand(ids.value(QStringLiteral("libraryBackupScheduleRun")).toString(),
+                                  {}, QStringLiteral("control"));
+    ASSERT_TRUE(run_schedule.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    schedule_status = presenter.backupScheduleStatus();
+    EXPECT_GT(schedule_status.value(QStringLiteral("lastSuccessUnixMs")).toLongLong(), 0);
+    EXPECT_GT(schedule_status.value(QStringLiteral("lastBackupBytes")).toULongLong(), 0U);
+
+    auto disable_schedule = controller.executeCommand(
+        ids.value(QStringLiteral("libraryBackupScheduleDisable")).toString(), {},
+        QStringLiteral("control"));
+    ASSERT_TRUE(disable_schedule.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_FALSE(presenter.backupScheduleStatus().value(QStringLiteral("enabled")).toBool());
+
+    const QVariantMap restore_paths{{QStringLiteral("backup"), backup},
+                                    {QStringLiteral("catalog"), restored}};
+    auto restored_command =
+        controller.executeCommand(ids.value(QStringLiteral("libraryBackupRestorePaths")).toString(),
+                                  restore_paths, QStringLiteral("control"));
+    ASSERT_TRUE(restored_command.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(QFileInfo::exists(restored));
+    EXPECT_TRUE(QFileInfo(restored + QStringLiteral(".ravo/sidecars")).isDir());
+
+    auto rebuilt = controller.executeCommand(
+        ids.value(QStringLiteral("libraryPreviewRebuildSelected")).toString(), {},
+        QStringLiteral("control"));
+    ASSERT_TRUE(rebuilt.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(presenter.errorText().isEmpty());
+    const auto cancel_action =
+        controller.action(ids.value(QStringLiteral("libraryCancelOperation")).toString());
+    EXPECT_FALSE(cancel_action.value(QStringLiteral("enabled")).toBool());
+}
+
+TEST(StudioPresenterTest, MissingFolderRelinkUsesStableIdentityAndCommandOwnedDialog)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString original = directory.filePath(QStringLiteral("original-root"));
+    const QString replacement = directory.filePath(QStringLiteral("replacement-root"));
+    ASSERT_TRUE(QDir().mkdir(original));
+    const QString photo = QDir(original).filePath(QStringLiteral("photo.png"));
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(60, 110, 160));
+    ASSERT_TRUE(image.save(photo, "PNG"));
+    QFile source(photo);
+    ASSERT_TRUE(source.open(QIODevice::ReadOnly));
+    const auto source_hash = QCryptographicHash::hash(source.readAll(), QCryptographicHash::Sha256);
+    source.close();
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+    QString folder_id;
+    {
+        StudioPresenter presenter;
+        presenter.createCatalogFromPath(catalog);
+        ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        presenter.importFilePaths({photo});
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return presenter.visibleCount() == 1 && !presenter.importWorkActive() &&
+                       !presenter.busy();
+            }));
+        for (int row = 0; row < presenter.folders()->rowCount(); ++row)
+        {
+            const auto index = presenter.folders()->index(row, 0);
+            if (presenter.folders()->data(index, FolderListModel::DisplayNameRole).toString() ==
+                QStringLiteral("original-root"))
+                folder_id =
+                    presenter.folders()->data(index, FolderListModel::FolderIdRole).toString();
+        }
+        ASSERT_FALSE(folder_id.isEmpty());
+    }
+    ASSERT_TRUE(QDir().rename(original, replacement));
+
+    StudioPresenter presenter;
+    StudioCommandController controller(presenter);
+    presenter.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }))
+        << presenter.errorText().toStdString();
+    bool missing = false;
+    for (int row = 0; row < presenter.folders()->rowCount(); ++row)
+    {
+        const auto index = presenter.folders()->index(row, 0);
+        if (presenter.folders()->data(index, FolderListModel::FolderIdRole).toString() == folder_id)
+            missing = presenter.folders()->data(index, FolderListModel::MissingRole).toBool();
+    }
+    EXPECT_TRUE(missing);
+    const auto ids = controller.ids();
+    EXPECT_EQ(ids.value(QStringLiteral("libraryFolderRelinkPath")).toString(),
+              QStringLiteral("studio.library.folder_relink_path"));
+    const QVariantMap relink{{QStringLiteral("folderId"), folder_id},
+                             {QStringLiteral("directory"), replacement}};
+    const auto command =
+        controller.executeCommand(ids.value(QStringLiteral("libraryFolderRelinkPath")).toString(),
+                                  relink, QStringLiteral("control"));
+    ASSERT_TRUE(command.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.catalogOperationActive() && !presenter.busy(); }, 30000))
+        << presenter.errorText().toStdString();
+    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 1; }));
+    bool found = false;
+    for (int row = 0; row < presenter.folders()->rowCount(); ++row)
+    {
+        const auto index = presenter.folders()->index(row, 0);
+        if (presenter.folders()->data(index, FolderListModel::FolderIdRole).toString() != folder_id)
+            continue;
+        found = true;
+        EXPECT_FALSE(presenter.folders()->data(index, FolderListModel::MissingRole).toBool());
+        EXPECT_EQ(presenter.folders()->data(index, FolderListModel::DisplayNameRole).toString(),
+                  QStringLiteral("replacement-root"));
+    }
+    EXPECT_TRUE(found);
+    QFile moved(QDir(replacement).filePath(QStringLiteral("photo.png")));
+    ASSERT_TRUE(moved.open(QIODevice::ReadOnly));
+    EXPECT_EQ(QCryptographicHash::hash(moved.readAll(), QCryptographicHash::Sha256), source_hash);
+}
+
+TEST(StudioPresenterTest, ImportCancellationStopsUndispatchedItemsAtItemBoundary)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    QStringList photos;
+    std::vector<QByteArray> hashes;
+    for (int index = 0; index < 3; ++index)
+    {
+        const auto path = directory.filePath(QStringLiteral("import-%1.png").arg(index));
+        QImage image(64, 48, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(40 + index * 30, 90, 150));
+        ASSERT_TRUE(image.save(path, "PNG"));
+        photos.push_back(path);
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        hashes.push_back(QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256));
+    }
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath(QStringLiteral("library.sqlite")));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    bool cancelled = false;
+    QObject::connect(&presenter, &StudioPresenter::libraryWorkChanged, &presenter,
+                     [&]
+                     {
+                         if (!cancelled && presenter.importWorkActive() &&
+                             presenter.importWorkCompleted() == 1)
+                         {
+                             cancelled = true;
+                             presenter.cancelCatalogOperation();
+                         }
+                     });
+    presenter.importFilePaths(photos);
+    ASSERT_TRUE(wait_until([&] { return cancelled && !presenter.importWorkActive(); }, 30000))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(presenter.visibleCount(), 1);
+    EXPECT_TRUE(presenter.statusText().contains(QStringLiteral("cancel"), Qt::CaseInsensitive));
+    for (int index = 0; index < photos.size(); ++index)
+    {
+        QFile file(photos[index]);
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        EXPECT_EQ(QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256),
+                  hashes[static_cast<std::size_t>(index)]);
+    }
+}
+
 TEST(StudioQmlContract, ExportOptionsDialogExposesEveryFormatWithoutCodecParsing)
 {
     QFile dialog(QStringLiteral(RAVO_STUDIO_EXPORT_OPTIONS_QML));
@@ -3232,6 +3533,62 @@ TEST(StudioQmlContract, MainExportUsesTwoStepExplicitFormatPayload)
     EXPECT_TRUE(source.contains(QStringLiteral("exportOptionsDialog.visible")));
     EXPECT_FALSE(source.contains(QStringLiteral("\"filter\": selectedFilter")));
     EXPECT_FALSE(source.contains(QStringLiteral("JPEG (*.jpg *.jpeg)\", \"PNG (*.png)\"")));
+}
+
+TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancellation)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto main_source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupCreateDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupVerifyDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupRestoreSourceDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupRestoreDestinationDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupCreatePath")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupVerifyPath")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupRestorePaths")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupScheduleDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupScheduleFolderDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupSchedulePath")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("id: folderRelinkDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryFolderRelinkPath")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("\"backup\": backup")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("\"catalog\": filePath")));
+
+    QFile library(QStringLiteral(RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML));
+    ASSERT_TRUE(library.open(QIODevice::ReadOnly | QIODevice::Text))
+        << library.errorString().toStdString();
+    const auto library_source = QString::fromUtf8(library.readAll());
+    EXPECT_TRUE(library_source.contains(QStringLiteral("catalogOperationActive")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("catalogOperationStage")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("catalogOperationCompleted")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("libraryCancelOperation")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("backupScheduleStatus")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("Last verified: %1 · %2")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("libraryFolderRelink")));
+    EXPECT_TRUE(library_source.contains(QStringLiteral("missing — click to locate")));
+
+    QFile schedule(QStringLiteral(RAVO_STUDIO_BACKUP_SCHEDULE_QML));
+    ASSERT_TRUE(schedule.open(QIODevice::ReadOnly | QIODevice::Text))
+        << schedule.errorString().toStdString();
+    const auto schedule_source = QString::fromUtf8(schedule.readAll());
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("backupScheduleInterval")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("backupScheduleRetention")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("Choose Folder…")));
+}
+
+TEST(StudioQmlContract, GalleryRequestsSparsePagesFromVisibleDelegates)
+{
+    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
+    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
+        << main.errorString().toStdString();
+    const auto source = QString::fromUtf8(main.readAll());
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.libraryHasMore")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.loadNextLibraryPage()")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.ensureLibraryRow(tile.index)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("onAssetIdChanged")));
+    EXPECT_TRUE(source.contains(QStringLiteral("cacheBuffer: cellHeight * 8")));
 }
 
 TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)

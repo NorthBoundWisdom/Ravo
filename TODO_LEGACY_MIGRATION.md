@@ -1,35 +1,18 @@
 # Ravo Legacy Migration TODO
 
-> **Status: in progress**
+> **Status: paused behind product P0/P1**
 >
 > **Updated: 2026-08-31**
 >
-> **Current execution status:** P1 and the accepted everyday P2 surface are
-> complete; P3 has reached typed batch export, deterministic output dither,
-> Canvas, final Output Frame, and deterministic text Watermark
-> (ADR-0068–0071); H3's rejected `.dtstyle` examples are retired by ADR-0072.
-> P3's remaining work is zero-consumer cleanup blocked on the named shared
-> owners. C17 Color Zones is accepted and its old owner retired (ADR-0073).
-> C18 Monochrome is accepted and its old owner retired (ADR-0074). Next Ready
-> C20 Split Toning is accepted and its old owner retired (ADR-0075). Studio's
-> default Develop grading workspace is accepted (ADR-0082) and is not leftover
-> consumption. ADR-0083 accepts the eight-band Color Equalizer editor and Bayer
-> CFA white-balance pick. C21 Velvia is accepted and its old owner retired
-> (ADR-0095). Bounded DNG OpcodeList2/3 corrections, CPU RCD/PPG demosaic, and
-> full `G6` Perspective with deterministic safe crop, X-Trans Markesteijn and
-> the separate Bayer/X-Trans RAW denoise path are accepted by ADR-0096; the old
-> ashift and rawdenoise owners are retired. Profile-explicit 3D LUT is accepted
-> and its old CPU/OpenCL owner is retired. Offline deterministic camera-noise
-> calibration and bounded Texture are accepted. The reference-algorithm review
-> is closed by ADR-0096: Local Laplacian was rejected, and the distinct but
-> over-budget Filmulator physical model remains test-only research. Shared
-> S8–S11, J5–J7,
-> U5/U10/J2, format-wrapper,
-> and dynamic-storage deletion still waits for their named old consumers to
-> reach zero. Leftover GTK `mask_manager` / `libs/masks.c` wait for zero
-> develop/history consumers. Do not start C15 or cacorrectrgb until a later
-> exact tranche explicitly authorizes them. The new RAW work extends rather
-> than silently broadens ADR-0047's first-frame contract.
+> **Current execution status:** P0/P1 implementation is accepted under
+> ADR-0099–0101, while its private-corpus and Windows/Linux release evidence in
+> `TODO_PHOTO_MANAGEMENT.md` remains active. No independent legacy tranche is
+> active. This file ranks only unfinished algorithm exactness and
+> zero-consumer retirement as `MR0`–`MR6`; accepted product surfaces and their
+> implementation history remain in README/ARCHITECTURE/MIGRATION/TESTING/ADRs.
+> A legacy owner may move during product P0/P1 only when that tranche names it
+> as a hard dependency. C15 Colorize and R4 `cacorrectrgb` remain explicitly
+> unauthorized until a later exact tranche records fixtures and acceptance.
 
 This document records only unfinished execution work, risks, dependencies,
 verification commands, and acceptance gates. Current capability, architecture,
@@ -40,8 +23,13 @@ ready for execution.
 
 ## 1. Execution rules
 
-- Select the highest-priority **Ready** user outcome in section 2.1. Do not
-  select work merely because its old source file or inventory row comes next.
+- Remaining product P0/P1 release evidence in `TODO_PHOTO_MANAGEMENT.md` has
+  repository-wide execution precedence. Do not start a standalone legacy
+  tranche while that acceptance gate is active.
+- When product work names a legacy owner as a hard dependency, or after P0/P1
+  is complete and migration is explicitly resumed, select the first **Ready**
+  `MR*` outcome in section 2.1. Do not select work merely because its old
+  source file or inventory row comes next.
 - Finish an active tranche before switching. If it is dependency-blocked, the
   next Ready outcome may advance when owners/files do not overlap and the
   blocker is recorded explicitly.
@@ -70,29 +58,31 @@ ready for execution.
 - Mark an unrun platform or manual check as untested; never use historic results
   to represent current acceptance.
 
-## 2. User-value execution queue
+## 2. Legacy migration queue
 
-Priority is based on how often photographers need the outcome, whether it
-blocks the import → edit → export loop, and data-loss/reliability risk. It is
-not based on legacy directory layout, historical IOP order, or ease of deleting
-an old owner. Within a priority, take the first Ready sub-slice after checking
-the dependencies named in the owner inventory.
+This queue ranks remaining legacy absorption only. It is not a second product
+P0/P1 and cannot displace the active queue in `TODO_PHOTO_MANAGEMENT.md`.
+Migration rank is based on current user value and whether an owner closes an
+already-supported workflow, not legacy directory layout, historical IOP order,
+or ease of deletion. Within a rank, take the first Ready sub-slice after
+checking the dependencies named in the owner inventory.
 
 **Ready** means the named dependencies and evidence prerequisites are
-satisfied, the owner/files do not conflict with active work, and the tranche is
-explicitly authorized. A priority label alone does not waive those conditions.
+satisfied, the owner/files do not conflict with active product work, and the
+tranche is explicitly authorized. An `MR*` label alone does not waive those
+conditions.
 
-### 2.1 Priority order
+### 2.1 Migration rank order
 
-| Priority | User outcome and internal order | Owner IDs / readiness | Acceptance gate |
+| Migration rank | User outcome and internal order | Owner IDs / readiness | Acceptance gate |
 | --- | --- | --- | --- |
-| P0 — finish active local-adjustment work | Mask overlay/group editing, path/brush authoring, and Color Harmonizer IOP retirement | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers; **Accepted product surface**. `C15` and `R4` remain explicitly unauthorized | Canonical graph/evaluator/service path with Studio overlay/group/path/brush; C14 retired; leftover GTK mask-manager files wait for zero-consumer proof |
-| P1 — reliably open and view common photos | **Accepted first-frame, bounded DNG corrections, Bayer RCD/PPG and X-Trans Markesteijn.** | ADR-0046/0047/0093; remaining `R1` crop/black/white exactness and `R2` dual/green matching; `I1`, old `S11`/`J*`, and wrapper deletion remain separate zero-consumer work | Common files open with correct orientation/profile/bit depth; opcode bounds, unsupported CFA, corrupt/missing/oversized/cancelled inputs fail structurally; full and bounded previews remain deterministic |
-| P2 — everyday Develop controls | **Accepted essential surface; full `G6` Perspective and safe crop are accepted and the old owner is retired.** Flip/crop/straighten, RGB levels/curve, Bayer/X-Trans RAW denoise, highlight colour reconstruction, source-exact sharpen, source-linear guided dehaze, and ordered Retouch are accepted | Remaining `G3`, leftover `(int)` crop ROI, dedicated RGB-curve band editor, and non-sequenced work retain independent gates | One recipe/CLI/Catalog/Studio path per accepted control; real fixture and independent CPU evidence; interactive preview/save/reopen/export and failure/cancellation tests |
-| P3 — library and delivery workflow | **Dependency-blocked cleanup.** Product workflow is accepted; remove shared old owners only when their direct consumers reach zero | `S8`–`S11`, `J5`–`J7`, `U5`, `U10`, `J2`, `I1`, `I10`–`I13` cleanup gates | Fast large-library interaction; original-safe metadata/history rollback; reproducible presets; JPEG/PNG/TIFF/original export with conflict/cancel/disk-full and sidecar policy |
-| P4 — commonly requested creative alternatives | Add popular optional looks only after the essential workflow: display transforms/LUT, local contrast/blur variants, grain/vignette/bloom/soften | `T4`, `T5`, `T1`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
-| P5 — specialist and low-frequency tools | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until a later exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget and explicit unsupported-state policy; no simplified substitute or speculative shell |
-| P6 — retirement and repository cleanup | Delete dynamic ABI, old UI, shared globals, resources, runners and empty directories only after their last accepted consumer disappears | `D0.*`, remaining `S5`–`S7`/`S12`–`S14`, `J2`, `I15`, `U*`, cleanup-only `L*`, `H*`, `E*`; Not a standalone feature queue | Whole-repository zero-consumer search, synchronized freeze/inventory/docs, three-platform Ravo package/install evidence, and recoverable release transition |
+| **MR0 — finish common-input exactness** | Complete the remaining frozen RAW preparation and demosaic behavior for formats Ravo already claims to support | `R1` complete crop/black/white path; `R2` dual/green matching; `I2`/`I5`–`I7` adapter censuses. Ready only after product P0/P1 or when one of those tranches proves this is a blocker | Source-faithful CPU math, explicit sensor/format failures, full/bounded pixel goldens, cancellation/resource/source-safety tests, and no hidden decoder or demosaic fallback |
+| **MR1 — finish everyday edit fidelity** | Close remaining orientation/crop/scale and RGB levels/curve compatibility for already-supported edits | `G1`, `G3`, `G4`, `G7`, `T2`, `T3`; exact ROI/distort/export-ratio and freeze-census gates remain | One Recipe/CLI/Catalog/Studio path, exact preview/export geometry, strict historical mapping or rejection, real fixtures, and retirement only after the old consumer census is zero |
+| **MR2 — extend mask/blend only for a named consumer** | Add another source-backed blend or finish GTK mask cleanup only when an accepted operation requires it | `S3` remaining blend modes; leftover `M1`/`L11` GTK consumers. `C15` and `R4` remain unauthorized | Named consumer, frozen source-order math, canonical graph/ROI/failure contract, product persistence, and zero-consumer proof before GTK cleanup; never a completeness sweep |
+| **MR3 — retire accepted workflow owners** | Remove shared catalog/history/cache/imageio/job/UI owners after their direct consumers reach zero | `S8`–`S11`, `J5`–`J7`, `U5`, `U10`, `J2`, `I1`, `I10`–`I13`; dependency-blocked and not a standalone feature tranche | Whole-repository consumer census, unchanged accepted product contracts, synchronized freeze/inventory/docs, and no compatibility shell. Product-scale work remains owned by `TODO_PHOTO_MANAGEMENT.md` |
+| **MR4 — commonly requested creative alternatives** | Add optional display transforms, local contrast/blur variants, grain, vignette, bloom, or soften only after the essential workflow | `T4`, `T5`, `T1`, `F2`, `F3`, `F4`, `F8`, `F12`, `M6`, `M7`, `M8`; Ready only when their colour/mask/filter foundations are accepted | Defaults remain Sigmoid/Color Equalizer; optional operations reproduce frozen CPU math and have full product persistence without changing default output |
+| **MR5 — specialist and low-frequency tools** | Film-negative, clustering/mapping, sensor corrections, advanced filters/deformation, diagnostics, and uncommon formats follow demonstrated demand | `C15`, `C16`, `C19`, `T7`, `R4`, `R6`, `G2`, `G9`, `F5`–`F7`, `F9`, `F10`, `M3`, `M4`, `O2`, `O3`, `I3`, `I8`, `I9`; `C15`/`R4` stay forbidden until an exact tranche explicitly authorizes them | Named user outcome, fixture/resource budget, and explicit unsupported-state policy; no simplified substitute or speculative shell |
+| **MR6 — final retirement and repository cleanup** | Delete dynamic ABI, old UI, shared globals, resources, runners, and empty directories only after their last accepted consumer disappears | `D0.*`, remaining `S5`–`S7`/`S12`–`S14`, `J2`, `I15`, `U*`, cleanup-only `L*`, `H*`, `E*`; never a standalone feature queue | Whole-repository zero-consumer search, synchronized freeze/inventory/docs, three-platform Ravo package/install evidence, and recoverable release transition |
 
 Foundation IDs (`S1`, `S2`, `S4`, calibration data, and job owners) advance
 with the highest-priority consumer that needs them; they are not independent
@@ -100,13 +90,16 @@ porting projects. A lower-priority item may move earlier only when it is a hard
 dependency of a higher-priority outcome, and the same change must state that
 relationship and the smallest validation set.
 
-Independent adapter or reliability work may run only when its dependencies are
-met and its owners and files do not overlap.
+Independent adapter or reliability work may run only when the active product
+tranche names it, its dependencies are met, and its owners/files do not
+overlap.
 
 ### 2.2 Continuous product gates
 
-These gates apply to every priority and can block the affected tranche or a
-release. They are user-safety work, not a second feature queue:
+These gates apply to every migration rank and can block the affected tranche or
+a release. `TODO_PHOTO_MANAGEMENT.md` remains the authority for active
+recovery, large-library, and Gallery-to-Edit execution; the checks below prevent
+a legacy tranche from regressing that product work:
 
 - [ ] Database non-writable/corrupt, schema-migration fixture, cache corruption,
   full disk, moved source, batch cancellation, crash reopen, backup/rollback,
@@ -117,8 +110,8 @@ release. They are user-safety work, not a second feature queue:
 - [ ] Keyboard, focus, HiDPI, and accessibility for each new Studio surface.
 - [ ] Windows/macOS/Linux configure/build/test, staged install, and installed
   application loop for release-bound changes.
-- [ ] Metadata/ICC and output-colour contracts meet the formats promised by the
-  corresponding P1/P3 outcome.
+- [ ] Metadata/ICC and output-colour contracts remain valid for every supported
+  import and delivery format touched by the tranche.
 - [ ] Name the packaged-release product owner and code-review owner; before
   release transition prove rollback and no legacy production dependency.
 

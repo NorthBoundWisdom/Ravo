@@ -86,9 +86,12 @@ More-specific implementation and validation rules for this boundary live in
    identify the current branch and preserve user changes.
 2. Read the source files and documents directly relevant to the task; do not
    infer current behavior from upstream darktable habits.
-3. For product/leftover boundaries, read `Ravo/MIGRATION.md` first; for current
-   execution order, then read [`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md)
-   in the repository root. Read `DevDocs/GPU_Baseline.md` for GPU work.
+3. For product/leftover boundaries, read `Ravo/MIGRATION.md` first. For current
+   product execution order, then read
+   [`TODO_PHOTO_MANAGEMENT.md`](TODO_PHOTO_MANAGEMENT.md); for a legacy owner or
+   retirement task, additionally read
+   [`TODO_LEGACY_MIGRATION.md`](TODO_LEGACY_MIGRATION.md). Read
+   `DevDocs/GPU_Baseline.md` for GPU work.
 4. Before cross-layer changes, make ownership, lifecycle, thread boundaries,
    and the minimum validation set explicit.
 
@@ -102,8 +105,8 @@ Until their definition of “Ravo accepted” is reached, do not modify `legacy/
 
 - The C++20 Ravo Engine, supported `ravo` CLI, and Ravo Studio share one
   service layer. `Ravo/README.md` records the currently accepted baseline;
-  the root `TODO_LEGACY_MIGRATION.md` records remaining step-by-step legacy
-  migration.
+  the root `TODO_PHOTO_MANAGEMENT.md` owns unfinished product P0/P1 execution or release evidence and
+  `TODO_LEGACY_MIGRATION.md` records remaining legacy absorption/retirement.
 - The `domain`, `services`, and Qt 6 Quick/QML `desktop` targets are already
   established. `Qt6::Qml`/`Qt6::Quick` and
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` imports may only be

@@ -13,8 +13,8 @@ ravo CLI ───────────────┐
                         ▼
                  Application Services ◀────────── Ravo Studio
                  │ create/open                    │ Gallery
-                 │ import/list                    │ viewer
-                 │ recovery/backup                │ visible errors
+                 │ import/page/relink             │ viewer
+                 │ recovery/backup/restore        │ visible errors
                  │ request/cancel preview
                  ├───────────────┐
                  ▼               ▼
@@ -141,6 +141,17 @@ reloads the visible model through the service, and forwards changes through
 the command registry. It intentionally records no recent-query history. QML
 never sees catalog columns or legacy rule strings.
 
+Library listing is additionally a bounded page boundary. `LibraryPageRequest`
+owns validated query, offset, a limit no greater than 512, optional keyset
+cursor, and an optional known total. `LibraryPage` returns only that page plus
+total/next-cursor, materialized-row count, and database elapsed time. Ordinary
+sequential traversal uses the stable sort key and asset ID cursor; an explicit
+viewport jump may use offset. The adapter attaches tags, metadata, and preview
+records only for the current page. Studio exposes the full logical row count
+through a sparse model with at most three resident 200-row pages, while QML
+delegates request unloaded rows and bounded thumbnail look-ahead. Selection is
+asset-ID based and protects its page from eviction (ADR-0100).
+
 Reusable style/preset state reuses Recipe rather than introducing another
 parameter model. Schema-v1 `RecipeStyle` replaces the asset with a fixed
 template identity; complete application restores only the target identity.
@@ -245,8 +256,13 @@ EXIF plus catalog-only writable fields), and `asset_recipe_history`
 WAL, `synchronous=NORMAL`, and `busy_timeout`. Schema v6 adds one
 `asset_recovery_state` row per asset. Database triggers advance its generation
 with every durable asset, recipe, tag, metadata, or history write but not with
-preview/cache state. New catalogs and migrations use transactions, and an
-unknown higher schema version fails fast.
+preview/cache state. Schema v7 adds adapter-private display/folder projections
+and the accepted page/filter/sort indexes; changing only those derived fields
+does not advance recovery. Schema v8 owns the catalog backup policy and its
+last-success/next-run/bytes/failure observations. Schema v9 owns stable direct-
+containing-folder IDs and binds each asset to one of them. New catalogs and
+migrations use transactions, and an unknown higher schema version fails fast
+(ADR-0100/0101).
 
 The repository adapter atomically publishes the current recipe row (or baseline
 clearing), optional deletion of history rows newer than a cursor, automatic
@@ -287,12 +303,44 @@ payload excluding that observation define immutable generation content.
 
 A v1 backup is an absent directory containing only `catalog.sqlite`,
 `manifest.json`, and `sidecars/`. Creation drains recovery, integrity-checks the
-source, snapshots with SQLite `VACUUM INTO`, removes preview rows from the
-copy, copies the exact generation set, rejects concurrent source changes,
-verifies hashes/layout/SQLite integrity, and publishes the staged directory
-atomically without replacement. The manifest explicitly excludes originals
-and previews. Verification never opens the artifact as the live catalog.
-Restore is not yet an accepted product surface (ADR-0097).
+source, checkpoints WAL, holds a bounded writer lock while cancellably copying
+the database, removes preview rows from the copy, switches it to a self-
+contained journal, copies the exact generation set, rejects concurrent source
+changes, verifies hashes/layout/SQLite integrity, and publishes the staged
+directory atomically without replacement. The manifest explicitly excludes
+originals and previews. Verification never opens the artifact as the live
+catalog. There is no non-interruptible `VACUUM INTO` fallback.
+
+Restore accepts only a caller-selected absent catalog path. It verifies the
+complete source before creating operation-owned staging, verifies the staged
+database and sidecars again, publishes the support root first and the catalog
+file last, then opens it through the ordinary repository path. Pre-commit
+failure removes only exact staging. Once the catalog file is visible, every
+failure reports that durable fact and deletes nothing implicitly. Preview rows
+and artifacts remain excluded and are rebuilt explicitly (ADR-0099).
+
+The backup scheduler is catalog state, not a desktop preference. The normal-
+priority CatalogService owner checks its persisted due time and creates an
+ordinary verified backup. Retention considers only a canonical scheduled name
+that re-verifies as the current catalog. It moves an expired candidate to a
+unique quarantine, verifies identity again, and only then removes it. Unknown,
+changed, malformed, symlink, active, and user-created paths remain. Studio and
+CLI display the persisted last verified success, next run, bytes, and failure
+without owning retention policy (ADR-0101).
+
+### Folder identity and relink
+
+`catalog_folder.id` is stable while its URI is mutable. Assets bind to the ID
+of their direct containing folder; hierarchy-only ancestors remain synthetic
+presentation rows. CatalogService derives explicit missing state from a live
+read-only directory check. A relink names the stable ID and an existing
+replacement directory, requires the old root to be missing, maps every asset
+by its existing basename, and validates stored size, modification time, and
+content fingerprint. It rejects path and catalog conflicts before mutation.
+The SQLite adapter then rechecks the old folder URI and exact asset set and
+updates the folder URI, asset URIs, recovery generations, and catalog revision
+in one cancellable transaction. Rollback preserves the prior catalog and no
+original is ever written (ADR-0101).
 
 ### Import
 
@@ -312,6 +360,12 @@ publishing an asset. Cancellation stops undispatched work; committed results
 remain valid. Missing, directory, unrecognized, unpack-failed, oversized,
 malformed or mandatory-unsupported DNG opcode, and unsupported CFA
 full-decode inputs fail with stable `reason` context.
+
+Studio first enumerates a deterministic bounded input list, then dispatches one
+normal-priority `import_one` task at a time. It queues the next item only after
+observing the current result. Foreground Develop uses the existing priority
+lane and can run between items; cancellation leaves committed assets valid and
+stops all undispatched paths. Catalog commits remain serialized (ADR-0100).
 
 ### Preview
 

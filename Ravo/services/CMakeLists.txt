@@ -5,11 +5,14 @@ target_sources(ravo_services
     src/atomic_publication_internal.cpp
     src/artifact_publication.cpp
     src/catalog_backup.cpp
+    src/catalog_backup_schedule.cpp
+    src/catalog_folder.cpp
     src/catalog_internal.cpp
     src/encoded_publication.cpp
     src/original_copy.cpp
     src/catalog_service.cpp
-    src/catalog_preview.cpp)
+    src/catalog_preview.cpp
+    src/catalog_restore.cpp)
 
 target_include_directories(ravo_services
   PUBLIC

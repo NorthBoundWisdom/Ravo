@@ -1,6 +1,7 @@
 # ADR-0097: Catalog recovery sidecars and verifiable backups
 
-- Status: Accepted
+- Status: Accepted; snapshot and restore lifecycle extended by
+  [ADR-0099](0099-atomic-catalog-restore-and-operator-recovery.md)
 - Date: 2026-08-31
 - Extends: [ADR-0011](0011-atomic-develop-publication.md) and
   [ADR-0067](0067-bounded-preview-cache-lru.md)

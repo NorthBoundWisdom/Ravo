@@ -6,14 +6,15 @@ Recover from missing originals, unavailable destinations, preview-cache issues,
 pending recovery mirrors, or catalog-open problems, and create a verified
 catalog backup without confusing it with an original-media backup.
 
-**Last reviewed:** 2026-08-31 against the current catalog schema-v6 recovery,
-backup, cache, and atomic-publication contracts.
+**Last reviewed:** 2026-08-31 against the current catalog schema-v9 recovery,
+restore, scheduled-backup, stable-folder, cache, and atomic-publication contracts.
 
 ## Applies to
 
 - Ravo Studio's local catalog and preview cache.
 - Local `ravo` CLI workflows.
-- Catalog-owned recovery mirrors and CLI catalog backup/verification.
+- Catalog-owned recovery mirrors and CLI/Studio backup, restore, scheduling,
+  preview rebuild, and stable-folder relink.
 
 ## Original files are references
 
@@ -38,9 +39,21 @@ The catalog record, rating, color label, reject state, tags, metadata, recipe,
 and history remain stored. Restore the file to its recorded path, then select
 the asset again so Studio can request a new preview.
 
-There is no automatic relink-by-filename workflow in the current baseline. Do
-not delete the catalog record merely because the source is temporarily
-unmounted.
+When an entire directly cataloged folder moves, Studio marks that stable folder
+as missing; click its missing row and choose the replacement directory. Ravo
+requires the old directory to be unavailable and validates every expected
+basename, size, modification time, and stored fingerprint before one catalog
+transaction changes paths. The CLI equivalent is:
+
+```text
+ravo catalog folders --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog folder-relink --catalog "/work/Ravo Library.sqlite" \
+  --folder-id <folder-id> --replacement "/new/photo/folder" --json
+```
+
+This is not a fuzzy filename search. An individually renamed file, a changed
+copy, or a hierarchy-only parent without a stable ID is not guessed. Do not
+delete a catalog record merely because its source is temporarily unmounted.
 
 ## Preview cache
 
@@ -88,7 +101,7 @@ catalog edit blindly. Repair the support-directory problem and run
 `sidecar-sync` or reopen the catalog.
 
 Do not hand-edit, rename, or copy one recovery JSON back into the live catalog.
-Restore from these artifacts is not an accepted command yet.
+Use a complete verified backup for catalog restore.
 
 ## Create and verify a catalog backup
 
@@ -117,12 +130,38 @@ Ravo-2026-08-31/
 strict layout, hashes, identities, sidecar generations, SQLite integrity, and
 the absence of preview rows without opening the snapshot as a live library.
 
+Restore to an explicitly absent catalog path, then rebuild previews as needed:
+
+```text
+ravo catalog backup-restore --backup "/backups/Ravo-2026-08-31" \
+  --output "/work/Restored Ravo Library.sqlite" --json
+ravo catalog preview-rebuild --catalog "/work/Restored Ravo Library.sqlite" --json
+```
+
+Restore verifies the complete source and staged copy, publishes the support
+directory first and catalog file last, then reopens the result through the
+ordinary catalog path. It never overwrites or merges a destination. Studio
+exposes create, verify, restore, recovery sync, and selected/all preview rebuild
+under **File → Recovery** with progress and cancellation.
+
+To configure recurring verified backups from the CLI:
+
+```text
+ravo catalog backup-policy --catalog "/work/Ravo Library.sqlite" \
+  --schedule-dir "/backups/Ravo" --interval-minutes 1440 \
+  --retention-count 7 --enabled true --json
+ravo catalog backup-run --catalog "/work/Ravo Library.sqlite" --json
+```
+
+Studio exposes the same schedule. Retention deletes only canonical scheduled
+artifacts that reverify as the current catalog; unknown, changed, symlink, or
+user-created paths are retained.
+
 !!! warning
 
     A verified catalog backup excludes originals and previews. Back up every
-    referenced original separately. Ravo currently has no restore command,
-    scheduled retention, cloud destination, or Studio backup UI; verification
-    proves artifact integrity, not restorability through a supported workflow.
+    referenced original separately. Restore and scheduled retention still do
+    not contain or back up originals, and there is no cloud destination.
 
 ## Catalog open errors
 
@@ -156,8 +195,9 @@ previous output is important, preserve it before retrying.
    new backup at an absent destination.
 3. Verify that every required original path exists and is readable; remember
    that the catalog backup does not contain those files.
-4. Reopen the catalog and select the affected asset.
-5. Let Ravo rebuild the preview, then verify the image, review state, recipe,
+4. If the live catalog cannot be trusted, restore the verified backup to a new
+   absent catalog path and open that restored catalog.
+5. Rebuild the affected previews, then verify the image, review state, recipe,
    and history.
 6. Export to a new destination and check the result independently.
 
@@ -182,8 +222,9 @@ and preserve the originals separately.
 
 ### Will reopening the catalog relink moved photos?
 
-No. Reopening reloads the stored paths. Restore the source path or use an
-external filesystem arrangement that makes the recorded path valid again.
+Reopening detects a missing stable direct folder but does not guess its new
+location. Use the missing-folder row in Studio or `catalog folder-relink` with
+the explicit folder ID and replacement directory.
 
 ### Does Remove from Catalog delete the original?
 
@@ -192,6 +233,6 @@ the separate, confirmed, irreversible action.
 
 ### Can I open `catalog.sqlite` inside a backup directly?
 
-No supported workflow does that. `backup-verify` treats the directory as a
-read-only artifact. Catalog restore and publication to a new live destination
-remain unfinished.
+No. `backup-verify` treats the directory as a read-only artifact. Use
+`backup-restore` to publish the complete verified artifact to a new absent live
+catalog path.

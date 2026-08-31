@@ -86,19 +86,22 @@ Import, review, Develop, preview, and rendered export do not write back to the
 source file. The explicit **Delete from Disk** command is the one destructive
 source-file action and requires confirmation.
 
-### Missing originals are not automatically relinked
+### Missing originals are not relinked by search
 
-Ravo retains the record and recipe for a missing source, but the current Studio
-has no relink-by-search workflow. Restore the original at its recorded path.
+Ravo retains the record and recipe for a missing source. A missing stable direct
+folder can be explicitly relinked in Studio or by folder ID in the CLI, but
+Ravo does not search for a similar filename, accept changed identity, or infer
+a new hierarchy-only parent. Restore an individual renamed file to its recorded
+path.
 
-### Catalog backup is not restore
+### Catalog backup is not original-media backup
 
-The CLI can synchronize catalog-owned recovery generations and create or verify
-an immutable backup containing a database snapshot plus recovery JSON. It
-excludes originals and rebuildable previews. There is no supported restore
-command, scheduled retention policy, cloud target, or Studio backup UI yet; do
-not open the backup snapshot as a live library or describe verification as a
-restore test.
+The CLI and Studio can synchronize catalog-owned recovery generations, create
+or verify an immutable backup, restore it to a new absent catalog, rebuild
+previews, and schedule verified retention. The artifact still excludes
+originals and rebuildable previews, and there is no cloud target. Do not open
+the internal snapshot directly or treat catalog restore as recovery of missing
+RAW/raster originals.
 
 ### Export scope
 

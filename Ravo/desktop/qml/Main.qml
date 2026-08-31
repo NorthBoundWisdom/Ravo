@@ -40,6 +40,10 @@ ApplicationWindow {
     property string pendingExportFormat: ""
     property var pendingExportOptions: ({})
     property string pendingExportFilenameTemplate: ""
+    property string pendingRestoreBackup: ""
+    property int pendingBackupIntervalMinutes: 1440
+    property int pendingBackupRetentionCount: 7
+    property string pendingRelinkFolderId: ""
     property string viewportAssetId: ""
     property var inspectViewportFocus: null
     property var inspectViewportRestore: null
@@ -57,9 +61,7 @@ ApplicationWindow {
     property real inspectAnimOriginX: 0
     property real inspectAnimOriginY: 0
     readonly property int inspectZoomDurationMs: 240
-    readonly property bool comparisonReady: studio.comparisonActive &&
-                                             studio.comparisonBeforeUrl.toString().length > 0 &&
-                                             studio.previewUrl.toString().length > 0
+    readonly property bool comparisonReady: studio.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
     readonly property bool photoInspectEnabled: {
         if (studio.browseMode === "grid" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
@@ -457,6 +459,33 @@ ApplicationWindow {
         importFolderDialog.openDialog();
     }
 
+    function openBackupCreateDialog() {
+        backupCreateDialog.currentFolder = studio.defaultCatalogFolder;
+        backupCreateDialog.initialSelectedFile = qsTr("Ravo Catalog Backup.ravobackup");
+        backupCreateDialog.openDialog();
+    }
+
+    function openBackupVerifyDialog() {
+        backupVerifyDialog.currentFolder = studio.defaultCatalogFolder;
+        backupVerifyDialog.openDialog();
+    }
+
+    function openBackupRestoreDialog() {
+        window.pendingRestoreBackup = "";
+        backupRestoreSourceDialog.currentFolder = studio.defaultCatalogFolder;
+        backupRestoreSourceDialog.openDialog();
+    }
+
+    function openBackupScheduleDialog() {
+        backupScheduleDialog.openForPolicy(studio.backupScheduleStatus);
+    }
+
+    function openFolderRelinkDialog(folderId) {
+        window.pendingRelinkFolderId = String(folderId || "");
+        folderRelinkDialog.currentFolder = studio.defaultCatalogFolder;
+        folderRelinkDialog.openDialog();
+    }
+
     function exportNameFilter(format) {
         if (format === "jpeg")
             return qsTr("JPEG (*.jpg *.jpeg)");
@@ -602,7 +631,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible
+        value: removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible
     }
 
     StudioCommandShortcuts {
@@ -628,6 +657,16 @@ ApplicationWindow {
                 openImportFolderDialog();
             else if (id === ids.libraryExport)
                 openExportDialog();
+            else if (id === ids.libraryBackupCreate)
+                openBackupCreateDialog();
+            else if (id === ids.libraryBackupVerify)
+                openBackupVerifyDialog();
+            else if (id === ids.libraryBackupRestore)
+                openBackupRestoreDialog();
+            else if (id === ids.libraryBackupSchedule)
+                openBackupScheduleDialog();
+            else if (id === ids.libraryFolderRelink)
+                openFolderRelinkDialog(argument);
             else if (id === ids.editCopyParameters)
                 openParameterCopyDialog();
             else if (id === ids.styleSave)
@@ -821,6 +860,10 @@ ApplicationWindow {
                     }
                     onVisibleChanged: if (visible)
                         galleryStage.revealGridSelection()
+                    onContentYChanged: {
+                        if (visible && studio.libraryHasMore && contentY + height >= contentHeight - cellHeight * 4)
+                            studio.loadNextLibraryPage();
+                    }
                     Connections {
                         target: studio
                         function onBrowseModeChanged() {
@@ -849,8 +892,16 @@ ApplicationWindow {
                         width: grid.cellWidth
                         height: grid.cellHeight
 
-                        Component.onCompleted: if (tile.thumbnailState !== "ready")
-                            studio.ensureThumbnail(tile.assetId)
+                        Component.onCompleted: {
+                            if (tile.assetId.length === 0)
+                                studio.ensureLibraryRow(tile.index);
+                            else if (tile.thumbnailState !== "ready")
+                                studio.ensureThumbnail(tile.assetId);
+                        }
+                        onAssetIdChanged: {
+                            if (tile.assetId.length > 0 && tile.thumbnailState !== "ready")
+                                studio.ensureThumbnail(tile.assetId);
+                        }
 
                         ThumbnailCell {
                             anchors.fill: parent
@@ -1404,6 +1455,89 @@ ApplicationWindow {
         onFolderAccepted: function (folderPath) {
             studioActions.run(studioActions.ids.libraryImportFolderPath, folderPath);
         }
+    }
+
+    QmlFileDialogPage {
+        id: backupCreateDialog
+        dialogTitle: qsTr("Create Catalog Backup")
+        dialogMode: "save"
+        nameFilters: [qsTr("Ravo catalog backup (*.ravobackup)")]
+        onFileAccepted: function (filePath) {
+            studioActions.run(studioActions.ids.libraryBackupCreatePath, filePath);
+        }
+    }
+
+    FolderDialogPage {
+        id: backupVerifyDialog
+        dialogTitle: qsTr("Verify Catalog Backup")
+        onFolderAccepted: function (folderPath) {
+            studioActions.run(studioActions.ids.libraryBackupVerifyPath, folderPath);
+        }
+    }
+
+    FolderDialogPage {
+        id: backupRestoreSourceDialog
+        dialogTitle: qsTr("Select Catalog Backup to Restore")
+        onFolderAccepted: function (folderPath) {
+            window.pendingRestoreBackup = folderPath;
+            backupRestoreDestinationDialog.currentFolder = studio.defaultCatalogFolder;
+            backupRestoreDestinationDialog.initialSelectedFile = qsTr("Restored Ravo Library.sqlite");
+            backupRestoreDestinationDialog.openDialog();
+        }
+        onFolderRejected: window.pendingRestoreBackup = ""
+    }
+
+    QmlFileDialogPage {
+        id: backupRestoreDestinationDialog
+        dialogTitle: qsTr("Restore Catalog As")
+        dialogMode: "save"
+        nameFilters: [qsTr("Ravo catalog (*.sqlite)")]
+        onFileAccepted: function (filePath) {
+            const backup = window.pendingRestoreBackup;
+            window.pendingRestoreBackup = "";
+            studioActions.run(studioActions.ids.libraryBackupRestorePaths, {
+                "backup": backup,
+                "catalog": filePath
+            });
+        }
+        onFileRejected: window.pendingRestoreBackup = ""
+    }
+
+    BackupScheduleDialog {
+        id: backupScheduleDialog
+        parentItem: window.contentItem
+        onScheduleAccepted: function (intervalMinutes, retentionCount) {
+            window.pendingBackupIntervalMinutes = intervalMinutes;
+            window.pendingBackupRetentionCount = retentionCount;
+            backupScheduleFolderDialog.currentFolder = studio.defaultCatalogFolder;
+            backupScheduleFolderDialog.openDialog();
+        }
+    }
+
+    FolderDialogPage {
+        id: backupScheduleFolderDialog
+        dialogTitle: qsTr("Choose Scheduled Backup Folder")
+        onFolderAccepted: function (folderPath) {
+            studioActions.run(studioActions.ids.libraryBackupSchedulePath, {
+                "directory": folderPath,
+                "intervalMinutes": window.pendingBackupIntervalMinutes,
+                "retentionCount": window.pendingBackupRetentionCount
+            });
+        }
+    }
+
+    FolderDialogPage {
+        id: folderRelinkDialog
+        dialogTitle: qsTr("Locate Missing Folder")
+        onFolderAccepted: function (folderPath) {
+            const folderId = window.pendingRelinkFolderId;
+            window.pendingRelinkFolderId = "";
+            studioActions.run(studioActions.ids.libraryFolderRelinkPath, {
+                "folderId": folderId,
+                "directory": folderPath
+            });
+        }
+        onFolderRejected: window.pendingRelinkFolderId = ""
     }
 
     ExportOptionsDialog {

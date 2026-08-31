@@ -21,6 +21,19 @@ public:
                            const CancellationToken &cancellation) const = 0;
 };
 
+class CatalogRestoreDatabaseVerifier
+{
+public:
+    virtual ~CatalogRestoreDatabaseVerifier() = default;
+
+    // Uses the ordinary repository open/schema path after restore publication.
+    // Implementations must close all handles before returning the immutable
+    // snapshot and reject a catalog identity mismatch.
+    [[nodiscard]] virtual Result<CatalogSnapshot>
+    verify_restored_catalog(std::string_view catalog_path, std::string_view expected_catalog_id,
+                            const CancellationToken &cancellation) const = 0;
+};
+
 class CatalogRepository : public CatalogBackupDatabaseVerifier
 {
 public:
@@ -28,6 +41,21 @@ public:
 
     [[nodiscard]] virtual Result<CatalogSnapshot> snapshot() const = 0;
     [[nodiscard]] virtual Result<std::vector<AssetRecord>> list_assets() const = 0;
+    [[nodiscard]] virtual Result<LibraryPage>
+    list_assets_page(const LibraryPageRequest &request) const = 0;
+    [[nodiscard]] virtual Result<std::vector<FolderRecord>> list_folders() const = 0;
+    [[nodiscard]] virtual Result<std::optional<FolderRecord>>
+    find_folder_by_id(std::string_view folder_id) const = 0;
+    [[nodiscard]] virtual Result<std::vector<AssetRecord>>
+    list_folder_assets(std::string_view folder_id) const = 0;
+    // Revalidates the stable folder owner and exact asset URI set, then changes
+    // the folder path, asset paths, recovery generations, and revision in one
+    // transaction. Cancellation or failure before commit preserves every path.
+    [[nodiscard]] virtual Result<void>
+    commit_folder_relink(const FolderRelinkCommit &relink,
+                         const CancellationToken &cancellation) = 0;
+    [[nodiscard]] virtual Result<CatalogBackupPolicy> backup_policy() const = 0;
+    [[nodiscard]] virtual Result<void> save_backup_policy(const CatalogBackupPolicy &policy) = 0;
     [[nodiscard]] virtual Result<std::optional<AssetRecord>>
     find_asset_by_id(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::optional<AssetRecord>>
@@ -80,6 +108,8 @@ public:
     [[nodiscard]] virtual Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::vector<PreviewRecord>> list_previews() const = 0;
+    [[nodiscard]] virtual Result<std::vector<PreviewRecord>>
+    list_previews_for_assets(const std::vector<std::string> &asset_ids) const = 0;
     [[nodiscard]] virtual Result<void> upsert_preview(const PreviewRecord &preview) = 0;
     [[nodiscard]] virtual Result<AssetRecoveryState>
     recovery_state(std::string_view asset_id) const = 0;

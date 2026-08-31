@@ -50,7 +50,7 @@ Current implementation status:
   The cache has a 512 MiB hard byte budget, promotes valid hits, and evicts the
   least-recently-used rebuildable PNG deterministically across reopen
   (ADR-0047/0067).
-- Browse & Review includes catalog schema v2; ratings, color labels, and reject
+- Browse & Review includes ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole
   images like the grid and shows number/rating/flags in its letterbox;
   collapsible folder tree; left Import/Export; Fit/Fill/1:1; validated
@@ -67,6 +67,14 @@ Current implementation status:
   preserve the current pan (ADR-0060).
   Capture metadata can be explicitly refreshed from the current original; the
   asset identity, capture row, and catalog revision publish transactionally.
+  Schema-v7 keyset paging and the sparse Studio model expose the full logical
+  library while retaining at most three 200-row pages; current-page tags,
+  metadata, previews, and bounded Gallery thumbnail look-ahead replace
+  whole-catalog materialization. The 10,000-row SQLite traversal pins stable
+  ordering, materialized-row bounds, elapsed query metrics, and query-plan
+  indexes. Studio import enumerates deterministically and dispatches one
+  normal-priority photo at a time, so foreground Develop work interleaves and
+  cancellation stops every undispatched item (ADR-0100).
 - Studio built-in commands are projected by one C++ registry into menus,
   shortcuts, controls, and the top command palette. macOS uses
   `Cmd+Shift+P`; Windows/Linux use `Ctrl+Shift+P`; unavailable commands retain
@@ -89,7 +97,7 @@ Current implementation status:
   (ADR-0066). Studio also persists typed Assistant endpoint URL, model, and API
   key (ADR-0081) for the floating chat panel; assistant HTTP and credentials
   stay desktop-only. The separate Qt local-control socket exposes neither.
-- Basic Develop provides catalog schema v6 with one canonical recipe per image,
+- Basic Develop uses the current catalog schema v9 with one canonical recipe per image,
   tags/writable metadata, and persistent history/snapshots. CPU supports RAW
   highlight reconstruction (opposed by default), adaptive Y0U0V0 edge-aware
   wavelet denoising, lensfun poly3/vignette, dt UCS `colorequal`, graduated
@@ -103,12 +111,25 @@ Current implementation status:
   recipe transaction.
   Schema v6 additionally owns retryable per-asset recovery generations in the
   catalog support directory. `ravo catalog sidecar-status|sidecar-sync` exposes
-  their state, and `catalog backup|backup-verify` creates and verifies an
+  their state, and `catalog backup|backup-verify|backup-restore` creates,
+  verifies, and restores an
   immutable catalog/sidecar backup that excludes originals and rebuildable
-  previews. These `.ravo.json` mirrors never replace SQLite authority or touch
-  adjacent XMP. `backup` takes the live `--catalog`; the self-contained,
-  read-only `backup-verify` takes only `--backup` and never opens the snapshot
-  as a live catalog (ADR-0097).
+  previews to an explicit absent catalog path. These `.ravo.json` mirrors never
+  replace SQLite authority or touch adjacent XMP. `backup` takes the live
+  `--catalog`; self-contained `backup-verify` and `backup-restore` take an
+  explicit `--backup`, and restore verifies complete staged state before
+  support-first/catalog-last publication and an ordinary catalog reopen.
+  `preview-rebuild` repairs selected or all rebuildable cache entries. Studio
+  exposes the same recovery, backup, restore, rebuild, progress, and
+  cancellation owners (ADR-0097/0099).
+  Schema v8 persists a verified backup schedule with last success, next run,
+  bytes, failure, and safe retention. Only strict, reverified current-catalog
+  artifacts are quarantined, reverified, and deleted; unknown paths remain.
+  Schema v9 assigns stable IDs to direct containing folders. `catalog folders`
+  reports missing roots and `folder-relink` validates every replacement file
+  identity before one transaction updates paths, recovery generations, and
+  revision without writing an original. Studio exposes both workflows through
+  the command registry (ADR-0101).
   Consecutive commits from one control update a single history row and remain
   one session Undo step; changing controls or navigation/history state starts
   a new step. Section lamps are gray at identity, green when modified, and
@@ -526,9 +547,13 @@ Current implementation status:
   Configure requires JPEG/GIF/WebP/TIFF imageformat plugins and the QSQLITE
   driver; missing them is a hard error.
 
-The current legacy migration order is in
+The active product order—catalog recovery/restore first, then bounded
+large-library and Gallery-to-Edit behavior—is in
+[TODO_PHOTO_MANAGEMENT.md](../TODO_PHOTO_MANAGEMENT.md). Remaining legacy
+absorption and retirement uses the separate `MR*` queue in
 [TODO_LEGACY_MIGRATION.md](../TODO_LEGACY_MIGRATION.md); changes of direction
-are in [ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md).
+are recorded in dated ADRs, beginning with
+[ADR-0007](docs/adr/0007-first-usable-catalog-viewer.md).
 
 ## First-version loop
 
@@ -679,7 +704,17 @@ ravo render <input> --recipe <recipe> --output <png> --backend cpu [--width N] [
 ravo catalog create --path <library.sqlite> --json
 ravo catalog import --catalog <library.sqlite> --input <file-or-folder> --json
 ravo catalog list --catalog <library.sqlite> --json
+ravo catalog folders --catalog <library.sqlite> --json
+ravo catalog folder-relink --catalog <library.sqlite> --folder-id <id> --replacement <directory> --json
 ravo catalog preview --catalog <library.sqlite> --asset-id <id> --json
+ravo catalog preview-rebuild --catalog <library.sqlite> [--asset-id <id>]... --json
+ravo catalog sidecar-status --catalog <library.sqlite> [--asset-id <id>] --json
+ravo catalog sidecar-sync --catalog <library.sqlite> [--asset-id <id>] --json
+ravo catalog backup --catalog <library.sqlite> --backup <absent-directory> --json
+ravo catalog backup-verify --backup <directory> --json
+ravo catalog backup-restore --backup <directory> --output <absent-library.sqlite> --json
+ravo catalog backup-policy --catalog <library.sqlite> [--schedule-dir <directory>] [--interval-minutes N] [--retention-count N] [--enabled true|false] --json
+ravo catalog backup-run --catalog <library.sqlite> --json
 ravo catalog fields --json
 ravo catalog probe --catalog <library.sqlite> --asset-id <id> [--baseline] [--set <field>=<number>]... [--set-text <field>=<text>]... [--max-edge N] [--output <file.png>] --json
 ravo catalog rate --catalog <library.sqlite> --asset-id <id> --rating 0-5 --json
@@ -789,7 +824,9 @@ meets the root TODO's release-transition and rollback gates.
 - [i18n workflow](../.codex/skills/i18n-translation-workflow/SKILL.md):
   source extraction, locale-specific translation memory, and catalog validation;
 - [ADR index](docs/adr/README.md): durable architecture decisions;
+- [root photo-management TODO](../TODO_PHOTO_MANAGEMENT.md): remaining private-
+  corpus and non-macOS P0/P1 release evidence;
 - [root legacy migration TODO](../TODO_LEGACY_MIGRATION.md): unfinished
-  execution items and gates only.
+  `MR*` algorithm-absorption and retirement gates only.
 
 The repository is distributed under GPLv3; see the root [LICENSE](../LICENSE).

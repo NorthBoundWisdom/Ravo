@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <deque>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -47,7 +50,12 @@ public:
     [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     void setAssets(std::vector<AssetRecord> assets,
                    std::unordered_map<std::string, QUrl> thumbnail_urls = {},
-                   std::unordered_map<std::string, QString> thumbnail_states = {});
+                   std::unordered_map<std::string, QString> thumbnail_states = {},
+                   std::size_t total_count = 0U);
+    void setPage(std::size_t offset, std::vector<AssetRecord> assets,
+                 std::unordered_map<std::string, QUrl> thumbnail_urls,
+                 std::unordered_map<std::string, QString> thumbnail_states,
+                 std::size_t total_count);
     void insertAsset(int row, AssetRecord asset);
     void setThumbnail(const std::string &asset_id, const QUrl &url, const QString &state);
     [[nodiscard]] std::vector<AssetRecord> records() const;
@@ -59,9 +67,21 @@ public:
     [[nodiscard]] int indexOf(const QString &asset_id) const;
     [[nodiscard]] std::optional<AssetRecord> assetById(const QString &asset_id) const;
     [[nodiscard]] QString assetIdAt(int row) const;
+    [[nodiscard]] bool rowLoaded(int row) const noexcept;
+    [[nodiscard]] int loadedCount() const noexcept;
 
 private:
-    std::vector<AssetRecord> assets_;
+    struct Page
+    {
+        int first = 0;
+        int count = 0;
+    };
+
+    void trimPages();
+
+    std::map<int, AssetRecord> assets_;
+    std::deque<Page> pages_;
+    int total_count_ = 0;
     std::unordered_map<std::string, QUrl> thumbnail_urls_;
     std::unordered_map<std::string, QString> thumbnail_states_;
     std::unordered_set<std::string> selected_ids_;

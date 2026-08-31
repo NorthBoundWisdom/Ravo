@@ -33,6 +33,8 @@ QVariant FolderListModel::data(const QModelIndex &index, const int role) const
     const auto &row = folders_[static_cast<std::size_t>(index.row())];
     switch (role)
     {
+    case FolderIdRole:
+        return qstring_from_utf8(row.folder.id);
     case FolderUriRole:
         return qstring_from_utf8(row.folder.uri);
     case DisplayNameRole:
@@ -57,6 +59,8 @@ QVariant FolderListModel::data(const QModelIndex &index, const int role) const
     }
     case CollapsedRole:
         return collapsed_.contains(row.folder.uri);
+    case MissingRole:
+        return row.folder.missing;
     default:
         return {};
     }
@@ -64,14 +68,16 @@ QVariant FolderListModel::data(const QModelIndex &index, const int role) const
 
 QHash<int, QByteArray> FolderListModel::roleNames() const
 {
-    return {{FolderUriRole, "folderUri"},
+    return {{FolderIdRole, "folderId"},
+            {FolderUriRole, "folderUri"},
             {DisplayNameRole, "displayName"},
             {DepthRole, "depth"},
             {AssetCountRole, "assetCount"},
             {HasChildrenRole, "hasChildren"},
             {HasNextSiblingRole, "hasNextSibling"},
             {AncestorLineContinuesRole, "ancestorLineContinues"},
-            {CollapsedRole, "collapsed"}};
+            {CollapsedRole, "collapsed"},
+            {MissingRole, "missing"}};
 }
 
 void FolderListModel::setFolders(std::vector<FolderRecord> folders)

@@ -14,11 +14,13 @@ A capability belongs here only when:
 - failure behavior and deterministic completion evidence still need a design
   decision.
 
-The complete legacy module inventory, execution order and retirement gates now
-live only in [`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md). This
-document records cross-layer decisions that those rows depend on; it must not
-carry a second module queue or completion status. Completed conclusions belong
-in their owning architecture/ADR/code/test truth source.
+The remaining product P0/P1 release evidence lives only in
+[`TODO_PHOTO_MANAGEMENT.md`](../TODO_PHOTO_MANAGEMENT.md). The complete legacy
+module inventory, `MR*` migration ranks, and retirement gates live only in
+[`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md). This document records
+cross-layer decisions that are not ready for either queue; it must not carry a
+second execution order or completion status. Completed conclusions belong in
+their owning architecture/ADR/code/test truth source.
 
 ## Mask and local adjustment graph
 
@@ -77,18 +79,29 @@ frozen IOP is retired.
 
 ## Catalog and source-file lifecycle
 
-- Legacy catalog migration, managed copy, move/relink, catalog restore,
-  scheduled retention, and interoperable adjacent-sidecar writeback.
-- ADR-0097 accepts backup creation/verification and catalog-owned recovery
-  mirrors. Restore still requires an absent-destination publication/rollback
-  contract; managed-media work additionally requires explicit original-file
-  mutation and cross-volume cancellation policy before schema or UI work.
+- Backup failure hardening, absent-destination restore, Studio recovery,
+  bounded paging/import scheduling, verified scheduled retention, stable
+  folder identity, and relink are implemented under ADR-0099–0101. The product
+  P0/P1 TODO retains only private-corpus and non-macOS release evidence; these
+  capabilities are no longer deferred design items here.
+- Managed copy/move still requires a dated decision for collision policy,
+  cross-volume publication, source mutation detection, rollback, cancellation,
+  recovery-sidecar updates, and original ownership before schema or UI work.
+- Legacy catalog import still requires a bounded source-version matrix,
+  read-only conversion artifact, conflict/rejection policy, rollback, and
+  fixtures. It must not open or migrate a frozen catalog in place.
+- Adjacent standard-XMP writeback remains a separate interoperability decision.
+  It must not silently consume or overwrite an existing sidecar or become a
+  second live authority beside SQLite.
 
 ## Extended library workflows
 
-- Collections, smart search, faces and GPS-oriented workflows.
-- These remain outside the local review/develop baseline until privacy,
-  indexing, persistence and user-facing failure behavior are defined.
+- Collections and smart search, stacking/versions, duplicate-content
+  detection, face/GPS-oriented workflows, and removable or network catalogs.
+- Each requires a measured user outcome plus explicit privacy, indexing,
+  persistence, offline/conflict, cancellation, and user-facing failure behavior
+  before it can enter the product TODO. Do not add placeholder tables or empty
+  Studio surfaces.
 
 ## Explicit non-candidates
 

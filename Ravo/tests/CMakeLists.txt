@@ -341,6 +341,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibrarySidePanel.qml"
   RAVO_STUDIO_LIBRARY_FILTER_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibraryFilterBar.qml"
   RAVO_STUDIO_EXPORT_OPTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ExportOptionsDialog.qml"
+  RAVO_STUDIO_BACKUP_SCHEDULE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/BackupScheduleDialog.qml"
   RAVO_STUDIO_ACTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioActions.qml"
   RAVO_STUDIO_CONTEXT_MENU_ITEM_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioContextMenuItem.qml"
   RAVO_STUDIO_PRESET_RENAME_DIALOG_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PresetRenameDialog.qml"

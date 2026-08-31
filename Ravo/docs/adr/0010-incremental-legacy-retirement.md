@@ -21,8 +21,8 @@ acceptance would destroy static evidence still needed for the rewrite.
 - Ravo remains the only production growth path. Production code still must
   not include, link, or load `legacy/src`.
 - Configuring, compiling, or running the 0.9 application remains forbidden.
-- After an active migration TODO item meets its Ravo-accepted gate, delete only the named
-  old owner files. Record them in
+- After an explicitly resumed legacy migration TODO item meets its
+  Ravo-accepted gate, delete only the named old owner files. Record them in
   [`DevDocs/phase0/legacy-retired-src-paths.txt`](../../../DevDocs/phase0/legacy-retired-src-paths.txt).
 - Remaining leftover files must continue to match the freeze-commit blobs.
   `check_freeze_reference.py` verifies that invariant plus the retired set.

@@ -40,6 +40,21 @@ inline constexpr auto kLibraryImportFolderPath = "studio.library.import_folder_p
 inline constexpr auto kLibraryExport = "studio.library.export";
 inline constexpr auto kLibraryExportWrite = "studio.library.export_write";
 inline constexpr auto kLibraryExportBatchWrite = "studio.library.export_batch_write";
+inline constexpr auto kLibraryRecoveryStatus = "studio.library.recovery_status";
+inline constexpr auto kLibraryRecoverySync = "studio.library.recovery_sync";
+inline constexpr auto kLibraryBackupCreate = "studio.library.backup_create";
+inline constexpr auto kLibraryBackupCreatePath = "studio.library.backup_create_path";
+inline constexpr auto kLibraryBackupVerify = "studio.library.backup_verify";
+inline constexpr auto kLibraryBackupVerifyPath = "studio.library.backup_verify_path";
+inline constexpr auto kLibraryBackupRestore = "studio.library.backup_restore";
+inline constexpr auto kLibraryBackupRestorePaths = "studio.library.backup_restore_paths";
+inline constexpr auto kLibraryBackupSchedule = "studio.library.backup_schedule";
+inline constexpr auto kLibraryBackupSchedulePath = "studio.library.backup_schedule_path";
+inline constexpr auto kLibraryBackupScheduleDisable = "studio.library.backup_schedule_disable";
+inline constexpr auto kLibraryBackupScheduleRun = "studio.library.backup_schedule_run";
+inline constexpr auto kLibraryPreviewRebuildSelected = "studio.library.preview_rebuild_selected";
+inline constexpr auto kLibraryPreviewRebuildAll = "studio.library.preview_rebuild_all";
+inline constexpr auto kLibraryCancelOperation = "studio.library.cancel_operation";
 inline constexpr auto kLibrarySetTagFilter = "studio.library.set_tag_filter";
 inline constexpr auto kLibrarySetRatingFilter = "studio.library.set_rating_filter";
 inline constexpr auto kLibraryToggleColorFilter = "studio.library.toggle_color_filter";
@@ -50,6 +65,8 @@ inline constexpr auto kLibrarySetEditFilter = "studio.library.set_edit_filter";
 inline constexpr auto kLibrarySetSort = "studio.library.set_sort";
 inline constexpr auto kLibraryClearFilters = "studio.library.clear_filters";
 inline constexpr auto kLibrarySelectFolder = "studio.library.select_folder";
+inline constexpr auto kLibraryFolderRelink = "studio.library.folder_relink";
+inline constexpr auto kLibraryFolderRelinkPath = "studio.library.folder_relink_path";
 inline constexpr auto kPhotoSelect = "studio.photo.select";
 inline constexpr auto kPhotoSetRating = "studio.photo.set_rating";
 inline constexpr auto kPhotoSetColor = "studio.photo.set_color";
@@ -161,7 +178,8 @@ enum class Condition
     kCanUndo,
     kCanRedo,
     kCanPasteParameters,
-    kCanDelete
+    kCanDelete,
+    kCatalogOperation,
 };
 
 struct ShortcutSpec
@@ -257,6 +275,7 @@ QString tr_command(const QString &source)
     QT_TRANSLATE_NOOP("StudioCommands", "No modified parameters to copy."),
     QT_TRANSLATE_NOOP("StudioCommands", "Copy parameters first."),
     QT_TRANSLATE_NOOP("StudioCommands", "The selected originals cannot be deleted."),
+    QT_TRANSLATE_NOOP("StudioCommands", "No catalog operation is running."),
     QT_TRANSLATE_NOOP("StudioCommands", "Command unavailable in the current context."),
     QT_TRANSLATE_NOOP("StudioCommands", "Unreject"),
     QT_TRANSLATE_NOOP("StudioCommands", "Done Cropping"),
@@ -345,6 +364,21 @@ QStringList command_ids()
             QLatin1String(command::kLibraryExport),
             QLatin1String(command::kLibraryExportWrite),
             QLatin1String(command::kLibraryExportBatchWrite),
+            QLatin1String(command::kLibraryRecoveryStatus),
+            QLatin1String(command::kLibraryRecoverySync),
+            QLatin1String(command::kLibraryBackupCreate),
+            QLatin1String(command::kLibraryBackupCreatePath),
+            QLatin1String(command::kLibraryBackupVerify),
+            QLatin1String(command::kLibraryBackupVerifyPath),
+            QLatin1String(command::kLibraryBackupRestore),
+            QLatin1String(command::kLibraryBackupRestorePaths),
+            QLatin1String(command::kLibraryBackupSchedule),
+            QLatin1String(command::kLibraryBackupSchedulePath),
+            QLatin1String(command::kLibraryBackupScheduleDisable),
+            QLatin1String(command::kLibraryBackupScheduleRun),
+            QLatin1String(command::kLibraryPreviewRebuildSelected),
+            QLatin1String(command::kLibraryPreviewRebuildAll),
+            QLatin1String(command::kLibraryCancelOperation),
             QLatin1String(command::kLibrarySetTagFilter),
             QLatin1String(command::kLibrarySetRatingFilter),
             QLatin1String(command::kLibraryToggleColorFilter),
@@ -355,6 +389,8 @@ QStringList command_ids()
             QLatin1String(command::kLibrarySetSort),
             QLatin1String(command::kLibraryClearFilters),
             QLatin1String(command::kLibrarySelectFolder),
+            QLatin1String(command::kLibraryFolderRelink),
+            QLatin1String(command::kLibraryFolderRelinkPath),
             QLatin1String(command::kPhotoSelect),
             QLatin1String(command::kPhotoSetRating),
             QLatin1String(command::kPhotoSetColor),
@@ -474,6 +510,50 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Export Selected...")), file,
         {QStringLiteral("save"), QStringLiteral("render")}, QStringLiteral("file.transfer"), 30,
         true, {key(primary_key(QStringLiteral("E"), true))});
+    add(command::kLibraryRecoveryStatus, command::kLibraryRecoveryStatus,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Recovery Status")), file,
+        {QStringLiteral("sidecar"), QStringLiteral("durability")}, QStringLiteral("file.recovery"),
+        10, true);
+    add(command::kLibraryRecoverySync, command::kLibraryRecoverySync,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Synchronize Recovery")), file,
+        {QStringLiteral("sidecar"), QStringLiteral("retry")}, QStringLiteral("file.recovery"), 20,
+        true);
+    add(command::kLibraryBackupCreate, command::kLibraryBackupCreate,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Create Catalog Backup...")), file,
+        {QStringLiteral("recovery"), QStringLiteral("archive")}, QStringLiteral("file.recovery"),
+        30, true);
+    add(command::kLibraryBackupVerify, command::kLibraryBackupVerify,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Verify Catalog Backup...")), file,
+        {QStringLiteral("recovery"), QStringLiteral("integrity")}, QStringLiteral("file.recovery"),
+        40, true);
+    add(command::kLibraryBackupRestore, command::kLibraryBackupRestore,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Restore Catalog Backup...")), file,
+        {QStringLiteral("recovery"), QStringLiteral("restore")}, QStringLiteral("file.recovery"),
+        50, true);
+    add(command::kLibraryBackupSchedule, command::kLibraryBackupSchedule,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Enable Scheduled Backups...")), file,
+        {QStringLiteral("automatic"), QStringLiteral("retention")}, QStringLiteral("file.recovery"),
+        55, true);
+    add(command::kLibraryBackupScheduleRun, command::kLibraryBackupScheduleRun,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Run Scheduled Backup Now")), file,
+        {QStringLiteral("automatic"), QStringLiteral("backup")}, QStringLiteral("file.recovery"),
+        56, true);
+    add(command::kLibraryBackupScheduleDisable, command::kLibraryBackupScheduleDisable,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Disable Scheduled Backups")), file,
+        {QStringLiteral("automatic"), QStringLiteral("backup")}, QStringLiteral("file.recovery"),
+        57, true);
+    add(command::kLibraryPreviewRebuildSelected, command::kLibraryPreviewRebuildSelected,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Rebuild Selected Previews")), file,
+        {QStringLiteral("cache"), QStringLiteral("thumbnail")}, QStringLiteral("file.recovery"), 60,
+        true);
+    add(command::kLibraryPreviewRebuildAll, command::kLibraryPreviewRebuildAll,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Rebuild All Previews")), file,
+        {QStringLiteral("cache"), QStringLiteral("thumbnail")}, QStringLiteral("file.recovery"), 70,
+        true);
+    add(command::kLibraryCancelOperation, command::kLibraryCancelOperation,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Cancel Catalog Operation")), file,
+        {QStringLiteral("cancel"), QStringLiteral("recovery")}, QStringLiteral("file.recovery"), 80,
+        true);
     add(command::kStyleSave, command::kStyleSave,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Save Edits as Style...")), file,
         {QStringLiteral("recipe"), QStringLiteral("preset")}, QStringLiteral("file.style"), 10,
@@ -1119,6 +1199,113 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
                 fields.value(QStringLiteral("format")).toString(),
                 fields.value(QStringLiteral("options")).toMap());
         });
+    add(command::kLibraryRecoveryStatus, Condition::kCatalogReady, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.refreshRecoveryStatus(); });
+    add(command::kLibraryRecoverySync, Condition::kCatalogReady, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.synchronizeRecovery(); });
+    add(command::kLibraryBackupCreate, Condition::kCatalogReady, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryBackupCreate, argument); });
+    add(command::kLibraryBackupCreatePath, Condition::kCatalogReady, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.createBackupAtPath(argument.toString()); });
+    add(command::kLibraryBackupVerify, Condition::kAlways, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryBackupVerify, argument); });
+    add(command::kLibraryBackupVerifyPath, Condition::kAlways, non_empty_string,
+        [this](const QVariant &argument, const QString &)
+        { presenter_.verifyBackupAtPath(argument.toString()); });
+    add(command::kLibraryBackupRestore, Condition::kAlways, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryBackupRestore, argument); });
+    add(
+        command::kLibraryBackupRestorePaths, Condition::kAlways,
+        [](const QVariant &argument)
+        {
+            const auto error =
+                required_fields(argument, {QStringLiteral("backup"), QStringLiteral("catalog")});
+            if (!error.isEmpty())
+                return error;
+            const auto values = argument.toMap();
+            static const QSet<QString> allowed{QStringLiteral("backup"), QStringLiteral("catalog")};
+            for (auto it = values.constBegin(); it != values.constEnd(); ++it)
+                if (!allowed.contains(it.key()))
+                    return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                          "StudioCommands", "Unknown command argument field: %1.")))
+                        .arg(it.key());
+            if (values.value(QStringLiteral("backup")).metaType().id() != QMetaType::QString ||
+                values.value(QStringLiteral("backup")).toString().trimmed().isEmpty() ||
+                values.value(QStringLiteral("catalog")).metaType().id() != QMetaType::QString ||
+                values.value(QStringLiteral("catalog")).toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Backup and restored catalog paths must not be empty.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto values = argument.toMap();
+            presenter_.restoreBackupToPath(values.value(QStringLiteral("backup")).toString(),
+                                           values.value(QStringLiteral("catalog")).toString());
+        });
+    add(command::kLibraryBackupSchedule, Condition::kCatalogReady, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryBackupSchedule, argument); });
+    add(
+        command::kLibraryBackupSchedulePath, Condition::kCatalogReady,
+        [](const QVariant &argument)
+        {
+            const auto error = required_fields(argument, {QStringLiteral("directory"),
+                                                          QStringLiteral("intervalMinutes"),
+                                                          QStringLiteral("retentionCount")});
+            if (!error.isEmpty())
+                return error;
+            const auto values = argument.toMap();
+            static const QSet<QString> allowed{QStringLiteral("directory"),
+                                               QStringLiteral("intervalMinutes"),
+                                               QStringLiteral("retentionCount")};
+            for (auto it = values.constBegin(); it != values.constEnd(); ++it)
+                if (!allowed.contains(it.key()))
+                    return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                          "StudioCommands", "Unknown command argument field: %1.")))
+                        .arg(it.key());
+            if (values.value(QStringLiteral("directory")).metaType().id() != QMetaType::QString ||
+                values.value(QStringLiteral("directory")).toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(
+                    QT_TRANSLATE_NOOP("StudioCommands", "Backup directory must not be empty.")));
+            const auto interval = values.value(QStringLiteral("intervalMinutes"));
+            const auto retention = values.value(QStringLiteral("retentionCount"));
+            if (!numeric_argument(interval) ||
+                std::floor(interval.toDouble()) != interval.toDouble() ||
+                interval.toLongLong() < kBackupScheduleIntervalMinutesMin ||
+                interval.toLongLong() > kBackupScheduleIntervalMinutesMax)
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Backup interval is outside the supported range.")));
+            if (!numeric_argument(retention) ||
+                std::floor(retention.toDouble()) != retention.toDouble() ||
+                retention.toInt() < kBackupRetentionCountMin ||
+                retention.toInt() > kBackupRetentionCountMax)
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Backup retention count is outside the supported range.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto values = argument.toMap();
+            presenter_.configureBackupSchedule(
+                values.value(QStringLiteral("directory")).toString(),
+                values.value(QStringLiteral("intervalMinutes")).toInt(),
+                values.value(QStringLiteral("retentionCount")).toInt(), true);
+        });
+    add(command::kLibraryBackupScheduleDisable, Condition::kCatalogReady, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.disableBackupSchedule(); });
+    add(command::kLibraryBackupScheduleRun, Condition::kCatalogReady, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.runScheduledBackupNow(); });
+    add(command::kLibraryPreviewRebuildSelected, Condition::kReadySelection, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.rebuildSelectedPreviews(); });
+    add(command::kLibraryPreviewRebuildAll, Condition::kCatalogReady, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.rebuildAllPreviews(); });
+    add(command::kLibraryCancelOperation, Condition::kCatalogOperation, no_argument,
+        [this](const QVariant &, const QString &) { presenter_.cancelCatalogOperation(); });
     add(command::kStyleSave, Condition::kDevelopSelection, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kStyleSave, argument); });
@@ -1297,6 +1484,39 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
         command::kLibrarySelectFolder, Condition::kCatalogOpen, [](const QVariant &)
         { return QString{}; }, [this](const QVariant &argument, const QString &)
         { presenter_.selectFolder(argument.toString()); });
+    add(command::kLibraryFolderRelink, Condition::kCatalogReady, non_empty_string,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kLibraryFolderRelink, argument); });
+    add(
+        command::kLibraryFolderRelinkPath, Condition::kCatalogReady,
+        [](const QVariant &argument)
+        {
+            const auto error = required_fields(
+                argument, {QStringLiteral("folderId"), QStringLiteral("directory")});
+            if (!error.isEmpty())
+                return error;
+            const auto values = argument.toMap();
+            static const QSet<QString> allowed{QStringLiteral("folderId"),
+                                               QStringLiteral("directory")};
+            for (auto it = values.constBegin(); it != values.constEnd(); ++it)
+                if (!allowed.contains(it.key()))
+                    return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                                          "StudioCommands", "Unknown command argument field: %1.")))
+                        .arg(it.key());
+            if (values.value(QStringLiteral("folderId")).metaType().id() != QMetaType::QString ||
+                values.value(QStringLiteral("folderId")).toString().trimmed().isEmpty() ||
+                values.value(QStringLiteral("directory")).metaType().id() != QMetaType::QString ||
+                values.value(QStringLiteral("directory")).toString().trimmed().isEmpty())
+                return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                    "StudioCommands", "Folder identity and replacement path must not be empty.")));
+            return QString{};
+        },
+        [this](const QVariant &argument, const QString &)
+        {
+            const auto values = argument.toMap();
+            presenter_.relinkFolder(values.value(QStringLiteral("folderId")).toString(),
+                                    values.value(QStringLiteral("directory")).toString());
+        });
 
     add(
         command::kPhotoSelect, Condition::kCatalogOpen,
@@ -1901,6 +2121,29 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("libraryExportWrite"), QLatin1String(command::kLibraryExportWrite)},
         {QStringLiteral("libraryExportBatchWrite"),
          QLatin1String(command::kLibraryExportBatchWrite)},
+        {QStringLiteral("libraryRecoveryStatus"), QLatin1String(command::kLibraryRecoveryStatus)},
+        {QStringLiteral("libraryRecoverySync"), QLatin1String(command::kLibraryRecoverySync)},
+        {QStringLiteral("libraryBackupCreate"), QLatin1String(command::kLibraryBackupCreate)},
+        {QStringLiteral("libraryBackupCreatePath"),
+         QLatin1String(command::kLibraryBackupCreatePath)},
+        {QStringLiteral("libraryBackupVerify"), QLatin1String(command::kLibraryBackupVerify)},
+        {QStringLiteral("libraryBackupVerifyPath"),
+         QLatin1String(command::kLibraryBackupVerifyPath)},
+        {QStringLiteral("libraryBackupRestore"), QLatin1String(command::kLibraryBackupRestore)},
+        {QStringLiteral("libraryBackupRestorePaths"),
+         QLatin1String(command::kLibraryBackupRestorePaths)},
+        {QStringLiteral("libraryBackupSchedule"), QLatin1String(command::kLibraryBackupSchedule)},
+        {QStringLiteral("libraryBackupSchedulePath"),
+         QLatin1String(command::kLibraryBackupSchedulePath)},
+        {QStringLiteral("libraryBackupScheduleDisable"),
+         QLatin1String(command::kLibraryBackupScheduleDisable)},
+        {QStringLiteral("libraryBackupScheduleRun"),
+         QLatin1String(command::kLibraryBackupScheduleRun)},
+        {QStringLiteral("libraryPreviewRebuildSelected"),
+         QLatin1String(command::kLibraryPreviewRebuildSelected)},
+        {QStringLiteral("libraryPreviewRebuildAll"),
+         QLatin1String(command::kLibraryPreviewRebuildAll)},
+        {QStringLiteral("libraryCancelOperation"), QLatin1String(command::kLibraryCancelOperation)},
         {QStringLiteral("librarySetTagFilter"), QLatin1String(command::kLibrarySetTagFilter)},
         {QStringLiteral("librarySetRatingFilter"), QLatin1String(command::kLibrarySetRatingFilter)},
         {QStringLiteral("libraryToggleColorFilter"),
@@ -1912,6 +2155,9 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("librarySetSort"), QLatin1String(command::kLibrarySetSort)},
         {QStringLiteral("libraryClearFilters"), QLatin1String(command::kLibraryClearFilters)},
         {QStringLiteral("librarySelectFolder"), QLatin1String(command::kLibrarySelectFolder)},
+        {QStringLiteral("libraryFolderRelink"), QLatin1String(command::kLibraryFolderRelink)},
+        {QStringLiteral("libraryFolderRelinkPath"),
+         QLatin1String(command::kLibraryFolderRelinkPath)},
         {QStringLiteral("photoSelect"), QLatin1String(command::kPhotoSelect)},
         {QStringLiteral("photoRate"), QLatin1String(command::kPhotoSetRating)},
         {QStringLiteral("photoColor"), QLatin1String(command::kPhotoSetColor)},
@@ -2083,6 +2329,10 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
                    State{} :
                    State{false,
                          tr_command(QStringLiteral("The selected originals cannot be deleted."))};
+    case Condition::kCatalogOperation:
+        return presenter.catalogOperationActive() || presenter.importWorkActive() ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("No catalog operation is running."))};
     }
     return {false, tr_command(QStringLiteral("Command unavailable in the current context."))};
 }

@@ -37,6 +37,57 @@
         </message>
     </context>
     <context>
+        <name>BackupScheduleDialog</name>
+        <message>
+            <source>Scheduled Backups</source>
+            <translation>定时备份</translation>
+        </message>
+        <message>
+            <source>Every 15 minutes</source>
+            <translation>每 15 分钟</translation>
+        </message>
+        <message>
+            <source>Hourly</source>
+            <translation>每小时</translation>
+        </message>
+        <message>
+            <source>Daily</source>
+            <translation>每天</translation>
+        </message>
+        <message>
+            <source>Weekly</source>
+            <translation>每周</translation>
+        </message>
+        <message>
+            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
+            <translation>选择 Ravo 创建已验证图库备份的频率以及保留数量。下一步将选择目标文件夹。</translation>
+        </message>
+        <message>
+            <source>Frequency</source>
+            <translation>频率</translation>
+        </message>
+        <message>
+            <source>Backup frequency</source>
+            <translation>备份频率</translation>
+        </message>
+        <message>
+            <source>Keep backups</source>
+            <translation>保留备份</translation>
+        </message>
+        <message>
+            <source>Backup retention count</source>
+            <translation>备份保留数量</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <source>Choose Folder…</source>
+            <translation>选择文件夹…</translation>
+        </message>
+    </context>
+    <context>
         <name>ColorGradeWheel</name>
         <message>
             <source>Luminance</source>
@@ -2951,6 +3002,26 @@
     <context>
         <name>LibrarySidePanel</name>
         <message>
+            <source>Never</source>
+            <translation>从未</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
             <source>Library</source>
             <translation>图库</translation>
         </message>
@@ -2963,8 +3034,36 @@
             <translation>正在扫描…</translation>
         </message>
         <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
             <source>Previews</source>
             <translation>预览</translation>
+        </message>
+        <message>
+            <source>Scheduled backups</source>
+            <translation>定时备份</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>开</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>关</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>上次验证：%1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>下次：%1 · 保留 %2 个</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>上次失败：%1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -2995,6 +3094,10 @@
             <translation>所有照片</translation>
         </message>
         <message>
+            <source>%1 (missing — click to locate)</source>
+            <translation>%1（缺失 — 点击定位）</translation>
+        </message>
+        <message>
             <source>Import…</source>
             <translation>导入…</translation>
         </message>
@@ -3012,6 +3115,10 @@
         <message>
             <source>Ravo Studio</source>
             <translation>Ravo Studio</translation>
+        </message>
+        <message>
+            <source>Ravo Catalog Backup.ravobackup</source>
+            <translation>Ravo 图库备份.ravobackup</translation>
         </message>
         <message>
             <source>JPEG (*.jpg *.jpeg)</source>
@@ -3160,6 +3267,42 @@
         <message>
             <source>Import Folder</source>
             <translation>导入文件夹</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup</source>
+            <translation>创建图库备份</translation>
+        </message>
+        <message>
+            <source>Ravo catalog backup (*.ravobackup)</source>
+            <translation>Ravo 图库备份 (*.ravobackup)</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup</source>
+            <translation>验证图库备份</translation>
+        </message>
+        <message>
+            <source>Select Catalog Backup to Restore</source>
+            <translation>选择要恢复的图库备份</translation>
+        </message>
+        <message>
+            <source>Restored Ravo Library.sqlite</source>
+            <translation>已恢复的 Ravo 图库.sqlite</translation>
+        </message>
+        <message>
+            <source>Restore Catalog As</source>
+            <translation>将图库恢复为</translation>
+        </message>
+        <message>
+            <source>Ravo catalog (*.sqlite)</source>
+            <translation>Ravo 图库 (*.sqlite)</translation>
+        </message>
+        <message>
+            <source>Choose Scheduled Backup Folder</source>
+            <translation>选择定时备份文件夹</translation>
+        </message>
+        <message>
+            <source>Locate Missing Folder</source>
+            <translation>定位缺失文件夹</translation>
         </message>
         <message>
             <source>Save Export</source>
@@ -3677,6 +3820,10 @@
             <translation>所选原始文件不可删除。</translation>
         </message>
         <message>
+            <source>No catalog operation is running.</source>
+            <translation>当前没有正在运行的图库操作。</translation>
+        </message>
+        <message>
             <source>Command unavailable in the current context.</source>
             <translation>当前上下文中无法使用此命令。</translation>
         </message>
@@ -3737,6 +3884,50 @@
             <translation>导出所选项…</translation>
         </message>
         <message>
+            <source>Recovery Status</source>
+            <translation>恢复状态</translation>
+        </message>
+        <message>
+            <source>Synchronize Recovery</source>
+            <translation>同步恢复数据</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup...</source>
+            <translation>创建图库备份…</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup...</source>
+            <translation>验证图库备份…</translation>
+        </message>
+        <message>
+            <source>Restore Catalog Backup...</source>
+            <translation>恢复图库备份…</translation>
+        </message>
+        <message>
+            <source>Enable Scheduled Backups...</source>
+            <translation>启用定时备份…</translation>
+        </message>
+        <message>
+            <source>Run Scheduled Backup Now</source>
+            <translation>立即运行定时备份</translation>
+        </message>
+        <message>
+            <source>Disable Scheduled Backups</source>
+            <translation>停用定时备份</translation>
+        </message>
+        <message>
+            <source>Rebuild Selected Previews</source>
+            <translation>重建所选预览</translation>
+        </message>
+        <message>
+            <source>Rebuild All Previews</source>
+            <translation>重建全部预览</translation>
+        </message>
+        <message>
+            <source>Cancel Catalog Operation</source>
+            <translation>取消图库操作</translation>
+        </message>
+        <message>
             <source>Import Preset...</source>
             <translation>导入预设...</translation>
         </message>
@@ -3747,6 +3938,26 @@
         <message>
             <source>Copy Info</source>
             <translation>复制信息</translation>
+        </message>
+        <message>
+            <source>Backup and restored catalog paths must not be empty.</source>
+            <translation>备份路径和恢复后的图库路径不能为空。</translation>
+        </message>
+        <message>
+            <source>Backup directory must not be empty.</source>
+            <translation>备份目录不能为空。</translation>
+        </message>
+        <message>
+            <source>Backup interval is outside the supported range.</source>
+            <translation>备份间隔超出支持范围。</translation>
+        </message>
+        <message>
+            <source>Backup retention count is outside the supported range.</source>
+            <translation>备份保留数量超出支持范围。</translation>
+        </message>
+        <message>
+            <source>Folder identity and replacement path must not be empty.</source>
+            <translation>文件夹标识和替代路径不能为空。</translation>
         </message>
         <message>
             <source>Copy Parameters</source>
@@ -4209,12 +4420,20 @@
             <translation>正在扫描文件夹…</translation>
         </message>
         <message>
+            <source>Importing 0 / %1…</source>
+            <translation>正在导入 0 / %1…</translation>
+        </message>
+        <message>
             <source>Importing %1 / %2…</source>
             <translation>正在导入 %1 / %2…</translation>
         </message>
         <message>
             <source>Import failed.</source>
             <translation>导入失败。</translation>
+        </message>
+        <message>
+            <source>Import cancelled after %1 of %2 photos.</source>
+            <translation>导入已取消，已处理 %2 张照片中的 %1 张。</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4415,6 +4634,162 @@
         <message>
             <source>Preset information copied.</source>
             <translation>已复制预设信息。</translation>
+        </message>
+        <message>
+            <source>Verifying backup…</source>
+            <translation>正在验证备份…</translation>
+        </message>
+        <message>
+            <source>Staging catalog…</source>
+            <translation>正在暂存图库…</translation>
+        </message>
+        <message>
+            <source>Staging recovery files…</source>
+            <translation>正在暂存恢复文件…</translation>
+        </message>
+        <message>
+            <source>Verifying staged restore…</source>
+            <translation>正在验证暂存的恢复内容…</translation>
+        </message>
+        <message>
+            <source>Publishing catalog support…</source>
+            <translation>正在发布图库支持数据…</translation>
+        </message>
+        <message>
+            <source>Publishing restored catalog…</source>
+            <translation>正在发布恢复后的图库…</translation>
+        </message>
+        <message>
+            <source>Opening restored catalog…</source>
+            <translation>正在打开恢复后的图库…</translation>
+        </message>
+        <message>
+            <source>Restore complete.</source>
+            <translation>恢复完成。</translation>
+        </message>
+        <message>
+            <source>Reading recovery state…</source>
+            <translation>正在读取恢复状态…</translation>
+        </message>
+        <message>
+            <source>Recovery status failed.</source>
+            <translation>读取恢复状态失败。</translation>
+        </message>
+        <message>
+            <source>Recovery is synchronized.</source>
+            <translation>恢复数据已同步。</translation>
+        </message>
+        <message>
+            <source>%1 recovery items are pending.</source>
+            <translation>有 %1 个恢复项目等待处理。</translation>
+        </message>
+        <message>
+            <source>Synchronizing recovery…</source>
+            <translation>正在同步恢复数据…</translation>
+        </message>
+        <message>
+            <source>Recovery synchronization failed.</source>
+            <translation>恢复数据同步失败。</translation>
+        </message>
+        <message>
+            <source>Synchronized %1 recovery items.</source>
+            <translation>已同步 %1 个恢复项目。</translation>
+        </message>
+        <message>
+            <source>Creating backup…</source>
+            <translation>正在创建备份…</translation>
+        </message>
+        <message>
+            <source>Backup failed.</source>
+            <translation>备份失败。</translation>
+        </message>
+        <message>
+            <source>Created verified backup at %1</source>
+            <translation>已在 %1 创建验证通过的备份</translation>
+        </message>
+        <message>
+            <source>Backup verification failed.</source>
+            <translation>备份验证失败。</translation>
+        </message>
+        <message>
+            <source>Backup verified: %1 photos</source>
+            <translation>备份验证通过：%1 张照片</translation>
+        </message>
+        <message>
+            <source>Restore failed.</source>
+            <translation>恢复失败。</translation>
+        </message>
+        <message>
+            <source>Restored catalog to %1</source>
+            <translation>已将图库恢复到 %1</translation>
+        </message>
+        <message>
+            <source>Rebuilding previews…</source>
+            <translation>正在重建预览…</translation>
+        </message>
+        <message>
+            <source>Preview rebuild stopped.</source>
+            <translation>预览重建已停止。</translation>
+        </message>
+        <message>
+            <source>Rebuilt %1 of %2 previews.</source>
+            <translation>已重建 %2 个预览中的 %1 个。</translation>
+        </message>
+        <message>
+            <source>Saving backup schedule…</source>
+            <translation>正在保存备份计划…</translation>
+        </message>
+        <message>
+            <source>Backup schedule failed.</source>
+            <translation>备份计划失败。</translation>
+        </message>
+        <message>
+            <source>Scheduled backups enabled.</source>
+            <translation>已启用定时备份。</translation>
+        </message>
+        <message>
+            <source>Scheduled backups disabled.</source>
+            <translation>已停用定时备份。</translation>
+        </message>
+        <message>
+            <source>Relinking folder…</source>
+            <translation>正在重新链接文件夹…</translation>
+        </message>
+        <message>
+            <source>Folder relink failed.</source>
+            <translation>文件夹重新链接失败。</translation>
+        </message>
+        <message>
+            <source>Folder relinked; folder refresh failed.</source>
+            <translation>文件夹已重新链接，但刷新文件夹失败。</translation>
+        </message>
+        <message>
+            <source>Relinked %1 photos to %2</source>
+            <translation>已将 %1 张照片重新链接到 %2</translation>
+        </message>
+        <message>
+            <source>Running scheduled backup…</source>
+            <translation>正在运行定时备份…</translation>
+        </message>
+        <message>
+            <source>Checking backup schedule…</source>
+            <translation>正在检查备份计划…</translation>
+        </message>
+        <message>
+            <source>Scheduled backup failed.</source>
+            <translation>定时备份失败。</translation>
+        </message>
+        <message>
+            <source>Scheduled backup created at %1</source>
+            <translation>已在 %1 创建定时备份</translation>
+        </message>
+        <message>
+            <source>Scheduled backups are disabled.</source>
+            <translation>定时备份已停用。</translation>
+        </message>
+        <message>
+            <source>Cancelling catalog operation…</source>
+            <translation>正在取消图库操作…</translation>
         </message>
     </context>
     <context>

@@ -31,6 +31,13 @@ void testing::CatalogServiceTestControl::set_before_preview_cache_publication(
     service.testing_before_preview_cache_publication_ = std::move(callback);
 }
 
+void testing::CatalogServiceTestControl::set_backup_checkpoint(
+    CatalogService &service,
+    std::function<Result<void>(std::string_view checkpoint, std::string_view path)> callback)
+{
+    service.testing_backup_checkpoint_ = std::move(callback);
+}
+
 std::array<std::optional<std::uint32_t>, 2>
 testing::CatalogServiceTestControl::linear_working_max_edges(const CatalogService &service)
 {
@@ -263,6 +270,16 @@ Result<std::vector<AssetRecord>> CatalogService::list_assets(const LibraryQuery 
     return filter_and_sort_assets(std::move(listed).value(), query);
 }
 
+Result<LibraryPage> CatalogService::list_assets_page(const LibraryPageRequest &request) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto valid = validate_library_page_request(request);
+    if (!valid)
+        return valid.error();
+    return repository_->list_assets_page(request);
+}
+
 Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
 {
     if (repository_ == nullptr)
@@ -270,6 +287,14 @@ Result<std::vector<PreviewRecord>> CatalogService::list_previews() const
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
     return repository_->list_previews();
+}
+
+Result<std::vector<PreviewRecord>>
+CatalogService::list_previews_for_assets(const std::vector<std::string> &asset_ids) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->list_previews_for_assets(asset_ids);
 }
 
 Result<AssetRecoveryState> CatalogService::recovery_state(const std::string_view asset_id) const
@@ -439,12 +464,27 @@ CatalogService::sync_recovery(const std::optional<std::string_view> asset_id,
 
 Result<std::vector<FolderRecord>> CatalogService::list_folders() const
 {
-    auto listed = list_assets();
-    if (!listed)
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto folders = repository_->list_folders();
+    if (!folders)
+        return folders.error();
+    for (auto &folder : folders.value())
     {
-        return listed.error();
+        if (folder.id.empty())
+            continue;
+        auto location = normalize_local_input(folder.uri);
+        if (!location)
+            return location.error();
+        std::error_code error;
+        folder.missing = !std::filesystem::is_directory(
+            std::filesystem::path(
+                std::u8string(location.value().path.begin(), location.value().path.end())),
+            error);
+        if (error)
+            folder.missing = true;
     }
-    return library_folders(listed.value());
+    return folders;
 }
 
 Result<AssetRecord> CatalogService::set_rating(const std::string_view asset_id, const int rating)
@@ -1641,6 +1681,15 @@ Result<ImportItemResult> CatalogService::import_one(const std::string_view path,
         result.error = recovered.error();
     }
     return result;
+}
+
+Result<std::vector<std::string>>
+CatalogService::enumerate_import_inputs(const std::vector<std::string> &paths,
+                                        const CancellationToken &cancellation) const
+{
+    if (repository_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return collect_import_paths(paths, cancellation);
 }
 
 Result<std::vector<ImportItemResult>> CatalogService::import_inputs(

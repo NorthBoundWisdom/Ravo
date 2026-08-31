@@ -1904,7 +1904,8 @@ void StudioPresenter::pickWhiteBalance(const double preview_x, const double prev
                     }
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 void StudioPresenter::autoPerspective(const QString &mode_name)
@@ -1993,7 +1994,8 @@ void StudioPresenter::autoPerspective(const QString &mode_name)
                                                               "Perspective corrected."));
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 double StudioPresenter::editGraduatedDensity() const noexcept
@@ -2479,7 +2481,8 @@ void StudioPresenter::reload_recipe_history()
                     emit editChanged();
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 bool StudioPresenter::cropToolActive() const noexcept
@@ -2570,7 +2573,8 @@ void StudioPresenter::load_develop_for_selection()
                     emit editChanged();
                 },
                 Qt::QueuedConnection);
-        });
+        },
+        TaskPriority::kForeground);
 }
 
 void StudioPresenter::break_history_coalescing()

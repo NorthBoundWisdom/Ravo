@@ -288,8 +288,32 @@ hashes, byte counts, schema/revision identity, and `verified: true`.
 `backup-verify` accepts no `--catalog` argument and is read-only.
 
 Catalog backups deliberately exclude originals and preview files. Back up the
-referenced originals separately. Restore, retention scheduling, and Studio
-backup controls are not implemented; successful verification is not a restore.
+referenced originals separately. Restore to a new absent path, rebuild previews,
+or configure verified retention with:
+
+```text
+ravo catalog backup-restore --backup "/backups/Ravo-2026-08-31" \
+  --output "/work/Restored Ravo Library.sqlite" --json
+ravo catalog preview-rebuild --catalog "/work/Restored Ravo Library.sqlite" --json
+ravo catalog backup-policy --catalog "/work/Ravo Library.sqlite" \
+  --schedule-dir "/backups/Ravo" --interval-minutes 1440 \
+  --retention-count 7 --enabled true --json
+ravo catalog backup-run --catalog "/work/Ravo Library.sqlite" --json
+```
+
+`backup-restore` never overwrites or merges a destination. Scheduled retention
+removes only canonical artifacts that reverify as the current catalog.
+
+List stable direct folders and explicitly relink a missing one:
+
+```text
+ravo catalog folders --catalog "/work/Ravo Library.sqlite" --json
+ravo catalog folder-relink --catalog "/work/Ravo Library.sqlite" \
+  --folder-id <folder-id> --replacement "/new/photo/folder" --json
+```
+
+Relink is identity-checked and transactional; it does not search by a similar
+filename or write an original.
 
 ## Import files or directories
 

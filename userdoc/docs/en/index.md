@@ -49,8 +49,9 @@ workflows.
 - Export a rendered photo as PNG, JPEG, or TIFF, or make an exact original
   copy. Existing destination files are never overwritten implicitly.
 - Run the same catalog, preview, recipe, and export paths through `ravo`.
-- Inspect or synchronize recovery generations and create or verify an immutable
-  catalog backup through `ravo`. Backups exclude originals and previews.
+- Inspect or synchronize recovery generations; create, verify, restore, and
+  schedule immutable catalog backups; rebuild previews; and explicitly relink
+  a missing stable folder. Backups exclude originals and previews.
 - Switch Studio among English, German, Spanish, French, Brazilian Portuguese,
   Simplified or Traditional Chinese, Japanese, and Korean.
 - Open a floating Assistant panel and configure its URL, model, and API key in

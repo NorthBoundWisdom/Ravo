@@ -157,6 +157,43 @@ void OwnedTemporaryPath::remove_ignoring_error() noexcept
     static_cast<void>(remove());
 }
 
+OwnedTemporaryDirectory::~OwnedTemporaryDirectory()
+{
+    remove_ignoring_error();
+}
+
+void OwnedTemporaryDirectory::reset(std::filesystem::path path)
+{
+    remove_ignoring_error();
+    path_ = std::move(path);
+}
+
+const std::filesystem::path &OwnedTemporaryDirectory::path() const noexcept
+{
+    return path_;
+}
+
+std::error_code OwnedTemporaryDirectory::remove() noexcept
+{
+    if (path_.empty())
+        return {};
+    std::error_code error;
+    std::filesystem::remove_all(path_, error);
+    if (!error)
+        path_.clear();
+    return error;
+}
+
+void OwnedTemporaryDirectory::release() noexcept
+{
+    path_.clear();
+}
+
+void OwnedTemporaryDirectory::remove_ignoring_error() noexcept
+{
+    static_cast<void>(remove());
+}
+
 int open_temporary_descriptor(const std::filesystem::path &path) noexcept
 {
 #ifdef _WIN32

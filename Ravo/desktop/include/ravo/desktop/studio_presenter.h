@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -246,6 +247,15 @@ class StudioPresenter final : public QObject
     Q_PROPERTY(bool previewWorkActive READ previewWorkActive NOTIFY libraryWorkChanged)
     Q_PROPERTY(int previewWorkCompleted READ previewWorkCompleted NOTIFY libraryWorkChanged)
     Q_PROPERTY(int previewWorkTotal READ previewWorkTotal NOTIFY libraryWorkChanged)
+    Q_PROPERTY(bool catalogOperationActive READ catalogOperationActive NOTIFY libraryWorkChanged)
+    Q_PROPERTY(QString catalogOperationStage READ catalogOperationStage NOTIFY libraryWorkChanged)
+    Q_PROPERTY(
+        int catalogOperationCompleted READ catalogOperationCompleted NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int catalogOperationTotal READ catalogOperationTotal NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int recoveryPendingCount READ recoveryPendingCount NOTIFY libraryWorkChanged)
+    Q_PROPERTY(int libraryTotal READ libraryTotal NOTIFY filterChanged)
+    Q_PROPERTY(bool libraryHasMore READ libraryHasMore NOTIFY filterChanged)
+    Q_PROPERTY(QVariantMap backupScheduleStatus READ backupScheduleStatus NOTIFY libraryWorkChanged)
 
 public:
     explicit StudioPresenter(QObject *parent = nullptr);
@@ -264,6 +274,14 @@ public:
     [[nodiscard]] bool previewWorkActive() const noexcept;
     [[nodiscard]] int previewWorkCompleted() const noexcept;
     [[nodiscard]] int previewWorkTotal() const noexcept;
+    [[nodiscard]] bool catalogOperationActive() const noexcept;
+    [[nodiscard]] QString catalogOperationStage() const;
+    [[nodiscard]] int catalogOperationCompleted() const noexcept;
+    [[nodiscard]] int catalogOperationTotal() const noexcept;
+    [[nodiscard]] int recoveryPendingCount() const noexcept;
+    [[nodiscard]] int libraryTotal() const noexcept;
+    [[nodiscard]] bool libraryHasMore() const noexcept;
+    [[nodiscard]] QVariantMap backupScheduleStatus() const;
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] QString statusText() const;
     [[nodiscard]] QString errorText() const;
@@ -468,6 +486,20 @@ public:
     Q_INVOKABLE void openCatalogFromPath(const QString &path);
     Q_INVOKABLE void importFilePaths(const QStringList &paths);
     Q_INVOKABLE void importFolderFromPath(const QString &path);
+    Q_INVOKABLE void refreshRecoveryStatus();
+    Q_INVOKABLE void synchronizeRecovery();
+    Q_INVOKABLE void createBackupAtPath(const QString &path);
+    Q_INVOKABLE void verifyBackupAtPath(const QString &path);
+    Q_INVOKABLE void restoreBackupToPath(const QString &backup_path, const QString &catalog_path);
+    Q_INVOKABLE void rebuildSelectedPreviews();
+    Q_INVOKABLE void rebuildAllPreviews();
+    Q_INVOKABLE void cancelCatalogOperation();
+    Q_INVOKABLE void configureBackupSchedule(const QString &directory, int interval_minutes,
+                                             int retention_count, bool enabled);
+    Q_INVOKABLE void runScheduledBackupNow();
+    Q_INVOKABLE void disableBackupSchedule();
+    Q_INVOKABLE void relinkFolder(const QString &folder_id, const QString &replacement_directory);
+    void checkScheduledBackup();
     Q_INVOKABLE void exportSelectedToPath(const QString &path, const QString &format,
                                           const QVariantMap &options);
     Q_INVOKABLE void exportSelectedToDirectory(const QString &directory,
@@ -571,6 +603,8 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void selectFolder(const QString &folder_uri);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
+    Q_INVOKABLE void ensureLibraryRow(int row);
+    Q_INVOKABLE void loadNextLibraryPage();
     void pollCatalogRevision();
 signals:
     void catalogChanged();
@@ -600,14 +634,21 @@ private:
     void setError(QString text);
     void applyAssets(std::vector<AssetRecord> assets, bool restore_selection,
                      std::unordered_map<std::string, QUrl> thumbnail_urls = {},
-                     std::unordered_map<std::string, QString> thumbnail_states = {});
+                     std::unordered_map<std::string, QString> thumbnail_states = {},
+                     std::size_t total = 0U, bool has_more = false);
     void applyFolders(std::vector<FolderRecord> folders);
     void requestPreviewForSelection();
     void reloadVisibleAssets();
     void start_catalog_revision_watch(std::int64_t revision);
     void queuePreviewWarmup();
+    void requestLibraryPage(std::size_t offset, std::optional<std::string> cursor, bool sequential);
     void kickPreviewWarmup();
     void setImportWork(int completed, int total, bool active);
+    void startNextImportItem();
+    void finishImportBatch();
+    void setCatalogOperation(QString stage, int completed, int total, bool active);
+    void startPreviewRebuild(std::vector<std::string> asset_ids, std::size_t expected_total);
+    void startScheduledBackup(bool force);
     void ingestImportedItem(const ImportItemResult &item);
     void finishPreviewJob(bool success);
     void load_develop_for_selection();
@@ -692,7 +733,10 @@ private:
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;
     CancellationSource thumbnail_work_;
+    CancellationSource catalog_operation_;
+    CancellationSource import_operation_;
     QTimer *catalog_revision_timer_ = nullptr;
+    QTimer *backup_schedule_timer_ = nullptr;
     bool catalog_poll_in_flight_ = false;
     std::int64_t observed_catalog_revision_ = -1;
     AssetListModel assets_;
@@ -704,9 +748,25 @@ private:
     bool import_work_active_ = false;
     int import_work_completed_ = 0;
     int import_work_total_ = 0;
+    std::vector<std::string> pending_import_paths_;
+    std::vector<ImportItemResult> import_results_;
+    std::size_t import_next_index_ = 0U;
+    LibraryQuery import_query_snapshot_;
     bool preview_work_active_ = false;
     int preview_work_completed_ = 0;
     int preview_work_total_ = 0;
+    bool catalog_operation_active_ = false;
+    QString catalog_operation_stage_;
+    int catalog_operation_completed_ = 0;
+    int catalog_operation_total_ = 0;
+    int recovery_pending_count_ = 0;
+    std::size_t library_total_ = 0U;
+    bool library_has_more_ = false;
+    bool library_page_in_flight_ = false;
+    std::uint64_t library_query_generation_ = 0U;
+    std::size_t library_next_offset_ = 0U;
+    std::optional<std::size_t> pending_library_page_offset_;
+    std::optional<CatalogBackupPolicy> backup_policy_;
     bool preview_warmup_in_flight_ = false;
     std::vector<std::string> pending_preview_ids_;
     QString status_text_{QStringLiteral("Create or open a library to import photos.")};

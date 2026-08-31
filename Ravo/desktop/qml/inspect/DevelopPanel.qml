@@ -129,8 +129,10 @@ ColumnLayout {
                 color: mixer.highTrackColor
             }
         }
-        onValueEdited: if (root.liveReady && root.commands)
-            root.commands.previewDevelopNumber(fieldName, value)
+        onValueEdited: function (value) {
+            if (root.liveReady && root.commands)
+                root.commands.previewDevelopNumber(fieldName, value);
+        }
         onValueCommitted: function (value) {
             if (root.commands)
                 root.commands.setDevelopNumber(fieldName, value);
@@ -152,8 +154,10 @@ ColumnLayout {
         delayedCommit: true
         enabled: root.hasSelection
         value: root.hasPresenter ? root.presenter.editPrimaries[modelData.key] : modelData.reset
-        onValueEdited: if (root.liveReady && root.commands)
-            root.commands.previewDevelopNumber(modelData.field, value)
+        onValueEdited: function (value) {
+            if (root.liveReady && root.commands)
+                root.commands.previewDevelopNumber(modelData.field, value);
+        }
         onValueCommitted: function (value) {
             if (root.commands)
                 root.commands.setDevelopNumber(modelData.field, value);
@@ -263,8 +267,10 @@ ColumnLayout {
                 visible: modelData.visible
                 enabled: root.hasSelection && maskEditor.mask.editable === true && modelData.visible
                 value: maskEditor.mask[modelData.key] !== undefined ? maskEditor.mask[modelData.key] : modelData.reset
-                onValueEdited: if (root.liveReady && root.commands && maskEditor.mask.editable === true && modelData.visible)
-                    root.commands.previewDevelopNumber(modelData.field, value)
+                onValueEdited: function (value) {
+                    if (root.liveReady && root.commands && maskEditor.mask.editable === true && modelData.visible)
+                        root.commands.previewDevelopNumber(modelData.field, value);
+                }
                 onValueCommitted: function (value) {
                     if (root.commands)
                         root.commands.setDevelopNumber(modelData.field, value);
@@ -577,8 +583,10 @@ ColumnLayout {
                                 delayedCommit: true
                                 enabled: root.hasSelection
                                 value: root.hasPresenter ? root.presenter.editWhiteBalance[modelData.key] : 1
-                                onValueEdited: if (root.liveReady && root.commands)
-                                    root.commands.previewDevelopNumber(modelData.field, value)
+                                onValueEdited: function (value) {
+                                    if (root.liveReady && root.commands)
+                                        root.commands.previewDevelopNumber(modelData.field, value);
+                                }
                                 onValueCommitted: function (value) {
                                     if (root.commands)
                                         root.commands.setDevelopNumber(modelData.field, value);
@@ -602,8 +610,10 @@ ColumnLayout {
                     visible: !root.hasPresenter || root.presenter.editExposureParams.modeIndex === 0
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editExposureParams.exposureEv : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposure", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("exposure", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("exposure", value);
@@ -624,8 +634,10 @@ ColumnLayout {
                     visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSigmoidContrast : 1.5
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sigmoidContrast", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("sigmoidContrast", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("sigmoidContrast", value);
@@ -644,8 +656,10 @@ ColumnLayout {
                     visible: root.hasPresenter && !root.presenter.editSigmoidEnabled
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editContrast : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("contrast", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("contrast", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("contrast", value);
@@ -663,8 +677,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editHighlights : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("highlights", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("highlights", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("highlights", value);
@@ -682,8 +698,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editShadows : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("shadows", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("shadows", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("shadows", value);
@@ -701,8 +719,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editWhites : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("whites", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("whites", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("whites", value);
@@ -722,8 +742,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editBlacks : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("blacks", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("blacks", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("blacks", value);
@@ -756,8 +778,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editExposureParams.black : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposureBlack", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("exposureBlack", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("exposureBlack", value);
@@ -794,8 +818,10 @@ ColumnLayout {
                     visible: root.hasPresenter && root.presenter.editExposureParams.modeIndex === 1
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editExposureParams.deflickerPercentile : 50
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposureDeflickerPercentile", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("exposureDeflickerPercentile", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("exposureDeflickerPercentile", value);
@@ -816,8 +842,10 @@ ColumnLayout {
                     visible: root.hasPresenter && root.presenter.editExposureParams.modeIndex === 1
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editExposureParams.deflickerTargetEv : -4
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("exposureDeflickerTarget", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("exposureDeflickerTarget", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("exposureDeflickerTarget", value);
@@ -844,8 +872,10 @@ ColumnLayout {
                     visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSigmoidSkew : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sigmoidSkew", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("sigmoidSkew", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("sigmoidSkew", value);
@@ -866,8 +896,10 @@ ColumnLayout {
                     visible: root.hasPresenter && root.presenter.editSigmoidEnabled
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSigmoidHuePreservation : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sigmoidHuePreservation", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("sigmoidHuePreservation", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("sigmoidHuePreservation", value);
@@ -885,8 +917,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editGamma : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("gamma", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("gamma", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("gamma", value);
@@ -951,8 +985,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editRgbLevels[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -1014,8 +1050,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editRgbLevels[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -1287,8 +1325,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : 0
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -1409,8 +1449,10 @@ ColumnLayout {
                                     delayedCommit: true
                                     enabled: root.hasSelection
                                     value: root.hasPresenter ? root.presenter.editCurve[modelData.key] : modelData.reset
-                                    onValueEdited: if (root.liveReady && root.commands)
-                                        root.commands.previewDevelopNumber(modelData.field, value)
+                                    onValueEdited: function (value) {
+                                        if (root.liveReady && root.commands)
+                                            root.commands.previewDevelopNumber(modelData.field, value);
+                                    }
                                     onValueCommitted: function (value) {
                                         if (root.commands)
                                             root.commands.setDevelopNumber(modelData.field, value);
@@ -1456,8 +1498,10 @@ ColumnLayout {
                         enabled: root.hasSelection
                         value: colorEqChannel.currentIndex === 0 ? modelData.sat : colorEqChannel.currentIndex === 1 ? modelData.hue : modelData.light
                         readonly property string fieldName: colorEqChannel.currentIndex === 0 ? modelData.satField : colorEqChannel.currentIndex === 1 ? modelData.hueField : modelData.lightField
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(fieldName, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(fieldName, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(fieldName, value);
@@ -1490,8 +1534,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVibrance : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vibrance", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vibrance", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vibrance", value);
@@ -1509,8 +1555,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSaturation : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("saturation", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("saturation", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("saturation", value);
@@ -1545,8 +1593,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVelviaParams.strength : 25
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("velviaStrength", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("velviaStrength", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("velviaStrength", value);
@@ -1567,8 +1617,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVelviaParams.bias : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("velviaBias", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("velviaBias", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("velviaBias", value);
@@ -1686,8 +1738,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection && root.hasPresenter && root.presenter.editLut3d.hasFile
                     value: root.hasPresenter ? root.presenter.editLut3d.strength : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("lut3dStrength", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("lut3dStrength", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("lut3dStrength", value);
@@ -2119,8 +2173,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorBalanceRgb[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -2155,8 +2211,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitToning.mix : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitMix", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitMix", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitMix", value);
@@ -2170,8 +2228,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitShadowsHue : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitShadowsHue", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitShadowsHue", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitShadowsHue", value);
@@ -2190,8 +2250,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitToning.shadowSaturation : 0.5
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitShadowSaturation", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitShadowSaturation", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitShadowSaturation", value);
@@ -2205,8 +2267,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitHighlightsHue : 0.2
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitHighlightsHue", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitHighlightsHue", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitHighlightsHue", value);
@@ -2225,8 +2289,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitToning.highlightSaturation : 0.5
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitHighlightSaturation", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitHighlightSaturation", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitHighlightSaturation", value);
@@ -2242,8 +2308,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitBalance : 0.5
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitBalance", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitBalance", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitBalance", value);
@@ -2262,8 +2330,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSplitToning.compress : 33
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("splitCompress", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("splitCompress", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("splitCompress", value);
@@ -2361,8 +2431,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editMonochromeFilter[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -2657,8 +2729,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editLegacyColorBalance[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -2753,8 +2827,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorCorrection[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -2815,8 +2891,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorContrast[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -2902,8 +2980,10 @@ ColumnLayout {
                             visible: modelData.visible
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -2926,8 +3006,10 @@ ColumnLayout {
                         visible: root.hasPresenter ? nodeControl.visible : false
                         enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorHarmonizer.customRule
                         value: root.hasPresenter ? root.presenter.editColorHarmonizer.customNodeCount : 4
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(nodeControl.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(nodeControl.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(nodeControl.field, value);
@@ -2951,8 +3033,10 @@ ColumnLayout {
                             visible: modelData.visible
                             enabled: root.hasSelection && modelData.visible
                             value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -2977,8 +3061,10 @@ ColumnLayout {
                             visible: modelData.visible
                             enabled: root.hasSelection && modelData.visible
                             value: root.hasPresenter ? root.presenter.editColorHarmonizer[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -3071,8 +3157,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection
                             value: root.hasPresenter ? root.presenter.editColorReconstruction[modelData.key] : modelData.reset
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -3094,8 +3182,10 @@ ColumnLayout {
                         visible: root.hasPresenter && root.presenter.editColorReconstruction.precedenceIndex === 2
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editColorReconstruction.hueDegrees : 237.6
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber("colorReconstructionHueDegrees", value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber("colorReconstructionHueDegrees", value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber("colorReconstructionHueDegrees", value);
@@ -3161,8 +3251,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editColorZones.strength : 0
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber("colorZonesStrength", value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber("colorZonesStrength", value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber("colorZonesStrength", value);
@@ -3198,8 +3290,10 @@ ColumnLayout {
                             delayedCommit: true
                             enabled: root.hasSelection && root.hasPresenter && root.presenter.editColorZones.editable
                             value: root.hasPresenter ? root.presenter.editColorZones[modelData.key] : 0.5
-                            onValueEdited: if (root.liveReady && root.commands)
-                                root.commands.previewDevelopNumber(modelData.field, value)
+                            onValueEdited: function (value) {
+                                if (root.liveReady && root.commands)
+                                    root.commands.previewDevelopNumber(modelData.field, value);
+                            }
                             onValueCommitted: function (value) {
                                 if (root.commands)
                                     root.commands.setDevelopNumber(modelData.field, value);
@@ -3438,9 +3532,18 @@ ColumnLayout {
                     spacing: Fonts.size6
                     Repeater {
                         model: [
-                            {"label": qsTr("Auto"), "mode": "full"},
-                            {"label": qsTr("Vertical"), "mode": "vertical"},
-                            {"label": qsTr("Horizontal"), "mode": "horizontal"}
+                            {
+                                "label": qsTr("Auto"),
+                                "mode": "full"
+                            },
+                            {
+                                "label": qsTr("Vertical"),
+                                "mode": "vertical"
+                            },
+                            {
+                                "label": qsTr("Horizontal"),
+                                "mode": "horizontal"
+                            }
                         ]
                         delegate: CustomButton {
                             required property var modelData
@@ -3504,12 +3607,11 @@ ColumnLayout {
                         resetValue: 0
                         delayedCommit: true
                         enabled: root.hasSelection
-                        value: root.hasPresenter ?
-                                   (modelData.field === "straighten" ?
-                                        root.presenter.editStraighten :
-                                        root.presenter.editPerspective[modelData.key]) : 0
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        value: root.hasPresenter ? (modelData.field === "straighten" ? root.presenter.editStraighten : root.presenter.editPerspective[modelData.key]) : 0
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -3640,8 +3742,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editCanvas[modelData.key] : 0
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -3693,8 +3797,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editToneEqBlacks : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqBlacks", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("toneEqBlacks", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("toneEqBlacks", value);
@@ -3714,8 +3820,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editToneEqShadows : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqShadows", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("toneEqShadows", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("toneEqShadows", value);
@@ -3735,8 +3843,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editToneEqMidtones : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqMidtones", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("toneEqMidtones", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("toneEqMidtones", value);
@@ -3756,8 +3866,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editToneEqHighlights : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqHighlights", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("toneEqHighlights", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("toneEqHighlights", value);
@@ -3777,8 +3889,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editToneEqWhites : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("toneEqWhites", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("toneEqWhites", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("toneEqWhites", value);
@@ -3806,8 +3920,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editGraduatedDensity : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("graduatedDensity", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("graduatedDensity", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("graduatedDensity", value);
@@ -3827,8 +3943,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editGraduatedRotation : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("graduatedRotation", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("graduatedRotation", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("graduatedRotation", value);
@@ -3860,8 +3978,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVignette : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vignette", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vignette", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vignette", value);
@@ -3881,8 +4001,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVignetteParams.midpoint : 0.8
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vignetteMidpoint", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vignetteMidpoint", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vignetteMidpoint", value);
@@ -3902,8 +4024,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVignetteParams.falloff : 0.5
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vignetteFalloff", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vignetteFalloff", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vignetteFalloff", value);
@@ -3923,8 +4047,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVignetteParams.shape : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vignetteShape", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vignetteShape", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vignetteShape", value);
@@ -3944,8 +4070,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVignetteParams.centerX : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vignetteCenterX", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vignetteCenterX", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vignetteCenterX", value);
@@ -3965,8 +4093,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editVignetteParams.centerY : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("vignetteCenterY", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("vignetteCenterY", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("vignetteCenterY", value);
@@ -3984,8 +4114,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editBloom : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("bloom", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("bloom", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("bloom", value);
@@ -4003,8 +4135,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSoften : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("soften", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("soften", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("soften", value);
@@ -4022,8 +4156,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editDehaze : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("dehaze", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("dehaze", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("dehaze", value);
@@ -4043,8 +4179,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editDehazeDistance : 0.2
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("dehazeDistance", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("dehazeDistance", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("dehazeDistance", value);
@@ -4099,8 +4237,10 @@ ColumnLayout {
                     visible: root.hasPresenter && root.presenter.editOutputDither.dampingVisible
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editOutputDither.dampingDb : -100
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("outputDitherDamping", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("outputDitherDamping", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("outputDitherDamping", value);
@@ -4223,8 +4363,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editOutputFrame[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -4282,8 +4424,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editOutputFrame[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -4400,8 +4544,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editWatermark[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -4441,8 +4587,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editWatermark[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -4481,8 +4629,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editTexture.strength * 50 : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("texture", value / 50)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("texture", value / 50);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("texture", value / 50);
@@ -4506,8 +4656,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editTexture.detailThreshold : 0.2
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber("textureDetailThreshold", value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber("textureDetailThreshold", value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber("textureDetailThreshold", value);
@@ -4527,8 +4679,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection
                         value: root.hasPresenter ? root.presenter.editTexture.iterations : 1
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber("textureIterations", value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber("textureIterations", value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber("textureIterations", value);
@@ -4547,8 +4701,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSharpen : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sharpen", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("sharpen", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("sharpen", value);
@@ -4568,8 +4724,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSharpenRadius : 2
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sharpenRadius", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("sharpenRadius", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("sharpenRadius", value);
@@ -4589,8 +4747,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editSharpenThreshold : 0.5
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("sharpenThreshold", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("sharpenThreshold", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("sharpenThreshold", value);
@@ -4610,8 +4770,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editDenoise : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("denoise", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("denoise", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("denoise", value);
@@ -4631,8 +4793,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editDenoiseChroma : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("denoiseChroma", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("denoiseChroma", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("denoiseChroma", value);
@@ -4652,8 +4816,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editDenoiseRadius : 1
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("denoiseRadius", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("denoiseRadius", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("denoiseRadius", value);
@@ -4703,7 +4869,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftCenterX
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftCenterX = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftCenterX = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4714,7 +4882,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftCenterY
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftCenterY = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftCenterY = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4725,7 +4895,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftRadius
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftRadius = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftRadius = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4736,7 +4908,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftFeather
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftFeather = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftFeather = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4747,7 +4921,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftOpacity
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftOpacity = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftOpacity = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4759,7 +4935,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftSourceX
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftSourceX = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftSourceX = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4771,7 +4949,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftSourceY
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftSourceY = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftSourceY = value;
+                        }
                     }
                     ComboBox {
                         Layout.fillWidth: true
@@ -4792,7 +4972,9 @@ ColumnLayout {
                         validatorDecimals: 1
                         value: retouchEditor.draftBlurRadius
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftBlurRadius = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftBlurRadius = value;
+                        }
                     }
                     ComboBox {
                         Layout.fillWidth: true
@@ -4813,7 +4995,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftFillR
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftFillR = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftFillR = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4825,7 +5009,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftFillG
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftFillG = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftFillG = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4837,7 +5023,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftFillB
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftFillB = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftFillB = value;
+                        }
                     }
                     CustomSlider {
                         Layout.fillWidth: true
@@ -4849,7 +5037,9 @@ ColumnLayout {
                         validatorDecimals: 2
                         value: retouchEditor.draftFillBrightness
                         enabled: root.hasSelection
-                        onValueEdited: retouchEditor.draftFillBrightness = value
+                        onValueEdited: function (value) {
+                            retouchEditor.draftFillBrightness = value;
+                        }
                     }
                     Button {
                         Layout.fillWidth: true
@@ -4905,8 +5095,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editClarity : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("clarity", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("clarity", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("clarity", value);
@@ -4924,8 +5116,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editGrain : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("grain", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("grain", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("grain", value);
@@ -4947,12 +5141,8 @@ ColumnLayout {
                 }
                 CustomComboBox {
                     Layout.fillWidth: true
-                    model: [qsTr("Auto — RCD / Markesteijn 3"),
-                            qsTr("PPG — Bayer compatibility"),
-                            qsTr("Markesteijn 1 — X-Trans fast"),
-                            qsTr("Markesteijn 3 — X-Trans quality")]
-                    enabled: root.hasSelection && root.hasPresenter
-                             && root.presenter.selectedMediaType === "image/x-raw"
+                    model: [qsTr("Auto — RCD / Markesteijn 3"), qsTr("PPG — Bayer compatibility"), qsTr("Markesteijn 1 — X-Trans fast"), qsTr("Markesteijn 3 — X-Trans quality")]
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.selectedMediaType === "image/x-raw"
                     currentIndex: root.hasPresenter ? root.presenter.editDemosaicModeIndex : 0
                     onActivated: if (root.commands)
                         root.commands.setDevelopNumber("demosaicModeIndex", currentIndex)
@@ -4973,11 +5163,12 @@ ColumnLayout {
                     showReset: true
                     resetValue: 0
                     delayedCommit: true
-                    enabled: root.hasSelection && root.hasPresenter
-                             && root.presenter.selectedMediaType === "image/x-raw"
+                    enabled: root.hasSelection && root.hasPresenter && root.presenter.selectedMediaType === "image/x-raw"
                     value: root.hasPresenter ? root.presenter.editRawDenoiseThreshold : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("rawDenoiseThreshold", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("rawDenoiseThreshold", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("rawDenoiseThreshold", value);
@@ -4997,8 +5188,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editHotPixelsStrength : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("hotPixelsStrength", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("hotPixelsStrength", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("hotPixelsStrength", value);
@@ -5018,8 +5211,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editHotPixelsThreshold : 0.05
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("hotPixelsThreshold", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("hotPixelsThreshold", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("hotPixelsThreshold", value);
@@ -5046,8 +5241,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editRawCaIterations : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("rawCaIterations", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("rawCaIterations", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("rawCaIterations", value);
@@ -5074,8 +5271,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editRawHighlights : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("rawHighlights", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("rawHighlights", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("rawHighlights", value);
@@ -5095,8 +5294,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editLensK1 : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("lensK1", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("lensK1", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("lensK1", value);
@@ -5116,8 +5317,10 @@ ColumnLayout {
                     delayedCommit: true
                     enabled: root.hasSelection
                     value: root.hasPresenter ? root.presenter.editLensVignetting : 0
-                    onValueEdited: if (root.liveReady && root.commands)
-                        root.commands.previewDevelopNumber("lensVignetting", value)
+                    onValueEdited: function (value) {
+                        if (root.liveReady && root.commands)
+                            root.commands.previewDevelopNumber("lensVignetting", value);
+                    }
                     onValueCommitted: function (value) {
                         if (root.commands)
                             root.commands.setDevelopNumber("lensVignetting", value);
@@ -5319,8 +5522,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection && root.hasPresenter && root.presenter.editProfileGamma.enabled
                         value: root.hasPresenter ? root.presenter.editProfileGamma[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);
@@ -5366,8 +5571,10 @@ ColumnLayout {
                         delayedCommit: true
                         enabled: root.hasSelection && root.hasPresenter && root.presenter.editProfileGamma.enabled
                         value: root.hasPresenter ? root.presenter.editProfileGamma[modelData.key] : modelData.reset
-                        onValueEdited: if (root.liveReady && root.commands)
-                            root.commands.previewDevelopNumber(modelData.field, value)
+                        onValueEdited: function (value) {
+                            if (root.liveReady && root.commands)
+                                root.commands.previewDevelopNumber(modelData.field, value);
+                        }
                         onValueCommitted: function (value) {
                             if (root.commands)
                                 root.commands.setDevelopNumber(modelData.field, value);

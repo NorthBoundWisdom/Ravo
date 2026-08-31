@@ -255,6 +255,12 @@ struct CatalogCliArguments
     std::string_view copyright;
     std::string_view label;
     std::string_view backup;
+    std::string_view schedule_directory;
+    std::string_view schedule_interval_minutes;
+    std::string_view schedule_retention_count;
+    std::string_view schedule_enabled;
+    std::string_view folder_id;
+    std::string_view replacement_directory;
     std::optional<std::int64_t> history_id;
 };
 
@@ -449,6 +455,8 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
 {
     CatalogCliArguments result;
     const bool batch_export = positional.size() > 1U && positional[1] == "export-batch";
+    const bool multi_asset =
+        batch_export || (positional.size() > 1U && positional[1] == "preview-rebuild");
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
@@ -492,7 +500,7 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
         }
         else if (option == "--asset-id")
         {
-            if (batch_export)
+            if (multi_asset)
             {
                 result.asset_ids.push_back(value);
             }
@@ -737,6 +745,47 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "Backup path was specified twice");
             }
             result.backup = value;
+        }
+        else if (option == "--schedule-dir")
+        {
+            if (!result.schedule_directory.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Scheduled backup directory was specified twice");
+            result.schedule_directory = value;
+        }
+        else if (option == "--interval-minutes")
+        {
+            if (!result.schedule_interval_minutes.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Backup interval was specified twice");
+            result.schedule_interval_minutes = value;
+        }
+        else if (option == "--retention-count")
+        {
+            if (!result.schedule_retention_count.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Backup retention was specified twice");
+            result.schedule_retention_count = value;
+        }
+        else if (option == "--enabled")
+        {
+            if (!result.schedule_enabled.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Backup enabled state was specified twice");
+            result.schedule_enabled = value;
+        }
+        else if (option == "--folder-id")
+        {
+            if (!result.folder_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Folder ID was specified twice");
+            result.folder_id = value;
+        }
+        else if (option == "--replacement")
+        {
+            if (!result.replacement_directory.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Replacement folder was specified twice");
+            result.replacement_directory = value;
         }
         else
         {
@@ -1242,6 +1291,111 @@ open_catalog_session(const EngineFacade &engine, const std::string_view path, co
         {"sidecar_bytes", JsonValue::number(std::to_string(artifact.sidecar_bytes))},
         {"sidecar_count", JsonValue::number(std::to_string(artifact.sidecar_count))},
         {"verified", verified},
+    };
+}
+
+[[nodiscard]] JsonValue restore_result_to_json(const CatalogRestoreResult &result)
+{
+    return JsonValue::Object{
+        {"backup", backup_artifact_to_json(result.source_backup, true)},
+        {"catalog",
+         JsonValue::Object{
+             {"catalog_id", result.catalog.catalog_id},
+             {"path", result.catalog.database_path},
+             {"revision", JsonValue::number(std::to_string(result.catalog.revision))},
+             {"schema_version", JsonValue::number(std::to_string(result.catalog.schema_version))},
+         }},
+        {"previews_rebuild_required", result.previews_rebuild_required},
+        {"published", result.published},
+        {"support_root", result.support_root},
+    };
+}
+
+[[nodiscard]] JsonValue preview_rebuild_to_json(const PreviewRebuildResult &result)
+{
+    JsonValue::Array items;
+    items.reserve(result.items.size());
+    for (const auto &item : result.items)
+    {
+        JsonValue::Object value{
+            {"asset_id", item.asset_id},
+            {"browse_cache_path",
+             item.browse_cache_path ? JsonValue{*item.browse_cache_path} : JsonValue{nullptr}},
+            {"develop_cache_path",
+             item.develop_cache_path ? JsonValue{*item.develop_cache_path} : JsonValue{nullptr}},
+            {"status", item.error ? JsonValue{"failed"} : JsonValue{"rebuilt"}},
+        };
+        if (item.error)
+            value.emplace("error", error_object(*item.error));
+        else
+            value.emplace("error", nullptr);
+        items.emplace_back(std::move(value));
+    }
+    return JsonValue::Object{
+        {"completed", JsonValue::number(std::to_string(result.completed))},
+        {"failed", JsonValue::number(std::to_string(result.failed))},
+        {"items", std::move(items)},
+        {"succeeded", JsonValue::number(std::to_string(result.succeeded))},
+        {"total", JsonValue::number(std::to_string(result.total))},
+    };
+}
+
+[[nodiscard]] JsonValue backup_policy_to_json(const CatalogBackupPolicy &policy)
+{
+    return JsonValue::Object{
+        {"destination_directory", policy.destination_directory},
+        {"enabled", policy.enabled},
+        {"interval_minutes", JsonValue::number(std::to_string(policy.interval_minutes))},
+        {"last_backup_bytes", JsonValue::number(std::to_string(policy.last_backup_bytes))},
+        {"last_error", policy.last_error ? JsonValue{*policy.last_error} : JsonValue{nullptr}},
+        {"last_success_unix_ms", policy.last_success_unix_ms ? JsonValue::number(std::to_string(
+                                                                   *policy.last_success_unix_ms)) :
+                                                               JsonValue{nullptr}},
+        {"next_run_unix_ms", policy.next_run_unix_ms ?
+                                 JsonValue::number(std::to_string(*policy.next_run_unix_ms)) :
+                                 JsonValue{nullptr}},
+        {"retention_count", JsonValue::number(std::to_string(policy.retention_count))},
+    };
+}
+
+[[nodiscard]] JsonValue backup_schedule_to_json(const CatalogBackupScheduleResult &result)
+{
+    JsonValue::Array removed;
+    for (const auto &path : result.removed_backups)
+        removed.emplace_back(path);
+    JsonValue::Array retained;
+    for (const auto &path : result.retained_unverified_paths)
+        retained.emplace_back(path);
+    return JsonValue::Object{
+        {"backup",
+         result.backup ? backup_artifact_to_json(*result.backup, true) : JsonValue{nullptr}},
+        {"policy", backup_policy_to_json(result.policy)},
+        {"ran", result.ran},
+        {"removed_backups", std::move(removed)},
+        {"retained_unverified_paths", std::move(retained)},
+    };
+}
+
+[[nodiscard]] JsonValue folder_to_json(const FolderRecord &folder)
+{
+    return JsonValue::Object{
+        {"asset_count", JsonValue::number(std::to_string(folder.asset_count))},
+        {"depth", JsonValue::number(std::to_string(folder.depth))},
+        {"display_name", folder.display_name},
+        {"folder_id", folder.id.empty() ? JsonValue{nullptr} : JsonValue{folder.id}},
+        {"missing", folder.missing},
+        {"uri", folder.uri},
+    };
+}
+
+[[nodiscard]] JsonValue folder_relink_to_json(const FolderRelinkResult &result)
+{
+    return JsonValue::Object{
+        {"asset_count", JsonValue::number(std::to_string(result.asset_count))},
+        {"folder_id", result.folder_id},
+        {"previous_uri", result.previous_uri},
+        {"recovery_pending", JsonValue::number(std::to_string(result.recovery_pending))},
+        {"replacement_uri", result.replacement_uri},
     };
 }
 
@@ -2221,8 +2375,9 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             ErrorCode::kInvalidArgument,
             "Usage: ravo catalog <create|import|list|preview|probe|recipe|develop|fields|rate|"
             "export|export-batch|tag|metadata|refresh-metadata|history|snapshot|restore|"
-            "sidecar-status|sidecar-sync|backup|backup-verify> "
-            "--catalog <path>; backup-verify uses only --backup <directory>");
+            "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
+            "backup-run|preview-rebuild|folders|folder-relink> "
+            "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
     const auto subcommand = positional[1];
     auto flags = parse_catalog_flags(positional);
@@ -2234,10 +2389,11 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     {
         return develop_fields_json();
     }
-    if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe")
+    if (!flags.value().output.empty() && subcommand != "export" && subcommand != "probe" &&
+        subcommand != "backup-restore")
     {
         return make_error(ErrorCode::kInvalidArgument,
-                          "--output is only valid for catalog export or catalog probe",
+                          "--output is only valid for catalog export, probe, or backup-restore",
                           {{"subcommand", std::string(subcommand)}});
     }
     if (flags.value().baseline && subcommand != "probe")
@@ -2245,11 +2401,25 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "--baseline is only valid for catalog probe");
     }
-    if (!flags.value().backup.empty() && subcommand != "backup" && subcommand != "backup-verify")
+    if (!flags.value().backup.empty() && subcommand != "backup" && subcommand != "backup-verify" &&
+        subcommand != "backup-restore")
     {
         return make_error(ErrorCode::kInvalidArgument,
-                          "--backup is only valid for catalog backup or backup-verify");
+                          "--backup is only valid for catalog backup, backup-verify, or "
+                          "backup-restore");
     }
+    const bool has_schedule_options = !flags.value().schedule_directory.empty() ||
+                                      !flags.value().schedule_interval_minutes.empty() ||
+                                      !flags.value().schedule_retention_count.empty() ||
+                                      !flags.value().schedule_enabled.empty();
+    if (has_schedule_options && subcommand != "backup-policy")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Backup schedule options are only valid for catalog backup-policy");
+    const bool has_folder_relink_options =
+        !flags.value().folder_id.empty() || !flags.value().replacement_directory.empty();
+    if (has_folder_relink_options && subcommand != "folder-relink")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Folder relink options are only valid for catalog folder-relink");
     if (!flags.value().from_xmp.empty() && subcommand != "develop")
     {
         return make_error(ErrorCode::kInvalidArgument,
@@ -2290,6 +2460,32 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return verified.error();
         }
         return backup_artifact_to_json(verified.value().artifact, true);
+    }
+
+    if (subcommand == "backup-restore")
+    {
+        if (!flags.value().catalog.empty())
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "catalog backup-restore is self-contained and does not accept --catalog or --path");
+        if (flags.value().backup.empty() || flags.value().output.empty())
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "catalog backup-restore requires --backup <directory> --output <absent-catalog>");
+        const auto sidecar_root = filesystem_path_from_utf8(flags.value().backup) /
+                                  filesystem_path_from_utf8(kCatalogBackupSidecarDirectory);
+        auto recovery =
+            FilesystemRecoveryStore::open_existing(filesystem_path_to_utf8(sidecar_root));
+        if (!recovery)
+            return recovery.error();
+        const SqliteCatalogBackupVerifier verifier;
+        CatalogRestoreRequest request;
+        request.backup_directory = std::string(flags.value().backup);
+        request.destination_catalog = std::string(flags.value().output);
+        auto restored = restore_catalog_backup(verifier, verifier, *recovery.value(), request);
+        if (!restored)
+            return restored.error();
+        return restore_result_to_json(restored.value());
     }
 
     if (flags.value().catalog.empty())
@@ -2394,6 +2590,93 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             return backup.error();
         }
         return backup_artifact_to_json(backup.value(), true);
+    }
+    if (subcommand == "backup-policy")
+    {
+        auto policy = service.backup_policy();
+        if (!policy)
+            return policy.error();
+        if (has_schedule_options)
+        {
+            if (!flags.value().schedule_directory.empty())
+                policy.value().destination_directory =
+                    std::string(flags.value().schedule_directory);
+            if (!flags.value().schedule_interval_minutes.empty())
+            {
+                auto interval =
+                    parse_int_flag(flags.value().schedule_interval_minutes, "--interval-minutes");
+                if (!interval)
+                    return interval.error();
+                policy.value().interval_minutes = interval.value();
+            }
+            if (!flags.value().schedule_retention_count.empty())
+            {
+                auto retention =
+                    parse_int_flag(flags.value().schedule_retention_count, "--retention-count");
+                if (!retention)
+                    return retention.error();
+                policy.value().retention_count = retention.value();
+            }
+            if (!flags.value().schedule_enabled.empty())
+            {
+                if (flags.value().schedule_enabled != "true" &&
+                    flags.value().schedule_enabled != "false")
+                    return make_error(ErrorCode::kInvalidArgument,
+                                      "--enabled must be true or false");
+                policy.value().enabled = flags.value().schedule_enabled == "true";
+            }
+            const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::system_clock::now().time_since_epoch())
+                                 .count();
+            policy = service.set_backup_policy(std::move(policy).value(), now);
+            if (!policy)
+                return policy.error();
+        }
+        return backup_policy_to_json(policy.value());
+    }
+    if (subcommand == "backup-run")
+    {
+        const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+        auto scheduled = service.run_scheduled_backup(now, CancellationToken{}, true);
+        if (!scheduled)
+            return scheduled.error();
+        return backup_schedule_to_json(scheduled.value());
+    }
+    if (subcommand == "preview-rebuild")
+    {
+        std::vector<std::string> asset_ids;
+        asset_ids.reserve(flags.value().asset_ids.size());
+        for (const auto asset_id : flags.value().asset_ids)
+            asset_ids.emplace_back(asset_id);
+        auto rebuilt = service.rebuild_previews(asset_ids, CancellationToken{});
+        if (!rebuilt)
+            return rebuilt.error();
+        return preview_rebuild_to_json(rebuilt.value());
+    }
+    if (subcommand == "folders")
+    {
+        auto folders = service.list_folders();
+        if (!folders)
+            return folders.error();
+        JsonValue::Array items;
+        items.reserve(folders.value().size());
+        for (const auto &folder : folders.value())
+            items.push_back(folder_to_json(folder));
+        return JsonValue{JsonValue::Object{{"folders", std::move(items)}}};
+    }
+    if (subcommand == "folder-relink")
+    {
+        if (flags.value().folder_id.empty() || flags.value().replacement_directory.empty())
+            return make_error(
+                ErrorCode::kInvalidArgument,
+                "catalog folder-relink requires --folder-id <id> --replacement <directory>");
+        auto relinked = service.relink_folder(
+            flags.value().folder_id, flags.value().replacement_directory, CancellationToken{});
+        if (!relinked)
+            return relinked.error();
+        return folder_relink_to_json(relinked.value());
     }
     if (subcommand == "import")
     {

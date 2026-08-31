@@ -1,6 +1,9 @@
 #include "ravo/desktop/asset_list_model.h"
 
 #include <algorithm>
+#include <climits>
+#include <cstddef>
+#include <map>
 #include <utility>
 
 #include <QModelIndex>
@@ -11,6 +14,13 @@
 
 namespace ravo
 {
+namespace
+{
+
+constexpr std::size_t kMaximumResidentPages = 3U;
+
+} // namespace
+
 AssetListModel::AssetListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -18,20 +28,44 @@ AssetListModel::AssetListModel(QObject *parent)
 
 int AssetListModel::rowCount(const QModelIndex &parent) const
 {
-    if (parent.isValid())
-    {
-        return 0;
-    }
-    return static_cast<int>(assets_.size());
+    return parent.isValid() ? 0 : total_count_;
 }
 
 QVariant AssetListModel::data(const QModelIndex &index, const int role) const
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= static_cast<int>(assets_.size()))
-    {
+    if (!index.isValid() || index.row() < 0 || index.row() >= total_count_)
         return {};
+    const auto found = assets_.find(index.row());
+    if (found == assets_.end())
+    {
+        switch (role)
+        {
+        case AssetIdRole:
+        case DisplayNameRole:
+        case MediaTypeRole:
+        case ErrorRole:
+            return QString{};
+        case ImportStateRole:
+            return QStringLiteral("loading");
+        case RatingRole:
+        case WidthRole:
+        case HeightRole:
+            return 0;
+        case ColorLabelRole:
+            return QStringLiteral("none");
+        case RejectedRole:
+        case HasEditsRole:
+        case SelectedRole:
+            return false;
+        case ThumbnailUrlRole:
+            return QUrl{};
+        case ThumbnailStateRole:
+            return QStringLiteral("unloaded");
+        default:
+            return {};
+        }
     }
-    const auto &asset = assets_[static_cast<std::size_t>(index.row())];
+    const auto &asset = found->second;
     switch (role)
     {
     case AssetIdRole:
@@ -52,16 +86,14 @@ QVariant AssetListModel::data(const QModelIndex &index, const int role) const
         return asset.review.rejected;
     case ThumbnailUrlRole:
     {
-        const auto found = thumbnail_urls_.find(asset.id);
-        return found == thumbnail_urls_.end() ? QUrl{} : found->second;
+        const auto thumbnail = thumbnail_urls_.find(asset.id);
+        return thumbnail == thumbnail_urls_.end() ? QUrl{} : thumbnail->second;
     }
     case ThumbnailStateRole:
     {
-        const auto found = thumbnail_states_.find(asset.id);
-        if (found != thumbnail_states_.end())
-        {
-            return found->second;
-        }
+        const auto state = thumbnail_states_.find(asset.id);
+        if (state != thumbnail_states_.end())
+            return state->second;
         return asset.import_state == kImportStateMissing ? QStringLiteral("missing") :
                                                            QStringLiteral("pending");
     }
@@ -91,67 +123,127 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
 
 void AssetListModel::setAssets(std::vector<AssetRecord> assets,
                                std::unordered_map<std::string, QUrl> thumbnail_urls,
-                               std::unordered_map<std::string, QString> thumbnail_states)
+                               std::unordered_map<std::string, QString> thumbnail_states,
+                               const std::size_t total_count)
 {
+    const auto bounded_total = std::max(total_count, assets.size());
+    const int next_total =
+        static_cast<int>(std::min<std::size_t>(bounded_total, static_cast<std::size_t>(INT_MAX)));
+    auto old_urls = std::move(thumbnail_urls_);
+    auto old_states = std::move(thumbnail_states_);
     beginResetModel();
-    assets_ = std::move(assets);
-    if (!thumbnail_urls.empty() || !thumbnail_states.empty())
+    assets_.clear();
+    pages_.clear();
+    total_count_ = next_total;
+    for (std::size_t offset = 0; offset < assets.size(); ++offset)
+        assets_.emplace(static_cast<int>(offset), std::move(assets[offset]));
+    if (!assets_.empty())
+        pages_.push_back({0, static_cast<int>(assets_.size())});
+    thumbnail_urls_ = std::move(thumbnail_urls);
+    thumbnail_states_ = std::move(thumbnail_states);
+    for (const auto &[row, asset] : assets_)
     {
-        thumbnail_urls_ = std::move(thumbnail_urls);
-        thumbnail_states_ = std::move(thumbnail_states);
+        static_cast<void>(row);
+        if (!thumbnail_urls_.contains(asset.id))
+            if (const auto found = old_urls.find(asset.id); found != old_urls.end())
+                thumbnail_urls_.emplace(found->first, found->second);
+        if (!thumbnail_states_.contains(asset.id))
+            if (const auto found = old_states.find(asset.id); found != old_states.end())
+                thumbnail_states_.emplace(found->first, found->second);
     }
-    else
-    {
-        std::unordered_map<std::string, QUrl> kept_urls;
-        std::unordered_map<std::string, QString> kept_states;
-        for (const auto &asset : assets_)
-        {
-            if (const auto found = thumbnail_urls_.find(asset.id); found != thumbnail_urls_.end())
-            {
-                kept_urls.emplace(found->first, found->second);
-            }
-            if (const auto found = thumbnail_states_.find(asset.id);
-                found != thumbnail_states_.end())
-            {
-                kept_states.emplace(found->first, found->second);
-            }
-        }
-        thumbnail_urls_ = std::move(kept_urls);
-        thumbnail_states_ = std::move(kept_states);
-    }
-    std::unordered_set<std::string> kept_selected;
-    for (const auto &asset : assets_)
-    {
-        if (selected_ids_.contains(asset.id))
-        {
-            kept_selected.insert(asset.id);
-        }
-    }
-    selected_ids_ = std::move(kept_selected);
     endResetModel();
+}
+
+void AssetListModel::setPage(std::size_t offset, std::vector<AssetRecord> assets,
+                             std::unordered_map<std::string, QUrl> thumbnail_urls,
+                             std::unordered_map<std::string, QString> thumbnail_states,
+                             const std::size_t total_count)
+{
+    if (offset > static_cast<std::size_t>(INT_MAX) || assets.empty())
+        return;
+    const int first = static_cast<int>(offset);
+    const int count = static_cast<int>(std::min<std::size_t>(
+        assets.size(), static_cast<std::size_t>(std::max(0, total_count_ - first))));
+    if (count <= 0)
+        return;
+    if (total_count != static_cast<std::size_t>(total_count_))
+    {
+        beginResetModel();
+        total_count_ =
+            static_cast<int>(std::min<std::size_t>(total_count, static_cast<std::size_t>(INT_MAX)));
+        endResetModel();
+    }
+    for (int index = 0; index < count; ++index)
+        assets_.insert_or_assign(first + index, std::move(assets[static_cast<std::size_t>(index)]));
+    for (auto &[id, url] : thumbnail_urls)
+        thumbnail_urls_.insert_or_assign(std::move(id), std::move(url));
+    for (auto &[id, state] : thumbnail_states)
+        thumbnail_states_.insert_or_assign(std::move(id), std::move(state));
+    std::erase_if(pages_, [first](const Page &page) { return page.first == first; });
+    pages_.push_back({first, count});
+    trimPages();
+    emit dataChanged(this->index(first, 0), this->index(first + count - 1, 0));
+}
+
+void AssetListModel::trimPages()
+{
+    while (pages_.size() > kMaximumResidentPages)
+    {
+        auto candidate = pages_.begin();
+        for (; candidate != pages_.end(); ++candidate)
+        {
+            bool contains_selection = false;
+            for (int row = candidate->first; row < candidate->first + candidate->count; ++row)
+            {
+                const auto found = assets_.find(row);
+                if (found != assets_.end() && selected_ids_.contains(found->second.id))
+                {
+                    contains_selection = true;
+                    break;
+                }
+            }
+            if (!contains_selection)
+                break;
+        }
+        if (candidate == pages_.end())
+            break;
+        const Page removed = *candidate;
+        pages_.erase(candidate);
+        for (int row = removed.first; row < removed.first + removed.count; ++row)
+        {
+            const auto found = assets_.find(row);
+            if (found == assets_.end())
+                continue;
+            thumbnail_urls_.erase(found->second.id);
+            thumbnail_states_.erase(found->second.id);
+            assets_.erase(found);
+        }
+        emit dataChanged(index(removed.first, 0),
+                         index(std::min(total_count_ - 1, removed.first + removed.count - 1), 0));
+    }
 }
 
 void AssetListModel::insertAsset(const int row, AssetRecord asset)
 {
-    const int clamped = std::clamp(row, 0, static_cast<int>(assets_.size()));
+    const int clamped = std::clamp(row, 0, total_count_);
     beginInsertRows(QModelIndex{}, clamped, clamped);
-    assets_.insert(assets_.begin() + clamped, std::move(asset));
-    endInsertRows();
-}
-
-std::vector<AssetRecord> AssetListModel::records() const
-{
-    return assets_;
-}
-
-QString AssetListModel::thumbnailState(const std::string &asset_id) const
-{
-    const auto found = thumbnail_states_.find(asset_id);
-    if (found != thumbnail_states_.end())
+    std::map<int, AssetRecord> shifted;
+    for (auto &[existing_row, existing] : assets_)
+        shifted.emplace(existing_row >= clamped ? existing_row + 1 : existing_row,
+                        std::move(existing));
+    shifted.insert_or_assign(clamped, std::move(asset));
+    assets_ = std::move(shifted);
+    for (auto &page : pages_)
     {
-        return found->second;
+        if (page.first >= clamped)
+            ++page.first;
+        else if (clamped < page.first + page.count)
+            ++page.count;
     }
-    return QStringLiteral("pending");
+    pages_.push_back({clamped, 1});
+    ++total_count_;
+    endInsertRows();
+    trimPages();
 }
 
 void AssetListModel::setThumbnail(const std::string &asset_id, const QUrl &url,
@@ -161,21 +253,35 @@ void AssetListModel::setThumbnail(const std::string &asset_id, const QUrl &url,
     thumbnail_states_[asset_id] = state;
     const auto row = indexOf(qstring_from_utf8(asset_id));
     if (row < 0)
-    {
         return;
-    }
     const auto model_index = index(row, 0);
     emit dataChanged(model_index, model_index, {ThumbnailUrlRole, ThumbnailStateRole});
+}
+
+std::vector<AssetRecord> AssetListModel::records() const
+{
+    std::vector<AssetRecord> records;
+    records.reserve(assets_.size());
+    for (const auto &[row, asset] : assets_)
+    {
+        static_cast<void>(row);
+        records.push_back(asset);
+    }
+    return records;
+}
+
+QString AssetListModel::thumbnailState(const std::string &asset_id) const
+{
+    const auto found = thumbnail_states_.find(asset_id);
+    return found == thumbnail_states_.end() ? QStringLiteral("pending") : found->second;
 }
 
 void AssetListModel::updateAsset(const AssetRecord &asset)
 {
     const auto row = indexOf(qstring_from_utf8(asset.id));
     if (row < 0)
-    {
         return;
-    }
-    assets_[static_cast<std::size_t>(row)] = asset;
+    assets_.insert_or_assign(row, asset);
     const auto model_index = index(row, 0);
     emit dataChanged(model_index, model_index);
 }
@@ -184,11 +290,9 @@ void AssetListModel::markOriginalMissing(const std::string &asset_id)
 {
     const auto row = indexOf(qstring_from_utf8(asset_id));
     if (row < 0)
-    {
         return;
-    }
-    auto &asset = assets_[static_cast<std::size_t>(row)];
-    asset.import_state = std::string(kImportStateMissing);
+    auto found = assets_.find(row);
+    found->second.import_state = std::string(kImportStateMissing);
     thumbnail_states_[asset_id] = QStringLiteral("missing");
     const auto model_index = index(row, 0);
     emit dataChanged(model_index, model_index, {ImportStateRole, ThumbnailStateRole});
@@ -198,19 +302,13 @@ void AssetListModel::setSelectedIds(std::unordered_set<std::string> ids)
 {
     std::unordered_set<std::string> changed = selected_ids_;
     for (const auto &id : ids)
-    {
         changed.insert(id);
-    }
     selected_ids_ = std::move(ids);
     for (const auto &id : changed)
     {
         const auto row = indexOf(qstring_from_utf8(id));
-        if (row < 0)
-        {
-            continue;
-        }
-        const auto model_index = index(row, 0);
-        emit dataChanged(model_index, model_index, {SelectedRole});
+        if (row >= 0)
+            emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
     }
 }
 
@@ -222,13 +320,9 @@ bool AssetListModel::isSelected(const std::string &asset_id) const
 int AssetListModel::indexOf(const QString &asset_id) const
 {
     const auto id = utf8_from_qstring(asset_id);
-    for (int row = 0; row < static_cast<int>(assets_.size()); ++row)
-    {
-        if (assets_[static_cast<std::size_t>(row)].id == id)
-        {
+    for (const auto &[row, asset] : assets_)
+        if (asset.id == id)
             return row;
-        }
-    }
     return -1;
 }
 
@@ -236,19 +330,24 @@ std::optional<AssetRecord> AssetListModel::assetById(const QString &asset_id) co
 {
     const auto row = indexOf(asset_id);
     if (row < 0)
-    {
         return std::nullopt;
-    }
-    return assets_[static_cast<std::size_t>(row)];
+    return assets_.at(row);
 }
 
 QString AssetListModel::assetIdAt(const int row) const
 {
-    if (row < 0 || row >= static_cast<int>(assets_.size()))
-    {
-        return {};
-    }
-    return qstring_from_utf8(assets_[static_cast<std::size_t>(row)].id);
+    const auto found = assets_.find(row);
+    return found == assets_.end() ? QString{} : qstring_from_utf8(found->second.id);
+}
+
+bool AssetListModel::rowLoaded(const int row) const noexcept
+{
+    return assets_.contains(row);
+}
+
+int AssetListModel::loadedCount() const noexcept
+{
+    return static_cast<int>(assets_.size());
 }
 
 } // namespace ravo

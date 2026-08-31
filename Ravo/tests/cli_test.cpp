@@ -3672,8 +3672,207 @@ TEST_F(CliTest, CatalogSidecarAndBackupCommandsExposeVersionedJsonArtifacts)
     ASSERT_TRUE(verified) << verified.error().message;
     ASSERT_NE(verified.value().find("data")->find("verified")->boolean_if(), nullptr);
     EXPECT_TRUE(*verified.value().find("data")->find("verified")->boolean_if());
+
+    const auto restored_catalog = (root / "restored.sqlite").string();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "backup-restore", "--backup",
+                                                            backup, "--output", restored_catalog,
+                                                            "--json"}),
+              0)
+        << stdout_stream.str();
+    auto restored = parse_json(stdout_stream.str());
+    ASSERT_TRUE(restored) << restored.error().message;
+    const auto *restore_data = restored.value().find("data");
+    ASSERT_NE(restore_data, nullptr);
+    ASSERT_NE(restore_data->find("published")->boolean_if(), nullptr);
+    EXPECT_TRUE(*restore_data->find("published")->boolean_if());
+    ASSERT_NE(restore_data->find("previews_rebuild_required")->boolean_if(), nullptr);
+    EXPECT_TRUE(*restore_data->find("previews_rebuild_required")->boolean_if());
+    ASSERT_NE(restore_data->find("catalog")->find("path")->string_if(), nullptr);
+    EXPECT_EQ(*restore_data->find("catalog")->find("path")->string_if(), restored_catalog);
+    EXPECT_TRUE(std::filesystem::is_regular_file(restored_catalog));
+    EXPECT_TRUE(std::filesystem::is_directory(restored_catalog + ".ravo/sidecars"));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "list", "--catalog",
+                                                            restored_catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto restored_list = parse_json(stdout_stream.str());
+    ASSERT_TRUE(restored_list) << restored_list.error().message;
+    const auto *restored_items = restored_list.value().find("data")->find("assets")->array_if();
+    ASSERT_NE(restored_items, nullptr);
+    ASSERT_EQ(restored_items->size(), 1U);
+    EXPECT_EQ(*restored_items->front().find("id")->string_if(), asset_id);
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "preview-rebuild",
+                                                            "--catalog", restored_catalog,
+                                                            "--asset-id", asset_id, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto rebuilt = parse_json(stdout_stream.str());
+    ASSERT_TRUE(rebuilt) << rebuilt.error().message;
+    const auto *rebuild_data = rebuilt.value().find("data");
+    ASSERT_NE(rebuild_data, nullptr);
+    const auto *rebuild_succeeded = rebuild_data->find("succeeded")->number_if();
+    ASSERT_NE(rebuild_succeeded, nullptr);
+    EXPECT_EQ(rebuild_succeeded->text, "1");
+    const auto *rebuild_items = rebuild_data->find("items")->array_if();
+    ASSERT_NE(rebuild_items, nullptr);
+    ASSERT_EQ(rebuild_items->size(), 1U);
+    ASSERT_NE(rebuild_items->front().find("browse_cache_path")->string_if(), nullptr);
+    ASSERT_NE(rebuild_items->front().find("develop_cache_path")->string_if(), nullptr);
+    EXPECT_TRUE(std::filesystem::is_regular_file(
+        *rebuild_items->front().find("browse_cache_path")->string_if()));
+    EXPECT_TRUE(std::filesystem::is_regular_file(
+        *rebuild_items->front().find("develop_cache_path")->string_if()));
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    EXPECT_EQ(application.run(std::vector<std::string_view>{"catalog", "backup-restore", "--backup",
+                                                            backup, "--output", restored_catalog,
+                                                            "--json"}),
+              6)
+        << stdout_stream.str();
+    auto restore_conflict = parse_json(stdout_stream.str());
+    ASSERT_TRUE(restore_conflict) << restore_conflict.error().message;
+    ASSERT_NE(restore_conflict.value().find("error"), nullptr);
+    EXPECT_EQ(*restore_conflict.value().find("error")->find("code")->string_if(), "conflict");
+
+    const auto schedule_directory = (root / "scheduled").string();
+    ASSERT_TRUE(std::filesystem::create_directory(schedule_directory));
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(
+        application.run(std::vector<std::string_view>{
+            "catalog", "backup-policy", "--catalog", catalog, "--schedule-dir", schedule_directory,
+            "--interval-minutes", "15", "--retention-count", "1", "--enabled", "true", "--json"}),
+        0)
+        << stdout_stream.str();
+    auto policy = parse_json(stdout_stream.str());
+    ASSERT_TRUE(policy) << policy.error().message;
+    ASSERT_NE(policy.value().find("data")->find("enabled")->boolean_if(), nullptr);
+    EXPECT_TRUE(*policy.value().find("data")->find("enabled")->boolean_if());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "backup-run", "--catalog",
+                                                            catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto scheduled = parse_json(stdout_stream.str());
+    ASSERT_TRUE(scheduled) << scheduled.error().message;
+    ASSERT_NE(scheduled.value().find("data")->find("ran")->boolean_if(), nullptr);
+    EXPECT_TRUE(*scheduled.value().find("data")->find("ran")->boolean_if());
+    EXPECT_EQ(std::distance(std::filesystem::directory_iterator(schedule_directory),
+                            std::filesystem::directory_iterator()),
+              1);
     EXPECT_EQ(source_file_snapshot(source.string()), source_before);
     EXPECT_TRUE(stderr_stream.str().empty());
+
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST_F(CliTest, CatalogFoldersExposeStableMissingIdentityAndRelinkExplicitly)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-cli-relink-" + generate_catalog_id());
+    const auto original = root / "original";
+    const auto replacement = root / "replacement";
+    std::filesystem::create_directories(original);
+    const auto catalog = (root / "library.sqlite").string();
+    const auto fixture = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "legacy" / "tests" /
+                         "0000-nop" / "expected.png";
+    const auto source = original / "source.png";
+    std::filesystem::copy_file(fixture, source);
+    const auto source_before = source_file_snapshot(source.string());
+    ASSERT_TRUE(source_before);
+
+    std::ostringstream stdout_stream;
+    std::ostringstream stderr_stream;
+    const CliApplication application(engine, stdout_stream, stderr_stream);
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "create", "--catalog",
+                                                            catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "import", "--catalog", catalog, "--input", source.string(), "--json"}),
+              0)
+        << stdout_stream.str();
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "folders", "--catalog",
+                                                            catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto listed = parse_json(stdout_stream.str());
+    ASSERT_TRUE(listed) << listed.error().message;
+    const auto *folders = listed.value().find("data")->find("folders")->array_if();
+    ASSERT_NE(folders, nullptr);
+    std::string folder_id;
+    for (const auto &folder : *folders)
+    {
+        const auto *name = folder.find("display_name");
+        if (name == nullptr || name->string_if() == nullptr || *name->string_if() != "original")
+            continue;
+        const auto *id = folder.find("folder_id");
+        ASSERT_NE(id, nullptr);
+        ASSERT_NE(id->string_if(), nullptr);
+        folder_id = *id->string_if();
+        ASSERT_NE(folder.find("missing")->boolean_if(), nullptr);
+        EXPECT_FALSE(*folder.find("missing")->boolean_if());
+    }
+    ASSERT_FALSE(folder_id.empty());
+
+    std::filesystem::rename(original, replacement);
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "folders", "--catalog",
+                                                            catalog, "--json"}),
+              0)
+        << stdout_stream.str();
+    auto missing = parse_json(stdout_stream.str());
+    ASSERT_TRUE(missing) << missing.error().message;
+    const auto *missing_folders = missing.value().find("data")->find("folders")->array_if();
+    ASSERT_NE(missing_folders, nullptr);
+    const auto missing_folder = std::find_if(missing_folders->begin(), missing_folders->end(),
+                                             [&](const JsonValue &folder)
+                                             {
+                                                 const auto *id = folder.find("folder_id");
+                                                 return id != nullptr &&
+                                                        id->string_if() != nullptr &&
+                                                        *id->string_if() == folder_id;
+                                             });
+    ASSERT_NE(missing_folder, missing_folders->end());
+    ASSERT_NE(missing_folder->find("missing")->boolean_if(), nullptr);
+    EXPECT_TRUE(*missing_folder->find("missing")->boolean_if());
+
+    stdout_stream.str({});
+    stdout_stream.clear();
+    ASSERT_EQ(application.run(std::vector<std::string_view>{
+                  "catalog", "folder-relink", "--catalog", catalog, "--folder-id", folder_id,
+                  "--replacement", replacement.string(), "--json"}),
+              0)
+        << stdout_stream.str();
+    auto relinked = parse_json(stdout_stream.str());
+    ASSERT_TRUE(relinked) << relinked.error().message;
+    const auto *data = relinked.value().find("data");
+    ASSERT_NE(data, nullptr);
+    ASSERT_NE(data->find("folder_id")->string_if(), nullptr);
+    EXPECT_EQ(*data->find("folder_id")->string_if(), folder_id);
+    ASSERT_NE(data->find("asset_count")->number_if(), nullptr);
+    EXPECT_EQ(data->find("asset_count")->number_if()->text, "1");
+    ASSERT_NE(data->find("recovery_pending")->number_if(), nullptr);
+    EXPECT_EQ(data->find("recovery_pending")->number_if()->text, "1");
+    EXPECT_EQ(source_file_snapshot((replacement / "source.png").string()), source_before);
 
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);

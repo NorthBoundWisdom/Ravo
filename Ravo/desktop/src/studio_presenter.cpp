@@ -3,6 +3,7 @@
 #include "ravo/desktop/export_option_conversion.h"
 
 #include <algorithm>
+#include <climits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -49,6 +50,8 @@ struct CatalogListing
     std::unordered_map<std::string, QUrl> thumbnail_urls;
     std::unordered_map<std::string, QString> thumbnail_states;
     std::int64_t revision = -1;
+    std::size_t total = 0U;
+    bool has_more = false;
 };
 
 void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
@@ -58,7 +61,11 @@ void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
         return;
     }
     auto snapshot = service.snapshot();
-    auto previews = service.list_previews();
+    std::vector<std::string> asset_ids;
+    asset_ids.reserve(listing.assets.value().size());
+    for (const auto &asset : listing.assets.value())
+        asset_ids.push_back(asset.id);
+    auto previews = service.list_previews_for_assets(asset_ids);
     if (!snapshot || !previews)
     {
         return;
@@ -112,7 +119,19 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     {
         listing.revision = snapshot.value().revision;
     }
-    listing.assets = service->list_assets(query);
+    LibraryPageRequest page_request;
+    page_request.query = query;
+    auto page = service->list_assets_page(page_request);
+    if (page)
+    {
+        listing.total = page.value().total;
+        listing.has_more = page.value().has_more;
+        listing.assets = std::move(page).value().assets;
+    }
+    else
+    {
+        listing.assets = page.error();
+    }
     listing.folders = service->list_folders();
     fill_thumbnail_maps(*service, listing);
     return listing;
@@ -130,6 +149,11 @@ StudioPresenter::StudioPresenter(QObject *parent)
     catalog_revision_timer_->setTimerType(Qt::CoarseTimer);
     QObject::connect(catalog_revision_timer_, &QTimer::timeout, this,
                      &StudioPresenter::pollCatalogRevision);
+    backup_schedule_timer_ = new QTimer(this);
+    backup_schedule_timer_->setInterval(60'000);
+    backup_schedule_timer_->setTimerType(Qt::VeryCoarseTimer);
+    QObject::connect(backup_schedule_timer_, &QTimer::timeout, this,
+                     &StudioPresenter::checkScheduledBackup);
     const auto created = executor_.submit(
         [this]() -> Result<void>
         {
@@ -154,8 +178,14 @@ StudioPresenter::~StudioPresenter()
     {
         catalog_revision_timer_->stop();
     }
+    if (backup_schedule_timer_ != nullptr)
+    {
+        backup_schedule_timer_->stop();
+    }
     static_cast<void>(shutdown_.cancel("window_closed"));
     static_cast<void>(thumbnail_work_.cancel("window_closed"));
+    static_cast<void>(catalog_operation_.cancel("window_closed"));
+    static_cast<void>(import_operation_.cancel("window_closed"));
     develop_preview_owner_.cancel("window_closed");
     perspective_analysis_owner_.cancel("window_closed");
     executor_.submit(
@@ -267,6 +297,42 @@ int StudioPresenter::previewWorkCompleted() const noexcept
 int StudioPresenter::previewWorkTotal() const noexcept
 {
     return preview_work_total_;
+}
+
+bool StudioPresenter::catalogOperationActive() const noexcept
+{
+    return catalog_operation_active_;
+}
+
+QString StudioPresenter::catalogOperationStage() const
+{
+    return catalog_operation_stage_;
+}
+
+int StudioPresenter::catalogOperationCompleted() const noexcept
+{
+    return catalog_operation_completed_;
+}
+
+int StudioPresenter::catalogOperationTotal() const noexcept
+{
+    return catalog_operation_total_;
+}
+
+int StudioPresenter::recoveryPendingCount() const noexcept
+{
+    return recovery_pending_count_;
+}
+
+int StudioPresenter::libraryTotal() const noexcept
+{
+    return static_cast<int>(
+        std::min<std::size_t>(library_total_, static_cast<std::size_t>(INT_MAX)));
+}
+
+bool StudioPresenter::libraryHasMore() const noexcept
+{
+    return library_has_more_;
 }
 
 void StudioPresenter::setStartupCatalogPath(const QString &path)
@@ -448,7 +514,7 @@ QString StudioPresenter::sortDirection() const
 
 int StudioPresenter::visibleCount() const
 {
-    return assets_.rowCount();
+    return libraryTotal();
 }
 
 bool StudioPresenter::filtersActive() const noexcept
@@ -659,21 +725,21 @@ void StudioPresenter::setError(QString text)
 
 void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool restore_selection,
                                   std::unordered_map<std::string, QUrl> thumbnail_urls,
-                                  std::unordered_map<std::string, QString> thumbnail_states)
+                                  std::unordered_map<std::string, QString> thumbnail_states,
+                                  const std::size_t total, const bool has_more)
 {
+    ++library_query_generation_;
     const QString previous = selected_asset_id_;
-    assets_.setAssets(std::move(assets), std::move(thumbnail_urls), std::move(thumbnail_states));
+    assets_.setAssets(std::move(assets), std::move(thumbnail_urls), std::move(thumbnail_states),
+                      total);
+    library_total_ = total == 0U && assets_.rowCount() > 0 ?
+                         static_cast<std::size_t>(assets_.rowCount()) :
+                         total;
+    library_has_more_ = has_more;
+    library_page_in_flight_ = false;
+    library_next_offset_ = static_cast<std::size_t>(assets_.loadedCount());
     emit thumbnailsChanged();
     queuePreviewWarmup();
-    std::unordered_set<std::string> kept;
-    for (const auto &id : selected_ids_)
-    {
-        if (assets_.indexOf(qstring_from_utf8(id)) >= 0)
-        {
-            kept.insert(id);
-        }
-    }
-    selected_ids_ = std::move(kept);
     assets_.setSelectedIds(selected_ids_);
     emit filterChanged();
     emit selectionChanged();
@@ -708,7 +774,10 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     if (!selected_ids_.empty())
     {
         const auto remaining = selected_asset_ids();
-        activate_primary(qstring_from_utf8(remaining.front()), true);
+        if (!remaining.empty())
+            activate_primary(qstring_from_utf8(remaining.front()), true);
+        else
+            publish_selection();
         return;
     }
     if (selected_asset_id_.isEmpty() || assets_.indexOf(selected_asset_id_) < 0)
@@ -746,6 +815,7 @@ void StudioPresenter::ingestImportedItem(const ImportItemResult &item)
         }
     }
     assets_.insertAsset(row, asset);
+    ++library_total_;
     if (item.preview_cache_path && QFileInfo::exists(qstring_from_utf8(*item.preview_cache_path)))
     {
         assets_.setThumbnail(asset.id,
@@ -776,16 +846,33 @@ void StudioPresenter::setImportWork(const int completed, const int total, const 
     emit libraryWorkChanged();
 }
 
+void StudioPresenter::setCatalogOperation(QString stage, const int completed, const int total,
+                                          const bool active)
+{
+    const int clamped_total = std::max(0, total);
+    const int clamped_completed = std::clamp(completed, 0, std::max(clamped_total, completed));
+    if (catalog_operation_active_ == active && catalog_operation_stage_ == stage &&
+        catalog_operation_completed_ == clamped_completed &&
+        catalog_operation_total_ == clamped_total)
+        return;
+    catalog_operation_active_ = active;
+    catalog_operation_stage_ = std::move(stage);
+    catalog_operation_completed_ = clamped_completed;
+    catalog_operation_total_ = clamped_total;
+    emit libraryWorkChanged();
+}
+
 void StudioPresenter::queuePreviewWarmup()
 {
     pending_preview_ids_.clear();
     preview_warmup_in_flight_ = false;
     int ready = 0;
-    const int total = assets_.rowCount();
-    pending_preview_ids_.reserve(static_cast<std::size_t>(total));
-    for (int row = 0; row < total; ++row)
+    const auto loaded = assets_.records();
+    const int total = static_cast<int>(loaded.size());
+    pending_preview_ids_.reserve(loaded.size());
+    for (const auto &asset : loaded)
     {
-        const auto id = utf8_from_qstring(assets_.assetIdAt(row));
+        const auto &id = asset.id;
         const QString state = assets_.thumbnailState(id);
         if (state == QLatin1String("ready"))
         {
@@ -904,9 +991,106 @@ void StudioPresenter::reloadVisibleAssets()
                         return;
                     }
                     applyFolders(std::move(listing.folders).value());
-                    applyAssets(std::move(listing.assets).value(), true,
-                                std::move(listing.thumbnail_urls),
-                                std::move(listing.thumbnail_states));
+                    applyAssets(
+                        std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
+                        std::move(listing.thumbnail_states), listing.total, listing.has_more);
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::loadNextLibraryPage()
+{
+    if (catalog_path_.isEmpty() || busy_ || library_page_in_flight_ || !library_has_more_)
+        return;
+    const auto offset = library_next_offset_;
+    const auto previous =
+        offset > 0U ? assets_.assetIdAt(static_cast<int>(offset - 1U)) : QString{};
+    if (offset > 0U && previous.isEmpty())
+        return;
+    requestLibraryPage(offset,
+                       previous.isEmpty() ? std::nullopt :
+                                            std::optional<std::string>{utf8_from_qstring(previous)},
+                       true);
+}
+
+void StudioPresenter::ensureLibraryRow(const int row)
+{
+    if (row < 0 || row >= libraryTotal() || assets_.rowLoaded(row) || catalog_path_.isEmpty() ||
+        busy_)
+        return;
+    const auto offset =
+        static_cast<std::size_t>(row) / kLibraryPageDefaultSize * kLibraryPageDefaultSize;
+    requestLibraryPage(offset, std::nullopt, false);
+}
+
+void StudioPresenter::requestLibraryPage(const std::size_t offset,
+                                         std::optional<std::string> cursor, const bool sequential)
+{
+    if (library_page_in_flight_)
+    {
+        pending_library_page_offset_ = offset;
+        return;
+    }
+    const auto generation = library_query_generation_;
+    const auto query = current_query();
+    const auto known_total = library_total_;
+    library_page_in_flight_ = true;
+    pending_library_page_offset_.reset();
+    emit libraryWorkChanged();
+    executor_.post(
+        [this, offset, generation, query, cursor = std::move(cursor), known_total, sequential]
+        {
+            Result<LibraryPage> page = make_error(ErrorCode::kIo, "Catalog session is closed");
+            CatalogListing listing;
+            if (service_ != nullptr)
+            {
+                LibraryPageRequest request;
+                request.query = query;
+                request.offset = offset;
+                request.after_asset_id = cursor;
+                request.known_total = known_total;
+                page = service_->list_assets_page(request);
+                if (page)
+                {
+                    listing.total = page.value().total;
+                    listing.has_more = page.value().has_more;
+                    listing.assets = page.value().assets;
+                    fill_thumbnail_maps(*service_, listing);
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, generation, sequential, page = std::move(page),
+                 listing = std::move(listing)]() mutable
+                {
+                    if (generation != library_query_generation_)
+                        return;
+                    library_page_in_flight_ = false;
+                    emit libraryWorkChanged();
+                    if (!page)
+                    {
+                        setError(qstring_from_utf8(page.error().message));
+                        return;
+                    }
+                    assets_.setPage(page.value().offset, std::move(listing.assets).value(),
+                                    std::move(listing.thumbnail_urls),
+                                    std::move(listing.thumbnail_states), page.value().total);
+                    library_total_ = page.value().total;
+                    if (sequential)
+                    {
+                        library_next_offset_ = page.value().offset + page.value().assets.size();
+                        library_has_more_ = page.value().has_more;
+                    }
+                    emit thumbnailsChanged();
+                    emit filterChanged();
+                    if (pending_library_page_offset_)
+                    {
+                        const auto pending = *pending_library_page_offset_;
+                        pending_library_page_offset_.reset();
+                        if (!assets_.rowLoaded(static_cast<int>(pending)))
+                            requestLibraryPage(pending, std::nullopt, false);
+                    }
                 },
                 Qt::QueuedConnection);
         });
@@ -920,6 +1104,9 @@ void StudioPresenter::start_catalog_revision_watch(const std::int64_t revision)
     {
         catalog_revision_timer_->start();
     }
+    if (backup_schedule_timer_ != nullptr)
+        backup_schedule_timer_->start();
+    QTimer::singleShot(0, this, &StudioPresenter::checkScheduledBackup);
 }
 
 void StudioPresenter::pollCatalogRevision()
@@ -990,9 +1177,9 @@ void StudioPresenter::pollCatalogRevision()
                     }
                     const QString previous_selection = selected_asset_id_;
                     applyFolders(std::move(listing.folders).value());
-                    applyAssets(std::move(listing.assets).value(), true,
-                                std::move(listing.thumbnail_urls),
-                                std::move(listing.thumbnail_states));
+                    applyAssets(
+                        std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
+                        std::move(listing.thumbnail_states), listing.total, listing.has_more);
                     observed_catalog_revision_ = snapshot.value().revision;
                     if (selected.empty() || selected_asset_id_ != previous_selection ||
                         utf8_from_qstring(selected_asset_id_) != selected)
@@ -1119,9 +1306,9 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                     setStatus(QCoreApplication::translate(
                         "StudioPresenter", "Library created. Import photos or a folder."));
                     applyFolders(std::move(listing.folders).value());
-                    applyAssets(std::move(listing.assets).value(), true,
-                                std::move(listing.thumbnail_urls),
-                                std::move(listing.thumbnail_states));
+                    applyAssets(
+                        std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
+                        std::move(listing.thumbnail_states), listing.total, listing.has_more);
                     start_catalog_revision_watch(listing.revision);
                 },
                 Qt::QueuedConnection);
@@ -1211,9 +1398,9 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     setError({});
                     setStatus(QCoreApplication::translate("StudioPresenter", "Library opened."));
                     applyFolders(std::move(listing.folders).value());
-                    applyAssets(std::move(listing.assets).value(), true,
-                                std::move(listing.thumbnail_urls),
-                                std::move(listing.thumbnail_states));
+                    applyAssets(
+                        std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
+                        std::move(listing.thumbnail_states), listing.total, listing.has_more);
                     start_catalog_revision_watch(listing.revision);
                 },
                 Qt::QueuedConnection);
@@ -1432,68 +1619,114 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
     setError({});
     setStatus(QCoreApplication::translate("StudioPresenter", "Scanning folder…"));
     setImportWork(0, 0, true);
+    import_operation_ = CancellationSource{};
+    const auto cancellation = import_operation_.token();
+    import_query_snapshot_ = current_query();
     executor_.post(
-        [this, paths = std::move(paths), query = current_query()]()
+        [this, paths = std::move(paths), cancellation]
         {
-            Result<std::vector<ImportItemResult>> imported =
+            Result<std::vector<std::string>> enumerated =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             if (service_ != nullptr)
-            {
-                imported = service_->import_inputs(
-                    paths, shutdown_.token(),
-                    [this](const std::size_t completed, const std::size_t total,
-                           const ImportItemResult *item)
-                    {
-                        const auto completed_count = static_cast<int>(completed);
-                        const auto total_count = static_cast<int>(total);
-                        std::optional<ImportItemResult> copied;
-                        if (item != nullptr)
-                        {
-                            copied = *item;
-                        }
-                        QMetaObject::invokeMethod(
-                            this,
-                            [this, completed_count, total_count, copied = std::move(copied)]()
-                            {
-                                setImportWork(completed_count, total_count, true);
-                                setStatus(QCoreApplication::translate("StudioPresenter",
-                                                                      "Importing %1 / %2…")
-                                              .arg(completed_count)
-                                              .arg(total_count));
-                                if (copied)
-                                {
-                                    ingestImportedItem(*copied);
-                                }
-                            },
-                            Qt::QueuedConnection);
-                    });
-            }
-            std::vector<ImportItemResult> results;
-            QString first_error;
-            if (!imported)
-            {
-                first_error = qstring_from_utf8(imported.error().message);
-            }
-            else
-            {
-                results = std::move(imported).value();
-                for (const auto &item : results)
+                enumerated = service_->enumerate_import_inputs(paths, cancellation);
+            QMetaObject::invokeMethod(
+                this,
+                [this, enumerated = std::move(enumerated)]() mutable
                 {
-                    if (first_error.isEmpty() && item.error)
+                    if (!enumerated)
                     {
-                        first_error = qstring_from_utf8(item.error->message);
+                        setImportWork(0, 0, false);
+                        setError(qstring_from_utf8(enumerated.error().message));
+                        setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
+                        return;
                     }
-                }
-            }
+                    pending_import_paths_ = std::move(enumerated).value();
+                    import_results_.clear();
+                    import_results_.reserve(pending_import_paths_.size());
+                    import_next_index_ = 0U;
+                    setImportWork(0, static_cast<int>(pending_import_paths_.size()), true);
+                    if (pending_import_paths_.empty())
+                    {
+                        finishImportBatch();
+                        return;
+                    }
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Importing 0 / %1…")
+                                  .arg(pending_import_paths_.size()));
+                    startNextImportItem();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::startNextImportItem()
+{
+    if (!import_work_active_)
+        return;
+    if (import_operation_.token().is_cancellation_requested() ||
+        import_next_index_ >= pending_import_paths_.size())
+    {
+        finishImportBatch();
+        return;
+    }
+    const auto path = pending_import_paths_[import_next_index_];
+    const auto cancellation = import_operation_.token();
+    executor_.post(
+        [this, path, cancellation]
+        {
+            Result<ImportItemResult> imported =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (service_ != nullptr)
+                imported = service_->import_one(path, cancellation);
+            QMetaObject::invokeMethod(
+                this,
+                [this, path, imported = std::move(imported)]() mutable
+                {
+                    ImportItemResult item;
+                    if (imported)
+                    {
+                        item = std::move(imported).value();
+                    }
+                    else
+                    {
+                        item.status = ImportItemStatus::kFailed;
+                        item.input_path = path;
+                        item.error = imported.error();
+                    }
+                    import_results_.push_back(item);
+                    ++import_next_index_;
+                    setImportWork(static_cast<int>(import_next_index_),
+                                  static_cast<int>(pending_import_paths_.size()), true);
+                    setStatus(QCoreApplication::translate("StudioPresenter", "Importing %1 / %2…")
+                                  .arg(import_next_index_)
+                                  .arg(pending_import_paths_.size()));
+                    ingestImportedItem(item);
+                    startNextImportItem();
+                },
+                Qt::QueuedConnection);
+        });
+}
+
+void StudioPresenter::finishImportBatch()
+{
+    if (!import_work_active_)
+        return;
+    const bool cancelled = import_operation_.token().is_cancellation_requested();
+    const auto completed = import_results_.size();
+    const auto total = pending_import_paths_.size();
+    auto results = std::move(import_results_);
+    pending_import_paths_.clear();
+    import_next_index_ = 0U;
+    const auto query = import_query_snapshot_;
+    executor_.post(
+        [this, results = std::move(results), query, cancelled, completed, total]() mutable
+        {
             auto listing = load_catalog_listing(service_.get(), query);
             QMetaObject::invokeMethod(
                 this,
-                [this, results = std::move(results), listing = std::move(listing),
-                 first_error = std::move(first_error)]() mutable
+                [this, results = std::move(results), listing = std::move(listing), cancelled,
+                 completed, total]() mutable
                 {
-                    const int finished_total =
-                        import_work_total_ > 0 ? import_work_total_ : import_work_completed_;
-                    setImportWork(finished_total, finished_total, false);
+                    setImportWork(static_cast<int>(completed), static_cast<int>(total), false);
                     if (!listing.assets)
                     {
                         setError(qstring_from_utf8(listing.assets.error().message));
@@ -1506,16 +1739,23 @@ void StudioPresenter::importFiles(const QList<QUrl> &files)
                         setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
                         return;
                     }
+                    QString first_error;
+                    for (const auto &item : results)
+                        if (first_error.isEmpty() && item.error)
+                            first_error = qstring_from_utf8(item.error->message);
                     setError(first_error);
-                    setStatus(describe_import(results));
+                    setStatus(cancelled ?
+                                  QCoreApplication::translate(
+                                      "StudioPresenter", "Import cancelled after %1 of %2 photos.")
+                                      .arg(completed)
+                                      .arg(total) :
+                                  describe_import(results));
                     if (listing.revision >= 0)
-                    {
                         observed_catalog_revision_ = listing.revision;
-                    }
                     applyFolders(std::move(listing.folders).value());
-                    applyAssets(std::move(listing.assets).value(), true,
-                                std::move(listing.thumbnail_urls),
-                                std::move(listing.thumbnail_states));
+                    applyAssets(
+                        std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
+                        std::move(listing.thumbnail_states), listing.total, listing.has_more);
                 },
                 Qt::QueuedConnection);
         });
@@ -1555,13 +1795,10 @@ std::vector<std::string> StudioPresenter::selected_asset_ids() const
 {
     std::vector<std::string> ids;
     ids.reserve(selected_ids_.size());
-    for (int row = 0; row < assets_.rowCount(); ++row)
+    for (const auto &asset : assets_.records())
     {
-        const auto id = utf8_from_qstring(assets_.assetIdAt(row));
-        if (selected_ids_.contains(id))
-        {
-            ids.push_back(id);
-        }
+        if (selected_ids_.contains(asset.id))
+            ids.push_back(asset.id);
     }
     return ids;
 }
@@ -2333,7 +2570,8 @@ void StudioPresenter::remove_selected_from_catalog()
                         return;
                     }
                     applyFolders(std::move(folders).value());
-                    applyAssets(std::move(listed).value(), false);
+                    const auto total = listed.value().size();
+                    applyAssets(std::move(listed).value(), false, {}, {}, total, false);
                     if (assets_.rowCount() == 0)
                     {
                         selected_asset_id_.clear();
@@ -2418,7 +2656,8 @@ void StudioPresenter::remove_selected_from_disk()
                         return;
                     }
                     applyFolders(std::move(folders).value());
-                    applyAssets(std::move(listed).value(), false);
+                    const auto total = listed.value().size();
+                    applyAssets(std::move(listed).value(), false, {}, {}, total, false);
                     if (assets_.rowCount() == 0)
                     {
                         selected_asset_id_.clear();

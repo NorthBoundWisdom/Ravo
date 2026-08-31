@@ -10,12 +10,16 @@
 namespace ravo
 {
 
-class SqliteCatalogBackupVerifier final : public CatalogBackupDatabaseVerifier
+class SqliteCatalogBackupVerifier final : public CatalogBackupDatabaseVerifier,
+                                          public CatalogRestoreDatabaseVerifier
 {
 public:
     [[nodiscard]] Result<CatalogDatabaseArtifact>
     verify_backup_database(std::string_view backup_path, std::string_view expected_sha256,
                            const CancellationToken &cancellation) const override;
+    [[nodiscard]] Result<CatalogSnapshot>
+    verify_restored_catalog(std::string_view catalog_path, std::string_view expected_catalog_id,
+                            const CancellationToken &cancellation) const override;
 };
 
 namespace testing
@@ -35,6 +39,17 @@ public:
 
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const override;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const override;
+    [[nodiscard]] Result<LibraryPage>
+    list_assets_page(const LibraryPageRequest &request) const override;
+    [[nodiscard]] Result<std::vector<FolderRecord>> list_folders() const override;
+    [[nodiscard]] Result<std::optional<FolderRecord>>
+    find_folder_by_id(std::string_view folder_id) const override;
+    [[nodiscard]] Result<std::vector<AssetRecord>>
+    list_folder_assets(std::string_view folder_id) const override;
+    [[nodiscard]] Result<void> commit_folder_relink(const FolderRelinkCommit &relink,
+                                                    const CancellationToken &cancellation) override;
+    [[nodiscard]] Result<CatalogBackupPolicy> backup_policy() const override;
+    [[nodiscard]] Result<void> save_backup_policy(const CatalogBackupPolicy &policy) override;
     [[nodiscard]] Result<std::optional<AssetRecord>>
     find_asset_by_id(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::optional<AssetRecord>>
@@ -74,6 +89,8 @@ public:
     [[nodiscard]] Result<std::optional<PreviewRecord>>
     find_preview(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const override;
+    [[nodiscard]] Result<std::vector<PreviewRecord>>
+    list_previews_for_assets(const std::vector<std::string> &asset_ids) const override;
     [[nodiscard]] Result<void> upsert_preview(const PreviewRecord &preview) override;
     [[nodiscard]] Result<AssetRecoveryState>
     recovery_state(std::string_view asset_id) const override;

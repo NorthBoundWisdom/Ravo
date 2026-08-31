@@ -11,8 +11,10 @@ constraint.
    relevant ADRs.
 3. For old behavior or algorithms, read the corresponding `legacy/src/`
    implementation and fixtures; do not infer from upstream darktable habits.
-4. Confirm that work belongs to the current queue item in
-   [`../TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md) or to a
+4. Confirm that work belongs to the active product/release item in
+   [`../TODO_PHOTO_MANAGEMENT.md`](../TODO_PHOTO_MANAGEMENT.md), to an explicitly
+   resumed `MR*` item in
+   [`../TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md), or to a
    cross-cutting reliability gate. Desktop uses Qt 6 Quick/QML; Qt Sql remains
    solely in the private SQLite adapter. Qt Widgets, a second presentation
    architecture, and an old GTK adapter are not approved.
@@ -134,7 +136,7 @@ constraint.
   old CLI, old CTest, or `legacy/tests/run`.
 - The old application does not reuse Ravo and receives no adapter. Production
   dependencies remain completely independent. Delete old owners only after the
-  active migration TODO accepts them.
+  legacy migration TODO accepts them.
 
 ## C++ implementation rules
 
@@ -165,10 +167,10 @@ constraint.
   must not be presented as a completed migration (for example, HSL for UCS,
   neighborhood average for opposed reconstruction, three-level Gaussian for
   a-trous Y0U0V0, or five bands for nine-band toneequal).
-- After the active root migration TODO accepts a Ravo item, delete the
-  corresponding legacy owner (CMake, registration, resources, documentation,
-  and checks). Do not delete unaccepted items or leftovers early. Search the
-  whole repository to confirm there are no consumers.
+- After the explicitly resumed root legacy-migration TODO accepts a Ravo item,
+  delete the corresponding legacy owner (CMake, registration, resources,
+  documentation, and checks). Do not delete unaccepted items or leftovers
+  early. Search the whole repository to confirm there are no consumers.
 - Do not port old OpenCL to Ravo or replace it with Metal in 0.9. Ravo GPU may
   only be implemented as an independent adapter after its own CPU path is
   accepted.

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -16,6 +17,7 @@
 
 #include <QBuffer>
 #include <QByteArray>
+#include <QByteArrayView>
 #include <QColor>
 #include <QColorSpace>
 #include <QCoreApplication>
@@ -36,6 +38,7 @@
 #include "ravo/adapters/text_file.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/cancellation.h"
+#include "ravo/foundation/json.h"
 #include "ravo/foundation/log.h"
 #include "ravo/recipe/color_contrast.h"
 #include "ravo/recipe/color_correction.h"
@@ -54,6 +57,7 @@
 #include "catalog_service_test_support.h"
 #include "color_balance_fixture.h"
 #include "catalog_repository_test_control.h"
+#include "recovery_publication_internal.h"
 #include "temperature_fixture.h"
 
 namespace ravo
@@ -91,6 +95,73 @@ namespace
     QCryptographicHash hash(QCryptographicHash::Sha256);
     hash.addData(&file);
     return hash.result();
+}
+
+[[nodiscard]] std::string sha256_text(const std::string_view text)
+{
+    return QCryptographicHash::hash(
+               QByteArrayView(text.data(), static_cast<qsizetype>(text.size())),
+               QCryptographicHash::Sha256)
+        .toHex()
+        .toStdString();
+}
+
+[[nodiscard]] std::string recovery_document_with_mutated_payload(
+    const std::filesystem::path &source,
+    const std::function<void(JsonValue::Object &)> &mutate_payload)
+{
+    QFile input(QString::fromStdString(source.string()));
+    EXPECT_TRUE(input.open(QIODevice::ReadOnly));
+    const auto bytes = input.readAll();
+    auto parsed =
+        parse_json(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+    EXPECT_TRUE(parsed) << parsed.error().message;
+    if (!parsed || parsed.value().object_if() == nullptr)
+        return {};
+    auto root = *parsed.value().object_if();
+    const auto payload_value = root.find("payload");
+    EXPECT_NE(payload_value, root.end());
+    if (payload_value == root.end() || payload_value->second.object_if() == nullptr)
+        return {};
+    auto payload = *payload_value->second.object_if();
+    mutate_payload(payload);
+    const auto canonical_payload = serialize_json(JsonValue{payload});
+    root.insert_or_assign("checksum", JsonValue::Object{{"algorithm", "sha256"},
+                                                        {"value", sha256_text(canonical_payload)}});
+    root.insert_or_assign("payload", JsonValue{std::move(payload)});
+    return serialize_json(JsonValue{std::move(root)});
+}
+
+struct RecoveryPublicationHookState
+{
+    recovery_publication_internal::Checkpoint target =
+        recovery_publication_internal::Checkpoint::kBeforeTemporaryOpen;
+    std::error_code injected_error;
+    CancellationSource *cancellation = nullptr;
+    std::string competitor_output;
+    std::vector<std::string> observed_paths;
+};
+
+[[nodiscard]] std::error_code
+recovery_publication_hook(void *context, const recovery_publication_internal::Checkpoint checkpoint,
+                          const std::string_view path, const std::uint64_t bytes_processed) noexcept
+{
+    static_cast<void>(bytes_processed);
+    auto &state = *static_cast<RecoveryPublicationHookState *>(context);
+    state.observed_paths.emplace_back(path);
+    if (checkpoint != state.target)
+        return {};
+    if (state.cancellation != nullptr)
+        static_cast<void>(state.cancellation->cancel("recovery-publication-test"));
+    if (!state.competitor_output.empty())
+    {
+        QFile competitor(QString::fromStdString(state.competitor_output));
+        if (!competitor.open(QIODevice::WriteOnly | QIODevice::NewOnly) ||
+            competitor.write("winner", 6) != 6)
+            return std::make_error_code(std::errc::io_error);
+        competitor.close();
+    }
+    return state.injected_error;
 }
 
 [[nodiscard]] std::filesystem::path make_temp_root()
@@ -203,6 +274,109 @@ TEST_F(CatalogServiceTest, CreateReopenAndRejectNewerSchema)
     auto newer = SqliteCatalogRepository::open(database_path);
     ASSERT_FALSE(newer);
     EXPECT_EQ(newer.error().code, ErrorCode::kUnsupported);
+}
+
+TEST(CatalogSchemaMigrationTest, FolderIdentityMigrationRollsBackAndThenAssignsStableIds)
+{
+    const auto root = make_temp_root();
+    const auto path = root / "folder-v8.sqlite";
+    const auto connection = QStringLiteral("ravo_folder_v8_fixture");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(path.string()));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE schema_info(id INTEGER PRIMARY KEY, schema_version INTEGER NOT NULL, "
+            "catalog_id TEXT NOT NULL, revision INTEGER NOT NULL, created_unix_ms INTEGER NOT "
+            "NULL, migrated_unix_ms INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset(id TEXT PRIMARY KEY, normalized_uri TEXT NOT NULL UNIQUE, "
+            "display_name TEXT NOT NULL, folder_uri TEXT NOT NULL, media_type TEXT NOT NULL, "
+            "size_bytes INTEGER NOT NULL, mtime_unix_ms INTEGER NOT NULL, content_fingerprint "
+            "TEXT, width INTEGER, height INTEGER, import_state TEXT NOT NULL, error_code TEXT, "
+            "error_message TEXT, created_unix_ms INTEGER NOT NULL, rating INTEGER NOT NULL, "
+            "color_label TEXT NOT NULL, rejected INTEGER NOT NULL)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE asset_metadata(asset_id TEXT PRIMARY KEY, captured_local_exif TEXT, "
+            "captured_subsecond_digits TEXT, captured_utc_offset_minutes INTEGER, "
+            "gps_latitude_e6 INTEGER, gps_longitude_e6 INTEGER, "
+            "gps_altitude_magnitude_mm INTEGER, gps_altitude_ref INTEGER)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TABLE catalog_backup_policy(id INTEGER PRIMARY KEY, enabled INTEGER NOT NULL, "
+            "destination_directory TEXT NOT NULL, interval_minutes INTEGER NOT NULL, "
+            "retention_count INTEGER NOT NULL, last_success_unix_ms INTEGER, "
+            "next_run_unix_ms INTEGER, last_backup_bytes INTEGER NOT NULL, last_error TEXT)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("INSERT INTO schema_info VALUES (1, 8, 'cat_folder_v8', 4, 1, 1)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "INSERT INTO catalog_backup_policy VALUES (1, 0, '', 1440, 7, NULL, NULL, 0, NULL)")));
+        ASSERT_TRUE(query.exec(
+            QStringLiteral("INSERT INTO asset VALUES ('ast_folder_v8', "
+                           "'file:///missing-root/photo.jpg', 'photo.jpg', 'file:///missing-root', "
+                           "'image/jpeg', 123, 456, '123-456', 8, 8, 'imported', NULL, NULL, 2, 0, "
+                           "'none', 0)")));
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "CREATE TRIGGER reject_folder_migration BEFORE UPDATE OF schema_version ON "
+            "schema_info BEGIN SELECT RAISE(ABORT, 'injected folder migration failure'); END")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    auto failed = SqliteCatalogRepository::open(path.string());
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+    {
+        const auto inspect_connection = QStringLiteral("ravo_folder_v8_inspect");
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), inspect_connection);
+        database.setDatabaseName(QString::fromStdString(path.string()));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral("PRAGMA table_info(asset)")));
+        bool has_folder_id = false;
+        while (query.next())
+            has_folder_id =
+                has_folder_id || query.value(1).toString() == QStringLiteral("folder_id");
+        EXPECT_FALSE(has_folder_id);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='catalog_folder'")));
+        ASSERT_TRUE(query.next());
+        EXPECT_EQ(query.value(0).toInt(), 0);
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("SELECT schema_version FROM schema_info WHERE id=1")));
+        ASSERT_TRUE(query.next());
+        EXPECT_EQ(query.value(0).toInt(), 8);
+        ASSERT_TRUE(query.exec(QStringLiteral("DROP TRIGGER reject_folder_migration")));
+        database.close();
+        database = QSqlDatabase();
+        QSqlDatabase::removeDatabase(inspect_connection);
+    }
+
+    auto migrated = SqliteCatalogRepository::open(path.string());
+    ASSERT_TRUE(migrated) << migrated.error().message;
+    auto snapshot = migrated.value()->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    EXPECT_EQ(snapshot.value().schema_version, kCatalogSchemaVersion);
+    auto folders = migrated.value()->list_folders();
+    ASSERT_TRUE(folders) << folders.error().message;
+    const auto folder =
+        std::find_if(folders.value().begin(), folders.value().end(),
+                     [](const FolderRecord &item) { return item.uri == "file:///missing-root"; });
+    ASSERT_NE(folder, folders.value().end());
+    EXPECT_TRUE(folder->id.starts_with("fld_"));
+    EXPECT_EQ(folder->asset_count, 1);
+    const auto stable_id = folder->id;
+    ASSERT_TRUE(migrated.value()->close());
+    migrated = SqliteCatalogRepository::open(path.string());
+    ASSERT_TRUE(migrated) << migrated.error().message;
+    auto reopened = migrated.value()->find_folder_by_id(stable_id);
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    ASSERT_TRUE(reopened.value());
+    EXPECT_EQ(reopened.value()->uri, "file:///missing-root");
+    ASSERT_TRUE(migrated.value()->close());
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
 }
 
 TEST_F(CatalogServiceTest, RecoverySidecarTracksDurableStateAndRejectsTampering)
@@ -340,6 +514,285 @@ TEST_F(CatalogServiceTest, PendingRecoveryRetriesAfterRestartWithoutLosingCommit
     EXPECT_EQ(file_sha256(photo.string()), source_hash);
 }
 
+TEST_F(CatalogServiceTest, RecoverySidecarStrictlyRejectsChecksumValidMalformedNestedState)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "nested-recovery.jpg";
+    QImage image(24, 18, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(40, 90, 150));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->set_tags(asset_id, {"alpha", "omega"}));
+    DevelopParams develop;
+    develop.exposure_ev = 0.5;
+    ASSERT_TRUE(service->save_develop(asset_id, develop));
+    auto state = service->recovery_state(asset_id);
+    ASSERT_TRUE(state) << state.error().message;
+    const auto recovery_root =
+        std::filesystem::path(FilesystemRecoveryStore::default_root_for_catalog(database_path));
+    const auto source_sidecar =
+        recovery_root / (asset_id + "." + std::to_string(state.value().generation) + ".ravo.json");
+    ASSERT_TRUE(std::filesystem::is_regular_file(source_sidecar));
+    const auto sidecar_hash = file_sha256(source_sidecar.string());
+    auto recovery = FilesystemRecoveryStore::open_existing(recovery_root.string());
+    ASSERT_TRUE(recovery) << recovery.error().message;
+
+    using Mutation = std::pair<std::string, std::function<void(JsonValue::Object &)>>;
+    const std::vector<Mutation> mutations{
+        {"unknown-asset-field",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.emplace("future", true);
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"invalid-rating",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.insert_or_assign("rating", JsonValue::number("9"));
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"noncanonical-tags",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.insert_or_assign("tags",
+                                    JsonValue::Array{JsonValue{"omega"}, JsonValue{"alpha"}});
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"invalid-capture",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             auto capture = *asset.at("capture").object_if();
+             capture.insert_or_assign(
+                 "location", JsonValue::Object{{"altitude", nullptr},
+                                               {"latitude_e6", JsonValue::number("90000001")},
+                                               {"longitude_e6", JsonValue::number("0")}});
+             asset.insert_or_assign("capture", JsonValue{std::move(capture)});
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"invalid-history-order",
+         [](JsonValue::Object &payload)
+         {
+             auto history = *payload.at("history").array_if();
+             ASSERT_FALSE(history.empty());
+             auto entry = *history.front().object_if();
+             entry.insert_or_assign("seq", JsonValue::number("0"));
+             history.front() = JsonValue{std::move(entry)};
+             payload.insert_or_assign("history", JsonValue{std::move(history)});
+         }},
+        {"recipe-state-mismatch",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.insert_or_assign("has_edits", false);
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+    };
+    for (const auto &[name, mutate] : mutations)
+    {
+        const auto output = root / (name + ".ravo.json");
+        const auto document = recovery_document_with_mutated_payload(source_sidecar, mutate);
+        ASSERT_FALSE(document.empty());
+        QFile file(QString::fromStdString(output.string()));
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(file.write(document.data(), static_cast<qint64>(document.size())),
+                  static_cast<qint64>(document.size()));
+        file.close();
+        auto verified = recovery.value()->verify_artifact(
+            output.string(), asset_id, state.value().generation, CancellationToken{});
+        EXPECT_FALSE(verified) << name;
+        if (!verified)
+            EXPECT_EQ(verified.error().code, ErrorCode::kValidation) << name;
+    }
+    EXPECT_EQ(file_sha256(source_sidecar.string()), sidecar_hash);
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, RecoveryAcknowledgementFailureKeepsExactPublishedGenerationPending)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "acknowledgement-recovery.jpg";
+    QImage image(18, 14, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(70, 110, 150));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+
+    DevelopParams develop;
+    develop.exposure_ev = 0.4;
+    RecipeSaveOptions options;
+    options.defer_recovery_publication = true;
+    ASSERT_TRUE(service->save_develop(asset_id, develop, options));
+    auto before = service->recovery_state(asset_id);
+    ASSERT_TRUE(before) << before.error().message;
+    ASSERT_TRUE(before.value().pending());
+    ASSERT_NE(sqlite_repository, nullptr);
+    testing::SqliteCatalogTestControl::inject_recovery(
+        *sqlite_repository, testing::SqliteRecoveryFailure::kAcknowledge);
+
+    auto failed = service->sync_recovery(std::string_view{asset_id});
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+    EXPECT_EQ(failed.error().context.at("sidecar_published"), "true");
+    const auto published_path = failed.error().context.at("sidecar_path");
+    EXPECT_TRUE(std::filesystem::is_regular_file(published_path));
+    auto pending = service->recovery_state(asset_id);
+    ASSERT_TRUE(pending) << pending.error().message;
+    EXPECT_EQ(pending.value(), before.value());
+    EXPECT_TRUE(pending.value().pending());
+
+    auto retried = service->sync_recovery(std::string_view{asset_id});
+    ASSERT_TRUE(retried) << retried.error().message;
+    ASSERT_EQ(retried.value().artifacts.size(), 1U);
+    EXPECT_EQ(retried.value().artifacts.front().path, published_path);
+    auto synchronized = service->recovery_state(asset_id);
+    ASSERT_TRUE(synchronized) << synchronized.error().message;
+    EXPECT_EQ(synchronized.value().generation, before.value().generation);
+    EXPECT_FALSE(synchronized.value().pending());
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, RecoveryCleanupFailureKeepsAcknowledgedGenerationAndReportsOrphan)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "cleanup-recovery.jpg";
+    QImage image(16, 12, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(80, 120, 160));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    auto initial = service->recovery_state(asset_id);
+    ASSERT_TRUE(initial) << initial.error().message;
+    const auto recovery_root =
+        std::filesystem::path(FilesystemRecoveryStore::default_root_for_catalog(database_path));
+    const auto obsolete =
+        recovery_root /
+        (asset_id + "." + std::to_string(initial.value().generation) + ".ravo.json");
+    ASSERT_TRUE(std::filesystem::remove(obsolete));
+    ASSERT_TRUE(std::filesystem::create_directory(obsolete));
+    {
+        std::ofstream blocker(obsolete / "owned-by-test", std::ios::binary);
+        ASSERT_TRUE(blocker);
+        blocker << "block cleanup";
+    }
+
+    DevelopParams develop;
+    develop.exposure_ev = 0.3;
+    RecipeSaveOptions options;
+    options.defer_recovery_publication = true;
+    ASSERT_TRUE(service->save_develop(asset_id, develop, options));
+    auto pending = service->recovery_state(asset_id);
+    ASSERT_TRUE(pending) << pending.error().message;
+    ASSERT_TRUE(pending.value().pending());
+    auto failed = service->sync_recovery(std::string_view{asset_id});
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().code, ErrorCode::kIo);
+    EXPECT_EQ(failed.error().context.at("reason"), "recovery_cleanup_failed");
+    EXPECT_EQ(failed.error().context.at("recovery_acknowledged"), "true");
+    EXPECT_EQ(failed.error().context.at("sidecar_published"), "true");
+    EXPECT_TRUE(std::filesystem::is_directory(obsolete));
+
+    auto synchronized = service->recovery_state(asset_id);
+    ASSERT_TRUE(synchronized) << synchronized.error().message;
+    EXPECT_EQ(synchronized.value().generation, pending.value().generation);
+    EXPECT_FALSE(synchronized.value().pending());
+    EXPECT_TRUE(std::filesystem::is_regular_file(failed.error().context.at("sidecar_path")));
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST(RecoveryPublicationInternalTest, EveryFailureAndCancellationCheckpointCleansOwnedTemporary)
+{
+    const auto root = make_temp_root();
+    const std::string document(130U * 1024U, 'r');
+    const std::array checkpoints{
+        recovery_publication_internal::Checkpoint::kBeforeTemporaryOpen,
+        recovery_publication_internal::Checkpoint::kTemporaryCreated,
+        recovery_publication_internal::Checkpoint::kBeforeTemporaryWrite,
+        recovery_publication_internal::Checkpoint::kTemporaryChunkWritten,
+        recovery_publication_internal::Checkpoint::kBeforeTemporarySync,
+        recovery_publication_internal::Checkpoint::kBeforePublish,
+    };
+    std::size_t index = 0U;
+    for (const auto checkpoint : checkpoints)
+    {
+        const auto output = root / ("failure-" + std::to_string(index++) + ".ravo.json");
+        RecoveryPublicationHookState state;
+        state.target = checkpoint;
+        state.injected_error = std::make_error_code(std::errc::io_error);
+        auto result = recovery_publication_internal::publish_no_replace(
+            output.string(), document, CancellationToken{}, {recovery_publication_hook, &state});
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code, ErrorCode::kIo);
+        EXPECT_FALSE(std::filesystem::exists(output));
+        for (const auto &observed : state.observed_paths)
+        {
+            if (observed != output.string())
+                EXPECT_FALSE(std::filesystem::exists(observed));
+        }
+    }
+
+    index = 0U;
+    for (const auto checkpoint : checkpoints)
+    {
+        const auto output = root / ("cancel-" + std::to_string(index++) + ".ravo.json");
+        CancellationSource cancellation;
+        RecoveryPublicationHookState state;
+        state.target = checkpoint;
+        state.cancellation = &cancellation;
+        auto result = recovery_publication_internal::publish_no_replace(
+            output.string(), document, cancellation.token(), {recovery_publication_hook, &state});
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code, ErrorCode::kCancelled);
+        EXPECT_FALSE(std::filesystem::exists(output));
+        for (const auto &observed : state.observed_paths)
+        {
+            if (observed != output.string())
+                EXPECT_FALSE(std::filesystem::exists(observed));
+        }
+    }
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
+TEST(RecoveryPublicationInternalTest, LateCompetitorWinsWithoutReplacement)
+{
+    const auto root = make_temp_root();
+    const auto output = root / "winner.ravo.json";
+    RecoveryPublicationHookState state;
+    state.target = recovery_publication_internal::Checkpoint::kBeforePublish;
+    state.competitor_output = output.string();
+    auto result = recovery_publication_internal::publish_no_replace(
+        output.string(), "candidate", CancellationToken{}, {recovery_publication_hook, &state});
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, ErrorCode::kConflict);
+    QFile winner(QString::fromStdString(output.string()));
+    ASSERT_TRUE(winner.open(QIODevice::ReadOnly));
+    EXPECT_EQ(winner.readAll(), QByteArray("winner"));
+    for (const auto &observed : state.observed_paths)
+    {
+        if (observed != output.string())
+            EXPECT_FALSE(std::filesystem::exists(observed));
+    }
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
+
 TEST_F(CatalogServiceTest, CatalogBackupIsImmutableVerifiedAndExcludesPreviewArtifacts)
 {
     ASSERT_TRUE(open_service(true));
@@ -386,6 +839,451 @@ TEST_F(CatalogServiceTest, CatalogBackupIsImmutableVerifiedAndExcludesPreviewArt
     ASSERT_FALSE(rejected);
     EXPECT_EQ(rejected.error().code, ErrorCode::kValidation);
     EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, CatalogBackupFailureAndCancellationMatrixPublishesNothing)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "backup-failure-source.jpg";
+    QImage image(20, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(30, 100, 160));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const std::vector<std::string> checkpoints{
+        "before_snapshot",           "stage_created",    "sidecar_directory_created",
+        "database_snapshot_created", "sidecar_copied",   "source_rechecked",
+        "manifest_published",        "staging_verified", "before_publish",
+    };
+    const auto assert_no_stage = [&](const std::filesystem::path &destination)
+    {
+        const auto prefix = destination.filename().string() + ".ravo-catalog-backup-";
+        for (const auto &entry : std::filesystem::directory_iterator(root))
+            EXPECT_FALSE(entry.path().filename().string().starts_with(prefix));
+    };
+
+    std::size_t index = 0U;
+    for (const auto &target : checkpoints)
+    {
+        const auto destination = root / ("failure-backup-" + std::to_string(index++));
+        testing::CatalogServiceTestControl::set_backup_checkpoint(
+            *service,
+            [target](const std::string_view checkpoint, const std::string_view) -> Result<void>
+            {
+                if (checkpoint == target)
+                    return make_error(ErrorCode::kIo, "Injected backup failure",
+                                      {{"reason", "injected_backup_failure"}});
+                return {};
+            });
+        auto backup = service->create_backup(destination.string(), CancellationToken{});
+        ASSERT_FALSE(backup) << target;
+        EXPECT_EQ(backup.error().code, ErrorCode::kIo) << target;
+        EXPECT_EQ(backup.error().context.at("checkpoint"), target);
+        EXPECT_FALSE(std::filesystem::exists(destination));
+        assert_no_stage(destination);
+    }
+
+    index = 0U;
+    for (const auto &target : checkpoints)
+    {
+        const auto destination = root / ("cancel-backup-" + std::to_string(index++));
+        CancellationSource cancellation;
+        testing::CatalogServiceTestControl::set_backup_checkpoint(
+            *service,
+            [target, &cancellation](const std::string_view checkpoint,
+                                    const std::string_view) -> Result<void>
+            {
+                if (checkpoint == target)
+                    static_cast<void>(cancellation.cancel("backup-checkpoint-test"));
+                return {};
+            });
+        auto backup = service->create_backup(destination.string(), cancellation.token());
+        ASSERT_FALSE(backup) << target;
+        EXPECT_EQ(backup.error().code, ErrorCode::kCancelled) << target;
+        EXPECT_EQ(backup.error().context.at("checkpoint"), target);
+        EXPECT_FALSE(std::filesystem::exists(destination));
+        assert_no_stage(destination);
+    }
+    testing::CatalogServiceTestControl::set_backup_checkpoint(*service, {});
+    auto state = service->recovery_state(imported.value().asset->id);
+    ASSERT_TRUE(state) << state.error().message;
+    EXPECT_FALSE(state.value().pending());
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwnedArtifacts)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "scheduled-backup-source.jpg";
+    QImage image(20, 16, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(65, 105, 145));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto destination = root / "scheduled-backups";
+    ASSERT_TRUE(std::filesystem::create_directory(destination));
+    constexpr std::int64_t start = 1'000'000;
+    CatalogBackupPolicy policy;
+    policy.enabled = true;
+    policy.destination_directory = destination.string();
+    policy.interval_minutes = kBackupScheduleIntervalMinutesMin;
+    policy.retention_count = 2;
+    auto configured = service->set_backup_policy(policy, start);
+    ASSERT_TRUE(configured) << configured.error().message;
+    ASSERT_TRUE(configured.value().next_run_unix_ms);
+    const auto first_due = *configured.value().next_run_unix_ms;
+    auto early = service->run_scheduled_backup(first_due - 1, CancellationToken{});
+    ASSERT_TRUE(early) << early.error().message;
+    EXPECT_FALSE(early.value().ran);
+
+    auto first = service->run_scheduled_backup(first_due, CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(first.value().backup);
+    const auto first_path = first.value().backup->path;
+    EXPECT_TRUE(std::filesystem::is_directory(first_path));
+    auto second =
+        service->run_scheduled_backup(*first.value().policy.next_run_unix_ms, CancellationToken{});
+    ASSERT_TRUE(second) << second.error().message;
+    ASSERT_TRUE(second.value().backup);
+    EXPECT_TRUE(std::filesystem::is_directory(second.value().backup->path));
+
+    auto snapshot = service->snapshot();
+    ASSERT_TRUE(snapshot) << snapshot.error().message;
+    const auto unverified =
+        destination / ("ravo-" + snapshot.value().catalog_id + "-1999999.ravobackup");
+    ASSERT_TRUE(std::filesystem::create_directory(unverified));
+    {
+        std::ofstream sentinel(unverified / "user-content", std::ios::binary);
+        ASSERT_TRUE(sentinel);
+        sentinel << "never delete";
+    }
+    auto third =
+        service->run_scheduled_backup(*second.value().policy.next_run_unix_ms, CancellationToken{});
+    ASSERT_TRUE(third) << third.error().message;
+    ASSERT_TRUE(third.value().backup);
+    ASSERT_EQ(third.value().removed_backups.size(), 1U);
+    EXPECT_EQ(third.value().removed_backups.front(), first_path);
+    EXPECT_FALSE(std::filesystem::exists(first_path));
+    EXPECT_TRUE(std::filesystem::is_directory(second.value().backup->path));
+    EXPECT_TRUE(std::filesystem::is_directory(third.value().backup->path));
+    EXPECT_TRUE(std::filesystem::is_regular_file(unverified / "user-content"));
+    EXPECT_NE(std::find(third.value().retained_unverified_paths.begin(),
+                        third.value().retained_unverified_paths.end(), unverified.string()),
+              third.value().retained_unverified_paths.end());
+    EXPECT_GT(third.value().policy.last_backup_bytes, 0U);
+    EXPECT_FALSE(third.value().policy.last_error);
+
+    auto persisted = service->backup_policy();
+    ASSERT_TRUE(persisted) << persisted.error().message;
+    EXPECT_EQ(persisted.value().destination_directory, destination.string());
+    EXPECT_EQ(persisted.value().retention_count, 2);
+    EXPECT_EQ(persisted.value().last_success_unix_ms, third.value().policy.last_success_unix_ms);
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto reopened_policy = service->backup_policy();
+    ASSERT_TRUE(reopened_policy) << reopened_policy.error().message;
+    EXPECT_TRUE(reopened_policy.value().enabled);
+    EXPECT_EQ(reopened_policy.value().destination_directory, destination.string());
+    EXPECT_EQ(reopened_policy.value().last_success_unix_ms,
+              third.value().policy.last_success_unix_ms);
+}
+
+TEST_F(CatalogServiceTest, CatalogBackupRestorePublishesOpenableCatalogAndRebuildsPreview)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "restore-source.jpg";
+    QImage image(28, 20, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(45, 105, 165));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    ASSERT_TRUE(service->set_rating(asset_id, 4));
+    ASSERT_TRUE(service->set_tags(asset_id, {"restore", "verified"}));
+    DevelopParams develop;
+    develop.exposure_ev = 0.45;
+    ASSERT_TRUE(service->save_develop(asset_id, develop));
+
+    const auto backup_path = root / "restore-backup";
+    auto backup = service->create_backup(backup_path.string());
+    ASSERT_TRUE(backup) << backup.error().message;
+    const auto backup_catalog_hash = file_sha256((backup_path / "catalog.sqlite").string());
+    const auto backup_manifest_hash = file_sha256((backup_path / "manifest.json").string());
+    const auto backup_sidecar = *std::filesystem::directory_iterator(backup_path / "sidecars");
+    const auto backup_sidecar_hash = file_sha256(backup_sidecar.path().string());
+
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery) << backup_recovery.error().message;
+    const SqliteCatalogBackupVerifier verifier;
+    const auto restored_path = (root / "restored.sqlite").string();
+    std::vector<CatalogRestoreStage> stages;
+    CatalogRestoreRequest request;
+    request.backup_directory = backup_path.string();
+    request.destination_catalog = restored_path;
+    auto restored = restore_catalog_backup(verifier, verifier, *backup_recovery.value(), request,
+                                           [&stages](const CatalogRestoreProgress &progress)
+                                           { stages.push_back(progress.stage); });
+    ASSERT_TRUE(restored) << restored.error().message;
+    EXPECT_TRUE(restored.value().published);
+    EXPECT_TRUE(restored.value().previews_rebuild_required);
+    EXPECT_EQ(restored.value().catalog.catalog_id, backup.value().catalog.catalog_id);
+    EXPECT_EQ(restored.value().catalog.revision, backup.value().catalog.revision);
+    EXPECT_TRUE(std::filesystem::is_regular_file(restored_path));
+    EXPECT_TRUE(std::filesystem::is_directory(restored_path + ".ravo/sidecars"));
+    EXPECT_FALSE(std::filesystem::exists(restored_path + ".preview"));
+    ASSERT_FALSE(stages.empty());
+    EXPECT_EQ(stages.front(), CatalogRestoreStage::kVerifySource);
+    EXPECT_EQ(stages.back(), CatalogRestoreStage::kComplete);
+
+    auto restored_repository = SqliteCatalogRepository::open(restored_path);
+    ASSERT_TRUE(restored_repository) << restored_repository.error().message;
+    auto restored_cache = FilesystemPreviewCache::create(restored_path + ".preview");
+    ASSERT_TRUE(restored_cache) << restored_cache.error().message;
+    auto restored_recovery = FilesystemRecoveryStore::create_for_catalog(restored_path);
+    ASSERT_TRUE(restored_recovery) << restored_recovery.error().message;
+    CatalogService restored_service(
+        engine, std::move(restored_repository).value(), std::make_unique<QtRasterDecoder>(),
+        std::move(restored_cache).value(), std::move(restored_recovery).value());
+    auto synchronized = restored_service.sync_recovery(std::nullopt);
+    ASSERT_TRUE(synchronized) << synchronized.error().message;
+    EXPECT_EQ(synchronized.value().pending_before, 0U);
+    auto restored_assets = restored_service.list_assets();
+    ASSERT_TRUE(restored_assets) << restored_assets.error().message;
+    ASSERT_EQ(restored_assets.value().size(), 1U);
+    EXPECT_EQ(restored_assets.value().front().id, asset_id);
+    EXPECT_EQ(restored_assets.value().front().review.rating, 4);
+    EXPECT_EQ(restored_assets.value().front().tags,
+              (std::vector<std::string>{"restore", "verified"}));
+    auto restored_recipe = restored_service.load_recipe(asset_id);
+    ASSERT_TRUE(restored_recipe) << restored_recipe.error().message;
+    auto restored_develop = develop_from_recipe(restored_recipe.value());
+    ASSERT_TRUE(restored_develop) << restored_develop.error().message;
+    EXPECT_DOUBLE_EQ(restored_develop.value().exposure_ev, 0.45);
+    auto previews_before = restored_service.list_previews();
+    ASSERT_TRUE(previews_before) << previews_before.error().message;
+    EXPECT_TRUE(previews_before.value().empty());
+    PreviewRequest preview_request;
+    preview_request.asset_id = asset_id;
+    preview_request.max_edge = 320;
+    preview_request.request_revision = 1;
+    auto preview = restored_service.request_preview(preview_request);
+    ASSERT_TRUE(preview) << preview.error().message;
+    EXPECT_FALSE(preview.value().cache_path.empty());
+    EXPECT_TRUE(std::filesystem::is_regular_file(preview.value().cache_path));
+    auto previews_after = restored_service.list_previews();
+    ASSERT_TRUE(previews_after) << previews_after.error().message;
+    ASSERT_EQ(previews_after.value().size(), 1U);
+    ASSERT_TRUE(restored_service.close());
+
+    EXPECT_EQ(file_sha256((backup_path / "catalog.sqlite").string()), backup_catalog_hash);
+    EXPECT_EQ(file_sha256((backup_path / "manifest.json").string()), backup_manifest_hash);
+    EXPECT_EQ(file_sha256(backup_sidecar.path().string()), backup_sidecar_hash);
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, CatalogBackupRestoreCancellationAndPublicationRacesAreAtomic)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto photo = root / "restore-race-source.jpg";
+    QImage image(18, 14, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(55, 115, 175));
+    ASSERT_TRUE(image.save(QString::fromStdString(photo.string()), "JPEG", 90));
+    const auto source_hash = file_sha256(photo.string());
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    const auto backup_path = root / "restore-race-backup";
+    ASSERT_TRUE(service->create_backup(backup_path.string()));
+    auto backup_recovery =
+        FilesystemRecoveryStore::open_existing((backup_path / "sidecars").string());
+    ASSERT_TRUE(backup_recovery) << backup_recovery.error().message;
+    const SqliteCatalogBackupVerifier verifier;
+    const std::array cancellable_stages{
+        CatalogRestoreStage::kVerifySource,   CatalogRestoreStage::kStageDatabase,
+        CatalogRestoreStage::kStageSidecars,  CatalogRestoreStage::kVerifyStaging,
+        CatalogRestoreStage::kPublishSupport, CatalogRestoreStage::kPublishCatalog,
+    };
+    const auto assert_no_stage = [&](const std::filesystem::path &destination)
+    {
+        const auto prefix = destination.filename().string() + ".ravo-catalog-restore-";
+        for (const auto &entry : std::filesystem::directory_iterator(root))
+            EXPECT_FALSE(entry.path().filename().string().starts_with(prefix));
+    };
+
+    std::size_t index = 0U;
+    for (const auto target : cancellable_stages)
+    {
+        const auto destination = root / ("cancelled-restore-" + std::to_string(index++));
+        CancellationSource cancellation;
+        CatalogRestoreRequest request;
+        request.backup_directory = backup_path.string();
+        request.destination_catalog = destination.string();
+        request.cancellation = cancellation.token();
+        auto restored = restore_catalog_backup(
+            verifier, verifier, *backup_recovery.value(), request,
+            [target, &cancellation](const CatalogRestoreProgress &progress)
+            {
+                if (progress.stage == target)
+                    static_cast<void>(cancellation.cancel("restore-stage-test"));
+            });
+        ASSERT_FALSE(restored) << catalog_restore_stage_name(target);
+        EXPECT_EQ(restored.error().code, ErrorCode::kCancelled)
+            << catalog_restore_stage_name(target);
+        EXPECT_FALSE(std::filesystem::exists(destination));
+        EXPECT_FALSE(std::filesystem::exists(destination.string() + ".ravo"));
+        assert_no_stage(destination);
+    }
+
+    const auto support_race_destination = root / "support-race.sqlite";
+    const auto support_race_root = support_race_destination.string() + ".ravo";
+    CatalogRestoreRequest support_race;
+    support_race.backup_directory = backup_path.string();
+    support_race.destination_catalog = support_race_destination.string();
+    auto support_conflict = restore_catalog_backup(
+        verifier, verifier, *backup_recovery.value(), support_race,
+        [&support_race_root](const CatalogRestoreProgress &progress)
+        {
+            if (progress.stage == CatalogRestoreStage::kPublishSupport)
+            {
+                ASSERT_TRUE(std::filesystem::create_directory(support_race_root));
+                std::ofstream sentinel(std::filesystem::path(support_race_root) / "sentinel",
+                                       std::ios::binary);
+                ASSERT_TRUE(sentinel);
+                sentinel << "winner";
+            }
+        });
+    ASSERT_FALSE(support_conflict);
+    EXPECT_EQ(support_conflict.error().code, ErrorCode::kConflict);
+    EXPECT_FALSE(std::filesystem::exists(support_race_destination));
+    EXPECT_TRUE(
+        std::filesystem::is_regular_file(std::filesystem::path(support_race_root) / "sentinel"));
+    assert_no_stage(support_race_destination);
+
+    const auto catalog_race_destination = root / "catalog-race.sqlite";
+    CatalogRestoreRequest catalog_race;
+    catalog_race.backup_directory = backup_path.string();
+    catalog_race.destination_catalog = catalog_race_destination.string();
+    auto catalog_conflict = restore_catalog_backup(
+        verifier, verifier, *backup_recovery.value(), catalog_race,
+        [&catalog_race_destination](const CatalogRestoreProgress &progress)
+        {
+            if (progress.stage == CatalogRestoreStage::kPublishCatalog)
+            {
+                std::ofstream sentinel(catalog_race_destination, std::ios::binary);
+                ASSERT_TRUE(sentinel);
+                sentinel << "winner";
+            }
+        });
+    ASSERT_FALSE(catalog_conflict);
+    EXPECT_EQ(catalog_conflict.error().code, ErrorCode::kConflict);
+    EXPECT_FALSE(std::filesystem::exists(catalog_race_destination.string() + ".ravo"));
+    QFile winner(QString::fromStdString(catalog_race_destination.string()));
+    ASSERT_TRUE(winner.open(QIODevice::ReadOnly));
+    EXPECT_EQ(winner.readAll(), QByteArray("winner"));
+    assert_no_stage(catalog_race_destination);
+
+    const auto committed_destination = root / "postcommit-cancel.sqlite";
+    CancellationSource late_cancellation;
+    CatalogRestoreRequest committed;
+    committed.backup_directory = backup_path.string();
+    committed.destination_catalog = committed_destination.string();
+    committed.cancellation = late_cancellation.token();
+    auto committed_result = restore_catalog_backup(
+        verifier, verifier, *backup_recovery.value(), committed,
+        [&late_cancellation](const CatalogRestoreProgress &progress)
+        {
+            if (progress.stage == CatalogRestoreStage::kOpenCatalog)
+                static_cast<void>(late_cancellation.cancel("too-late-to-rollback"));
+        });
+    ASSERT_TRUE(committed_result) << committed_result.error().message;
+    EXPECT_TRUE(committed_result.value().published);
+    EXPECT_TRUE(std::filesystem::is_regular_file(committed_destination));
+    EXPECT_TRUE(std::filesystem::is_directory(committed_destination.string() + ".ravo"));
+    EXPECT_EQ(file_sha256(photo.string()), source_hash);
+}
+
+TEST_F(CatalogServiceTest, PreviewRebuildIsBoundedPreflightedAndReportsPartialFailure)
+{
+    ASSERT_TRUE(open_service(true));
+    QImage image(20, 14, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    const auto first_path = root / "rebuild-first.jpg";
+    const auto second_path = root / "rebuild-second.jpg";
+    image.fill(QColor(35, 95, 155));
+    ASSERT_TRUE(image.save(QString::fromStdString(first_path.string()), "JPEG", 90));
+    image.fill(QColor(155, 95, 35));
+    ASSERT_TRUE(image.save(QString::fromStdString(second_path.string()), "JPEG", 90));
+    auto first = service->import_one(first_path.string(), CancellationToken{});
+    auto second = service->import_one(second_path.string(), CancellationToken{});
+    ASSERT_TRUE(first) << first.error().message;
+    ASSERT_TRUE(second) << second.error().message;
+    ASSERT_TRUE(first.value().asset);
+    ASSERT_TRUE(second.value().asset);
+    const auto first_id = first.value().asset->id;
+    const auto second_id = second.value().asset->id;
+
+    auto duplicate = service->rebuild_previews({first_id, first_id}, CancellationToken{});
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code, ErrorCode::kInvalidArgument);
+    auto unknown = service->rebuild_previews({"missing-asset"}, CancellationToken{});
+    ASSERT_FALSE(unknown);
+    EXPECT_EQ(unknown.error().code, ErrorCode::kNotFound);
+
+    std::vector<std::size_t> progress_counts;
+    auto selected =
+        service->rebuild_previews({first_id}, CancellationToken{},
+                                  [&progress_counts](const std::size_t completed, const std::size_t,
+                                                     const PreviewRebuildItemResult *)
+                                  { progress_counts.push_back(completed); });
+    ASSERT_TRUE(selected) << selected.error().message;
+    EXPECT_EQ(selected.value().total, 1U);
+    EXPECT_EQ(selected.value().succeeded, 1U);
+    ASSERT_EQ(selected.value().items.size(), 1U);
+    ASSERT_TRUE(selected.value().items.front().browse_cache_path);
+    ASSERT_TRUE(selected.value().items.front().develop_cache_path);
+    EXPECT_TRUE(
+        std::filesystem::is_regular_file(*selected.value().items.front().browse_cache_path));
+    EXPECT_TRUE(
+        std::filesystem::is_regular_file(*selected.value().items.front().develop_cache_path));
+    EXPECT_EQ(progress_counts, (std::vector<std::size_t>{0U, 1U}));
+
+    ASSERT_TRUE(std::filesystem::remove(first_path));
+    ASSERT_TRUE(service->close());
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto partial = service->rebuild_previews({first_id, second_id}, CancellationToken{});
+    ASSERT_TRUE(partial) << partial.error().message;
+    EXPECT_EQ(partial.value().completed, 2U);
+    EXPECT_EQ(partial.value().failed, 1U);
+    EXPECT_EQ(partial.value().succeeded, 1U);
+    ASSERT_TRUE(partial.value().items.front().error);
+    EXPECT_FALSE(partial.value().items.back().error);
+
+    CancellationSource cancellation;
+    auto cancelled = service->rebuild_previews(
+        {second_id, first_id}, cancellation.token(),
+        [&cancellation](const std::size_t completed, const std::size_t,
+                        const PreviewRebuildItemResult *)
+        {
+            if (completed == 1U)
+                static_cast<void>(cancellation.cancel("preview-rebuild-test"));
+        });
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    EXPECT_EQ(cancelled.error().context.at("completed_count"), "1");
+    EXPECT_EQ(cancelled.error().context.at("total_count"), "2");
 }
 
 TEST_F(CatalogServiceTest, SnapshotRevisionObservesWritesFromAnotherConnection)
@@ -860,6 +1758,225 @@ TEST_F(CatalogServiceTest, ListsImportedFoldersAndFiltersByFolderUri)
     EXPECT_NE(listed.value().front().normalized_uri.find("Trip"), std::string::npos);
 }
 
+TEST_F(CatalogServiceTest, StableFolderIdentityRelinksMissingRootAndSurvivesReopen)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = root / "original-root";
+    const auto replacement = root / "replacement-root";
+    ASSERT_TRUE(std::filesystem::create_directory(original));
+    QImage first_image(16, 12, QImage::Format_RGB888);
+    first_image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    first_image.fill(QColor(30, 90, 150));
+    QImage second_image(12, 16, QImage::Format_RGB888);
+    second_image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    second_image.fill(QColor(150, 80, 30));
+    const auto first = original / "first.png";
+    const auto second = original / "second.png";
+    ASSERT_TRUE(first_image.save(QString::fromStdString(first.string()), "PNG"));
+    ASSERT_TRUE(second_image.save(QString::fromStdString(second.string()), "PNG"));
+    const auto first_hash = file_sha256(first.string());
+    const auto second_hash = file_sha256(second.string());
+    auto imported = service->import_inputs({original.string()}, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_EQ(imported.value().size(), 2U);
+    ASSERT_TRUE(imported.value().front().asset);
+    DevelopParams edited;
+    edited.exposure_ev = 0.35;
+    ASSERT_TRUE(service->save_develop(imported.value().front().asset->id, edited));
+
+    auto before_folders = service->list_folders();
+    ASSERT_TRUE(before_folders) << before_folders.error().message;
+    const auto before = std::find_if(before_folders.value().begin(), before_folders.value().end(),
+                                     [](const FolderRecord &folder)
+                                     { return folder.display_name == "original-root"; });
+    ASSERT_NE(before, before_folders.value().end());
+    ASSERT_FALSE(before->id.empty());
+    EXPECT_FALSE(before->missing);
+    const auto folder_id = before->id;
+    const auto previous_uri = before->uri;
+
+    std::filesystem::rename(original, replacement);
+    auto missing_folders = service->list_folders();
+    ASSERT_TRUE(missing_folders) << missing_folders.error().message;
+    const auto missing =
+        std::find_if(missing_folders.value().begin(), missing_folders.value().end(),
+                     [&](const FolderRecord &folder) { return folder.id == folder_id; });
+    ASSERT_NE(missing, missing_folders.value().end());
+    EXPECT_TRUE(missing->missing);
+    EXPECT_EQ(missing->uri, previous_uri);
+
+    auto relinked = service->relink_folder(folder_id, replacement.string());
+    ASSERT_TRUE(relinked) << relinked.error().message;
+    EXPECT_EQ(relinked.value().folder_id, folder_id);
+    EXPECT_EQ(relinked.value().previous_uri, previous_uri);
+    EXPECT_EQ(relinked.value().asset_count, 2U);
+    EXPECT_EQ(relinked.value().recovery_pending, 2U);
+    auto pending = service->pending_recovery();
+    ASSERT_TRUE(pending) << pending.error().message;
+    EXPECT_EQ(pending.value().size(), 2U);
+    auto synchronized = service->sync_recovery(std::nullopt);
+    ASSERT_TRUE(synchronized) << synchronized.error().message;
+    EXPECT_EQ(synchronized.value().pending_after, 0U);
+
+    auto assets = service->list_assets();
+    ASSERT_TRUE(assets) << assets.error().message;
+    ASSERT_EQ(assets.value().size(), 2U);
+    for (const auto &asset : assets.value())
+        EXPECT_NE(asset.normalized_uri.find("replacement-root"), std::string::npos);
+    EXPECT_EQ(file_sha256((replacement / "first.png").string()), first_hash);
+    EXPECT_EQ(file_sha256((replacement / "second.png").string()), second_hash);
+
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto reopened_folders = service->list_folders();
+    ASSERT_TRUE(reopened_folders) << reopened_folders.error().message;
+    const auto reopened =
+        std::find_if(reopened_folders.value().begin(), reopened_folders.value().end(),
+                     [&](const FolderRecord &folder) { return folder.id == folder_id; });
+    ASSERT_NE(reopened, reopened_folders.value().end());
+    EXPECT_FALSE(reopened->missing);
+    EXPECT_EQ(reopened->display_name, "replacement-root");
+    auto reopened_recipe = service->load_recipe(imported.value().front().asset->id);
+    ASSERT_TRUE(reopened_recipe) << reopened_recipe.error().message;
+    auto reopened_develop = develop_from_recipe(reopened_recipe.value());
+    ASSERT_TRUE(reopened_develop) << reopened_develop.error().message;
+    EXPECT_NEAR(reopened_develop.value().exposure_ev, edited.exposure_ev, 1e-12);
+}
+
+TEST_F(CatalogServiceTest, FolderRelinkRejectsCancellationAndIdentityMismatchWithoutMutation)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = root / "missing-root";
+    const auto replacement = root / "candidate-root";
+    ASSERT_TRUE(std::filesystem::create_directory(original));
+    QImage source(14, 10, QImage::Format_RGB888);
+    source.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    source.fill(QColor(20, 70, 120));
+    const auto photo = original / "asset.png";
+    ASSERT_TRUE(source.save(QString::fromStdString(photo.string()), "PNG"));
+    auto imported = service->import_one(photo.string(), CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    ASSERT_TRUE(imported.value().asset);
+    const auto asset_id = imported.value().asset->id;
+    const auto original_uri = imported.value().asset->normalized_uri;
+    auto folders = service->list_folders();
+    ASSERT_TRUE(folders) << folders.error().message;
+    const auto folder =
+        std::find_if(folders.value().begin(), folders.value().end(),
+                     [](const FolderRecord &item) { return item.display_name == "missing-root"; });
+    ASSERT_NE(folder, folders.value().end());
+    const auto folder_id = folder->id;
+    std::filesystem::rename(original, replacement);
+
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("test_cancel"));
+    auto cancelled_result =
+        service->relink_folder(folder_id, replacement.string(), cancelled.token());
+    ASSERT_FALSE(cancelled_result);
+    EXPECT_EQ(cancelled_result.error().code, ErrorCode::kCancelled);
+    auto unchanged = service->list_assets();
+    ASSERT_TRUE(unchanged) << unchanged.error().message;
+    ASSERT_EQ(unchanged.value().size(), 1U);
+    EXPECT_EQ(unchanged.value().front().normalized_uri, original_uri);
+
+    QImage wrong(14, 10, QImage::Format_RGB888);
+    wrong.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    wrong.fill(QColor(220, 40, 20));
+    ASSERT_TRUE(wrong.save(QString::fromStdString((replacement / "asset.png").string()), "PNG"));
+    auto mismatched = service->relink_folder(folder_id, replacement.string());
+    ASSERT_FALSE(mismatched);
+    EXPECT_EQ(mismatched.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(mismatched.error().context.at("reason"), "replacement_asset_identity_mismatch");
+    unchanged = service->list_assets();
+    ASSERT_TRUE(unchanged) << unchanged.error().message;
+    ASSERT_EQ(unchanged.value().size(), 1U);
+    EXPECT_EQ(unchanged.value().front().id, asset_id);
+    EXPECT_EQ(unchanged.value().front().normalized_uri, original_uri);
+    auto still_missing = service->list_folders();
+    ASSERT_TRUE(still_missing) << still_missing.error().message;
+    const auto same_folder =
+        std::find_if(still_missing.value().begin(), still_missing.value().end(),
+                     [&](const FolderRecord &item) { return item.id == folder_id; });
+    ASSERT_NE(same_folder, still_missing.value().end());
+    EXPECT_TRUE(same_folder->missing);
+}
+
+TEST_F(CatalogServiceTest, FolderRelinkTransactionFailuresRollBackFolderAssetsAndRevision)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = root / "transaction-old";
+    const auto replacement = root / "transaction-new";
+    ASSERT_TRUE(std::filesystem::create_directory(original));
+    QImage image(10, 10, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    image.fill(QColor(45, 95, 145));
+    ASSERT_TRUE(image.save(QString::fromStdString((original / "a.png").string()), "PNG"));
+    image.fill(QColor(145, 95, 45));
+    ASSERT_TRUE(image.save(QString::fromStdString((original / "b.png").string()), "PNG"));
+    auto imported = service->import_inputs({original.string()}, CancellationToken{});
+    ASSERT_TRUE(imported) << imported.error().message;
+    auto folders = service->list_folders();
+    ASSERT_TRUE(folders) << folders.error().message;
+    const auto folder =
+        std::find_if(folders.value().begin(), folders.value().end(), [](const FolderRecord &item)
+                     { return item.display_name == "transaction-old"; });
+    ASSERT_NE(folder, folders.value().end());
+    const auto folder_id = folder->id;
+    const auto folder_uri = folder->uri;
+    auto before_assets = service->list_assets();
+    ASSERT_TRUE(before_assets) << before_assets.error().message;
+    auto before_snapshot = service->snapshot();
+    ASSERT_TRUE(before_snapshot) << before_snapshot.error().message;
+    std::filesystem::rename(original, replacement);
+    ASSERT_NE(sqlite_repository, nullptr);
+
+    const std::array failures{
+        testing::SqliteFolderRelinkFailure::kAfterFolderUpdate,
+        testing::SqliteFolderRelinkFailure::kAfterFirstAssetUpdate,
+        testing::SqliteFolderRelinkFailure::kBeforeCommit,
+    };
+    for (const auto failure : failures)
+    {
+        testing::SqliteCatalogTestControl::inject_folder_relink(*sqlite_repository, failure);
+        auto relinked = service->relink_folder(folder_id, replacement.string());
+        ASSERT_FALSE(relinked);
+        EXPECT_EQ(relinked.error().code, ErrorCode::kIo);
+        auto after_assets = service->list_assets();
+        ASSERT_TRUE(after_assets) << after_assets.error().message;
+        ASSERT_EQ(after_assets.value().size(), before_assets.value().size());
+        for (std::size_t index = 0; index < before_assets.value().size(); ++index)
+        {
+            EXPECT_EQ(after_assets.value()[index].id, before_assets.value()[index].id);
+            EXPECT_EQ(after_assets.value()[index].normalized_uri,
+                      before_assets.value()[index].normalized_uri);
+        }
+        auto after_folder = sqlite_repository->find_folder_by_id(folder_id);
+        ASSERT_TRUE(after_folder) << after_folder.error().message;
+        ASSERT_TRUE(after_folder.value());
+        EXPECT_EQ(after_folder.value()->uri, folder_uri);
+        auto after_snapshot = service->snapshot();
+        ASSERT_TRUE(after_snapshot) << after_snapshot.error().message;
+        EXPECT_EQ(after_snapshot.value().revision, before_snapshot.value().revision);
+        auto pending = service->pending_recovery();
+        ASSERT_TRUE(pending) << pending.error().message;
+        EXPECT_TRUE(pending.value().empty());
+    }
+
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto reopened = service->list_assets();
+    ASSERT_TRUE(reopened) << reopened.error().message;
+    ASSERT_EQ(reopened.value().size(), before_assets.value().size());
+    for (std::size_t index = 0; index < before_assets.value().size(); ++index)
+    {
+        EXPECT_EQ(reopened.value()[index].id, before_assets.value()[index].id);
+        EXPECT_EQ(reopened.value()[index].normalized_uri,
+                  before_assets.value()[index].normalized_uri);
+    }
+}
+
 TEST_F(CatalogServiceTest, LibraryQueryValidationFailsBeforeFiltering)
 {
     auto created = open_service(true);
@@ -921,6 +2038,421 @@ TEST_F(CatalogServiceTest, LibraryQueryFiltersMediaTextAndEditStateThroughServic
     ASSERT_TRUE(listed) << listed.error().message;
     ASSERT_EQ(listed.value().size(), 1U);
     EXPECT_EQ(listed.value().front().id, jpeg.value().asset->id);
+}
+
+TEST_F(CatalogServiceTest, PagedLibraryQueryMatchesDomainAndBoundsMaterialization)
+{
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    for (int index = 0; index < 60; ++index)
+    {
+        AssetRecord asset;
+        asset.id = "ast_page_" + std::to_string(1000 + index);
+        const auto folder = index % 3;
+        asset.normalized_uri = "file:///library/folder-" + std::to_string(folder) + "/photo-" +
+                               std::to_string(100 - index) + (index % 2 == 0 ? ".jpg" : ".png");
+        asset.media_type =
+            index % 2 == 0 ? std::string(kMediaTypeJpeg) : std::string(kMediaTypePng);
+        asset.size_bytes = static_cast<std::uint64_t>(1000 + index * 17);
+        asset.mtime_unix_ms = 10'000 + index;
+        asset.width = static_cast<std::uint32_t>(100 + index);
+        asset.height = static_cast<std::uint32_t>(50 + index % 5);
+        asset.created_unix_ms = 20'000 + index;
+        asset.review.rating = index % 6;
+        asset.review.color_label = index % 4 == 0 ? ColorLabel::kBlue : ColorLabel::kNone;
+        asset.review.rejected = index % 11 == 0;
+        if (index % 5 != 0)
+            asset.capture.captured_unix_s = 1'000 + index;
+        asset.capture.camera_make = index % 2 == 0 ? "RavoCam" : "OtherCam";
+        asset.capture.camera_model = "Model " + std::to_string(index % 4);
+        asset.capture.iso = static_cast<double>(100 + index * 10);
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+        if (index % 3 == 0)
+            ASSERT_TRUE(repository.value()->replace_asset_tags(asset.id, {"featured", "trip"}));
+        if (index % 7 == 0)
+        {
+            WritableMetadata metadata;
+            metadata.title = "Golden " + std::to_string(index);
+            ASSERT_TRUE(repository.value()->upsert_writable_metadata(asset.id, metadata));
+        }
+        if (index % 4 == 0)
+            ASSERT_TRUE(repository.value()->save_recipe_json(asset.id, 1, "{}"));
+    }
+    auto all = repository.value()->list_assets();
+    ASSERT_TRUE(all) << all.error().message;
+    ASSERT_EQ(all.value().size(), 60U);
+
+    std::vector<LibraryQuery> queries;
+    queries.push_back({});
+    LibraryQuery display;
+    display.sort_field = AssetSortField::kDisplayName;
+    display.sort_direction = SortDirection::kAscending;
+    queries.push_back(display);
+    LibraryQuery capture;
+    capture.sort_field = AssetSortField::kCaptureTime;
+    capture.sort_direction = SortDirection::kDescending;
+    queries.push_back(capture);
+    LibraryQuery filtered;
+    filtered.rating_mode = RatingFilterMode::kMinimum;
+    filtered.rating_value = 2;
+    filtered.folder_uri = "file:///library/folder-0";
+    filtered.tag = "featured";
+    filtered.media_types = {std::string(kMediaTypeJpeg)};
+    filtered.edit_filter = EditFilter::kEdited;
+    filtered.camera = "ravocam";
+    filtered.iso = {100.0, 700.0};
+    filtered.aspect_ratio = {1.5, 3.5};
+    filtered.sort_field = AssetSortField::kFileSize;
+    filtered.sort_direction = SortDirection::kAscending;
+    queries.push_back(filtered);
+    LibraryQuery text;
+    text.text = "golden";
+    text.sort_field = AssetSortField::kRating;
+    queries.push_back(text);
+
+    for (const auto &query : queries)
+    {
+        const auto expected = filter_and_sort_assets(all.value(), query);
+        std::vector<AssetRecord> paged;
+        std::size_t offset = 0U;
+        std::optional<std::string> cursor;
+        std::optional<std::size_t> known_total;
+        for (;;)
+        {
+            LibraryPageRequest request;
+            request.query = query;
+            request.offset = offset;
+            request.limit = 7U;
+            request.after_asset_id = cursor;
+            request.known_total = known_total;
+            auto page = repository.value()->list_assets_page(request);
+            ASSERT_TRUE(page) << page.error().message;
+            EXPECT_EQ(page.value().offset, offset);
+            EXPECT_EQ(page.value().total, expected.size());
+            EXPECT_LE(page.value().materialized_rows, 7U);
+            EXPECT_EQ(page.value().materialized_rows, page.value().assets.size());
+            EXPECT_GE(page.value().query_elapsed_us, 0);
+            paged.insert(paged.end(), page.value().assets.begin(), page.value().assets.end());
+            if (!page.value().has_more)
+                break;
+            ASSERT_FALSE(page.value().assets.empty());
+            ASSERT_TRUE(page.value().next_cursor);
+            offset += page.value().assets.size();
+            cursor = page.value().next_cursor;
+            known_total = page.value().total;
+        }
+        ASSERT_EQ(paged.size(), expected.size());
+        for (std::size_t index = 0; index < expected.size(); ++index)
+        {
+            EXPECT_EQ(paged[index].id, expected[index].id);
+            EXPECT_EQ(paged[index].tags, expected[index].tags);
+            EXPECT_EQ(paged[index].metadata.title, expected[index].metadata.title);
+            EXPECT_EQ(paged[index].capture.camera_model, expected[index].capture.camera_model);
+        }
+    }
+
+    LibraryPageRequest invalid;
+    invalid.limit = kLibraryPageMaximumSize + 1U;
+    auto rejected = repository.value()->list_assets_page(invalid);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().context.at("reason"), "invalid_library_page");
+    ASSERT_TRUE(repository.value()->close());
+}
+
+TEST_F(CatalogServiceTest, TenThousandRowLibraryTraversalStaysPageBounded)
+{
+    auto created = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(created) << created.error().message;
+    ASSERT_TRUE(created.value()->close());
+    created.value().reset();
+
+    const auto connection = QStringLiteral("ravo_scale_seed");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        ASSERT_TRUE(database.transaction()) << database.lastError().text().toStdString();
+        QSqlQuery insert_folder(database);
+        insert_folder.prepare(QStringLiteral(
+            "INSERT INTO catalog_folder(id, uri, created_unix_ms) VALUES (?, ?, 1)"));
+        for (int index = 0; index < 100; ++index)
+        {
+            insert_folder.bindValue(0, QStringLiteral("fld_scale_%1").arg(index));
+            insert_folder.bindValue(1, QStringLiteral("file:///synthetic/folder-%1").arg(index));
+            ASSERT_TRUE(insert_folder.exec()) << insert_folder.lastError().text().toStdString();
+        }
+        QSqlQuery insert(database);
+        insert.prepare(QStringLiteral(
+            "INSERT INTO asset(id, normalized_uri, display_name, folder_uri, folder_id, media_type, "
+            "size_bytes, mtime_unix_ms, content_fingerprint, width, height, import_state, "
+            "error_code, error_message, created_unix_ms, rating, color_label, rejected) "
+            "VALUES (?, ?, ?, ?, ?, 'image/jpeg', ?, ?, NULL, 64, 48, 'imported', NULL, NULL, ?, "
+            "?, 'none', 0)"));
+        for (int index = 0; index < 10'000; ++index)
+        {
+            const auto id = QStringLiteral("ast_scale_%1").arg(index, 5, 10, QLatin1Char('0'));
+            const auto folder = QStringLiteral("file:///synthetic/folder-%1").arg(index % 100);
+            const auto name = QStringLiteral("photo-%1.jpg").arg(index, 5, 10, QLatin1Char('0'));
+            insert.bindValue(0, id);
+            insert.bindValue(1, folder + QLatin1Char('/') + name);
+            insert.bindValue(2, name);
+            insert.bindValue(3, folder);
+            insert.bindValue(4, QStringLiteral("fld_scale_%1").arg(index % 100));
+            insert.bindValue(5, static_cast<qlonglong>(1000 + index));
+            insert.bindValue(6, static_cast<qlonglong>(20'000 + index));
+            insert.bindValue(7, static_cast<qlonglong>(30'000 + index));
+            insert.bindValue(8, index % 6);
+            ASSERT_TRUE(insert.exec()) << insert.lastError().text().toStdString();
+        }
+        ASSERT_TRUE(database.commit()) << database.lastError().text().toStdString();
+        database.close();
+        database = QSqlDatabase();
+    }
+    QSqlDatabase::removeDatabase(connection);
+
+    auto repository = SqliteCatalogRepository::open(database_path);
+    ASSERT_TRUE(repository) << repository.error().message;
+    std::vector<std::int64_t> elapsed;
+    std::size_t offset = 0U;
+    std::optional<std::string> cursor;
+    std::optional<std::size_t> known_total;
+    std::string previous_id;
+    for (;;)
+    {
+        LibraryPageRequest request;
+        request.offset = offset;
+        request.limit = kLibraryPageDefaultSize;
+        request.after_asset_id = cursor;
+        request.known_total = known_total;
+        auto page = repository.value()->list_assets_page(request);
+        ASSERT_TRUE(page) << page.error().message;
+        EXPECT_EQ(page.value().total, 10'000U);
+        EXPECT_LE(page.value().materialized_rows, kLibraryPageDefaultSize);
+        EXPECT_EQ(page.value().materialized_rows, page.value().assets.size());
+        elapsed.push_back(page.value().query_elapsed_us);
+        for (const auto &asset : page.value().assets)
+        {
+            if (!previous_id.empty())
+                EXPECT_GT(previous_id, asset.id);
+            previous_id = asset.id;
+        }
+        offset += page.value().assets.size();
+        if (!page.value().has_more)
+            break;
+        ASSERT_TRUE(page.value().next_cursor);
+        cursor = page.value().next_cursor;
+        known_total = page.value().total;
+    }
+    EXPECT_EQ(offset, 10'000U);
+    ASSERT_EQ(elapsed.size(), 50U);
+    std::sort(elapsed.begin(), elapsed.end());
+    const auto p90 = elapsed[(elapsed.size() * 9U) / 10U];
+    std::cout << "library_page rows=10000 pages=" << elapsed.size() << " p90_us=" << p90
+              << " max_us=" << elapsed.back() << '\n';
+    if (const char *budget = std::getenv("RAVO_LIBRARY_PAGE_P90_BUDGET_US"))
+        EXPECT_LE(p90, std::stoll(budget));
+    auto folders = repository.value()->list_folders();
+    ASSERT_TRUE(folders) << folders.error().message;
+    EXPECT_EQ(folders.value().front().asset_count, 10'000);
+
+    const auto explain_connection = QStringLiteral("ravo_scale_explain");
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), explain_connection);
+        database.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(database.open()) << database.lastError().text().toStdString();
+        QSqlQuery query(database);
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "EXPLAIN QUERY PLAN SELECT id FROM asset ORDER BY created_unix_ms DESC, id DESC "
+            "LIMIT 200")));
+        QStringList plan;
+        while (query.next())
+            plan.push_back(query.value(3).toString());
+        EXPECT_TRUE(plan.join(QLatin1Char('\n')).contains(QStringLiteral("asset_created_id_idx")))
+            << plan.join(QLatin1Char('\n')).toStdString();
+        ASSERT_TRUE(
+            query.exec(QStringLiteral("EXPLAIN QUERY PLAN SELECT id FROM asset WHERE id IN "
+                                      "(SELECT asset_id FROM asset_tag WHERE name = 'featured')")));
+        plan.clear();
+        while (query.next())
+            plan.push_back(query.value(3).toString());
+        EXPECT_TRUE(plan.join(QLatin1Char('\n')).contains(QStringLiteral("asset_tag_name_idx")))
+            << plan.join(QLatin1Char('\n')).toStdString();
+        ASSERT_TRUE(query.exec(QStringLiteral(
+            "EXPLAIN QUERY PLAN SELECT id FROM asset WHERE folder_id = 'fld_scale_1' "
+            "ORDER BY id")));
+        plan.clear();
+        while (query.next())
+            plan.push_back(query.value(3).toString());
+        EXPECT_TRUE(plan.join(QLatin1Char('\n')).contains(QStringLiteral("asset_folder_id_idx")))
+            << plan.join(QLatin1Char('\n')).toStdString();
+        database.close();
+        database = QSqlDatabase();
+    }
+    QSqlDatabase::removeDatabase(explain_connection);
+    ASSERT_TRUE(repository.value()->close());
+}
+
+TEST_F(CatalogServiceTest, PrivatePhotoManagementReleaseProbePreservesCorpus)
+{
+    const char *corpus = std::getenv("RAVO_PHOTO_CORPUS");
+    if (corpus == nullptr || std::string_view(corpus).empty())
+        GTEST_SKIP() << "RAVO_PHOTO_CORPUS is not set";
+    ASSERT_TRUE(open_service(true));
+
+    struct SourceSnapshot
+    {
+        std::string path;
+        std::uintmax_t size = 0U;
+        std::filesystem::file_time_type modified;
+        QByteArray sha256;
+    };
+    const auto percentile_summary = [](std::vector<std::int64_t> values)
+    {
+        std::sort(values.begin(), values.end());
+        const auto value_at = [&](const std::size_t numerator, const std::size_t denominator)
+        {
+            if (values.empty())
+                return std::int64_t{0};
+            const auto index =
+                std::min(values.size() - 1U, (values.size() * numerator) / denominator);
+            return values[index];
+        };
+        return std::array<std::int64_t, 3>{value_at(1U, 2U), value_at(9U, 10U),
+                                           values.empty() ? 0 : values.back()};
+    };
+
+    const auto enumeration_started = std::chrono::steady_clock::now();
+    auto enumerated = service->enumerate_import_inputs({corpus}, CancellationToken{});
+    ASSERT_TRUE(enumerated) << enumerated.error().message;
+    ASSERT_FALSE(enumerated.value().empty());
+    ASSERT_LE(enumerated.value().size(), kImportBatchMaximumAssets);
+    const auto enumeration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::steady_clock::now() - enumeration_started)
+                                    .count();
+    std::vector<SourceSnapshot> sources;
+    sources.reserve(enumerated.value().size());
+    for (const auto &path : enumerated.value())
+    {
+        std::error_code error;
+        SourceSnapshot source;
+        source.path = path;
+        source.size = std::filesystem::file_size(path, error);
+        ASSERT_FALSE(error) << path << ": " << error.message();
+        source.modified = std::filesystem::last_write_time(path, error);
+        ASSERT_FALSE(error) << path << ": " << error.message();
+        source.sha256 = file_sha256(path);
+        ASSERT_EQ(source.sha256.size(), 32) << path;
+        sources.push_back(std::move(source));
+    }
+
+    std::vector<std::int64_t> raw_import_us;
+    std::vector<std::int64_t> raster_import_us;
+    std::vector<std::string> raw_assets;
+    std::vector<std::string> raster_assets;
+    for (const auto &path : enumerated.value())
+    {
+        const auto started = std::chrono::steady_clock::now();
+        auto imported = service->import_one(path, CancellationToken{});
+        const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                                 std::chrono::steady_clock::now() - started)
+                                 .count();
+        ASSERT_TRUE(imported) << imported.error().message;
+        if (!imported.value().asset)
+            continue;
+        if (is_raw_media_type(imported.value().asset->media_type))
+        {
+            raw_import_us.push_back(elapsed);
+            raw_assets.push_back(imported.value().asset->id);
+        }
+        else
+        {
+            raster_import_us.push_back(elapsed);
+            raster_assets.push_back(imported.value().asset->id);
+        }
+    }
+
+    std::vector<std::int64_t> cold_preview_us;
+    std::vector<std::int64_t> warm_preview_us;
+    std::vector<std::string> preview_assets;
+    const std::array<const std::vector<std::string> *, 2> asset_groups{&raw_assets, &raster_assets};
+    for (const auto *ids : asset_groups)
+        preview_assets.insert(
+            preview_assets.end(), ids->begin(),
+            ids->begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(ids->size(), 8U)));
+    for (const auto &asset_id : preview_assets)
+    {
+        PreviewRequest request;
+        request.asset_id = asset_id;
+        request.max_edge = kDefaultPreviewMaxEdge;
+        request.prefer_embedded_preview = false;
+        auto started = std::chrono::steady_clock::now();
+        auto cold = service->request_preview(request);
+        cold_preview_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+                                      std::chrono::steady_clock::now() - started)
+                                      .count());
+        ASSERT_TRUE(cold) << cold.error().message;
+        started = std::chrono::steady_clock::now();
+        auto warm = service->request_preview(request);
+        warm_preview_us.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+                                      std::chrono::steady_clock::now() - started)
+                                      .count());
+        ASSERT_TRUE(warm) << warm.error().message;
+        EXPECT_EQ(warm.value().width, cold.value().width);
+        EXPECT_EQ(warm.value().height, cold.value().height);
+    }
+
+    std::vector<std::int64_t> page_us;
+    std::size_t offset = 0U;
+    std::optional<std::string> cursor;
+    std::optional<std::size_t> known_total;
+    for (;;)
+    {
+        LibraryPageRequest request;
+        request.offset = offset;
+        request.limit = kLibraryPageDefaultSize;
+        request.after_asset_id = cursor;
+        request.known_total = known_total;
+        auto page = service->list_assets_page(request);
+        ASSERT_TRUE(page) << page.error().message;
+        EXPECT_LE(page.value().materialized_rows, kLibraryPageDefaultSize);
+        page_us.push_back(page.value().query_elapsed_us);
+        offset += page.value().assets.size();
+        if (!page.value().has_more)
+            break;
+        ASSERT_TRUE(page.value().next_cursor);
+        cursor = page.value().next_cursor;
+        known_total = page.value().total;
+    }
+
+    for (const auto &source : sources)
+    {
+        std::error_code error;
+        EXPECT_EQ(std::filesystem::file_size(source.path, error), source.size) << source.path;
+        EXPECT_FALSE(error) << source.path << ": " << error.message();
+        EXPECT_EQ(std::filesystem::last_write_time(source.path, error), source.modified)
+            << source.path;
+        EXPECT_FALSE(error) << source.path << ": " << error.message();
+        EXPECT_EQ(file_sha256(source.path), source.sha256) << source.path;
+    }
+
+    const auto raw = percentile_summary(raw_import_us);
+    const auto raster = percentile_summary(raster_import_us);
+    const auto cold = percentile_summary(cold_preview_us);
+    const auto warm = percentile_summary(warm_preview_us);
+    const auto pages = percentile_summary(page_us);
+    std::cout << "photo_management_probe files=" << sources.size()
+              << " enumeration_ms=" << enumeration_ms << " raw_import_us_p50_p90_max=" << raw[0]
+              << ',' << raw[1] << ',' << raw[2] << " raster_import_us_p50_p90_max=" << raster[0]
+              << ',' << raster[1] << ',' << raster[2] << " cold_preview_us_p50_p90_max=" << cold[0]
+              << ',' << cold[1] << ',' << cold[2] << " warm_preview_us_p50_p90_max=" << warm[0]
+              << ',' << warm[1] << ',' << warm[2] << " page_us_p50_p90_max=" << pages[0] << ','
+              << pages[1] << ',' << pages[2] << '\n';
+    if (const char *budget = std::getenv("RAVO_PRIVATE_PAGE_P90_BUDGET_US"))
+        EXPECT_LE(pages[1], std::stoll(budget));
+    if (const char *budget = std::getenv("RAVO_PRIVATE_COLD_PREVIEW_P90_BUDGET_MS"))
+        EXPECT_LE(cold[1], std::stoll(budget) * 1000);
+    if (const char *budget = std::getenv("RAVO_PRIVATE_WARM_PREVIEW_P90_BUDGET_MS"))
+        EXPECT_LE(warm[1], std::stoll(budget) * 1000);
 }
 
 TEST_F(CatalogServiceTest, RemoveFromCatalogLeavesTheOriginalFile)

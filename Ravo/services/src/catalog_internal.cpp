@@ -100,6 +100,10 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
         if (std::filesystem::is_regular_file(path, error) && !error)
         {
             files.push_back(location.value().path);
+            if (files.size() > kImportBatchMaximumAssets)
+                return make_error(ErrorCode::kValidation, "Import enumeration exceeds its bound",
+                                  {{"maximum_assets", std::to_string(kImportBatchMaximumAssets)},
+                                   {"reason", "import_asset_count_exceeded"}});
             continue;
         }
         if (!std::filesystem::is_directory(path, error) || error)
@@ -123,6 +127,11 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
             {
                 const auto utf8 = iterator->path().generic_u8string();
                 files.emplace_back(reinterpret_cast<const char *>(utf8.data()), utf8.size());
+                if (files.size() > kImportBatchMaximumAssets)
+                    return make_error(
+                        ErrorCode::kValidation, "Import enumeration exceeds its bound",
+                        {{"maximum_assets", std::to_string(kImportBatchMaximumAssets)},
+                         {"reason", "import_asset_count_exceeded"}});
             }
         }
         if (error)

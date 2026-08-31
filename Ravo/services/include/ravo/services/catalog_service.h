@@ -52,6 +52,17 @@ verify_catalog_backup(const CatalogBackupDatabaseVerifier &database_verifier,
                       const RecoveryStore &recovery_verifier, std::string_view backup_directory,
                       const CancellationToken &cancellation = {});
 
+using CatalogRestoreProgressCallback = std::function<void(const CatalogRestoreProgress &)>;
+
+// Restores a self-contained verified backup to an absent catalog path. The
+// support root publishes first; the catalog file is the final visibility point.
+// After that point errors carry restore_published=true and no path is removed.
+[[nodiscard]] Result<CatalogRestoreResult>
+restore_catalog_backup(const CatalogBackupDatabaseVerifier &backup_database_verifier,
+                       const CatalogRestoreDatabaseVerifier &restored_database_verifier,
+                       const RecoveryStore &recovery_verifier, const CatalogRestoreRequest &request,
+                       const CatalogRestoreProgressCallback &progress = {});
+
 class CatalogService
 {
 public:
@@ -68,8 +79,14 @@ public:
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query) const;
+    [[nodiscard]] Result<LibraryPage> list_assets_page(const LibraryPageRequest &request) const;
     [[nodiscard]] Result<std::vector<FolderRecord>> list_folders() const;
+    [[nodiscard]] Result<FolderRelinkResult>
+    relink_folder(std::string_view folder_id, std::string_view replacement_directory,
+                  const CancellationToken &cancellation = {});
     [[nodiscard]] Result<std::vector<PreviewRecord>> list_previews() const;
+    [[nodiscard]] Result<std::vector<PreviewRecord>>
+    list_previews_for_assets(const std::vector<std::string> &asset_ids) const;
     [[nodiscard]] Result<AssetRecoveryState> recovery_state(std::string_view asset_id) const;
     [[nodiscard]] Result<std::vector<AssetRecoveryState>> pending_recovery() const;
     // With an asset ID, this also verifies an already-synchronized sidecar.
@@ -83,6 +100,12 @@ public:
     [[nodiscard]] Result<CatalogBackupVerification>
     verify_backup(std::string_view backup_directory,
                   const CancellationToken &cancellation = {}) const;
+    [[nodiscard]] Result<CatalogBackupPolicy> backup_policy() const;
+    [[nodiscard]] Result<CatalogBackupPolicy> set_backup_policy(CatalogBackupPolicy policy,
+                                                                std::int64_t now_unix_ms);
+    [[nodiscard]] Result<CatalogBackupScheduleResult>
+    run_scheduled_backup(std::int64_t now_unix_ms, const CancellationToken &cancellation = {},
+                         bool force = false);
     [[nodiscard]] Result<AssetRecord> set_rating(std::string_view asset_id, int rating);
     [[nodiscard]] Result<AssetRecord> set_color_label(std::string_view asset_id, ColorLabel label);
     [[nodiscard]] Result<AssetRecord> set_rejected(std::string_view asset_id, bool rejected);
@@ -120,6 +143,9 @@ public:
                                                              std::int64_t history_id);
     [[nodiscard]] Result<ImportItemResult> import_one(std::string_view path,
                                                       const CancellationToken &cancellation);
+    [[nodiscard]] Result<std::vector<std::string>>
+    enumerate_import_inputs(const std::vector<std::string> &paths,
+                            const CancellationToken &cancellation) const;
     [[nodiscard]] Result<std::vector<ImportItemResult>>
     import_inputs(const std::vector<std::string> &paths, const CancellationToken &cancellation,
                   const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
@@ -127,6 +153,10 @@ public:
     [[nodiscard]] Result<PreviewResult>
     request_preview(const PreviewRequest &request,
                     const std::optional<DevelopParams> &live_develop = {});
+    [[nodiscard]] Result<PreviewRebuildResult> rebuild_previews(
+        const std::vector<std::string> &asset_ids, const CancellationToken &cancellation,
+        const std::function<void(std::size_t, std::size_t, const PreviewRebuildItemResult *)>
+            &progress = {});
     [[nodiscard]] Result<ExportResult> export_asset(const ExportRequest &request);
     [[nodiscard]] Result<std::vector<ExportResult>> export_assets(
         const ExportBatchRequest &request,
@@ -216,6 +246,7 @@ private:
     std::optional<CachedLinearWorking> browse_linear_working_;
     std::function<void()> testing_before_import_publication_;
     std::function<void()> testing_before_preview_cache_publication_;
+    std::function<Result<void>(std::string_view, std::string_view)> testing_backup_checkpoint_;
 
     friend class testing::CatalogServiceTestControl;
 };

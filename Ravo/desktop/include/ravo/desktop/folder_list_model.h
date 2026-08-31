@@ -21,7 +21,8 @@ class FolderListModel final : public QAbstractListModel
 public:
     enum Role
     {
-        FolderUriRole = Qt::UserRole + 1,
+        FolderIdRole = Qt::UserRole + 1,
+        FolderUriRole,
         DisplayNameRole,
         DepthRole,
         AssetCountRole,
@@ -29,6 +30,7 @@ public:
         HasNextSiblingRole,
         AncestorLineContinuesRole,
         CollapsedRole,
+        MissingRole,
     };
 
     explicit FolderListModel(QObject *parent = nullptr);

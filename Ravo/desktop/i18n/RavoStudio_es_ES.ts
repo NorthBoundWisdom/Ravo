@@ -37,6 +37,57 @@
         </message>
     </context>
     <context>
+        <name>BackupScheduleDialog</name>
+        <message>
+            <source>Scheduled Backups</source>
+            <translation>Copias de seguridad programadas</translation>
+        </message>
+        <message>
+            <source>Every 15 minutes</source>
+            <translation>Cada 15 minutos</translation>
+        </message>
+        <message>
+            <source>Hourly</source>
+            <translation>Cada hora</translation>
+        </message>
+        <message>
+            <source>Daily</source>
+            <translation>Diariamente</translation>
+        </message>
+        <message>
+            <source>Weekly</source>
+            <translation>Semanalmente</translation>
+        </message>
+        <message>
+            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
+            <translation>Elige con qué frecuencia Ravo crea una copia de seguridad verificada del catálogo y cuántas copias verificadas conserva. A continuación, elegirás la carpeta de destino.</translation>
+        </message>
+        <message>
+            <source>Frequency</source>
+            <translation>Frecuencia</translation>
+        </message>
+        <message>
+            <source>Backup frequency</source>
+            <translation>Frecuencia de las copias</translation>
+        </message>
+        <message>
+            <source>Keep backups</source>
+            <translation>Copias que conservar</translation>
+        </message>
+        <message>
+            <source>Backup retention count</source>
+            <translation>Número de copias que conservar</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancelar</translation>
+        </message>
+        <message>
+            <source>Choose Folder…</source>
+            <translation>Elegir carpeta…</translation>
+        </message>
+    </context>
+    <context>
         <name>ColorGradeWheel</name>
         <message>
             <source>Luminance</source>
@@ -2951,6 +3002,26 @@
     <context>
         <name>LibrarySidePanel</name>
         <message>
+            <source>Never</source>
+            <translation>Nunca</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
             <source>Library</source>
             <translation>Biblioteca</translation>
         </message>
@@ -2963,8 +3034,36 @@
             <translation>Escaneando…</translation>
         </message>
         <message>
+            <source>Cancel</source>
+            <translation>Cancelar</translation>
+        </message>
+        <message>
             <source>Previews</source>
             <translation>Vistas previas</translation>
+        </message>
+        <message>
+            <source>Scheduled backups</source>
+            <translation>Copias programadas</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>Activadas</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Desactivadas</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>Última verificación: %1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>Siguiente: %1 · Conservar %2</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>Último fallo: %1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -2995,6 +3094,10 @@
             <translation>Todas las fotografías</translation>
         </message>
         <message>
+            <source>%1 (missing — click to locate)</source>
+            <translation>%1 (no encontrada — haz clic para localizarla)</translation>
+        </message>
+        <message>
             <source>Import…</source>
             <translation>Importar…</translation>
         </message>
@@ -3012,6 +3115,10 @@
         <message>
             <source>Ravo Studio</source>
             <translation>Ravo Studio</translation>
+        </message>
+        <message>
+            <source>Ravo Catalog Backup.ravobackup</source>
+            <translation>Copia del catálogo de Ravo.ravobackup</translation>
         </message>
         <message>
             <source>JPEG (*.jpg *.jpeg)</source>
@@ -3160,6 +3267,42 @@
         <message>
             <source>Import Folder</source>
             <translation>Importar carpeta</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup</source>
+            <translation>Crear copia del catálogo</translation>
+        </message>
+        <message>
+            <source>Ravo catalog backup (*.ravobackup)</source>
+            <translation>Copia del catálogo de Ravo (*.ravobackup)</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup</source>
+            <translation>Verificar copia del catálogo</translation>
+        </message>
+        <message>
+            <source>Select Catalog Backup to Restore</source>
+            <translation>Seleccionar la copia del catálogo que se restaurará</translation>
+        </message>
+        <message>
+            <source>Restored Ravo Library.sqlite</source>
+            <translation>Biblioteca de Ravo restaurada.sqlite</translation>
+        </message>
+        <message>
+            <source>Restore Catalog As</source>
+            <translation>Restaurar catálogo como</translation>
+        </message>
+        <message>
+            <source>Ravo catalog (*.sqlite)</source>
+            <translation>Catálogo de Ravo (*.sqlite)</translation>
+        </message>
+        <message>
+            <source>Choose Scheduled Backup Folder</source>
+            <translation>Elegir carpeta para las copias programadas</translation>
+        </message>
+        <message>
+            <source>Locate Missing Folder</source>
+            <translation>Localizar carpeta no encontrada</translation>
         </message>
         <message>
             <source>Save Export</source>
@@ -3677,6 +3820,10 @@
             <translation>Los originales seleccionados no se pueden eliminar.</translation>
         </message>
         <message>
+            <source>No catalog operation is running.</source>
+            <translation>No hay ninguna operación de catálogo en curso.</translation>
+        </message>
+        <message>
             <source>Command unavailable in the current context.</source>
             <translation>Comando no disponible en el contexto actual.</translation>
         </message>
@@ -3735,6 +3882,50 @@
         <message>
             <source>Export Selected...</source>
             <translation>Exportar seleccionado...</translation>
+        </message>
+        <message>
+            <source>Recovery Status</source>
+            <translation>Estado de recuperación</translation>
+        </message>
+        <message>
+            <source>Synchronize Recovery</source>
+            <translation>Sincronizar datos de recuperación</translation>
+        </message>
+        <message>
+            <source>Create Catalog Backup...</source>
+            <translation>Crear copia del catálogo…</translation>
+        </message>
+        <message>
+            <source>Verify Catalog Backup...</source>
+            <translation>Verificar copia del catálogo…</translation>
+        </message>
+        <message>
+            <source>Restore Catalog Backup...</source>
+            <translation>Restaurar copia del catálogo…</translation>
+        </message>
+        <message>
+            <source>Enable Scheduled Backups...</source>
+            <translation>Activar copias de seguridad programadas…</translation>
+        </message>
+        <message>
+            <source>Run Scheduled Backup Now</source>
+            <translation>Ejecutar ahora la copia programada</translation>
+        </message>
+        <message>
+            <source>Disable Scheduled Backups</source>
+            <translation>Desactivar copias de seguridad programadas</translation>
+        </message>
+        <message>
+            <source>Rebuild Selected Previews</source>
+            <translation>Reconstruir vistas previas seleccionadas</translation>
+        </message>
+        <message>
+            <source>Rebuild All Previews</source>
+            <translation>Reconstruir todas las vistas previas</translation>
+        </message>
+        <message>
+            <source>Cancel Catalog Operation</source>
+            <translation>Cancelar operación de catálogo</translation>
         </message>
         <message>
             <source>Save Edits as Style...</source>
@@ -3875,6 +4066,26 @@
         <message>
             <source>Copy Info</source>
             <translation>Copiar información</translation>
+        </message>
+        <message>
+            <source>Backup and restored catalog paths must not be empty.</source>
+            <translation>Las rutas de la copia y del catálogo restaurado no pueden estar vacías.</translation>
+        </message>
+        <message>
+            <source>Backup directory must not be empty.</source>
+            <translation>El directorio de copias de seguridad no puede estar vacío.</translation>
+        </message>
+        <message>
+            <source>Backup interval is outside the supported range.</source>
+            <translation>El intervalo de copia está fuera del rango admitido.</translation>
+        </message>
+        <message>
+            <source>Backup retention count is outside the supported range.</source>
+            <translation>El número de copias que conservar está fuera del rango admitido.</translation>
+        </message>
+        <message>
+            <source>Folder identity and replacement path must not be empty.</source>
+            <translation>El identificador de la carpeta y la ruta de sustitución no pueden estar vacíos.</translation>
         </message>
         <message>
             <source>Copy Parameters</source>
@@ -4377,12 +4588,20 @@
             <translation>Escaneando carpeta…</translation>
         </message>
         <message>
+            <source>Importing 0 / %1…</source>
+            <translation>Importando 0 / %1…</translation>
+        </message>
+        <message>
             <source>Importing %1 / %2…</source>
             <translation>Importando %1 / %2…</translation>
         </message>
         <message>
             <source>Import failed.</source>
             <translation>La importación falló.</translation>
+        </message>
+        <message>
+            <source>Import cancelled after %1 of %2 photos.</source>
+            <translation>Importación cancelada tras %1 de %2 fotos.</translation>
         </message>
         <message>
             <source>Capture metadata refreshed.</source>
@@ -4415,6 +4634,162 @@
         <message>
             <source>Imported %1, duplicate %2, unsupported %3, failed %4</source>
             <translation>%1 importadas, %2 duplicadas, %3 no compatibles, %4 fallidas</translation>
+        </message>
+        <message>
+            <source>Verifying backup…</source>
+            <translation>Verificando copia de seguridad…</translation>
+        </message>
+        <message>
+            <source>Staging catalog…</source>
+            <translation>Preparando catálogo…</translation>
+        </message>
+        <message>
+            <source>Staging recovery files…</source>
+            <translation>Preparando archivos de recuperación…</translation>
+        </message>
+        <message>
+            <source>Verifying staged restore…</source>
+            <translation>Verificando la restauración preparada…</translation>
+        </message>
+        <message>
+            <source>Publishing catalog support…</source>
+            <translation>Publicando datos auxiliares del catálogo…</translation>
+        </message>
+        <message>
+            <source>Publishing restored catalog…</source>
+            <translation>Publicando catálogo restaurado…</translation>
+        </message>
+        <message>
+            <source>Opening restored catalog…</source>
+            <translation>Abriendo catálogo restaurado…</translation>
+        </message>
+        <message>
+            <source>Restore complete.</source>
+            <translation>Restauración completada.</translation>
+        </message>
+        <message>
+            <source>Reading recovery state…</source>
+            <translation>Leyendo estado de recuperación…</translation>
+        </message>
+        <message>
+            <source>Recovery status failed.</source>
+            <translation>No se pudo leer el estado de recuperación.</translation>
+        </message>
+        <message>
+            <source>Recovery is synchronized.</source>
+            <translation>Los datos de recuperación están sincronizados.</translation>
+        </message>
+        <message>
+            <source>%1 recovery items are pending.</source>
+            <translation>Hay %1 elementos de recuperación pendientes.</translation>
+        </message>
+        <message>
+            <source>Synchronizing recovery…</source>
+            <translation>Sincronizando datos de recuperación…</translation>
+        </message>
+        <message>
+            <source>Recovery synchronization failed.</source>
+            <translation>Falló la sincronización de los datos de recuperación.</translation>
+        </message>
+        <message>
+            <source>Synchronized %1 recovery items.</source>
+            <translation>Se sincronizaron %1 elementos de recuperación.</translation>
+        </message>
+        <message>
+            <source>Creating backup…</source>
+            <translation>Creando copia de seguridad…</translation>
+        </message>
+        <message>
+            <source>Backup failed.</source>
+            <translation>Falló la copia de seguridad.</translation>
+        </message>
+        <message>
+            <source>Created verified backup at %1</source>
+            <translation>Se creó una copia verificada en %1</translation>
+        </message>
+        <message>
+            <source>Backup verification failed.</source>
+            <translation>Falló la verificación de la copia de seguridad.</translation>
+        </message>
+        <message>
+            <source>Backup verified: %1 photos</source>
+            <translation>Copia verificada: %1 fotos</translation>
+        </message>
+        <message>
+            <source>Restore failed.</source>
+            <translation>Falló la restauración.</translation>
+        </message>
+        <message>
+            <source>Restored catalog to %1</source>
+            <translation>Catálogo restaurado en %1</translation>
+        </message>
+        <message>
+            <source>Rebuilding previews…</source>
+            <translation>Reconstruyendo vistas previas…</translation>
+        </message>
+        <message>
+            <source>Preview rebuild stopped.</source>
+            <translation>Se detuvo la reconstrucción de vistas previas.</translation>
+        </message>
+        <message>
+            <source>Rebuilt %1 of %2 previews.</source>
+            <translation>Se reconstruyeron %1 de %2 vistas previas.</translation>
+        </message>
+        <message>
+            <source>Saving backup schedule…</source>
+            <translation>Guardando programación de copias…</translation>
+        </message>
+        <message>
+            <source>Backup schedule failed.</source>
+            <translation>Falló la programación de copias.</translation>
+        </message>
+        <message>
+            <source>Scheduled backups enabled.</source>
+            <translation>Copias de seguridad programadas activadas.</translation>
+        </message>
+        <message>
+            <source>Scheduled backups disabled.</source>
+            <translation>Copias de seguridad programadas desactivadas.</translation>
+        </message>
+        <message>
+            <source>Relinking folder…</source>
+            <translation>Volviendo a enlazar carpeta…</translation>
+        </message>
+        <message>
+            <source>Folder relink failed.</source>
+            <translation>No se pudo volver a enlazar la carpeta.</translation>
+        </message>
+        <message>
+            <source>Folder relinked; folder refresh failed.</source>
+            <translation>La carpeta se volvió a enlazar, pero no se pudo actualizar.</translation>
+        </message>
+        <message>
+            <source>Relinked %1 photos to %2</source>
+            <translation>Se volvieron a enlazar %1 fotos con %2</translation>
+        </message>
+        <message>
+            <source>Running scheduled backup…</source>
+            <translation>Ejecutando copia programada…</translation>
+        </message>
+        <message>
+            <source>Checking backup schedule…</source>
+            <translation>Comprobando programación de copias…</translation>
+        </message>
+        <message>
+            <source>Scheduled backup failed.</source>
+            <translation>Falló la copia de seguridad programada.</translation>
+        </message>
+        <message>
+            <source>Scheduled backup created at %1</source>
+            <translation>Copia programada creada en %1</translation>
+        </message>
+        <message>
+            <source>Scheduled backups are disabled.</source>
+            <translation>Las copias de seguridad programadas están desactivadas.</translation>
+        </message>
+        <message>
+            <source>Cancelling catalog operation…</source>
+            <translation>Cancelando operación de catálogo…</translation>
         </message>
     </context>
     <context>

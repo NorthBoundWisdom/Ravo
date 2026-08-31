@@ -149,8 +149,10 @@ ColumnLayout {
         delayedCommit: true
         enabled: root.editorEnabled
         value: root.luminance
-        onValueEdited: if (root.liveReady && root.commands)
-            root.commands.previewDevelopNumber(root.luminanceField, value)
+        onValueEdited: function (value) {
+            if (root.liveReady && root.commands)
+                root.commands.previewDevelopNumber(root.luminanceField, value);
+        }
         onValueCommitted: function (value) {
             if (root.commands)
                 root.commands.setDevelopNumber(root.luminanceField, value);

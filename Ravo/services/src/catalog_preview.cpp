@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <optional>
+#include <set>
 #include <system_error>
 #include <utility>
 
@@ -39,6 +40,133 @@ CatalogService::request_preview(const PreviewRequest &request,
                           {{"asset_id", request.asset_id}});
     }
     return generate_preview(*asset.value(), request, live_develop);
+}
+
+Result<PreviewRebuildResult> CatalogService::rebuild_previews(
+    const std::vector<std::string> &asset_ids, const CancellationToken &cancellation,
+    const std::function<void(std::size_t, std::size_t, const PreviewRebuildItemResult *)> &progress)
+{
+    if (repository_ == nullptr || cache_ == nullptr)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    auto listed = repository_->list_assets();
+    if (!listed)
+        return listed.error();
+    std::set<std::string, std::less<>> known;
+    for (const auto &asset : listed.value())
+        known.insert(asset.id);
+    std::vector<std::string> selected;
+    if (asset_ids.empty())
+    {
+        selected.reserve(listed.value().size());
+        for (const auto &asset : listed.value())
+            selected.push_back(asset.id);
+    }
+    else
+    {
+        selected.reserve(asset_ids.size());
+        std::set<std::string, std::less<>> unique;
+        for (const auto &asset_id : asset_ids)
+        {
+            if (asset_id.empty() || !unique.insert(asset_id).second)
+                return make_error(
+                    ErrorCode::kInvalidArgument,
+                    "Preview rebuild asset IDs must be non-empty and unique",
+                    {{"asset_id", asset_id}, {"reason", "invalid_preview_rebuild_assets"}});
+            if (!known.contains(asset_id))
+                return make_error(
+                    ErrorCode::kNotFound, "Preview rebuild asset does not exist",
+                    {{"asset_id", asset_id}, {"reason", "preview_rebuild_asset_not_found"}});
+            selected.push_back(asset_id);
+        }
+    }
+
+    PreviewRebuildResult result;
+    result.total = selected.size();
+    result.items.reserve(selected.size());
+    if (progress)
+        progress(0U, result.total, nullptr);
+    for (std::size_t index = 0; index < selected.size(); ++index)
+    {
+        active = cancellation.check();
+        if (!active)
+        {
+            auto error = std::move(active).error();
+            error.context.insert_or_assign("completed_count", std::to_string(result.completed));
+            error.context.insert_or_assign("total_count", std::to_string(result.total));
+            return error;
+        }
+        PreviewRebuildItemResult item;
+        item.asset_id = selected[index];
+        auto removed = cache_->remove_for_asset(item.asset_id);
+        if (!removed)
+        {
+            item.error = removed.error();
+        }
+        else
+        {
+            PreviewRequest browse;
+            browse.asset_id = item.asset_id;
+            browse.max_edge = kThumbnailMaxEdge;
+            browse.request_revision = static_cast<std::uint64_t>(index) * 2U + 1U;
+            browse.purpose = PreviewPurpose::kBrowse;
+            browse.prefer_embedded_preview = true;
+            browse.cancellation = cancellation;
+            browse.correlation_id = "preview-rebuild-browse";
+            auto browse_result = request_preview(browse);
+            if (!browse_result)
+            {
+                if (browse_result.error().code == ErrorCode::kCancelled)
+                {
+                    auto error = browse_result.error();
+                    error.context.insert_or_assign("completed_count",
+                                                   std::to_string(result.completed));
+                    error.context.insert_or_assign("total_count", std::to_string(result.total));
+                    return error;
+                }
+                item.error = browse_result.error();
+            }
+            else
+            {
+                item.browse_cache_path = browse_result.value().cache_path;
+                PreviewRequest develop;
+                develop.asset_id = item.asset_id;
+                develop.max_edge = kDefaultPreviewMaxEdge;
+                develop.request_revision = static_cast<std::uint64_t>(index) * 2U + 2U;
+                develop.purpose = PreviewPurpose::kDevelop;
+                develop.cancellation = cancellation;
+                develop.correlation_id = "preview-rebuild-develop";
+                auto develop_result = request_preview(develop);
+                if (!develop_result)
+                {
+                    if (develop_result.error().code == ErrorCode::kCancelled)
+                    {
+                        auto error = develop_result.error();
+                        error.context.insert_or_assign("completed_count",
+                                                       std::to_string(result.completed));
+                        error.context.insert_or_assign("total_count", std::to_string(result.total));
+                        return error;
+                    }
+                    item.error = develop_result.error();
+                }
+                else
+                {
+                    item.develop_cache_path = develop_result.value().cache_path;
+                }
+            }
+        }
+        ++result.completed;
+        if (item.error)
+            ++result.failed;
+        else
+            ++result.succeeded;
+        result.items.push_back(std::move(item));
+        if (progress)
+            progress(result.completed, result.total, &result.items.back());
+    }
+    return result;
 }
 
 Result<PreviewResult> CatalogService::persist_embedded_browse_preview(
@@ -299,8 +427,7 @@ CatalogService::generate_preview(const AssetRecord &asset, const PreviewRequest 
         {
             return output_fingerprint.error();
         }
-        auto lut_fingerprint =
-            engine_->lut3d_cache_fingerprint(recipe, request.cancellation);
+        auto lut_fingerprint = engine_->lut3d_cache_fingerprint(recipe, request.cancellation);
         if (!lut_fingerprint)
         {
             return lut_fingerprint.error();

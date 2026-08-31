@@ -164,6 +164,11 @@ std::string generate_asset_id()
     return random_hex_id("ast_");
 }
 
+std::string generate_folder_id()
+{
+    return random_hex_id("fld_");
+}
+
 std::string make_content_fingerprint(const FileIdentity &identity)
 {
     return std::to_string(identity.size_bytes) + "-" + std::to_string(identity.mtime_unix_ms);
@@ -209,6 +214,52 @@ void fit_within_max_edge(const std::uint32_t source_width, const std::uint32_t s
             1U, static_cast<std::uint32_t>(static_cast<std::uint64_t>(source_width) * max_edge /
                                            source_height));
     }
+}
+
+std::string_view catalog_restore_stage_name(const CatalogRestoreStage stage) noexcept
+{
+    switch (stage)
+    {
+    case CatalogRestoreStage::kVerifySource:
+        return "verify_source";
+    case CatalogRestoreStage::kStageDatabase:
+        return "stage_database";
+    case CatalogRestoreStage::kStageSidecars:
+        return "stage_sidecars";
+    case CatalogRestoreStage::kVerifyStaging:
+        return "verify_staging";
+    case CatalogRestoreStage::kPublishSupport:
+        return "publish_support";
+    case CatalogRestoreStage::kPublishCatalog:
+        return "publish_catalog";
+    case CatalogRestoreStage::kOpenCatalog:
+        return "open_catalog";
+    case CatalogRestoreStage::kComplete:
+        return "complete";
+    }
+    return "verify_source";
+}
+
+Result<void> validate_catalog_backup_policy(const CatalogBackupPolicy &policy)
+{
+    if ((policy.enabled && policy.destination_directory.empty()) ||
+        policy.destination_directory.size() > 32U * 1024U ||
+        policy.destination_directory.find('\0') != std::string::npos ||
+        policy.destination_directory.find('\n') != std::string::npos ||
+        policy.destination_directory.find('\r') != std::string::npos ||
+        policy.interval_minutes < kBackupScheduleIntervalMinutesMin ||
+        policy.interval_minutes > kBackupScheduleIntervalMinutesMax ||
+        policy.retention_count < kBackupRetentionCountMin ||
+        policy.retention_count > kBackupRetentionCountMax ||
+        (policy.last_success_unix_ms && *policy.last_success_unix_ms < 0) ||
+        (policy.next_run_unix_ms && *policy.next_run_unix_ms < 0) ||
+        policy.last_backup_bytes >
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) ||
+        (policy.last_error && (policy.last_error->size() > kMetadataFieldMaxLength ||
+                               policy.last_error->find('\0') != std::string::npos)))
+        return make_error(ErrorCode::kValidation, "Catalog backup policy is invalid",
+                          {{"reason", "invalid_catalog_backup_policy"}});
+    return {};
 }
 
 Result<void> validate_rating(const int rating)
@@ -381,8 +432,7 @@ Result<std::string> expand_export_filename_template(const std::string_view filen
     }
     if (extension.size() > kExportFilenameMaxBytes ||
         (!extension.empty() &&
-         (extension.front() != '.' ||
-          extension.find_first_of("/\\{}") != std::string_view::npos ||
+         (extension.front() != '.' || extension.find_first_of("/\\{}") != std::string_view::npos ||
           !is_valid_utf8(extension))))
     {
         return make_error(
@@ -411,8 +461,7 @@ Result<std::string> expand_export_filename_template(const std::string_view filen
             filename.push_back(filename_template[offset++]);
             if (filename.size() > kExportFilenameMaxBytes)
             {
-                return make_error(ErrorCode::kValidation,
-                                  "Expanded export filename is too large",
+                return make_error(ErrorCode::kValidation, "Expanded export filename is too large",
                                   {{"reason", "invalid_expanded_export_filename"},
                                    {"max_bytes", std::to_string(kExportFilenameMaxBytes)}});
             }
@@ -1563,6 +1612,28 @@ Result<void> validate_library_query(const LibraryQuery &query)
     return {};
 }
 
+Result<void> validate_library_page_request(const LibraryPageRequest &request)
+{
+    auto valid = validate_library_query(request.query);
+    if (!valid)
+        return valid.error();
+    if (request.limit == 0U || request.limit > kLibraryPageMaximumSize ||
+        request.offset > static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()) ||
+        (request.after_asset_id &&
+         (request.after_asset_id->empty() || request.after_asset_id->size() > 180U ||
+          request.offset == 0U)) ||
+        (request.known_total &&
+         (*request.known_total < request.offset ||
+          *request.known_total >
+              static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()))))
+        return make_error(ErrorCode::kValidation, "Library page request is outside its bounds",
+                          {{"limit", std::to_string(request.limit)},
+                           {"maximum_limit", std::to_string(kLibraryPageMaximumSize)},
+                           {"offset", std::to_string(request.offset)},
+                           {"reason", "invalid_library_page"}});
+    return {};
+}
+
 bool asset_matches_query(const AssetRecord &asset, const LibraryQuery &query)
 {
     switch (query.rating_mode)
@@ -1780,56 +1851,51 @@ bool asset_in_folder(const AssetRecord &asset, const std::string_view folder_uri
 
 std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets)
 {
+    std::map<std::string, int, std::less<>> direct;
+    for (const auto &asset : assets)
+        ++direct[uri_parent(asset.normalized_uri)];
+    std::vector<FolderAssetCount> counts;
+    counts.reserve(direct.size());
+    for (auto &[uri, count] : direct)
+        counts.push_back({{}, std::move(uri), count, false});
+    return library_folders_from_counts(counts, static_cast<int>(assets.size()));
+}
+
+std::vector<FolderRecord>
+library_folders_from_counts(const std::vector<FolderAssetCount> &direct_counts,
+                            const int total_asset_count)
+{
     std::vector<FolderRecord> folders;
     FolderRecord all;
     all.display_name = "All Photographs";
-    all.asset_count = static_cast<int>(assets.size());
+    all.asset_count = std::max(0, total_asset_count);
     folders.push_back(std::move(all));
-    if (assets.empty())
-    {
+    if (direct_counts.empty())
         return folders;
-    }
 
-    std::set<std::string> folder_uris;
-    for (const auto &asset : assets)
+    std::map<std::string, int, std::less<>> counts;
+    std::map<std::string, const FolderAssetCount *, std::less<>> direct_by_uri;
+    for (const auto &direct : direct_counts)
     {
-        auto parent = uri_parent(asset.normalized_uri);
-        while (!parent.empty())
-        {
-            folder_uris.insert(parent);
-            parent = uri_parent(parent);
-        }
-    }
-    if (folder_uris.empty())
-    {
-        return folders;
-    }
-
-    std::string common = *folder_uris.begin();
-    for (const auto &uri : folder_uris)
-    {
-        while (!common.empty() && uri != common && !uri.starts_with(common + "/"))
-        {
-            common = uri_parent(common);
-        }
-    }
-
-    std::map<std::string, int> counts;
-    for (const auto &uri : folder_uris)
-    {
-        if (!common.empty() && uri != common && !uri.starts_with(common + "/"))
-        {
+        if (direct.uri.empty() || direct.direct_asset_count <= 0)
             continue;
-        }
-        int count = 0;
-        for (const auto &asset : assets)
+        direct_by_uri.insert_or_assign(direct.uri, &direct);
+        auto current = direct.uri;
+        while (!current.empty())
         {
-            if (asset_in_folder(asset, uri))
-            {
-                ++count;
-            }
+            counts[current] += direct.direct_asset_count;
+            current = uri_parent(current);
         }
-        counts[uri] = count;
+    }
+    if (counts.empty())
+        return folders;
+
+    std::string common = counts.begin()->first;
+    for (const auto &[uri, count] : counts)
+    {
+        static_cast<void>(count);
+        while (!common.empty() && uri != common && !uri.starts_with(common + "/"))
+            common = uri_parent(common);
     }
 
     auto slash_count = [](const std::string &text)
@@ -1837,11 +1903,18 @@ std::vector<FolderRecord> library_folders(const std::vector<AssetRecord> &assets
     const auto common_slashes = common.empty() ? 0 : slash_count(common);
     for (const auto &[uri, count] : counts)
     {
+        if (!common.empty() && uri != common && !uri.starts_with(common + "/"))
+            continue;
         FolderRecord folder;
         folder.uri = uri;
         folder.display_name = uri_display_name(uri);
         folder.depth = std::max(0, slash_count(uri) - common_slashes);
         folder.asset_count = count;
+        if (const auto direct = direct_by_uri.find(uri); direct != direct_by_uri.end())
+        {
+            folder.id = direct->second->id;
+            folder.missing = direct->second->missing;
+        }
         folders.push_back(std::move(folder));
     }
     return folders;

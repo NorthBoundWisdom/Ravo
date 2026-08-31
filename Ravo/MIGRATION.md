@@ -3,8 +3,13 @@
 ## Goal
 
 Ravo will ultimately replace `legacy/src/`. Catalog/import/viewer and Basic
-Develop are already implemented in Ravo. The next stage follows the user-value
-queue in the root
+Develop are already implemented in Ravo. The P0/P1 implementation now includes
+catalog restore/operator recovery, bounded large-library paging and scheduling,
+verified recurring backup retention, and stable missing-folder relink
+(ADR-0099–0101). [`TODO_PHOTO_MANAGEMENT.md`](../TODO_PHOTO_MANAGEMENT.md)
+retains only the unfinished private-corpus and non-macOS release evidence.
+Legacy absorption remains paused until those release gates are accepted;
+when explicitly resumed it follows the `MR*` ranks in
 [`TODO_LEGACY_MIGRATION.md`](../TODO_LEGACY_MIGRATION.md), bundling the legacy
 owners required for one user-visible outcome instead of walking old source
 order. Delete each corresponding old owner only after it is “Ravo accepted.”
@@ -88,8 +93,8 @@ For an editing capability, shared algorithm, or operation, use this order:
 5. Run unit, synthetic, old-mapping, real-RAW/golden, error/cancellation, and
    resource validation.
 6. Make CLI and Studio supported consumers through the same services/engine.
-7. Under the active root migration TODO, delete old owner after Ravo accepts
-   the item and synchronize freeze/inventory checks.
+7. Under the explicitly resumed root legacy-migration TODO, delete the old
+   owner after Ravo accepts the item and synchronize freeze/inventory checks.
 
 ## Definition of “absorbed by Ravo”
 
@@ -105,26 +110,29 @@ capability is final only when all of these are true:
 - Release transition is complete and production builds have no second reachable
   old implementation.
 - The corresponding `src` source, build wiring, registration, configuration,
-  resources, and entry points are removed under the active migration TODO.
+  resources, and entry points are removed under the legacy migration TODO.
 - Documentation, search, and the link graph have no accidental consumers or
   reverse dependencies.
 
 ## Migration order
 
 1. Keep the accepted catalog/review/develop/export baseline regressible.
-2. Follow the root TODO's user-value queue strictly: finish the active tranche,
-   then take the highest-priority Ready outcome. Do not select the next IOP or
-   cleanup merely because its legacy row comes next.
-3. Bundle the mask, RAW/color/geometry/output, service, data, and UI owners that
-   one outcome genuinely requires. Pull a lower-priority foundation forward
-   only as a named dependency; each owner keeps its own evidence and deletion
-   gate.
-4. Apply data-safety, cache/resource, accessibility, and three-platform gates
-   continuously. Old styles/catalog/XMP compatibility still needs a separate
-   dated product decision, and optional GPU remains behind CPU acceptance.
-5. Delete an old owner only after its capability is Ravo accepted. After the
-   user-value queue is empty, demonstrate release transition/rollback, then
-   handle explicit leftover archiving and final cleanup.
+2. Close the remaining private-corpus and three-platform P0/P1 release evidence
+   in the photo-management TODO. Standalone algorithm consumption and cleanup
+   remain paused during that validation.
+3. After those gates pass and migration is explicitly resumed, take the first
+   Ready `MR*` outcome in the legacy TODO. Do not select the next IOP or cleanup
+   merely because its inventory row comes next.
+4. Bundle the mask, RAW/color/geometry/output, service, data, and UI owners that
+   one outcome genuinely requires. Pull a lower-ranked foundation forward only
+   as a named dependency; each owner keeps its own evidence and deletion gate.
+5. Apply data-safety, cache/resource, accessibility, and three-platform gates
+   continuously. Legacy catalog import and adjacent-XMP interoperability still
+   need separate dated product decisions, and optional GPU remains behind CPU
+   acceptance.
+6. Delete an old owner only after its capability is Ravo accepted. After both
+   queues are empty, demonstrate release transition/rollback, then handle
+   explicit leftover archiving and final cleanup.
 
 ## Explicit non-algorithm leftovers
 
@@ -154,14 +162,14 @@ respectively.
 | Recipe/schema | IOP params/XMP | recipe | In progress | versioned round-trip and strict mappings include S3.1 typed mask-schema-v2 graph with v1 `all` upgrade, deterministic serialization, bounded DAG validation, S3.2 strict Studio-owned leaf authoring fields/IDs, leftover flip v2 orientation→rotate/flip (ADR-0048), leftover crop v1–v3 box→x/y/width/height (ADR-0049), leftover ashift v4/v5 generic rotation/lens-shift/shear→canonical Perspective (ADR-0096; ADR-0050 remains the earlier rotation-only boundary), leftover rgblevels v1→`ravo.color.rgblevels` (ADR-0051), leftover rgbcurve v1 including middle-grey uncompensate→`ravo.color.rgbcurve` (ADR-0052/0053), and leftover Bayer/X-Trans rawdenoise v2→`ravo.raw.denoise` (ADR-0054/0096); legacy XMP remains evidence-bound |
 | RAW inspect/decode | imageio/LibRaw + common/dng_opcode | engine + private LibRaw/DNG adapters | In progress | First-frame Bayer/X-Trans inspect/decode and `.dng` suffix routing include bounded owned OpcodeList2/3 parsing, tiled RCD/Markesteijn defaults and explicit PPG/Markesteijn modes. Inspect exposes CFA/default mode; GainMap, WarpRectilinear and FixVignetteRadial execute in DNG order. Malformed/unknown mandatory state, unsupported CFA and sensor/mode mismatch fail without fallback (ADR-0047/0096). Synthetic, real RAW/DNG/RAF, error/cancel/immutability, recipe/CLI/Catalog/Studio and cache contracts cover the path. Dual/green matching, three-platform evidence and shared leftover deletion remain open |
 | CPU preview/pixelpipe | `src/develop` | engine | In progress | bounded PNG, cancellation, full exposure, Color Checker, affine D50 Lab Color Correction, bounded/unbounded D50 Lab Color Contrast, profile-aware dt-UCS/RYB Color Harmonizer including canonical-ROI recursive positive smoothing, leftover RGB levels LUT (ADR-0051), and canonical mask alpha/normal mix with Studio overlay are tested; complete pixelpipe/geometry ROI remains unfinished |
-| SQLite catalog | common/database | domain + SQLite adapter | In progress | schema v6 create/reopen/migrate/newer-version rejection tested; v5→v6 adds transactional per-asset recovery generations while preview state stays rebuildable. Additive capture datetime/GPS columns stay NULL on old rows; catalogs that claimed v5 with the rejected signed `gps_altitude_mm` column are repaired on open to magnitude/ref. Tags, writable metadata, history, recovery restart, and verified preview-free database snapshots are tested; no old-catalog migration (ADR-0097) |
+| SQLite catalog | common/database | domain + SQLite adapter | In progress | schema v9 create/reopen/migrate/newer-version rejection tested. v5 adds capture datetime/GPS, v6 transactional recovery generations, v7 page projections/indexes, v8 backup policy, and v9 stable direct-folder identity. Folder migration and relink rollback, recovery restart, cancellable preview-free snapshots, strict restore, scheduling, and retention are tested; no frozen old-catalog migration (ADR-0097/0099–0101) |
 | Reference-only import | common/imageio/import | services + adapters | In progress | PNG/JPEG/TIFF and LibRaw RAW (including ARW/DNG suffix) plus recursive directory import. Catalog fully decodes JPEG/PNG/TIFF before insert and only TIFF RAW containers may fall through to LibRaw. A RAW without embedded JPEG unpacks before publication. JPEG/GIF/WebP/TIFF plugin targets remain required. X-Trans full decode and leftover wrappers remain later |
 | Preview cache | mipmap/cache/imageio | services + adapters | Ravo contract accepted; shared cleanup remains | atomic PNG cache outside the library; 512 MiB hard byte budget; deterministic mtime/key startup order and in-process LRU promotion; pre-commit eviction; corrupt-signature cleanup; cancellation immediately before publication; close/reopen rebuild. Shared old cache/imagebuf owners remain until their develop/imageio/job/GTK consumers reach zero (ADR-0047/0067) |
-| Gallery/viewer | lighttable/darkroom | desktop + services | In progress | Studio can create/open/import/fit/fill/100%; long-list resource gate remains |
+| Gallery/viewer | lighttable/darkroom | desktop + services | Ravo contract accepted; three-platform release evidence remains | Studio can create/open/import/fit/fill/100%; keyset pages and a three-page sparse model bound a 10,000-row library, delegates request bounded look-ahead, and foreground Develop interleaves with one-item import dispatch. Private real-photo and Windows/Linux release loops remain in the product TODO (ADR-0100) |
 | Photo navigation | `libs/navigation.c` | Studio presenter + QML Flickable/navigator | Old implementation removed | Fit/Fill/Actual/custom 0.1–8 zoom, wheel steps, inspect magnifier click-to-1:1 with restore of the last non-Actual view, GPU scale/pan animation on inspect click, bounded pan, normalized navigator seek, crop ownership, grid reveal, and active-asset/mode/zoom recenter lifecycle are explicit and tested. Review notifications for the same asset preserve pan. No viewport telemetry or old config compatibility is persisted (ADR-0060/0076) |
 | Preview scopes | `libs/histogram.c`, `libs/scopes*` | engine statistics + Studio projection | Old implementation removed | exact RGB8 preview validation; 256-bin Histogram; 160-tone/360-bin HLG Waveform and Parade; fixed 384-square linear D50 CIE u*v* Vectorscope with 2×2 sampling; max-preserving Waveform/Vectorscope Split. All use displayed preview/thumbnail pixels and revisioned image URLs. AzBz/RYB/log/harmony/profile/picker/exposure-drag state is explicitly unsupported (ADR-0061) |
 | Library query/filter | `libs/recentcollect.c`, `libs/filtering.c`, `libs/filters/*`, shared collection state | domain `LibraryQuery` + services + Studio | GTK filter owners removed; shared core remains | strict current-query validation covers review/folder/tag/text/media/edit/camera/capture/numeric predicates and stable import/capture/name/rating/size sorting. Invalid ranges/text/enums fail before listing. Studio exposes common predicates through commands. Persistent recent-query history and legacy-only bookkeeping/group/module fields are explicit unsupported product decisions (ADR-0059). Shared `common/collection*`, proxies/config/manual state and S8 deletion wait for remaining consumers |
-| Catalog metadata/workflow | common/libs | domain + services | Ravo contract accepted; shared cleanup remains | Unicode tag filtering, catalog-only writable title/creator/copyright, bounded read-only capture Exif, explicit source refresh with asset+capture+revision transaction, persistent recipe history/snapshot, session-only same-control history/Undo coalescing, and typed full/no-location/none rendered-export privacy. Originals and adjacent sidecars stay unchanged; catalog-owned recovery mirrors and verified backups are derived from SQLite, and original-copy remains exact. Faces/map/GPS writeback and opaque packet copy are unsupported. Old `libs/tagging.c`, `metadata*.c`, `history.c`, `snapshots.c`, and `copy_history.c` are deleted; shared Exif/tag/image/crawler/storage writers wait for S7/S9/J2/I10–I14 zero consumers (ADR-0011/0064/0097) |
+| Catalog metadata/workflow | common/libs | domain + services | Ravo contract accepted; shared cleanup remains | Unicode tag filtering, catalog-only writable title/creator/copyright, bounded read-only capture Exif, explicit source refresh with asset+capture+revision transaction, persistent recipe history/snapshot, session-only same-control history/Undo coalescing, and typed full/no-location/none rendered-export privacy. Originals and adjacent sidecars stay unchanged; catalog-owned recovery mirrors, atomic restore, verified scheduling/retention, and stable missing-folder relink derive from SQLite without rewriting originals. Original-copy remains exact. Faces/map/GPS writeback and opaque packet copy are unsupported. Old `libs/tagging.c`, `metadata*.c`, `history.c`, `snapshots.c`, and `copy_history.c` are deleted; shared Exif/tag/image/crawler/storage writers wait for S7/S9/J2/I10–I14 zero consumers (ADR-0011/0064/0097/0099–0101) |
 | Asset mutation lifecycle | `control/jobs/image_jobs*` + batch image jobs | repository + CatalogService + Studio commands | Ravo contract accepted; old wrapper blocked | duplicate import is revision-neutral; missing/corrupt/unsupported/cancelled input publishes no asset; catalog-only removal preserves the original and clears caches; asset cascade+revision is one SQLite transaction; disk deletion uses adjacent quarantine and rollback with recoverable final-unlink diagnostics. Trigger tests prove row/revision/original rollback. `common/mipmap_cache.c` still consumes the old speculative load wrapper, so J5 source deletion waits for S11/J4 zero-consumer work (ADR-0062) |
 | Sidecar policy | `control/jobs/sidecar_jobs*` + direct old writers | explicit CLI legacy-XMP adapter + catalog-owned recovery store | Product policy accepted; old wrapper blocked | no automatic adjacent sidecar attach/read/write/watch or compatibility config; SQLite is the edit authority. Explicit `recipe import-xmp` writes a new recipe only, including fail-closed Lightroom CRS mapping (ADR-0086); rendered XMP is newly embedded; original-copy is exact bytes. Schema-v6 recovery generations derive bounded `.ravo.json` mirrors under the catalog support directory and never act as implicit input. Source/adjacent sidecar hashes remain unchanged. Old `common/darktable.c`/`common/image.c` and direct writers block wrapper deletion until S7/S9/J2/D0 cleanup (ADR-0063/0097) |
 | Recipe styles/presets | `libs/styles.c`, shared styles/presets/history | recipe artifact + CLI + Studio | GTK style module and bundled examples removed; shared cleanup remains | `.rstyle.json` v1 remains a bounded complete Recipe template; v2 carries a sorted explicit Develop-field selection and overlays only those chosen current modifications. The same initially-empty selector and merge owner drive Studio's two-button Copy/Paste Parameters session clipboard. Studio saves managed atomic presets beside the library with explicit pre-existing-path conflict, and both apply paths use ordinary history/undo. Imported Lightroom CRS XMP remains alongside Ravo styles. Unknown/duplicate/empty/newer/malformed/oversized state and legacy dtstyle reject; no partial module drop. All 24 `.dtstyle` examples and their exclusive translation generator are retired; shared common styles/presets/undo/history remain S10/D0 consumers (ADR-0065/0072/0078/0086/0098) |
@@ -213,9 +221,9 @@ respectively.
 | RGB curve | `iop/rgbcurve.c` | `ravo.color.rgbcurve` + Curves section | Ravo accepted | Linked/independent working-RGB, preserve-colors, middle-grey uncompensate, 2–20 nodes, leftover interpolators, and Studio parametric regions. Dedicated editor is accepted (ADR-0052/0053/0084). Leftover IOP stays until freeze census is zero |
 | Default display transform | `iop/sigmoid.c` | `ravo.display.sigmoid` + RAW baseline + Develop Inspector | Old implementation removed | default per-channel generalized log-logistic + hue preservation; `rgb_ratio` is the C second mode. Linear sRGB, Standard SDR target. `filmicrgb`/`agx` remain leftovers |
 | CLI | `src/cli` | cli + control | In progress | engine/recipe/catalog/develop/export JSON use supported services/engine; `ravo-studio-control/v1` adds owner-only discovery, revisioned selection/current+saved recipe inspection, strict command-controller Develop mutation, and exact no-replace preview artifacts without UI automation (ADR-0090) |
-| GPU | OpenCL/pixelpipe | engine adapter | Deferred | Start only after active TODO / GPU baseline CPU goldens and end-to-end benefit proof |
+| GPU | OpenCL/pixelpipe | engine adapter | Deferred | Start only after the applicable CPU TODO and GPU baseline goldens plus end-to-end benefit proof |
 
 Use only these statuses: “Not started / Baseline frozen / In progress / Ravo
 accepted / Old implementation removed / Deferred / Unsupported.” Physically
-delete an old owner under the active migration TODO acceptance for that item;
+delete an old owner under the legacy migration TODO acceptance for that item;
 do not wait for the entire package to retire.
