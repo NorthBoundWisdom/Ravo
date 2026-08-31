@@ -621,6 +621,15 @@ gated (ADR-0096).
 - Gallery-grid scrolling uses browse thumbnails only; it must not queue a
   1600px processed preview for the selected grid item. Opening a catalog with
   existing cache must not rerun an `ensureThumbnail` work queue for every image.
+  A cold page without cache also starts with zero thumbnail work until an active
+  GridView/filmstrip delegate requests an asset; demanded work remains one
+  request in flight, bounded by the resident sparse pages, and resumes after a
+  foreground Develop request without losing or publishing stale demand.
+- Before the first exact loupe/Develop result, a verified selected browse
+  thumbnail may be visible only while `previewLoading` is true and `previewUrl`
+  is empty. Tests require an exact result to replace it and require crop,
+  white-balance pick, scopes, live control, and preview identity to continue
+  depending on `previewUrl`, not the loading layer.
 - Import uses system file/folder dialogs. After paths are chosen, scanning and
   import run on workers; left Import/Previews progress is visible from Scanning
   onward, the window remains responsive, and every successfully imported photo

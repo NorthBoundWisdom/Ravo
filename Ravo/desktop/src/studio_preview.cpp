@@ -26,6 +26,8 @@ namespace ravo
 namespace
 {
 
+inline constexpr std::size_t kMaximumPendingThumbnailRequests = kLibraryPageDefaultSize * 3U;
+
 [[nodiscard]] QImage scope_image(const RgbScopeImage &scope)
 {
     if (scope.width == 0U || scope.height == 0U ||
@@ -540,7 +542,9 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
     {
         return;
     }
-    if (thumbnail_requests_.contains(id))
+    if (thumbnail_requests_.contains(id) ||
+        std::find(pending_thumbnail_ids_.begin(), pending_thumbnail_ids_.end(), id) !=
+            pending_thumbnail_ids_.end())
     {
         return;
     }
@@ -548,23 +552,29 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
     {
         return;
     }
-    if (develop_job_in_flight_ || pending_save_.has_value() || pending_preview_.has_value())
+    if (!preview_work_active_ && !thumbnail_request_in_flight_ && pending_thumbnail_ids_.empty())
     {
-        if (std::find(pending_preview_ids_.begin(), pending_preview_ids_.end(), id) ==
-            pending_preview_ids_.end())
-        {
-            pending_preview_ids_.push_back(id);
-        }
-        return;
+        preview_work_completed_ = 0;
+        preview_work_total_ = 0;
     }
-    if (thumbnail_work_.token().is_cancellation_requested())
+    if (pending_thumbnail_ids_.size() >= kMaximumPendingThumbnailRequests)
     {
-        thumbnail_work_ = CancellationSource{};
+        pending_thumbnail_ids_.pop_back();
+        preview_work_total_ = std::max(preview_work_completed_, preview_work_total_ - 1);
     }
+    pending_thumbnail_ids_.push_front(id);
+    ++preview_work_total_;
+    preview_work_active_ = true;
+    emit libraryWorkChanged();
+    kickThumbnailDemand();
+}
+
+void StudioPresenter::startThumbnailRequest(std::string id)
+{
     const auto revision = ++thumbnail_revision_;
     const auto cancellation = thumbnail_work_.token();
     thumbnail_requests_[id] = revision;
-    executor_.post(
+    const bool queued = executor_.post(
         [this, id, revision, cancellation]()
         {
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -586,13 +596,13 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                     const auto latest = thumbnail_requests_.find(id);
                     if (latest == thumbnail_requests_.end() || latest->second != revision)
                     {
-                        finishPreviewJob(false);
+                        finishThumbnailRequest(false);
                         return;
                     }
                     thumbnail_requests_.erase(latest);
                     if (catalog_path_.isEmpty() || !assets_.assetById(qstring_from_utf8(id)))
                     {
-                        finishPreviewJob(false);
+                        finishThumbnailRequest(false);
                         return;
                     }
                     if (preview)
@@ -613,7 +623,7 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                         {
                             assets_.markOriginalMissing(id);
                         }
-                        finishPreviewJob(true);
+                        finishThumbnailRequest(true);
                         return;
                     }
                     if (preview.error().code == ErrorCode::kNotFound)
@@ -624,25 +634,37 @@ void StudioPresenter::ensureThumbnail(const QString &asset_id)
                         {
                             emit thumbnailsChanged();
                         }
-                        finishPreviewJob(false);
+                        finishThumbnailRequest(false);
                         return;
                     }
                     if (preview.error().code == ErrorCode::kCancelled)
                     {
-                        if (std::find(pending_preview_ids_.begin(), pending_preview_ids_.end(),
-                                      id) == pending_preview_ids_.end())
+                        if (std::find(pending_thumbnail_ids_.begin(), pending_thumbnail_ids_.end(),
+                                      id) == pending_thumbnail_ids_.end())
                         {
-                            pending_preview_ids_.insert(pending_preview_ids_.begin(), id);
+                            if (pending_thumbnail_ids_.size() >= kMaximumPendingThumbnailRequests)
+                            {
+                                pending_thumbnail_ids_.pop_back();
+                                preview_work_total_ =
+                                    std::max(preview_work_completed_, preview_work_total_ - 1);
+                            }
+                            pending_thumbnail_ids_.push_front(id);
                         }
-                        preview_warmup_in_flight_ = false;
-                        kickPreviewWarmup();
+                        thumbnail_request_in_flight_ = false;
+                        kickThumbnailDemand();
                         return;
                     }
                     assets_.setThumbnail(id, {}, QStringLiteral("failed"));
-                    finishPreviewJob(false);
+                    finishThumbnailRequest(false);
                 },
                 Qt::QueuedConnection);
         });
+    if (!queued)
+    {
+        thumbnail_requests_.erase(id);
+        assets_.setThumbnail(id, {}, QStringLiteral("failed"));
+        finishThumbnailRequest(false);
+    }
 }
 
 void StudioPresenter::requestPreviewForSelection()

@@ -5,6 +5,8 @@ not ready for execution. It is not a release checklist or a second migration
 queue.
 
 - Current P0/P1 release evidence: [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md)
+- Gallery performance evidence and gated candidates:
+  [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md)
 - Legacy absorption and retirement: [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md)
 - Accepted ownership and invariants: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Legacy boundary and capability status: [MIGRATION.md](MIGRATION.md)

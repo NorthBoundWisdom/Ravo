@@ -739,7 +739,7 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     library_page_in_flight_ = false;
     library_next_offset_ = static_cast<std::size_t>(assets_.loadedCount());
     emit thumbnailsChanged();
-    queuePreviewWarmup();
+    resetThumbnailDemand();
     assets_.setSelectedIds(selected_ids_);
     emit filterChanged();
     emit selectionChanged();
@@ -862,39 +862,32 @@ void StudioPresenter::setCatalogOperation(QString stage, const int completed, co
     emit libraryWorkChanged();
 }
 
-void StudioPresenter::queuePreviewWarmup()
+void StudioPresenter::resetThumbnailDemand()
 {
-    pending_preview_ids_.clear();
-    preview_warmup_in_flight_ = false;
-    int ready = 0;
-    const auto loaded = assets_.records();
-    const int total = static_cast<int>(loaded.size());
-    pending_preview_ids_.reserve(loaded.size());
-    for (const auto &asset : loaded)
+    pending_thumbnail_ids_.clear();
+    if (thumbnail_request_in_flight_)
     {
-        const auto &id = asset.id;
-        const QString state = assets_.thumbnailState(id);
-        if (state == QLatin1String("ready"))
-        {
-            ++ready;
-            continue;
-        }
-        if (state == QLatin1String("missing") || state == QLatin1String("failed"))
-        {
-            continue;
-        }
-        pending_preview_ids_.push_back(id);
+        static_cast<void>(thumbnail_work_.cancel("thumbnail_demand_reset"));
+        preview_work_active_ = true;
+        preview_work_completed_ = 0;
+        preview_work_total_ = 1;
     }
-    preview_work_total_ = total;
-    preview_work_completed_ = ready;
-    preview_work_active_ = !pending_preview_ids_.empty();
+    else
+    {
+        preview_work_active_ = false;
+        preview_work_completed_ = 0;
+        preview_work_total_ = 0;
+    }
     emit libraryWorkChanged();
-    kickPreviewWarmup();
 }
 
-void StudioPresenter::kickPreviewWarmup()
+void StudioPresenter::kickThumbnailDemand()
 {
     if (develop_job_in_flight_ || pending_save_.has_value() || pending_preview_.has_value())
+    {
+        return;
+    }
+    if (thumbnail_request_in_flight_)
     {
         return;
     }
@@ -902,29 +895,23 @@ void StudioPresenter::kickPreviewWarmup()
     {
         thumbnail_work_ = CancellationSource{};
     }
-    if (preview_warmup_in_flight_)
+    while (!pending_thumbnail_ids_.empty())
     {
-        return;
-    }
-    while (!pending_preview_ids_.empty())
-    {
-        const std::string id = pending_preview_ids_.front();
-        pending_preview_ids_.erase(pending_preview_ids_.begin());
-        if (assets_.thumbnailState(id) == QLatin1String("ready") ||
+        std::string id = std::move(pending_thumbnail_ids_.front());
+        pending_thumbnail_ids_.pop_front();
+        if (!assets_.assetById(qstring_from_utf8(id)) ||
+            assets_.thumbnailState(id) == QLatin1String("ready") ||
             assets_.thumbnailState(id) == QLatin1String("missing") ||
             assets_.thumbnailState(id) == QLatin1String("failed"))
         {
+            preview_work_completed_ = std::min(preview_work_total_, preview_work_completed_ + 1);
             continue;
         }
-        preview_warmup_in_flight_ = true;
-        ensureThumbnail(qstring_from_utf8(id));
-        if (thumbnail_requests_.contains(id))
-        {
-            return;
-        }
-        preview_warmup_in_flight_ = false;
+        thumbnail_request_in_flight_ = true;
+        startThumbnailRequest(std::move(id));
+        return;
     }
-    if (preview_work_active_ || preview_work_completed_ != preview_work_total_)
+    if (preview_work_active_)
     {
         preview_work_active_ = false;
         preview_work_completed_ = preview_work_total_;
@@ -932,20 +919,20 @@ void StudioPresenter::kickPreviewWarmup()
     }
 }
 
-void StudioPresenter::finishPreviewJob(const bool success)
+void StudioPresenter::finishThumbnailRequest(const bool success)
 {
     static_cast<void>(success);
-    preview_warmup_in_flight_ = false;
+    thumbnail_request_in_flight_ = false;
     if (preview_work_active_)
     {
         preview_work_completed_ = std::min(preview_work_total_, preview_work_completed_ + 1);
-        if (pending_preview_ids_.empty())
+        if (pending_thumbnail_ids_.empty())
         {
             preview_work_active_ = preview_work_completed_ < preview_work_total_;
         }
         emit libraryWorkChanged();
     }
-    kickPreviewWarmup();
+    kickThumbnailDemand();
 }
 
 void StudioPresenter::applyFolders(std::vector<FolderRecord> folders)
@@ -1777,6 +1764,14 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
         return;
     }
     clear_displayed_preview();
+    if (const auto asset = assets_.assetById(asset_id); asset && asset->width && asset->height)
+    {
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        fit_within_max_edge(*asset->width, *asset->height, kDefaultPreviewMaxEdge, width, height);
+        preview_viewport_width_ = static_cast<int>(width);
+        preview_viewport_height_ = static_cast<int>(height);
+    }
     preview_loading_ = !asset_id.isEmpty();
     before_after_ = false;
     crop_tool_active_ = false;

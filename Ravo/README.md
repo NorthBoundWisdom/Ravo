@@ -69,8 +69,13 @@ Current implementation status:
   asset identity, capture row, and catalog revision publish transactionally.
   Schema-v7 keyset paging and the sparse Studio model expose the full logical
   library while retaining at most three 200-row pages; current-page tags,
-  metadata, previews, and bounded Gallery thumbnail look-ahead replace
-  whole-catalog materialization. The 10,000-row SQLite traversal pins stable
+  metadata, previews, and one-row Gallery thumbnail look-ahead replace
+  whole-catalog materialization. Cold-cache thumbnails start only from active
+  grid/filmstrip delegates, remain one-at-a-time on the background owner, and
+  never prefill a whole loaded page. Loupe and Develop show the selected
+  verified browse thumbnail as a loading-only visual until the exact preview
+  arrives; that placeholder never becomes an edit, scope, export, or machine
+  result. The 10,000-row SQLite traversal pins stable
   ordering, materialized-row bounds, elapsed query metrics, and query-plan
   indexes. Studio import enumerates deterministically and dispatches one
   normal-priority photo at a time, so foreground Develop work interleaves and

@@ -2855,7 +2855,7 @@ void StudioPresenter::kick_develop_work()
     }
     else
     {
-        kickPreviewWarmup();
+        kickThumbnailDemand();
         return;
     }
     if (starting_comparison_before)

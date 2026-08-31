@@ -123,9 +123,23 @@ stay in typed owning contracts. No old configuration key is read (ADR-0066).
 Gallery grid schedules only `kThumbnailMaxEdge` browse thumbnails, never a
 1600px processed preview merely for a selected grid item; all scopes are
 calculated from that thumbnail. Loupe/develop requests full decode. On
-open/import, presenters seed ready cache paths from the preview table so grid
-delegates do not saturate a single-thread queue. The Library panel separately
-shows import and preview-build progress. After system file/folder selection,
+open/import, presenters seed ready cache paths from the preview table. A cold
+cache starts only from active GridView/filmstrip delegates plus one GridView
+row of look-ahead: desktop C++ deduplicates the bounded demand set, holds at
+most one background thumbnail request in flight, and lets newer viewport
+demand lead older queued demand. It does not prefill every asset in a loaded
+page. Foreground Develop cancels the active browse token; the same owner
+retries still-resident demand after foreground work and rejects results after
+page eviction, catalog replacement, or close.
+
+While the first exact loupe or Develop result is pending, QML may display the
+selected asset's verified browse-thumbnail URL as an explicit loading layer.
+The presenter seeds a stable expected viewport extent from the selected asset,
+and the accepted exact result replaces it. The loading layer never changes
+`previewUrl`, owned preview pixels, scopes, live-session hashes, crop/white-
+balance interaction, recipe state, cache identity, or export input. Missing or
+failed originals do not use the layer. The Library panel separately shows
+import and demanded-preview progress. After system file/folder selection,
 scanning and import run on workers and each successful photo immediately
 appears in the grid with a browse thumbnail.
 
@@ -150,8 +164,10 @@ sequential traversal uses the stable sort key and asset ID cursor; an explicit
 viewport jump may use offset. The adapter attaches tags, metadata, and preview
 records only for the current page. Studio exposes the full logical row count
 through a sparse model with at most three resident 200-row pages, while QML
-delegates request unloaded rows and bounded thumbnail look-ahead. Selection is
-asset-ID based and protects its page from eviction (ADR-0100).
+delegates request unloaded rows and one row of thumbnail look-ahead. The C++
+demand queue is bounded by those resident pages rather than total catalog size;
+only one request enters the serial executor at a time. Selection is asset-ID
+based and protects its page from eviction (ADR-0100).
 
 Reusable style/preset state reuses Recipe rather than introducing another
 parameter model. Schema-v1 `RecipeStyle` replaces the asset with a fixed

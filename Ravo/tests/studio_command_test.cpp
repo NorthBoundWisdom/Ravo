@@ -40,6 +40,7 @@
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/engine/engine.h"
 #include "ravo/control/live_control.h"
+#include "ravo/domain/uri.h"
 #include "ravo/foundation/log.h"
 #include "ravo/foundation/json.h"
 #include "ravo/recipe/develop.h"
@@ -1015,6 +1016,115 @@ TEST(StudioPresenterTest, PhotoDebugInfoIdentifiesImportedAsset)
     EXPECT_TRUE(pending_parameters.contains(QStringLiteral("\"black\":0.0553")));
 }
 
+TEST(StudioPresenterTest, ColdCatalogBuildsOnlyDemandedThumbnails)
+{
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const QString catalog = directory.filePath(QStringLiteral("library.sqlite"));
+    auto repository = SqliteCatalogRepository::create(catalog.toStdString());
+    ASSERT_TRUE(repository) << repository.error().message;
+
+    constexpr int kAssetCount = 12;
+    for (int index = 0; index < kAssetCount; ++index)
+    {
+        const QString photo =
+            directory.filePath(QStringLiteral("photo-%1.png").arg(index, 2, 10, QLatin1Char('0')));
+        QImage image(32, 24, QImage::Format_RGB888);
+        image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        image.fill(QColor(40 + index, 80 + index, 120 + index));
+        ASSERT_TRUE(image.save(photo, "PNG"));
+        auto location = normalize_local_input(photo.toStdString());
+        ASSERT_TRUE(location) << location.error().message;
+        auto identity = read_file_identity(location.value().path);
+        ASSERT_TRUE(identity) << identity.error().message;
+
+        AssetRecord asset;
+        asset.id = "ast_cold_" + std::to_string(index);
+        asset.normalized_uri = location.value().uri;
+        asset.media_type = std::string(kMediaTypePng);
+        asset.size_bytes = identity.value().size_bytes;
+        asset.mtime_unix_ms = identity.value().mtime_unix_ms;
+        asset.content_fingerprint = make_content_fingerprint(identity.value());
+        asset.width = 32U;
+        asset.height = 24U;
+        asset.created_unix_ms = 1000 + index;
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    }
+    ASSERT_TRUE(repository.value()->close());
+    repository.value().reset();
+
+    StudioPresenter presenter;
+    int maximum_preview_total = 0;
+    QObject::connect(
+        &presenter, &StudioPresenter::libraryWorkChanged, &presenter, [&]
+        { maximum_preview_total = std::max(maximum_preview_total, presenter.previewWorkTotal()); });
+    presenter.openCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.catalogOpen() && !presenter.busy() &&
+                   presenter.visibleCount() == kAssetCount &&
+                   !presenter.selectedAssetId().isEmpty();
+        }))
+        << presenter.errorText().toStdString();
+    QCoreApplication::processEvents();
+    QThread::msleep(100);
+    QCoreApplication::processEvents();
+    EXPECT_EQ(maximum_preview_total, 0);
+    EXPECT_FALSE(presenter.previewWorkActive());
+    EXPECT_TRUE(presenter.selectedThumbnailUrl().isEmpty());
+    EXPECT_EQ(presenter.previewViewportWidth(), 32);
+    EXPECT_EQ(presenter.previewViewportHeight(), 24);
+
+    presenter.ensureThumbnail(presenter.selectedAssetId());
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.assets()->thumbnailState(presenter.selectedAssetId().toStdString()) ==
+                       QLatin1String("ready") &&
+                   !presenter.previewWorkActive();
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(maximum_preview_total, 1);
+    EXPECT_EQ(presenter.previewWorkTotal(), 1);
+    EXPECT_FALSE(presenter.selectedThumbnailUrl().isEmpty());
+
+    bool saw_loading_thumbnail = false;
+    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
+                     [&]
+                     {
+                         saw_loading_thumbnail =
+                             saw_loading_thumbnail ||
+                             (presenter.previewLoading() && presenter.previewUrl().isEmpty() &&
+                              !presenter.selectedThumbnailUrl().isEmpty());
+                     });
+    for (int row = 0; row < presenter.assets()->rowCount(); ++row)
+        presenter.ensureThumbnail(presenter.assets()->assetIdAt(row));
+    presenter.openDevelop();
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.previewLoading() && !presenter.previewUrl().isEmpty(); }))
+        << presenter.errorText().toStdString();
+    EXPECT_TRUE(saw_loading_thumbnail);
+    presenter.returnToGrid();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            if (presenter.previewWorkActive())
+                return false;
+            for (int row = 0; row < presenter.assets()->rowCount(); ++row)
+            {
+                const auto id = presenter.assets()->assetIdAt(row).toStdString();
+                if (presenter.assets()->thumbnailState(id) != QLatin1String("ready"))
+                    return false;
+            }
+            return true;
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_EQ(maximum_preview_total, kAssetCount - 1);
+}
+
 TEST(StudioPresenterTest, ConsecutiveCommitsForOneControlShareHistoryAndUndo)
 {
     ensure_qt_core();
@@ -1472,19 +1582,19 @@ TEST(StudioPresenterTest, ApplyingStylePublishesLivePreviewBeforeSettledCache)
     bool saw_uncommitted_live = false;
     QSize uncommitted_live_image_size;
     QSize uncommitted_live_viewport;
-    QObject::connect(&presenter, &StudioPresenter::previewChanged, &presenter,
-                     [&]
-                     {
-                         const auto url = presenter.previewUrl();
-                         if (url.scheme() == QLatin1String("image") &&
-                             url.path() == QLatin1String("/live"))
-                         {
-                             saw_uncommitted_live = true;
-                             uncommitted_live_image_size = presenter.previewImage().size();
-                             uncommitted_live_viewport = QSize(presenter.previewViewportWidth(),
-                                                               presenter.previewViewportHeight());
-                         }
-                     });
+    QObject::connect(
+        &presenter, &StudioPresenter::previewChanged, &presenter,
+        [&]
+        {
+            const auto url = presenter.previewUrl();
+            if (url.scheme() == QLatin1String("image") && url.path() == QLatin1String("/live"))
+            {
+                saw_uncommitted_live = true;
+                uncommitted_live_image_size = presenter.previewImage().size();
+                uncommitted_live_viewport =
+                    QSize(presenter.previewViewportWidth(), presenter.previewViewportHeight());
+            }
+        });
     presenter.previewDevelopNumber(QStringLiteral("exposure"), 0.25);
     ASSERT_TRUE(wait_until([&] { return saw_uncommitted_live && !presenter.previewLoading(); }))
         << presenter.errorText().toStdString();
@@ -3490,6 +3600,7 @@ TEST(StudioQmlContract, CropOverlayShowsWhenCropToolActivates)
     const auto visible_line =
         source.mid(visible, source.indexOf(QLatin1Char('\n'), visible) - visible);
     EXPECT_TRUE(visible_line.contains(QStringLiteral("cropToolActive")));
+    EXPECT_TRUE(visible_line.contains(QStringLiteral("studio.previewUrl")));
     EXPECT_TRUE(visible_line.contains(QStringLiteral("photoPlane.width")));
     EXPECT_FALSE(visible_line.contains(QStringLiteral("cropGuideReady")));
     EXPECT_TRUE(source.contains(QStringLiteral("rotation: 0")));
@@ -3534,6 +3645,10 @@ TEST(StudioQmlContract, PhotoNavigationPansClampsAndResetsOnlyOnOwnedStateChange
     EXPECT_TRUE(source.contains(QStringLiteral("function applyPhotoViewportAfterZoom()")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportWidth")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.previewViewportHeight")));
+    EXPECT_TRUE(source.contains(QStringLiteral("previewPlaceholderReady")));
+    EXPECT_TRUE(source.contains(QStringLiteral("id: previewPlaceholderImage")));
+    EXPECT_TRUE(source.contains(QStringLiteral("studio.selectedThumbnailUrl")));
+    EXPECT_TRUE(source.contains(QStringLiteral("source: studio.previewUrl")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitWidth")));
     EXPECT_FALSE(source.contains(QStringLiteral("previewImage.implicitHeight")));
     EXPECT_TRUE(source.contains(QStringLiteral("function beginInspectZoomAnimation()")));
@@ -3623,7 +3738,8 @@ TEST(StudioQmlContract, GalleryRequestsSparsePagesFromVisibleDelegates)
     EXPECT_TRUE(source.contains(QStringLiteral("studio.loadNextLibraryPage()")));
     EXPECT_TRUE(source.contains(QStringLiteral("studio.ensureLibraryRow(tile.index)")));
     EXPECT_TRUE(source.contains(QStringLiteral("onAssetIdChanged")));
-    EXPECT_TRUE(source.contains(QStringLiteral("cacheBuffer: cellHeight * 8")));
+    EXPECT_TRUE(source.contains(QStringLiteral("cacheBuffer: cellHeight")));
+    EXPECT_FALSE(source.contains(QStringLiteral("cacheBuffer: cellHeight * 8")));
 }
 
 TEST(StudioQmlContract, LibraryFilterBarUsesCanonicalQueryCommands)

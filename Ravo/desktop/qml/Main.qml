@@ -62,6 +62,7 @@ ApplicationWindow {
     property real inspectAnimOriginY: 0
     readonly property int inspectZoomDurationMs: 240
     readonly property bool comparisonReady: studio.comparisonActive && studio.comparisonBeforeUrl.toString().length > 0 && studio.previewUrl.toString().length > 0
+    readonly property bool previewPlaceholderReady: studio.browseMode !== "grid" && studio.previewLoading && studio.previewUrl.toString().length === 0 && studio.selectedThumbnailUrl.toString().length > 0 && studio.selectedImportState !== "missing"
     readonly property bool photoInspectEnabled: {
         if (studio.browseMode === "grid" || (studio.browseMode === "develop" && studio.cropToolActive))
             return false;
@@ -853,7 +854,7 @@ ApplicationWindow {
                     model: studio.assets
                     cellWidth: galleryStage.fittedGridCell(width, studio.thumbnailSize + Fonts.size12)
                     cellHeight: cellWidth
-                    cacheBuffer: cellHeight * 8
+                    cacheBuffer: cellHeight
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AlwaysOn
                         implicitWidth: 10
@@ -1010,6 +1011,18 @@ ApplicationWindow {
                                     antialiasing: true
 
                                     Image {
+                                        id: previewPlaceholderImage
+                                        anchors.fill: parent
+                                        asynchronous: true
+                                        cache: true
+                                        source: window.previewPlaceholderReady ? studio.selectedThumbnailUrl : ""
+                                        visible: window.previewPlaceholderReady
+                                        fillMode: Image.Stretch
+                                        smooth: true
+                                        antialiasing: true
+                                    }
+
+                                    Image {
                                         id: previewImage
                                         x: window.comparisonReady ? parent.width / 2 : 0
                                         width: window.comparisonReady ? parent.width / 2 : parent.width
@@ -1020,6 +1033,25 @@ ApplicationWindow {
                                         fillMode: Image.Stretch
                                         smooth: true
                                         antialiasing: true
+                                    }
+
+                                    Rectangle {
+                                        anchors.top: parent.top
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        anchors.topMargin: Fonts.size8
+                                        width: loadingPreviewLabel.implicitWidth + Fonts.size12
+                                        height: loadingPreviewLabel.implicitHeight + Fonts.size8
+                                        visible: window.previewPlaceholderReady
+                                        color: Qt.rgba(0, 0, 0, 0.62)
+                                        radius: 3
+                                        z: 3
+
+                                        CustomLabel {
+                                            id: loadingPreviewLabel
+                                            anchors.centerIn: parent
+                                            text: qsTr("Loading preview…")
+                                            color: "#ffffff"
+                                        }
                                     }
 
                                     Image {
@@ -1131,7 +1163,7 @@ ApplicationWindow {
 
                                 CropOverlay {
                                     anchors.fill: parent
-                                    visible: studio.browseMode === "develop" && studio.cropToolActive && !studio.comparisonActive && photoPlane.width > 1
+                                    visible: studio.browseMode === "develop" && studio.cropToolActive && !studio.comparisonActive && studio.previewUrl.toString().length > 0 && photoPlane.width > 1
                                     imageX: photoPlane.x
                                     imageY: photoPlane.y
                                     imageWidth: photoPlane.width

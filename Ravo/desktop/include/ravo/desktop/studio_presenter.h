@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -644,9 +645,10 @@ private:
     void requestPreviewForSelection();
     void reloadVisibleAssets();
     void start_catalog_revision_watch(std::int64_t revision);
-    void queuePreviewWarmup();
+    void resetThumbnailDemand();
     void requestLibraryPage(std::size_t offset, std::optional<std::string> cursor, bool sequential);
-    void kickPreviewWarmup();
+    void kickThumbnailDemand();
+    void startThumbnailRequest(std::string asset_id);
     void setImportWork(int completed, int total, bool active);
     void startNextImportItem();
     void finishImportBatch();
@@ -654,7 +656,7 @@ private:
     void startPreviewRebuild(std::vector<std::string> asset_ids, std::size_t expected_total);
     void startScheduledBackup(bool force);
     void ingestImportedItem(const ImportItemResult &item);
-    void finishPreviewJob(bool success);
+    void finishThumbnailRequest(bool success);
     void load_develop_for_selection();
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
     void reload_recipe_history();
@@ -772,8 +774,8 @@ private:
     std::size_t library_next_offset_ = 0U;
     std::optional<std::size_t> pending_library_page_offset_;
     std::optional<CatalogBackupPolicy> backup_policy_;
-    bool preview_warmup_in_flight_ = false;
-    std::vector<std::string> pending_preview_ids_;
+    bool thumbnail_request_in_flight_ = false;
+    std::deque<std::string> pending_thumbnail_ids_;
     QString status_text_{QStringLiteral("Create or open a library to import photos.")};
     QString error_text_;
     QString selected_asset_id_;
