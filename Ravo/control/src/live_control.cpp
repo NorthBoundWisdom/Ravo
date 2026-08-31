@@ -990,12 +990,23 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
     // every post-connect return so discovery's ping can be followed immediately
     // by a state or mutation request without a transient not-found result.
     const LocalSocketCloseGuard close_guard(socket, timeout_ms);
-    if (socket.write(outgoing) != outgoing.size() ||
-        (socket.bytesToWrite() > 0 && !socket.waitForBytesWritten(timeout_ms)))
+    if (socket.write(outgoing) != outgoing.size())
     {
         return make_error(
             ErrorCode::kIo, "Cannot write the Studio live-control request",
             {{"session_id", descriptor.session_id}, {"reason", utf8(socket.errorString())}});
+    }
+    QElapsedTimer write_timer;
+    write_timer.start();
+    while (socket.bytesToWrite() > 0)
+    {
+        const int remaining = timeout_ms - static_cast<int>(write_timer.elapsed());
+        if (remaining <= 0 || (!socket.waitForBytesWritten(remaining) && socket.bytesToWrite() > 0))
+        {
+            return make_error(
+                ErrorCode::kIo, "Cannot write the Studio live-control request",
+                {{"session_id", descriptor.session_id}, {"reason", utf8(socket.errorString())}});
+        }
     }
 
     QByteArray incoming;
