@@ -69,10 +69,14 @@ QVariantMap StudioPresenter::backupScheduleStatus() const
         {QStringLiteral("loaded"), true},
         {QStringLiteral("enabled"), backup_policy_->enabled},
         {QStringLiteral("destination"), qstring_from_utf8(backup_policy_->destination_directory)},
-        {QStringLiteral("intervalMinutes"), backup_policy_->interval_minutes},
+        {QStringLiteral("intervalMinutes"),
+         QVariant::fromValue<qint64>(static_cast<qint64>(backup_policy_->interval_minutes))},
         {QStringLiteral("retentionCount"), backup_policy_->retention_count},
-        {QStringLiteral("lastSuccessUnixMs"), backup_policy_->last_success_unix_ms.value_or(0)},
-        {QStringLiteral("nextRunUnixMs"), backup_policy_->next_run_unix_ms.value_or(0)},
+        {QStringLiteral("lastSuccessUnixMs"),
+         QVariant::fromValue<qint64>(
+             static_cast<qint64>(backup_policy_->last_success_unix_ms.value_or(0)))},
+        {QStringLiteral("nextRunUnixMs"), QVariant::fromValue<qint64>(static_cast<qint64>(
+                                              backup_policy_->next_run_unix_ms.value_or(0)))},
         {QStringLiteral("lastBackupBytes"),
          QVariant::fromValue<qulonglong>(backup_policy_->last_backup_bytes)},
         {QStringLiteral("lastError"),

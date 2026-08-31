@@ -25,6 +25,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QKeySequence>
+#include <QMetaType>
 #include <QProcess>
 #include <QSize>
 #include <QThread>
@@ -3234,6 +3235,11 @@ TEST(StudioPresenterTest, CatalogRecoveryCommandsBackupVerifyRestoreAndRebuild)
     auto schedule_status = presenter.backupScheduleStatus();
     EXPECT_TRUE(schedule_status.value(QStringLiteral("loaded")).toBool());
     EXPECT_TRUE(schedule_status.value(QStringLiteral("enabled")).toBool());
+    EXPECT_EQ(schedule_status.value(QStringLiteral("intervalMinutes")).typeId(),
+              QMetaType::LongLong);
+    EXPECT_EQ(schedule_status.value(QStringLiteral("lastSuccessUnixMs")).typeId(),
+              QMetaType::LongLong);
+    EXPECT_EQ(schedule_status.value(QStringLiteral("nextRunUnixMs")).typeId(), QMetaType::LongLong);
     EXPECT_EQ(schedule_status.value(QStringLiteral("retentionCount")).toInt(), 2);
 
     auto run_schedule =
