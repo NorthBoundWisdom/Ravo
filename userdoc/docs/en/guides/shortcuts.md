@@ -42,7 +42,7 @@ modifier.
 | Redo | `Cmd/Ctrl+Shift+Z` |
 | Copy Parameters | `Cmd/Ctrl+Shift+C` |
 | Paste Parameters | `Cmd/Ctrl+Alt+V` |
-| Paste Parameters to Selection | `Cmd/Ctrl+Shift+V` |
+| Paste Parameters to Selection | `Cmd/Ctrl+Alt+Shift+V` |
 | Reset All Edits | `Cmd/Ctrl+Shift+R` |
 | Gallery | `Cmd/Ctrl+1` or `G` |
 | Loupe | `Cmd/Ctrl+2`, `E`, or Return |

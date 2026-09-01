@@ -51,12 +51,14 @@
 #include "raw_temperature.h"
 #include "recursive_gaussian.h"
 #include "temperature_fixture.h"
+#include "engine_test_support.h"
 #include "test_support.h"
 
 namespace ravo
 {
 namespace
 {
+using namespace engine_test_support;
 
 class RecordingProgressSink final : public ProgressSink
 {
@@ -68,191 +70,6 @@ public:
 
     std::vector<ProgressEvent> events;
 };
-
-[[nodiscard]] std::string mire1_path()
-{
-    const auto path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
-    const auto utf8 = path.generic_u8string();
-    return {utf8.begin(), utf8.end()};
-}
-
-[[nodiscard]] std::string mire1_xtrans_path()
-{
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
-                      "mire1-xtrans.raf";
-    const auto utf8 = path.generic_u8string();
-    return {utf8.begin(), utf8.end()};
-}
-
-struct SourceFileSnapshot
-{
-    std::uintmax_t size = 0;
-    std::filesystem::file_time_type modified;
-    std::uint64_t content_hash = 1469598103934665603ULL;
-
-    bool operator==(const SourceFileSnapshot &) const = default;
-};
-
-[[nodiscard]] std::optional<SourceFileSnapshot> source_file_snapshot(const std::string &path)
-{
-    std::error_code error;
-    SourceFileSnapshot result;
-    result.size = std::filesystem::file_size(path, error);
-    if (error)
-    {
-        return std::nullopt;
-    }
-    result.modified = std::filesystem::last_write_time(path, error);
-    if (error)
-    {
-        return std::nullopt;
-    }
-    std::ifstream input(path, std::ios::binary);
-    if (!input)
-    {
-        return std::nullopt;
-    }
-    std::array<char, 64U * 1024U> block{};
-    while (input)
-    {
-        input.read(block.data(), static_cast<std::streamsize>(block.size()));
-        const auto read = input.gcount();
-        for (std::streamsize index = 0; index < read; ++index)
-        {
-            result.content_hash ^=
-                static_cast<std::uint8_t>(block[static_cast<std::size_t>(index)]);
-            result.content_hash *= 1099511628211ULL;
-        }
-    }
-    if (!input.eof())
-    {
-        return std::nullopt;
-    }
-    return result;
-}
-
-struct DecodedPng
-{
-    std::uint32_t width = 0;
-    std::uint32_t height = 0;
-    std::vector<png_byte> pixels;
-};
-
-void declare_srgb(RasterBuffer &raster)
-{
-    raster.color_profile.kind = ColorProfileKind::kBuiltin;
-    raster.color_profile.model = ColorModel::kRgb;
-    raster.color_profile.identifier = "srgb";
-}
-
-void declare_linear_srgb_matrix(DecodedRaw &raw)
-{
-    raw.color_profile.kind = ColorProfileKind::kMatrix;
-    raw.color_profile.model = ColorModel::kRgb;
-    raw.color_profile.identifier = "enhanced_matrix";
-    raw.color_profile.matrix_to_xyz_d50 = {0.4360747F, 0.3850649F, 0.1430804F,
-                                           0.2225045F, 0.7168786F, 0.0606169F,
-                                           0.0139322F, 0.0971045F, 0.7141733F};
-    raw.color_profile.has_matrix = true;
-    raw.color_profile.camera_input = true;
-}
-
-void declare_input(Recipe &recipe)
-{
-    recipe.operations.push_back({"ravo.color.input", 1, "color-input-1", true,
-                                 input_color_to_parameters(InputColorParams{}), std::nullopt});
-    recipe.operations.push_back({"ravo.color.output", 1, "color-output-1", true,
-                                 output_color_to_parameters(OutputColorParams{}), std::nullopt});
-}
-
-[[nodiscard]] std::shared_ptr<const ExposureAnalysisContext>
-exposure_analysis(const std::initializer_list<std::pair<std::uint16_t, std::uint32_t>> bins,
-                  const std::uint32_t black_level, const std::uint32_t white_level,
-                  RawExposureMetadata metadata = {})
-{
-    auto context = std::make_shared<ExposureAnalysisContext>();
-    context->raw_histogram.assign(kExposureRawHistogramBins, 0U);
-    for (const auto &[bin, count] : bins)
-    {
-        context->raw_histogram[bin] += count;
-        context->raw_pixel_count += count;
-    }
-    context->raw_black_level = black_level;
-    context->raw_white_level = white_level;
-    context->metadata = std::move(metadata);
-    return context;
-}
-
-[[nodiscard]] std::optional<DecodedPng> read_rgb_png(const std::filesystem::path &path)
-{
-    png_image image{};
-    image.version = PNG_IMAGE_VERSION;
-    if (png_image_begin_read_from_file(&image, path.string().c_str()) == 0)
-    {
-        return std::nullopt;
-    }
-    image.format = PNG_FORMAT_RGB;
-    DecodedPng result{image.width, image.height, std::vector<png_byte>(PNG_IMAGE_SIZE(image))};
-    if (png_image_finish_read(&image, nullptr, result.pixels.data(), 0, nullptr) == 0)
-    {
-        png_image_free(&image);
-        return std::nullopt;
-    }
-    png_image_free(&image);
-    return result;
-}
-
-[[nodiscard]] std::optional<DecodedPng> read_rgb_png(const std::vector<std::uint8_t> &encoded)
-{
-    png_image image{};
-    image.version = PNG_IMAGE_VERSION;
-    if (encoded.empty() ||
-        png_image_begin_read_from_memory(&image, encoded.data(), encoded.size()) == 0)
-    {
-        return std::nullopt;
-    }
-    image.format = PNG_FORMAT_RGB;
-    DecodedPng result{image.width, image.height, std::vector<png_byte>(PNG_IMAGE_SIZE(image))};
-    if (png_image_finish_read(&image, nullptr, result.pixels.data(), 0, nullptr) == 0)
-    {
-        png_image_free(&image);
-        return std::nullopt;
-    }
-    png_image_free(&image);
-    return result;
-}
-
-[[nodiscard]] std::size_t png_chunk_count(const std::string &png_bytes,
-                                          const std::string_view chunk_type)
-{
-    if (png_bytes.size() < 8U || chunk_type.size() != 4U)
-    {
-        return 0;
-    }
-    std::size_t offset = 8U;
-    std::size_t count = 0;
-    while (png_bytes.size() - offset >= 12U)
-    {
-        const auto byte = [&png_bytes, offset](const std::size_t index)
-        {
-            return static_cast<std::uint32_t>(
-                static_cast<unsigned char>(png_bytes[offset + index]));
-        };
-        const auto length = (byte(0U) << 24U) | (byte(1U) << 16U) | (byte(2U) << 8U) | byte(3U);
-        const auto remaining = png_bytes.size() - offset;
-        if (static_cast<std::size_t>(length) > remaining - 12U)
-        {
-            return 0;
-        }
-        if (std::equal(chunk_type.begin(), chunk_type.end(), png_bytes.data() + offset + 4U))
-        {
-            ++count;
-        }
-        offset += 12U + static_cast<std::size_t>(length);
-    }
-    return offset == png_bytes.size() ? count : 0;
-}
 
 TEST(EngineFacadeTest, ExposesExactlyTheReservedPhaseOneDescriptors)
 {
@@ -1447,7 +1264,6 @@ TEST(EngineFacadeTest, InspectReadsTheFrozenRawFixture)
     EXPECT_GT(inspected.value().as_shot_white_balance[0], 0.0);
     EXPECT_NEAR(inspected.value().as_shot_white_balance[1], 1.0, 1.0e-6);
 }
-
 
 } // namespace
 } // namespace ravo

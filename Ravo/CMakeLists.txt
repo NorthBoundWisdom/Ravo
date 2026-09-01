@@ -411,7 +411,18 @@ function(ravo_add_private_exiv2)
   add_subdirectory("${RAVO_EXIV2_SOURCE_ROOT}" "${CMAKE_BINARY_DIR}/_deps/exiv2" EXCLUDE_FROM_ALL)
   if(TARGET exiv2lib)
     target_include_directories(exiv2lib SYSTEM INTERFACE
+      "$<BUILD_INTERFACE:${RAVO_EXIV2_SOURCE_ROOT}/include>"
       "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>")
+  endif()
+  # Exiv2 owns its source diagnostics. Keep the pinned third-party target from
+  # leaking its known unused callback parameter into otherwise warning-clean
+  # Ravo builds without weakening warnings on any first-party target.
+  if(TARGET exiv2lib_int)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+      target_compile_options(exiv2lib_int PRIVATE -Wno-unused-parameter)
+    elseif(MSVC)
+      target_compile_options(exiv2lib_int PRIVATE /wd4100)
+    endif()
   endif()
   foreach(_ravo_exiv2_option IN ITEMS
       EXIV2_ENABLE_XMP

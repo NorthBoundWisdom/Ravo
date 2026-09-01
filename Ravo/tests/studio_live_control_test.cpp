@@ -58,119 +58,13 @@
 #include "studio_debug_info.h"
 #include "studio_language_manager.h"
 
+#include "studio_test_support.h"
+
 namespace ravo
 {
 namespace
 {
-
-void ensure_qt_core();
-
-void ensure_qt_core()
-{
-    if (QCoreApplication::instance() != nullptr)
-        return;
-    static int argc = 1;
-    static char executable[] = "ravo-desktop-command-tests";
-    static char *argv[] = {executable, nullptr};
-    static auto *application = new QCoreApplication(argc, argv);
-    static_cast<void>(application);
-}
-
-[[nodiscard]] bool wait_until(const std::function<bool()> &ready, const int timeout_ms = 15000)
-{
-    QElapsedTimer timer;
-    timer.start();
-    while (timer.elapsed() < timeout_ms)
-    {
-        if (ready())
-        {
-            return true;
-        }
-        QCoreApplication::processEvents();
-        QThread::msleep(10);
-    }
-    return ready();
-}
-
-class ScopedEnvironmentVariable
-{
-public:
-    ScopedEnvironmentVariable(const char *name, const QByteArray &value)
-        : name_(name)
-        , old_value_(qgetenv(name))
-        , was_set_(qEnvironmentVariableIsSet(name))
-    {
-        qputenv(name, value);
-    }
-
-    ~ScopedEnvironmentVariable()
-    {
-        if (was_set_)
-            qputenv(name_.constData(), old_value_);
-        else
-            qunsetenv(name_.constData());
-    }
-
-private:
-    QByteArray name_;
-    QByteArray old_value_;
-    bool was_set_ = false;
-};
-
-struct CliProcessResult
-{
-    int exit_code = -1;
-    QByteArray standard_output;
-    QByteArray standard_error;
-};
-
-[[nodiscard]] CliProcessResult run_cli_process(const QStringList &arguments,
-                                               const int timeout_ms = 30000)
-{
-    QProcess process;
-    process.setProgram(QStringLiteral(RAVO_CLI_EXECUTABLE));
-    process.setArguments(arguments);
-    process.start();
-    const bool finished =
-        wait_until([&] { return process.state() == QProcess::NotRunning; }, timeout_ms);
-    if (!finished)
-    {
-        process.kill();
-        process.waitForFinished(5000);
-    }
-    return {finished ? process.exitCode() : -1, process.readAllStandardOutput(),
-            process.readAllStandardError()};
-}
-
-[[nodiscard]] Result<JsonValue> cli_data(const QByteArray &output)
-{
-    const QByteArray trimmed = output.trimmed();
-    auto envelope =
-        parse_json(std::string_view(trimmed.constData(), static_cast<std::size_t>(trimmed.size())));
-    if (!envelope)
-        return envelope.error();
-    const auto *data = envelope.value().find("data");
-    if (data == nullptr)
-        return make_error(ErrorCode::kValidation, "CLI response has no data object");
-    return *data;
-}
-
-[[nodiscard]] QString qml_model_entry(const QString &source, const char *field)
-{
-    const auto needle = QStringLiteral("\"field\": \"%1\"").arg(QString::fromLatin1(field));
-    const auto field_position = source.indexOf(needle);
-    if (field_position < 0)
-    {
-        return {};
-    }
-    const auto begin = source.lastIndexOf(QLatin1Char('{'), field_position);
-    const auto end = source.indexOf(QLatin1Char('}'), field_position);
-    if (begin < 0 || end < field_position)
-    {
-        return {};
-    }
-    return source.mid(begin, end - begin + 1);
-}
+using namespace studio_test_support;
 
 TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBackground)
 {
@@ -569,8 +463,8 @@ TEST(StudioQmlContract, SurveyAndVersionBadgesStayInPresenterOwnedQml)
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property int stackCount")));
     EXPECT_TRUE(thumbnail_source.contains(QStringLiteral("property bool stackPick")));
 
-    QFile bar(QStringLiteral(RAVO_REPOSITORY_ROOT
-                             "/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"));
+    QFile bar(
+        QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"));
     ASSERT_TRUE(bar.open(QIODevice::ReadOnly | QIODevice::Text)) << bar.errorString().toStdString();
     const auto bar_source = QString::fromUtf8(bar.readAll());
     EXPECT_TRUE(bar_source.contains(QStringLiteral("ids.viewSurvey")));
@@ -619,7 +513,8 @@ TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
     commands.executeCommand(QStringLiteral("studio.view.show_grid"));
     ASSERT_TRUE(wait_until([&] { return presenter.browseMode() == QLatin1String("grid"); }));
     presenter.selectFolder(QString{});
-    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 2 && !presenter.lastImportSelected(); }))
+    ASSERT_TRUE(wait_until(
+        [&] { return presenter.visibleCount() == 2 && !presenter.lastImportSelected(); }))
         << presenter.errorText().toStdString();
     presenter.selectAsset(primary);
     commands.executeCommand(QStringLiteral("studio.photo.create_version"));
@@ -637,7 +532,8 @@ TEST(StudioPresenterTest, VersionsStacksAndSurveyUseSerialBrowsePreviews)
     presenter.selectAsset(primary);
     presenter.toggleAssetSelected(other);
     commands.executeCommand(QStringLiteral("studio.photo.stack_selection"));
-    ASSERT_TRUE(wait_until([&] { return presenter.visibleCount() == 2 && presenter.collapseStacks(); }))
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.visibleCount() == 2 && presenter.collapseStacks(); }))
         << presenter.errorText().toStdString();
 }
 

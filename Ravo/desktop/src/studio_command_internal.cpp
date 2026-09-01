@@ -373,7 +373,7 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Paste Parameters to Selection")),
         edit, {QStringLiteral("history"), QStringLiteral("clipboard"), QStringLiteral("sync")},
         QStringLiteral("edit.history"), 45, true,
-        {key(primary_key(QStringLiteral("V"), true), true)});
+        {key(primary_key(QStringLiteral("V"), true, true), true)});
     add(command::kEditResetAll, command::kEditResetAll,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Reset All Edits")), edit,
         {QStringLiteral("develop"), QStringLiteral("clear")}, QStringLiteral("edit.reset"), 10,

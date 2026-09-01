@@ -66,123 +66,6 @@ namespace ravo
 namespace
 {
 
-[[nodiscard]] std::string repository_path(const std::filesystem::path &relative)
-{
-    const auto path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / relative;
-    const auto utf8 = path.generic_u8string();
-    return {utf8.begin(), utf8.end()};
-}
-
-[[nodiscard]] std::string png_fixture_path()
-{
-    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "0000-nop" / "expected.png");
-}
-
-[[nodiscard]] std::string raw_fixture_path()
-{
-    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2");
-}
-
-[[nodiscard]] std::string xtrans_fixture_path()
-{
-    return repository_path(std::filesystem::path("Ravo") / "tests" / "fixtures" / "frozen" / "images" /
-                           "mire1-xtrans.raf");
-}
-
-[[nodiscard]] QByteArray file_sha256(const std::string &path)
-{
-    QFile file(QString::fromStdString(path));
-    EXPECT_TRUE(file.open(QIODevice::ReadOnly));
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    hash.addData(&file);
-    return hash.result();
-}
-
-[[nodiscard]] std::string sha256_text(const std::string_view text)
-{
-    return QCryptographicHash::hash(
-               QByteArrayView(text.data(), static_cast<qsizetype>(text.size())),
-               QCryptographicHash::Sha256)
-        .toHex()
-        .toStdString();
-}
-
-[[nodiscard]] std::string recovery_document_with_mutated_payload(
-    const std::filesystem::path &source,
-    const std::function<void(JsonValue::Object &)> &mutate_payload)
-{
-    QFile input(QString::fromStdString(source.string()));
-    EXPECT_TRUE(input.open(QIODevice::ReadOnly));
-    const auto bytes = input.readAll();
-    auto parsed =
-        parse_json(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
-    EXPECT_TRUE(parsed) << parsed.error().message;
-    if (!parsed || parsed.value().object_if() == nullptr)
-        return {};
-    auto root = *parsed.value().object_if();
-    const auto payload_value = root.find("payload");
-    EXPECT_NE(payload_value, root.end());
-    if (payload_value == root.end() || payload_value->second.object_if() == nullptr)
-        return {};
-    auto payload = *payload_value->second.object_if();
-    mutate_payload(payload);
-    const auto canonical_payload = serialize_json(JsonValue{payload});
-    root.insert_or_assign("checksum", JsonValue::Object{{"algorithm", "sha256"},
-                                                        {"value", sha256_text(canonical_payload)}});
-    root.insert_or_assign("payload", JsonValue{std::move(payload)});
-    return serialize_json(JsonValue{std::move(root)});
-}
-
-struct RecoveryPublicationHookState
-{
-    recovery_publication_internal::Checkpoint target =
-        recovery_publication_internal::Checkpoint::kBeforeTemporaryOpen;
-    std::error_code injected_error;
-    CancellationSource *cancellation = nullptr;
-    std::string competitor_output;
-    bool probe_temporary_rename = false;
-    std::vector<std::string> observed_paths;
-};
-
-[[nodiscard]] std::error_code
-recovery_publication_hook(void *context, const recovery_publication_internal::Checkpoint checkpoint,
-                          const std::string_view path, const std::uint64_t bytes_processed) noexcept
-{
-    static_cast<void>(bytes_processed);
-    auto &state = *static_cast<RecoveryPublicationHookState *>(context);
-    state.observed_paths.emplace_back(path);
-    if (checkpoint != state.target)
-        return {};
-    if (state.cancellation != nullptr)
-        static_cast<void>(state.cancellation->cancel("recovery-publication-test"));
-    if (state.probe_temporary_rename)
-    {
-        const auto source = std::filesystem::path(path);
-        auto probe = source;
-        probe += ".ownership-probe";
-        std::error_code error;
-        std::filesystem::rename(source, probe, error);
-        if (error)
-            return error;
-        std::filesystem::rename(probe, source, error);
-        if (error)
-        {
-            std::error_code ignored;
-            std::filesystem::remove(probe, ignored);
-            return error;
-        }
-    }
-    if (!state.competitor_output.empty())
-    {
-        QFile competitor(QString::fromStdString(state.competitor_output));
-        if (!competitor.open(QIODevice::WriteOnly | QIODevice::NewOnly) ||
-            competitor.write("winner", 6) != 6)
-            return std::make_error_code(std::errc::io_error);
-        competitor.close();
-    }
-    return state.injected_error;
-}
-
 [[nodiscard]] std::vector<std::uint8_t> make_synthetic_capture_exif_tiff()
 {
     return {
@@ -506,8 +389,8 @@ TEST_F(CatalogServiceTest, RecognizedTiffLayoutsDoNotStealRawRouting)
     EXPECT_EQ(floating.value().error->context.at("reason"), "unsupported_tiff_float_samples");
     EXPECT_EQ(file_sha256(float_path), float_hash);
 
-    const auto arw = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" /
-                     "hlrecovery.arw";
+    const auto arw = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
+                     "frozen" / "images" / "hlrecovery.arw";
     const auto disguised = root / "camera.tif";
     std::filesystem::copy_file(arw, disguised);
     const auto disguised_hash = file_sha256(disguised.string());

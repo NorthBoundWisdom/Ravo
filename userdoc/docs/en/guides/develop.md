@@ -412,7 +412,7 @@ white-balance pick, or mask editing takes the image surface.
   immutable parameter snapshot in a session clipboard. **Paste Parameters**
   (`Cmd/Ctrl+Alt+V`) overlays only those selected logical fields on the active
   photo through normal history, undo, validation, and preview. **Paste
-  Parameters to Selection** (`Cmd/Ctrl+Shift+V`) applies the same clipboard to
+  Parameters to Selection** (`Cmd/Ctrl+Alt+Shift+V`) applies the same clipboard to
   every photo in an explicit multi-selection through the catalog. Unselected
   destination edits and target-only mask state are preserved. Session undo
   does not revert the other destinations; those photos keep per-photo history.

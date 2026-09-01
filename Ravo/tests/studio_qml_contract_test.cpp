@@ -58,64 +58,13 @@
 #include "studio_language_manager.h"
 #include "studio_qml_test_support.h"
 
+#include "studio_test_support.h"
+
 namespace ravo
 {
 namespace
 {
-
-void ensure_qt_core();
-
-void ensure_qt_core()
-{
-    if (QCoreApplication::instance() != nullptr)
-        return;
-    static int argc = 1;
-    static char executable[] = "ravo-desktop-command-tests";
-    static char *argv[] = {executable, nullptr};
-    static auto *application = new QCoreApplication(argc, argv);
-    static_cast<void>(application);
-}
-
-[[nodiscard]] bool wait_until(const std::function<bool()> &ready, const int timeout_ms = 15000)
-{
-    QElapsedTimer timer;
-    timer.start();
-    while (timer.elapsed() < timeout_ms)
-    {
-        if (ready())
-        {
-            return true;
-        }
-        QCoreApplication::processEvents();
-        QThread::msleep(10);
-    }
-    return ready();
-}
-
-class ScopedEnvironmentVariable
-{
-public:
-    ScopedEnvironmentVariable(const char *name, const QByteArray &value)
-        : name_(name)
-        , old_value_(qgetenv(name))
-        , was_set_(qEnvironmentVariableIsSet(name))
-    {
-        qputenv(name, value);
-    }
-
-    ~ScopedEnvironmentVariable()
-    {
-        if (was_set_)
-            qputenv(name_.constData(), old_value_);
-        else
-            qunsetenv(name_.constData());
-    }
-
-private:
-    QByteArray name_;
-    QByteArray old_value_;
-    bool was_set_ = false;
-};
+using namespace studio_test_support;
 
 TEST(StudioQmlContract, LightPresentsCommonControlsBeforeSpecializedSettings)
 {

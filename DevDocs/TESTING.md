@@ -317,8 +317,10 @@ components target at most 1,000 lines.
 `configs/test_split_inventory.jsonc` freezes the ordered GoogleTest case
 inventory and target membership of test files being decomposed. Splitting may
 move a case between listed source files, but cannot rename, disable, reorder, or
-move it to another target. Run all three repository checks and their self-tests
-through:
+move it to another target. Reusable fixtures and independent numeric oracles
+belong in target-owned `*_test_support.cpp` units; split test-case files do not
+carry private copies of the complete helper prelude. Run all three repository
+checks and their self-tests through:
 
 ```text
 cmake --build --preset mac_clang_debug --target RavoCodeQuality

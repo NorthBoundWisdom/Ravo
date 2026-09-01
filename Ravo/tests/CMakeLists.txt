@@ -50,6 +50,9 @@ gtest_discover_tests(ravo_preview_cache_tests PROPERTIES LABELS "ravo-unit")
 
 add_executable(ravo_contract_tests
   cli_test_support.cpp
+  engine_color_test_support.cpp
+  engine_harmony_test_support.cpp
+  engine_test_support.cpp
   cli_test.cpp
   cli_recipe_test.cpp
   cli_legacy_xmp_test.cpp
@@ -357,6 +360,7 @@ gtest_discover_tests(ravo_original_copy_cli_tests
 
 add_executable(ravo_desktop_command_tests
   studio_qml_test_support.cpp
+  studio_test_support.cpp
   studio_command_test.cpp
   studio_presenter_test.cpp
   studio_qml_contract_test.cpp
