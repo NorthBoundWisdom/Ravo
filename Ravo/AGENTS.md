@@ -17,7 +17,10 @@ constraint.
    resumed `MR*` item in
    [`../DevDocs/TODO_LEGACY_MIGRATION.md`](../DevDocs/TODO_LEGACY_MIGRATION.md),
    or to a
-   cross-cutting reliability gate. Desktop uses Qt 6 Quick/QML; Qt Sql remains
+   cross-cutting reliability gate.
+   [`../DevDocs/TODO_PRO_WORKFLOW.md`](../DevDocs/TODO_PRO_WORKFLOW.md) ranks
+   Lightroom/Capture One gaps and does not independently authorize
+   implementation. Desktop uses Qt 6 Quick/QML; Qt Sql remains
    solely in the private SQLite adapter. Qt Widgets, a second presentation
    architecture, and an old GTK adapter are not approved.
 5. Before cross-layer work, state ownership, lifecycle, thread boundaries,

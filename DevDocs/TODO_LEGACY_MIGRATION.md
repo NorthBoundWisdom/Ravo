@@ -20,7 +20,9 @@ migration policy, leftover boundary, and test contracts are owned by
 Ravo/README.md, DevDocs/ARCHITECTURE.md, DevDocs/MIGRATION.md, and
 DevDocs/TESTING.md.
 DevDocs/ProductRoadmap.md records cross-layer design constraints that are not
-ready for execution.
+ready for execution. DevDocs/TODO_PRO_WORKFLOW.md ranks photographer-visible
+Lightroom/Capture One gaps against those constraints and is not independently
+ready.
 
 ## 1. Execution rules
 
@@ -343,7 +345,9 @@ covered.
 
 Sections 3.1–3.7 list every current remaining module.
 DevDocs/ProductRoadmap.md keeps only not-yet-frozen cross-layer design
-constraints; it cannot be used to hide modules from this TODO. Section 2.1 is
+constraints; it cannot be used to hide modules from this TODO.
+TODO_PRO_WORKFLOW.md ranks DAM/delivery user outcomes and cannot promote a
+legacy IOP or skip this queue's Ready order. Section 2.1 is
 the sole execution order; these owner tables cannot be used to promote an easy
 legacy deletion over a higher-value Ready outcome.
 

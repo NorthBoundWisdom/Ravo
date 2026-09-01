@@ -41,7 +41,8 @@ Ravo is **not yet a complete darktable replacement**. Historic blend modes,
 remaining image operations, sidecar/history metadata policy, GPU acceleration,
 and end-to-end installation verification on every platform are still open.
 [The Ravo product document](Ravo/README.md), the
-[remaining product P0/P1 release gates](DevDocs/TODO_PHOTO_MANAGEMENT.md), and
+[remaining product P0/P1 release gates](DevDocs/TODO_PHOTO_MANAGEMENT.md), the
+[professional workflow gap ranking](DevDocs/TODO_PRO_WORKFLOW.md), and
 the separate [legacy migration TODO](DevDocs/TODO_LEGACY_MIGRATION.md) define
 the supported scope, validation status, and next work item.
 
@@ -137,6 +138,7 @@ Read the [Ravo User Handbook](userdoc/README.md), or visit the
 - [Testing and validation strategy](DevDocs/TESTING.md)
 - [Migration policy and capability ledger](DevDocs/MIGRATION.md)
 - [Remaining product P0/P1 release evidence](DevDocs/TODO_PHOTO_MANAGEMENT.md)
+- [Professional workflow gaps versus Lightroom/Capture One](DevDocs/TODO_PRO_WORKFLOW.md)
 - [Legacy algorithm migration and retirement](DevDocs/TODO_LEGACY_MIGRATION.md)
 - [Developer documentation index](DevDocs/README.md)
 - [Frozen darktable 0.9 reference tree](legacy/README.md)
@@ -187,7 +189,9 @@ Issues and pull requests are welcome. Start with
 [`AGENTS.md`](AGENTS.md) for repository-wide engineering constraints,
 [`Ravo/AGENTS.md`](Ravo/AGENTS.md) for the `Ravo/` subtree, and
 [`DevDocs/TODO_PHOTO_MANAGEMENT.md`](DevDocs/TODO_PHOTO_MANAGEMENT.md) for the
-remaining product P0/P1 release gates. Legacy algorithm work additionally
+remaining product P0/P1 release gates. Ranked Lightroom/Capture One gaps live in
+[`DevDocs/TODO_PRO_WORKFLOW.md`](DevDocs/TODO_PRO_WORKFLOW.md) and are not
+independently ready. Legacy algorithm work additionally
 follows [`DevDocs/TODO_LEGACY_MIGRATION.md`](DevDocs/TODO_LEGACY_MIGRATION.md).
 Behavior changes need matching Ravo unit or contract tests; `legacy/` is
 read-only.

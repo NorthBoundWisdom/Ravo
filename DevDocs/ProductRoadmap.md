@@ -7,6 +7,8 @@ queue.
 - Current P0/P1 release evidence: [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md)
 - Gallery performance evidence and gated candidates:
   [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md)
+- Ranked Lightroom/Capture One user-outcome gaps (not independently ready):
+  [TODO_PRO_WORKFLOW.md](TODO_PRO_WORKFLOW.md)
 - Legacy absorption and retirement: [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md)
 - Accepted ownership and invariants: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Legacy boundary and capability status: [MIGRATION.md](MIGRATION.md)
@@ -32,30 +34,45 @@ exists.
 
 ## Originals, catalogs, and interchange
 
-- Managed copy or move needs collision, cross-volume publication, source-change,
-  rollback, cancellation, and recovery-generation policy before schema or UI
-  work begins.
+Add/Copy/Move from a local scanned root is accepted (ADR-0102). Still undecided
+ingest expansions, each needing collision, cancellation, and original-safety
+rules before schema or UI work:
+
+- PTP/MTP camera-card ingest;
+- bounded rename templates;
+- second-copy backup during ingest;
+- DNG conversion and Smart Previews;
+- HEIC/HEIF still photography, and whether video is ever in scope.
+
+Also undecided:
+
 - Legacy catalog import needs a bounded source-version matrix and a read-only
   conversion artifact. Ravo must not open or migrate a frozen catalog in place.
 - Adjacent standard-XMP writeback needs conflict and authority rules. It must not
   overwrite an existing sidecar or become a second live authority beside
   SQLite.
+- External-editor round-trip needs a new raster asset or version, a wait/cancel
+  contract, and must not mutate the original RAW.
 - External LUT/image/font resources need versioned lookup, immutable content
   identity, and deterministic missing/corrupt behavior.
 
 ## Export and background work
 
-Foreground typed batch export is accepted. Durable background export jobs,
-restart recovery, and reusable export-option presets remain undecided. PNG pHYs
-and TIFF multipage masks stay with their format-specific migration owners rather
+Foreground typed batch export is accepted. Still undecided: long-edge or box
+resize, output sharpen relative to resize/watermark, durable background export
+jobs with restart recovery, and reusable export-option presets. PNG pHYs and
+TIFF multipage masks stay with their format-specific migration owners rather
 than entering a generic export rewrite.
 
 ## Extended library workflows
 
-Collections and smart search, stacking/versions, duplicate-content detection,
-face/GPS workflows, and removable or network catalogs each require explicit
-privacy, indexing, offline/conflict, persistence, cancellation, and recovery
-contracts. Do not add placeholder tables or empty Studio surfaces.
+Collections and smart search, stacking/versions/virtual copies, N-up
+compare/survey, duplicate-content detection, hierarchical keywords and IPTC
+depth, face/GPS workflows, selection-wide Develop sync, dual-monitor viewers,
+and removable or network catalogs each require explicit privacy, indexing,
+offline/conflict, persistence, cancellation, and recovery contracts. Do not add
+placeholder tables or empty Studio surfaces. ADR-0059 session filters are not a
+smart-collection substitute.
 
 ## Non-candidates
 

@@ -578,8 +578,11 @@ Current implementation status:
 
 The implemented product now has only private-corpus and non-macOS release
 evidence remaining in
-[TODO_PHOTO_MANAGEMENT.md](../DevDocs/TODO_PHOTO_MANAGEMENT.md). Legacy
-absorption and retirement remains paused in the separate `MR*` queue in
+[TODO_PHOTO_MANAGEMENT.md](../DevDocs/TODO_PHOTO_MANAGEMENT.md). Ranked
+Lightroom/Capture One user-outcome gaps are in
+[TODO_PRO_WORKFLOW.md](../DevDocs/TODO_PRO_WORKFLOW.md) and are not
+independently ready. Legacy absorption and retirement remains paused in the
+separate `MR*` queue in
 [TODO_LEGACY_MIGRATION.md](../DevDocs/TODO_LEGACY_MIGRATION.md); changes of
 direction are recorded in dated ADRs, beginning with
 [ADR-0007](../DevDocs/adr/0007-first-usable-catalog-viewer.md).
@@ -855,6 +858,8 @@ meets the product and migration TODO release-transition and rollback gates.
 - [ADR index](../DevDocs/adr/README.md): durable architecture decisions;
 - [photo-management TODO](../DevDocs/TODO_PHOTO_MANAGEMENT.md): remaining private-
   corpus and non-macOS P0/P1 release evidence;
+- [professional workflow TODO](../DevDocs/TODO_PRO_WORKFLOW.md): ranked
+  Lightroom/Capture One DAM and delivery gaps; not independently ready;
 - [legacy migration TODO](../DevDocs/TODO_LEGACY_MIGRATION.md): unfinished
   `MR*` algorithm-absorption and retirement gates only.
 

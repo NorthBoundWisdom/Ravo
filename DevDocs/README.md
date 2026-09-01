@@ -22,7 +22,8 @@ The following are separate owners and are not folded into `DevDocs/`:
 | [TODO_PHOTO_MANAGEMENT.md](TODO_PHOTO_MANAGEMENT.md) | Remaining P0/P1 platform, corpus, and interactive-latency release evidence |
 | [TODO_LEGACY_MIGRATION.md](TODO_LEGACY_MIGRATION.md) | Paused legacy absorption and retirement execution queue |
 | [TODO_GALLERY_PERFORMANCE.md](TODO_GALLERY_PERFORMANCE.md) | Release measurements and gated Gallery concurrency/cache candidates |
-| [ProductRoadmap.md](ProductRoadmap.md) | Cross-layer product decisions not ready for either TODO |
+| [TODO_PRO_WORKFLOW.md](TODO_PRO_WORKFLOW.md) | Ranked Lightroom/Capture One user-outcome gaps; not independently ready |
+| [ProductRoadmap.md](ProductRoadmap.md) | Cross-layer product decisions not ready for a TODO |
 | [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history |
 
 ## Operations and compliance

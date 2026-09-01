@@ -90,15 +90,17 @@ More-specific implementation and validation rules for this boundary live in
    current product release evidence, then read
    [`DevDocs/TODO_PHOTO_MANAGEMENT.md`](DevDocs/TODO_PHOTO_MANAGEMENT.md); for a
    legacy owner or retirement task, additionally read
-   [`DevDocs/TODO_LEGACY_MIGRATION.md`](DevDocs/TODO_LEGACY_MIGRATION.md). Read
-   `DevDocs/GPU_Baseline.md` for GPU work.
+   [`DevDocs/TODO_LEGACY_MIGRATION.md`](DevDocs/TODO_LEGACY_MIGRATION.md). For
+   Lightroom/Capture One user-outcome ranking, read
+   [`DevDocs/TODO_PRO_WORKFLOW.md`](DevDocs/TODO_PRO_WORKFLOW.md) — it is not
+   independently ready. Read `DevDocs/GPU_Baseline.md` for GPU work.
 4. Before cross-layer changes, make ownership, lifecycle, thread boundaries,
    and the minimum validation set explicit.
 
 Existing behavior is evidenced by the remaining `legacy/` code and
 `legacy/tests` fixtures. `DevDocs/` contains live Ravo development documents;
 `legacy/docs/` is a map of the old source. `DevDocs/MIGRATION.md` defines
-migration and leftover boundaries, and the two `DevDocs/TODO_*.md` files define
+migration and leftover boundaries, and `DevDocs/TODO_*.md` files define
 unfinished execution work.
 Until their definition of “Ravo accepted” is reached, do not modify `legacy/`.
 
@@ -107,8 +109,11 @@ Until their definition of “Ravo accepted” is reached, do not modify `legacy/
 - The C++20 Ravo Engine, supported `ravo` CLI, and Ravo Studio share one
   service layer. `Ravo/README.md` records the currently accepted baseline;
   `DevDocs/TODO_PHOTO_MANAGEMENT.md` owns unfinished product P0/P1 execution or
-  release evidence, and `DevDocs/TODO_LEGACY_MIGRATION.md` records remaining
-  legacy absorption/retirement.
+  release evidence, `DevDocs/TODO_GALLERY_PERFORMANCE.md` owns Gallery
+  measurement candidates, `DevDocs/TODO_PRO_WORKFLOW.md` ranks professional
+  DAM/delivery gaps but is not independently ready, and
+  `DevDocs/TODO_LEGACY_MIGRATION.md` records remaining legacy
+  absorption/retirement.
 - The `domain`, `services`, and Qt 6 Quick/QML `desktop` targets are already
   established. `Qt6::Qml`/`Qt6::Quick` and
   `QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts` imports may only be
